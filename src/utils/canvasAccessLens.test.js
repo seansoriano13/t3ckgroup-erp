@@ -125,6 +125,23 @@ describe("canvasAccessLens", () => {
   });
 });
 
+describe("canvasAccessLens with Always sees", () => {
+  const draft = (alwaysSees) => ({
+    stages: [{ id: "s1", shutOutRoles: ["support_sales"] }, { id: "s2" }],
+    employees,
+    alwaysSees,
+  })
+
+  it("still hides a Restricted Stage from a shut-out role when Always sees is Everyone", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft([{ type: "everyone" }]),
+      selector: { type: "role", role: "support_sales" },
+    })
+    expect(lens.s1).toBe("hidden")
+    expect(lens.s2).toBe("visible")
+  })
+})
+
 describe("stageHasAccessNote", () => {
   it("is false for a stage with no restriction and no call-in", () => {
     expect(stageHasAccessNote({ id: "s1" })).toBe(false);

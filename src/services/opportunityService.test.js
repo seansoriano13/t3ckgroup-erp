@@ -19,6 +19,7 @@ import {
   makeStageAction,
   makeStageCondition,
   makeStageField,
+  makeStageParticipant,
   makeStageVisit,
   makeSuperAdmin,
   makeTask,
@@ -36,6 +37,9 @@ import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
  * here is what the next person reads out of the system, not how the service
  * got there.
  */
+// A loop back is a Return (#390): those tests take the Resume path.
+const RESUME = { returnChoice: "resume" }
+
 describe("opportunityService", () => {
   let registrar
   let owner
@@ -210,6 +214,24 @@ describe("opportunityService", () => {
       expect(found.is_scratch).toBe(true)
     })
 
+    // The Release Notes deck opens the demo SOR scripts/seed-release-demo.mjs
+    // made last: a Scratch SOR, so the register never shows it.
+    it("finds the newest Release Notes demo SOR, and nothing else", async () => {
+      makeOpportunity({ registered_by: registrar.id, is_scratch: true, metadata: { releaseDemo: true }, created_at: "2026-09-27T00:00:00Z" })
+      const newest = makeOpportunity({ registered_by: registrar.id, is_scratch: true, metadata: { releaseDemo: true }, created_at: "2026-09-28T00:00:00Z" })
+      makeOpportunity({ registered_by: registrar.id, is_scratch: true, metadata: {}, created_at: "2026-09-29T00:00:00Z" })
+
+      const found = await opportunityService.getReleaseDemoSor()
+
+      expect(found.id).toBe(newest.id)
+    })
+
+    it("returns null when no demo SOR has been seeded", async () => {
+      makeOpportunity({ registered_by: registrar.id })
+
+      expect(await opportunityService.getReleaseDemoSor()).toBeNull()
+    })
+
     // Issue #170/#171 — same mechanism as Scratch: a retail order runs
     // identical code paths to a real deal, so the Register must ask.
     it("hides Retail SORs from the register", async () => {
@@ -272,13 +294,7 @@ describe("opportunityService", () => {
     it("advances when the sales reference is supplied with the move", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "QUALIFIED",
-        registrar.id,
-        null,
-        "S01237",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, { salesReference: "S01237" })
 
       expect(moved.status).toBe("QUALIFIED")
       expect(moved.sales_reference).toBe("S01237")
@@ -332,7 +348,7 @@ describe("opportunityService", () => {
     it("lets a lead be closed as lost before it was ever put out to bid", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
 
-      const moved = await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, "Cancelled")
+      const moved = await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, { lostReason: "Cancelled" })
 
       expect(moved.status).toBe("CLOSED_LOST")
     })
@@ -340,12 +356,7 @@ describe("opportunityService", () => {
     it("lets a lead be closed as lost before it was ever quoted", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "CLOSED_LOST",
-        registrar.id,
-        "Client cancelled the procurement",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, { lostReason: "Client cancelled the procurement" })
 
       expect(moved.status).toBe("CLOSED_LOST")
       expect(moved.lost_reason).toBe("Client cancelled the procurement")
@@ -353,7 +364,7 @@ describe("opportunityService", () => {
 
     it("clears the lost reason when a closed-lost deal is revived", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-      await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, "Budget cut")
+      await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, { lostReason: "Budget cut" })
 
       const revived = await opportunityService.updateStatus(lead.id, "NEGOTIATION", registrar.id)
 
@@ -385,7 +396,7 @@ describe("opportunityService", () => {
     it("names the reason on the timeline when a deal is lost", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, "Lost on price")
+      await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, { lostReason: "Lost on price" })
 
       const notes = await opportunityService.getNotes(lead.id)
       expect(notes.at(-1).content).toBe("Stage moved: Lead → Closed Lost — Lost on price")
@@ -394,7 +405,7 @@ describe("opportunityService", () => {
     it("records the sales reference separately from the stage move", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, null, "S01237")
+      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
       const notes = await opportunityService.getNotes(lead.id)
       expect(notes.map((n) => n.content)).toEqual([
@@ -406,7 +417,7 @@ describe("opportunityService", () => {
     it("does not re-record a sales reference that is already the one on file", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S01237" })
 
-      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, null, "S01237")
+      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
       const notes = await opportunityService.getNotes(lead.id)
       expect(notes.map((n) => n.content)).toEqual(["Stage moved: Lead → Proposal Submitted"])
@@ -416,7 +427,7 @@ describe("opportunityService", () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
       await expect(
-        opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, null, "12345"),
+        opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, { salesReference: "12345" }),
       ).rejects.toThrow(/Odoo quotation number/i)
 
       expect(await opportunityService.getNotes(lead.id)).toEqual([])
@@ -434,13 +445,7 @@ describe("opportunityService", () => {
     it("does not set the Contract Date for a transition that isn't Awarded", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "QUALIFIED",
-        registrar.id,
-        null,
-        "S01237",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, { salesReference: "S01237" })
 
       expect(moved.contract_date).toBeFalsy()
     })
@@ -593,13 +598,7 @@ describe("opportunityService", () => {
       // an incoming value as satisfying their own gate on the same call.
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "PROPOSAL_SUBMITTED",
-        registrar.id,
-        null,
-        "S01237",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
       expect(moved.status).toBe("PROPOSAL_SUBMITTED")
     })
@@ -717,6 +716,116 @@ describe("opportunityService", () => {
 
       const notes = await opportunityService.getNotes(created.id)
       expect(notes.some((n) => n.content.includes("Condition satisfied"))).toBe(false)
+    })
+
+    describe("Return: Resume previous work (#390)", () => {
+      const dealOnLead = () => {
+        makeFlowEdge(qualified, lead)
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        return makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
+      }
+
+      it("asks nothing for a Stage the SOR has never visited", async () => {
+        const deal = dealOnLead()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
+      })
+
+      it("refuses a Return made without a choice, naming what is needed", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const attempt = opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+        await expect(attempt).rejects.toThrow(/Resume previous work or Start fresh/)
+        await expect(attempt).rejects.toMatchObject({ needsReturnChoice: true })
+      })
+
+      it("Resume moves the earlier visit's work to the new visit, and records the choice on the timeline", async () => {
+        const deal = dealOnLead()
+        const firstVisit = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id)
+        db.internal.rowsOf("sor_stage_field_values").push({ id: "fv1", opportunity_id: deal.id, stage_visit_id: firstVisit.id, field_id: "f", value: "kept" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        expect(moved.flow_stage_id).toBe(lead.id)
+
+        const visits = db.internal.rowsOf("sor_stage_visits").filter((v) => v.opportunity_id === deal.id)
+        const current = visits.find((v) => v.left_at == null)
+        expect(current.return_choice).toBe("resume")
+        expect(db.internal.rowsOf("sor_stage_field_values").find((f) => f.id === "fv1").stage_visit_id).toBe(current.id)
+        const notes = db.internal.rowsOf("sales_opportunity_logs").filter((l) => l.opportunity_id === deal.id && l.metadata?.event === "STAGE_CHANGED")
+        expect(notes.at(-1).metadata.returnChoice).toBe("resume")
+      })
+
+      it("does not block a Return on the conditions of the Stage being left", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Sign-off", config: {} })
+        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        expect(moved.flow_stage_id).toBe(lead.id)
+      })
+    })
+
+    describe("Return: Start fresh (#391)", () => {
+      // Registered → Lead (fires the Stage's action) → Qualified → Return to
+      // Lead, so the earlier Lead visit was entered through a real move (and
+      // has a real action run to close off), not the raw seed row.
+      const dealOnRegistered = () => {
+        const registered = makeFlowStage({ flow_id: flow.id, name: "Registered", sort_order: -1 })
+        makeFlowEdge(registered, lead)
+        makeFlowEdge(qualified, lead)
+        makeStageAction({ stage_id: lead.id, kind: "create_individual_task", config: { title: "Say hello" } })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        return makeOpportunity({
+          registered_by: registrar.id, sales_reference: "S00997", sale_type_id: saleType.id,
+          flow_stage_id: registered.id, flow_snapshot_id: snapshot.id,
+        })
+      }
+
+      it("cancels the earlier visit's live task, closes off its action run, and fires the Stage's action again for the new visit", async () => {
+        const deal = dealOnRegistered()
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+
+        const firstTask = db.internal.rowsOf("tasks").find((t) => t.opportunity_id === deal.id)
+        expect(firstTask).toBeTruthy()
+        const firstRun = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        expect(firstRun.outcome).toBe("created")
+
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, { returnChoice: "start_fresh" })
+        expect(moved.flow_stage_id).toBe(lead.id)
+
+        const visits = db.internal.rowsOf("sor_stage_visits").filter((v) => v.opportunity_id === deal.id)
+        const current = visits.find((v) => v.left_at == null)
+        expect(current.return_choice).toBe("start_fresh")
+
+        const cancelledTask = db.internal.rowsOf("tasks").find((t) => t.id === firstTask.id)
+        expect(cancelledTask.status).toBe("DELETED")
+        expect(cancelledTask.cancel_reason).toBe("Superseded by a fresh start.")
+
+        const closedRun = db.internal.rowsOf("sor_action_runs").find((r) => r.id === firstRun.id)
+        expect(closedRun.closed_off_at).toBeTruthy()
+
+        const newRun = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id && r.id !== firstRun.id)
+        expect(newRun).toBeTruthy()
+        expect(newRun.outcome).toBe("created")
+        expect(newRun.stage_visit_id).toBe(current.id)
+        expect(db.internal.rowsOf("tasks").find((t) => t.id === newRun.task_id)?.stage_visit_id).toBe(current.id)
+
+        const notes = db.internal.rowsOf("sales_opportunity_logs").filter((l) => l.opportunity_id === deal.id && l.metadata?.event === "STAGE_CHANGED")
+        expect(notes.at(-1).metadata.returnChoice).toBe("start_fresh")
+      })
+
+      it("leaves ticks, files and field values on the earlier visit — nothing moves", async () => {
+        const deal = dealOnRegistered()
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+        const firstVisit = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id && v.flow_stage_id === lead.id)
+        db.internal.rowsOf("sor_stage_field_values").push({ id: "fv-sf", opportunity_id: deal.id, stage_visit_id: firstVisit.id, field_id: "f", value: "kept" })
+
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, { returnChoice: "start_fresh" })
+
+        expect(db.internal.rowsOf("sor_stage_field_values").find((f) => f.id === "fv-sf").stage_visit_id).toBe(firstVisit.id)
+      })
     })
 
     describe("assignment / SOR Members", () => {
@@ -959,6 +1068,28 @@ describe("opportunityService", () => {
           opportunityService.satisfyCondition(created.id, condition.id, registrar.id),
         ).rejects.toThrow(/archived/)
       })
+
+      // Issue #413 — the certify used to resolve "the current visit" and
+      // write the tick as two separate requests, so a Revert landing between
+      // them could land the tick on a visit the SOR had already left. Moved
+      // into one atomic RPC (sor_certify_condition) that refuses outright
+      // once the SOR is off the condition's own Stage, instead of silently
+      // writing it elsewhere.
+      it("refuses to certify a condition whose Stage the SOR isn't currently on", async () => {
+        const condition = makeStageCondition({ stage_id: qualified.id, kind: "tickbox" })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({
+          registered_by: registrar.id,
+          sales_reference: "S00999",
+          sale_type_id: saleType.id,
+          flow_stage_id: lead.id,
+          flow_snapshot_id: snapshot.id,
+        })
+
+        await expect(
+          opportunityService.satisfyCondition(deal.id, condition.id, registrar.id),
+        ).rejects.toThrow(/left this condition's Stage/)
+      })
     })
 
     // Issue #203 — Stage Fields: a required field with no value blocks
@@ -1051,7 +1182,7 @@ describe("opportunityService", () => {
     // visit, and evidence given on a visit that has since closed no longer
     // satisfies a return trip to the same Stage.
     describe("Stage Visits", () => {
-      it("records two visits for a loop out and back, and does not carry a tickbox certification across them", async () => {
+      it("records two visits for a loop out and back; a Resume carries the tickbox certification to the new visit", async () => {
         makeFlowEdge(qualified, lead)
         const condition = makeStageCondition({
           stage_id: lead.id,
@@ -1069,7 +1200,7 @@ describe("opportunityService", () => {
 
         await opportunityService.satisfyCondition(deal.id, condition.id, registrar.id)
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        const backOnLead = await opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+        const backOnLead = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
         expect(backOnLead.flow_stage_id).toBe(lead.id)
 
         const visits = db
@@ -1079,7 +1210,7 @@ describe("opportunityService", () => {
 
         const checklist = await opportunityService.getStageChecklist(deal.id, backOnLead)
         const row = checklist.find((c) => c.condition.id === condition.id)
-        expect(row.status).toBe("unsatisfied")
+        expect(row.status).toBe("satisfied")
       })
     })
   })
@@ -1549,7 +1680,7 @@ describe("opportunityService", () => {
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
       await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
 
-      const looped = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+      const looped = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
 
       expect(looped.flow_stage_id).toBe(qualified.id)
     })
@@ -1570,7 +1701,7 @@ describe("opportunityService", () => {
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
       const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
 
-      const reopened = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+      const reopened = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
 
       expect(reopened.contract_date).toBe(won.contract_date)
     })
@@ -1600,17 +1731,45 @@ describe("opportunityService", () => {
       // exactly as it was before any of this existed.
       const legacy = await opportunityService.createOpportunity(payload(), registrar.id)
 
-      const moved = await opportunityService.updateStatus(
-        legacy.id,
-        "QUALIFIED",
-        registrar.id,
-        null,
-        "S01237",
-      )
+      const moved = await opportunityService.updateStatus(legacy.id, "QUALIFIED", registrar.id, { salesReference: "S01237" })
 
       expect(moved.status).toBe("QUALIFIED")
       expect(moved.flow_stage_id).toBeNull()
       expect(lost.id).toBeTruthy()
+    })
+
+    describe("an Individual Task's assignee hears about the task, not the deal", () => {
+      it("notifies the assignee by name and points the notification at the task", async () => {
+        const assignee = makeEmployee({ name: "Techie Tina" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { projectTitle: "Check the specs", loggedById: assignee.id },
+        })
+        const spy = vi.spyOn(notificationService, "createNotification")
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const task = db.internal.rowsOf("tasks").find((t) => t.opportunity_id === deal.id)
+        expect(task).toBeTruthy()
+
+        // createTask already sends this: a Stage Action always submits on
+        // someone else's behalf, so submittedById !== loggedById.
+        expect(spy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            recipient_id: assignee.id,
+            type: "TASK_ASSIGNED",
+            reference_id: task.id,
+          }),
+        )
+
+        // ...and the vaguer "Added to a deal" must not arrive alongside it.
+        expect(spy).not.toHaveBeenCalledWith(
+          expect.objectContaining({ recipient_id: assignee.id, type: "SOR_STAGE_PARTICIPANT_ADDED" }),
+        )
+        spy.mockRestore()
+      })
     })
 
     describe("Stage Actions fire once per (deal, stage, action)", () => {
@@ -1639,7 +1798,7 @@ describe("opportunityService", () => {
         expect(run.outcome).toBe("created")
 
         await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
 
         const tasksAfterLoopBack = db.internal
           .rowsOf("tasks")
@@ -1671,13 +1830,17 @@ describe("opportunityService", () => {
 
     describe("Optional Actions — When confirmed (issue #204 Part 2)", () => {
       it("creates nothing until decided, and notifies the Decider", async () => {
+        // Issue #409 — the decision-due notification is now written directly
+        // inside sor_run_stage_actions (so it survives a closed tab), not via
+        // a client-side notificationService.createNotification call. Assert
+        // on the notifications table it lands in instead of spying on that
+        // service.
         const decider = makeEmployee({ name: "Decider Dana" })
         makeStageAction({
           stage_id: qualified.id,
           kind: "create_individual_task",
           config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
         })
-        const spy = vi.spyOn(notificationService, "createNotification")
 
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
@@ -1688,10 +1851,34 @@ describe("opportunityService", () => {
           .find((r) => r.opportunity_id === deal.id)
         expect(run).toBeTruthy()
         expect(run.outcome).toBe("pending")
-        expect(spy).toHaveBeenCalledWith(
-          expect.objectContaining({ recipient_id: decider.id, type: "OPPORTUNITY_ACTION_DECISION_DUE", reference_id: deal.id }),
-        )
-        spy.mockRestore()
+        const notification = db.internal
+          .rowsOf("notifications")
+          .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE")
+        expect(notification).toBeTruthy()
+        expect(notification.recipient_id).toBe(decider.id)
+      })
+
+      it("renders the title template's tokens in the decision-due notification", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: {
+            titleTemplate: "QA401 S2 optional (D decides) — {{so_number}}",
+            confirmMode: "confirm",
+            decider: [{ type: "employee", id: decider.id }],
+          },
+        })
+
+        const deal = await register({ sales_reference: "S94001" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const notification = db.internal
+          .rowsOf("notifications")
+          .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE")
+        expect(notification).toBeTruthy()
+        expect(notification.recipient_id).toBe(decider.id)
+        expect(notification.title).toBe("QA401 S2 optional (D decides) — S94001")
       })
 
       it("Create produces the same task an automatic run would", async () => {
@@ -1775,7 +1962,7 @@ describe("opportunityService", () => {
         expect(notes.some((n) => n.metadata?.event === "ACTION_RUN_SKIPPED" && n.content.includes("Qualified"))).toBe(true)
 
         // Re-entering Qualified must not re-offer the same action.
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
         const runsAfter = db.internal.rowsOf("sor_action_runs").filter((r) => r.opportunity_id === deal.id)
         expect(runsAfter).toHaveLength(1)
         expect(runsAfter[0].outcome).toBe("skipped")
@@ -1805,15 +1992,15 @@ describe("opportunityService", () => {
           kind: "create_individual_task",
           config: { title: "Approve pricing", confirmMode: "confirm" },
         })
-        const spy = vi.spyOn(notificationService, "createNotification")
 
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        expect(spy).toHaveBeenCalledWith(
-          expect.objectContaining({ recipient_id: owner.id, type: "OPPORTUNITY_ACTION_DECISION_DUE", reference_id: deal.id }),
-        )
-        spy.mockRestore()
+        const notification = db.internal
+          .rowsOf("notifications")
+          .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE")
+        expect(notification).toBeTruthy()
+        expect(notification.recipient_id).toBe(owner.id)
 
         const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
         const result = await opportunityService.decideAction(run.id, "create", owner.id)
@@ -1923,14 +2110,22 @@ describe("opportunityService", () => {
 
     describe("a Stage Action that fails", () => {
       it("keeps the move, still runs the other actions, and names the failed one", async () => {
-        const { taskService } = await import("./taskService")
-        makeStageAction({ stage_id: qualified.id, kind: "create_individual_task", config: { projectTitle: "Broken action" }, sort_order: 1 })
+        // Issue #409 — task creation now happens inside sor_run_stage_actions,
+        // one server-side call for the whole Stage's actions; there's no
+        // client-side createTask call left to mock a rejection onto. Forcing
+        // a real constraint violation (an assignee that doesn't exist) drives
+        // the same "one action fails, the rest still run" path through the
+        // actual RPC instead.
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { projectTitle: "Broken action", loggedById: "00000000-0000-4000-8000-00000000dead" },
+          sort_order: 1,
+        })
         makeStageAction({ stage_id: qualified.id, kind: "create_group_task", config: { title: "Working action" }, sort_order: 2 })
-        const spy = vi.spyOn(taskService, "createTask").mockRejectedValueOnce(new Error("category missing"))
 
         const deal = await register()
         const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        spy.mockRestore()
 
         expect(moved.flow_stage_id).toBe(qualified.id)
         expect(moved.failedStageActions).toEqual(["Broken action"])
@@ -2278,7 +2473,7 @@ describe("opportunityService", () => {
         await opportunityService.moveOpportunitySnapshot(deal.id, v2.id, registrar.id)
 
         await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
         await waitForNetworkIdle()
 
         const tasksAfterLoopBack = db.internal
@@ -2489,7 +2684,7 @@ describe("opportunityService", () => {
       // global pipeline and a history behind it. Adopting it onto a flow
       // would land it on that flow's first Stage and throw both away.
       const legacy = await opportunityService.createOpportunity(payload(), registrar.id)
-      await opportunityService.updateStatus(legacy.id, "QUALIFIED", registrar.id, null, "S01237")
+      await opportunityService.updateStatus(legacy.id, "QUALIFIED", registrar.id, { salesReference: "S01237" })
 
       await expect(
         opportunityService.updateSaleType(legacy.id, bidding.id, registrar.id),
@@ -2514,7 +2709,7 @@ describe("opportunityService", () => {
       // for.
       const deal = await register()
       await opportunityService.updateStatus(deal.id, biddingQualified.id, registrar.id)
-      await opportunityService.updateStatus(deal.id, biddingLead.id, registrar.id)
+      await opportunityService.updateStatus(deal.id, biddingLead.id, registrar.id, RESUME)
 
       await expect(
         opportunityService.updateSaleType(deal.id, outright.id, registrar.id),
@@ -2854,7 +3049,7 @@ describe("opportunityService", () => {
   describe("the Journey (#300)", () => {
     // Three visits with fixed windows: Lead, then Qualified, then back to
     // Lead — the loop is what makes per-visit evidence observable.
-    let deal, lead, qualified, v1, v2, v3, estimator, creator
+    let deal, lead, qualified, v1, v2, v3, estimator, creator, siteField, kickoffAction, surveyAction
 
     beforeEach(() => {
       const flow = makeSalesFlow({ sale_type_id: makeSaleType().id })
@@ -2864,10 +3059,35 @@ describe("opportunityService", () => {
       creator = makeEmployee({ name: "Group Creator" })
       makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Signed NDA" })
       makeStageCondition({
+        stage_id: lead.id,
+        kind: "attachment",
+        label: "Notice of Award",
+        config: { documentType: "NOA" },
+      })
+      makeStageCondition({
         stage_id: qualified.id,
         kind: "assignment",
         label: "Estimator assigned",
         config: { who: [{ type: "employee", id: estimator.id }] },
+      })
+      // #397: two custom Stage Fields on Lead — captured into the snapshot
+      // below so getJourney's Stage Fields section has something frozen to
+      // label from, for tests that fill one and leave the other blank.
+      siteField = makeStageField({ stage_id: lead.id, label: "Site survey date", sort_order: 0 })
+      makeStageField({ stage_id: lead.id, label: "Access notes", sort_order: 1 })
+      // #398: two Stage Actions on Lead, in flow order, so History has
+      // something to attribute a run to.
+      kickoffAction = makeStageAction({
+        stage_id: lead.id,
+        sort_order: 0,
+        kind: "create_individual_task",
+        config: { title: "Kickoff task" },
+      })
+      surveyAction = makeStageAction({
+        stage_id: lead.id,
+        sort_order: 1,
+        kind: "create_group_task",
+        config: { title: "Site survey" },
       })
       const snapshot = makeFlowSnapshot({ flow_id: flow.id })
       // No flow_stage_id: the visit trigger would open a sequence-1 visit of
@@ -2927,6 +3147,437 @@ describe("opportunityService", () => {
       expect(current.tasks.map((t) => t.id)).toEqual([unstampedInV3.id])
       expect(first.tasks).toEqual([])
       expect(current.groupTasks[0].creator).toMatchObject({ id: creator.id, name: "Group Creator" })
+    })
+
+    it("returns attachments with resolved uploader", async () => {
+      const file = {
+        url: "https://res.cloudinary.test/bidding.pdf",
+        name: "bidding.pdf",
+        type: "pdf",
+        bytes: 2048,
+        stageVisitId: v2.id,
+      }
+      await opportunityService.addNote(deal.id, creator.id, "Bidding docs uploaded", [file])
+
+      const [, qualifiedVisit] = await opportunityService.getJourney(deal.id)
+      expect(qualifiedVisit.attachments).toHaveLength(1)
+      expect(qualifiedVisit.attachments[0]).toMatchObject({
+        name: "bidding.pdf",
+        url: "https://res.cloudinary.test/bidding.pdf",
+        uploader: expect.objectContaining({ id: creator.id, name: "Group Creator" }),
+      })
+    })
+
+    // Issue #412 AC — "Only the carried condition is marked 'from an earlier
+    // visit'": a Stage with more than one Attachment condition must not let
+    // one condition's carried file mark every Attachment condition on that
+    // Stage as carried. Its own flow/stage/snapshot, not the describe's
+    // shared ones above — those are snapshotted before this test could add
+    // conditions to them, so a second Attachment condition added afterward
+    // would never appear in getJourney's per-visit (snapshot-scoped) reads.
+    it("marks only the Attachment condition whose own file was carried, not every Attachment condition on the Stage", async () => {
+      const flow = makeSalesFlow({ sale_type_id: makeSaleType().id })
+      const stage = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })
+      const uploader = makeEmployee({ name: "Uploader" })
+      const conditionA = makeStageCondition({ stage_id: stage.id, kind: "attachment", label: "NOA" })
+      const conditionB = makeStageCondition({ stage_id: stage.id, kind: "attachment", label: "Bid Bond" })
+      const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+      const deal2 = makeOpportunity({ flow_snapshot_id: snapshot.id })
+      const visit1 = makeStageVisit({ opportunity_id: deal2.id, flow_stage_id: stage.id, flow_snapshot_id: snapshot.id, sequence: 1, entered_at: "2026-01-01T00:00:00.000Z", left_at: "2026-01-10T00:00:00.000Z" })
+      const other = makeFlowStage({ flow_id: flow.id, name: "Elsewhere", sort_order: 1 })
+      makeStageVisit({ opportunity_id: deal2.id, flow_stage_id: other.id, flow_snapshot_id: snapshot.id, sequence: 2, entered_at: "2026-01-10T00:00:00.000Z", left_at: "2026-01-20T00:00:00.000Z" })
+      const visit3 = makeStageVisit({ opportunity_id: deal2.id, flow_stage_id: stage.id, flow_snapshot_id: snapshot.id, sequence: 3, entered_at: "2026-01-20T00:00:00.000Z" })
+      stubRpc("sor_visible_visit_ids", () => [visit1.id, visit3.id])
+
+      await opportunityService.addNote(deal2.id, uploader.id, "NOA carried in", [
+        { url: "https://res.cloudinary.test/noa.pdf", name: "noa.pdf", type: "pdf", conditionId: conditionA.id, stageVisitId: visit3.id },
+      ])
+      await opportunityService.addNote(deal2.id, uploader.id, "Bid bond given fresh", [
+        { url: "https://res.cloudinary.test/bond.pdf", name: "bond.pdf", type: "pdf", conditionId: conditionB.id, stageVisitId: visit3.id },
+      ])
+      // sor_resume_stage_work (20260930250000) stamps carriedFromVisitId on
+      // the LOG's own top-level metadata, not inside the attachment item —
+      // attachmentsFromLog reads it from there (opportunityService.js:266).
+      // The fake database has no Postgres function to run that migration, so
+      // this mimics its result directly on the NOA note only.
+      const noaLog = db.internal.rowsOf("sales_opportunity_logs").find((l) => l.content === "NOA carried in")
+      noaLog.metadata = { ...noaLog.metadata, carriedFromVisitId: visit1.id }
+
+      const current = (await opportunityService.getJourney(deal2.id))[0]
+      const byId = Object.fromEntries(current.conditions.map((c) => [c.condition.id, c]))
+
+      expect(byId[conditionA.id].carried).toBe(true)
+      expect(byId[conditionB.id].carried).toBe(false)
+    })
+    describe("History: condition evidence, Stage Fields and Follow-ups (#397)", () => {
+      it("shows the file, who gave it, and when for a met attachment condition", async () => {
+        await opportunityService.addNote(deal.id, estimator.id, "", [
+          { url: "https://cdn.test/noa.pdf", name: "noa.pdf", documentType: "NOA" },
+        ])
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+        const noa = first.conditions.find((c) => c.condition.label === "Notice of Award")
+
+        expect(noa.status).toBe("satisfied")
+        expect(noa.files).toEqual([expect.objectContaining({ name: "noa.pdf", url: "https://cdn.test/noa.pdf" })])
+        expect(noa.satisfiedBy).toMatchObject({ id: estimator.id })
+      })
+
+      it("leaves an unmet condition's files empty and its status 'unsatisfied'", async () => {
+        const [, , first] = await opportunityService.getJourney(deal.id)
+        const noa = first.conditions.find((c) => c.condition.label === "Notice of Award")
+
+        expect(noa.status).toBe("unsatisfied")
+        expect(noa.files).toEqual([])
+      })
+
+      it("lists filled Stage Field values with their label, and names unfilled ones on one line", async () => {
+        db.seed("sor_stage_field_values", {
+          opportunity_id: deal.id,
+          stage_visit_id: v1.id,
+          field_id: siteField.id,
+          value: "2026-02-01",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.stageFields.filled).toEqual([
+          expect.objectContaining({ id: siteField.id, label: "Site survey date", value: "2026-02-01" }),
+        ])
+        expect(first.stageFields.notFilled).toEqual(["Access notes"])
+      })
+
+      it("scopes Stage Field values to their own visit, so a loop back doesn't see the earlier visit's answers", async () => {
+        db.seed("sor_stage_field_values", {
+          opportunity_id: deal.id,
+          stage_visit_id: v1.id,
+          field_id: siteField.id,
+          value: "2026-02-01",
+        })
+
+        const [current] = await opportunityService.getJourney(deal.id)
+
+        expect(current.stageFields.filled).toEqual([])
+        expect(current.stageFields.notFilled).toEqual(["Site survey date", "Access notes"])
+      })
+
+      it("lists a visit's Logged Follow-ups with who/when/note/proof, and counts its reminders separately", async () => {
+        db.seed("sales_opportunity_logs", {
+          opportunity_id: deal.id,
+          author_id: estimator.id,
+          type: "SYSTEM",
+          content: "Follow-up logged: Called the client, no answer yet",
+          metadata: {
+            event: "FOLLOW_UP_LOGGED",
+            stageVisitId: v1.id,
+            attachments: [{ url: "https://cdn.test/call-log.pdf", name: "call-log.pdf" }],
+          },
+        })
+        db.seed("sales_opportunity_logs", {
+          opportunity_id: deal.id,
+          author_id: null,
+          type: "SYSTEM",
+          content: "Follow-up reminder sent",
+          metadata: { event: "FOLLOW_UP_REMINDER", stageVisitId: v1.id },
+        })
+        db.seed("sales_opportunity_logs", {
+          opportunity_id: deal.id,
+          author_id: null,
+          type: "SYSTEM",
+          content: "Follow-up reminder sent",
+          metadata: { event: "FOLLOW_UP_REMINDER", stageVisitId: v1.id },
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.followUps).toHaveLength(1)
+        expect(first.followUps[0]).toMatchObject({
+          note: "Called the client, no answer yet",
+          files: [{ name: "call-log.pdf" }],
+        })
+        expect(first.followUps[0].loggedBy).toMatchObject({ id: estimator.id, name: "Estimator" })
+        expect(first.followUpReminderCount).toBe(2)
+      })
+
+      it("never fetches conditions, Stage Fields, or Follow-ups for a restricted visit (#296 unaffected)", async () => {
+        db.seed("sor_stage_field_values", {
+          opportunity_id: deal.id,
+          stage_visit_id: v1.id,
+          field_id: siteField.id,
+          value: "2026-02-01",
+        })
+        db.seed("sales_opportunity_logs", {
+          opportunity_id: deal.id,
+          author_id: estimator.id,
+          type: "SYSTEM",
+          content: "Follow-up logged: proof attached",
+          metadata: { event: "FOLLOW_UP_LOGGED", stageVisitId: v1.id },
+        })
+        // Override this describe's own visibility stub: v1 is restricted.
+        stubRpc("sor_visible_visit_ids", () => [v2.id, v3.id])
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.isRestricted).toBe(true)
+        expect(first.conditions).toEqual([])
+        expect(first.stageFields).toEqual({ filled: [], notFilled: [] })
+        expect(first.followUps).toEqual([])
+        expect(first.followUpReminderCount).toBe(0)
+      })
+    })
+
+    describe("History: Stage Action outcomes (#398)", () => {
+      it("attaches a created individual task to its action's run", async () => {
+        const task = makeTask({ opportunity_id: deal.id, stage_visit_id: v1.id, project_title: "Kickoff" })
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          task_id: task.id,
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns).toHaveLength(1)
+        expect(first.actionRuns[0]).toMatchObject({ label: "Kickoff task", outcome: "created" })
+        expect(first.actionRuns[0].task.id).toBe(task.id)
+        expect(first.actionRuns[0].groupTask).toBeNull()
+      })
+
+      it("attaches a created Group Task to its action's run", async () => {
+        const group = makeGroupTask({ opportunity_id: deal.id, stage_visit_id: v1.id, created_by: creator.id })
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: surveyAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          group_task_id: group.id,
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        const run = first.actionRuns.find((r) => r.actionId === surveyAction.id)
+        expect(run.groupTask.id).toBe(group.id)
+        expect(run.task).toBeNull()
+      })
+
+      it("orders runs in the Stage's flow order, not the order they were decided", async () => {
+        // Seeded survey (sort_order 1) before kickoff (sort_order 0) — the
+        // output must still read kickoff first.
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: surveyAction.id,
+          stage_visit_id: v1.id,
+          outcome: "failed",
+        })
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "failed",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns.map((r) => r.actionId)).toEqual([kickoffAction.id, surveyAction.id])
+      })
+
+      it("names who skipped it and when, for an explicit decision", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "skipped",
+          decided_by: estimator.id,
+          decided_at: "2026-01-08T00:00:00.000Z",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        const run = first.actionRuns[0]
+        expect(run.leftUndecided).toBe(false)
+        expect(run.decidedBy).toMatchObject({ id: estimator.id, name: "Estimator" })
+        expect(run.decidedAt).toBe("2026-01-08T00:00:00.000Z")
+      })
+
+      // Leaving a Stage auto-skips any still-`pending` run via
+      // sor_finish_action_run (see moveOpportunityStage) — that write never
+      // sets decided_by, which is exactly what "left undecided" means.
+      it("marks a run left undecided, counted as skipped, when no one decided it", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "skipped",
+          decided_by: null,
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns[0]).toMatchObject({ outcome: "skipped", leftUndecided: true, decidedBy: null })
+      })
+
+      it("carries a failed run with no task attached", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "failed",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns[0]).toMatchObject({ outcome: "failed", task: null, groupTask: null })
+      })
+
+      it("leaves a legacy task with no action run out of actionRuns entirely", async () => {
+        makeTask({ opportunity_id: deal.id, stage_visit_id: v1.id })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns).toEqual([])
+        expect(first.tasks).toHaveLength(1)
+      })
+
+      it("never fetches action runs for a restricted visit (#296 unaffected)", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+        })
+        stubRpc("sor_visible_visit_ids", () => [v2.id, v3.id])
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.isRestricted).toBe(true)
+        expect(first.actionRuns).toEqual([])
+      })
+    })
+
+    describe("History: closed-off work (#400)", () => {
+      it("marks a visit a Start fresh closed off, naming who returned and when", async () => {
+        const returner = makeEmployee({ name: "Returner" })
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).return_choice = "start_fresh"
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).entered_by = returner.id
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          closed_off_at: "2026-01-20T00:00:00.000Z",
+          closed_off_reason: "start_fresh",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toMatchObject({
+          reason: "start_fresh",
+          at: "2026-01-20T00:00:00.000Z",
+        })
+        expect(first.closedOff.by).toMatchObject({ id: returner.id, name: "Returner" })
+        expect(first.actionRuns[0].closedOffReason).toBe("start_fresh")
+      })
+
+      it("marks a visit a Revert's Remove progress closed off, naming who reverted and when", async () => {
+        const reverter = makeEmployee({ name: "Reverter" })
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v1.id).revert_choice = "remove"
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v1.id).left_by = reverter.id
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          closed_off_at: "2026-01-20T00:00:00.000Z",
+          closed_off_reason: "reverted",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toMatchObject({
+          reason: "reverted",
+          at: "2026-01-20T00:00:00.000Z",
+        })
+        expect(first.closedOff.by).toMatchObject({ id: reverter.id, name: "Reverter" })
+      })
+
+      it("marks a Start-fresh-closed visit on a Stage with no actions, from the visits alone", async () => {
+        const returner = makeEmployee({ name: "Returner" })
+        const fresh = db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id)
+        fresh.return_choice = "start_fresh"
+        fresh.entered_by = returner.id
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns).toEqual([])
+        expect(first.closedOff).toMatchObject({ reason: "start_fresh", at: fresh.entered_at })
+        expect(first.closedOff.by).toMatchObject({ id: returner.id })
+      })
+
+      it("marks a Remove-progress visit on a Stage with no actions, from the visit alone", async () => {
+        const reverter = makeEmployee({ name: "Reverter" })
+        const left = db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v1.id)
+        left.revert_choice = "remove"
+        left.left_by = reverter.id
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toMatchObject({ reason: "reverted", at: left.left_at })
+        expect(first.closedOff.by).toMatchObject({ id: reverter.id })
+      })
+
+      it("shows no marker on an ordinary visit whose work was never closed off", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toBeNull()
+      })
+
+      it("stops marking a visit once the Start fresh that closed it off is itself reverted", async () => {
+        const returner = makeEmployee({ name: "Returner" })
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).return_choice = "start_fresh"
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).entered_by = returner.id
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          closed_off_at: "2026-01-20T00:00:00.000Z",
+          closed_off_reason: "start_fresh",
+        })
+
+        // Reverting the Start fresh (per #391/#392's own migrations) nulls the
+        // run's closed_off columns back out — simulated directly here since
+        // this is a unit test of the read side, not the RPC.
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.stage_visit_id === v1.id)
+        run.closed_off_at = null
+        run.closed_off_reason = null
+        // With Remove progress the Start fresh visit stands, marked removed.
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).revert_choice = "remove"
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toBeNull()
+      })
     })
   })
 
@@ -3349,3 +4000,146 @@ describe("opportunityService", () => {
   })
 })
 
+/**
+ * My SORs (Workspace of work, Sales nav) — ADR 0021 left a Stage Participant
+ * able to open a deal and unable to find it: `sor_read` is Deal Team or
+ * Always-sees only, so the SORS register structurally cannot list one. This
+ * is the list that can.
+ */
+describe("getMySors", () => {
+  let me, stageA, stageB, deal
+
+  beforeEach(() => {
+    me = makeEmployee({ name: "Techie Tina" })
+    const saleType = makeSaleType({ name: "Government" })
+    const flow = makeSalesFlow({ sale_type_id: saleType.id })
+    stageA = makeFlowStage({ flow_id: flow.id, name: "Technical Review" })
+    stageB = makeFlowStage({ flow_id: flow.id, name: "Bid Submitted" })
+    // No flow_stage_id: the insert trigger would record visit sequence 1 and
+    // collide with the visits these tests place by hand.
+    deal = makeOpportunity({ sale_type_id: saleType.id })
+    stubRpc("sor_locked_summary", () => [
+      {
+        sales_reference: "S01234",
+        project_title: "Supply of Equipment",
+        current_stage_name: "Bid Submitted",
+        is_restricted: false,
+      },
+    ])
+  })
+
+  it("lists a deal the person was called into, naming the Stage that called them", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    makeStageParticipant({
+      opportunity_id: deal.id,
+      employee_id: me.id,
+      opened_visit_id: visit.id,
+      until_rule: "stage_left",
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      opportunityId: deal.id,
+      salesReference: "S01234",
+      projectTitle: "Supply of Equipment",
+      currentStageName: "Bid Submitted",
+      isOpen: true,
+    })
+    // The Stage that pulled them in, not the Stage the deal is on now.
+    expect(rows[0].windows[0]).toMatchObject({
+      calledInAtStageName: "Technical Review",
+      untilRule: "stage_left",
+    })
+  })
+
+  it("names the later Stage a window reaches through", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    makeStageParticipant({
+      opportunity_id: deal.id,
+      employee_id: me.id,
+      opened_visit_id: visit.id,
+      until_rule: "later_stage_left",
+      until_stage_id: stageB.id,
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows[0].windows[0]).toMatchObject({
+      untilRule: "later_stage_left",
+      untilStageName: "Bid Submitted",
+    })
+  })
+
+  it("keeps two call-ins on one deal as two windows under one row", async () => {
+    // CONTEXT.md: each call-in opens its own window, and one person named by
+    // two actions holds two at once. The screen must not silently merge them.
+    const visitA = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    const visitB = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageB.id, sequence: 2 })
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visitA.id })
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visitB.id, source: "assignment" })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].windows).toHaveLength(2)
+  })
+
+  it("still lists a deal whose window has closed, marked closed", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    makeStageParticipant({
+      opportunity_id: deal.id,
+      employee_id: me.id,
+      opened_visit_id: visit.id,
+      closed_at: new Date().toISOString(),
+      closed_reason: "stage_left",
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].isOpen).toBe(false)
+  })
+
+  it("a deal with one open and one closed window counts as open", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id, closed_at: new Date().toISOString() })
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id, source: "assignment" })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows[0].isOpen).toBe(true)
+  })
+
+  it("lists nothing for someone who was never called in", async () => {
+    const stranger = makeEmployee({ name: "Nobody Nina" })
+    expect(await opportunityService.getMySors(stranger.id)).toEqual([])
+  })
+
+  it("asks for nothing without an employee", async () => {
+    expect(await opportunityService.getMySors(null)).toEqual([])
+  })
+})
+
+/**
+ * A task's SOR link (#199) resolves its label through `sor_link_label`
+ * — a SECURITY DEFINER RPC, not a raw table select — because `sor_read` has
+ * no Stage Participant clause and a plain participant reading the table
+ * directly gets zero rows back.
+ */
+describe("getOpportunityLinkLabel", () => {
+  it("asks the RPC for the label, not the table directly", async () => {
+    const deal = makeOpportunity({ sales_reference: "S99001", client_name: "Acme Corp" })
+    stubRpc("sor_link_label", (args) => {
+      expect(args).toEqual({ p_opportunity_id: deal.id })
+      return "S99001"
+    })
+
+    expect(await opportunityService.getOpportunityLinkLabel(deal.id)).toBe("S99001")
+  })
+
+  it("asks for nothing without an id", async () => {
+    expect(await opportunityService.getOpportunityLinkLabel(null)).toBeNull()
+  })
+})

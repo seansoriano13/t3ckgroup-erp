@@ -171,7 +171,7 @@ describe("EmployeeOpportunityMatrix", () => {
 
     // Click row
     await user.click(screen.getByText("Juan Dela Cruz"));
-    expect(mockNavigate).toHaveBeenCalledWith("/crm", {
+    expect(mockNavigate).toHaveBeenCalledWith("/sors", {
       state: { filterEmployeeId: "user-1", filterStatus: undefined },
     });
 
@@ -180,7 +180,7 @@ describe("EmployeeOpportunityMatrix", () => {
     expect(proposalLabels.length).toBeGreaterThan(0);
     await user.click(proposalLabels[0]);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/crm", {
+    expect(mockNavigate).toHaveBeenCalledWith("/sors", {
       state: { filterEmployeeId: "user-1", filterStatus: "PROPOSAL_SUBMITTED" },
     });
   });

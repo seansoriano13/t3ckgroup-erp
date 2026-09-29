@@ -6,14 +6,14 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import TabGroup from "@/components/ui/TabGroup"
 import { employeeService } from "@/services/employeeService"
-import StageActionDetail from "@/components/settings/StageActionDetail"
+import StageActionDetail from "@/components/flow-canvas/StageActionDetail"
 import {
   ACTION_KIND_META,
   CONDITION_KIND_META,
   actionSummary,
   actionTitle,
   conditionDetail,
-} from "@/components/settings/flowStageKinds"
+} from "@/components/flow-canvas/flowStageKinds"
 
 /**
  * One Stage of a Flow Snapshot, opened beside the version viewer, read-only.
@@ -189,11 +189,12 @@ export default function FlowVersionStagePanel({
                   key={key}
                   className="rounded-xl bg-card outline outline-1 -outline-offset-1 outline-mauve-6"
                 >
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => setExpandedActionId(isExpanded ? null : key)}
                     aria-expanded={isExpanded}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left outline-none"
+                    className="h-auto w-full justify-start gap-3 rounded-xl px-3 py-2.5 text-left outline-none"
                   >
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
                       <Icon size={15} strokeWidth={2.5} />
@@ -203,7 +204,7 @@ export default function FlowVersionStagePanel({
                         {actionTitle(row)}
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {actionSummary(row)}
+                        {actionSummary(row, { employees })}
                       </span>
                     </span>
                     <ChevronRight
@@ -213,7 +214,7 @@ export default function FlowVersionStagePanel({
                         isExpanded && "rotate-90",
                       )}
                     />
-                  </button>
+                  </Button>
                   {isExpanded && <StageActionDetail action={row} employees={employees} />}
                 </div>
               )

@@ -127,8 +127,8 @@ describe("sorStageParticipantService", () => {
     )
 
     await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-    await opportunityService.updateStatus(deal.id, lead.id, registrar.id) // loop back
-    await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+    await opportunityService.updateStatus(deal.id, lead.id, registrar.id, { returnChoice: "resume" }) // loop back
+    await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, { returnChoice: "resume" })
     await opportunityService.updateStatus(deal.id, negotiation.id, registrar.id)
 
     let [open] = await sorStageParticipantService.listForOpportunity(deal.id)

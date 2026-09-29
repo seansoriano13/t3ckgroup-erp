@@ -1,5 +1,5 @@
 /**
- * CRM Board — pure column-building helpers (issue #206).
+ * SORS Board — pure column-building helpers (issue #206).
  *
  * A flow's Stages have no shared ordering with any other flow's (ADR 0006),
  * so a board showing every Sale Type at once mixed unrelated Stages into one
@@ -11,7 +11,7 @@
  * No React, no network: stages/opportunities/snapshots all come in as
  * arguments. Prior art: constants/sor.js and constants/salesFlow.js.
  */
-import { bracketRuns } from "../components/settings/flowCanvasLayout";
+import { bracketRuns } from "../components/flow-canvas/flowCanvasLayout";
 import { isOpenPipelineOpportunity, isRealizedOpportunity } from "./sor";
 import { flowStageTone } from "./salesFlow";
 

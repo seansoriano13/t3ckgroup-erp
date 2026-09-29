@@ -8,7 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { Button } from "../ui/button";
+import ReturnChoice from "./ReturnChoice";
+import { RETURN_CHOICE } from "../../constants/returnChoice";
+import { useReturnStageIds } from "./useReturnStageIds";
 
+import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 /**
  * Issue #206 — the confirmation a Board drag opens before it commits.
  *
@@ -32,6 +38,12 @@ export default function MoveConfirmDialog({
   onMoved,
 }) {
   const [lostReason, setLostReason] = useState("");
+  const [returnChoice, setReturnChoice] = useState(RETURN_CHOICE.RESUME);
+
+  // Issue #390 — entering a Stage the SOR already visited is a Return: it asks
+  // Resume / Start fresh, and the Stage being left never blocks it.
+  const returnStageIds = useReturnStageIds(opportunity, isOpen);
+  const isReturn = Boolean(targetStage && returnStageIds.includes(targetStage.id));
 
   const moveMutation = useMutation({
     mutationFn: () =>
@@ -39,7 +51,10 @@ export default function MoveConfirmDialog({
         opportunity.id,
         targetStage.id,
         actorId,
-        isLostTarget ? lostReason.trim() : null,
+        {
+          lostReason: isLostTarget ? lostReason.trim() : null,
+          returnChoice: isReturn ? returnChoice : null,
+        },
       ),
     onSuccess: () => {
       setLostReason("");
@@ -75,7 +90,7 @@ export default function MoveConfirmDialog({
             — {opportunity.project_title}
           </p>
 
-          {knownBlockers.length > 0 && (
+          {!isReturn && knownBlockers.length > 0 && (
             <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 p-3">
               <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-amber-11">
                 <AlertTriangle size={12} /> Still outstanding
@@ -91,19 +106,21 @@ export default function MoveConfirmDialog({
             </div>
           )}
 
+          {isReturn && (
+            <ReturnChoice stageName={targetStage.name} value={returnChoice} onChange={setReturnChoice} />
+          )}
+
           {isLostTarget && (
             <div className="rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                Reason
-                <span className="ml-0.5 text-red-500">*</span>
-              </label>
-              <textarea
+              <FieldBox label={<>Reason
+                <span className="ml-0.5 text-red-500">*</span></>} className="mb-1 block" />
+              <Textarea variant="bare"
                 autoFocus
                 rows={2}
                 value={lostReason}
                 onChange={(e) => setLostReason(e.target.value)}
                 placeholder="Why was this deal lost?"
-                className="w-full resize-none bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
+                className="resize-none text-sm md:text-sm font-medium"
               />
             </div>
           )}
@@ -115,19 +132,16 @@ export default function MoveConfirmDialog({
           )}
 
           <div className="mt-1 flex items-center justify-end gap-2">
-            <button
-              onClick={handleClose}
-              className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
-            >
+            <Button type="button" variant="ghost" onClick={handleClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
               disabled={confirmDisabled}
               onClick={() => moveMutation.mutate()}
-              className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
             >
               Confirm move
-            </button>
+            </Button>
           </div>
         </div>
       </DialogContent>

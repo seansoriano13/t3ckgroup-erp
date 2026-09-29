@@ -4,6 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import noPrimaryDecoration from './src/lib/linting/no-primary-decoration.js'
+import noRawHtml, { refuseDisableProcessor } from './src/lib/linting/no-raw-html.js'
 
 export default defineConfig([
   globalIgnores(['dist/**', '.claude/**', '.gemini/**', '.github/**']),
@@ -32,12 +33,23 @@ export default defineConfig([
       local: {
         rules: {
           'no-primary-decoration': noPrimaryDecoration,
+          'no-raw-html': noRawHtml,
         },
       },
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^[A-Z_]' }],
       'local/no-primary-decoration': 'warn',
+    },
+  },
+  {
+    // ADR 0025: raw covered HTML is banned in feature code. The shared UI folder
+    // is exempt inside the rule itself, by path. There is no baseline.
+    files: ['src/**/*.{js,jsx}'],
+    ignores: ['src/test/**', 'src/**/*.test.{js,jsx}'],
+    processor: refuseDisableProcessor,
+    rules: {
+      'local/no-raw-html': 'error',
     },
   },
   {

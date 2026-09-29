@@ -46,6 +46,9 @@ coverage
 # committed before.
 !supabase/**/*.sql
 *.txt
+# ...and the same for docs/: a demo run sheet is plain text so it reads on a
+# phone, but it is a deliverable, not a scratch dump.
+!docs/**/*.txt
 
 # TestSprite
 .testsprite/
@@ -93,6 +96,7 @@ docs/*.pdf
 .agents/*
 
 .claude/*
+!.claude/settings.json
 
 # Generated lint report — regenerate with `npx eslint . -f json -o eslint.json`
 eslint.json
@@ -112,3 +116,5 @@ diff.patch
 scratch-activities.json
 scratch-messages.json
 scratch/
+
+backups/

@@ -34,19 +34,27 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(standardUser);
-      // Flow Canvas (issue #36) is deliberately visible to everyone: its
-      // tables are writable by every signed-in employee (see the policy
-      // tier), so even a standard employee sees the Administration group for
-      // that one link.
-      expect(groups).toHaveLength(2);
+      // Two entries are deliberately visible to everyone, so a standard
+      // employee sees three groups rather than one:
+      //
+      // - Flow Canvas (issue #36) — its tables are writable by every signed-in
+      //   employee (see the policy tier).
+      // - My SORs (ADR 0021) — anyone can be called into a deal, and the
+      //   people ADR 0021 names (a purchaser, an engineer, a finance officer)
+      //   are exactly the ones who may hold no sales flow. Gating it on
+      //   `hasSalesFlow` would hide the only screen that lists the deals they
+      //   already have enforced access to. The page shows an empty state.
+      expect(groups).toHaveLength(3);
       expect(groups[0].key).toBe("workspace");
       expect(groups[0].label).toBe("Workspace");
       expect(groups[0].links.map((l) => l.label)).toEqual([
         "Dashboard",
         "My Requests",
       ]);
-      expect(groups[1].key).toBe("administration");
-      expect(groups[1].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
+      expect(groups[1].key).toBe("sales");
+      expect(groups[1].links.map((l) => l.label)).toEqual(["My SORs"]);
+      expect(groups[2].key).toBe("administration");
+      expect(groups[2].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
     });
 
     it("includes My Tasks in Workspace when user has task flow", () => {
@@ -154,10 +162,43 @@ describe("navigation registry", () => {
       const salesGroup = groups.find((g) => g.key === "sales");
       expect(salesGroup).toBeDefined();
       expect(salesGroup.links.map((l) => l.label)).toEqual([
-        "CRM",
+        "SORS",
+        // ADR 0021: the SORs this person was called into, which `sor_read`
+        // keeps out of the register above. Ungated — see the standard
+        // employee case.
+        "My SORs",
         "Commission Dashboard",
         "Commission Formula",
+        // Retail moved out of the register's tab strip onto its own screen.
+        // The sidebar gate is the coarse one — the same shape Commission
+        // Dashboard uses — because `isPermitted` is synchronous and the real
+        // eligibility (Sales Director on a live opportunity, issue #173) can
+        // only be answered by a query. The page itself enforces that.
+        "Retail",
       ]);
+    });
+
+    it("keeps Retail out of the sidebar for an employee with no sales flow", () => {
+      const taskUser = { id: "task-1", has_task_flow: true };
+
+      const groups = getFilteredNavigationGroups(taskUser);
+      // The Sales group now survives for this user, but only for My SORs —
+      // Retail must still be absent from it.
+      const salesGroup = groups.find((g) => g.key === "sales");
+      expect(salesGroup.links.map((l) => l.label)).toEqual(["My SORs"]);
+
+      // Asserted against the entry itself as well: checking only the group's
+      // contents would not catch Retail's own gate being loosened.
+      const retail = NAV_MODULES.sales.links.find((l) => l.key === "sales.retail");
+      expect(retail).toBeDefined();
+      expect(retail.link).toBe("/retail");
+      expect(retail.isPermitted(buildUserPermissionContext(taskUser))).toBe(false);
+      expect(
+        retail.isPermitted(buildUserPermissionContext({ id: "s", has_sales_flow: true })),
+      ).toBe(true);
+      expect(
+        retail.isPermitted(buildUserPermissionContext({ id: "a", isSuperAdmin: true })),
+      ).toBe(true);
     });
 
     it("returns all 7 modules for Super Admin", () => {
@@ -244,8 +285,10 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(withOverride);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "CRM",
+          "SORS",
+          "My SORs",
           "Commission Formula",
+          "Retail",
         ]);
       });
 
@@ -255,9 +298,11 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(salesUser);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "CRM",
+          "SORS",
+          "My SORs",
           "Commission Dashboard",
           "Commission Formula",
+          "Retail",
         ]);
       });
 
@@ -280,9 +325,11 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(salesUser);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "CRM",
+          "SORS",
+          "My SORs",
           "Commission Dashboard",
           "Commission Formula",
+          "Retail",
         ]);
       });
 

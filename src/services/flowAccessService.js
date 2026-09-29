@@ -16,6 +16,7 @@ function shapeFlowAccess(row) {
   return {
     flowId: row.flow_id,
     alwaysSees: row.always_sees || [],
+    alwaysEdits: row.always_edits || [],
     journeyViewers: row.journey_viewers ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -40,7 +41,7 @@ function shapeStageAccess(row) {
  * here enforces the access itself yet.
  */
 export const flowAccessService = {
-  /** A flow's Always sees/Journey viewers, or null when never saved. */
+  /** A flow's Always sees/Always edits/Journey viewers, or null when never saved. */
   async getForFlow(flowId) {
     if (!flowId) return null;
     const { data, error } = await supabase
@@ -52,8 +53,8 @@ export const flowAccessService = {
     return shapeFlowAccess(data);
   },
 
-  /** Upserts a flow's Always sees/Journey viewers — one row per flow, on `flow_id`. */
-  async saveForFlow(flowId, { alwaysSees = [], journeyViewers = null } = {}, actorId) {
+  /** Upserts a flow's Always sees/Always edits/Journey viewers — one row per flow, on `flow_id`. */
+  async saveForFlow(flowId, { alwaysSees = [], alwaysEdits = [], journeyViewers = null } = {}, actorId) {
     await requireSuperAdmin(actorId);
     if (!flowId) throw new Error("A Sales Flow is required to save Access settings.");
 
@@ -63,6 +64,7 @@ export const flowAccessService = {
         {
           flow_id: flowId,
           always_sees: alwaysSees || [],
+          always_edits: alwaysEdits || [],
           journey_viewers: journeyViewers,
           updated_at: new Date().toISOString(),
         },

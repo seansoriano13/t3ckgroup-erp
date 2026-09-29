@@ -1,5 +1,13 @@
 import { useState, useMemo } from "react";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -19,6 +27,8 @@ import { formatDueDate } from "../../../utils/formatDate";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import { TagPill } from "../../../components/ui/TagPill";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
+import { Button } from "@/components/ui/button";
+import { SelectField } from "@/components/ui/SelectField";
 
 export default function GroupTaskTableView({
   tasks = [],
@@ -117,54 +127,54 @@ export default function GroupTaskTableView({
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[900px]">
-            <thead>
-              <tr className="bg-muted/50 border-b border-border text-muted-foreground font-bold tracking-wider uppercase text-[11px] select-none">
-                <th
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead
                   onClick={() => handleSort("title")}
-                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors"
+                  className="cursor-pointer hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-1">
                     Group Task / Description {renderSortIcon("title")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("creator")}
-                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors w-[170px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[170px]"
                 >
                   <div className="flex items-center gap-1">
                     Creator {renderSortIcon("creator")}
                   </div>
-                </th>
-                <th className="py-3.5 px-3 w-[160px]">Members</th>
-                <th
+                </TableHead>
+                <TableHead className="w-[160px]">Members</TableHead>
+                <TableHead
                   onClick={() => handleSort("status")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
                 >
                   <div className="flex items-center gap-1">
                     Status {renderSortIcon("status")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("dueDate")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
                 >
                   <div className="flex items-center gap-1">
                     Due Date {renderSortIcon("dueDate")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("progress")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[140px]"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[140px]"
                 >
                   <div className="flex items-center gap-1">
                     Progress {renderSortIcon("progress")}
                   </div>
-                </th>
-                <th className="py-3.5 px-4 text-right w-[80px]">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+                </TableHead>
+                <TableHead className="text-right w-[80px]">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {paginatedTasks.map((task) => {
                 const members = task.members || [];
                 const totalMembers = members.length;
@@ -190,15 +200,15 @@ export default function GroupTaskTableView({
                   task.status === "ACTIVE";
 
                 return (
-                  <tr
+                  <TableRow
                     key={task.id}
                     onClick={() => onView && onView(task)}
-                    className={`hover:bg-muted/40 transition-colors cursor-pointer group ${
+                    className={`cursor-pointer group ${
                       isOverdue ? "bg-amber-500/[0.03]" : ""
                     }`}
                   >
                     {/* Task Title & Description */}
-                    <td className="py-3.5 px-4 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex flex-col gap-1 max-w-[340px] sm:max-w-[420px]">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-foreground group-hover:text-primary transition-colors text-[13px] line-clamp-1">
@@ -226,10 +236,10 @@ export default function GroupTaskTableView({
                           </div>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Creator */}
-                    <td className="py-3.5 px-4 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.creator?.name || "Unknown"}
@@ -241,10 +251,10 @@ export default function GroupTaskTableView({
                           {task.creator?.name || "Unknown"}
                         </span>
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Members Avatar Group */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-1.5">
                         {memberPeople.length > 0 ? (
                           <div className="flex items-center gap-2">
@@ -259,10 +269,10 @@ export default function GroupTaskTableView({
                           </span>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Status Badge */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-1.5">
                         <StatusBadge
                           status={
@@ -292,10 +302,10 @@ export default function GroupTaskTableView({
                           </div>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Due Date */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       {task.due_date ? (
                         <div className="flex flex-col">
                           <span
@@ -317,10 +327,10 @@ export default function GroupTaskTableView({
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Progress Bar */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       {totalMembers > 0 ? (
                         <div className="flex items-center gap-2 w-full max-w-[120px]">
                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -336,27 +346,30 @@ export default function GroupTaskTableView({
                       ) : (
                         <span className="text-muted-foreground text-[11px]">—</span>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right align-middle">
-                      <button
+                    <TableCell className="text-right align-middle">
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="icon-sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onView) onView(task);
                         }}
-                        className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                        className="rounded-lg bg-card text-muted-foreground active:scale-95"
                         title="View details"
+                        aria-label="View details"
                       >
                         <Eye size={13} />
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
@@ -381,45 +394,48 @@ export default function GroupTaskTableView({
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
             <span>Rows:</span>
-            <select
+            <SelectField
               value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
+              onChange={(next) => {
+                setPageSize(Number(next));
                 setCurrentPage(1);
               }}
-              className="bg-card border border-border rounded-md px-2 py-1 text-foreground text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
+              options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
+              size="sm"
+            />
           </div>
         </div>
 
         {/* Page Nav Controls */}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5">
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              className="rounded-md bg-card text-foreground disabled:opacity-30 disabled:hover:bg-card"
               title="Previous Page"
+              aria-label="Previous Page"
             >
               <ChevronLeft size={14} />
-            </button>
+            </Button>
 
             <span className="px-2 text-xs font-semibold text-foreground">
               Page {currentPage} of {totalPages}
             </span>
 
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              className="rounded-md bg-card text-foreground disabled:opacity-30 disabled:hover:bg-card"
               title="Next Page"
+              aria-label="Next Page"
             >
               <ChevronRight size={14} />
-            </button>
+            </Button>
           </div>
         )}
       </div>

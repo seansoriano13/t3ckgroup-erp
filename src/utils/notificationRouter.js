@@ -101,8 +101,29 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     } else {
       navigate("/tasks", { state: { openTaskId: notif.reference_id } });
     }
+  } else if (notif.type.startsWith("SOR_")) {
+    // `SOR_STAGE_PARTICIPANT_ADDED` (ADR 0021) is the ONLY way a Stage
+    // Participant reaches the deal: `sor_read` has no participant clause, so
+    // the SOR never appears in their register.
+    //
+    // It deliberately does NOT go through /sors like OPPORTUNITY_ below. That
+    // route hands the id to the register, whose deep-link fetch is
+    // `getOpportunityById` — a plain `.single()` on `sales_opportunities`,
+    // which RLS returns no row for at participant or locked access. It throws,
+    // `selected` stays null, and `isOpen={!!selected}` keeps the modal shut:
+    // the notification would appear to do nothing at all.
+    //
+    // GlobalDetailManager (mounted in SideNav, so present on every signed-in
+    // page) opens the modal through `getOpportunityForModal`, which branches on
+    // access level and reads `sor_participant_record` / `sor_locked_summary`
+    // instead. Same event `SorLink` uses to open an SOR from a task.
+    window.dispatchEvent(
+      new CustomEvent("OPEN_ENTITY_DETAILS", {
+        detail: { id: notif.reference_id, type: "OPPORTUNITY" },
+      }),
+    );
   } else if (notif.type.startsWith("OPPORTUNITY_")) {
-    navigate("/crm", {
+    navigate("/sors", {
       state: { openOpportunityId: notif.reference_id },
     });
   }

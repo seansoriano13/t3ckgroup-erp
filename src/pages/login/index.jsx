@@ -1,14 +1,15 @@
+import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import { useNavigate, useLocation, Navigate } from "react-router";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
-import PrimaryButton from "../../components/PrimaryButton";
+import { Button } from "../../components/ui/button";
 import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
-import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -19,10 +20,10 @@ export default function Login() {
   const redirectTo = resolvePostLoginPath(location.state?.from);
 
   const [email, setEmail] = useState(
-    () => import.meta.env.VITE_MAGIC_LOGIN_EMAIL || ""
+    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_EMAIL || "" : "")
   );
   const [password, setPassword] = useState(
-    () => import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || ""
+    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || "" : "")
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -133,11 +134,9 @@ export default function Login() {
           {/* Email + password form */}
           <form className="grid gap-5" onSubmit={handleManualLogin}>
             <div className="grid gap-2">
-              <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-                Email Address
-              </label>
-              <input
-                className={`${INPUT_STYLE} cursor-text`}
+              <FieldBox label="Email Address" />
+              <Input
+                className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="email"
                 autoComplete="username"
                 placeholder="name@t3ckgroup.com"
@@ -148,19 +147,18 @@ export default function Login() {
 
             <div className="grid gap-2">
               <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-                  Password
-                </label>
-                <button
+                <FieldBox label="Password" />
+                <Button
                   type="button"
+                  variant="link"
                   onClick={handleForgotPassword}
-                  className="text-xs text-mauve-11 font-medium hover:underline"
+                  className="h-auto p-0 text-xs font-medium text-mauve-11 hover:underline"
                 >
                   Forgot password?
-                </button>
+                </Button>
               </div>
-              <input
-                className={`${INPUT_STYLE} cursor-text`}
+              <Input
+                className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="password"
                 autoComplete="current-password"
                 placeholder="••••••••"
@@ -176,10 +174,9 @@ export default function Login() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <PrimaryButton
-                  label={isSubmitting ? "Logging in..." : "Log In"}
-                  className={`w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
-                />
+                <Button type="submit" className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}>
+{isSubmitting ? "Logging in..." : "Log In"}
+</Button>
 
                 <div className="w-full sm:w-auto flex justify-center drop-shadow-md hover:scale-105 transition-transform">
                   <GoogleLogin

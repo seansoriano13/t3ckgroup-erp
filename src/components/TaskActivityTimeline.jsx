@@ -1,3 +1,5 @@
+import { FileInput } from "@/components/ui/FileInput";
+import { ExternalLink } from "@/components/ui/external-link";
 import { buildReplySnapshot } from "../utils/chatReply";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { notificationService } from "../services/notificationService";
@@ -53,7 +55,7 @@ function renderContent(text, messageMentions = [], isMe = false) {
   return parts.map((part, i) => {
     if (urlRegex.test(part)) {
       return (
-        <a
+        <ExternalLink
           key={`url-${i}`}
           href={part}
           target="_blank"
@@ -62,7 +64,7 @@ function renderContent(text, messageMentions = [], isMe = false) {
           onClick={(e) => e.stopPropagation()}
         >
           {part}
-        </a>
+        </ExternalLink>
       );
     } else if (mentionRegex) {
       const mParts = part.split(mentionRegex);
@@ -145,13 +147,15 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
                 align={isMe ? "start" : "end"}
               />
             </div>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="icon"
               onClick={() => onReply?.(entry)}
-              className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
+              className="h-auto w-auto bg-card border-border shadow-sm rounded-full p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
             >
               <Reply size={14} />
-            </button>
+            </Button>
           </div>
 
           <SwipeToReplyWrapper 
@@ -184,14 +188,15 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
             {Object.entries(reactions).map(([emoji, users]) => {
               const iReacted = users.includes(currentUserId);
               return (
-                <button
+                <Button
                   key={emoji}
+                  variant="outline"
                   onClick={() => onReact && onReact(entry, emoji)}
-                  className={`flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border bg-card hover:bg-muted transition-colors ${iReacted ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"}`}
+                  className={`h-auto flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-card hover:bg-muted transition-colors ${iReacted ? "border-primary text-primary bg-primary/10 hover:bg-primary/10" : "border-border text-muted-foreground"}`}
                 >
                   <span>{emoji}</span>
                   <span>{users.length}</span>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -670,27 +675,25 @@ export default function TaskActivityTimeline({
             onCancel={() => setReplyingTo(null)}
             className="rounded-xl mb-2"
           />
-          {/* Hidden file input */}
-          <input
+          <FileInput
             ref={fileInputRef}
-            type="file"
             accept={ALLOWED_MIME_TYPES.join(",")}
             multiple
-            className="hidden"
-            onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
+            onFiles={addFiles}
           />
 
           {/* Attachment preview strip */}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               <AttachmentPreviews files={attachments} onRemove={removeAttachment} />
-              <button
+              <Button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-14 h-14 rounded-lg border border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                variant="outline"
+                onClick={() => fileInputRef.current?.open()}
+                className="w-14 h-14 rounded-lg border-dashed text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ImageIcon size={18} />
-              </button>
+              </Button>
             </div>
           )}
 
@@ -719,15 +722,17 @@ export default function TaskActivityTimeline({
                 {isUploading ? <Spinner size="sm" /> : <Send size={18} />}
               </Button>
               <div className="w-11 h-11 rounded-xl border border-border flex items-center justify-center gap-1.5">
-                <button
+                <Button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => fileInputRef.current?.open()}
                   disabled={postCommentMutation.isPending || isUploading}
-                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                  className="h-auto w-auto text-muted-foreground hover:text-foreground hover:bg-transparent transition-colors disabled:opacity-40"
                   title="Attach photo"
                 >
                   <Paperclip size={15} />
-                </button>
+                </Button>
                 <EmojiPicker
                   align="end"
                   onSelect={(emoji) => setMessage((prev) => prev + emoji)}

@@ -3,6 +3,9 @@ import { ChevronDown, ChevronRight, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Avatar from "../../Avatar";
 import { MAX_AVATARS } from "../../../constants/sorTasks";
+import { Button } from "../../ui/button";
+import StatusBadge from "../../StatusBadge";
+import { TASK_STATUS } from "../../../constants/status";
 
 function formatDue(iso) {
   if (!iso) return null;
@@ -34,25 +37,36 @@ export default function TaskRow({ row }) {
   return (
     <div className="rounded-lg border border-border/60 bg-card/50">
       <div className="flex items-center gap-2 px-3 py-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           onClick={() => canExpand && setExpanded((e) => !e)}
           disabled={!canExpand}
           aria-label={canExpand ? (expanded ? `Collapse ${row.title}` : `Expand ${row.title}`) : undefined}
           aria-expanded={canExpand ? expanded : undefined}
-          className={cn("shrink-0 text-muted-foreground", canExpand ? "cursor-pointer hover:text-foreground" : "cursor-default opacity-0")}
+          className={cn("shrink-0 text-muted-foreground", canExpand ? "cursor-pointer hover:text-foreground" : "cursor-default opacity-0 disabled:opacity-0")}
         >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
+        </Button>
 
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => openTask(row)}
           title={row.title}
-          className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-foreground hover:text-primary hover:underline"
+          className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-xs font-semibold text-foreground hover:bg-transparent hover:text-foreground hover:underline"
         >
           {row.title}
-        </button>
+        </Button>
+
+        {row.carried && <span className="shrink-0 text-[10px] text-muted-foreground">from an earlier visit</span>}
+
+        {row.status === TASK_STATUS.ON_HOLD ? (
+          <StatusBadge status={row.status}>Held</StatusBadge>
+        ) : row.status && row.status !== TASK_STATUS.COMPLETE ? (
+          <StatusBadge status={row.status} />
+        ) : null}
 
         <div className="flex shrink-0 -space-x-1.5">
           {row.members.slice(0, MAX_AVATARS).map((m) => (

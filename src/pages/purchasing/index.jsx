@@ -1,4 +1,12 @@
 import { useState, useMemo } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PackageSearch, ExternalLink } from "lucide-react";
@@ -9,6 +17,7 @@ import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
 import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
+import { Button } from "@/components/ui/button";
 import Avatar from "../../components/Avatar";
 import FilterBar from "../../components/ui/FilterBar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
@@ -56,21 +65,22 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
   });
 
   return (
-    <tr className="group border-b border-border last:border-0 transition-colors hover:bg-mauve-a2">
-      <td className="px-4 py-3">
+    <TableRow className="group">
+      <TableCell>
         <span className="block text-sm font-bold text-foreground">
           {request.requested_name}
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
           {Number(request.requested_quantity)} {request.requested_unit || "unit"}
         </span>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3">
-        <button
+      <TableCell>
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => onOpenSor(sor.id)}
-          className="group/sor flex items-center gap-1.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded"
+          className="group/sor h-auto justify-start gap-1.5 rounded p-0 text-left font-normal hover:bg-transparent"
         >
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-foreground group-hover/sor:text-primary">
@@ -84,10 +94,10 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
             size={13}
             className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
           />
-        </button>
-      </td>
+        </Button>
+      </TableCell>
 
-      <td className="px-4 py-3">
+      <TableCell>
         <div className="flex items-center gap-2">
           <Avatar
             src={request.requester?.avatar_path}
@@ -98,9 +108,9 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
             {request.requester?.name || "—"}
           </span>
         </div>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3">
+      <TableCell>
         <Select
           value={request.assignee?.id || "unassigned"}
           onValueChange={(val) => {
@@ -142,9 +152,9 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
             ))}
           </SelectContent>
         </Select>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3">
+      <TableCell>
         <span
           className={
             days !== null && days >= 7
@@ -154,12 +164,12 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
         >
           {waitedFor(request, now)}
         </span>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3 text-right">
+      <TableCell className="text-right">
         <StatusBadge status={outcomeRaw} label={outcomeLabel} />
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -197,7 +207,7 @@ function PurchasingQueue() {
   const now = data?.fetchedAt;
 
   const openSor = (opportunityId) =>
-    navigate("/crm", { state: { openOpportunityId: opportunityId } });
+    navigate("/sors", { state: { openOpportunityId: opportunityId } });
 
   const uniqueSors = useMemo(() => {
     if (!requests) return [];
@@ -309,24 +319,22 @@ function PurchasingQueue() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[52rem] border-collapse">
-              <thead>
-                <tr className="border-b border-border text-left">
+            <Table className="min-w-[52rem]">
+              <TableHeader>
+                <TableRow>
                   {["Product", "SOR", "Requested by", "Assigned to", "Waiting", ""].map(
                     (heading, i) => (
-                      <th
+                      <TableHead
                         key={heading || `col-${i}`}
-                        className={`px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground ${
-                          heading === "" ? "text-right" : ""
-                        }`}
+                        className={heading === "" ? "text-right" : undefined}
                       >
                         {heading}
-                      </th>
+                      </TableHead>
                     ),
                   )}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredRequests.map((request) => (
                   <QueueRow
                     key={request.id}
@@ -337,8 +345,8 @@ function PurchasingQueue() {
                     currentUserId={user?.id}
                   />
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
       )}

@@ -20,6 +20,7 @@ import { AttachmentEvidence } from "./ui/AttachmentEvidence";
 import Dropdown from "./ui/Dropdown";
 import { FilterTrigger } from "./ui/FilterDropdown";
 import Dot from "./ui/Dot";
+import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import StatusBadge from "./StatusBadge";
@@ -36,7 +37,8 @@ import {
 } from "../constants/procurement";
 import { formatDueDate, toLocalDatetimeString } from "../utils/formatDate";
 import { STAGE_LABELS } from "../constants/sor";
-import { canEditSor } from "../utils/sorPermissions";
+import { useCanEditSor } from "../hooks/useCanEditSor";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * The deal a requisition was raised from, for the buyer working the task.
@@ -52,7 +54,8 @@ import { canEditSor } from "../utils/sorPermissions";
  * record is offered only to someone who could actually act on it — anyone else
  * would land in a form whose saves the database refuses.
  */
-function SorSummary({ sor, user }) {
+function SorSummary({ sor }) {
+  const canEdit = useCanEditSor(sor?.id);
   if (!sor) return null;
 
   const value = Number(sor.expected_value || 0);
@@ -84,9 +87,10 @@ function SorSummary({ sor, user }) {
           Deal owner: {sor.deal_owner.name}
         </span>
       )}
-      {canEditSor(user, sor) && (
-        <button
+      {canEdit && (
+        <Button
           type="button"
+          variant="link"
           onClick={() =>
             window.dispatchEvent(
               new CustomEvent("OPEN_ENTITY_DETAILS", {
@@ -94,10 +98,10 @@ function SorSummary({ sor, user }) {
               }),
             )
           }
-          className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+          className="h-auto p-0 ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
         >
           View full SOR <ExternalLink size={11} />
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -146,17 +150,18 @@ function OutcomeDropdown({
           {OUTCOME_OPTIONS.map((opt) => {
             const isSelected = value === opt.value;
             return (
-              <button
+              <Button
                 key={opt.value}
                 type="button"
+                variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onChange) onChange(opt.value);
                   close();
                 }}
-                className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
+                className={`h-auto w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
                   isSelected
-                    ? "bg-muted text-foreground font-bold"
+                    ? "bg-muted text-foreground font-bold hover:bg-muted"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
@@ -172,7 +177,7 @@ function OutcomeDropdown({
                     <Check size={13} className="text-foreground" />
                   </div>
                 )}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -347,14 +352,16 @@ function ProcurementEditForm({
           </span>
         </div>
         {onCancel && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             onClick={onCancel}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="h-auto w-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             aria-label="Cancel editing"
           >
             <X size={14} />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -374,9 +381,7 @@ function ProcurementEditForm({
       )}
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-foreground">
-          Status / Outcome <span className="text-destructive">*</span>
-        </label>
+        <FieldBox label={<>Status / Outcome <span className="text-destructive">*</span></>} />
         <OutcomeDropdown value={outcome} onChange={handleOutcomeChange} />
       </div>
 
@@ -385,9 +390,7 @@ function ProcurementEditForm({
           {/* PO Number Input */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
-                Odoo PO Number {needsPo && <span className="text-destructive">*</span>}
-              </label>
+              <FieldBox label={<>Odoo PO Number {needsPo && <span className="text-destructive">*</span>}</>} />
               {liveVerification.isChecking ? (
                 <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
                   <Loader2 size={11} className="animate-spin" /> Checking PO in Odoo...
@@ -414,22 +417,21 @@ function ProcurementEditForm({
           {/* Odoo Product & Supplier Details Card */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
-                Odoo Product Reference
-              </label>
+              <FieldBox label="Odoo Product Reference" />
               {isOdooVerified && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => {
                     navigator.clipboard.writeText(liveVerification.productRef || "");
                     toast.success("Copied product name to clipboard!");
                   }}
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  className="h-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   title="Copy product name"
                 >
                   <Copy size={11} />
                   <span>Copy</span>
-                </button>
+                </Button>
               )}
             </div>
             {isOdooVerified ? (
@@ -468,9 +470,7 @@ function ProcurementEditForm({
           {/* ETA Input */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
-                Estimated Arrival (ETA)
-              </label>
+              <FieldBox label="Estimated Arrival (ETA)" />
               {isOdooVerified && liveVerification.eta ? (
                 <span className="text-[11px] font-normal text-muted-foreground">
                   Auto-populated: <span className="font-medium text-foreground">{formatDueDate(liveVerification.eta)}</span>
@@ -492,9 +492,7 @@ function ProcurementEditForm({
 
           {/* Remarks */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
-              Purchasing Remarks (Optional)
-            </label>
+            <FieldBox label="Purchasing Remarks (Optional)" />
             <Textarea
               aria-label="Purchasing remarks"
               value={note}
@@ -506,10 +504,10 @@ function ProcurementEditForm({
           </div>
 
           <div className="flex items-center gap-2 pt-2">
-            <button
+            <Button
               type="submit"
               disabled={isPending || (needsPo && !poNumber.trim())}
-              className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="h-auto flex-1 rounded-lg px-4 py-2.5 text-xs font-semibold shadow-xs disabled:opacity-50 transition-colors"
             >
               {needsPo && !poNumber.trim()
                 ? "Enter PO number to save"
@@ -518,15 +516,16 @@ function ProcurementEditForm({
                   : outcome === PROCUREMENT_OUTCOME.IN_PROGRESS
                     ? "Set to in progress"
                     : "Record outcome"}
-            </button>
+            </Button>
             {onCancel && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={onCancel}
-                className="rounded-lg border border-input bg-background px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                className="h-auto rounded-lg bg-background px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
               >
                 Cancel
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -604,39 +603,41 @@ function ResolvedRow({ request, onResolve, isPending, userId, canEdit }) {
 
           {/* Prominent Action Button for In Progress */}
           {request.outcome === PROCUREMENT_OUTCOME.IN_PROGRESS && (
-            <button
+            <Button
               type="button"
               onClick={handleQuickMarkPurchased}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 active:bg-blue-800 transition-colors"
+              className="h-auto inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 active:bg-blue-800 transition-colors"
             >
               <FileText size={13} />
               <span>Record PO</span>
-            </button>
+            </Button>
           )}
 
           {/* High-emphasis Action Button for Purchased -> Delivered */}
           {request.outcome === PROCUREMENT_OUTCOME.PURCHASED && (
-            <button
+            <Button
               type="button"
               disabled={isPending}
               onClick={handleQuickMarkDelivered}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 transition-colors"
+              className="h-auto inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 transition-colors"
             >
               <Truck size={13} />
               <span>Mark Delivered</span>
-            </button>
+            </Button>
           )}
 
           {/* Edit Button */}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             onClick={handleOpenEdit}
             aria-label={`Edit outcome for ${request.requested_name}`}
-            className="inline-flex items-center gap-1 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="h-auto w-auto inline-flex items-center gap-1 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             title="Edit details"
           >
             <Pencil size={13} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -859,7 +860,7 @@ export default function ProcurementResolutionPanel({
 
   return (
     <div className="space-y-3 rounded-2xl border border-border/70 bg-card p-5 shadow-xs">
-      <SorSummary sor={sor} user={user} />
+      <SorSummary sor={sor} />
 
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">

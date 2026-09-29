@@ -1,6 +1,6 @@
 import { FolderKanban, Receipt } from "lucide-react"
 import SorLink from "./sor/SorLink"
-import Dot from "./ui/Dot"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import ChecklistTaskInput from "./ChecklistTaskInput"
@@ -8,6 +8,7 @@ import ChecklistTaskRenderer from "./ChecklistTaskRenderer"
 import HighlightText from "./HighlightText"
 import ImageAttachment from "./ImageAttachment"
 import { useProjectTitles } from "../hooks/useProjectTitles"
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function TaskBodySection({
   isEditing,
@@ -29,46 +30,10 @@ export default function TaskBodySection({
 }) {
   const projectTitles = useProjectTitles(task?.loggedById || task?.logged_by || user?.id, isEditing);
 
-  return (
+  // Where the task came from and what it is filed against. Editing keeps it
+  // near the top with the other inputs; viewing puts it after the work itself.
+  const sourceAndVoucher = (
     <>
-      {/* --- PROJECT / CAMPAIGN TITLE --- */}
-      {(isEditing || formData.projectTitle) && (
-        <div className="flex flex-col gap-1.5 pt-2">
-          <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-            <FolderKanban size={12} /> Project / Campaign Title
-            {isEditing && (
-              <span className="font-normal text-muted-foreground normal-case tracking-normal">
-                (optional)
-              </span>
-            )}
-          </label>
-          {isEditing ? (
-            <div className="relative">
-              <Input
-                type="text"
-                name="projectTitle"
-                value={formData.projectTitle}
-                onChange={handleChange}
-                placeholder="e.g. Q2 Brand Awareness Campaign"
-                className="h-11 shadow-sm"
-                autoComplete="on"
-                list="project-titles-list"
-              />
-              <datalist id="project-titles-list">
-                {projectTitles.map((title) => (
-                  <option key={title} value={title} />
-                ))}
-              </datalist>
-            </div>
-          ) : (
-            <div className="bg-muted px-4 py-3 rounded-xl border border-border/50 text-sm font-bold text-violet-10 flex items-center gap-2 shadow-sm">
-              <FolderKanban size={14} />
-              {formData.projectTitle}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* --- OPPORTUNITY LINK --- */}
       <SorLink opportunityId={task?.opportunityId || task?.opportunity_id} onClose={onClose} />
 
@@ -76,14 +41,12 @@ export default function TaskBodySection({
       {((isEditing && taskDept?.toUpperCase() === "ADMIN") ||
         formData.paymentVoucher) && (
         <div className="flex flex-col gap-1.5 pt-2">
-          <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-            <Receipt size={12} /> Payment Voucher
+          <FieldBox label={<><Receipt size={12} /> Payment Voucher
             {isEditing && (
               <span className="font-normal text-muted-foreground normal-case tracking-normal">
                 (optional)
               </span>
-            )}
-          </label>
+            )}</>} className="pl-1" />
           {isEditing ? (
             <Input
               type="text"
@@ -94,20 +57,53 @@ export default function TaskBodySection({
               className="h-11 shadow-sm"
             />
           ) : (
-            <div className="bg-muted px-4 py-3 rounded-xl border border-border/50 text-sm font-bold text-foreground flex items-center gap-2 shadow-sm">
+            <div className="bg-muted px-4 py-3 rounded-xl border border-border/50 text-sm font-bold text-foreground flex items-center gap-2">
               <Receipt size={14} />
               {formData.paymentVoucher}
             </div>
           )}
         </div>
       )}
+    </>
+  )
+
+  return (
+    <>
+      {/* --- PROJECT / CAMPAIGN TITLE ---
+          View mode shows it as the modal's title (TaskHeader), so only the
+          input lives here. */}
+      {isEditing && (
+        <div className="flex flex-col gap-1.5 pt-2">
+          <FieldBox label={<><FolderKanban size={12} /> Project / Campaign Title
+            <span className="font-normal text-muted-foreground normal-case tracking-normal">
+              (optional)
+            </span></>} className="pl-1" />
+          <div className="relative">
+            <Input
+              type="text"
+              name="projectTitle"
+              value={formData.projectTitle}
+              onChange={handleChange}
+              placeholder="e.g. Q2 Brand Awareness Campaign"
+              className="h-11 shadow-sm"
+              autoComplete="on"
+              list="project-titles-list"
+            />
+            <datalist id="project-titles-list">
+              {projectTitles.map((title) => (
+                <option key={title} value={title} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+      )}
+
+      {isEditing && sourceAndVoucher}
 
       {/* --- OTHERS DETAILS --- */}
       {isEditing && isOthersGlobal && (
         <div className="flex flex-col gap-1.5 pt-2 animate-slide-down">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-            Others Details
-          </label>
+          <FieldBox label="Others Details" className="pl-1" />
           <Textarea
             name="remarks"
             value={formData.remarks || ""}
@@ -124,9 +120,7 @@ export default function TaskBodySection({
           <div className="flex flex-col gap-4">
             {/* Description is always visible in edit mode */}
             <div>
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1">
-                Description
-              </label>
+              <FieldBox label="Description" className="pl-1 block mb-1" />
               <Textarea
                 name="taskDescription"
                 value={formData.taskDescription || ""}
@@ -140,16 +134,15 @@ export default function TaskBodySection({
               {showChecklist ? (
                 <div className="animate-slide-down">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-                      Checklist
-                    </label>
-                    <button
+                    <FieldBox label="Checklist" className="pl-1" />
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => setShowChecklist(false)}
-                      className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
+                      className="h-auto text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
                     >
                       Hide
-                    </button>
+                    </Button>
                   </div>
                   <div className="bg-card rounded-xl border border-border p-4 shadow-sm">
                     <ChecklistTaskInput
@@ -165,39 +158,30 @@ export default function TaskBodySection({
                   </div>
                 </div>
               ) : (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setShowChecklist(true)}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+                  className="h-auto flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
                 >
                   <span className="text-base leading-none">+</span> Add checklist
-                </button>
+                </Button>
               )}
             </div>
           </div>
         ) : (
-          /* VIEW MODE */
+          /* VIEW MODE — description reads straight on from the title, as
+             prose, then the checklist the assignee works through. */
           <div className="flex flex-col gap-6">
-            {/* Show description if it exists */}
             {formData.taskDescription?.trim() && (
-              <div>
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
-                  <Dot />
-                  Description
-                </label>
-                <div className="bg-muted/30 p-6 rounded-2xl border border-border text-foreground leading-relaxed text-[15px] whitespace-pre-wrap shadow-sm">
-                  <HighlightText text={formData.taskDescription} search={searchTerm} />
-                </div>
+              <div className="max-w-[70ch] text-[15px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                <HighlightText text={formData.taskDescription} search={searchTerm} />
               </div>
             )}
 
-            {/* Show checklist if it exists */}
             {hasChecklist && (
               <div>
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
-                  <Dot />
-                  Checklist
-                </label>
+                <FieldBox label="Checklist" className="pl-1 mb-2" />
                 <ChecklistTaskRenderer
                   description={formData.checklist}
                   isOwner={isOwner}
@@ -220,10 +204,10 @@ export default function TaskBodySection({
                 />
               </div>
             )}
-            
+
             {/* Fallback if both are completely empty */}
             {!formData.taskDescription?.trim() && !hasChecklist && (
-               <div className="text-sm text-muted-foreground italic px-4 py-2">
+               <div className="text-sm text-muted-foreground italic">
                  No description or checklist provided.
                </div>
             )}
@@ -231,11 +215,11 @@ export default function TaskBodySection({
         )}
       </div>
 
+      {!isEditing && sourceAndVoucher}
+
       {/* --- ATTACHMENTS (all tasks, owner only) --- */}
       <div className="flex flex-col gap-1.5 pt-2 border-t border-border mt-2">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-          Attachments
-        </label>
+        <FieldBox label="Attachments" className="pl-1" />
         <ImageAttachment
           taskId={task.id}
           userId={user.id}

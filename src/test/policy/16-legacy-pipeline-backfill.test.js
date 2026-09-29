@@ -13,9 +13,10 @@ import { readFileSync } from "node:fs"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
-import { canRead } from "./support/access.js"
+import { canRead, tryUpdate } from "./support/access.js"
 
 const PROD_SALE_TYPE_ID = "f1d4e085-9a13-4c30-a2b7-b9f97f009608"
+const EVERYONE = [{ type: "everyone" }]
 const script = readFileSync("supabase/scripts/cutover/legacy_pipeline_backfill.sql", "utf8")
 
 let saleTypeId
@@ -70,6 +71,7 @@ afterAll(async () => {
     await svc.from("sor_stage_visits").delete().in("flow_stage_id", (fixtureStages || []).map((st) => st.id))
     await svc.from("flow_stages").delete().eq("flow_id", flowId)
     await svc.from("sales_opportunities").delete().in("id", Object.values(sors))
+    await svc.from("flow_access_settings").delete().eq("flow_id", flowId)
     await svc.from("sales_flows").delete().eq("id", flowId)
     await svc.from("sale_types").delete().eq("id", saleTypeId)
 })
@@ -106,9 +108,20 @@ describe("the Legacy Pipeline backfill", () => {
         expect(await saleTypeOf(sors.deleted)).toBeNull()
     })
 
-    it("gives Legacy Pipeline no Always sees configuration", async () => {
-        const { data } = await serviceClient().from("flow_access_settings").select("always_sees").eq("flow_id", flowId)
-        expect((data || []).flatMap((r) => r.always_sees || [])).toEqual([])
+    it("leaves exactly Everyone in Always sees and Always edits", async () => {
+        const { data } = await serviceClient().from("flow_access_settings").select("always_sees, always_edits").eq("flow_id", flowId)
+        expect(data).toEqual([{ always_sees: EVERYONE, always_edits: EVERYONE }])
+    })
+
+    it("replaces an earlier setting, and a second run rewrites nothing", async () => {
+        const svc = serviceClient()
+        await svc.from("flow_access_settings").update({ always_sees: [{ type: "team", team: "NGO" }], always_edits: [] }).eq("flow_id", flowId)
+        await runBackfill(saleTypeId)
+        const first = await svc.from("flow_access_settings").select("always_sees, always_edits, updated_at").eq("flow_id", flowId).single()
+        expect(first.data).toMatchObject({ always_sees: EVERYONE, always_edits: EVERYONE })
+        await runBackfill(saleTypeId)
+        const second = await svc.from("flow_access_settings").select("updated_at").eq("flow_id", flowId).single()
+        expect(second.data.updated_at).toBe(first.data.updated_at)
     })
 
     it("is re-runnable", async () => {
@@ -130,9 +143,14 @@ describe("who reads a backfilled SOR", () => {
         expect(await canRead(await clientFor("dealOwner"), "sales_opportunities", sors.owned)).toBe(true)
     })
 
-    it("a non-member doesn't", async () => {
-        expect(await canRead(await clientFor("ordinary"), "sales_opportunities", sors.owned)).toBe(false)
-        expect(await canRead(await clientFor("dealOwner"), "sales_opportunities", sors.other)).toBe(false)
+    // outsider: Operations, off the Deal Team. hr: no sub-department.
+    it.each(["outsider", "hr", "ordinary"])("%s reads, edits and moves it", async (key) => {
+        const client = await clientFor(key)
+        expect(await canRead(client, "sales_opportunities", sors.owned)).toBe(true)
+        const edit = await tryUpdate(client, "sales_opportunities", sors.owned, { project_title: `${MARKER} edited by ${key}` })
+        expect(edit.affected).toBe(1)
+        const move = await tryUpdate(client, "sales_opportunities", sors.owned, { flow_stage_id: leadStageId })
+        expect(move.affected).toBe(1)
     })
 
     it("Super Admin reads all", async () => {

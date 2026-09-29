@@ -10,6 +10,7 @@ const LOGIC = [
     "src/utils/**/*.test.{js,jsx}",
     "src/constants/**/*.test.{js,jsx}",
     "src/lib/pdf/**/*.test.{js,jsx}",
+    "src/lib/linting/**/*.test.{js,jsx}",
     "src/test/scripts/**/*.test.{js,jsx}",
 ]
 const SERVICES = [
@@ -42,7 +43,8 @@ export default defineConfig({
         // The company and its data live in Asia/Manila. Date handling in this
         // app is local-time based, so tests must run in that zone or they
         // assert different behaviour than production sees.
-        env: { TZ: "Asia/Manila" },
+        // VITE_APP_ENV pinned so a local .env can't turn on the layout prototype (ADR 0028).
+        env: { TZ: "Asia/Manila", VITE_APP_ENV: "test" },
         // Each file runs in the lightest environment it needs. Booting jsdom,
         // MSW and the migration-parsed fake database costs seconds per file,
         // so a pure function test should not pay for it. Membership is by

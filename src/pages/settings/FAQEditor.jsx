@@ -13,6 +13,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { generateId, ICON_MAP, ICON_NAMES, CATEGORY_COLORS } from "./faqData";
+import { Button } from "@/components/ui/button";
 
 // ─── Role definitions ─────────────────────────────────────────────────────────
 const ROLES = [
@@ -27,7 +28,10 @@ import PageHeader from "../../components/ui/PageHeader";
 import { Navigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import { canEditFAQ } from "../../utils/faqAccess";
+import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
   const ref = useRef(null);
@@ -38,7 +42,7 @@ function AutoTextarea({ value, onChange, placeholder, className }) {
     }
   }, [value]);
   return (
-    <textarea
+    <Textarea variant="bare"
       ref={ref}
       value={value}
       onChange={onChange}
@@ -83,7 +87,7 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
       </span>
 
       {editingLabel ? (
-        <input
+        <Input
           ref={inputRef}
           value={draft}
           onClick={(e) => e.stopPropagation()}
@@ -96,7 +100,7 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
               setEditingLabel(false);
             }
           }}
-          className="flex-1 bg-transparent text-sm font-medium outline-none border-b border-primary"
+          containerClassName="flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-medium outline-none border-b border-primary"
         />
       ) : (
         <span className="flex-1 text-sm font-medium truncate">{cat.label}</span>
@@ -106,20 +110,26 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
         className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setEditingLabel(true)}
-          className="w-5 h-5 flex items-center justify-center rounded hover:bg-muted-foreground/20 text-muted-foreground hover:text-foreground transition-colors"
+          className="h-5 w-5 rounded text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
           title="Rename"
+          aria-label="Rename"
         >
           <Pencil size={10} />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onDelete}
-          className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-100 text-muted-foreground hover:text-red-500 transition-colors"
+          className="h-5 w-5 rounded text-muted-foreground hover:bg-red-100 hover:text-red-500"
           title="Delete category"
+          aria-label="Delete category"
         >
           <Trash2 size={10} />
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -155,12 +165,15 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
     <div className="border border-border rounded-xl overflow-hidden bg-card group/item transition-all hover:shadow-sm">
       {/* Question row */}
       <div className="flex items-start gap-2 px-4 py-3">
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setIsOpen((p) => !p)}
-          className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+          className="mt-0.5 h-auto w-auto shrink-0 p-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+          aria-label={isOpen ? "Collapse question" : "Expand question"}
         >
           {isOpen ? <ChevronDown size={15} strokeWidth={2.5} /> : <ChevronRight size={15} strokeWidth={2.5} />}
-        </button>
+        </Button>
 
         <div className="flex-1">
           <AutoTextarea
@@ -178,13 +191,16 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
           </span>
         )}
 
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onDelete}
-          className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover/item:opacity-100"
+          className="h-6 w-6 shrink-0 rounded text-muted-foreground/40 opacity-0 hover:bg-red-50 hover:text-red-500 group-hover/item:opacity-100"
           title="Delete question"
+          aria-label="Delete question"
         >
           <Trash2 size={13} />
-        </button>
+        </Button>
       </div>
 
       {/* Expanded answer editor */}
@@ -193,25 +209,27 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
           {/* Role tab bar */}
           <div className="flex items-center gap-0 px-4 pt-3 pb-0 border-b border-border/40">
             {/* All Roles tab */}
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setActiveTab("all")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px ${
+              className={`h-auto rounded-t-lg rounded-b-none border-b-2 -mb-px px-3 py-1.5 text-xs font-semibold hover:bg-transparent ${
                 activeTab === "all"
-                  ? "border-primary text-primary bg-primary/5"
+                  ? "border-primary text-primary bg-primary/5 hover:bg-primary/5"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               All Roles
-            </button>
+            </Button>
             {ROLES.map((role) => {
               const custom = !isShared(role.key);
               return (
-                <button
+                <Button
                   key={role.key}
+                  variant="ghost"
                   onClick={() => setActiveTab(role.key)}
-                  className={`relative flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px ${
+                  className={`relative h-auto gap-1 rounded-t-lg rounded-b-none border-b-2 -mb-px px-3 py-1.5 text-xs font-semibold hover:bg-transparent ${
                     activeTab === role.key
-                      ? "border-primary text-primary bg-primary/5"
+                      ? "border-primary text-primary bg-primary/5 hover:bg-primary/5"
                       : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -222,7 +240,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                       style={{ backgroundColor: role.color }}
                     />
                   )}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -247,8 +265,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
               return (
                 <>
                   {/* Share toggle */}
-                  <label className="flex items-center gap-2 mb-3 cursor-pointer group/toggle">
-                    <div
+                  <FieldBox label={<><div
                       onClick={() => toggleShared(activeTab)}
                       className={`w-8 h-4 rounded-full relative transition-colors shrink-0 ${
                         shared ? "bg-muted-foreground/30" : "bg-primary"
@@ -262,8 +279,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                     </div>
                     <span className="text-xs font-medium text-muted-foreground group-hover/toggle:text-foreground transition-colors">
                       {shared ? "Using shared answer" : "Custom answer for " + role.label}
-                    </span>
-                  </label>
+                    </span></>} className="gap-2 mb-3 cursor-pointer group/toggle" />
 
                   {shared ? (
                     /* Preview of shared answer */
@@ -301,9 +317,10 @@ function CategoryStylePicker({ cat, onChange }) {
 
   return (
     <div className="relative">
-      <button
+      <Button
+        variant="outline"
         onClick={() => setOpen((p) => !p)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-muted transition-all"
+        className="h-auto gap-1.5 rounded-lg bg-card px-2.5 py-1.5 text-xs text-muted-foreground"
         title="Change icon / color"
       >
         <span style={{ color: cat.color }}>
@@ -314,7 +331,7 @@ function CategoryStylePicker({ cat, onChange }) {
         </span>
         <span>Style</span>
         <ChevronDown size={11} />
-      </button>
+      </Button>
 
       {open && (
         <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-56 animate-slide-down">
@@ -325,14 +342,17 @@ function CategoryStylePicker({ cat, onChange }) {
             {ICON_NAMES.map((name) => {
               const Icon = ICON_MAP[name];
               return (
-                <button
+                <Button
                   key={name}
+                  variant="ghost"
+                  size="icon"
                   onClick={() => onChange({ ...cat, icon: name })}
-                  className={`h-8 rounded-lg flex items-center justify-center transition-all border ${cat.icon === name ? "border-primary bg-primary/10 text-primary" : "border-transparent hover:bg-muted text-muted-foreground"}`}
+                  className={`h-8 rounded-lg border ${cat.icon === name ? "border-primary bg-primary/10 text-primary hover:bg-primary/10" : "border-transparent text-muted-foreground"}`}
                   title={name}
+                  aria-label={name}
                 >
                   <Icon size={14} />
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -342,21 +362,25 @@ function CategoryStylePicker({ cat, onChange }) {
           </p>
           <div className="flex flex-wrap gap-1.5">
             {CATEGORY_COLORS.map((c) => (
-              <button
+              <Button
                 key={c}
+                variant="ghost"
+                size="icon"
                 onClick={() => onChange({ ...cat, color: c })}
                 style={{ backgroundColor: c }}
-                className={`w-6 h-6 rounded-full transition-all border-2 ${cat.color === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"}`}
+                aria-label={c}
+                className={`h-6 w-6 rounded-full border-2 hover:opacity-90 ${cat.color === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"}`}
               />
             ))}
           </div>
 
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setOpen(false)}
-            className="mt-3 w-full text-xs text-center text-muted-foreground hover:text-foreground transition-colors"
+            className="mt-3 h-auto w-full justify-center text-xs font-normal text-muted-foreground hover:bg-transparent hover:text-foreground"
           >
             Done
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -505,26 +529,27 @@ export default function FAQEditorPage() {
           >
             <div className="flex items-center gap-2 shrink-0 w-full">
               {/* Reset */}
-              <button
+              <Button
+                variant="outline"
                 onClick={handleReset}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                className={`h-auto gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
                   confirmReset
-                    ? "border-red-300 bg-red-50 text-red-600"
+                    ? "border-red-300 bg-red-50 text-red-600 hover:bg-red-50"
                     : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <RotateCcw size={12} />
                 {confirmReset ? "Confirm Reset?" : "Clear all"}
-              </button>
+              </Button>
 
               {/* Save */}
-              <button
+              <Button
                 onClick={handleSave}
                 disabled={saving}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60 ${
+                className={`h-auto gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-60 ${
                   saved
-                    ? "bg-green-100 text-green-700 border border-green-300"
-                    : "bg-primary text-primary-foreground hover:opacity-90"
+                    ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-100"
+                    : "hover:opacity-90"
                 }`}
               >
                 {saved ? (
@@ -535,7 +560,7 @@ export default function FAQEditorPage() {
                   <Save size={12} />
                 )}
                 {saved ? "Saved!" : saving ? "Saving…" : "Save changes"}
-              </button>
+              </Button>
             </div>
           </PageHeader>
         </div>
@@ -576,13 +601,14 @@ export default function FAQEditorPage() {
 
             {/* Add category */}
             <div className="p-3 border-t border-border">
-              <button
+              <Button
+                variant="outline"
                 onClick={addCategory}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted border border-dashed border-border transition-all"
+                className="h-auto w-full gap-1.5 rounded-lg border-dashed px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
               >
                 <Plus size={12} />
                 Add category
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -650,13 +676,14 @@ export default function FAQEditorPage() {
                 </div>
 
                 {/* Add item */}
-                <button
+                <Button
+                  variant="outline"
                   onClick={addItem}
-                  className="mt-4 w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted border border-dashed border-border transition-all"
+                  className="mt-4 h-auto w-full gap-2 rounded-xl border-dashed px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
                 >
                   <Plus size={15} />
                   Add question
-                </button>
+                </Button>
 
                 <div className="h-16" />
               </div>

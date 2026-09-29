@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
 import { headApprovalService } from "../services/headApprovalService";
+import { opportunityService } from "../services/opportunityService";
 
 
 /**
@@ -56,9 +57,19 @@ export function useNavBadges(user) {
   });
   const leaveApprovals = isSuperAdmin || isHead ? pendingHeadApprovals.length : 0;
 
+  // 3. My SORs — deals this person was called into and still has an open
+  // window on. Every employee can hold one, so this is not gated on a role.
+  const { data: mySors = 0 } = useQuery({
+    queryKey: ["navMySors", user?.id],
+    queryFn: () => opportunityService.countMyOpenSors(user.id),
+    enabled: !!user?.id,
+    staleTime: 30000,
+  });
+
   return {
     taskApprovals,
     hrVerifications,
     leaveApprovals,
+    mySors,
   };
 }

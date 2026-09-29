@@ -13,7 +13,9 @@ import {
   Percent,
   Workflow,
   ShoppingCart,
+  ShoppingBag,
   Presentation,
+  Handshake,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -75,17 +77,34 @@ export const NAV_MODULES = {
     defaultExpanded: true,
     links: [
       {
-        key: "sales.sorCrm",
-        label: "CRM",
-        link: "/crm",
+        key: "sales.sors",
+        label: "SORS",
+        link: "/sors",
         icon: Target,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
+        exactMatch: true,
+      },
+      // ADR 0021 keeps a Stage Participant out of `sales_opportunities`, so a
+      // deal someone was called into can never appear in the SORS register.
+      // This is where it appears instead. Deliberately ungated, like Flow
+      // Canvas: `isPermitted` is synchronous and cannot ask whether this
+      // person holds a window, and gating on `hasSalesFlow` would lock out
+      // exactly the people ADR 0021 names — a purchaser, an engineer, a
+      // finance officer — none of whom need Sales access to be called in.
+      // The page shows an empty state to anyone who has none.
+      {
+        key: "sales.mySors",
+        label: "My SORs",
+        link: "/my-sors",
+        icon: Handshake,
+        badgeKey: "mySors",
+        isPermitted: () => true,
         exactMatch: true,
       },
       {
         key: "sales.commissionDashboard",
         label: "Commission Dashboard",
-        link: "/crm/commission",
+        link: "/sors/commission",
         icon: Percent,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
         exactMatch: true,
@@ -93,9 +112,30 @@ export const NAV_MODULES = {
       {
         key: "sales.commissionFormula",
         label: "Commission Formula",
-        link: "/crm/commission-formula",
+        link: "/sors/commission-formula",
         icon: Percent,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasSalesFlow,
+      },
+      // Issues #170-#174 put the Retail Queue and Retail totals in the
+      // register's tab strip. They live on their own screen now — the strip
+      // was the crowded thing, and retail is a sideline that nobody scans the
+      // register for. Last in the group for the same reason.
+      //
+      // This gate is deliberately coarser than the screen's own: `isPermitted`
+      // is synchronous, and the real eligibility (#173 — a Super Admin, or a
+      // Sales Director on a live opportunity) needs a query to answer. Same
+      // arrangement as Commission Dashboard: the sidebar offers the entry, the
+      // page decides. So a salesperson who is not a Sales Director does see
+      // this entry and is refused on arrival. That is the cost of a coarse
+      // sidebar gate, not a hole — the page and the queue table's RLS policy
+      // both enforce the real one, and nothing is reachable without them.
+      {
+        key: "sales.retail",
+        label: "Retail",
+        link: "/retail",
+        icon: ShoppingBag,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasSalesFlow,
+        exactMatch: true,
       },
     ],
   },

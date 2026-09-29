@@ -1,28 +1,200 @@
 [
     {
+        "date": "2026-09-29",
+        "title": "SORs Redesigned, Revert & Resume, and Group Task Templates",
+        "version": "1.8.0",
+        "changes": [
+            "SORs: opening an SOR now shows a two-column Summary first. Open This stage, History and the other views from there.",
+            "SORs: new Revert to last stage takes an SOR back one step. When it returns to a stage it was on before, choose Resume previous work or Start fresh.",
+            "SORs: the History shows everything done at each stage, including who did it, and loads much faster.",
+            "SORs: new My SORs screen lists every SOR you were called into by a task, assignment or purchase request.",
+            "SORs: the header is one row, Register is a floating button, and Open and Won totals follow each Sales Flow's own stages.",
+            "SORs: fixed the Product List and Estimated Value sometimes doubling.",
+            "Sales Flows: the Government and Outright flows are now live.",
+            "Group Tasks: tasks have a Start Date and Lead Time, and removing a member now really removes them. Templates brought over are marked (staging) so you can check and adjust them.",
+            "Settings: now split into tabs, with leave categories under HR & Schedule. Saved task filters remember every filter.",
+            "HR: offset leave can be approved with fewer hours than requested.",
+            "Everywhere: fields, tables and pop-ups look and behave the same on every screen.",
+            "Updates: when a new version is out, a small notice offers Later or Reload."
+        ]
+    },
+    {
+        "date": "2026-09-29",
+        "title": "SOR History Shows Each Stage's Full Work",
+        "version": "1.7.35",
+        "changes": [
+            "Opening a stage in the SOR History now shows everything done there, in order: conditions, files, stage fields, stage actions, other tasks, follow-ups and requested items. It also says who gave a file, who ticked a box or who was assigned.",
+            "Each stage action shows what it did, including when its task was later deleted or when its decision is being held for a Resume.",
+            "Tasks that are on hold or were closed off by Start fresh or a Revert now open read-only, with a note saying when they were held or why they were cancelled.",
+            "Tasks closed off by a Revert now show as Cancelled everywhere instead of disappearing, and the stage is marked \"Closed off\" with who did it and when.",
+            "A stage whose work was resumed later is marked \"Resumed\" instead of showing its old work as unmet.",
+            "The History tab loads much faster."
+        ]
+    },
+    {
         "date": "2026-09-28",
         "title": "Group Tasks: Start Date, Lead Time, and Removing Members",
-        "version": "1.7.32",
+        "version": "1.7.34",
         "changes": [
             "Group tasks now have a Start Date and a Lead Time. Lead Time is a free note, like \"120 calendar days\" or \"Extended\". Set them when you create the task, or edit them later from the task's details.",
             "Fixed a bug where removing a member from a group task said it worked, and showed it in the history, but the member stayed on the task. Removing a member now really removes them. If you're not allowed to remove them, it tells you instead."
         ]
     },
     {
-        "date": "2026-09-23",
-        "title": "Fixed: SOR Product List Could Double",
-        "version": "1.7.20",
+        "date": "2026-09-28",
+        "title": "Flow Canvas and Stage History Fixes",
+        "version": "1.7.33",
         "changes": [
-            "Fixed a bug where opening an SOR's Product List could double its items and Estimated Value if it was open in more than one place at the same time. Reopening it always shows the correct total now."
+            "Flow Canvas now names the actual person on a Decider card instead of always saying \"the assignee\" when someone else decides.",
+            "Resuming previous work on a returned SOR now correctly carries an already-uploaded condition file forward, so it still counts.",
+            "Fixed a rare timing issue where checking off a condition right as a stage move was reverted could get recorded against the wrong stage visit."
+        ]
+    },
+    {
+        "date": "2026-09-28",
+        "title": "Rich Deliverables and Group Tasks in SOR History",
+        "version": "1.7.32",
+        "changes": [
+            "The SOR History tab now shows actual files and deliverables uploaded during each stage, including document type icons, file sizes, and quick Open buttons.",
+            "Group Tasks in stage history are now interactive Task cards: click to open the full Group Task modal, and expand in-place to view members, subtask assignments, and completion status.",
+            "Files attached to satisfied conditions are shown directly alongside the checklist items."
+        ]
+    },
+    {
+        "date": "2026-09-27",
+        "title": "Revert to Last Stage, Resume or Start Fresh",
+        "version": "1.7.31",
+        "changes": [
+            "New \"Revert to last stage\" on an SOR takes it back to the stage its last move came from, even with no path drawn back and even from Closed Lost. It's available to whoever made the move, the Deal Owner, or a Super Admin, and goes back one step only.",
+            "If no work was done on the stage being left, Revert simply undoes the move. If work was done, you choose Keep progress (it's saved for when the SOR comes back) or Remove progress (it's closed off but stays on the SOR's history).",
+            "Reverting out of the Won stage clears the Contract Date that move set, and anyone the move notified is told to disregard it.",
+            "Moving an SOR back to a stage it has been on before now asks: Resume previous work, or Start fresh.",
+            "Tasks from a stage the SOR has left go on hold and drop off everyone's list until the SOR returns. Operations can mark a Stage Action to carry on past its stage instead."
+        ]
+    },
+    {
+        "date": "2026-09-26",
+        "title": "SOR Layout Preview (Staging)",
+        "version": "1.7.30",
+        "env": "staging",
+        "changes": [
+            "Staging only: open any SOR and use the Layout preview bar at the bottom of the window to try different layouts for the SOR window.",
+            "Pick one from the menu, use the arrows, or press Shift + Left/Right. Your pick is remembered for every SOR you open.",
+            "Nothing about how an SOR works changes; this is for comparing layouts before one is chosen."
+        ]
+    },
+    {
+        "date": "2026-09-25",
+        "title": "Settings in Tabs & Saved Task Filters",
+        "version": "1.7.29",
+        "changes": [
+            "Settings is now split into tabs: General, Approval Rules, HR & Schedule, Sales Configuration, Employee Groups and System Announcements. You only see the tabs you can use.",
+            "Leave categories are now managed in Settings, under HR & Schedule. HR Management has a card that takes you there.",
+            "Changing an approval rule in Settings now takes effect in open approval queues straight away, with no page reload.",
+            "On Tasks, \"Save filters as default\" now remembers every filter, not just SORS.",
+            "On Tasks and Group Tasks, the save button now shows \"Default saved\" once saved, or \"Update default\" if you have changed the filters since.",
+            "The Commission Pool card in Settings can now be opened with the keyboard."
+        ]
+    },
+    {
+        "date": "2026-09-25",
+        "title": "Fixed: SOR Product List Could Double",
+        "version": "1.7.28",
+        "changes": [
+            "Fixed a bug where an SOR's Product List, and its Estimated Value, could double when the SOR was open in more than one place at the same time.",
+            "Opening an SOR no longer adds a false \"Added product(s)\" entry to its timeline."
+        ]
+    },
+    {
+        "date": "2026-09-25",
+        "title": "One-Row SORS Header & Floating Register Button",
+        "version": "1.7.27",
+        "changes": [
+            "The SORS header is now a single row: search and results on the left, view tabs and Filters on the right, so switching views no longer moves them.",
+            "Search and the SOR count, Open and Won figures appear on List and Board only. Figures are shortened (e.g. ₱353.7M); hover for the exact amount.",
+            "The Filters button shows how many filters are on. On Overview and Deleted it stays in place, greyed out.",
+            "Register is now a floating button at the bottom-right, clear of the environment banner.",
+            "On phones, the view tabs and Filters show icons only."
+        ]
+    },
+    {
+        "date": "2026-09-24",
+        "title": "One Consistent Look for Fields, Tables and Pop-ups",
+        "version": "1.7.26",
+        "changes": [
+            "Dropdown pickers, form fields, tables, pop-up windows and side panels now look and behave the same on every screen, so the app feels like one product instead of a mix of one-off designs.",
+            "Pick-lists that used the browser's plain dropdown (filters, page size, employee and offset forms) now use the app's own dropdown, with keyboard support, and still work inside the Filters menu.",
+            "Pop-up windows, the notifications panel and the mobile menu now open and close smoothly, and close the same way everywhere: press Escape or click outside.",
+            "Tables in SORS, Purchasing, HR, Offsets and Group Tasks share one look, and the login and reset-password buttons now match the rest of the app."
+        ]
+    },
+    {
+        "date": "2026-09-21",
+        "title": "Unified All SORs Filter & Cleaner Filters Menu",
+        "version": "1.7.25",
+        "changes": [
+            "Added an 'All SORs' option across SORS view filters and the Kanban Board flow switcher.",
+            "The Filters popover now features a clean, well-spaced 4-row layout with aligned dropdowns and quick toggles, making filtering fast and easy to navigate.",
+            "Selecting 'All SORs' on the Kanban Board presents a clear guide and quick-select buttons for each Sales Flow, or a one-click switch to the List view."
+        ]
+    },
+    {
+        "date": "2026-09-21",
+        "title": "Stage Conditions & Fields Inline Editing & Live Preview",
+        "version": "1.7.24",
+        "changes": [
+            "Editing a condition or field in a Stage now opens the editor directly below the item rather than jumping to the top of the panel, making editing feel seamless and in-context.",
+            "The Fields tab now includes a live preview matching how the field and its input look on the SOR, giving an immediate look at required badges, help text, and selection options."
+        ]
+    },
+    {
+        "date": "2026-09-21",
+        "title": "Dynamic Open Pipeline & Won Calculation",
+        "version": "1.7.23",
+        "changes": [
+            "The Open pipeline and Won totals in SORS now follow each Sales Flow's actual stages dynamically from the Flow Canvas.",
+            "An SOR is counted under Open pipeline while it is moving through stages before the Won stage. Once it reaches the Won stage or continues to post-award fulfillment stages (like Delivery or Invoicing), it counts toward Won.",
+            "Deals that are closed lost or cancelled are excluded from both totals, ensuring the pipeline accurately reflects active work."
+        ]
+    },
+    {
+        "date": "2026-09-21",
+        "title": "My SORs",
+        "version": "1.7.22",
+        "changes": [
+            "Sales > My SORs is a new screen listing every SOR you were called into by a task, an assignment, or a purchase request. Until now those SORs appeared nowhere: the SORS register only lists SORs you own or are named on, so being called in gave you access with no way to find the record again except the notification.",
+            "Each row says which Stage called you in and how far your access reaches, in the same words the Flow Canvas uses for that setting. Opening one shows the same view the notification opens.",
+            "SORs whose access has since closed stay on the screen under Closed, so work you did last month is still findable.",
+            "The sidebar entry carries a count of the SORs you currently have open access to, and is visible to everyone — anyone can be called into an SOR, including people with no Sales access."
         ]
     },
     {
         "date": "2026-09-18",
         "title": "Approve Offset Leave With Edited Hours",
-        "version": "1.7.19",
+        "version": "1.7.21",
         "changes": [
             "When HR approves offset leave, they can now change the number of hours before approving. It starts at the hours requested and can't go higher.",
             "Where the approved hours differ from the hours requested, the leave lists show both: the requested hours crossed out, next to the hours approved."
+        ]
+    },
+    {
+        "date": "2026-09-18",
+        "title": "CRM Is Called SORS",
+        "version": "1.7.20",
+        "changes": [
+            "The CRM module is now called SORS — the Sales Opportunity Registration System, the name it has in company policy (CCPR-2026-001, Annex C). One SOR is one Sales Opportunity Registration.",
+            "Its address changed from /crm to /sors, and the Commission Dashboard and Commission Formula moved with it. Old links still work: anything pointing at /crm or /opportunities, including links inside notifications you have not opened yet, lands in the right place.",
+            "The filter on Tasks and Group Tasks that shows only work linked to an SOR is now labelled SORS."
+        ]
+    },
+    {
+        "date": "2026-09-18",
+        "title": "Retail Has Its Own Screen",
+        "version": "1.7.19",
+        "changes": [
+            "Retail has moved out of the SOR register and into its own entry in the sidebar, under Sales. The register's tabs are now just List, Board, Overview and Deleted.",
+            "The new screen shows marketplace orders waiting for review at the top, and what has already been counted — totals by month and storefront — below. Orders only appear at the top when there is something to review.",
+            "Who can open it has not changed: Super Admins and Sales Directors, the same as before the move."
         ]
     },
     {

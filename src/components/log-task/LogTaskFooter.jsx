@@ -1,6 +1,8 @@
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function LogTaskFooter({
   createMore,
@@ -11,25 +13,12 @@ export default function LogTaskFooter({
   return (
     <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-4">
-        <label className="flex items-center gap-2 cursor-pointer group">
-          <div className="relative">
-            <input
-              type="checkbox"
-              checked={createMore}
-              onChange={(e) => setCreateMore(e.target.checked)}
-              className="sr-only"
-            />
-            <div
-              className={`w-8 h-4.5 rounded-full transition-colors ${createMore ? "bg-primary" : "bg-mauve-5 group-hover:bg-mauve-6"}`}
-            />
-            <div
-              className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-card rounded-full transition-transform ${createMore ? "translate-x-3.5" : "translate-x-0"}`}
-            />
-          </div>
+        <FieldBox inline className="flex items-center gap-2 cursor-pointer group">
+          <Checkbox checked={createMore} onCheckedChange={setCreateMore} />
           <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
             Create more
           </span>
-        </label>
+        </FieldBox>
 
         <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground font-medium">
           <div className="flex items-center gap-1.5">

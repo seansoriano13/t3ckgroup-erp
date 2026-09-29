@@ -248,7 +248,7 @@ describe("buildPresentation", () => {
         impact: "A published flow can be rolled back without touching live SORs.",
         version: "1.7.12",
         issues: [188],
-        demo: "flow-versioning",
+        sample: "flow-versioning",
       },
       {
         id: "crm-board",
@@ -257,12 +257,13 @@ describe("buildPresentation", () => {
         impact: "Dragging was impossible before; the guard moved into the move.",
         changes: ["One column per Sale Type.", "Drag a deal to move it."],
         issues: [206, 288],
-        demo: "crm-board",
+        sample: "crm-board",
+
       },
     ],
     underTheHood: {
       summary: "Fixes and safety changes.",
-      items: [{ title: "Migrations are append-only", issues: [184] }],
+      items: [{ title: "Migrations are append-only", issues: [184], sample: "migrations" }],
     },
     epics: [
       {
@@ -324,7 +325,7 @@ describe("buildPresentation", () => {
         changelog,
         supplement: {
           ...supplement,
-          headline: [{ id: "x", block: "b", title: "t", impact: "i", version: "9.9.9" }],
+          headline: [{ id: "x", block: "b", title: "t", impact: "i", version: "9.9.9", sample: "s" }],
         },
         issues,
         generatedAt: "2026-09-16T10:00:00.000Z",
@@ -338,12 +339,28 @@ describe("buildPresentation", () => {
         changelog,
         supplement: {
           ...supplement,
-          headline: [{ id: "x", block: "b", title: "t", impact: "i" }],
+          headline: [{ id: "x", block: "b", title: "t", impact: "i", sample: "s" }],
         },
         issues,
         generatedAt: "2026-09-16T10:00:00.000Z",
       }),
     ).toThrow(/x/)
+  })
+
+  it("carries each fix's before-and-after sample through", () => {
+    expect(built.underTheHood.items[0].sample).toBe("migrations")
+  })
+
+  // A fix from before every one got a before/after (an older entry) still
+  // gets its slide — just without a sample block on it.
+  it("carries a fix with no sample through as sample: null, rather than refusing it", () => {
+    const built2 = buildPresentation({
+      changelog,
+      supplement: { ...supplement, underTheHood: { summary: "s", items: [{ title: "Toasts stay clickable" }] } },
+      issues,
+      generatedAt: "2026-09-16T10:00:00.000Z",
+    })
+    expect(built2.underTheHood.items[0]).toEqual({ title: "Toasts stay clickable", issues: [], sample: null })
   })
 
   it("carries prototypes and the roadmap through", () => {

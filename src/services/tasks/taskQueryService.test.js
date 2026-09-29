@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { taskQueryService } from "./taskQueryService"
 import { db } from "@/test/db/store"
-import { makeCategory, makeEmployee, makeHead, makeTask } from "@/test/factories"
+import { makeCategory, makeEmployee, makeGroupTask, makeHead, makeOpportunity, makeTask } from "@/test/factories"
 
 /**
  * The read side maps snake_case rows onto the camelCase shape every screen
@@ -160,6 +160,151 @@ describe("taskQueryService", () => {
       makeTask({ logged_by: author.id, category_id: category.category_id, status: "DELETED" })
 
       expect(await taskQueryService.getMyTasks(author.id)).toEqual([])
+    })
+  })
+
+  describe("getMyOpenTasksForOpportunity", () => {
+    it("returns only this employee's open tasks tied to the deal", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      const otherOpportunity = makeOpportunity({ registered_by: author.id })
+      const colleague = makeEmployee({ name: "Ben Cruz" })
+      const mine = makeTask({
+        logged_by: author.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+        status: "INCOMPLETE",
+      })
+      // A colleague's task on the same deal isn't this viewer's.
+      makeTask({ logged_by: colleague.id, category_id: category.category_id, opportunity_id: opportunity.id })
+      // The same employee's task on a different deal isn't this deal's.
+      makeTask({ logged_by: author.id, category_id: category.category_id, opportunity_id: otherOpportunity.id })
+      // Finished work no longer needs acting on.
+      makeTask({
+        logged_by: author.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+        status: "COMPLETED",
+      })
+
+      const tasks = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      expect(tasks.map((t) => t.id)).toEqual([mine.id])
+    })
+
+    it("includes a task awaiting approval, not only incomplete ones", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      const awaiting = makeTask({
+        logged_by: author.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+        status: "AWAITING APPROVAL",
+      })
+
+      const tasks = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      expect(tasks.map((t) => t.id)).toEqual([awaiting.id])
+    })
+
+    it("includes an open Group Task this employee is a member of, marked as a group", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      const colleague = makeEmployee({ name: "Ben Cruz" })
+      const mine = makeGroupTask({ created_by: colleague.id, opportunity_id: opportunity.id, title: "Bid pack" })
+      db.seed("committee_task_members", {
+        committee_task_id: mine.id,
+        employee_id: author.id,
+        status: "PENDING",
+        task_description: "Assemble the bid",
+      })
+      // Someone else's membership on the same deal isn't this viewer's.
+      const theirs = makeGroupTask({ created_by: colleague.id, opportunity_id: opportunity.id })
+      db.seed("committee_task_members", { committee_task_id: theirs.id, employee_id: colleague.id, status: "PENDING", task_description: "" })
+      // A member who already finished has nothing left to do.
+      const done = makeGroupTask({ created_by: colleague.id, opportunity_id: opportunity.id })
+      db.seed("committee_task_members", { committee_task_id: done.id, employee_id: author.id, status: "DONE", task_description: "" })
+      // A group task that has itself closed is no longer open.
+      const closed = makeGroupTask({ created_by: colleague.id, opportunity_id: opportunity.id, status: "COMPLETED" })
+      db.seed("committee_task_members", { committee_task_id: closed.id, employee_id: author.id, status: "PENDING", task_description: "" })
+
+      const tasks = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      // The group's title heads the row; the line under it is what this member owes.
+      expect(tasks).toEqual([
+        expect.objectContaining({ id: mine.id, kind: "group", title: "Bid pack", taskDescription: "Assemble the bid" }),
+      ])
+    })
+
+    it("carries what a row needs to read as an obligation: title, due date, checklist progress", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      makeTask({
+        logged_by: author.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+        project_title: "Technical review — S99002",
+        task_description: "Check the specifications",
+        checklist: [{ text: "Read the spec", checked: true }, { text: "Note gaps", checked: false }],
+        end_at: "2026-09-24T03:21:00.000Z",
+        priority: "HIGH",
+      })
+
+      const [task] = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      expect(task).toMatchObject({
+        kind: "task",
+        title: "Technical review — S99002",
+        taskDescription: "Check the specifications",
+        dueAt: "2026-09-24T03:21:00.000Z",
+        priority: "HIGH",
+        checklistProgress: { total: 2, checked: 1 },
+      })
+    })
+
+    it("has no checklist progress for a task without a checklist", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      makeTask({ logged_by: author.id, category_id: category.category_id, opportunity_id: opportunity.id, checklist: null })
+
+      const [task] = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      expect(task.checklistProgress).toBeNull()
+    })
+
+    it("orders what is owed by due date — overdue first, undated last — across both kinds", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      const undated = makeTask({
+        logged_by: author.id, category_id: category.category_id, opportunity_id: opportunity.id, end_at: null,
+      })
+      const later = makeTask({
+        logged_by: author.id, category_id: category.category_id, opportunity_id: opportunity.id, end_at: "2030-01-10T00:00:00.000Z",
+      })
+      const overdueGroup = makeGroupTask({ opportunity_id: opportunity.id, due_date: "2020-01-01T00:00:00.000Z" })
+      db.seed("committee_task_members", {
+        committee_task_id: overdueGroup.id, employee_id: author.id, status: "PENDING", task_description: "",
+      })
+
+      const tasks = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      expect(tasks.map((t) => t.id)).toEqual([overdueGroup.id, later.id, undated.id])
+    })
+
+    it("lists an individual task and a Group Task together", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      const individual = makeTask({
+        logged_by: author.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+      })
+      const group = makeGroupTask({ opportunity_id: opportunity.id })
+      db.seed("committee_task_members", { committee_task_id: group.id, employee_id: author.id, status: "PENDING", task_description: "" })
+
+      const tasks = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      expect(tasks.map((t) => [t.id, t.kind]).sort()).toEqual(
+        [[individual.id, "task"], [group.id, "group"]].sort(),
+      )
+    })
+
+    it("asks for nothing without both a viewer and a deal", async () => {
+      expect(await taskQueryService.getMyOpenTasksForOpportunity(null, "opp-1")).toEqual([])
+      expect(await taskQueryService.getMyOpenTasksForOpportunity(author.id, null)).toEqual([])
     })
   })
 

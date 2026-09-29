@@ -1,40 +1,70 @@
 import React from "react";
 import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 /**
  * FilterTrigger - A standardized trigger button for filter dropdowns.
+ *
+ * Classes go through cn() so a caller's `className` actually wins: the SORs
+ * register's toolbar trigger sits in a row of h-9 controls, while the triggers
+ * stacked inside a filter popover keep the taller default.
+ *
+ * `count` renders how many filters are currently set — the badge the trigger
+ * needs once the filters themselves are folded away behind it.
  */
 export function FilterTrigger({
   label,
   isActive,
   isOpen,
   icon: Icon,
+  count,
   disabled,
   className,
+  labelClassName,
 }) {
   return (
     <div
-      className={`h-[46px] w-full flex items-center justify-between px-3 rounded-lg border transition-all cursor-pointer ${disabled ? "opacity-50 pointer-events-none" : ""
-        } ${isOpen || isActive
-          ? "ring-1 ring-mauve-4 bg-muted font-medium"
-          : "bg-card border-border hover:border-border/80"
-        } ${className || ""}`}
+      // Survive labelClassName hiding the text on a narrow screen: a
+      // display:none label leaves the accessibility tree, so name it here
+      // (same rule as TabGroup).
+      title={typeof label === "string" ? label : undefined}
+      aria-label={labelClassName && typeof label === "string" ? label : undefined}
+      className={cn(
+        "flex h-[46px] w-full cursor-pointer items-center justify-between rounded-lg border px-3 transition-all",
+        disabled && "pointer-events-none opacity-50",
+        isOpen || isActive
+          ? "bg-muted font-medium ring-1 ring-mauve-4"
+          : "border-border bg-card hover:border-border/80",
+        className,
+      )}
     >
-      <div className="flex items-center gap-2 overflow-hidden flex-1">
+      <div className="flex flex-1 items-center gap-2 overflow-hidden">
         {Icon && (
           <Icon
             size={14}
-            className={`shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`}
+            className={cn("shrink-0", isActive ? "text-foreground" : "text-muted-foreground")}
           />
         )}
-        <span className="text-[13px] text-foreground font-semibold truncate block w-full text-left">
+        <span
+          className={cn(
+            "block w-full truncate text-left text-[13px] font-semibold text-foreground",
+            labelClassName,
+          )}
+        >
           {label}
         </span>
+        {count > 0 && (
+          <span className="shrink-0 rounded-md bg-mauve-5 px-1.5 py-0.5 text-[11px] font-bold leading-none tabular-nums text-foreground">
+            {count}
+          </span>
+        )}
       </div>
       <ChevronDown
         size={14}
-        className={`ml-1 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""
-          }`}
+        className={cn(
+          "ml-1 shrink-0 text-muted-foreground transition-transform",
+          isOpen && "rotate-180",
+        )}
       />
     </div>
   );

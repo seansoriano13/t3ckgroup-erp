@@ -15,18 +15,9 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Dropdown from "./ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
-
-// ── FieldBox — mirrors LogTaskAssignmentBar's label+container pattern ────────
-function FieldBox({ label, children }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
+import { Button } from "./ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function ActivityLogFilters({
   filters,
@@ -110,13 +101,14 @@ export default function ActivityLogFilters({
           )}
         </div>
         {hasActiveFilters && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={clearFilters}
-            className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            className="h-auto p-0 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-transparent transition-colors"
           >
             <X size={12} /> Clear
-          </button>
+          </Button>
         )}
       </div>
 
@@ -124,25 +116,25 @@ export default function ActivityLogFilters({
       <div className="px-4 py-3.5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4">
         {/* Search — spans 2 cols */}
         <div className="lg:col-span-2">
-          <FieldBox label="Search">
+          <FieldBox bare label="Search">
             <div className="relative flex items-center">
               <Search
                 size={13}
                 className="absolute left-3 text-muted-foreground pointer-events-none shrink-0"
               />
-              <input
+              <Input
                 value={filters.search}
                 onChange={(e) =>
                   setFilters((p) => ({ ...p, search: e.target.value }))
                 }
                 placeholder="Search content or task description…"
-                className="w-full bg-card border border-border rounded-lg pl-8 pr-3 h-[40px] md:h-[46px] text-[13px] text-foreground outline-none focus:ring-1 focus:ring-mauve-4 hover:border-border/80 transition-all placeholder:text-muted-foreground"
+                containerClassName="w-full" className="bg-card border border-border rounded-lg pl-8 pr-3 h-[40px] md:h-[46px] text-[13px] text-foreground outline-none focus:ring-1 focus:ring-mauve-4 hover:border-border/80 transition-all placeholder:text-muted-foreground"
               />
             </div>
           </FieldBox>
         </div>
 
-        <FieldBox label="Type">
+        <FieldBox bare label="Type">
           <Dropdown
             usePortal
             className="w-full"
@@ -175,7 +167,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Task Status">
+        <FieldBox bare label="Task Status">
           <Dropdown
             usePortal
             className="w-full"
@@ -216,7 +208,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Author (Actor)">
+        <FieldBox bare label="Author (Actor)">
           <Dropdown
             usePortal
             className="w-full"
@@ -260,7 +252,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Task Owner">
+        <FieldBox bare label="Task Owner">
           <Dropdown
             usePortal
             className="w-full"
@@ -299,7 +291,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Department">
+        <FieldBox bare label="Department">
           <Dropdown
             usePortal
             className="w-full"
@@ -335,7 +327,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Sub-Department">
+        <FieldBox bare label="Sub-Department">
           <Dropdown
             usePortal
             className="w-full"
@@ -371,7 +363,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Date From">
+        <FieldBox bare label="Date From">
           <Dropdown
             usePortal
             placement="bottom-start"
@@ -382,15 +374,17 @@ export default function ActivityLogFilters({
                     {filters.dateFrom ? new Date(filters.dateFrom).toLocaleDateString("en-US", {month: "short", day:"numeric", year:"numeric"}) : "Select start date"}
                   </span>
                   {filters.dateFrom && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={(e) => {
                         e.stopPropagation();
                         setFilters((p) => ({ ...p, dateFrom: null }));
                       }}
-                      className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-auto w-auto hover:text-foreground hover:bg-transparent text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={14} />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <Calendar
@@ -415,7 +409,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Date To">
+        <FieldBox bare label="Date To">
           <Dropdown
             usePortal
             placement="bottom-start"
@@ -426,15 +420,17 @@ export default function ActivityLogFilters({
                     {filters.dateTo ? new Date(filters.dateTo).toLocaleDateString("en-US", {month: "short", day:"numeric", year:"numeric"}) : "Select end date"}
                   </span>
                   {filters.dateTo && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={(e) => {
                         e.stopPropagation();
                         setFilters((p) => ({ ...p, dateTo: null }));
                       }}
-                      className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-auto w-auto hover:text-foreground hover:bg-transparent text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={14} />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <Calendar

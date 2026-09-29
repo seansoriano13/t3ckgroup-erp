@@ -8,105 +8,230 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,600&display=swap">
 <style>
   :root {
-    --desk: #e7e3dc; --desk-ink: #2c2a26; --desk-soft: #6d685f; --desk-edge: #cdc7bd;
-    --shadow: 0 1px 2px rgba(24,22,18,.16), 0 12px 28px rgba(24,22,18,.13);
-    --paper: #fff; --ink: #16181c; --ink-soft: #55606c; --ink-faint: #8b95a1;
-    --rule: #c4c9d0; --hair: #e4e7eb; --wash: #f4f6f8; --accent: #0d4f3c; --flag: #9d3218; --ok: #1f5c46;
-    --sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    --desk: #e7e3dc;
+    --desk-ink: #1f2328;
+    --desk-soft: #57606a;
+    --desk-edge: #cdc7bd;
+    --shadow: 0 1px 3px rgba(24,22,18,.12), 0 16px 36px rgba(24,22,18,.14);
+
+    --paper: #ffffff;
+    --ink: #0f172a;        /* High-contrast black slate for crisp legibility */
+    --ink-mid: #1e293b;
+    --ink-soft: #334155;   /* Secondary text */
+    --ink-faint: #64748b;  /* Uppercase category labels */
+    --rule: #cbd5e1;       /* Clean crisp borders */
+    --hair: #e2e8f0;       /* Fine row division */
+    --wash: #f8fafc;       /* Card wash */
+    --accent: #0f5b47;     /* Brand emerald / accent */
+    --flag: #b91c1c;       /* Semantic alert */
+    --flag-bg: #fef2f2;
+    --flag-border: #fecaca;
+    --ok: #15803d;         /* Semantic success / received */
+    --ok-bg: #f0fdf4;
+    --ok-border: #bbf7d0;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+    --warn-border: #fde68a;
+
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
     --serif: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --desk: #1a1c20; --desk-ink: #e8e6e1; --desk-soft: #9aa0a8; --desk-edge: #2f3339; --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45); }
+    :root:not([data-theme="light"]) {
+      --desk: #14171a;
+      --desk-ink: #f0f2f5;
+      --desk-soft: #9aa4ae;
+      --desk-edge: #272c33;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45);
+    }
   }
-  :root[data-theme="dark"] { --desk: #1a1c20; --desk-ink: #e8e6e1; --desk-soft: #9aa0a8; --desk-edge: #2f3339; --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45); }
+  :root[data-theme="dark"] {
+    --desk: #14171a;
+    --desk-ink: #f0f2f5;
+    --desk-soft: #9aa4ae;
+    --desk-edge: #272c33;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45);
+  }
 
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--desk); color: var(--desk-ink); font-family: var(--sans); font-size: 14px; }
-  .desk { padding-block: 28px 120px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--desk-ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .desk {
+    padding-block: 28px 140px;
+    padding-left: 16px;
+    padding-right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
   .desk-head { width: min(1000px, 100%); display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; }
-  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; }
-  .desk-head p { margin: 0; color: var(--desk-soft); font-size: 13px; max-width: 64ch; }
-  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 2px; padding: 3px 7px; }
+  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; color: var(--desk-ink); }
+  .desk-head p { margin: 0; color: var(--desk-soft); font-size: 13px; max-width: 66ch; }
+  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 3px; padding: 2px 7px; }
 
-  .sheet { width: 210mm; min-height: 297mm; padding: 12mm 13mm 10mm; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 5mm; font-size: 9pt; line-height: 1.35; }
+  /* ── Sheet Container ── */
+  .sheet {
+    color-scheme: light !important;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 11mm 13mm 11mm;
+    background: var(--paper) !important;
+    color: var(--ink) !important;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 4.5mm;
+    font-size: 8.8pt;
+    line-height: 1.35;
+    border-radius: 2px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .sheet.land { width: 297mm; min-height: 210mm; }
+  .sheet table, .sheet tr, .sheet th, .sheet td {
+    color: var(--ink) !important;
+    font-family: inherit;
+  }
   .halfpage { width: 216mm; min-height: 279mm; background: var(--paper); box-shadow: var(--shadow); display: flex; flex-direction: column; }
   .halfpage .half { flex: 1; padding: 9mm 11mm; color: var(--ink); font-size: 8.4pt; line-height: 1.3; display: flex; flex-direction: column; gap: 3.5mm; }
-  .halfpage .half + .half { border-top: 1px dashed var(--rule); }
+  .halfpage .half + .half { border-top: 1px dashed var(--hair); }
 
-  .rail { display: flex; align-items: flex-end; gap: 9px; border-bottom: 1.4px solid var(--ink); padding-bottom: 4px; }
-  .rail .mark { width: 20px; height: 20px; color: var(--accent); flex: none; }
+  .rail { display: flex; align-items: flex-end; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
+  .rail .mark { width: 24px; height: 24px; color: var(--accent); flex: none; }
   .rail .mark svg { width: 100%; height: 100%; display: block; }
-  .rail .org { font-size: 7pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; }
-  .rail .org b { display: block; font-size: 9.5pt; letter-spacing: .04em; color: var(--ink); }
+  .rail .org { font-size: 7.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; font-weight: 500; }
+  .rail .org b { display: block; font-size: 10.5pt; letter-spacing: .04em; color: var(--ink); font-weight: 700; }
   .rail .doc { margin-left: auto; text-align: right; }
-  .rail .doc .t { font-family: var(--serif); font-size: 14pt; font-weight: 600; line-height: 1; }
-  .rail .doc .s { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-soft); }
-  .rail .doc .form { font-family: var(--mono); font-size: 6.6pt; color: var(--ink-faint); letter-spacing: .1em; }
+  .rail .doc .t { font-family: var(--serif); font-size: 16pt; font-weight: 600; line-height: 1; color: var(--ink); }
+  .rail .doc .s { font-family: var(--mono); font-size: 7.5pt; color: var(--ink-soft); font-weight: 500; }
+  .rail .doc .form { font-family: var(--mono); font-size: 6.8pt; color: var(--ink-faint); letter-spacing: .08em; text-transform: uppercase; }
 
-  .route { display: grid; grid-template-columns: 1fr 14mm 1fr 1fr; gap: 6px; align-items: center; border: 1px solid var(--rule); padding: 5px 7px; }
-  .route .k { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: block; }
-  .route .v { font-size: 10pt; font-weight: 500; }
-  .route .arrow { text-align: center; color: var(--ink-faint); font-size: 13pt; }
+  /* Route: Open hairline grid, no heavy border cage */
+  .route {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr 1fr;
+    gap: 12px;
+    align-items: center;
+    border-top: 1px solid var(--hair);
+    border-bottom: 1px solid var(--hair);
+    padding: 8px 0;
+    background: transparent;
+  }
+  .route .k { font-size: 6.5pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: block; font-weight: 700; margin-bottom: 2px; }
+  .route .v { font-size: 9.8pt; font-weight: 600; color: var(--ink); }
+  .route .arrow { text-align: center; color: var(--ink-soft); font-size: 14pt; padding: 0 4px; line-height: 1; }
 
-  .facts { display: flex; flex-wrap: wrap; gap: 3px 20px; }
-  .fact .k { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: block; }
-  .fact .v { font-size: 8.8pt; font-weight: 500; }
-  .fact .v.m { font-family: var(--mono); font-weight: 400; }
+  /* Facts bar: Open, clean, no outline box */
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 28px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--hair);
+    background: transparent;
+  }
+  .fact .k { font-size: 6.5pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: block; font-weight: 700; }
+  .fact .v { font-size: 9pt; font-weight: 600; color: var(--ink); }
+  .fact .v.m { font-family: var(--mono); font-weight: 500; }
 
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; vertical-align: top; padding: 3.5px 6px; border-bottom: 1px solid var(--hair); }
-  thead th { font-size: 6.4pt; letter-spacing: .085em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 1px solid var(--ink); }
+  th, td { text-align: left; vertical-align: middle; padding: 7px 10px; border-bottom: 1px solid var(--hair); font-size: 8.5pt; }
+  thead th { font-size: 6.8pt; letter-spacing: .085em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; border-bottom: 1.5px solid var(--rule); padding: 6px 10px; }
   td.num, th.num { text-align: right; font-family: var(--mono); }
   .sub { color: var(--ink-soft); font-size: 7.2pt; }
   .m { font-family: var(--mono); }
-  .box { border: 1px solid var(--rule); padding: 5px 7px; }
-  .box .h { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 3px; }
+  .box { border-radius: 6px; padding: 10px 14px; background: var(--wash); border: none; }
+  .box .h { font-size: 6.8pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; margin-bottom: 6px; }
 
-  .chip { display: inline-block; font-size: 6.2pt; letter-spacing: .07em; text-transform: uppercase; padding: 1px 4px; border: 1px solid var(--rule); border-radius: 2px; color: var(--ink-soft); }
-  .chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--rule)); }
-  .chip.bad { color: var(--flag); border-color: color-mix(in srgb, var(--flag) 45%, var(--rule)); }
-  .tick { font-family: var(--mono); }
+  .chip { display: inline-flex; align-items: center; font-size: 6.6pt; letter-spacing: .07em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; font-weight: 700; }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); }
+  .chip.bad { color: var(--flag); background: var(--flag-bg); }
 
-  .incl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; }
-  .incl span { font-size: 7.2pt; }
-  .incl span.miss { color: var(--flag); }
+  .chk {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
+    border-radius: 2.5px;
+    border: 1px solid var(--rule);
+    background: #ffffff;
+    font-size: 8pt;
+    line-height: 1;
+    color: transparent;
+    vertical-align: middle;
+    margin-right: 5px;
+  }
+  .chk.done {
+    background: var(--ok-bg);
+    border-color: var(--ok-border);
+    color: var(--ok);
+    font-weight: 700;
+  }
 
-  .photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-  .photo { aspect-ratio: 4 / 3; max-width: 100%; border: 1px solid var(--rule); background: var(--wash); display: flex; align-items: flex-end; justify-content: center; padding: 3px; font-size: 6.4pt; color: var(--ink-faint); }
+  .incl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 14px; }
+  .incl span { font-size: 7.8pt; display: flex; align-items: center; }
+  .incl span.miss { color: var(--flag); font-weight: 500; }
 
-  .sigs { display: grid; gap: 7mm; margin-top: auto; padding-top: 3mm; }
+  .photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .photo { aspect-ratio: 4 / 3; max-width: 100%; border: 1px solid var(--hair); border-radius: 4px; background: var(--wash); display: flex; align-items: center; justify-content: center; padding: 6px; font-size: 7pt; font-weight: 500; color: var(--ink-soft); }
+
+  /* Signatures: Prestigious open layout */
+  .sigs { display: grid; gap: 7mm; margin-top: auto; padding-top: 4mm; }
   .sigs.n3 { grid-template-columns: repeat(3, 1fr); }
   .sigs.n2 { grid-template-columns: repeat(2, 1fr); }
-  .sig .k { font-size: 6.2pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
-  .sig .plate { height: 12mm; border-bottom: 1px solid var(--ink); display: flex; align-items: flex-end; padding-bottom: 2px; }
-  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 10.5pt; }
-  .sig .who { font-size: 7.8pt; font-weight: 500; margin-top: 3px; }
-  .sig .role { font-size: 6.6pt; color: var(--ink-soft); }
-  .sig .stamp { font-family: var(--mono); font-size: 6.2pt; color: var(--ink-faint); margin-top: 2px; }
-  .sig.awaiting .plate { border-bottom-style: dashed; }
-  .sig.awaiting .stamp { color: var(--flag); }
+  .sig {
+    display: flex; flex-direction: column;
+    background: transparent; border: none;
+    padding: 0;
+  }
+  .sig .k { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  .sig .plate { height: 12mm; border-bottom: 1.2px solid var(--ink); display: flex; align-items: flex-end; padding-bottom: 3px; margin-top: 4px; }
+  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 11pt; color: var(--ink); font-weight: 600; }
+  .sig .who { font-size: 8.4pt; font-weight: 600; color: var(--ink); margin-top: 4px; }
+  .sig .role { font-size: 6.8pt; color: var(--ink-soft); margin-top: 1px; }
+  .sig .stamp { font-family: var(--mono); font-size: 6.4pt; color: var(--ink-faint); margin-top: 2px; }
+  .sig.awaiting .plate { border-bottom-style: dashed; border-bottom-color: var(--rule); }
+  .sig.awaiting .stamp { color: var(--warn); font-weight: 600; }
 
-  .stub { border-top: 1.5px dashed var(--ink); margin-top: 5mm; padding-top: 4mm; display: grid; grid-template-columns: 1fr 58mm; gap: 8mm; }
-  .stub .scissors { font-size: 6.4pt; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 3mm; }
+  .stub { border-top: 1.5px dashed var(--rule); margin-top: 5mm; padding-top: 4mm; display: grid; grid-template-columns: 1fr 58mm; gap: 8mm; }
+  .stub .scissors { font-size: 6.4pt; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 3mm; font-weight: 600; }
 
-  .foot { display: flex; justify-content: space-between; gap: 14px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.4pt; color: var(--ink-faint); font-family: var(--mono); }
+  .foot { display: flex; justify-content: space-between; gap: 14px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.8pt; color: var(--ink-faint); font-family: var(--mono); }
 
-  .switcher { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; background: #101215; color: #f4f5f7; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); overflow: hidden; }
-  .switcher button { background: none; border: 0; color: inherit; font: inherit; padding: 10px 15px; cursor: pointer; font-size: 16px; line-height: 1; }
+  .switcher {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50;
+    display: flex;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: #f8fafc; border-radius: 999px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.12);
+    overflow: hidden;
+    opacity: 0.82; transition: opacity .2s ease;
+  }
+  .switcher:hover { opacity: 1; }
+  .switcher button { background: none; border: 0; color: inherit; font: inherit; padding: 10px 16px; cursor: pointer; font-size: 16px; line-height: 1; transition: background .15s; }
   .switcher button:hover { background: rgba(255,255,255,.12); }
-  .switcher button:focus-visible { outline: 2px solid #8fd7bd; outline-offset: -3px; }
-  .switcher .label { padding: 9px 6px; min-width: 210px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
-  .switcher .label b { font-size: 13px; }
-  .switcher .label span { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #9aa4ae; }
+  .switcher button:focus-visible { outline: 2px solid #38bdf8; outline-offset: -3px; }
+  .switcher .label { padding: 8px 10px; min-width: 210px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .switcher .label b { font-size: 13px; font-weight: 600; }
+  .switcher .label span { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; }
 
   @media print {
     @page { size: A4 portrait; margin: 0; }
     body { background: #fff; }
     .desk { padding: 0; gap: 0; }
     .desk-head, .switcher { display: none !important; }
-    .sheet, .halfpage { box-shadow: none; page-break-after: always; }
+    .sheet, .halfpage { box-shadow: none; page-break-after: always; min-height: 297mm; }
   }
   @media (max-width: 820px) {
     .sheet, .halfpage, .sheet.land { width: 100%; min-height: 0; padding: 14px; font-size: 11px; }
@@ -117,7 +242,6 @@
     .stub { grid-template-columns: 1fr; }
     .switcher .label { min-width: 120px; }
   }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
 <div class="desk">
@@ -190,7 +314,7 @@ const route = () => `<div class="route">
   <div><span class="k">From</span><span class="v">${TRN.from}</span></div>
   <div class="arrow">&#8594;</div>
   <div><span class="k">To</span><span class="v">${TRN.to}</span></div>
-  <div><span class="k">Date handed over</span><span class="v">${TRN.date}</span></div>
+  <div><span class="k">Date handed over</span><span class="v m">${TRN.date}</span></div>
 </div>`;
 
 const trnFacts = () => `<div class="facts">
@@ -201,15 +325,25 @@ const trnFacts = () => `<div class="facts">
 </div>`;
 
 const trnTable = () => `<table>
-  <thead><tr><th>#</th><th>What is handed over</th><th class="num">Qty</th><th>IPAS / PO</th><th>Received as</th></tr></thead>
+  <thead><tr>
+    <th style="width:5%">#</th>
+    <th style="width:48%">What is handed over</th>
+    <th class="num" style="width:10%">Qty</th>
+    <th style="width:20%">IPAS / PO</th>
+    <th style="width:17%">Received as</th>
+  </tr></thead>
   <tbody>${TRN.lines.map(l => `<tr>
-    <td class="m">${l.n}</td><td>${l.what}</td><td class="num">${l.qty}</td>
+    <td class="m" style="font-weight:600">${l.n}</td>
+    <td style="font-weight:600">${l.what}</td>
+    <td class="num" style="font-size:9pt;font-weight:600">${l.qty}</td>
     <td class="m">${l.ipas}<div class="sub m">${l.po}</div></td>
-    <td>${l.cond.startsWith('Received') ? '<span class="chip ok">received</span>' : '<span class="chip bad">damaged</span><div class="sub">' + l.cond.replace('Damaged · ', '') + '</div>'}</td>
+    <td>${l.cond.startsWith('Received') ? '<span class="chip ok">✓ received</span>' : '<span class="chip bad">✗ damaged</span><div class="sub" style="margin-top:2px;color:var(--flag)">' + l.cond.replace('Damaged · ', '') + '</div>'}</td>
   </tr>`).join('')}</tbody></table>`;
 
 const trnDocs = () => `<div class="box"><div class="h">Documents travelling with it</div>
-  ${TRN.docs.map(d => `<div><span class="tick">${d.tick ? '✓' : '☐'}</span> ${d.what}</div>`).join('')}</div>`;
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    ${TRN.docs.map(d => `<div style="display:flex;align-items:center;font-size:7.8pt"><span class="chk ${d.tick ? 'done' : ''}">${d.tick ? '✓' : ''}</span> <span>${d.what}</span></div>`).join('')}
+  </div></div>`;
 
 const tsrHead = () => `<div class="facts">
   <div class="fact"><span class="k">Item</span><span class="v">${TSR.item}</span></div>
@@ -219,17 +353,24 @@ const tsrHead = () => `<div class="facts">
 </div>`;
 
 const tsrUnits = () => `<table>
-  <thead><tr><th>Unit</th><th>Serial number</th><th>Verdict</th><th>Remark</th></tr></thead>
+  <thead><tr>
+    <th style="width:8%">Unit</th>
+    <th style="width:24%">Serial number</th>
+    <th style="width:16%">Verdict</th>
+    <th style="width:52%">Remark</th>
+  </tr></thead>
   <tbody>${TSR.units.map(u => `<tr>
-    <td class="m">${u.n}</td><td class="m">${u.serial}</td>
-    <td>${u.verdict === 'Pass' ? '<span class="chip ok">pass</span>' : '<span class="chip bad">fail</span>'}</td>
-    <td>${u.note}</td></tr>`).join('')}</tbody></table>`;
+    <td class="m" style="font-weight:600">${u.n}</td>
+    <td class="m" style="font-weight:600">${u.serial}</td>
+    <td>${u.verdict === 'Pass' ? '<span class="chip ok">✓ pass</span>' : '<span class="chip bad">✗ fail</span>'}</td>
+    <td>${u.note}</td>
+  </tr>`).join('')}</tbody></table>`;
 
-const tsrIncl = () => `<div class="box"><div class="h">Inclusions present · ${TSR.inclusions.filter(i => i[1]).length} of ${TSR.inclusions.length}</div>
-  <div class="incl">${TSR.inclusions.map(i => `<span class="${i[1] ? '' : 'miss'}"><span class="tick">${i[1] ? '✓' : '✗'}</span> ${i[0]}</span>`).join('')}</div></div>`;
+const tsrIncl = () => `<div class="box"><div class="h">Inclusions present · ${TSR.inclusions.filter(i => i[1]).length} of ${TSR.inclusions.length} checked</div>
+  <div class="incl">${TSR.inclusions.map(i => `<span class="${i[1] ? '' : 'miss'}"><span class="chk ${i[1] ? 'done' : ''}">${i[1] ? '✓' : ''}</span> ${i[0]}</span>`).join('')}</div></div>`;
 
 const tsrPhotos = () => `<div class="box"><div class="h">Evidence · ${TSR.photos.length} photographs, 1 video (${TSR.video})</div>
-  <div class="photos">${TSR.photos.map(p => `<div class="photo">${p}</div>`).join('')}</div></div>`;
+  <div class="photos">${TSR.photos.map(p => `<div class="photo">📷 ${p}</div>`).join('')}</div></div>`;
 
 const foot = (l, r) => `<div class="foot"><span>${l}</span><span>${r}</span><span>printed 15 Sep 2026</span></div>`;
 

@@ -19,6 +19,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { opportunityService } from "../services/opportunityService"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "../test/support"
 import ProcurementResolutionPanel from "./ProcurementResolutionPanel"
@@ -96,6 +97,7 @@ const recordButton = () =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.spyOn(opportunityService, "canEdit").mockResolvedValue(true)
   purchasingService.resolveRequest.mockResolvedValue({
     id: "req-1",
     opportunity_id: "opp-1",
@@ -514,6 +516,7 @@ describe("the deal behind the requisition", () => {
   })
 
   it("keeps the full record out of reach of a buyer who could not edit it", async () => {
+    vi.spyOn(opportunityService, "canEdit").mockResolvedValue(false)
     await renderWithSor(SOR)
 
     await screen.findByText("S07813")

@@ -5,6 +5,7 @@ import TaskDetails from "@/components/TaskDetails"
 import GroupTaskDetailModal from "@/pages/group-tasks/_components/GroupTaskDetailModal"
 import { renderWithProviders } from "@/test/support"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
+import { stubRpc } from "@/test/msw/server"
 
 let authUser
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }))
@@ -27,8 +28,9 @@ describe("the SOR link on task modals", () => {
   })
   afterEach(() => window.removeEventListener("OPEN_ENTITY_DETAILS", onOpen))
 
-  it("links an individual task to its SOR by Sales Reference, and opens it in place of the task", async () => {
+  it("links an individual task to its SOR by Sales Reference, and opens Quick View in place of the task", async () => {
     const sor = makeOpportunity({ sales_reference: "S04521", client_name: "Quezon City Hall" })
+    stubRpc("sor_link_label", () => sor.sales_reference || sor.client_name)
     const onClose = vi.fn()
     renderWithProviders(
       <TaskDetails
@@ -51,11 +53,12 @@ describe("the SOR link on task modals", () => {
     fireEvent.click(await screen.findByRole("button", { name: /S04521/ }))
 
     expect(onClose).toHaveBeenCalled()
-    expect(opened).toEqual([{ id: sor.id, type: "OPPORTUNITY" }])
+    expect(opened).toEqual([{ id: sor.id, type: "OPPORTUNITY_QUICK_VIEW" }])
   })
 
   it("links a Group Task to its SOR by Company when it has no Sales Reference", async () => {
     const sor = makeOpportunity({ sales_reference: null, client_name: "Pasig City Hall" })
+    stubRpc("sor_link_label", () => sor.sales_reference || sor.client_name)
     const onClose = vi.fn()
     renderWithProviders(
       <GroupTaskDetailModal
@@ -77,6 +80,6 @@ describe("the SOR link on task modals", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Deal: Pasig City Hall/ }))
 
     expect(onClose).toHaveBeenCalled()
-    expect(opened).toEqual([{ id: sor.id, type: "OPPORTUNITY" }])
+    expect(opened).toEqual([{ id: sor.id, type: "OPPORTUNITY_QUICK_VIEW" }])
   })
 })

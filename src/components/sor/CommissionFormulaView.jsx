@@ -4,7 +4,9 @@ import toast from "react-hot-toast";
 
 import { commissionService } from "../../services/commissionService";
 import { RATE_TYPE_LABELS } from "../../utils/commission";
-import { useAuth } from "../../context/AuthContext";
+import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
+import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 const ROLE_LABELS_BY_PROJECT_TYPE = {
   SSP: {
@@ -84,12 +86,12 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
               <span className="text-[12.5px] text-foreground">{roleLabel}</span>
               {canEdit ? (
                 <div className="flex items-center gap-1">
-                  <input
+                  <Input
                     type="number"
                     step="0.001"
                     value={row?.percent ?? 0}
                     onChange={(e) => updateRow(shareRole, Number(e.target.value))}
-                    className="h-7 w-20 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    containerClassName="w-20" className="h-7 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>
@@ -106,14 +108,14 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
           <span className={total !== 100 ? "text-xs font-semibold text-destructive" : "text-xs text-muted-foreground"}>
             Total {total.toFixed(2)}%
           </span>
-          <button
+          <Button
             type="button"
+            size="sm"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate(draft.filter((row) => roleLabels[row.shareRole]))}
-            className="h-7 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             Save
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -125,18 +127,7 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
  * Sales-Director-editable Commission Split percentages per Project Type (SSP, CP, STRATEGIC).
  */
 export default function CommissionFormulaView() {
-  const { user } = useAuth();
-  const isSuperAdmin = !!(user?.is_super_admin || user?.isSuperAdmin);
-
-  // "Sales Director" isn't a flag on the user record — it's whoever is
-  // actually set as sales_director_id on at least one opportunity. See
-  // commissionService.isSalesDirector.
-  const { data: isDirector } = useQuery({
-    queryKey: ["isSalesDirector", user?.id],
-    queryFn: () => commissionService.isSalesDirector(user.id),
-    enabled: !isSuperAdmin && !!user?.id,
-  });
-  const canEditSplits = isSuperAdmin || !!isDirector;
+  const { user, hasAccess: canEditSplits } = useSalesDirectorAccess();
 
   const { data: rates } = useQuery({
     queryKey: ["commissionRateHistory"],

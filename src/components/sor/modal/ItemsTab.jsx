@@ -13,8 +13,10 @@ import { stockBadge, STOCK_BADGE_THEME } from "../../../constants/stock";
 import { formatPHP, isValidSalesReference, normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
 import { formatDate } from "../../../utils/formatDate";
 import { pullOdooLines, saveOdooLines } from "./odooLines";
+import { Button } from "../../ui/button";
+import { Input } from "@/components/ui/input";
 
-function ItemStockRow({ item, snapshotData }) {
+export function ItemStockRow({ item, snapshotData }) {
   const [expanded, setExpanded] = useState(false);
   const product = item.odoo_product_id ? snapshotData?.products?.[item.odoo_product_id] || null : null;
   const badge = stockBadge({ quantity: item.quantity, product });
@@ -23,15 +25,16 @@ function ItemStockRow({ item, snapshotData }) {
 
   return (
     <div className="col-span-12 -mt-1">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => canExpand && setExpanded((e) => !e)}
-        className={cn("flex items-center gap-1 text-left", canExpand ? "cursor-pointer" : "cursor-default")}
+        className={cn("h-auto gap-1 p-0 text-left hover:bg-transparent", canExpand ? "cursor-pointer" : "cursor-default")}
         disabled={!canExpand}
       >
         <StatusBadge label={badge.label} theme={STOCK_BADGE_THEME[badge.kind]} />
         {canExpand && (expanded ? <ChevronDown size={12} className="text-muted-foreground" /> : <ChevronRight size={12} className="text-muted-foreground" />)}
-      </button>
+      </Button>
 
       {expanded && canExpand && (
         <div className="mt-2 grid grid-cols-4 gap-2 rounded-lg bg-muted/30 px-3 py-2 text-[11px]">
@@ -70,15 +73,15 @@ function EmptyItems({ opportunity, onFetch, fetching }) {
           <p className="max-w-xs text-xs text-muted-foreground">
             Pull the lines from <span className="font-mono font-semibold text-primary">{opportunity.sales_reference}</span> in Odoo.
           </p>
-          <button
+          <Button
             type="button"
             onClick={onFetch}
             disabled={fetching}
-            className="mt-1 flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50"
+            className="mt-1"
           >
             {fetching ? <Spinner size="sm" /> : <Download size={14} />}
             Fetch from Odoo
-          </button>
+          </Button>
         </>
       ) : (
         <>
@@ -190,13 +193,13 @@ export default function ItemsTab({ ctx, hasOpened }) {
         <div className="flex flex-wrap items-center gap-2 px-6 py-3">
           <div className="relative min-w-[180px] flex-1">
             <Search size={13} className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <Input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search products…"
               aria-label="Search products"
-              className="h-9 w-full rounded-lg border border-border bg-muted/30 pr-3 pl-8 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-mauve-7"
+              containerClassName="w-full" className="h-9 pr-3 pl-8 font-medium placeholder:text-muted-foreground/60"
             />
           </div>
           <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
@@ -205,15 +208,16 @@ export default function ItemsTab({ ctx, hasOpened }) {
           <span className="text-[11px] text-muted-foreground">
             {stockSnapshot?.fetched_at ? `Stock as of ${formatDate(stockSnapshot.fetched_at)}` : "Stock not yet checked"}
           </span>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={handleRefreshStock}
             disabled={refreshingStock}
-            className="flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary-hover disabled:opacity-50"
+            className="h-auto gap-1 p-0 text-[11px] font-bold text-primary hover:bg-transparent hover:text-primary-hover"
           >
             {refreshingStock ? <Spinner size="sm" /> : <RefreshCw size={12} />}
             Refresh
-          </button>
+          </Button>
         </div>
 
         <div className="grid grid-cols-12 gap-3 border-t border-border/60 bg-muted/40 px-6 py-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">

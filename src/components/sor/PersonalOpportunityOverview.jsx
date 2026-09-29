@@ -60,7 +60,7 @@ export default function PersonalOpportunityOverview({ opportunities }) {
   }, [mine, pipelineStages]);
 
   const goToStage = (status) => {
-    navigate("/crm", {
+    navigate("/sors", {
       state: { filterEmployeeId: user?.id, filterStatus: status },
     });
   };
@@ -84,7 +84,7 @@ export default function PersonalOpportunityOverview({ opportunities }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <StatCard title="Open" value={stats.open} subtitle="In progress" icon={<Target size={18} />} color="blue" onClick={() => navigate("/crm", { state: { filterEmployeeId: user?.id } })} />
+        <StatCard title="Open" value={stats.open} subtitle="In progress" icon={<Target size={18} />} color="blue" onClick={() => navigate("/sors", { state: { filterEmployeeId: user?.id } })} />
         <StatCard title="Value" value={formatPHP(stats.value)} subtitle="Total pipeline" icon={<Target size={18} />} color="mauve" />
         <StatCard title="Won" value={stats.won} subtitle="Closed Won" icon={<Target size={18} />} color="emerald" onClick={() => goToStage(wonCode)} />
         <StatCard title="Lost" value={stats.lost} subtitle="Closed Lost" icon={<Target size={18} />} color="destructive" onClick={() => goToStage(lostCode)} />

@@ -125,6 +125,37 @@ describe("notificationService", () => {
       expect(await notificationService.getMyNotifications(recipient.id)).toEqual([])
     })
 
+    it("still lands the in-app row when the push function is unreachable", async () => {
+      // A local stack whose edge runtime is down, or a function that is not
+      // deployed, answers 503/404. `functions.invoke` reports that as a value,
+      // not a throw, so the assignee used to get no notification at all.
+      stubEdgeFunction("send-push", () => new Response("down", { status: 503 }))
+
+      await notificationService.createNotification({
+        recipient_id: recipient.id,
+        type: "TASK_ASSIGNED",
+        title: "New task",
+        message: "You were assigned a task",
+        reference_id: "task-1",
+      })
+
+      const [stored] = await notificationService.getMyNotifications(recipient.id)
+      expect(stored).toMatchObject({ type: "TASK_ASSIGNED", reference_id: "task-1" })
+    })
+
+    it("does not write a second row when the push function already did", async () => {
+      stubEdgeFunction("send-push", () => ({ success: true }))
+
+      await notificationService.createNotification({
+        recipient_id: recipient.id,
+        type: "GROUP_ASSIGNED",
+        title: "Assigned",
+        message: "You were assigned",
+      })
+
+      expect(await notificationService.getMyNotifications(recipient.id)).toEqual([])
+    })
+
     it("still inserts directly for a type outside the push list", async () => {
       await notificationService.createNotification({
         recipient_id: recipient.id,

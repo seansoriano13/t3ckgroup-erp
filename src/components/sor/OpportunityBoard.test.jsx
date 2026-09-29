@@ -8,6 +8,7 @@ import { opportunityService } from "../../services/opportunityService";
 vi.mock("../../services/opportunityService", () => ({
   opportunityService: {
     updateStatus: vi.fn(async (id, next) => ({ id, flow_stage_id: next })),
+    getReturnStageIds: vi.fn(async () => []),
   },
 }));
 
@@ -280,7 +281,7 @@ describe("OpportunityBoard", () => {
           "deal-1",
           "qualified",
           "actor-1",
-          null,
+          { lostReason: null, returnChoice: null },
         ),
       );
       await waitFor(() => expect(onMoved).toHaveBeenCalled());
@@ -306,5 +307,43 @@ describe("OpportunityBoard", () => {
       const card = (await screen.findByText("Acme Corp")).closest("button");
       expect(card).toHaveAttribute("draggable", "false");
     });
+
+    it("shows prompt card when All SORs is selected, with quick flow buttons and switch to list", async () => {
+      const user = setupUser();
+      const onSwitchToList = vi.fn();
+      const onSaleTypeChange = vi.fn();
+
+      renderWithProviders(
+        <OpportunityBoard
+          opportunities={[flowDeal()]}
+          search=""
+          flowStagesIndex={flowStagesIndex}
+          snapshotsById={snapshotsById}
+          saleTypes={saleTypes}
+          onCardClick={() => {}}
+          onSwitchToList={onSwitchToList}
+          onSaleTypeChange={onSaleTypeChange}
+        />,
+      );
+
+      await screen.findByText("Lead");
+
+      // Open switcher and choose "All SORs"
+      await user.click(screen.getByText("Outright"));
+      await user.click(screen.getByText("All SORs"));
+
+      expect(onSaleTypeChange).toHaveBeenCalledWith("ALL");
+      expect(await screen.findByText("All SORs Selected")).toBeInTheDocument();
+      expect(screen.getByText(/Kanban boards visualize one Sales Flow at a time/)).toBeInTheDocument();
+
+      // Click "Switch to List View"
+      await user.click(screen.getByText("Switch to List View"));
+      expect(onSwitchToList).toHaveBeenCalled();
+
+      // Click quick flow selector button for "Government"
+      await user.click(screen.getByRole("button", { name: /Government/ }));
+      expect(onSaleTypeChange).toHaveBeenCalledWith("st-govt");
+      expect(await screen.findByText("Gov Lead")).toBeInTheDocument();
+    });
   });
-})
+});

@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { X, Star } from "lucide-react";
 import GradeSelector from "../../../components/GradeSelector";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { parseChecklist } from "@/utils/checklist";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 
+import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 export default function RateEmployeesModal({
   isOpen,
   onClose,
@@ -102,13 +105,16 @@ export default function RateEmployeesModal({
           </div>
 
           <div className="flex items-center gap-1">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={onClose}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+              aria-label="Close"
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -199,9 +205,7 @@ export default function RateEmployeesModal({
                   {/* Rating Controls */}
                   <div className="flex flex-col gap-4 lg:w-[280px] shrink-0 bg-muted/10 p-4 rounded-xl border border-border/50">
                     <div>
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                        Performance Grade
-                      </label>
+                      <FieldBox label="Performance Grade" className="block mb-2" />
                       <GradeSelector
                         grade={rating.grade}
                         onSelect={(g) =>
@@ -211,10 +215,8 @@ export default function RateEmployeesModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                        Remarks (Optional)
-                      </label>
-                      <textarea
+                      <FieldBox label="Remarks (Optional)" className="block mb-2" />
+                      <Textarea
                         value={rating.gradeRemarks}
                         onChange={(e) =>
                           handleRatingChange(
@@ -224,7 +226,7 @@ export default function RateEmployeesModal({
                           )
                         }
                         placeholder="Add feedback for this member..."
-                        className="w-full bg-card border border-border rounded-xl px-4 py-3 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-20 resize-none shadow-sm"
+                        className="h-20 min-h-0 resize-none text-[13px] md:text-[13px]"
                       />
                     </div>
                   </div>
@@ -251,20 +253,21 @@ export default function RateEmployeesModal({
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
-            <button
+            <Button
+              variant="ghost"
               onClick={onClose}
-              className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4 transition-colors"
+              className="h-9 rounded-xl px-4 text-[13px] font-bold text-muted-foreground/80 hover:bg-transparent hover:text-foreground"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSubmit}
               disabled={isSubmitting || !allMembersDone}
-              className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 font-bold transition-colors disabled:opacity-50"
+              className="h-9 gap-2 rounded-xl px-6 font-bold shadow-lg shadow-primary/20"
             >
               <Star size={14} fill="currentColor" />
               {isSubmitting ? "Submitting..." : "Submit Ratings & Complete"}
-            </button>
+            </Button>
           </div>
         </div>
       </DialogContent>

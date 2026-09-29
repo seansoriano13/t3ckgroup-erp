@@ -31,6 +31,14 @@ describe("appSettingsService", () => {
     expect(settings.enable_bulk_approval).toBe(true)
   })
 
+  it("lets defaults fill a field that is missing or null, and keeps the rest", () => {
+    const settings = appSettingsService.withDefaults({ enable_bulk_approval: true, universal_task_submission: null })
+
+    expect(settings.enable_bulk_approval).toBe(true)
+    expect(settings.universal_task_submission).toBe(true)
+    expect(settings.retail_storefronts).toEqual(["Shopee", "Lazada"])
+  })
+
   it("saves a change", async () => {
     db.seed("app_settings", { id: true, enable_self_verification: false })
 

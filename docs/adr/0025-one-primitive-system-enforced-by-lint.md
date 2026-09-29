@@ -1,0 +1,67 @@
+# One Primitive system in the shared UI folder, enforced by lint
+
+**Status:** accepted (2026-09-20); complete (2026-09-24)
+
+A **Primitive** is anything in `src/components/ui/`. For a defined set of HTML
+elements, raw HTML is banned everywhere except inside that folder, and a lint
+rule enforces the ban. This records why, so the next person who hits the rule
+finds a reason instead of an `eslint-disable`.
+
+## Why
+
+**A prose rule was already there and did not work.** DESIGN.md said "use the
+shared primitives before hand-rolling a variant". Outside the UI folder there
+are still roughly 507 raw buttons, 135 inputs, 27 textareas, 22 selects, 17
+tables, 135 labels, 13 images, 15 anchors and 12 hand-rolled full-screen
+modals. AI agents, and sometimes people, write the raw element because it is
+the shortest path and nothing stops them. Every one is a screen that looks and
+behaves slightly differently, and each becomes cleanup work later.
+
+**There was no single answer to "which one do I use".** Two button components
+(Button, PrimaryButton), two modals (Dialog, ModalOverlay), a popover-style
+Dropdown next to an unused real Select, and no Primitive at all for table,
+checkbox, file input, image or external link. A rule that says "use the
+primitive" is meaningless until there is exactly one.
+
+## Decision
+
+**Covered elements:** button, input (text, number, date, file, checkbox),
+textarea, select, label, table, img, a, and hand-rolled full-screen modals.
+Out of scope: layout tags, paragraphs, headings (a possible later typography
+phase) and `<form>`, which has no visual identity.
+
+**One Primitive per job.** Button (PrimaryButton deleted), Dialog (ModalOverlay
+deleted), a new Select with `options` / `value` / `onChange`, FieldBox as the
+form-field Primitive, a styling-only Table set, Input for date, FileInput,
+Checkbox, Image, ExternalLink. Dropdown and FilterDropdown stay as the
+popover/menu Primitives. The catalog lives in DESIGN.md, Components.
+
+**Enforcement is mechanical.** A custom ESLint rule at `error`, exempting only
+the shared UI folder by path. The message names the replacement Primitive and
+links to its catalog heading. The rule refuses `eslint-disable` for itself in
+feature code. A Claude Code hook lints each edited `.jsx` so an agent sees the
+violation in the same turn. CI blocks on this rule even though the rest of the
+lint step stays non-blocking on an unrelated backlog.
+
+**Existing violations were frozen, then burned down.** ESLint bulk suppression
+froze the ~700 violations so nothing new landed. Migration was one slice per
+element type, each its own issue and PR, and each deleted its suppressions. The
+last slice emptied the baseline and `eslint-suppressions.json` is gone: the rule
+now has no exceptions, and any raw covered HTML fails lint and CI.
+
+**When no Primitive fits, stop and ask the maintainer.** The Primitive set
+grows only when the maintainer decides. A new variant or size is added only when
+the same custom look appears in three or more places.
+
+## Consequences
+
+- Migrated screens adopt the Primitive's look rather than keeping each raw
+  element's one-off styling. The maintainer reviews visual change per slice on
+  staging.
+- Not moved: root-level shared components (Avatar, StatusBadge, StatCard,
+  ImageAttachment) stay where they are for now, and the folder keeps its mixed
+  base-ui and custom files and mixed case. Neither is a covered element, and
+  relocating them is churn with no consistency gain. FieldBox is the exception:
+  it moved into the folder when it became the form-field Primitive.
+- Hard to reverse: once agents and CI rely on the ban, loosening it means
+  re-opening the drift it removed.

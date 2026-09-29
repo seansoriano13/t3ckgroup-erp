@@ -12,9 +12,12 @@ import LogTaskPropertyBar from "./log-task/LogTaskPropertyBar";
 import LogTaskAssignmentBar from "./log-task/LogTaskAssignmentBar";
 import LogTaskFooter from "./log-task/LogTaskFooter";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { Switch } from "@/components/ui/switch";
 
+import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
 // ═════════════════════════════════════════════════════════════
@@ -298,34 +301,31 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
           {(isCommittee || isOthersGlobal) && (
             <div className="py-3 animate-slide-down">
               {!isCommittee && (
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
-                  Others Details
-                </label>
+                <FieldBox label="Others Details" className="block mb-2" />
               )}
 
               {isCommittee && (
                 <div className="bg-mauve-4/80 /40 p-4 rounded-xl border border-mauve-5/60 /50 mb-3">
-                  <label className="block text-[10px] font-extrabold text-foreground  uppercase tracking-widest mb-3">
-                    SELECT COMMITTEE ROLE
-                  </label>
+                  <FieldBox label="SELECT COMMITTEE ROLE" className="block mb-3" />
                   <div className="flex flex-wrap gap-2">
                     {["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"].map(
                       (role) => (
-                        <button
+                        <Button
                           key={role}
                           type="button"
+                          variant="outline"
                           onClick={(e) => {
                             e.preventDefault();
                             setCommitteeRole(role);
                           }}
-                          className={`px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 border ${
+                          className={`h-auto px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 ${
                             committeeRole === role
-                              ? "bg-primary text-primary-foreground border-primary dark:bg-primary dark:text-primary-foreground dark:border-primary shadow-md"
+                              ? "bg-primary text-primary-foreground border-primary hover:bg-primary dark:bg-primary dark:text-primary-foreground dark:border-primary shadow-md"
                               : "bg-card text-mauve-11 border-mauve-5 hover:border-mauve-5 hover:bg-mauve-2   dark:text-muted-foreground dark:hover:bg-muted shadow-sm"
                           }`}
                         >
                           {role}
-                        </button>
+                        </Button>
                       ),
                     )}
                   </div>
@@ -335,15 +335,13 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
               {(isOthersGlobal || committeeRole === "OTHERS") && (
                 <div className="animate-slide-down">
                   {isCommittee && committeeRole === "OTHERS" && (
-                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
-                      Others Details
-                    </label>
+                    <FieldBox label="Others Details" className="block mb-2" />
                   )}
-                  <textarea
+                  <Textarea
                     placeholder="Specify details..."
                     value={othersRemarks}
                     onChange={(e) => setOthersRemarks(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none h-20 resize-none transition-colors focus:border-primary/50"
+                    className="h-20 resize-none rounded-lg px-3 py-2 text-xs md:text-xs"
                   />
                 </div>
               )}

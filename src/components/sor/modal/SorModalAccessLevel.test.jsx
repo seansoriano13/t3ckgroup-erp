@@ -84,9 +84,34 @@ describe("SorModal — access level", () => {
 
     renderWithProviders(<OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} />)
 
-    await screen.findByText("What blocks this stage")
+    await screen.findByRole("button", { name: /^This stage/ })
     await waitForNetworkIdle()
 
-    await waitFor(() => expect(screen.getByText(/This stage is restricted/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText(/This stage is restricted/).length).toBeGreaterThan(0))
+  })
+
+  it.each([
+    [true, true],
+    [false, false],
+  ])("full access with server can-edit=%s shows the Edit control=%s", async (serverSays, shown) => {
+    const viewer = makeEmployee()
+    authUser = { id: viewer.id }
+    const saleType = makeSaleType({ name: `Flow can-edit ${serverSays}` })
+    const stage = makeFlowStage({ name: "Evaluation" })
+    const deal = makeOpportunity({ status: "LEAD", sale_type_id: saleType.id, flow_stage_id: stage.id })
+
+    stubRpc("sor_can_edit_opportunity", () => serverSays)
+
+    renderWithProviders(
+      <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} accessLevel="full" />,
+    )
+
+    await screen.findByText(deal.project_title)
+    await waitForNetworkIdle()
+
+    await waitFor(() => {
+      const btn = screen.queryByRole("button", { name: "Edit opportunity" })
+      expect(!!btn).toBe(shown)
+    })
   })
 })

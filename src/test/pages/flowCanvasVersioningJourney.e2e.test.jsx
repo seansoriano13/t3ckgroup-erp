@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import FlowCanvas from "@/components/settings/FlowCanvas"
+import FlowCanvas from "@/components/flow-canvas/FlowCanvas"
 import { renderWithProviders, setupUser } from "@/test/support"
 import { salesFlowService } from "@/services/salesFlowService"
 import {
@@ -164,7 +164,7 @@ describe("Flow Canvas versioning journey", () => {
             // Restoring needs a draft to restore into — the toolbar that offers
             // "Edit draft" is hidden while a version is being viewed, so back
             // out to the draft, reopen it, then return to the same version.
-            await user.click(screen.getByRole("button", { name: "Back to draft" }))
+            await user.click(screen.getByRole("button", { name: /Back to (draft|live flow)/ }))
             await user.click(await screen.findByRole("button", { name: /Edit draft/ }))
             const reopenButtons = await screen.findAllByRole("button", { name: "Edit draft" })
             await user.click(reopenButtons[reopenButtons.length - 1])

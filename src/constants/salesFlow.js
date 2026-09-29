@@ -189,6 +189,106 @@ export function isLostFlowStage(flowStage, wonStageId) {
 }
 
 /**
+ * Classifies a Stage within a Sales Flow graph:
+ * - "WON": the designated Won Stage
+ * - "POST_WON": an active Stage strictly downstream of the Won Stage
+ * - "PRE_WON": an active Stage preceding the Won Stage (open pipeline)
+ * - "LOST": a terminal Stage that is not the Won Stage
+ * - null: unknown or unresolvable Stage
+ */
+export function classifyFlowStage(stageId, { stages = [], edges = [], wonStageId = null } = {}) {
+  if (!stageId) return null
+  const stage = stages.find((s) => s.id === stageId)
+  if (!stage) return null
+
+  if (stage.is_terminal && stage.id !== wonStageId) {
+    return "LOST"
+  }
+
+  if (wonStageId && stage.id === wonStageId) {
+    return "WON"
+  }
+
+  if (!wonStageId) {
+    return "PRE_WON"
+  }
+
+  const canReach = (start, target) => {
+    if (!start || !target) return false
+    if (start === target) return true
+    const seen = new Set([start])
+    const queue = [start]
+    while (queue.length > 0) {
+      const curr = queue.shift()
+      for (const e of edges) {
+        if (e.from_stage_id === curr && !seen.has(e.to_stage_id)) {
+          if (e.to_stage_id === target) return true
+          seen.add(e.to_stage_id)
+          queue.push(e.to_stage_id)
+        }
+      }
+    }
+    return false
+  }
+
+  const reachableFromWon = canReach(wonStageId, stage.id)
+  const canReachWon = canReach(stage.id, wonStageId)
+
+  if (reachableFromWon && !canReachWon) {
+    return "POST_WON"
+  }
+
+  if (canReachWon && !reachableFromWon) {
+    return "PRE_WON"
+  }
+
+  // Fallback when edges are empty or provide no path between stage and wonStageId:
+  // use relative stage position (sort_order if available, otherwise array index order).
+  if (!canReachWon && !reachableFromWon) {
+    const wonIndex = stages.findIndex((s) => s.id === wonStageId)
+    const stageIndex = stages.findIndex((s) => s.id === stageId)
+    if (wonIndex !== -1 && stageIndex !== -1) {
+      const wonSort = stages[wonIndex].sort_order ?? wonIndex
+      const stageSort = stages[stageIndex].sort_order ?? stageIndex
+      if (stageSort > wonSort) {
+        return "POST_WON"
+      }
+      return "PRE_WON"
+    }
+  }
+
+  return "PRE_WON"
+}
+
+/**
+ * Whether a deal sitting on `flowStage` counts as Open Pipeline:
+ * an active stage preceding the Won Stage in the flow graph.
+ */
+export function isPreWonFlowStage(flowStage, snapshotData = {}) {
+  if (!flowStage) return false
+  const classification = classifyFlowStage(flowStage.id, {
+    stages: snapshotData.stages || [],
+    edges: snapshotData.edges || [],
+    wonStageId: snapshotData.wonStageId ?? null,
+  })
+  return classification === "PRE_WON"
+}
+
+/**
+ * Whether a deal sitting on `flowStage` counts as Won / Realized:
+ * sitting on the designated Won Stage or an active post-won stage downstream of it.
+ */
+export function isWonOrPostWonFlowStage(flowStage, snapshotData = {}) {
+  if (!flowStage) return false
+  const classification = classifyFlowStage(flowStage.id, {
+    stages: snapshotData.stages || [],
+    edges: snapshotData.edges || [],
+    wonStageId: snapshotData.wonStageId ?? null,
+  })
+  return classification === "WON" || classification === "POST_WON"
+}
+
+/**
  * The rows out of a Flow Snapshot's `conditions` or `actions`, as a flat list
  * whichever shape they were stored in.
  *
@@ -285,7 +385,7 @@ export function buildDraftSnapshotData({
  * Normalizes an item for semantic comparison between Flow Snapshots:
  * - Omits database timestamps (`created_at`, `updated_at`), canvas coordinates
  *   (`pos_x`, `pos_y`), and container foreign keys (`flow_id`) that do not
- *   represent changes to the CRM business process.
+ *   represent changes to the SORS business process.
  * - Omits null/undefined/empty-string optional properties so missing keys match
  *   explicit nulls.
  * - Recursively sorts object keys so key order differences (e.g. from Postgres

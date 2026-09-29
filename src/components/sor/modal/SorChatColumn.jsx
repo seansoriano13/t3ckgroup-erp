@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { Paperclip, Send, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Spinner from "../../ui/Spinner";
@@ -5,6 +6,8 @@ import Avatar from "../../Avatar";
 import { AttachmentPreviews, AttachmentList } from "../../ui/Attachments";
 import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../../utils/attachments";
 import MentionTextarea, { NoteText } from "../../ui/MentionTextarea";
+import { Button } from "../../ui/button";
+import TaskCreatedNoteCard from "./TaskCreatedNoteCard";
 
 function ProcurementLogNoteCard({ metadata }) {
   if (!metadata) return null;
@@ -85,14 +88,15 @@ export default function SorChatColumn({
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold text-muted-foreground">
                     {n.author?.name ? (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => handleMentionClick(n.author)}
-                        className="font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-left inline-block"
+                        className="h-auto inline-block p-0 text-left font-semibold text-muted-foreground hover:bg-transparent hover:text-foreground"
                         title={`Click to mention @${n.author.name}`}
                       >
                         {n.author.name}
-                      </button>
+                      </Button>
                     ) : (
                       <span>{n.type === "SYSTEM" ? "System" : "Unknown"}</span>
                     )}
@@ -103,6 +107,8 @@ export default function SorChatColumn({
                   </p>
                   {n.metadata?.event === "PROCUREMENT_UPDATE" ? (
                     <ProcurementLogNoteCard metadata={n.metadata} />
+                  ) : n.metadata?.event === "STAGE_ACTION_TASK_CREATED" ? (
+                    <TaskCreatedNoteCard note={n} />
                   ) : n.type === "SYSTEM" && n.metadata?.changes?.length > 0 ? (
                     <ul className="mt-0.5 space-y-0.5">
                       {n.metadata.changes.map((change, idx) => (
@@ -142,16 +148,11 @@ export default function SorChatColumn({
             handlePostNote();
           }}
         >
-          <input
+          <FileInput
             ref={fileInputRef}
-            type="file"
             multiple
             accept={ALLOWED_EXTENSIONS_STRING}
-            className="hidden"
-            onChange={(e) => {
-              attachments.addFiles(e.target.files);
-              e.target.value = "";
-            }}
+            onFiles={attachments.addFiles}
           />
 
           {files.length > 0 && (
@@ -178,23 +179,25 @@ export default function SorChatColumn({
                 className="w-full resize-none bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground/50 outline-none"
               />
             </div>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="icon"
               title={`Attach files (max ${attachments.max})`}
               disabled={isPosting || files.length >= attachments.max}
-              onClick={() => fileInputRef.current?.click()}
-              className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-all hover:bg-muted hover:text-foreground disabled:opacity-50"
+              onClick={() => fileInputRef.current?.open()}
+              className="h-10 w-10 shrink-0 rounded-xl text-muted-foreground"
             >
               <Paperclip size={15} />
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={(!note.trim() && files.length === 0) || isPosting}
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+              className="h-10 shrink-0 gap-1.5 rounded-xl px-4 text-[13px]"
             >
               {isPosting ? <Spinner size="sm" /> : <Send size={13} />}
               {isUploading ? "Uploading" : "Post"}
-            </button>
+            </Button>
           </div>
           <p className="mt-1.5 text-[10px] text-muted-foreground/70">
             Type <span className="font-bold">@</span> to mention someone · attach or paste up to{" "}

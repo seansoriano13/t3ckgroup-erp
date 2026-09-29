@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { leadSourceService } from "../../services/leadSourceService";
 import { Plus, Check, X, Shield } from "lucide-react";
 import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function LeadSourceManager() {
   const queryClient = useQueryClient();
@@ -52,16 +55,17 @@ export default function LeadSourceManager() {
             <Shield size={14} className="text-primary" />
           </div>
           <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-            Lead Source Manager
+            Lead Sources
           </h2>
         </div>
         {!isAdding && (
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setIsAdding(true)}
-            className="text-xs font-bold text-primary flex items-center gap-1 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-colors"
+            className="h-auto gap-1 px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 hover:text-primary"
           >
             <Plus size={14} /> Add New
-          </button>
+          </Button>
         )}
       </div>
 
@@ -72,46 +76,43 @@ export default function LeadSourceManager() {
             className="flex items-end gap-3 mb-6 p-4 rounded-xl border border-border bg-muted/20"
           >
             <div className="flex-1 space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">
-                Value (ID)
-              </label>
-              <input
+              <FieldBox label="Value (ID)" />
+              <Input
                 type="text"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value.toUpperCase())}
                 placeholder="e.g. LINKEDIN"
-                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 uppercase"
+                containerClassName="w-full" className="h-9 uppercase"
                 required
               />
             </div>
             <div className="flex-1 space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">
-                Display Label
-              </label>
-              <input
+              <FieldBox label="Display Label" />
+              <Input
                 type="text"
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
                 placeholder="e.g. LinkedIn"
-                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                containerClassName="w-full" className="h-9"
                 required
               />
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => setIsAdding(false)}
-                className="h-9 px-3 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm font-semibold transition-colors"
+                className="h-9 px-3 text-sm font-semibold text-muted-foreground"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={addMutation.isPending}
-                className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="h-9 px-4 text-sm font-semibold"
               >
                 Save
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -143,7 +144,9 @@ export default function LeadSourceManager() {
                     {source.value}
                   </p>
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() =>
                     toggleMutation.mutate({
                       value: source.value,
@@ -151,15 +154,15 @@ export default function LeadSourceManager() {
                     })
                   }
                   disabled={toggleMutation.isPending}
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  className={
                     source.is_active
-                      ? "text-destructive hover:bg-destructive/10"
-                      : "text-primary hover:bg-primary/10"
-                  }`}
+                      ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      : "text-primary hover:bg-primary/10 hover:text-primary"
+                  }
                   title={source.is_active ? "Deactivate" : "Activate"}
                 >
                   {source.is_active ? <X size={16} /> : <Check size={16} />}
-                </button>
+                </Button>
               </div>
             ))}
           </div>

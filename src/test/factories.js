@@ -241,6 +241,30 @@ export function makeEmployeeGroup({ employeeIds = [], teams = [], ...overrides }
 }
 
 /** Satisfies a condition for an opportunity — the row IS the satisfaction. */
+/**
+ * One Stage Participant access window (ADR 0021). Open by default — a closed
+ * one carries `closed_at`, which is what separates "I am working this" from
+ * "I worked this" on the My SORs screen.
+ */
+export function makeStageParticipant(overrides = {}) {
+  const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
+  const employeeId = overrides.employee_id ?? makeEmployee().id
+  return db.seed("sor_stage_participants", {
+    source: "action",
+    source_id: null,
+    opened_visit_id: null,
+    until_rule: "stage_left",
+    until_stage_id: null,
+    closed_at: null,
+    closed_reason: null,
+    removed_by: null,
+    created_at: new Date().toISOString(),
+    ...overrides,
+    opportunity_id: opportunityId,
+    employee_id: employeeId,
+  })
+}
+
 export function makeConditionStatus(overrides = {}) {
   const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
   const conditionId = overrides.condition_id ?? makeStageCondition().id

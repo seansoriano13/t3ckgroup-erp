@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { ExternalLink } from "@/components/ui/external-link";
 import { navigate, sectionSizes, positionLabel, SECTIONS } from "../../utils/presentationDeck"
-import { DEMOS } from "./demoRegistry"
+import { SAMPLES, LIVE_SAMPLES, BEFORE_AFTER_SAMPLES } from "./sampleRegistry"
+import { Button } from "../ui/button"
 
 /**
  * The Release Notes deck.
@@ -28,11 +30,17 @@ function IssueRefs({ issues }) {
   )
 }
 
+function sampleCaption(key) {
+  if (LIVE_SAMPLES.has(key)) return "The real screen, on the live demo SOR in this environment"
+  if (BEFORE_AFTER_SAMPLES.has(key)) return "Before and after"
+  return "The real component, with sample data"
+}
+
 /* ── Section 1 — what shipped ───────────────────────────────────────────── */
 
 function HeadlineSlide({ row }) {
   const [open, setOpen] = useState(false)
-  const Demo = row.demo ? DEMOS[row.demo] : null
+  const Sample = row.sample ? SAMPLES[row.sample] : null
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,16 +56,26 @@ function HeadlineSlide({ row }) {
         </p>
       </div>
 
-      {Demo && <Demo />}
+      {Sample && (
+        <div className="space-y-2">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {sampleCaption(row.sample)}
+          </p>
+          <div className="rounded-2xl border border-border bg-muted/30 p-5">
+            <Sample />
+          </div>
+        </div>
+      )}
 
       <div>
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => setOpen((v) => !v)}
-          className="rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
+          className="h-auto rounded-xl bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
         >
           {open ? "Hide the detail" : `What changed exactly (${row.changes.length})`}
-        </button>
+        </Button>
         {open && (
           <ul className="mt-3 max-w-4xl space-y-2">
             {row.changes.map((c) => (
@@ -81,42 +99,32 @@ function HeadlineSlide({ row }) {
 
 /* ── Section 2 — under the hood ─────────────────────────────────────────── */
 
-function UnderTheHoodSlide({ data }) {
-  const [open, setOpen] = useState(false)
+function UnderTheHoodSlide({ item, index, total, summary }) {
+  const Sample = item.sample ? SAMPLES[item.sample] : null
   return (
     <div className="flex flex-col gap-6">
       <div className="space-y-3">
-        <h2 className="text-4xl font-bold leading-tight text-foreground lg:text-5xl">
-          {data.items.length} fixes and safety changes
+        <span className="inline-block rounded-full bg-muted px-3 py-1 text-[13px] font-bold uppercase tracking-wide text-muted-foreground">
+          Fix {index + 1} of {total}
+        </span>
+        <h2 className="text-balance text-4xl font-bold leading-tight text-foreground lg:text-5xl">
+          {item.title}
         </h2>
         <p className="max-w-4xl text-pretty text-lg leading-relaxed text-muted-foreground lg:text-xl">
-          {data.summary}
+          {summary}
         </p>
       </div>
-      <div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
-        >
-          {open ? "Hide the list" : "Show the list"}
-        </button>
-        {open && (
-          <ul className="mt-4 grid max-w-6xl gap-2.5 lg:grid-cols-2">
-            {data.items.map((item) => (
-              <li
-                key={item.title}
-                className="rounded-xl border border-border bg-card px-4 py-3 text-[15px] leading-relaxed text-foreground"
-              >
-                {item.title}
-                <span className="mt-1 block">
-                  <IssueRefs issues={item.issues} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {Sample && (
+        <div className="space-y-2">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {sampleCaption(item.sample)}
+          </p>
+          <div className="rounded-2xl border border-border bg-muted/30 p-5">
+            <Sample />
+          </div>
+        </div>
+      )}
+      <IssueRefs issues={item.issues} />
     </div>
   )
 }
@@ -129,10 +137,11 @@ function EpicRow({ epic }) {
 
   return (
     <li className="rounded-xl border border-border bg-card p-4">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-start justify-between gap-4 text-left"
+        className="h-auto flex w-full items-start justify-between gap-4 text-left"
       >
         <span className="min-w-0">
           <span className="block text-[17px] font-bold text-foreground">
@@ -150,7 +159,7 @@ function EpicRow({ epic }) {
             #{epic.number}
           </span>
         </span>
-      </button>
+      </Button>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full bg-emerald-500/70"
@@ -185,6 +194,8 @@ function EpicRow({ epic }) {
 }
 
 function RoadmapSlide({ phase, index, total, roadmap }) {
+  const phaseTotal = phase.epics.reduce((sum, epic) => sum + epic.total, 0)
+  const phaseOpen = phase.epics.reduce((sum, epic) => sum + epic.open.length, 0)
   return (
     <div className="flex flex-col gap-6">
       <div className="space-y-2">
@@ -195,7 +206,10 @@ function RoadmapSlide({ phase, index, total, roadmap }) {
           {phase.name}
         </h2>
         <p className="text-lg text-muted-foreground">
-          {roadmap.openTicketCount} of {roadmap.ticketCount} tickets still open, across{" "}
+          {phaseOpen === 0
+            ? `All ${phaseTotal} tickets in this phase are closed.`
+            : `${phaseOpen} of ${phaseTotal} tickets in this phase are still open.`}{" "}
+          {roadmap.openTicketCount} of {roadmap.ticketCount} tickets still open across all{" "}
           {roadmap.epicCount} epics. No dates on this screen on purpose.
         </p>
       </div>
@@ -227,27 +241,28 @@ function PrototypeSlide({ prototype }) {
         </div>
         <div className="flex items-center gap-1.5">
           {prototype.variants.map((v) => (
-            <button
+            <Button
               key={v}
               type="button"
+              variant="outline"
               onClick={() => setVariant(v)}
-              className={`h-10 w-10 rounded-xl border text-[15px] font-bold transition-colors ${
+              className={`h-10 w-10 rounded-xl text-[15px] font-bold transition-colors ${
                 variant === v
                   ? "border-foreground bg-muted text-foreground"
                   : "border-border text-muted-foreground hover:bg-muted"
               }`}
             >
               {v}
-            </button>
+            </Button>
           ))}
-          <a
+          <ExternalLink
             href={`${prototype.file}?variant=${variant}`}
             target="_blank"
             rel="noreferrer"
             className="ml-1.5 rounded-xl border border-border bg-card px-3 py-2 text-[14px] font-semibold hover:bg-muted"
           >
             Full screen →
-          </a>
+          </ExternalLink>
         </div>
       </div>
       <iframe
@@ -276,19 +291,20 @@ function Overview({ data, sizes, onPick }) {
                 si === 0
                   ? data.headline[ii].title
                   : si === 1
-                    ? `${data.underTheHood.items.length} fixes and safety changes`
+                    ? data.underTheHood.items[ii].title
                     : si === 2
                       ? data.roadmap.phases[ii].name
                       : data.prototypes[ii].title
               return (
                 <li key={`${section.key}-${ii}`}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => onPick({ section: si, item: ii })}
-                    className="w-full rounded-lg px-2.5 py-1.5 text-left text-[15px] font-medium text-foreground hover:bg-muted"
+                    className="h-auto w-full items-start justify-start whitespace-normal rounded-lg px-2.5 py-1.5 text-left text-[15px] leading-snug font-medium break-words text-foreground hover:bg-muted"
                   >
                     {label}
-                  </button>
+                  </Button>
                 </li>
               )
             })}
@@ -301,6 +317,8 @@ function Overview({ data, sizes, onPick }) {
 
 /* ── Shell ──────────────────────────────────────────────────────────────── */
 
+const LAST_POS_KEY = "release-notes:last-position"
+
 export default function PresentationDeck({ data }) {
   // Derived from a file baked at build time, so it is stable for the life of
   // the page — memoised so the keydown listener is not torn down and
@@ -309,16 +327,37 @@ export default function PresentationDeck({ data }) {
   // A section can be empty (a deck generated before any prototype existed, or
   // with an empty window), so open on the first section that renders anything
   // rather than assuming section 0 has slides.
-  const [pos, setPos] = useState(() => ({
-    section: sizes.findIndex((n) => n > 0),
-    item: 0,
-  }))
+  const [pos, setPos] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAST_POS_KEY))
+      if (saved && saved.item >= 0 && saved.item < (sizes[saved.section] ?? 0)) {
+        return { section: saved.section, item: saved.item }
+      }
+    } catch {
+      // storage unavailable or corrupt — fall through to the first slide
+    }
+    return { section: sizes.findIndex((n) => n > 0), item: 0 }
+  })
   const [overview, setOverview] = useState(false)
+
+  useEffect(() => {
+    if (pos.section === -1) return
+    try {
+      localStorage.setItem(LAST_POS_KEY, JSON.stringify(pos))
+    } catch {
+      // storage unavailable — position just isn't retained
+    }
+  }, [pos])
 
   const onKey = useCallback(
     (event) => {
       const tag = event.target?.tagName
       if (tag === "INPUT" || tag === "TEXTAREA" || event.target?.isContentEditable) return
+      // A slide can open a real window (the demo SOR), which owns its own
+      // keys: ← / → step SORs, Shift + ← / → switch layout, Escape closes it.
+      // The deck moving underneath would close it mid-demo.
+      if (event.defaultPrevented || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return
+      if (document.querySelector('[role="dialog"]')) return
 
       if (event.key === "o" || event.key === "O") {
         event.preventDefault()
@@ -360,7 +399,16 @@ export default function PresentationDeck({ data }) {
 
   let slide = null
   if (pos.section === 0) slide = <HeadlineSlide key={data.headline[pos.item].id} row={data.headline[pos.item]} />
-  else if (pos.section === 1) slide = <UnderTheHoodSlide data={data.underTheHood} />
+  else if (pos.section === 1)
+    slide = (
+      <UnderTheHoodSlide
+        key={data.underTheHood.items[pos.item].sample}
+        item={data.underTheHood.items[pos.item]}
+        index={pos.item}
+        total={data.underTheHood.items.length}
+        summary={data.underTheHood.summary}
+      />
+    )
   else if (pos.section === 2)
     slide = (
       <RoadmapSlide
@@ -385,13 +433,14 @@ export default function PresentationDeck({ data }) {
           <span className="text-[14px] font-bold tabular-nums text-foreground">
             {positionLabel(pos, sizes)}
           </span>
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setOverview((v) => !v)}
-            className="rounded-xl border border-border bg-card px-3 py-1.5 text-[13px] font-semibold hover:bg-muted"
+            className="h-auto rounded-xl bg-card px-3 py-1.5 text-[13px] font-semibold hover:bg-muted"
           >
             {overview ? "Close" : "Overview"}
-          </button>
+          </Button>
         </div>
       </header>
 

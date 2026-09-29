@@ -8,7 +8,7 @@
 import { screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import OpportunitiesPage from "@/pages/crm/index";
+import OpportunitiesPage from "@/pages/sors/index";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 
@@ -23,6 +23,9 @@ vi.mock("@/context/AuthContext", () => ({
 
 describe("OpportunitiesPage with nothing the caller may see", () => {
   beforeEach(() => {
+    // The page restores its last tab from sessionStorage; without this a test
+    // that opens Board makes the next one start there.
+    sessionStorage.clear();
     const employee = makeEmployee({ name: "Narrowed Salesperson" });
     mockUser.current = employee;
   });
@@ -46,7 +49,7 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
     );
     await screen.findByText(/No opportunities registered yet/i);
 
-    await user.click(screen.getByRole("button", { name: /Board/i }));
+    await user.click(screen.getByRole("tab", { name: /Board/i }));
 
     expect(screen.getByText(/No opportunities registered yet/i)).toBeInTheDocument();
   });
@@ -60,7 +63,7 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
     );
     await screen.findByText(/No opportunities registered yet/i);
 
-    await user.click(screen.getByRole("button", { name: /Overview/i }));
+    await user.click(screen.getByRole("tab", { name: /Overview/i }));
 
     expect(await screen.findByText(/Nothing to show yet/i)).toBeInTheDocument();
   });

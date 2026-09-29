@@ -1,77 +1,47 @@
+import { Image } from "../ui/image"
+
 /**
- * Side-by-side shell for a before/after demo.
- *
- * The "before" panel is a replica built from the source at 9655097, not the
- * old component resurrected — so it has to be unmistakably the past from
- * across a room. It is desaturated and dimmed; the "after" panel is in full
- * colour and carries the link to the real screen on staging.
+ * Two panes, the same thing before and after a change. A fix described in
+ * words alone is a claim; this is what the room checks it against.
  */
-function Panel({ side, label, children }) {
-  const isBefore = side === "before"
+export default function BeforeAfter({ before, after, beforeNote, afterNote }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <span
-          className={
-            isBefore
-              ? "rounded-full bg-muted px-3 py-1 text-[13px] font-semibold text-muted-foreground"
-              : "rounded-full bg-emerald-500/15 px-3 py-1 text-[13px] font-semibold text-emerald-700 dark:text-emerald-300"
-          }
-        >
-          {label}
-        </span>
-      </div>
-      <div
-        className={
-          isBefore
-            ? "flex-1 rounded-2xl border border-border bg-card p-5 opacity-70 grayscale"
-            : "flex-1 rounded-2xl border-2 border-emerald-500/30 bg-card p-5 shadow-sm"
-        }
-      >
-        {children}
-      </div>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Pane label="Before" tone="bg-red-500/15 text-red-800 dark:text-red-200" note={beforeNote}>
+        {before}
+      </Pane>
+      <Pane label="After" tone="bg-emerald-500/15 text-emerald-800 dark:text-emerald-200" note={afterNote}>
+        {after}
+      </Pane>
     </div>
   )
 }
 
-export default function BeforeAfter({ before, after, liveHref, note }) {
+function Pane({ label, tone, note, children }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
-        <Panel side="before" label="Before · Sep 9">
-          {before}
-        </Panel>
-        <Panel side="after" label="Now · on staging">
-          {after}
-        </Panel>
+    <div className="min-w-0 space-y-2">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className={`rounded-full px-3 py-1 text-[13px] font-bold uppercase tracking-wide ${tone}`}>{label}</span>
+        {note && <span className="text-[14px] text-muted-foreground">{note}</span>}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {note ? <p className="text-[15px] text-muted-foreground">{note}</p> : <span />}
-        {liveHref && (
-          <a
-            href={liveHref}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
-          >
-            Open it live →
-          </a>
-        )}
-      </div>
+      <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">{children}</div>
     </div>
   )
 }
 
-/** Fake window chrome, so a replica reads as a screen rather than a diagram. */
-export function Chrome({ title, children }) {
+/**
+ * Screenshots taken from the app itself: "before" at the commit ahead of the
+ * change, "after" at the commit that made it, same local data both times.
+ * Used where the old screen no longer exists in the code to be rendered.
+ */
+export function ScreenshotPair({ name, before, after }) {
+  const src = (when) => `/release-notes/before-after/${name}-${when}.png`
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
-      <div className="flex items-center gap-2 border-b border-border bg-muted/60 px-3 py-2">
-        <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {title}
-        </span>
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
+    <BeforeAfter
+      beforeNote={before}
+      afterNote={after}
+      before={<Image src={src("before")} alt={`${name}, before: ${before}`} className="block h-auto w-full" />}
+      after={<Image src={src("after")} alt={`${name}, after: ${after}`} className="block h-auto w-full" />}
+    />
   )
 }

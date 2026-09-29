@@ -14,6 +14,7 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import GroupTaskCard from "../pages/group-tasks/_components/GroupTaskCard";
 import SectionHeader from "./ui/SectionHeader";
+import { Input } from "@/components/ui/input";
 
 export default function GroupTasksList({ selectedRange }) {
   const { user } = useAuth();
@@ -63,46 +64,54 @@ export default function GroupTasksList({ selectedRange }) {
           {/* SEARCH */}
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
             <Search size={14} className="text-muted-foreground" />
-            <input
+            <Input
               type="text"
               placeholder="Search tasks..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground w-full"
+              containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground"
             />
             {searchTerm && (
-              <button
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => setSearchTerm("")}
-                className="text-muted-foreground hover:text-foreground"
+                className="h-auto w-auto text-muted-foreground hover:text-foreground hover:bg-transparent"
               >
                 <X size={12} />
-              </button>
+              </Button>
             )}
           </div>
 
           {/* LAYOUT TOGGLE */}
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
-            <button
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setLayoutMode("row")}
-              className={`p-1 rounded transition-all ${layoutMode === "row" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`h-auto w-auto p-1 rounded transition-all ${layoutMode === "row" ? "bg-card shadow-sm text-red-9 hover:bg-card" : "text-muted-foreground hover:text-mauve-11 hover:bg-transparent"}`}
               title="Single Row"
             >
               <List size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setLayoutMode("stack")}
-              className={`p-1 rounded transition-all ${layoutMode === "stack" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`h-auto w-auto p-1 rounded transition-all ${layoutMode === "stack" ? "bg-card shadow-sm text-red-9 hover:bg-card" : "text-muted-foreground hover:text-mauve-11 hover:bg-transparent"}`}
               title="3-Row Stack"
             >
               <Rows3 size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setLayoutMode("grid")}
-              className={`p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`h-auto w-auto p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9 hover:bg-card" : "text-muted-foreground hover:text-mauve-11 hover:bg-transparent"}`}
               title="Full Grid"
             >
               <LayoutGrid size={16} />
-            </button>
+            </Button>
           </div>
 
           {/* VIEW ALL */}

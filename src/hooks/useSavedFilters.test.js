@@ -60,4 +60,26 @@ describe("useSavedFilters", () => {
     expect(result.current.initial).toEqual({ crmOnly: false })
     expect(result.current.hasSavedDefault).toBe(false)
   })
+
+  it("falls back to the page default for a filter missing from, or null in, the saved default", () => {
+    localStorage.setItem("erp_saved_filters_tasks_user-1", JSON.stringify({ crmOnly: true, deptFilter: null }))
+
+    const { result } = renderHook(() =>
+      useSavedFilters("tasks", "user-1", { crmOnly: false, deptFilter: "IT", statusFilter: "ALL" }),
+    )
+
+    expect(result.current.initial).toEqual({ crmOnly: true, deptFilter: "IT", statusFilter: "ALL" })
+    expect(result.current.isDirty({ crmOnly: true, deptFilter: "IT", statusFilter: "ALL" })).toBe(false)
+  })
+
+  it("calls the filters changed only when they differ from the saved default", () => {
+    const { result } = renderHook(() => useSavedFilters("tasks", "user-1", { crmOnly: false, tags: [] }))
+    expect(result.current.isDirty({ crmOnly: true, tags: [] })).toBe(false)
+
+    act(() => result.current.saveDefault({ crmOnly: true, tags: ["a"] }))
+
+    expect(result.current.isDirty({ crmOnly: true, tags: ["a"] })).toBe(false)
+    expect(result.current.isDirty({ crmOnly: false, tags: ["a"] })).toBe(true)
+    expect(result.current.isDirty({ crmOnly: true, tags: ["a", "b"] })).toBe(true)
+  })
 })

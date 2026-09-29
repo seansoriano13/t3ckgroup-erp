@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import EmployeeManagement from "@/pages/hr/management/index";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee, makeHrEmployee } from "@/test/factories";
@@ -13,6 +13,11 @@ vi.mock("@/context/AuthContext", () => ({
     isAuthLoading: false,
   }),
 }));
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="loc">{`${location.pathname}${location.search}`}</div>;
+}
 
 describe("EmployeeManagement", () => {
   beforeEach(() => {
@@ -149,5 +154,20 @@ describe("EmployeeManagement", () => {
       return element.tagName.toLowerCase() === 'span' && content === '50h';
     });
     expect(silCellText).toBeInTheDocument();
+  });
+
+  it("points the leave tab at Settings > HR & Schedule", async () => {
+    const user = setupUser();
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/hr/management"]}>
+        <EmployeeManagement />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("tab", { name: /Leave & Form Config/i }));
+    await user.click(await screen.findByRole("button", { name: /Open in Settings/i }));
+
+    expect(screen.getByTestId("loc")).toHaveTextContent("/settings?tab=hr");
   });
 });

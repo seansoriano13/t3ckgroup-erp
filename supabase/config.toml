@@ -71,6 +71,11 @@ redirect_uri = "http://127.0.0.1:5173"
 # whole local stack down with it. Realtime subscriptions are inert locally
 # either way (see docs/testing.md's fake-DB limitations) — this just stops a
 # broken container from blocking `supabase start` entirely.
+#
+# Live updates are still testable locally: `pnpm local:realtime` runs the
+# older, working image (v2.124.2) beside the stack under the alias Kong already
+# routes to — see scripts/local-realtime.mjs. Re-run it after `supabase db
+# reset`, which recreates the `realtime` schema it depends on.
 enabled = false
 
 [storage]

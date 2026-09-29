@@ -25,9 +25,13 @@ The target shape is **70 / 20 / 10**. Where it actually stands:
 
 | Tier | Tests | Share | Target |
 | --- | ---: | ---: | ---: |
-| Unit | 980 | 63% | 70% |
-| Integration | 574 | 37% | 20% |
-| E2E | 10 | 0.6% | 10% |
+| Unit | 1,661 | 49% | 70% |
+| Integration | 1,737 | 51% | 20% |
+| E2E | 12 | 0.4% | 10% |
+
+Counted 2026-09-18 with `npx vitest list`. The gap has widened rather than
+closed: integration overtook unit as the suite grew, and E2E has barely moved.
+Re-count before citing these — they drift with every feature.
 
 ### The policy tier is separate on purpose
 
@@ -46,7 +50,7 @@ hurt somebody:
   map. The functions that move an employee's leave balance have never run in a
   test; the service tests assert only that they were *called* correctly.
 
-So a change to either can pass ~1,560 tests while being completely wrong. The
+So a change to either can pass ~3,400 tests while being completely wrong. The
 policy tier is the only place it can fail.
 
 ```bash
@@ -200,7 +204,7 @@ test rather than in production.
 
 `src/test/db/schema.js` parses every file in `supabase/migrations/`, in
 order — including the baseline (`20260904000000_baseline_schema.sql`, issue
-#87), so the fake starts from the same 57 tables a fresh `supabase db reset`
+#87), so the fake starts from the same tables a fresh `supabase db reset`
 does. Tables, columns, types, NOT NULL, defaults, primary keys, UNIQUE, CHECK
 constraints and foreign keys are all derived from there.
 

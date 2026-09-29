@@ -54,9 +54,9 @@ export function navigate(pos, key, sizes) {
 export function sectionSizes(data) {
   return [
     data.headline?.length ?? 0,
-    // Under the hood is one card however many fixes it lists — it is counted,
-    // not walked through. No card at all if nothing was generated for it.
-    data.underTheHood?.items?.length ? 1 : 0,
+    // One slide per fix: each carries its own before and after, and a list of
+    // fixes the room cannot see is a list of claims.
+    data.underTheHood?.items?.length ?? 0,
     data.roadmap?.phases?.length ?? 0,
     data.prototypes?.length ?? 0,
   ]

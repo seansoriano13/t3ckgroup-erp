@@ -24,17 +24,21 @@ _Avoid_: Approvals Tab, Verification Page
 
 ### Domain Modules & Entities
 
-**SOR (Sales Opportunity Record)**:
-A commercial deal registration tracking potential sales, client requirements, quotations, and special procurement requests.
-_Avoid_: Opportunity, Lead, Deal
+**SOR (Sales Opportunity Registration)**:
+One registered commercial deal — the record tracking a potential sale, its client requirements, quotations, and special procurement requests. Named by Policy CCPR-2026-001, Annex C. Earlier drafts of this glossary expanded it as "Sales Opportunity Record", which the policy does not say.
+_Avoid_: Opportunity, Lead, Deal, Sales Opportunity Record
 
 **SOR Register**:
-The centralized index and management table of all registered Sales Opportunity Records.
+The centralized index and management table of all registered SORs.
 _Avoid_: Opportunities Page, Opportunity Registration
 
-**CRM**:
-Where the whole commercial process runs — the SOR Register, its board, and every SOR's journey through its Sales Flow. The SOR is the entry point; CRM is the process it enters.
-_Avoid_: SOR / CRM, SOR system
+**SORS (Sales Opportunity Registration System)**:
+Where the whole commercial process runs — the SOR Register, its board, and every SOR's journey through its Sales Flow. The SOR is the entry point; SORS is the process it enters. The company's own name for this system, from Policy CCPR-2026-001, Annex C, and the name the first migration was written under. It was briefly renamed "CRM" (issue #206) and renamed back; see ADR 0024 for why an imported industry word was the wrong one for a thing the board had already named.
+_Avoid_: CRM, SOR / CRM, SOR system
+
+**Retail SOR**:
+A marketplace order — Shopee, Lazada, any storefront — registered as an ordinary SOR because the Odoo sync writes to the same table a salesperson does. Real and never deleted: it carries a true Sales Reference and a true amount. Excluded from the pipeline, the commission engine and every aggregate read, because it describes a sale with no proposal, no bidding, no negotiation and no award, and so runs no Sales Flow. Seen on its own screen, not in the Register.
+_Avoid_: Retail deal, Shopee deal, Online order
 
 **Company**:
 The organization an SOR is being sold to — the account, not a human. Verified against Odoo's commercial partner whenever the SOR carries a Sales Reference.
@@ -69,7 +73,8 @@ A task with one owner, tracked on that person's own list rather than as
 shared work. The other kind of task a Stage Action can create, alongside a
 Group Task: same trigger, same fire-once rule, but no members and no roles —
 it says what one person must do. Its kind of work is named by its Category,
-not by a Tag.
+not by a Tag. It has no title of its own: its Project / Campaign Title stands
+in as one, and its Category when that is blank.
 _Avoid_: Personal Task, My Task, Solo Task
 
 **Tag**:
@@ -141,7 +146,7 @@ Role-based UI presentation masking where standard employees view only their own 
 
 Not implemented, and out of scope for the current feature: any actual payout/disbursement mechanism, eligibility computation, or a release/holdback stage. The Commission Pool is always a live estimate, never a payout.
 
-### CRM Flow
+### SORS Flow
 
 Terms introduced by the Flow Canvas (issue #36). These supersede the Deal Type
 vocabulary in ADR 0004 and deprecate `docs/crm-pipeline-redesign.md` as an
@@ -160,6 +165,7 @@ _Avoid_: Deal Type, Project Type, Type
 The whole process one Sale Type follows — its Stages and the moves permitted
 between them. A directed graph, not an ordered list: a flow may loop back, skip
 ahead, or branch, because deals are re-opened and fast-tracked in reality.
+A flow's Stages live only on the Flow Canvas; no document lists them.
 _Avoid_: Pipeline (when meaning a specific Sale Type's process), Workflow
 
 **Stage** (within a Sales Flow):
@@ -191,17 +197,36 @@ only what they were called into, unless the Sales Flow names them as always
 seeing it.
 _Avoid_: Participants, Members (when meaning these roles)
 
+**Always sees**:
+The people a Sales Flow names as reading every one of its SORs in full, as the
+Deal Team does, without holding a role on any of them. It can name everyone.
+They can read the SOR and move it between Stages, but not edit it; a Restricted
+Stage still shuts them out. It is set per Sales Flow, so being open on one flow
+never opens another.
+_Avoid_: Viewers, Watchers, Read-all
+
+**Always edits**:
+The people a Sales Flow names as editing every one of its SORs, their details
+and Product List, as the Deal Team can, without holding a role on any of them.
+Set per Sales Flow beside Always sees and can name everyone. It widens editing
+only; who can see or move an SOR is still Always sees.
+_Avoid_: Editors, Write access
+
 **Stage Participant**:
 Someone outside the Deal Team called into an SOR — by a task a Stage Action
 creates, by an Assignment condition, or as a purchasing member of a Purchase
 Request opened there. Sees every Stage Visit inside their access window, which
 opens when they are called and closes when the calling Stage is left, when a
 chosen later Stage is entered or left, or at a Terminal Stage, as the Sales Flow
-set it; a Terminal Stage always closes it. An Assignment on the entry Stage makes
-someone a participant from the SOR's first day. Afterwards they get a locked
-view plus a read-only look at the visits they worked on. A Mention never makes
-someone a Stage Participant.
-_Avoid_: Collaborator, Guest, Member
+set it; a Terminal Stage always closes it. Each call-in opens its own window, so
+one person named by two actions on the same Stage holds two at once and sees the
+union of them. A window only ever reaches forward: someone called in at a Stage
+never sees the visits before it. An Assignment on the entry Stage makes someone a
+participant from the SOR's first day. Afterwards they get a locked view plus a
+read-only look at the visits they worked on. A Mention never makes someone a
+Stage Participant.
+_Avoid_: Collaborator, Guest, Member, Lifeline (a window belongs to one call-in
+on one SOR, not to a person)
 
 **Restricted Stage**:
 A Stage its Sales Flow closes to part of the Deal Team — by role, by an
@@ -212,12 +237,22 @@ out. The Stage's configuration stays readable on the Flow Canvas; only the
 SOR's data on it is withheld.
 _Avoid_: Hidden Stage, Private Stage
 
-**Journey**:
-One SOR's whole story as a single list — every Stage Visit, with the
-conditions, tasks, and Requested Items on each, their status and owner. A
-Restricted Stage appears as one line with no contents to anyone shut out of it.
-Who may open an SOR's Journey is set by its Sales Flow.
-_Avoid_: Overview, Iceberg, Timeline
+**History**:
+One SOR's whole story as a single list — every Stage Visit, each carrying its
+whole Stage Work: every condition and how it was met (the file given, who
+ticked, who was assigned, the note), its custom Stage Field values, what each
+of its Stage Actions did (the task it created, or that it was skipped, left
+undecided, or failed), its Logged Follow-ups, and its Requested Items, with
+their status and owner. The record of what happened, not a summary of it: a
+past visit is read-only, but any task on it still opens. Work a Start fresh or
+Revert closed off stays on its visit, marked closed off and saying why. Work a
+Resume carried forward shows on the new visit only, and the earlier visit says
+it was resumed. A
+Restricted Stage appears as one line with no contents to anyone shut out of
+it. Who may open an SOR's History is set by its Sales Flow. Named the Journey
+until September 2026.
+_Avoid_: Journey (its earlier name), Overview, Iceberg, Timeline, Version
+history (a Sales Flow's Flow Snapshots, not an SOR's story)
 
 **Stage Field**:
 An input a Sales Flow defines on a Stage, filled in on the SOR under that
@@ -242,16 +277,38 @@ _Avoid_: Distribution List, Roster
 **Stage Action**:
 Something that happens when an SOR *enters* a Stage — create a Group Task,
 notify, stamp a date, start a countdown, raise a purchase request, or a note.
-Fires once per (SOR, Stage), permanently: re-entering a Stage creates nothing
-new. Distinct from a Stage Condition by what it does — an Action *happens*, a
-Condition *blocks*.
+Fires once per (SOR, Stage): a Return creates nothing new unless it is a
+Start fresh. A task it created goes **on hold** when the SOR leaves the
+Stage — off everyone's list, and not workable by anyone, until a Return
+decides it — unless the Sales Flow set that action to carry on past the Stage.
+Reaching a Terminal Stage cancels every held task; a Resume revives them with
+due dates pushed back by the time they spent on hold, and nothing else does. A
+held, cancelled or closed-off task can still be opened and read, never worked
+on. Distinct from a Stage Condition by
+what it does — an Action *happens*, a Condition *blocks*.
 _Avoid_: Trigger, Automation, Hook
+
+**Stage Work**:
+Everything done on an SOR during one Stage Visit — the tasks its Stage Actions
+created, Optional Action decisions, ticked tickboxes, files given through
+conditions, custom Stage Field values, and the Follow-up count. Not the SOR's
+own fields, which belong to the SOR, and not notifications, which cannot be
+taken back. Handled as one set, never item by item.
+
+**Return**:
+An SOR entering a Stage it already has an earlier Stage Visit on. Whoever makes
+the move chooses **Resume** — the earlier Stage Work moves into the new visit,
+its tasks reopened, and the earlier visit records that it was resumed — or **Start fresh** — the earlier Stage Work is
+closed off, never deleted: its tasks cancelled, the rest left on the earlier
+visit in the History, and the Stage's Actions fire again. Only a Return asks;
+no other move does.
+_Avoid_: Backward move, Re-entry, Revert (going back one step without an edge)
 
 **Optional Action**:
 A Stage Action that waits for its Decider — the Deal Owner unless the Sales
 Flow names someone else — to create it or skip it after the SOR enters the
 Stage. Never blocks leaving; leaving undecided counts as a skip, and a skip is
-final for that Stage.
+final for that Stage until a Start fresh.
 _Avoid_: Manual Action, Conditional Action
 
 **Stage Condition**:
@@ -262,7 +319,8 @@ cost, the evaluation approved, and the offer within ABC) — plus Note Condition
 deal must fill in is a Stage Field, never a condition. An attachment condition
 is met only by a file given through that condition, not by any matching file on
 the SOR. A deadline never blocks; it warns on approach and marks the deal
-overdue on breach.
+overdue on breach. Conditions guard moving on, never going back: a Revert or a
+Return is not blocked by them, nor by a required Stage Field.
 _Avoid_: Gate, Requirement, Rule
 
 **Note Condition**:
@@ -288,16 +346,31 @@ Exactly one per flow; a Sales Flow cannot be published without one. Set by the
 developer, never presented to Operations in commission vocabulary.
 _Avoid_: Anchor, Anchor Stage, Award Stage
 
-**Realized** (redefined):
-An SOR counts as booked money once it **has a Contract Date** — no longer a
-comparison of its position against an anchor's. Position ceased to mean
-anything when a Sales Flow became a graph, and the positional rule already
-misfired when a deal moved backwards. Its value is labelled **Won** on screen.
+**Revert**:
+Taking an SOR back to the Stage its latest move came from, whether that move
+was a mistake or the deal really went back. Not a move: it needs no drawn edge
+and can take an SOR off a Terminal Stage. If Stage Work was already done on the
+Stage being left, whoever reverts chooses to **keep progress** — held, so a
+later Return can Resume it — or **remove progress** — closed off, never
+deleted; with no Stage Work there, nothing is asked and the stay is undone
+outright, the earlier Stage Visit simply continuing. Otherwise the SOR starts a
+new visit on the earlier Stage with that Stage's old work resumed. One step
+only: a Revert cannot itself be reverted, and going further back takes a
+move. Anything the reverted move stamped (a Contract Date included) is
+cleared, and anyone it notified is told to disregard it. Reverting a Return
+also undoes its Resume or Start fresh. Made only by whoever made the move, the
+Deal Owner, or a Super Admin — a Restricted Stage does not stop them, but one
+shut out of it is not asked and keeps progress. On screen: **Revert to last
+stage**. Unrelated
+to reverting a Sales Flow to an earlier Flow Snapshot on the Flow Canvas.
+_Avoid_: Correction, Stage Correction, Rollback, Undo
+
+**Won** (or **Realized**):
+An SOR counts as booked money when its current Stage is its Sales Flow's designated Won Stage or any non-terminal post-won Stage downstream from it. For legacy SORs with no Sales Flow, it means occupying the Awarded stage or beyond. Labelled **Won** on screen.
 _Avoid_: Booked, Closed (when meaning the money pool)
 
 **Open Pipeline**:
-The value of SORs that are neither Realized nor on a Terminal Stage — what is
-still being worked. Shown beside Won; a lost SOR counts toward neither.
+The value of active SORs currently sitting on pre-won Stages (Stages preceding the Won Stage in the flow graph) that have not yet reached Won. Excludes terminal Stages; a lost SOR counts toward neither Open Pipeline nor Won.
 _Avoid_: Closed Pipeline, Total Pipeline
 
 **Registration Form**:
@@ -312,7 +385,7 @@ _Avoid_: Intake Form, SOR Form (when meaning the Details card), Form Template
 
 **Flow Canvas**:
 The module in which the developer and Operations build Sales Flows together,
-on staging — a long-lived feature, not a one-time build: the business's CRM
+on staging — a long-lived feature, not a one-time build: the business's SORS
 process keeps changing after a Sales Flow is published, so the canvas keeps
 being used to revise it, each revision landing as its own Flow Snapshot. One
 editing surface, editing `sales_flows` directly; the Flow Snapshot history
@@ -354,6 +427,14 @@ be observed. An ordinary SOR carrying a scratch flag, running identical code to
 a real one — which is what makes "it works" an observation rather than a claim.
 Excluded from every register, dashboard, and commission total.
 _Avoid_: Test Deal, Dummy, Fixture
+
+**Legacy Pipeline**:
+The Sale Type that holds every SOR registered before Sales Flows existed. It
+gives those SORs a Sales Flow to belong to, not a new process. They keep their
+Stages and behave as they always did, and they have no link to Government or
+Outright. Its Always sees and Always edits are both Everyone, as before Sales
+Flows existed; only the Government and Outright flows are private.
+_Avoid_: Standard Pipeline (its old name), Default flow
 
 **Flow Snapshot**:
 The entire Sales Flow captured at the moment it was published. Answers "what
@@ -697,6 +778,12 @@ refers to numbers that still stand. Not the retired Project Evaluation, which
 judged whether a deal was worth chasing before anything was costed; this judges
 one priced offer.
 _Avoid_: Approval, Go/No-go (as the record's name), Project Evaluation, Sign-off
+
+### UI
+
+**Primitive**:
+Anything in the shared UI folder (`src/components/ui/`): one shared building block per job — Button, Dialog, Input, Select, Dropdown and so on. Raw HTML for a covered element (button, input, textarea, select, label, table, img, a, hand-rolled modal) is banned outside that folder, enforced by lint; feature code uses the Primitive. If none fits, ask the maintainer rather than hand-rolling. Catalogued in DESIGN.md.
+_Avoid_: Component (already means a Costing Matrix row), Widget, Shared component
 
 ### Chat & Mentions
 

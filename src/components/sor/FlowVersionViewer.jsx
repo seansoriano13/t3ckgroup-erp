@@ -10,9 +10,9 @@ import {
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 
-import FlowCanvasNode from "../settings/FlowCanvasNode"
-import FlowBracketNode from "../settings/FlowBracketNode"
-import FlowSatelliteNode from "../settings/FlowSatelliteNode"
+import FlowCanvasNode from "../flow-canvas/FlowCanvasNode"
+import FlowBracketNode from "../flow-canvas/FlowBracketNode"
+import FlowSatelliteNode from "../flow-canvas/FlowSatelliteNode"
 import {
     bracketNode,
     bracketRuns,
@@ -22,7 +22,7 @@ import {
     RUN,
     STAGE_W,
     STAGE_H,
-} from "../settings/flowCanvasLayout"
+} from "../flow-canvas/flowCanvasLayout"
 import {
     actionsForSnapshotStage,
     conditionsForSnapshotStage,

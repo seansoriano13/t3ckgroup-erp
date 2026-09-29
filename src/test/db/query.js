@@ -136,7 +136,9 @@ function evaluateComparison(row, tableName, columnName, operator, rawValue) {
   if (operator === "cs") {
     if (actual == null) return UNKNOWN
     const text = rawValue.trim()
-    if (text.startsWith("{")) {
+    // `{a,b}` is an array literal; a jsonb column's `{"key":…}` starts with
+    // the same brace, so the column's own shape decides which it is.
+    if (text.startsWith("{") && Array.isArray(actual)) {
       const wanted = text.slice(1, -1).split(",").map(unquote).filter((v) => v !== "")
       return Array.isArray(actual) && wanted.every((v) => actual.map(String).includes(v))
     }

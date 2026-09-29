@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { addEntry, todayInManila } from "../../../scripts/lib/changelog.mjs"
+import { addEntry, todayInManila, visibleEntries } from "../../../scripts/lib/changelog.mjs"
 
 // The changelog is the app's version record: `src/data/changelog.json[0].version`
 // is what Settings shows and what `last_seen_changelog_version` compares
@@ -91,5 +91,20 @@ describe("addEntry", () => {
 describe("todayInManila", () => {
   it("returns an ISO date, not a timestamp", () => {
     expect(todayInManila()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe("visibleEntries", () => {
+  const list = [
+    { version: "1.7.30", title: "Preview", env: "staging", changes: ["x"] },
+    { version: "1.7.29", title: "Real", changes: ["y"] },
+  ]
+
+  it("hides staging-only entries outside staging", () => {
+    expect(visibleEntries(list, false).map((e) => e.version)).toEqual(["1.7.29"])
+  })
+
+  it("keeps everything on staging", () => {
+    expect(visibleEntries(list, true)).toHaveLength(2)
   })
 })

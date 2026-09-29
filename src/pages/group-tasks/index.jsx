@@ -20,6 +20,7 @@ import GroupTaskFilters from "../../components/GroupTaskFilters";
 import ManageTagsModal from "../../components/settings/ManageTagsModal";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
+import SaveDefaultButton from "../../components/ui/SaveDefaultButton";
 import { useMemo } from "react";
 
 const GROUP_TASK_FILTER_DEFAULTS = {
@@ -108,7 +109,7 @@ export default function GroupTasksPage() {
     }
   };
 
-  const { initial: savedFilters, hasSavedDefault, saveDefault, clearDefault } = useSavedFilters(
+  const { initial: savedFilters, hasSavedDefault, saveDefault, clearDefault, isDirty } = useSavedFilters(
     "group_tasks",
     user?.id,
     GROUP_TASK_FILTER_DEFAULTS,
@@ -154,18 +155,17 @@ export default function GroupTasksPage() {
     },
   );
 
-  const handleSaveDefaultFilters = () =>
-    saveDefault({
-      statusFilter,
-      creatorFilter,
-      memberFilter,
-      deptFilter,
-      subDeptFilter,
-      timeframe,
-      selectedDateFilter,
-      tagFilter,
-      crmOnly,
-    });
+  const currentFilters = {
+    statusFilter,
+    creatorFilter,
+    memberFilter,
+    deptFilter,
+    subDeptFilter,
+    timeframe,
+    selectedDateFilter,
+    tagFilter,
+    crmOnly,
+  };
 
   const uniqueDepts = useMemo(() => {
     const fromEmps = employees.map((e) => e.department);
@@ -423,23 +423,12 @@ export default function GroupTasksPage() {
           }
         />
         <div className="flex justify-end mt-2">
-          {hasSavedDefault ? (
-            <button
-              type="button"
-              onClick={clearDefault}
-              className="text-xs text-muted-foreground hover:text-foreground font-semibold"
-            >
-              Clear saved default
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSaveDefaultFilters}
-              className="text-xs text-muted-foreground hover:text-foreground font-semibold"
-            >
-              Save as my default
-            </button>
-          )}
+          <SaveDefaultButton
+            hasSavedDefault={hasSavedDefault}
+            isDirty={isDirty(currentFilters)}
+            onSave={() => saveDefault(currentFilters)}
+            onClear={clearDefault}
+          />
         </div>
       </div>
 

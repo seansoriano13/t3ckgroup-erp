@@ -11,6 +11,7 @@ import { GROUP_TASK_STATUS, TASK_STATUS } from "./status"
 const SETTLED_TASK_STATUSES = new Set([
   TASK_STATUS.COMPLETE,
   TASK_STATUS.DELETED,
+  TASK_STATUS.ON_HOLD,
   GROUP_TASK_STATUS.HR_PENDING,
   GROUP_TASK_STATUS.HR_VERIFIED,
 ])
@@ -26,6 +27,22 @@ export function isTaskOpen(task) {
  */
 export function isTaskDeleted(task) {
   return task?.status === TASK_STATUS.DELETED
+}
+
+/**
+ * An individual task a Start fresh, a Revert or a Remove progress cancelled.
+ * `tasks.status` has no CANCELLED — those writes set DELETED plus a
+ * `cancel_reason`, and the reason is what tells closed-off work (history,
+ * shown) from a task someone deleted by hand (noise, hidden). Group Tasks
+ * are cancelled as CANCELLED and never need this.
+ */
+export function isTaskClosedOff(task) {
+  return task?.status === TASK_STATUS.DELETED && Boolean(task?.cancel_reason ?? task?.cancelReason)
+}
+
+/** The status a reader sees: a closed-off individual task reads as Cancelled, not Deleted. */
+export function displayTaskStatus(task) {
+  return isTaskClosedOff(task) ? TASK_STATUS.CANCELLED : task?.status
 }
 
 /**
@@ -58,6 +75,170 @@ export function visitOwnsTask(task, visit) {
 
   const leftAt = visit.leftAt ? Date.parse(visit.leftAt) : null
   return leftAt === null || createdAt < leftAt
+}
+
+function isNonEmptyFieldValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== ""
+}
+
+/**
+ * A visit's custom Stage Field values (#397), labelled from the Flow
+ * Snapshot's frozen field definitions — filled ones with their value, unfilled
+ * ones named once so the tab can print "Not filled: A, B" on a single muted
+ * line instead of a row per empty field. `sor`-source fields are excluded:
+ * they write straight through to the SOR record (#199), never to
+ * `sor_stage_field_values`, so there is no per-visit value to show here.
+ */
+export function stageFieldRows(fields = [], values = {}) {
+  const filled = []
+  const notFilled = []
+  for (const field of fields) {
+    if (field.source !== "custom") continue
+    const value = values[field.id]
+    if (isNonEmptyFieldValue(value)) {
+      filled.push({ id: field.id, label: field.label, type: field.field_type ?? null, value })
+    } else {
+      notFilled.push(field.label)
+    }
+  }
+  return { filled, notFilled }
+}
+
+const FOLLOW_UP_LOGGED_EVENT = "FOLLOW_UP_LOGGED"
+const FOLLOW_UP_REMINDER_EVENT = "FOLLOW_UP_REMINDER"
+
+/** Strips the "Follow-up logged: " prefix `logFollowUp` writes, so history shows the note verbatim. */
+function followUpNoteText(content) {
+  if (!content) return ""
+  const prefix = "Follow-up logged: "
+  if (content.startsWith(prefix)) return content.slice(prefix.length)
+  return content === "Follow-up logged" ? "" : content
+}
+
+/** A visit's Logged Follow-ups (#397), oldest first, from the SOR's whole timeline scoped by `metadata.stageVisitId`. */
+export function stageFollowUpLogs(logs = [], visitId) {
+  return (logs || [])
+    .filter((l) => l.metadata?.event === FOLLOW_UP_LOGGED_EVENT && l.metadata?.stageVisitId === visitId)
+    .sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0))
+    .map((l) => ({
+      loggedBy: l.author_id,
+      loggedAt: l.created_at,
+      note: followUpNoteText(l.content),
+      files: l.metadata?.attachments || [],
+    }))
+}
+
+/** How many reminders fired on this visit (#397) — a count, not a list, per the ticket's "N reminders sent". */
+export function stageFollowUpReminderCount(logs = [], visitId) {
+  return (logs || []).filter(
+    (l) => l.metadata?.event === FOLLOW_UP_REMINDER_EVENT && l.metadata?.stageVisitId === visitId,
+  ).length
+}
+
+/**
+ * A "skipped" run that was never actually decided (#398) — `sor_finish_action_run`
+ * auto-skips any still-`pending` run when the SOR leaves its Stage (see
+ * `moveOpportunityStage`), and that write never sets `decided_by`. A real
+ * Decider's skip always goes through `sor_decide_action_run`, which stamps
+ * `decided_by`/`decided_at` — so its absence on a `skipped` run is exactly
+ * "left undecided, counted as skipped", never ambiguous with a real decision.
+ */
+export function isLeftUndecided(run) {
+  return run?.outcome === "skipped" && !run?.decided_by
+}
+
+/**
+ * One row per Stage Action run on a visit (#398), in the Stage's flow order —
+ * not the order runs happened to be decided in, so the list reads the same
+ * shape as the Stage itself. An action with no run at all (nothing ever
+ * fired for it, e.g. the visit is still current) is left out rather than
+ * guessed at; `sor_begin_action_run` stamps one for every action the moment
+ * a visit opens, so a closed visit's actions all have one.
+ *
+ * `tasksById`/`groupTasksById` resolve a `created` run's `task_id`/
+ * `group_task_id` back to the full task row so the caller can render it with
+ * `TaskRow`, the same component (and open mechanism) the Now tab uses.
+ * `labelFor` names the action from its own config — passed in rather than
+ * imported, so this module stays free of `opportunityService`'s private
+ * `stageActionName` and the two files never form a cycle.
+ */
+export function stageActionRuns(
+  actions = [],
+  runs = [],
+  { tasksById = {}, groupTasksById = {}, labelFor, closedOffActors = {} } = {},
+) {
+  const ordered = [...actions].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  const runsByActionId = Object.fromEntries((runs || []).map((r) => [r.action_id, r]))
+
+  return ordered
+    .map((action) => {
+      const run = runsByActionId[action.id]
+      if (!run) return null
+      const closedOffAt = run.closed_off_at ?? null
+      const closedOffReason = run.closed_off_reason ?? null
+      return {
+        id: run.id,
+        actionId: action.id,
+        label: labelFor ? labelFor(action) : action.id,
+        outcome: run.outcome,
+        leftUndecided: isLeftUndecided(run),
+        // A pending run on a past visit was held by a Revert's Keep progress:
+        // still undecided, waiting for a Resume — neither skipped nor live.
+        heldAt: run.held_at ?? null,
+        decidedBy: run.decided_by ?? null,
+        decidedAt: run.decided_at ?? null,
+        task: run.task_id ? (tasksById[run.task_id] ?? null) : null,
+        groupTask: run.group_task_id ? (groupTasksById[run.group_task_id] ?? null) : null,
+        // #400: a Start fresh or a Revert's Remove progress closes a run off
+        // rather than deleting it — `closedOffAt`/`closedOffReason` come
+        // straight off the row, stamped by `sor_start_fresh_stage_work` or
+        // the Revert RPC's remove-progress branch. Reverting a Start fresh
+        // nulls both again (see `sor_revert_stage`), so an un-closed-off run
+        // reads exactly like one that was never touched.
+        closedOffAt,
+        closedOffReason,
+        closedOffBy: !closedOffAt
+          ? null
+          : closedOffReason === "start_fresh"
+            ? (closedOffActors.startFresh ?? null)
+            : (closedOffActors.reverted ?? null),
+      }
+    })
+    .filter(Boolean)
+}
+
+/**
+ * Whether a visit's whole Stage Work was closed off (#400) — by a Start fresh
+ * (the Return that superseded it) or a Revert's Remove progress (this visit's
+ * own leaving). One closure event stamps every one of a visit's live runs at
+ * once (see the migrations under #391/#392), so the first closed-off run
+ * found describes the whole visit; a visit with none is untouched and shows
+ * no marker at all.
+ */
+export function visitClosedOff(actionRuns = []) {
+  const closed = (actionRuns || []).find((r) => r.closedOffAt)
+  if (!closed) return null
+  return { reason: closed.closedOffReason, at: closed.closedOffAt, by: closed.closedOffBy }
+}
+
+/**
+ * Tasks/Group Tasks on a visit that no Stage Action run claims (#398) — legacy
+ * ones predating #204's per-action ledger. Anything a run's `task`/`groupTask`
+ * already names is that action's, not "Other tasks"'s, so a #204-created task
+ * is never listed twice.
+ */
+export function otherTaskRows(tasks = [], groupTasks = [], actionRuns = []) {
+  const claimedTaskIds = new Set(actionRuns.map((r) => r.task?.id).filter(Boolean))
+  const claimedGroupTaskIds = new Set(actionRuns.map((r) => r.groupTask?.id).filter(Boolean))
+  return {
+    tasks: (tasks || []).filter((t) => !claimedTaskIds.has(t.id)),
+    groupTasks: (groupTasks || []).filter((t) => !claimedGroupTaskIds.has(t.id)),
+  }
+}
+
+/** How many of a visit's action runs were skipped (decided or left undecided) — the header's "N skipped" chip (#398). */
+export function skippedRunCount(actionRuns = []) {
+  return (actionRuns || []).filter((r) => r.outcome === "skipped").length
 }
 
 const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`

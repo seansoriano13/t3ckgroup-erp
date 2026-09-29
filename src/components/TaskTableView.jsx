@@ -13,6 +13,7 @@ import {
 import Avatar from "./Avatar";
 import StatusBadge from "./StatusBadge";
 import Dot from "./ui/Dot";
+import { Button } from "./ui/button";
 import { SorLinkChip } from "./ui/SorLinkChip";
 import HighlightText from "./HighlightText";
 import { useAuth } from "../context/AuthContext";
@@ -21,6 +22,15 @@ import { TASK_STATUS } from "../constants/status";
 import { ArrowUpRight } from "lucide-react";
 
 import { getChecklistProgress } from "../utils/checklist";
+import { SelectField } from "@/components/ui/SelectField";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const formatDate = (dateString) => {
   if (!dateString) return "—";
@@ -176,55 +186,54 @@ export default function TaskTableView({
     <div className="space-y-4">
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[900px]">
-            <thead>
-              <tr className="bg-muted/50 border-b border-border text-muted-foreground font-bold tracking-wider uppercase text-[11px] select-none">
-                <th
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead
                   onClick={() => handleSort("title")}
-                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors"
+                  className="cursor-pointer hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-1">
                     Task / Description {renderSortIcon("title")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("assignee")}
-                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors w-[180px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[180px]"
                 >
                   <div className="flex items-center gap-1">
                     Assignee {renderSortIcon("assignee")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("status")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
                 >
                   <div className="flex items-center gap-1">
                     Status {renderSortIcon("status")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("priority")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[110px]"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[110px]"
                 >
                   <div className="flex items-center gap-1">
                     Priority {renderSortIcon("priority")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("dueDate")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
                 >
                   <div className="flex items-center gap-1">
                     Due Date {renderSortIcon("dueDate")}
                   </div>
-                </th>
-                <th className="py-3.5 px-3 w-[140px]">Progress</th>
-                <th className="py-3.5 px-4 text-right w-[80px]">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+                </TableHead>
+                <TableHead className="px-3 w-[140px]">Progress</TableHead>
+                <TableHead className="text-right w-[80px]">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {paginatedTasks.map((task) => {
                 const isOwner = user?.id === task.loggedById;
                 const isOverdue =
@@ -237,14 +246,14 @@ export default function TaskTableView({
                 const progress = getTaskProgress(task);
 
                 return (
-                  <tr
+                  <TableRow
                     key={task.id}
                     onClick={() => onView && onView(task)}
                     className={`hover:bg-muted/40 transition-colors cursor-pointer group ${isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
                       }`}
                   >
                     {/* Task Title & Category */}
-                    <td className="py-3.5 px-4 align-middle">
+                    <TableCell>
                       <div className="flex flex-col gap-1 max-w-[340px] sm:max-w-[420px]">
                         <div className="flex items-center gap-2 flex-wrap">
                           {task.categoryName && (
@@ -267,10 +276,10 @@ export default function TaskTableView({
                           </p>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Assignee & Dept */}
-                    <td className="py-3.5 px-4 align-middle">
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.loggedByName || "User"}
@@ -289,10 +298,10 @@ export default function TaskTableView({
                           )}
                         </div>
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Status Badge */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="px-3">
                       <div className="flex items-center gap-1.5">
                         <StatusBadge status={task.status} />
                         {task.status === TASK_STATUS.COMPLETE && (
@@ -312,10 +321,10 @@ export default function TaskTableView({
                           </div>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Priority */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="px-3">
                       {task.priority ? (
                         <div className="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider">
                           {task.priority === "HIGH" && (
@@ -346,10 +355,10 @@ export default function TaskTableView({
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Due Date & Overdue */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="px-3">
                       <div className="flex flex-col">
                         <span
                           className={`text-[12px] font-medium ${isOverdue
@@ -365,10 +374,10 @@ export default function TaskTableView({
                           </span>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Progress / Checklist */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="px-3">
                       {progress.isChecklist ? (
                         <div
                           className="flex items-center gap-2 w-full max-w-[130px]"
@@ -397,28 +406,29 @@ export default function TaskTableView({
                             : "1 item"}
                         </span>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right align-middle">
-                      <button
+                    <TableCell className="text-right">
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="icon-sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onView) onView(task);
                         }}
-                        className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                        className="h-auto w-auto p-1.5 rounded-lg bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
                         title="View details"
                       >
                         <ArrowUpRight size={13} />
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
       </div>
 
       {/* Pagination Footer */}
@@ -442,45 +452,46 @@ export default function TaskTableView({
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
             <span>Rows:</span>
-            <select
+            <SelectField
               value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
+              onChange={(next) => {
+                setPageSize(Number(next));
                 setCurrentPage(1);
               }}
-              className="bg-card border border-border rounded-md px-2 py-1 text-foreground text-xs font-semibold focus:outline-none focus:ring-1 focus:border-foreground/30 cursor-pointer"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
+              options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
+              size="sm"
+            />
           </div>
         </div>
 
         {/* Page Nav Controls */}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5">
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              className="h-auto w-auto p-1.5 rounded-md bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
               title="Previous Page"
             >
               <ChevronLeft size={14} />
-            </button>
+            </Button>
 
             <span className="px-2 text-xs font-semibold text-foreground">
               Page {currentPage} of {totalPages}
             </span>
 
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              className="h-auto w-auto p-1.5 rounded-md bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
               title="Next Page"
             >
               <ChevronRight size={14} />
-            </button>
+            </Button>
           </div>
         )}
       </div>

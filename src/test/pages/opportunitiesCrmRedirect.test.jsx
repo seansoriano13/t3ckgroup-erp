@@ -4,49 +4,77 @@ import { MemoryRouter, Routes, Route, useLocation } from "react-router";
 import OpportunitiesRedirect from "../../pages/opportunities/index";
 import OpportunitiesCommissionRedirect from "../../pages/opportunities/commission/index";
 import OpportunitiesCommissionFormulaRedirect from "../../pages/opportunities/commission-formula/index";
+import CrmRedirect from "../../pages/crm/index";
+import CrmCommissionRedirect from "../../pages/crm/commission/index";
+import CrmCommissionFormulaRedirect from "../../pages/crm/commission-formula/index";
 
-// Issue #206: /opportunities moved to /crm. Old links — including ones
-// already sitting in a sent notification — must keep landing on the same
-// page or SOR, so these preserve the query string and hash across the move.
-describe("Opportunities → CRM redirects", () => {
-  function CrmRegisterStub() {
+// The module has had three names: /opportunities, then /crm (#206), now /sors
+// (ADR 0024). Both older routes are kept permanently — notificationRouter has
+// been minting /crm deep links into notifications people still have unread, and
+// /opportunities links predate those.
+//
+// Both point at /sors *directly*. Chaining /opportunities through /crm would
+// work today and become a redirect loop the first time somebody edits one of
+// them, so each legacy route names the real destination itself.
+describe("legacy register routes", () => {
+  function SorsRegisterStub() {
     const location = useLocation();
-    return <div>CRM Register: {location.search}</div>;
+    return <div>SORS Register: {location.search}</div>;
   }
 
-  it("redirects /opportunities?id=… to /crm?id=…", () => {
-    render(
-      <MemoryRouter initialEntries={["/opportunities?id=abc123"]}>
+  function renderAt(path, routes) {
+    return render(
+      <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/opportunities" element={<OpportunitiesRedirect />} />
-          <Route path="/crm" element={<CrmRegisterStub />} />
+          {routes}
+          <Route path="/sors" element={<SorsRegisterStub />} />
+          <Route path="/sors/commission" element={<div>Commission Dashboard Page</div>} />
+          <Route path="/sors/commission-formula" element={<div>Commission Formula Page</div>} />
         </Routes>
       </MemoryRouter>
     );
-    expect(screen.getByText("CRM Register: ?id=abc123")).toBeInTheDocument();
+  }
+
+  describe("/opportunities", () => {
+    it("redirects to /sors, preserving the query string", () => {
+      renderAt("/opportunities?id=abc123", <Route path="/opportunities" element={<OpportunitiesRedirect />} />);
+      expect(screen.getByText("SORS Register: ?id=abc123")).toBeInTheDocument();
+    });
+
+    it("redirects /opportunities/commission to /sors/commission", () => {
+      renderAt(
+        "/opportunities/commission?tab=departments",
+        <Route path="/opportunities/commission" element={<OpportunitiesCommissionRedirect />} />
+      );
+      expect(screen.getByText("Commission Dashboard Page")).toBeInTheDocument();
+    });
+
+    it("redirects /opportunities/commission-formula to /sors/commission-formula", () => {
+      renderAt(
+        "/opportunities/commission-formula",
+        <Route path="/opportunities/commission-formula" element={<OpportunitiesCommissionFormulaRedirect />} />
+      );
+      expect(screen.getByText("Commission Formula Page")).toBeInTheDocument();
+    });
   });
 
-  it("redirects /opportunities/commission to /crm/commission, preserving the query string", () => {
-    render(
-      <MemoryRouter initialEntries={["/opportunities/commission?tab=departments"]}>
-        <Routes>
-          <Route path="/opportunities/commission" element={<OpportunitiesCommissionRedirect />} />
-          <Route path="/crm/commission" element={<div>Commission Dashboard Page</div>} />
-        </Routes>
-      </MemoryRouter>
-    );
-    expect(screen.getByText("Commission Dashboard Page")).toBeInTheDocument();
-  });
+  describe("/crm", () => {
+    it("redirects to /sors, preserving the query string", () => {
+      renderAt("/crm?id=abc123", <Route path="/crm" element={<CrmRedirect />} />);
+      expect(screen.getByText("SORS Register: ?id=abc123")).toBeInTheDocument();
+    });
 
-  it("redirects /opportunities/commission-formula to /crm/commission-formula", () => {
-    render(
-      <MemoryRouter initialEntries={["/opportunities/commission-formula"]}>
-        <Routes>
-          <Route path="/opportunities/commission-formula" element={<OpportunitiesCommissionFormulaRedirect />} />
-          <Route path="/crm/commission-formula" element={<div>Commission Formula Page</div>} />
-        </Routes>
-      </MemoryRouter>
-    );
-    expect(screen.getByText("Commission Formula Page")).toBeInTheDocument();
+    it("redirects /crm/commission to /sors/commission", () => {
+      renderAt("/crm/commission", <Route path="/crm/commission" element={<CrmCommissionRedirect />} />);
+      expect(screen.getByText("Commission Dashboard Page")).toBeInTheDocument();
+    });
+
+    it("redirects /crm/commission-formula to /sors/commission-formula", () => {
+      renderAt(
+        "/crm/commission-formula",
+        <Route path="/crm/commission-formula" element={<CrmCommissionFormulaRedirect />} />
+      );
+      expect(screen.getByText("Commission Formula Page")).toBeInTheDocument();
+    });
   });
 });

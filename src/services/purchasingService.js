@@ -292,7 +292,7 @@ export const purchasingService = {
    *
    * Purchasing reads this to see which deal they are buying for. Org-wide
    * SELECT on the register is what makes it legible to them; being able to
-   * edit it is a separate question that `canEditSor` answers.
+   * edit it is a separate question that `sor_can_edit_opportunity` answers (opportunityService.canEdit).
    */
   async sorForTask(taskId) {
     if (!taskId) return null;

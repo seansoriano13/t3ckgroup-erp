@@ -6,6 +6,9 @@ import Dropdown from "../ui/Dropdown";
 import CategoryDropdown from "../dropdowns/CategoryDropdown";
 import PriorityDropdown from "../dropdowns/PriorityDropdown";
 import PropertyPill from "../ui/PropertyPill";
+import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function LogTaskPropertyBar({
   formData,
@@ -88,23 +91,21 @@ export default function LogTaskPropertyBar({
         >
           {({ close }) => (
             <>
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-4">
-                {mode === "automation" ? "Target Due Date" : "End Date & Time"}
-              </label>
+              <FieldBox label={mode === "automation" ? "Target Due Date" : "End Date & Time"} className="block mb-4" />
               <div className="w-full py-1">
                 {mode === "automation" ? (
                   <div className="px-1">
                     <p className="text-xs text-muted-foreground mb-3">
                       How many days after the deal enters this stage should this task be due?
                     </p>
-                    <input
+                    <Input
                       type="number"
                       min="0"
                       value={formData.dueOffsetDays || ""}
                       onChange={(e) =>
                         setFormData((p) => ({ ...p, dueOffsetDays: e.target.value }))
                       }
-                      className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
+                      containerClassName="w-full"
                       placeholder="e.g. 3"
                     />
                   </div>
@@ -126,17 +127,17 @@ export default function LogTaskPropertyBar({
                 )}
               </div>
               <div className="flex justify-end mt-3 pt-2 border-t border-border">
-                <button
+                <Button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     close();
                   }}
                   style={{ backgroundColor: "var(--primary)" }}
-                  className="px-4 py-1.5 text-primary-foreground rounded-lg text-[11px] font-bold hover:opacity-90 transition-all shadow-sm"
+                  className="h-auto px-4 py-1.5 text-primary-foreground rounded-lg text-[11px] font-bold hover:opacity-90 transition-all shadow-sm"
                 >
                   Done
-                </button>
+                </Button>
               </div>
             </>
           )}

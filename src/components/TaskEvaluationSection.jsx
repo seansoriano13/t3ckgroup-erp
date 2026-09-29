@@ -2,6 +2,7 @@ import React from "react"
 import { MessageCircle } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import GradeSelector from "./GradeSelector"
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function TaskEvaluationSection({
   isEditing,
@@ -25,12 +26,10 @@ export default function TaskEvaluationSection({
       {/* --- GRADE EDIT (Re-evaluation during edit mode) --- */}
       {canReEvalGrade && (
         <div className="flex flex-col gap-1.5 pt-2">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1.5">
-            Performance Grade
+          <FieldBox label={<>Performance Grade
             <span className="font-normal normal-case tracking-normal text-muted-foreground/70">
               (editing)
-            </span>
-          </label>
+            </span></>} className="pl-1" />
           <GradeSelector
             grade={editGrade}
             onSelect={setEditGrade}
@@ -87,13 +86,11 @@ export default function TaskEvaluationSection({
           {/* --- APPROVAL REMARKS (only shown to evaluators before finalization) --- */}
           {canEvaluate && !isFinalized && (
             <div className="flex flex-col gap-1.5 mt-4">
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                <MessageCircle size={11} />
+              <FieldBox label={<><MessageCircle size={11} />
                 Remarks
                 <span className="font-normal normal-case tracking-normal text-muted-foreground/60">
                   (required to reject)
-                </span>
-              </label>
+                </span></>} />
               <Textarea
                 value={approvalRemarks}
                 onChange={(e) => {

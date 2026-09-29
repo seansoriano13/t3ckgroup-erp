@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Trash2, RotateCcw, AlertTriangle } from "lucide-react";
@@ -7,6 +15,10 @@ import Avatar from "../Avatar";
 import { opportunityService } from "../../services/opportunityService";
 import { formatPHP } from "../../constants/sor";
 import { confirmActionToast } from "../ui/CustomToast";
+import { Button } from "../ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 function formatWhen(iso) {
   if (!iso) return "Deleted before this was recorded";
@@ -98,26 +110,26 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
-              <th className="px-3 py-2.5 text-left">Company</th>
-              <th className="px-3 py-2.5 text-left">Project</th>
-              <th className="px-3 py-2.5 text-right">Expected Value</th>
-              <th className="px-3 py-2.5 text-left">Deleted By</th>
-              <th className="px-3 py-2.5 text-left">Deleted At</th>
-              <th className="px-3 py-2.5 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Company</TableHead>
+              <TableHead>Project</TableHead>
+              <TableHead className="text-right">Expected Value</TableHead>
+              <TableHead>Deleted By</TableHead>
+              <TableHead>Deleted At</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((row) => {
               const canRestore = isSuperAdmin || row.deal_owner_id === currentUserId;
               return (
-                <tr key={row.id} className="border-b border-border/50 last:border-0">
-                  <td className="px-3 py-2.5 font-semibold">{row.client_name}</td>
-                  <td className="px-3 py-2.5 text-muted-foreground">{row.project_title}</td>
-                  <td className="px-3 py-2.5 text-right font-bold">{formatPHP(row.expected_value)}</td>
-                  <td className="px-3 py-2.5">
+                <TableRow key={row.id} className="border-b border-border/50 last:border-0">
+                  <TableCell className="font-semibold">{row.client_name}</TableCell>
+                  <TableCell className="text-muted-foreground">{row.project_title}</TableCell>
+                  <TableCell className="text-right font-bold">{formatPHP(row.expected_value)}</TableCell>
+                  <TableCell>
                     {row.deleted_by_employee ? (
                       <span className="inline-flex items-center gap-1.5">
                         <Avatar name={row.deleted_by_employee.name} src={row.deleted_by_employee.avatar_path} size="xs" />
@@ -126,43 +138,56 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
                     ) : (
                       <span className="text-xs italic text-muted-foreground/60">Unknown</span>
                     )}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground">{formatWhen(row.deleted_at)}</td>
-                  <td className="px-3 py-2.5">
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatWhen(row.deleted_at)}</TableCell>
+                  <TableCell>
                     <div className="flex items-center justify-end gap-1.5">
                       {canRestore && (
-                        <button
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleRestore(row)}
                           title="Restore"
-                          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
+                          className="gap-1"
                         >
                           <RotateCcw size={12} /> Restore
-                        </button>
+                        </Button>
                       )}
                       {isSuperAdmin && (
-                        <button
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => {
                             setPurgeTarget(row);
                             setConfirmText("");
                           }}
                           title="Permanently delete"
-                          className="flex items-center gap-1 rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
+                          className="gap-1 border border-red-500/30 text-red-600 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400 dark:hover:text-red-400"
                         >
                           <Trash2 size={12} /> Delete forever
-                        </button>
+                        </Button>
                       )}
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {purgeTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (open) return;
+            setPurgeTarget(null);
+            setConfirmText("");
+          }}
+        >
+          <DialogContent showCloseButton={false} className="max-w-md sm:max-w-md p-5 gap-0">
             <p className="mb-1 flex items-center gap-1.5 text-sm font-bold text-red-600 dark:text-red-400">
               <AlertTriangle size={15} /> Permanently delete this SOR?
             </p>
@@ -170,14 +195,12 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
               {purgeTarget.client_name} — {purgeTarget.project_title}. This cannot be undone. Its
               tasks are kept, unlinked — only the SOR itself and its own records are removed.
             </p>
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Type <span className="font-mono text-foreground">{expectedConfirmText}</span> to confirm
-            </label>
-            <input
+            <FieldBox label={<>Type <span className="font-mono text-foreground">{expectedConfirmText}</span> to confirm</>} className="mb-1 block" />
+            <Input
               autoFocus
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              className="mb-3 w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-medium text-foreground outline-none focus:border-mauve-7"
+              containerClassName="mb-3 w-full" className="font-medium"
             />
             {purgeMutation.isError && (
               <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400">
@@ -185,25 +208,27 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
               </p>
             )}
             <div className="flex items-center justify-end gap-2">
-              <button
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={() => {
                   setPurgeTarget(null);
                   setConfirmText("");
                 }}
-                className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
                 disabled={confirmText.trim() !== expectedConfirmText || purgeMutation.isPending}
                 onClick={() => purgeMutation.mutate()}
-                className="h-10 rounded-xl bg-red-600 px-4 text-[13px] font-bold text-white transition-all hover:bg-red-700 disabled:opacity-50"
+                className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
               >
                 Delete forever
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

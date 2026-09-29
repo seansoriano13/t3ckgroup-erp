@@ -10,6 +10,7 @@ import { useAuth } from "../../context/AuthContext";
 import { taskService } from "../../services/taskService.js";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 
 // --- DATE PICKER IMPORTS ---
 import DatePicker from "react-datepicker";
@@ -23,10 +24,40 @@ import PageContainer from "../../components/ui/PageContainer";
 import TabGroup from "../../components/ui/TabGroup";
 import Spinner from "@/components/ui/Spinner";
 import Dot from "../../components/ui/Dot";
+import SaveDefaultButton from "../../components/ui/SaveDefaultButton";
 
 // Every mutation and the realtime hook below need the page's own list and the
 // dashboard's shared task list to agree on freshness after any change.
 const TASK_QUERY_KEYS = [["tasks"], ["dashboardTasks"]];
+
+/** Whose tasks a person sees when looking at only their own. */
+const ownScope = (user) => ({
+  deptFilter: user?.department || "ALL",
+  subDeptFilter: user?.sub_department || user?.subDepartment || "ALL",
+  employeeFilter: user?.id,
+});
+
+const COMPANY_SCOPE = { deptFilter: "ALL", subDeptFilter: "ALL", employeeFilter: "ALL" };
+
+/**
+ * The Tasks page's saved-default filter set: its keys and where each starts.
+ * Whose tasks to show starts on real values, never a null placeholder: HR
+ * company-wide, heads their own department, staff only themselves.
+ */
+function taskFilterDefaults(user, { isHr, isManagement }) {
+  const own = ownScope(user);
+  return {
+    statusFilter: "ALL",
+    priorityFilter: "ALL",
+    sortBy: "NEWEST",
+    timeframe: "YEARLY",
+    selectedDateFilter: `${new Date().getFullYear()}`,
+    ...(isHr ? COMPANY_SCOPE : own),
+    ...(isManagement && !isHr && { employeeFilter: "ALL" }),
+    reportedToFilter: "ALL",
+    crmOnly: false,
+  };
+}
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -39,7 +70,6 @@ export default function TasksPage() {
   const isHr = user?.is_hr === true || user?.isHr === true || isSA;
   const isHead = user?.is_head === true || user?.isHead === true;
   const isManagement = isHr || isHead;
-  const userDept = user?.department;
   const userSubDept = user?.sub_department || user?.subDepartment;
 
   const isDeptWideHead = isHead && (!userSubDept || userSubDept.trim() === "");
@@ -72,49 +102,40 @@ export default function TasksPage() {
     }
   };
 
-  // 1. Filter State (Standard)
+  // 1. Filter State — the saved-default filter set lives in one object, so its
+  // defaults, first render and "current filters" can never disagree.
+  const filterDefaults = taskFilterDefaults(user, { isHr, isManagement });
+  const { initial: saved, hasSavedDefault, saveDefault, clearDefault, isDirty } =
+    useSavedFilters("tasks", user?.id, filterDefaults);
+  const [filters, setFilters] = useState(() => {
+    const deepLinkEmployee = location.state?.filterEmployeeId;
+    return {
+      ...saved,
+      // Staff are locked to their own tasks whatever was saved.
+      ...(!isManagement && ownScope(user)),
+      // A deep link to one person opens company-wide on them.
+      ...(deepLinkEmployee && { ...COMPANY_SCOPE, employeeFilter: deepLinkEmployee }),
+      // Read preset filter from nav state (e.g. from DashboardStats card click)
+      statusFilter: location.state?.presetFilter?.status || saved.statusFilter,
+    };
+  });
+  const {
+    statusFilter,
+    priorityFilter,
+    sortBy,
+    timeframe,
+    selectedDateFilter,
+    deptFilter,
+    subDeptFilter,
+    employeeFilter,
+    reportedToFilter,
+    crmOnly,
+  } = filters;
   const [searchTerm, setSearchTerm] = useState("");
-  // Read preset filter from nav state (e.g. from DashboardStats card click)
-  const [statusFilter, setStatusFilter] = useState(
-    location.state?.presetFilter?.status || "ALL",
-  );
-  const [priorityFilter, setPriorityFilter] = useState("ALL");
-  const [sortBy, setSortBy] = useState("NEWEST");
   // Track if advanced filter panel should be open (auto-open when preset active)
   const [advancedOpen, setAdvancedOpen] = useState(
     !!location.state?.presetFilter,
   );
-
-  // Date Filter State
-  const [timeframe, setTimeframe] = useState("YEARLY");
-  const [selectedDateFilter, setSelectedDateFilter] = useState(() => {
-    const today = new Date();
-    return `${today.getFullYear()}`;
-  });
-
-  // 2. Filter State (Management Cascading)
-  // Pre-fill with user's dept/subdept if they are a HEAD, otherwise default to "ALL"
-  const [deptFilter, setDeptFilter] = useState(
-    location.state?.filterEmployeeId ? "ALL" : isHr ? "ALL" : userDept || "ALL",
-  );
-  const [subDeptFilter, setSubDeptFilter] = useState(
-    location.state?.filterEmployeeId
-      ? "ALL"
-      : isHr
-        ? "ALL"
-        : userSubDept || "ALL",
-  );
-  const [employeeFilter, setEmployeeFilter] = useState(
-    location.state?.filterEmployeeId || (!isManagement ? user?.id : "ALL"),
-  );
-  const [reportedToFilter, setReportedToFilter] = useState("ALL");
-
-  const { initial: savedTaskFilters, hasSavedDefault, saveDefault, clearDefault } = useSavedFilters(
-    "tasks",
-    user?.id,
-    { crmOnly: false },
-  );
-  const [crmOnly, setCrmOnly] = useState(savedTaskFilters.crmOnly);
 
   // Clear nav state so back-nav doesn't re-apply deep-link filters
   useEffect(() => {
@@ -136,9 +157,7 @@ export default function TasksPage() {
   useEffect(() => {
     if (!user?.id) return; // wait until auth resolves
     if (!isManagement) {
-      setDeptFilter(userDept || "ALL");
-      setSubDeptFilter(userSubDept || "ALL");
-      setEmployeeFilter(user.id);
+      setFilters((prev) => ({ ...prev, ...ownScope(user) }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // deliberately exclude isManagement — roles don't change mid-session
@@ -147,17 +166,8 @@ export default function TasksPage() {
   // filters should be auto-reset; avoids any effect-based race condition.
   const handleHrViewModeChange = (newMode) => {
     setHrViewMode(newMode);
-    if (newMode === "PERSONAL") {
-      setDeptFilter(userDept || "ALL");
-      setSubDeptFilter(userSubDept || "ALL");
-      setEmployeeFilter(user?.id || "ALL");
-      setReportedToFilter("ALL");
-    } else {
-      setDeptFilter("ALL");
-      setSubDeptFilter("ALL");
-      setEmployeeFilter("ALL");
-      setReportedToFilter("ALL");
-    }
+    const scope = newMode === "PERSONAL" ? ownScope(user) : COMPANY_SCOPE;
+    setFilters((prev) => ({ ...prev, ...scope, reportedToFilter: "ALL" }));
   };
 
   // --- DB DATA STATES FOR DROPDOWNS ---
@@ -296,18 +306,9 @@ export default function TasksPage() {
   const { filteredTasks: sortedAndFilteredTasks } = useTaskFilters(
     rawTasks,
     {
+      ...filters,
       searchTerm,
-      statusFilter,
-      priorityFilter,
       hrFilter: "ALL", // Default to ALL since standard tasks view doesn't use it yet
-      timeframe,
-      selectedDateFilter,
-      deptFilter,
-      subDeptFilter,
-      employeeFilter,
-      reportedToFilter,
-      sortBy,
-      crmOnly,
     },
     {
       isManagement: isHr && hrViewMode === "PERSONAL" ? false : isManagement,
@@ -321,13 +322,8 @@ export default function TasksPage() {
     setGroupPages({});
   };
 
-  const handleDateFilterChange = (val) => {
-    setSelectedDateFilter(val);
-    setGroupPages({});
-  };
-
-  const handleTimeframeChange = (val) => {
-    setTimeframe(val);
+  const changeFilter = (key) => (val) => {
+    setFilters((prev) => ({ ...prev, [key]: val }));
     setGroupPages({});
   };
 
@@ -392,21 +388,21 @@ export default function TasksPage() {
         searchTerm={searchTerm}
         setSearchTerm={wrapFilter(setSearchTerm)}
         statusFilter={statusFilter}
-        setStatusFilter={wrapFilter(setStatusFilter)}
+        setStatusFilter={changeFilter("statusFilter")}
         priorityFilter={priorityFilter}
-        setPriorityFilter={wrapFilter(setPriorityFilter)}
+        setPriorityFilter={changeFilter("priorityFilter")}
         timeframe={timeframe}
-        setTimeframe={handleTimeframeChange}
+        setTimeframe={changeFilter("timeframe")}
         selectedDateFilter={selectedDateFilter}
-        setSelectedDateFilter={handleDateFilterChange}
+        setSelectedDateFilter={changeFilter("selectedDateFilter")}
         deptFilter={deptFilter}
-        setDeptFilter={wrapFilter(setDeptFilter)}
+        setDeptFilter={changeFilter("deptFilter")}
         subDeptFilter={subDeptFilter}
-        setSubDeptFilter={wrapFilter(setSubDeptFilter)}
+        setSubDeptFilter={changeFilter("subDeptFilter")}
         employeeFilter={employeeFilter}
-        setEmployeeFilter={wrapFilter(setEmployeeFilter)}
+        setEmployeeFilter={changeFilter("employeeFilter")}
         reportedToFilter={reportedToFilter}
-        setReportedToFilter={wrapFilter(setReportedToFilter)}
+        setReportedToFilter={changeFilter("reportedToFilter")}
         isManagement={isManagement}
         isHr={isHr}
         hrViewMode={hrViewMode}
@@ -415,11 +411,11 @@ export default function TasksPage() {
         uniqueSubDepts={uniqueSubDepts}
         uniqueEmployees={uniqueEmployees}
         sortBy={sortBy}
-        setSortBy={wrapFilter(setSortBy)}
+        setSortBy={changeFilter("sortBy")}
         forceAdvancedOpen={advancedOpen}
         onAdvancedOpenChange={setAdvancedOpen}
         crmOnly={crmOnly}
-        setCrmOnly={wrapFilter(setCrmOnly)}
+        setCrmOnly={changeFilter("crmOnly")}
         actions={
           <TabGroup
             variant="pill"
@@ -436,23 +432,12 @@ export default function TasksPage() {
       />
 
       <div className="flex justify-end -mt-2 mb-2">
-        {hasSavedDefault ? (
-          <button
-            type="button"
-            onClick={clearDefault}
-            className="text-xs text-muted-foreground hover:text-foreground font-semibold"
-          >
-            Clear saved default
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => saveDefault({ crmOnly })}
-            className="text-xs text-muted-foreground hover:text-foreground font-semibold"
-          >
-            Save as my default
-          </button>
-        )}
+        <SaveDefaultButton
+          hasSavedDefault={hasSavedDefault}
+          isDirty={isDirty(filters)}
+          onSave={() => saveDefault(filters)}
+          onClear={clearDefault}
+        />
       </div>
 
       {viewMode === "table" ? (
@@ -563,7 +548,8 @@ export default function TasksPage() {
                     Page {currentGroupPage} / {totalGroupPages}
                   </span>
                   <div className="flex gap-1">
-                    <button
+                    <Button
+                      variant="outline"
                       disabled={currentGroupPage === 1}
                       onClick={(e) => {
                         setGroupPage(statusKey, currentGroupPage - 1);
@@ -574,10 +560,10 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
-                      className="px-3 py-1 rounded bg-muted/50 border border-border text-foreground text-xs font-bold disabled:opacity-30 active:scale-95 transition-all"
+                      className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       ←
-                    </button>
+                    </Button>
                     {/* Page number pills */}
                     {(() => {
                       let startPage = Math.max(1, currentGroupPage - 2);
@@ -608,8 +594,10 @@ export default function TasksPage() {
                       }
 
                       return pages.map((p, idx) => (
-                        <button
+                        <Button
                           key={idx}
+                          variant="outline"
+                          size="icon"
                           disabled={p === "..."}
                           onClick={(e) => {
                             if (p !== "...") {
@@ -622,18 +610,19 @@ export default function TasksPage() {
                                 });
                             }
                           }}
-                          className={`w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-all border ${p === currentGroupPage
-                            ? "bg-primary text-primary-foreground border-primary"
+                          className={`h-7 w-7 text-xs font-bold ${p === currentGroupPage
+                            ? "bg-primary text-primary-foreground border-primary hover:bg-primary"
                             : p === "..."
                               ? "bg-transparent text-muted-foreground/80 border-transparent cursor-default"
                               : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
                             }`}
                         >
                           {p}
-                        </button>
+                        </Button>
                       ));
                     })()}
-                    <button
+                    <Button
+                      variant="outline"
                       disabled={currentGroupPage === totalGroupPages}
                       onClick={(e) => {
                         setGroupPage(statusKey, currentGroupPage + 1);
@@ -644,10 +633,10 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
-                      className="px-3 py-1 rounded bg-muted/50 border border-border text-foreground text-xs font-bold disabled:opacity-30 active:scale-95 transition-all"
+                      className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       →
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}

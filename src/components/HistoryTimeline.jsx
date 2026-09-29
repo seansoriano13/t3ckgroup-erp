@@ -1,4 +1,6 @@
 import { useMemo } from "react"
+import { Image } from "@/components/ui/image";
+import { ExternalLink } from "@/components/ui/external-link";
 import {
   Zap,
   Edit3,
@@ -177,19 +179,19 @@ function HistoryItem({ log, type = "TASK" }) {
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {details.old.map((url, i) => (
-                      <a
+                      <ExternalLink
                         key={i}
                         href={url}
                         target="_blank"
                         rel="noreferrer"
                         className="block w-12 h-12 rounded-md overflow-hidden border border-border hover:opacity-80 transition-opacity"
                       >
-                        <img
+                        <Image
                           src={url}
                           alt={`Attachment ${i}`}
                           className="w-full h-full object-cover"
                         />
-                      </a>
+                      </ExternalLink>
                     ))}
                   </div>
                 )}
@@ -207,19 +209,19 @@ function HistoryItem({ log, type = "TASK" }) {
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {details.new.map((url, i) => (
-                      <a
+                      <ExternalLink
                         key={i}
                         href={url}
                         target="_blank"
                         rel="noreferrer"
                         className="block w-12 h-12 rounded-md overflow-hidden border border-blue-500/30 hover:opacity-80 transition-opacity"
                       >
-                        <img
+                        <Image
                           src={url}
                           alt={`Attachment ${i}`}
                           className="w-full h-full object-cover"
                         />
-                      </a>
+                      </ExternalLink>
                     ))}
                   </div>
                 )}

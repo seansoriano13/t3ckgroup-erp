@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import TabGroup from "../../ui/TabGroup";
 import { opportunityService } from "../../../services/opportunityService";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../context/AuthContext";
@@ -16,6 +16,8 @@ import { odooService } from "../../../services/odooService";
 import { quotationService } from "../../../services/quotationService";
 import { purchasingService } from "../../../services/purchasingService";
 import { salesFlowService } from "../../../services/salesFlowService";
+import { stageFieldService } from "../../../services/stageFieldService";
+import { missingStageFields } from "../../../constants/stageGate";
 import { flowStageTone } from "../../../constants/salesFlow";
 import { openRequests } from "../../../constants/procurement";
 import { usePipelineStages } from "../../../hooks/usePipelineStages";
@@ -30,12 +32,20 @@ import {
 import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
-import NowTab from "./NowTab";
-import JourneyTab from "./JourneyTab";
-import ItemsTab from "./ItemsTab";
-import DetailsTab from "./DetailsTab";
+import { useReturnPrompt } from "../useReturnPrompt";
+import { useReturnStageIds } from "../useReturnStageIds";
+import { useCanEditSor } from "../../../hooks/useCanEditSor";
 import SorChatColumn from "./SorChatColumn";
 import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
+import SummaryLayout from "./summary/SummaryLayout";
+
+// REMOVE-BEFORE-PROD (ADR 0028): the layout prototype is build-gated. The env
+// check sits in the same expression as the import() so Vite folds it to
+// `null` and drops the whole ./prototype folder from a production bundle.
+const PrototypeShell =
+  import.meta.env.VITE_APP_ENV === "staging" || import.meta.env.VITE_APP_ENV === "local"
+    ? lazy(() => import("./prototype/PrototypeShell"))
+    : null;
 
 function estimatedValueSizeClass(displayText) {
   const len = (displayText || "").length;
@@ -44,18 +54,9 @@ function estimatedValueSizeClass(displayText) {
   return "text-3xl lg:text-4xl";
 }
 
-const TABS = [
-  { value: "now", label: "Now" },
-  { value: "journey", label: "Journey" },
-  { value: "items", label: "Items" },
-  { value: "details", label: "Details" },
-];
-
 /**
- * The SOR modal shell (#298): header, the four-tab scaffold, the chat
- * column, and previous/next navigation. Now holds the old flat modal's
- * content lifted unchanged (#299 redesigns it); Journey/Items/Details are
- * stubs (#300-#302).
+ * The SOR modal shell (#298): every query, mutation and handler, handed to
+ * the Summary layout (./summary) that renders it.
  */
 export default function SorModal({
   isOpen,
@@ -81,6 +82,7 @@ export default function SorModal({
     enabled: !!id && isOpen && accessLevelProp == null,
   });
   const accessLevel = accessLevelProp ?? fetchedAccessLevel ?? "full";
+  const canEdit = useCanEditSor(id, { enabled: isOpen && accessLevel === "full" });
 
   // Also doubles as the full/participant "This stage is restricted" flag —
   // see `isRestricted` below and NowTab's banner.
@@ -107,6 +109,16 @@ export default function SorModal({
     enabled: !!id && isOpen && accessLevel === "participant",
   });
   const canViewJourney = accessLevel === "full" ? true : accessLevel === "participant" ? !!canViewJourneyFetched : false;
+
+  // ADR 0021 / Q7: a called-in person is told WHY they can see this deal and
+  // HOW FAR that reaches. Without it the access window is invisible to the one
+  // person it governs — they cannot tell a Stage they keep from one they are
+  // about to lose. Only asked at the two levels that have a window.
+  const { data: myWindows = [] } = useQuery({
+    queryKey: ["myWindowsOn", id, user?.id],
+    queryFn: () => opportunityService.getMyWindowsOn(id, user.id),
+    enabled: !!id && isOpen && !!user?.id && (accessLevel === "participant" || accessLevel === "locked"),
+  });
   const { stages: allStages } = usePipelineStages({ includeInactive: true });
   const pipelineStages = useMemo(
     () => allStages.filter((s) => s.is_active || s.code === rawOpportunity?.status),
@@ -138,7 +150,7 @@ export default function SorModal({
   const { files, isUploading } = attachments;
   const fileInputRef = useRef(null);
 
-  const [activeTab, setActiveTab] = useState("now");
+  const [, setActiveTab] = useState("now");
   const { markOpened, hasOpened } = useOpenedTabs("now");
   const isWide = useMediaQuery("(min-width: 1100px)");
 
@@ -275,6 +287,34 @@ export default function SorModal({
     return employees.filter((e) => allowed.has(e.id));
   }, [employees, currentVisitId, visitAudienceIds]);
 
+  // Issue #407 — the header's "Clear to move"/"Blocked" badge (and the
+  // "Can't move on yet" message under the ribbon) used to be judged on
+  // `checklist` alone, i.e. Stage Conditions. A Stage Field is also part of
+  // the same Stage Gate (`assertStageGateSatisfied` refuses the move for
+  // either), so a required, empty Stage Field read as "clear" right up until
+  // the move itself came back refused. Fetched here, not just inside Now's
+  // Stage Fields form, so the header can name it before the click.
+  const { data: stageFields = [] } = useQuery({
+    queryKey: ["stageFields", rawOpportunity?.flow_stage_id],
+    queryFn: () => stageFieldService.getForStage(rawOpportunity.flow_stage_id),
+    enabled: !!rawOpportunity?.flow_stage_id && isOpen,
+  });
+
+  const { data: currentVisitFieldValues = {} } = useQuery({
+    queryKey: ["stageFieldValues", currentVisitId],
+    queryFn: () => stageFieldService.getValuesForVisit(currentVisitId),
+    enabled: !!currentVisitId && isOpen,
+  });
+
+  const missingRequiredStageFields = useMemo(
+    () =>
+      missingStageFields(stageFields, {
+        opportunity: rawOpportunity || {},
+        visitValues: currentVisitFieldValues,
+      }),
+    [stageFields, rawOpportunity, currentVisitFieldValues],
+  );
+
   // Only Details shows or edits a Lead Source (#302), so it waits for Details.
   const { data: activeLeadSources = [] } = useQuery({
     queryKey: ["leadSources", "active"],
@@ -291,16 +331,35 @@ export default function SorModal({
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["globalOpportunity", id] });
+    // #406 — the register page (src/pages/sors/index.jsx) falls back to a
+    // query keyed `["opportunity", id]` for a selected SOR its list query
+    // doesn't carry (a Scratch SOR, or any other id outside the loaded
+    // register page). Without this, a ribbon move refetched everything
+    // above but left that fallback's cached row stale, so the modal kept
+    // showing the old stage until a reload.
+    queryClient.invalidateQueries({ queryKey: ["opportunity", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityItems", id] });
     // Every opened tab's own query lives under this prefix (useSorModalData).
     // A tab never opened stays `enabled: false`, so this can't wake a fetch
     // the reader hasn't asked for.
     queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
+    queryClient.invalidateQueries({ queryKey: ["sorCanEdit"] });
     queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityAutomations", id] });
     queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
+    // A move can hold, resume or cancel the Stage's tasks; the Activity task
+    // cards (#399) read each task's live status under these keys.
+    queryClient.invalidateQueries({ queryKey: ["globalTask"] });
+    queryClient.invalidateQueries({ queryKey: ["globalGroupTask"] });
+    // These are keyed by Stage, so a Return to a Stage would otherwise reuse
+    // the earlier visit's cached id: the Now tab listed no tasks (it filters
+    // by visit), Revert hid itself, and files stamped the old visit.
+    queryClient.invalidateQueries({ queryKey: ["revertVisits", id] });
+    queryClient.invalidateQueries({ queryKey: ["stageVisitId", id] });
+    queryClient.invalidateQueries({ queryKey: ["currentStageVisit", id] });
+    queryClient.invalidateQueries({ queryKey: ["followUpStatus", id] });
   }, [queryClient, id]);
 
   const handleMentionClick = (person) => {
@@ -365,7 +424,7 @@ export default function SorModal({
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason, salesReference }) => opportunityService.updateStatus(id, next, user?.id, reason, salesReference),
+    mutationFn: ({ next, reason, salesReference, returnChoice }) => opportunityService.updateStatus(id, next, user?.id, { lostReason: reason, salesReference, returnChoice }),
     onSuccess: (data, variables) => {
       setPendingStage("");
       setLostReason("");
@@ -389,6 +448,19 @@ export default function SorModal({
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // Issue #390 — every stage control in the modal (the header, and the staging
+  // layouts) moves through this, so a Return always reaches the prompt.
+  const returnPrompt = useReturnPrompt({
+    opportunity: rawOpportunity,
+    stages: flowCanvas?.stages,
+    enabled: Boolean(rawOpportunity?.sale_type_id),
+    move: stageMutation.mutate,
+  });
+  const stageMover = { ...stageMutation, mutate: returnPrompt.request };
+  // A Return is never blocked by the Stage being left, so a stage control
+  // leaves these destinations open even while the current Stage is blocked.
+  const returnStageIds = useReturnStageIds(rawOpportunity, Boolean(rawOpportunity?.sale_type_id) && isOpen);
 
   const deleteMutation = useMutation({
     mutationFn: () => opportunityService.deleteOpportunity(id, user?.id),
@@ -437,9 +509,13 @@ export default function SorModal({
   useEffect(() => {
     if (!isOpen || !siblingIds?.length || !onNavigate) return;
     const handleKeyDown = (e) => {
-      const tag = document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable) return;
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      // Anything that owns its own arrow keys (fields, selects, tabs, menus, the stage ribbon) keeps them.
+      const el = document.activeElement;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      if (el?.closest?.('[role="tab"],[role="tablist"],[role="menu"],[role="menuitem"],[role="listbox"],[role="option"],[role="slider"],[data-stage-ribbon]')) return;
       const index = siblingIds.indexOf(id);
       if (index === -1) return;
       const nextIndex = e.key === "ArrowLeft" ? index - 1 : index + 1;
@@ -666,12 +742,15 @@ export default function SorModal({
               )}
               <h2 className="truncate text-lg font-black text-foreground">{lockedSummary?.project_title || "This SOR"}</h2>
             </div>
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={onClose}
-              className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+              className="shrink-0 text-muted-foreground"
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
 
           <div className="space-y-5 overflow-y-auto p-6">
@@ -740,6 +819,8 @@ export default function SorModal({
     if (!next || next === opportunity.status) return;
     if (isLostCode(next) || (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)) {
       setPendingStage(next);
+      // The confirm step lives on Now — bring it into view, wherever the Move was started.
+      handleTabChange("now");
       return;
     }
     const stillOpen = openRequests(procurementRequests);
@@ -819,6 +900,39 @@ export default function SorModal({
     onClose,
   };
 
+  const headerProps = {
+    opportunity,
+    isEditing,
+    editForm,
+    setEditForm,
+    handleEditToggle,
+    updateMutation,
+    deleteMutation,
+    isExpanded,
+    setIsExpanded,
+    onClose,
+    isFlowDeal,
+    flowCanvas,
+    currentFlowStage,
+    currentFlowStageTone,
+    pipelineStages,
+    stageMutation: stageMover,
+    returnStageIds,
+    handleStageChange,
+    checklist,
+    missingRequiredStageFields,
+    isOpen,
+    hasPrev,
+    hasNext,
+    onPrev: goPrev,
+    onNext: goNext,
+    canEdit,
+    moveDisabled,
+    moveDisabledReason: isRestricted
+              ? "This stage is restricted, so the deal can't be moved from here."
+              : "You can view this deal's stages but not move it. Ask the deal owner or a manager to move it.",
+  };
+
   const chatColumn = (
     <SorChatColumn
       notes={notes}
@@ -837,87 +951,89 @@ export default function SorModal({
     />
   );
 
-  // ADR 0021 / #297: a Participant shut out of Journey by the flow's
-  // journey_viewers setting gets no Journey tab at all — not one that opens
-  // to nothing.
-  const visibleTabs = canViewJourney ? TABS : TABS.filter((t) => t.value !== "journey");
-  const tabsWithChat = isWide ? visibleTabs : [...visibleTabs, { value: "chat", label: "Chat" }];
+  const windowsBanner = myWindows.length > 0 && (
+      <div className="shrink-0 border-b border-border/60 bg-violet-a2 px-6 py-2">
+        <ul className="space-y-0.5">
+          {myWindows.map((w) => (
+            <li key={w.id} className="text-xs leading-relaxed text-violet-11">
+              Called in at{" "}
+              <span className="font-bold">{w.calledInAtStageName || "this deal"}</span> — you see{" "}
+              {w.reachLabel}
+              {w.closedAt ? ". This window has closed." : "."}
+            </li>
+          ))}
+        </ul>
+      </div>
+  );
+
+  // Everything the layout renders.
+  const layoutProps = {
+    ...headerProps,
+    headerProps,
+    id,
+    ctx: tabCtx,
+    chatColumn,
+    windowsBanner,
+    notes,
+    canViewJourney,
+    isWide,
+    hasOpened,
+    markOpened,
+    isRestricted,
+    moveDisabledReason: headerProps.moveDisabledReason,
+    goPrev,
+    goNext,
+    // Composer pieces, for layouts that place the note box themselves ("Thread").
+    loadingNotes,
+    note,
+    setNote,
+    noteMentions,
+    setNoteMentions,
+    mentionableEmployees,
+    attachments,
+    fileInputRef,
+    isPosting,
+    handlePostNote,
+    handleMentionClick,
+    openFlowVersion: (snapshotId) => {
+      const stage = opportunity.flow_stage_id;
+      window.open(`/flow-versions/${snapshotId}${stage ? `?stage=${encodeURIComponent(stage)}` : ""}`, "_blank", "noopener");
+    },
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open, details) => {
+        if (open) return;
+        // In edit mode Esc backs out of the edit (unsaved fields dropped) instead of closing the whole record.
+        if (isEditing && details?.reason === "escape-key") {
+          details.cancel?.();
+          handleEditToggle();
+          return;
+        }
+        onClose();
+      }}
+    >
       <DialogContent
         showCloseButton={false}
         style={isExpanded ? { width: "100vw", height: "100vh" } : undefined}
         className={cn(
-          "flex flex-col gap-0 overflow-hidden p-0 shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] outline-none transition-all duration-300",
+          "flex flex-col gap-0 overflow-hidden p-0 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)] outline-none transition-all duration-300",
           isExpanded ? "!max-w-none !max-h-none !rounded-none !border-0" : "w-full max-w-[95vw] md:max-w-[1200px] max-h-[90vh] rounded-2xl",
+          !isExpanded && "h-[90vh]",
         )}
       >
-        <SorModalHeader
-          opportunity={opportunity}
-          isEditing={isEditing}
-          editForm={editForm}
-          setEditForm={setEditForm}
-          handleEditToggle={handleEditToggle}
-          updateMutation={updateMutation}
-          deleteMutation={deleteMutation}
-          isExpanded={isExpanded}
-          setIsExpanded={setIsExpanded}
-          onClose={onClose}
-          isFlowDeal={isFlowDeal}
-          flowCanvas={flowCanvas}
-          currentFlowStage={currentFlowStage}
-          currentFlowStageTone={currentFlowStageTone}
-          pipelineStages={pipelineStages}
-          stageMutation={stageMutation}
-          handleStageChange={handleStageChange}
-          checklist={checklist}
-          isOpen={isOpen}
-          hasPrev={hasPrev}
-          hasNext={hasNext}
-          onPrev={goPrev}
-          onNext={goNext}
-          accessLevel={accessLevel}
-          moveDisabled={moveDisabled}
-        />
-
-        <div className="flex min-h-0 flex-1">
+        {PrototypeShell ? (
+          <Suspense fallback={null}>
+            <PrototypeShell p={layoutProps} />
+          </Suspense>
+        ) : (
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="shrink-0 border-b border-border/60 px-6 pt-3">
-              <TabGroup tabs={tabsWithChat} activeTab={activeTab} onChange={handleTabChange} variant="underline" />
-            </div>
-            {/*
-              Each opened tab stays mounted and is hidden rather than
-              unmounted, so a half-typed Stage Field survives a look at the
-              Journey (#207's default decision). Items scrolls inside itself
-              — its sticky header has to outlive a 157-line list — so the
-              panel area clips and each tab owns its own scroll.
-            */}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <div className={activeTab === "now" ? "h-full overflow-y-auto" : "hidden"}>
-                <NowTab ctx={tabCtx} />
-              </div>
-              {canViewJourney && hasOpened("journey") && (
-                <div className={activeTab === "journey" ? "h-full overflow-y-auto" : "hidden"}>
-                  <JourneyTab opportunityId={id} hasOpened={hasOpened} onGoToNow={() => handleTabChange("now")} />
-                </div>
-              )}
-              {hasOpened("items") && (
-                <div className={activeTab === "items" ? "h-full" : "hidden"}>
-                  <ItemsTab ctx={tabCtx} hasOpened={hasOpened} />
-                </div>
-              )}
-              {hasOpened("details") && (
-                <div className={activeTab === "details" ? "h-full overflow-y-auto" : "hidden"}>
-                  <DetailsTab ctx={tabCtx} />
-                </div>
-              )}
-              {!isWide && activeTab === "chat" && <div className="h-full">{chatColumn}</div>}
-            </div>
+            <SummaryLayout p={layoutProps} />
           </div>
-
-          {isWide && <div className="w-[340px] shrink-0 border-l border-border/60">{chatColumn}</div>}
-        </div>
+        )}
+        {returnPrompt.dialog}
       </DialogContent>
     </Dialog>
   );

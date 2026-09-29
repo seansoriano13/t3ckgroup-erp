@@ -50,6 +50,16 @@ this document exists gets a migration, the same way `sor_procurement_requests`
 Default to `postgres_changes` when RLS already covers the table; reach for
 Broadcast when it doesn't and adding RLS isn't in scope for the work at hand.
 
+A table with RLS can still choose Broadcast when its read policy is expensive.
+`sales_opportunities` is the case: `sor_read` calls `sor_is_deal_team` and
+`sor_always_sees`, and `postgres_changes` would run it for every change for
+every subscriber on Realtime's RLS thread. The SORS register only needs a nudge
+to refetch through the same RLS-filtered query it already uses, so
+`20260930020000_sales_opportunities_realtime_broadcast.sql` broadcasts just the
+row id, exactly as `tasks` does, and the register subscribes with
+`useTableRealtime("sales_opportunities", { invalidateKeys: [["opportunities"]], debounceMs: 800 })`.
+Its qualifying reason is concurrency: two people can move the same SOR.
+
 ## Consumers use the shared hook
 
 New consumers subscribe via `useTableRealtime` (`src/hooks/useTableRealtime.js`)
@@ -59,28 +69,43 @@ mount and tearing the channel down on unmount.
 
 A channel that is not a table stream is outside what this hook can express:
 it takes a table name and the query keys to invalidate when a row changes, and
-a channel carrying neither has nothing to give it. Flow Plans (#116, #117) are
-the first of these — `useFlowPlanDoc` moves CRDT document updates between the
-people editing one plan, and `useFlowPresence` carries a presence roster and
-cursor positions. Both hand-write `.channel()` deliberately, and both own the
+a channel carrying neither has nothing to give it. `useFlowPresence` is the
+one such channel — it carries a presence roster and cursor positions rather
+than row changes, hand-writes `.channel()` deliberately, and owns the
 subscribe-on-mount / tear-down-on-unmount discipline the hook exists to
 standardise. The rule above still binds every consumer that *is* watching a
 table.
 
-The ten realtime subscriptions across eight files that predate this hook (two
-each in `taskActivityService.js` and `groupTaskActivityService.js`, one each
-in `notificationService.js`, `systemAuditLogService.js`,
-`ProcurementResolutionPanel.jsx`, `ProcurementPanel.jsx`,
-`OpportunityDetailsModal.jsx`, and `ComprehensiveChatModal.jsx`) are not
-retrofitted onto it as part of introducing it — that's a separate follow-up,
-not a prerequisite.
+(Flow Plans, #116–#117, once added a second such channel — `useFlowPlanDoc`,
+moving CRDT document updates between people editing one plan. The Sandbox and
+its `flow_plans` table were removed with [ADR 0019](adr/0019-flow-canvas-is-one-editing-surface.md);
+`useFlowPresence` survives, now scoped to the live Flow Canvas.)
+
+The hand-written subscriptions that predate this hook (in
+`taskActivityService.js`, `groupTaskActivityService.js`,
+`notificationService.js`, `systemAuditLogService.js`,
+`ProcurementResolutionPanel.jsx`, `sor/PurchasingPanel.jsx`,
+`sor/OpportunityDetailsModal.jsx`, `sor/modal/SorModal.jsx`,
+`TaskActivityTimeline.jsx`, `flow-canvas/FlowCanvas.jsx`,
+`group-tasks/_components/GroupTaskDetailModal.jsx` and
+`ComprehensiveChatModal.jsx`) are not retrofitted onto it as part of
+introducing it — that's a separate follow-up, not a prerequisite.
+
+## Running Realtime locally
+
+`supabase/config.toml` keeps Realtime disabled because the image the CLI pins
+ships a broken library (issue #87). To see live updates on a local stack, run
+`pnpm local:realtime` after `supabase start` (`scripts/local-realtime.mjs`): it
+starts the last known-good image beside the stack and adds the one
+`realtime.messages` policy a signed-in client needs. Re-run it after
+`supabase db reset`. `pnpm local:realtime -- stop` removes it.
 
 ## Cost
 
 Current plan: Supabase Pro — 500 concurrent connections, 500 messages/second,
 500 channel joins/second, 100 channels per connection. This codebase's
-realtime usage (11 subscription sites as of `tasks` being added) is nowhere
-close to those limits, so there's no cap here on how many tables may be
+realtime usage (a dozen or so subscription sites) is nowhere close to those
+limits, so there's no cap here on how many tables may be
 realtime-enabled. A cap picked without evidence would be worse than checking
 the Supabase dashboard's realtime usage graph if this ever becomes a real
 question — revisit there, not here, if it does.

@@ -96,7 +96,7 @@ function main() {
   const { headline, underTheHood, roadmap, prototypes } = built
   console.log(`* wrote ${outputPath}`)
   console.log(
-    `  ${headline.length} headline rows (${headline.filter((h) => h.demo).length} with a demo), ` +
+    `  ${headline.length} headline rows (${headline.filter((h) => h.sample).length} with a sample), ` +
       `${underTheHood.items.length} under the hood`,
   )
   console.log(

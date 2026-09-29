@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -79,18 +80,19 @@ export default function FollowUpPanel({ opportunity, actorId, onChanged, status 
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
-            <input
-              type="file"
+            <FileInput
               accept={ALLOWED_EXTENSIONS_STRING}
-              onChange={(e) => {
-                const picked = e.target.files?.[0] || null;
-                if (picked && !isAllowedAttachment(picked)) {
+              size="sm"
+              onCancel={() => setFile(null)}
+              onFiles={([picked]) => {
+                if (!isAllowedAttachment(picked)) {
                   toast.error("That file type isn't supported.");
                   return;
                 }
                 setFile(picked);
-              }}
-            />
+              }}>
+              {file ? file.name : "Choose file"}
+            </FileInput>
             {status.cadence.proofRequired !== false && (
               <p className="text-xs text-muted-foreground">This cadence requires a file as proof.</p>
             )}

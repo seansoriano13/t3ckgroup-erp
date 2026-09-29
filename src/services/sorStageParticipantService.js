@@ -38,7 +38,7 @@ export const sorStageParticipantService = {
    * defaulting to "stage_left" (the calling Stage itself) when a config
    * predates this feature or never set one.
    */
-  async openWindow({ opportunityId, employeeId, source, sourceId = null, openedVisitId, access }, actorId) {
+  async openWindow({ opportunityId, employeeId, source, sourceId = null, openedVisitId, access, notify = true }, actorId) {
     if (!opportunityId || !employeeId || !openedVisitId) {
       throw new Error("openWindow needs an opportunity, an employee, and the Stage Visit that called them in.");
     }
@@ -75,9 +75,16 @@ export const sorStageParticipantService = {
       .single();
     if (error) throw error;
 
-    await notifyParticipant(opportunityId, employeeId, actorId).catch((err) =>
-      console.error("Stage Participant notification failed:", err),
-    );
+    // `notify: false` when the thing that called this person in has already
+    // told them, and told them something more useful. A task-creating Stage
+    // Action sends its own "you have a task" notification, which names the
+    // task and opens it; "Added to a deal" arriving beside it is a second
+    // notification for one event, and the vaguer of the two.
+    if (notify) {
+      await notifyParticipant(opportunityId, employeeId, actorId).catch((err) =>
+        console.error("Stage Participant notification failed:", err),
+      );
+    }
 
     return data;
   },

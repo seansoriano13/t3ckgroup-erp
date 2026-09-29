@@ -4,7 +4,6 @@ import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../../../services/taskService.js";
 import { employeeService } from "../../../services/employeeService.js";
-import { supabase } from "../../../lib/supabase.js";
 import { TASK_STATUS } from "../../../constants/status.js";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import {
@@ -30,6 +29,7 @@ import BulkVerifyModal from "./_components/BulkVerifyModal";
 import { Button } from "@/components/ui/button";
 import { sameDepartment } from "../../../utils/compareDepartment.js";
 import PageContainer from "../../../components/ui/PageContainer";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import TabGroup from "../../../components/ui/TabGroup";
 
 export default function HrVerificationPage() {
@@ -55,13 +55,7 @@ function HrVerificationQueueContent() {
     enabled: !!user?.id,
   });
 
-  const { data: appSettings } = useQuery({
-    queryKey: ["appSettings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings").select("*").single();
-      return data;
-    },
-  });
+  const { settings: appSettings } = useAppSettings();
 
   const [viewTask, setViewTask] = useState(null);
   const [activeTaskId, setActiveTaskId] = useState(null);
@@ -467,21 +461,23 @@ function HrVerificationQueueContent() {
                 <span className="text-muted-foreground font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
                   <UserCheck className="w-3 h-3" /> Quick Filter:
                 </span>
-                <button
+                <Button
+                  variant="outline"
                   onClick={() => setEmployeeFilter("ALL")}
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 transition-all border ${employeeFilter === "ALL"
-                    ? "bg-foreground text-background border-foreground shadow-xs"
+                  className={`h-auto rounded-full px-2.5 py-1 text-xs font-semibold shrink-0 ${employeeFilter === "ALL"
+                    ? "bg-foreground text-background border-foreground shadow-xs hover:bg-foreground hover:text-background"
                     : "bg-card hover:bg-muted text-muted-foreground border-border"
                     }`}
                 >
                   All ({activeRawData.length})
-                </button>
+                </Button>
                 {queueEmployees.map((emp) => (
-                  <button
+                  <Button
                     key={emp.id}
+                    variant="outline"
                     onClick={() => setEmployeeFilter(emp.id === employeeFilter ? "ALL" : emp.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-all border ${emp.id === employeeFilter
-                      ? "bg-foreground text-background border-foreground shadow-xs font-bold"
+                    className={`h-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium shrink-0 ${emp.id === employeeFilter
+                      ? "bg-foreground text-background border-foreground shadow-xs font-bold hover:bg-foreground hover:text-background"
                       : "bg-card hover:bg-muted text-foreground border-border"
                       }`}
                   >
@@ -492,7 +488,7 @@ function HrVerificationQueueContent() {
                       }`}>
                       {emp.count}
                     </span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}

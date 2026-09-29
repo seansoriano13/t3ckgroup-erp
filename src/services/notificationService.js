@@ -12,19 +12,28 @@ import { isPushNotificationType } from '../constants/pushNotificationTypes.js';
 async function dispatchToRecipients(recipientIds, { sender_id = null, type, title, message, reference_id = null }) {
   if (recipientIds.length === 0) return;
 
+  let direct = recipientIds;
+
   if (isPushNotificationType(type)) {
-    await Promise.all(
+    // `functions.invoke` reports an unreachable or failing function as a
+    // returned `error`, not a throw. The push is the extra; the in-app row is
+    // the notification. Anyone whose call failed still gets the row inserted
+    // client-side below, rather than never hearing they were assigned.
+    const results = await Promise.all(
       recipientIds.map((recipient_id) =>
         supabase.functions.invoke('send-push', {
           body: { recipient_id, sender_id, type, title, message, reference_id },
         }),
       ),
     );
-    return;
+    direct = recipientIds.filter((_, i) => results[i]?.error);
+    if (direct.length > 0) console.error(`send-push failed for ${direct.length} ${type}; writing the in-app row directly.`);
   }
 
+  if (direct.length === 0) return;
+
   await supabase.from('notifications').insert(
-    recipientIds.map((recipient_id) => ({
+    direct.map((recipient_id) => ({
       recipient_id,
       sender_id,
       type,

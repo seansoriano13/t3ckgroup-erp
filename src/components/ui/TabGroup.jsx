@@ -6,8 +6,15 @@
  *  activeTab  - currently active value (string)
  *  onChange   - (value: string) => void
  *  variant    - "pill" | "primary" | "underline"  (default: "pill")
- *  size       - "sm" | "md"                       (default: "sm")
+ *  size       - "xs" | "sm" | "md"                (default: "sm")
+ *               xs is for dense panels that must fit 5+ labels without
+ *               scrolling — the wrapper hides its scrollbar, so a clipped
+ *               tab is invisible rather than merely cut off.
  *  className  - optional extra class on the wrapper
+ *  labelClassName
+ *             - optional extra class on each label span. Pass a responsive
+ *               "hidden sm:inline" to collapse a strip to icons on narrow
+ *               screens; the button keeps its accessible name either way.
  *
  * Variants:
  *  pill      → bg-muted wrapper, bg-card active (group / approvals / broadcast)
@@ -28,6 +35,7 @@ export default function TabGroup({
   size = "sm",
   fullWidth = false,
   className,
+  labelClassName,
   id,
 }) {
   const generatedId = useId();
@@ -36,6 +44,8 @@ export default function TabGroup({
   const normalised = tabs.map((t) =>
     typeof t === "string" ? { value: t, label: t } : t,
   );
+
+  const hasActive = normalised.some((t) => t.value === activeTab);
 
   // Wrapper classes
   const wrapperCls = cn(
@@ -55,6 +65,7 @@ export default function TabGroup({
   // Per-button classes
   const btnBase = cn(
     "relative flex items-center justify-center gap-1.5 font-bold whitespace-nowrap transition-all outline-none",
+    size === "xs" && "px-2 py-1.5 text-[11px]",
     size === "sm" && "px-4 py-1.5 text-xs",
     size === "md" && "px-4 py-2 text-xs",
     fullWidth && "flex-1",
@@ -98,7 +109,22 @@ export default function TabGroup({
   };
 
   return (
-    <div className={wrapperCls}>
+    <div
+      className={wrapperCls}
+      role="tablist"
+      onKeyDown={(e) => {
+        // Roving focus: ←/→ (and Home/End) move between tabs and select, as ARIA tabs expect.
+        const keys = { ArrowLeft: -1, ArrowRight: 1, Home: "first", End: "last" };
+        if (!(e.key in keys)) return;
+        const i = normalised.findIndex((t) => t.value === activeTab);
+        const step = keys[e.key];
+        const next =
+          step === "first" ? 0 : step === "last" ? normalised.length - 1 : (i + step + normalised.length) % normalised.length;
+        e.preventDefault();
+        onChange(normalised[next].value);
+        e.currentTarget.querySelectorAll('[role="tab"]')[next]?.focus();
+      }}
+    >
       {normalised.map(
         ({
           value,
@@ -114,12 +140,23 @@ export default function TabGroup({
             <button
               key={value}
               type="button"
+              role="tab"
+              aria-selected={isActive}
+              // Only when a caller hides the label: a display:none label leaves
+              // the accessibility tree, not just the screen, so the tab would
+              // lose its name. Left alone otherwise, because the computed name
+              // legitimately includes the badge count and tests read it there.
+              aria-label={
+                labelClassName && typeof label === "string" ? label : undefined
+              }
+              tabIndex={isActive || (!hasActive && value === normalised[0]?.value) ? 0 : -1}
               onClick={(e) => {
                 e.preventDefault();
                 onChange(value);
               }}
               className={cn(
                 btnBase,
+                "focus-visible:ring-2 focus-visible:ring-mauve-8 focus-visible:ring-offset-1",
                 isActive
                   ? activeClass || btnActive[currentVariant]
                   : btnInactive[currentVariant],
@@ -138,7 +175,7 @@ export default function TabGroup({
               )}
               <span className="relative z-10 flex items-center gap-1.5">
                 {Icon && <Icon size={14} />}
-                <span>{label}</span>
+                <span className={labelClassName}>{label}</span>
                 {badge != null && badge > 0 && (
                   <span
                     className={cn(

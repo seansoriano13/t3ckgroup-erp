@@ -8,6 +8,16 @@ Issues and specs live as GitHub issues in `seansoriano13/t3ckgroup-erp`, managed
 
 Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root, created lazily as needed. See `docs/agents/domain.md`.
 
+### UI Primitives
+
+Anything in `src/components/ui/` is a **Primitive**. Never write raw `<button>`, `<input>`,
+`<textarea>`, `<select>`, `<label>`, `<table>`, `<img>`, `<a>` or a hand-rolled full-screen
+modal outside that folder — use the Primitive. The catalog is DESIGN.md → Components →
+"Primitive catalog" (what to use, its props, what it replaces). If no Primitive fits,
+**stop and ask the maintainer**; don't hand-roll a workaround. **Never disable the lint rule**
+(`eslint-disable`) for this. There is no baseline: `pnpm lint:primitives` fails on any raw
+covered HTML (CI blocks on it). See `docs/adr/0025-one-primitive-system-enforced-by-lint.md`.
+
 ### Branch topology
 
 `staging` is the permanent integration branch — everything accepted but not yet
@@ -26,7 +36,9 @@ anything that touches data — testing a fix, checking a query, exploring the
 schema, reproducing a bug. `STAGING_DB_URL` and `PROD_DB_URL` in `.env.local`
 exist only for the specific scripts that already use them
 (`scripts/db-snapshot.mjs`'s drift checks, `scripts/seed-dump.mjs`'s
-read-only pull, `scripts/db-ledger-check.mjs`'s ledger diff) — reaching
+read-only pull, `scripts/db-ledger-check.mjs`'s ledger diff,
+`scripts/seed-release-demo.mjs`'s add-only Release Notes demo SOR on
+staging) — reaching
 either database any other way, including an ad hoc query to "just check
 something," is not part of the local workflow.
 
@@ -75,6 +87,7 @@ rename:
 | The set builds the wrong schema from empty (`migration-gate.yml` fails) | Add a **new** forward migration that corrects the end state. Never reorder. |
 | A change reached a database outside a migration (hand-applied, or MCP `apply_migration`) | Write a **new** guarded migration (`if not exists`) that reconciles it — see `20260909140000_reconcile_sor_register_serial_no.sql`. |
 | A shipped migration's SQL is wrong | Write a **new** migration that alters the result. The shipped file is history. |
+| Two different files share one version, each recorded by a different database (a `main` hotfix and a staging migration) | The one exception to "never rename". Keep the file prod's ledger holds. Renumber the other to a version that still sorts **before** any later migration redefining the same objects (e.g. `…200000` → `…200001`, not past the tip), give both the `allow-out-of-order` marker, and `renumber` its row in the other database's ledger via the *Repair migration history* workflow, run from a branch that has the new filename. See #415. |
 
 Write migrations so a re-run cannot fail, and check that the guard guards the
 thing you are about to create. `drop policy if exists "<old name>"` followed by

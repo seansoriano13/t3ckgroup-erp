@@ -3,6 +3,7 @@ import {
   isRealizedOpportunity,
   PIPELINE_STAGE_SEED,
 } from "../constants/sor";
+import { isWonOrPostWonFlowStage } from "../constants/salesFlow";
 
 // Pure commission-pool math. No database, no network — every value comes in
 // as an argument and every result goes out as a plain number, so this can be
@@ -226,6 +227,29 @@ export function resolveEffectiveRatesFromList(rateList = [], asOfDate) {
 // the policy seed.
 
 /**
+ * Whether an opportunity counts toward the Realized Commission Pool:
+ * requires a Contract Date to fix commission pricing, and is not lost.
+ */
+export const isRealizedCommissionOpportunity = (opp, stages = PIPELINE_STAGE_SEED) => {
+  return Boolean(opp?.contract_date) && !isLostOpportunity(opp, stages);
+};
+
+/**
+ * Lost, for either kind of deal. A legacy deal is lost by its status code. A
+ * flow-built deal's status never changes after registration (it moves via
+ * flow_stage_id), so it is lost when it sits on a Terminal Stage of its own
+ * Flow Snapshot that is not the Won Stage or a post-won Stage. A deal whose
+ * Stage cannot be resolved is not treated as lost.
+ */
+const isLostOpportunity = (opp, stages) => {
+  if (!opp?.sale_type_id) return isLostCode(opp?.status, stages);
+  const snapshotData = opp.flow_snapshot?.snapshot_data;
+  const flowStage = (snapshotData?.stages || []).find((s) => s.id === opp.flow_stage_id);
+  if (!flowStage?.is_terminal) return false;
+  return !isWonOrPostWonFlowStage(flowStage, snapshotData);
+};
+
+/**
  * Aggregates commission metrics across a collection of opportunities.
  * Sums independent per-opportunity calculations based on each opportunity's
  * Contract Date (or currentDate if unawarded).
@@ -235,16 +259,16 @@ export function aggregateOpportunityCommissions({
   ratesResolver,
   departments = [],
   splitsByProjectType = {},
-  scope = "REALIZED", // "REALIZED" | "FORECAST" | "ALL"
   currentDate = new Date().toISOString().slice(0, 10),
+  scope = "ALL", // "ALL" | "REALIZED" | "FORECAST"
   dateFilter = null, // { startDate, endDate, dateField = "contract_date" }
   stages = PIPELINE_STAGE_SEED,
 } = {}) {
   const filteredOpps = opportunities.filter((opp) => {
-    if (isLostCode(opp.status, stages)) return false;
+    if (isLostOpportunity(opp, stages)) return false;
 
     if (scope === "REALIZED") {
-      if (!isRealizedOpportunity(opp, stages)) return false;
+      if (!isRealizedCommissionOpportunity(opp, stages)) return false;
     }
 
     if (dateFilter?.startDate || dateFilter?.endDate) {
@@ -280,7 +304,7 @@ export function aggregateOpportunityCommissions({
   const dealLedger = [];
 
   for (const opp of filteredOpps) {
-    const isWon = isRealizedOpportunity(opp, stages);
+    const isWon = isRealizedCommissionOpportunity(opp, stages);
     if (isWon) wonDealsCount += 1;
 
     const contractValue = Number(opp.expected_value) || 0;

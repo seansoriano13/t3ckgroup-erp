@@ -6,8 +6,10 @@ import { createTestQueryClient } from "../support.jsx";
 import AppLayout from "../../pages/_app";
 import * as AuthContext from "../../context/AuthContext";
 
-// Issue #206 — /crm joins the full-bleed routes (a board/list you pan or scan
-// across), but its Commission pages stay normal, centred pages.
+// Issue #206 — the register joins the full-bleed routes (a board/list you pan
+// or scan across), but its Commission pages stay normal, centred pages. The
+// route is /sors since ADR 0024; /crm and /opportunities render redirects, not
+// the register, so they are not full-bleed and are not asserted here.
 describe("AppLayout full-bleed routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -23,9 +25,9 @@ describe("AppLayout full-bleed routes", () => {
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route element={<AppLayout />}>
-              <Route path="/crm" element={<div>CRM Register</div>} />
-              <Route path="/crm/commission" element={<div>Commission Dashboard</div>} />
-              <Route path="/crm/commission-formula" element={<div>Commission Formula</div>} />
+              <Route path="/sors" element={<div>SORS Register</div>} />
+              <Route path="/sors/commission" element={<div>Commission Dashboard</div>} />
+              <Route path="/sors/commission-formula" element={<div>Commission Formula</div>} />
             </Route>
           </Routes>
         </MemoryRouter>
@@ -33,20 +35,20 @@ describe("AppLayout full-bleed routes", () => {
     );
   }
 
-  it("gives /crm the full-bleed frame, with no centred page column", () => {
-    renderAt("/crm");
-    const content = screen.getByText("CRM Register");
+  it("gives /sors the full-bleed frame, with no centred page column", () => {
+    renderAt("/sors");
+    const content = screen.getByText("SORS Register");
     expect(content.closest(".wrapper")).toBeNull();
   });
 
-  it("keeps /crm/commission a normal, centred page", () => {
-    renderAt("/crm/commission");
+  it("keeps /sors/commission a normal, centred page", () => {
+    renderAt("/sors/commission");
     const content = screen.getByText("Commission Dashboard");
     expect(content.closest(".wrapper")).not.toBeNull();
   });
 
-  it("keeps /crm/commission-formula a normal, centred page", () => {
-    renderAt("/crm/commission-formula");
+  it("keeps /sors/commission-formula a normal, centred page", () => {
+    renderAt("/sors/commission-formula");
     const content = screen.getByText("Commission Formula");
     expect(content.closest(".wrapper")).not.toBeNull();
   });

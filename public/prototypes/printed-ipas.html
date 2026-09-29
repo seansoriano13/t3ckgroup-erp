@@ -1,3 +1,9 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
 <title>Printed IPAS</title>
 <!--
   PROTOTYPE — throwaway. Ticket: Printed IPAS (#222) on the IPAS/PMS map (#210).
@@ -6,104 +12,370 @@
   on payments and charges, Odoo-stamped statuses, documents with two ticks, and filing.
   Sample is TGIPAS_050, the imported stretcher order on S07983. Print idiom: ADR 0014.
 -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,600;1,400;1,600&display=swap">
 <style>
   :root {
-    --desk: #e7e3dc; --desk-ink: #2c2a26; --desk-soft: #6d685f; --desk-edge: #cdc7bd;
-    --shadow: 0 1px 2px rgba(24,22,18,.16), 0 12px 28px rgba(24,22,18,.13);
-    --paper: #fff; --ink: #16181c; --ink-soft: #55606c; --ink-faint: #8b95a1;
-    --rule: #c4c9d0; --hair: #e4e7eb; --wash: #f4f6f8; --accent: #0d4f3c; --flag: #9d3218; --ok: #1f5c46;
-    --sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    --desk: #e7e3dc;
+    --desk-ink: #1f2328;
+    --desk-soft: #57606a;
+    --desk-edge: #cdc7bd;
+    --shadow: 0 1px 3px rgba(24,22,18,.12), 0 16px 36px rgba(24,22,18,.14);
+
+    --paper: #ffffff;
+    --ink: #0f172a;        /* High-contrast black slate for crisp legibility */
+    --ink-mid: #1e293b;    /* Structured headings & prominent text */
+    --ink-soft: #334155;   /* Secondary information (7.5:1 contrast) */
+    --ink-faint: #64748b;  /* Uppercase category labels (5.0:1 contrast) */
+    --rule: #cbd5e1;       /* Clean crisp borders */
+    --hair: #e2e8f0;       /* Fine row division */
+    --wash: #f8fafc;       /* Card/section header wash */
+    --wash-dark: #f1f5f9;  /* Contrast row tint */
+    --accent: #0f5b47;     /* Brand emerald / accent */
+    --accent-soft: #ecfdf5;
+    --accent-border: #a7f3d0;
+    --flag: #b91c1c;       /* Semantic alert */
+    --flag-bg: #fef2f2;
+    --flag-border: #fecaca;
+    --ok: #15803d;         /* Semantic success */
+    --ok-bg: #f0fdf4;
+    --ok-border: #bbf7d0;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+    --warn-border: #fde68a;
+
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
     --serif: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --desk: #1a1c20; --desk-ink: #e8e6e1; --desk-soft: #9aa0a8; --desk-edge: #2f3339; --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45); }
+    :root:not([data-theme="light"]) {
+      --desk: #14171a;
+      --desk-ink: #f0f2f5;
+      --desk-soft: #9aa4ae;
+      --desk-edge: #272c33;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45);
+    }
   }
-  :root[data-theme="dark"] { --desk: #1a1c20; --desk-ink: #e8e6e1; --desk-soft: #9aa0a8; --desk-edge: #2f3339; --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45); }
+  :root[data-theme="dark"] {
+    --desk: #14171a;
+    --desk-ink: #f0f2f5;
+    --desk-soft: #9aa4ae;
+    --desk-edge: #272c33;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45);
+  }
 
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--desk); color: var(--desk-ink); font-family: var(--sans); font-size: 14px; }
-  .desk { padding-block: 28px 120px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--desk-ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .desk {
+    padding-block: 28px 140px;
+    padding-left: 16px;
+    padding-right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
   .desk-head { width: min(1100px, 100%); display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; }
-  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; }
+  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; color: var(--desk-ink); }
   .desk-head p { margin: 0; color: var(--desk-soft); font-size: 13px; max-width: 66ch; }
-  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 2px; padding: 3px 7px; }
+  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 3px; padding: 2px 7px; }
 
-  .sheet { width: 210mm; min-height: 297mm; padding: 11mm 12mm 9mm; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 3.5mm; font-size: 8.2pt; line-height: 1.3; }
-  .sheet.land { width: 297mm; min-height: 210mm; }
+  /* ── Sheet Container ── */
+  .sheet {
+    color-scheme: light !important;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 11mm 13mm 11mm;
+    background: var(--paper) !important;
+    color: var(--ink) !important;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 4mm;
+    font-size: 8.6pt;
+    line-height: 1.34;
+    border-radius: 2px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sheet.land { width: 297mm; min-height: 210mm; display: block; padding: 8mm 10mm; }
+  .land-inner { display: flex; flex-direction: column; gap: 4mm; zoom: 0.75; }
 
-  .rail { display: flex; align-items: flex-end; gap: 9px; border-bottom: 1.4px solid var(--ink); padding-bottom: 4px; }
-  .rail .mark { width: 20px; height: 20px; color: var(--accent); flex: none; }
+  /* Table text color isolation */
+  .sheet table, .sheet tr, .sheet th, .sheet td {
+    color: var(--ink) !important;
+    font-family: inherit;
+  }
+
+  /* ── Rail (Header) ── */
+  .rail { display: flex; align-items: flex-end; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 2mm; }
+  .rail .mark { width: 24px; height: 24px; color: var(--accent); flex: none; }
   .rail .mark svg { width: 100%; height: 100%; display: block; }
-  .rail .org { font-size: 6.8pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; }
-  .rail .org b { display: block; font-size: 9.5pt; letter-spacing: .04em; color: var(--ink); }
+  .rail .org { font-size: 7.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; font-weight: 500; }
+  .rail .org b { display: block; font-size: 10.5pt; letter-spacing: .04em; color: var(--ink); font-weight: 700; }
   .rail .doc { margin-left: auto; text-align: right; }
-  .rail .doc .t { font-family: var(--serif); font-size: 14pt; font-weight: 600; line-height: 1; }
-  .rail .doc .s { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-soft); }
+  .rail .doc .t { font-family: var(--serif); font-size: 16pt; font-weight: 600; line-height: 1; color: var(--ink); }
+  .rail .doc .s { font-family: var(--mono); font-size: 7.5pt; color: var(--ink-soft); font-weight: 500; margin-top: 3px; }
 
-  .hdr { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px 10px; border: 1px solid var(--rule); padding: 4px 6px; }
-  .f .k { font-size: 6pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); display: block; }
-  .f .v { font-size: 8.6pt; font-weight: 500; }
-  .f .v.m { font-family: var(--mono); font-weight: 400; }
+  /* ── Metadata Header: Clean, open, no heavy box border ── */
+  .hdr {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px 14px;
+    border-top: 1px solid var(--hair);
+    border-bottom: 1px solid var(--hair);
+    padding: 9px 2px;
+    background: transparent;
+  }
+  .f .k { font-size: 6.5pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); display: block; font-weight: 600; margin-bottom: 2px; }
+  .f .v { font-size: 9pt; font-weight: 600; color: var(--ink); }
+  .f .v.m { font-family: var(--mono); font-weight: 500; }
   .f .v.big { font-size: 10pt; }
+  .f .v .tag-priority {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 7.2pt;
+    font-weight: 700;
+    border-radius: 3px;
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
 
-  .sec { border: 1px solid var(--rule); }
-  .sec > h3 { margin: 0; font-size: 6.4pt; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); background: var(--wash); border-bottom: 1px solid var(--rule); padding: 3px 6px; display: flex; justify-content: space-between; }
-  .sec > h3 b { font-family: var(--mono); color: var(--ink-faint); font-weight: 400; letter-spacing: 0; }
-  .sec > .body { padding: 5px 6px; display: flex; flex-direction: column; gap: 4px; }
-  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; }
-  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; }
-  .fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 10px; }
+  /* ── Sections: Open, spacious, no heavy border boxes ── */
+  .sec {
+    border: none;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 2mm;
+  }
+  .sec > h3 {
+    margin: 0;
+    font-size: 7.6pt;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    background: transparent;
+    border-bottom: 1.5px solid var(--hair);
+    padding: 0 0 5px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+  }
+  .sec > h3 b {
+    font-family: var(--mono);
+    color: var(--ink-soft);
+    font-weight: 500;
+    letter-spacing: 0;
+    font-size: 7.2pt;
+    background: var(--wash);
+    border-radius: 3px;
+    padding: 1px 7px;
+  }
+  .sec > .body {
+    padding: 6px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; }
+  .fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 16px; }
   .fields.n2 { grid-template-columns: repeat(2, 1fr); }
   .fields.n3 { grid-template-columns: repeat(3, 1fr); }
 
+  /* ── Tables: Light row dividers, open and airy ── */
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; vertical-align: top; padding: 2.6px 5px; border-bottom: 1px solid var(--hair); }
-  thead th { font-size: 6pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 1px solid var(--ink); }
-  td.num, th.num { text-align: right; font-family: var(--mono); }
-  tfoot td { font-weight: 600; border-top: 1px solid var(--ink); border-bottom: 0; }
-  .sub { color: var(--ink-soft); font-size: 6.8pt; }
+  th, td { text-align: left; vertical-align: middle; padding: 6px 8px; border-bottom: 1px solid var(--hair); font-size: 8.4pt; }
+  thead th {
+    font-size: 6.6pt;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 700;
+    border-bottom: 1.5px solid var(--rule);
+    padding: 5px 8px;
+    background: transparent;
+  }
+  thead th.num, td.num { text-align: right; font-family: var(--mono); }
+  thead th.center, td.center { text-align: center; }
+  tfoot td {
+    font-weight: 700;
+    border-top: 1.5px solid var(--rule);
+    border-bottom: 0;
+    background: transparent;
+    padding: 7px 8px;
+    font-size: 8.6pt;
+  }
+  .sub { color: var(--ink-soft); font-size: 7.2pt; }
   .m { font-family: var(--mono); }
-  .tick { font-family: var(--mono); }
   .miss { color: var(--flag); }
 
-  .stat { display: flex; flex-wrap: wrap; gap: 2px 10px; }
-  .stat .s { font-size: 7.2pt; display: flex; gap: 4px; align-items: baseline; }
-  .stat .s .d { font-family: var(--mono); color: var(--ink-faint); font-size: 6.6pt; }
-  .stat .s.done .t { font-weight: 600; }
-  .stat .s.open { color: var(--ink-faint); }
-  .stat .s.auto .t::after { content: " ●"; color: var(--accent); font-size: 5pt; vertical-align: middle; }
+  /* ── Checkboxes and Badges ── */
+  .chk {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
+    border-radius: 2.5px;
+    border: 1px solid var(--rule);
+    background: #ffffff;
+    font-size: 8pt;
+    line-height: 1;
+    color: transparent;
+    vertical-align: middle;
+  }
+  .chk.done {
+    background: var(--ok-bg);
+    border-color: var(--ok-border);
+    color: var(--ok);
+    font-weight: 700;
+  }
+  .chk.miss {
+    background: var(--flag-bg);
+    border-color: var(--flag-border);
+    color: var(--flag);
+    font-weight: 700;
+  }
 
-  .sigs { display: grid; gap: 6mm; }
+  /* ── Status List ── */
+  .stat { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  .stat .s {
+    font-size: 7.4pt;
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    padding: 2.5px 8px;
+    border-radius: 4px;
+    background: var(--wash);
+  }
+  .stat .s.done { background: var(--ok-bg); color: var(--ok); font-weight: 600; }
+  .stat .s.open { color: var(--ink-faint); }
+  .stat .s .d { font-family: var(--mono); color: var(--ink-soft); font-size: 6.8pt; font-weight: 500; }
+  .stat .s.auto .t::after { content: " ● Odoo"; color: var(--accent); font-size: 6pt; margin-left: 2px; }
+
+  /* ── Signatures: Prestigious open document layout ── */
+  .sigs { display: grid; gap: 6mm; margin-top: 2mm; }
   .sigs.n2 { grid-template-columns: repeat(2, 1fr); }
   .sigs.n4 { grid-template-columns: repeat(4, 1fr); }
-  .sig .k { font-size: 6pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
-  .sig .plate { height: 10mm; border-bottom: 1px solid var(--ink); display: flex; align-items: flex-end; padding-bottom: 2px; }
-  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 10pt; }
-  .sig .who { font-size: 7.6pt; font-weight: 500; margin-top: 2px; }
-  .sig .role { font-size: 6.4pt; color: var(--ink-soft); }
-  .sig .stamp { font-family: var(--mono); font-size: 6pt; color: var(--ink-faint); }
-  .sig.awaiting .plate { border-bottom-style: dashed; }
-  .sig.awaiting .stamp { color: var(--flag); }
+  .sig {
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+  .sig .k { font-size: 6.4pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  .sig .plate {
+    height: 11mm;
+    border-bottom: 1.2px solid var(--ink);
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 3px;
+    margin-top: 4px;
+  }
+  .sig .plate .printed {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 11pt;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .sig .who { font-size: 8.2pt; font-weight: 600; color: var(--ink); margin-top: 4px; }
+  .sig .role { font-size: 6.8pt; color: var(--ink-soft); }
+  .sig .stamp { font-family: var(--mono); font-size: 6.4pt; color: var(--ink-faint); margin-top: 1px; }
+  .sig.awaiting .plate { border-bottom-style: dashed; border-bottom-color: var(--rule); }
+  .sig.awaiting .stamp { color: var(--warn); font-weight: 600; }
 
-  .foot { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--hair); padding-top: 3px; font-size: 6.2pt; color: var(--ink-faint); font-family: var(--mono); margin-top: auto; }
-  .prov { color: var(--flag); }
+  .bank-box {
+    border-radius: 4px;
+    padding: 8px 12px;
+    background: var(--wash);
+    margin-top: 6px;
+  }
 
-  .switcher { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; background: #101215; color: #f4f5f7; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); overflow: hidden; }
-  .switcher button { background: none; border: 0; color: inherit; font: inherit; padding: 10px 15px; cursor: pointer; font-size: 16px; line-height: 1; }
+  /* ── Footer ── */
+  .foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid var(--hair);
+    padding-top: 4px;
+    font-size: 6.8pt;
+    color: var(--ink-faint);
+    font-family: var(--mono);
+    margin-top: auto;
+  }
+  .prov {
+    display: inline-block;
+    padding: 0 4px;
+    font-size: 6.4pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-radius: 2.5px;
+    background: var(--warn-bg);
+    color: var(--warn);
+    border: 1px solid var(--warn-border);
+  }
+
+  /* ── Floating Switcher ── */
+  .switcher {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 50;
+    display: flex;
+    background: #0f172a;
+    color: #f8fafc;
+    border-radius: 999px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  .switcher button {
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: background .15s;
+  }
   .switcher button:hover { background: rgba(255,255,255,.12); }
-  .switcher button:focus-visible { outline: 2px solid #8fd7bd; outline-offset: -3px; }
-  .switcher .label { padding: 9px 6px; min-width: 210px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
-  .switcher .label b { font-size: 13px; }
-  .switcher .label span { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #9aa4ae; }
+  .switcher button:focus-visible { outline: 2px solid #38bdf8; outline-offset: -3px; }
+  .switcher .label {
+    padding: 8px 10px;
+    min-width: 210px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .switcher .label b { font-size: 13px; font-weight: 600; }
+  .switcher .label span { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; }
 
   @media print {
     @page { size: A4 portrait; margin: 0; }
+    @page land { size: A4 landscape; margin: 0; }
     body { background: #fff; }
     .desk { padding: 0; gap: 0; }
     .desk-head, .switcher { display: none !important; }
-    .sheet { box-shadow: none; page-break-after: always; }
+    .sheet { box-shadow: none; min-height: 297mm; }
+    .sheet + .sheet { page-break-before: always; }
+    .sheet.land { page: land; }
   }
   @media (max-width: 860px) {
     .sheet, .sheet.land { width: 100%; min-height: 0; padding: 14px; font-size: 11px; }
@@ -112,8 +384,9 @@
     .sigs.n4 { grid-template-columns: 1fr 1fr; }
     .switcher .label { min-width: 120px; }
   }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
+</head>
+<body>
 
 <div class="desk">
   <div class="desk-head">
@@ -192,7 +465,7 @@ const rail = sub => `<div class="rail"><span class="mark">${MARK}</span>
 
 const header = () => `<div class="hdr">
   <div class="f"><span class="k">Entity</span><span class="v big">${D.entity}</span></div>
-  <div class="f"><span class="k">Priority</span><span class="v">${D.priority}</span></div>
+  <div class="f"><span class="k">Priority</span><span class="v"><span class="tag-priority">${D.priority}</span></span></div>
   <div class="f"><span class="k">Source</span><span class="v">${D.source}</span></div>
   <div class="f"><span class="k">Purpose</span><span class="v">${D.purpose}</span></div>
   <div class="f"><span class="k">Date created</span><span class="v m">${D.created}</span></div>
@@ -206,13 +479,31 @@ const sec1 = () => `<div class="sec"><h3>1 · Purchasing <b>${D.po}</b></h3><div
     <div class="f"><span class="k">Currency</span><span class="v m">${D.currency}</span></div>
     <div class="f"><span class="k">P.I #</span><span class="v m">${D.pi}</span></div>
   </div>
-  <div class="f"><span class="k">Item</span><span class="v">${D.item} · brand ${D.brand}</span></div>
+  <div class="f" style="padding-bottom: 2px"><span class="k">Item</span><span class="v">${D.item} · brand <b>${D.brand}</b></span></div>
   <table>
-    <thead><tr><th>Payment</th><th>Date</th><th>Amount</th><th class="num">PHP debited</th><th class="num">Charge fee</th><th>Method</th><th>P.O.P</th></tr></thead>
-    <tbody>${D.payments.map(p => `<tr><td>${p.kind}</td><td class="m">${p.date}</td><td class="m">${p.amt}</td>
-      <td class="num">${peso(p.php)}</td><td class="num">${p.fee ? peso(p.fee) : '—'}</td><td>${p.method}</td>
-      <td class="tick">${p.pop ? '✓' : '☐'}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="3">Total debited, including charge fees</td><td class="num">${peso(paidPhp)}</td><td colspan="3"></td></tr></tfoot>
+    <thead><tr>
+      <th style="width:20%">Payment</th>
+      <th style="width:14%">Date</th>
+      <th class="num" style="width:16%">Amount</th>
+      <th class="num" style="width:18%">PHP debited</th>
+      <th class="num" style="width:14%">Charge fee</th>
+      <th style="width:10%">Method</th>
+      <th class="center" style="width:8%">P.O.P</th>
+    </tr></thead>
+    <tbody>${D.payments.map(p => `<tr>
+      <td style="font-weight:600">${p.kind}</td>
+      <td class="m">${p.date}</td>
+      <td class="num">${p.amt}</td>
+      <td class="num" style="font-weight:600">${peso(p.php)}</td>
+      <td class="num">${p.fee ? peso(p.fee) : '—'}</td>
+      <td>${p.method}</td>
+      <td class="center"><span class="chk ${p.pop ? 'done' : ''}">${p.pop ? '✓' : ''}</span></td>
+    </tr>`).join('')}</tbody>
+    <tfoot><tr>
+      <td colspan="3" style="text-align:right">Total debited, including charge fees:</td>
+      <td class="num" style="font-size:9pt">${peso(paidPhp)}</td>
+      <td colspan="3"></td>
+    </tr></tfoot>
   </table>
   <div class="sigs n2">${D.sig1.map(sigBlock).join('')}</div>
 </div></div>`;
@@ -227,22 +518,45 @@ const sec2 = () => `<div class="sec"><h3>2 · Sales &amp; Operation</h3><div cla
   <div class="f"><span class="k">Analytic distribution</span><span class="v">${D.analytic}</span></div>
 </div></div>`;
 
-const sec3 = () => `<div class="sec"><h3>3 · Purchasing &amp; Finance <b>charges ${pesoK(chargeTotal)}</b></h3><div class="body">
+const sec3 = () => `<div class="sec"><h3>3 · Purchasing &amp; Finance <b>Charges: ${pesoK(chargeTotal)}</b></h3><div class="body">
   <div class="cols2">
-    <table>
-      <thead><tr><th>Importation charge</th><th>Date</th><th class="num">Amount</th></tr></thead>
-      <tbody>${D.charges.map(c => `<tr><td>${c.kind}</td><td class="m">${c.date}</td><td class="num">${peso(c.amt)}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><td colspan="2">Total charges</td><td class="num">${peso(chargeTotal)}</td></tr></tfoot>
-    </table>
     <div>
       <table>
-        <thead><tr><th>Document</th><th>Purchasing</th><th>Finance</th></tr></thead>
-        <tbody>${D.docs.map(d => `<tr><td class="${d[1] ? '' : 'miss'}">${d[0]}</td><td class="tick">${d[1] ? '✓' : '☐'}</td><td class="tick">${d[2] ? '✓' : '☐'}</td></tr>`).join('')}</tbody>
+        <thead><tr>
+          <th>Importation charge</th>
+          <th style="width:30%">Date</th>
+          <th class="num" style="width:35%">Amount</th>
+        </tr></thead>
+        <tbody>${D.charges.map(c => `<tr>
+          <td style="font-weight:500">${c.kind}</td>
+          <td class="m">${c.date}</td>
+          <td class="num" style="font-weight:600">${peso(c.amt)}</td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <td colspan="2" style="text-align:right">Total charges:</td>
+          <td class="num" style="font-size:9pt">${peso(chargeTotal)}</td>
+        </tr></tfoot>
       </table>
-      <div class="fields n3" style="margin-top:4px">
-        <div class="f"><span class="k">Bank</span><span class="v">${D.bank.name}</span></div>
-        <div class="f"><span class="k">Account name</span><span class="v">${D.bank.acct}</span></div>
-        <div class="f"><span class="k">Account #</span><span class="v m">${D.bank.no}</span></div>
+    </div>
+    <div>
+      <table>
+        <thead><tr>
+          <th>Document checklist</th>
+          <th class="center" style="width:25%">Purchasing</th>
+          <th class="center" style="width:25%">Finance</th>
+        </tr></thead>
+        <tbody>${D.docs.map(d => `<tr>
+          <td class="${d[1] ? '' : 'miss'}">${d[0]}</td>
+          <td class="center"><span class="chk ${d[1] ? 'done' : ''}">${d[1] ? '✓' : ''}</span></td>
+          <td class="center"><span class="chk ${d[2] ? 'done' : ''}">${d[2] ? '✓' : ''}</span></td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div class="bank-box">
+        <div class="fields n3">
+          <div class="f"><span class="k">Bank</span><span class="v">${D.bank.name}</span></div>
+          <div class="f"><span class="k">Account name</span><span class="v">${D.bank.acct}</span></div>
+          <div class="f"><span class="k">Account #</span><span class="v m">${D.bank.no}</span></div>
+        </div>
       </div>
     </div>
   </div>
@@ -251,28 +565,50 @@ const sec3 = () => `<div class="sec"><h3>3 · Purchasing &amp; Finance <b>charge
 
 const sec5 = () => `<div class="sec"><h3>5 · Logistics &amp; Warehouse <b>${D.location}</b></h3><div class="body">
   <table>
-    <thead><tr><th>Transmittal</th><th>Date</th><th>Route</th><th>State</th></tr></thead>
-    <tbody>${D.transmittals.map(t => `<tr><td class="m">${t[0]}</td><td class="m">${t[1]}</td><td>${t[2]}</td><td>${t[3]}</td></tr>`).join('')}</tbody>
+    <thead><tr>
+      <th style="width:18%">Transmittal</th>
+      <th style="width:18%">Date</th>
+      <th style="width:34%">Route</th>
+      <th style="width:30%">State</th>
+    </tr></thead>
+    <tbody>${D.transmittals.map(t => `<tr>
+      <td class="m" style="font-weight:600">${t[0]}</td>
+      <td class="m">${t[1]}</td>
+      <td>${t[2]}</td>
+      <td><span class="chk done" style="margin-right:4px">✓</span>${t[3]}</td>
+    </tr>`).join('')}</tbody>
   </table>
 </div></div>`;
 
 const statList = (rows, auto) => `<div class="stat">${rows.map(r => {
   const done = !!r[1];
   const isAuto = auto && r[2] === 'odoo';
-  return `<span class="s ${done ? 'done' : 'open'} ${isAuto ? 'auto' : ''}"><span class="t">${done ? '✓' : '☐'} ${r[0]}</span><span class="d">${r[1] || ''}</span></span>`;
+  return `<span class="s ${done ? 'done' : 'open'} ${isAuto ? 'auto' : ''}">
+    <span class="chk ${done ? 'done' : ''}">${done ? '✓' : ''}</span>
+    <span class="t">${r[0]}</span>
+    ${r[1] ? `<span class="d">${r[1]}</span>` : ''}
+  </span>`;
 }).join('')}</div>`;
 
-const sec6 = () => `<div class="sec"><h3>6 · Status <b>● stamped from Odoo</b></h3><div class="body">
-  <div class="f"><span class="k">Supplier origin</span></div>${statList(D.origin)}
-  <div class="f"><span class="k">Buyer</span></div>${statList(D.buyer, true)}
-  <div class="f"><span class="k">IPAS computation</span></div>${statList(D.comp)}
-  <div class="f"><span class="k">Landed cost</span><span class="v m">${peso(D.landed.unit)} per unit · ${peso(D.landed.total)} total ${D.landed.provisional ? '<span class="prov">provisional</span>' : 'final'}</span></div>
+const sec6 = () => `<div class="sec"><h3>6 · Status <b>● Stamped from Odoo</b></h3><div class="body">
+  <div><span class="f"><span class="k" style="margin-bottom:3px">Supplier origin</span></span>${statList(D.origin)}</div>
+  <div style="margin-top:2px"><span class="f"><span class="k" style="margin-bottom:3px">Buyer track</span></span>${statList(D.buyer, true)}</div>
+  <div style="margin-top:2px"><span class="f"><span class="k" style="margin-bottom:3px">IPAS computation</span></span>${statList(D.comp)}</div>
+  <div class="f" style="margin-top:4px;padding:6px 8px;background:var(--wash);border:1px solid var(--rule);border-radius:4px">
+    <span class="k">Landed cost calculation</span>
+    <span class="v m" style="font-size:9.2pt">${peso(D.landed.unit)} per unit · ${peso(D.landed.total)} total <span class="prov">${D.landed.provisional ? 'provisional' : 'final'}</span></span>
+  </div>
 </div></div>`;
 
 const sec7 = () => `<div class="sec"><h3>7 · For filing <b>Finance / Accounting</b></h3><div class="body">
-  <div class="stat">${D.filing.map(f => `<span class="s ${f[1] ? 'done' : 'open'}"><span class="t">${f[1] ? '✓' : '☐'} ${f[0]}</span></span>`).join('')}</div>
-  <div class="sub">Filing freezes this IPAS. Costs are not yet complete, so Landed Cost would freeze provisional — <span class="prov">Approve is blocked until costs are marked complete</span>.</div>
-  <div class="sigs n4">${D.sig7.map(sigBlock).join('')}</div>
+  <div class="stat">${D.filing.map(f => `<span class="s ${f[1] ? 'done' : 'open'}">
+    <span class="chk ${f[1] ? 'done' : ''}">${f[1] ? '✓' : ''}</span>
+    <span class="t">${f[0]}</span>
+  </span>`).join('')}</div>
+  <div class="sub" style="margin-top:2px;padding:5px 7px;background:var(--wash);border-radius:3px;border-left:3px solid var(--rule)">
+    Filing freezes this IPAS. Costs are not yet complete, so Landed Cost would freeze provisional — <span class="prov">Approve is blocked until costs are marked complete</span>.
+  </div>
+  <div class="sigs n4" style="margin-top:2px">${D.sig7.map(sigBlock).join('')}</div>
 </div></div>`;
 
 const foot = (l, r) => `<div class="foot"><span>${l}</span><span>Landed Cost provisional · Odoo copy read 15 Sep 2026 09:12</span><span>${r}</span></div>`;
@@ -291,7 +627,7 @@ function variantA() {
 
 // B — one landscape sheet, three columns
 function variantB() {
-  return `<div class="sheet land">
+  return `<div class="sheet land"><div class="land-inner">
     ${rail('one sheet')}${header()}
     <div class="cols3">
       <div style="display:flex;flex-direction:column;gap:3.5mm">${sec1()}${sec2()}</div>
@@ -299,7 +635,7 @@ function variantB() {
       <div style="display:flex;flex-direction:column;gap:3.5mm">${sec6()}${sec7()}</div>
     </div>
     ${foot(D.no + ' · ' + D.sors, 'one sheet · A4 landscape')}
-  </div>`;
+  </div></div>`;
 }
 
 // C — money first for Finance, the rest as a back sheet
@@ -357,3 +693,5 @@ document.addEventListener('keydown', e => {
 });
 show(currentKey());
 </script>
+</body>
+</html>

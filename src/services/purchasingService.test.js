@@ -554,12 +554,7 @@ describe("purchasingService", () => {
       await raise()
       await waitForNetworkIdle()
 
-      await opportunityService.updateStatus(
-        opportunity.id,
-        "CLOSED_LOST",
-        salesperson.id,
-        "Client went with a competitor",
-      )
+      await opportunityService.updateStatus(opportunity.id, "CLOSED_LOST", salesperson.id, { lostReason: "Client went with a competitor" })
       await waitForNetworkIdle()
 
       const warned = db
@@ -578,12 +573,7 @@ describe("purchasingService", () => {
     })
 
     it("says nothing when purchasing was never involved", async () => {
-      await opportunityService.updateStatus(
-        opportunity.id,
-        "CLOSED_LOST",
-        salesperson.id,
-        "Budget cut",
-      )
+      await opportunityService.updateStatus(opportunity.id, "CLOSED_LOST", salesperson.id, { lostReason: "Budget cut" })
       await waitForNetworkIdle()
 
       expect(

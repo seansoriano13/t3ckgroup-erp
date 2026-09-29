@@ -1,4 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
@@ -23,6 +31,7 @@ import { formatWindow } from '../../utils/time';
 import { mergeRequestRows } from '../../utils/mergeRequests';
 import { deriveRequestStage } from '../../utils/requestStage';
 import { getRequestStageTheme } from '../../constants/status';
+import { SelectField } from "@/components/ui/SelectField";
 
 // One entry per request type instead of parallel label/class/withdraw maps —
 // adding a fifth type (or changing how one withdraws) touches this table only.
@@ -222,17 +231,18 @@ export default function EmployeeLeavesPage() {
               <h3 className="font-black text-sm text-foreground">All Requests</h3>
               <div className="flex items-center space-x-2">
                 <Filter size={14} className="text-muted-foreground" />
-                <select
+                <SelectField
                   value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="bg-card border border-border rounded-lg text-xs font-bold px-2 py-1 outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer text-foreground"
-                >
-                  <option value="ALL">All Types</option>
-                  <option value="OFFSET">Offset</option>
-                  <option value="SIL">SIL</option>
-                  <option value="OVERTIME">Overtime</option>
-                  <option value="UNDERTIME">Undertime</option>
-                </select>
+                  onChange={setTypeFilter}
+                  options={[
+                    { value: "ALL", label: "All Types" },
+                    { value: "OFFSET", label: "Offset" },
+                    { value: "SIL", label: "SIL" },
+                    { value: "OVERTIME", label: "Overtime" },
+                    { value: "UNDERTIME", label: "Undertime" },
+                  ]}
+                  size="sm"
+                />
               </div>
             </div>
 
@@ -253,33 +263,33 @@ export default function EmployeeLeavesPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
-                      <th className="p-4">Applied On</th>
-                      <th className="p-4">Type</th>
-                      <th className="p-4">Date</th>
-                      <th className="p-4">Hours</th>
-                      <th className="p-4">Files</th>
-                      <th className="p-4">Stage</th>
-                      <th className="p-4">Note</th>
-                      <th className="p-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
+                <Table className="whitespace-nowrap">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Applied On</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Hours</TableHead>
+                      <TableHead>Files</TableHead>
+                      <TableHead>Stage</TableHead>
+                      <TableHead>Note</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {filteredRequests.map((req) => {
                       const stage = deriveRequestStage(req);
                       return (
-                        <tr key={req.type + '-' + req.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-4 text-xs text-muted-foreground font-medium">
+                        <TableRow key={req.type + '-' + req.id}>
+                          <TableCell className="text-xs text-muted-foreground font-medium">
                             {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${REQUEST_TYPE_META[req.type].badgeClass}`}>
                               {REQUEST_TYPE_META[req.type].label}
                             </span>
-                          </td>
-                          <td className="p-4 text-sm font-bold text-foreground">
+                          </TableCell>
+                          <TableCell className="text-sm font-bold text-foreground">
                             {req.dayCount > 1 ? (
                               <>
                                 {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -292,8 +302,8 @@ export default function EmployeeLeavesPage() {
                             ) : (
                               new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
                             )}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <div className="flex flex-col gap-0.5">
                               <span className="font-black text-sm text-foreground">
                                 {(req.type === 'OVERTIME' || req.type === 'OFFSET') && req.approved_hours != null && req.approved_hours !== req.hours ? (
@@ -311,21 +321,21 @@ export default function EmployeeLeavesPage() {
                                 </span>
                               )}
                             </div>
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             {req.attachments?.length ? (
                               <AttachmentList attachments={req.attachments} compact />
                             ) : (
                               <span className="text-xs text-muted-foreground/50">-</span>
                             )}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <StatusBadge theme={getRequestStageTheme(stage.tone)} label={stage.label} />
-                          </td>
-                          <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
+                          </TableCell>
+                          <TableCell className="text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
                             {stage.note || '-'}
-                          </td>
-                          <td className="p-4 text-right flex items-center justify-end gap-2">
+                          </TableCell>
+                          <TableCell className="text-right flex items-center justify-end gap-2">
                             {req.verification_token && (
                               <Link
                                 to={`/verify/${req.verification_token}`}
@@ -337,20 +347,24 @@ export default function EmployeeLeavesPage() {
                               </Link>
                             )}
                             {req.status === 'PENDING' && (
-                              <button
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={() => handleWithdraw(req)}
-                                className="p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg transition-all inline-block border border-transparent hover:border-destructive/20 cursor-pointer"
+                                className="bg-destructive/10 hover:bg-destructive/20 text-destructive border border-transparent hover:border-destructive/20"
                                 title="Withdraw Request"
+                                aria-label="Withdraw Request"
                               >
                                 <Trash2 size={14} />
-                              </button>
+                              </Button>
                             )}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>

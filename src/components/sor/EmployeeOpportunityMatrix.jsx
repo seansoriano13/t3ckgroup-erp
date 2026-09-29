@@ -16,6 +16,8 @@ import HighlightText from "../HighlightText";
 import { getStatusTheme } from "../../constants/status";
 import { formatPHP, isWonCode } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
+import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -127,7 +129,7 @@ export default function EmployeeOpportunityMatrix({
   }, [employeeStats, searchTerm]);
 
   const goToEmployee = (empId, status) => {
-    navigate("/crm", {
+    navigate("/sors", {
       state: { filterEmployeeId: empId, filterStatus: status || undefined },
     });
   };
@@ -152,54 +154,66 @@ export default function EmployeeOpportunityMatrix({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
             <Search size={14} className="text-muted-foreground" />
-            <input
+            <Input
               type="text"
               placeholder="Search employee..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground w-full"
+              containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground"
             />
             {searchTerm && (
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => setSearchTerm("")}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:bg-transparent hover:text-foreground"
               >
                 <X size={12} />
-              </button>
+              </Button>
             )}
           </div>
 
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setLayoutMode("list")}
-              className={`p-1 rounded transition-all ${layoutMode === "list"
-                ? "bg-card shadow-sm text-red-9"
+              className={layoutMode === "list"
+                ? "bg-card shadow-sm text-red-9 hover:bg-card hover:text-red-9"
                 : "text-muted-foreground hover:text-mauve-11"
-                }`}
+              }
               title="List View"
             >
               <List size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setLayoutMode("leaderboard")}
-              className={`p-1 rounded transition-all ${layoutMode === "leaderboard"
-                ? "bg-card shadow-sm text-red-9"
+              className={layoutMode === "leaderboard"
+                ? "bg-card shadow-sm text-red-9 hover:bg-card hover:text-red-9"
                 : "text-muted-foreground hover:text-mauve-11"
-                }`}
+              }
               title="Leaderboard View"
             >
               <Trophy size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setLayoutMode("grid")}
-              className={`p-1 rounded transition-all ${layoutMode === "grid"
-                ? "bg-card shadow-sm text-red-9"
+              className={layoutMode === "grid"
+                ? "bg-card shadow-sm text-red-9 hover:bg-card hover:text-red-9"
                 : "text-muted-foreground hover:text-mauve-11"
-                }`}
+              }
               title="Full Grid"
             >
               <LayoutGrid size={16} />
-            </button>
+            </Button>
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-lg">

@@ -71,56 +71,59 @@
   }
 
   /* ── desk ── */
-  .desk { padding-block: 28px 120px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+  .desk { padding-block: 28px 150px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
   .desk-head { width: min(1180px, 100%); display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; }
-  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; letter-spacing: -.01em; color: var(--desk-ink); text-wrap: balance; }
   .desk-head p { margin: 0; color: var(--desk-soft); font-size: 13px; max-width: 62ch; }
-  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 2px; padding: 3px 7px; }
+  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 3px; padding: 2px 7px; }
 
   /* ── paper ── */
   .sheet {
-    width: 297mm; min-height: 210mm; padding: 10mm 12mm 9mm;
-    background: var(--paper); color: var(--ink);
+    color-scheme: light !important;
+    width: 297mm; min-height: 210mm; padding: 10mm 12mm 10mm;
+    background: var(--paper) !important; color: var(--ink) !important;
     box-shadow: var(--shadow);
-    display: flex; flex-direction: column; gap: 4.5mm;
+    display: flex; flex-direction: column; gap: 4mm;
     font-size: 8.6pt; line-height: 1.32;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .sheet.portrait { width: 210mm; min-height: 297mm; }
   @media (max-width: 1240px) { .desk { align-items: flex-start; } .sheet { transform-origin: top left; } }
 
   /* Ensure explicit text color on tables so elements never inherit washed-out gray */
-  table, th, td {
-    color: var(--ink);
+  .sheet table, .sheet tr, .sheet th, .sheet td {
+    color: var(--ink) !important;
     font-family: inherit;
   }
 
   /* ── sheet furniture ── */
-  .rail { display: flex; align-items: flex-end; gap: 10px; border-bottom: 1.4px solid var(--ink); padding-bottom: 4px; }
-  .rail .mark { width: 22px; height: 22px; color: var(--accent); flex: none; }
+  .rail { display: flex; align-items: flex-end; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
+  .rail .mark { width: 24px; height: 24px; color: var(--accent); flex: none; }
   .rail .mark svg { width: 100%; height: 100%; display: block; }
-  .rail .org { font-size: 7.4pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; font-weight: 500; }
-  .rail .org b { display: block; font-size: 10pt; letter-spacing: .03em; color: var(--ink); font-weight: 700; }
+  .rail .org { font-size: 7.6pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; font-weight: 500; }
+  .rail .org b { display: block; font-size: 10.5pt; letter-spacing: .03em; color: var(--ink); font-weight: 700; }
   .rail .doc { margin-left: auto; text-align: right; }
-  .rail .doc .t { font-family: var(--serif); font-size: 15pt; font-weight: 600; line-height: 1; color: var(--ink); }
-  .rail .doc .s { font-family: var(--mono); font-size: 7.4pt; color: var(--ink-soft); letter-spacing: .04em; }
+  .rail .doc .t { font-family: var(--serif); font-size: 16pt; font-weight: 600; line-height: 1; color: var(--ink); }
+  .rail .doc .s { font-family: var(--mono); font-size: 7.5pt; color: var(--ink-soft); letter-spacing: .04em; }
 
-  .facts { display: flex; flex-wrap: wrap; gap: 3px 26px; padding-bottom: 2px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 28px; padding-bottom: 4px; border-bottom: 1px solid var(--hair); }
   .fact { display: flex; flex-direction: column; gap: 2px; }
-  .fact .k { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  .fact .k { font-size: 6.6pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
   .fact .v { font-size: 9.2pt; font-weight: 600; color: var(--ink); }
   .fact .v.m { font-family: var(--mono); font-weight: 500; }
 
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; vertical-align: top; padding: 7px 8px; }
-  thead th { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; border-bottom: 1.4px solid var(--ink); white-space: nowrap; padding: 5px 8px 5px; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 9px; }
+  thead th { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; border-bottom: 1.5px solid var(--rule); white-space: nowrap; padding: 6px 9px; }
   thead th.num, td.num { text-align: right; font-family: var(--mono); }
-  thead tr.band th { font-size: 6.4pt; color: var(--ink-faint); letter-spacing: .1em; border-bottom: 0; padding: 4px 8px 2px; font-weight: 600; text-transform: uppercase; }
+  thead tr.band th { font-size: 6.4pt; color: var(--ink-faint); letter-spacing: .1em; border-bottom: 0; padding: 4px 9px 2px; font-weight: 700; text-transform: uppercase; }
   tbody tr { border-bottom: 1px solid var(--hair); }
   tbody tr.line { border-bottom: 1.2px solid var(--rule); }
   tbody tr.line td { padding-top: 9px; padding-bottom: 9px; font-weight: 600; }
   tbody tr.line td.no { font-family: var(--mono); font-weight: 600; }
-  td.no { font-family: var(--mono); font-size: 8.5pt; font-weight: 600; color: var(--ink); }
-  td.num { font-size: 8.5pt; font-weight: 500; color: var(--ink); white-space: nowrap; }
+  td.no { font-family: var(--mono); font-size: 8.6pt; font-weight: 600; color: var(--ink); }
+  td.num { font-size: 8.6pt; font-weight: 500; color: var(--ink); white-space: nowrap; }
   td.num .sub { white-space: nowrap; margin-top: 2.5px; }
   td.spec { max-width: 84mm; }
   .sub { color: var(--ink-soft); font-size: 7.2pt; line-height: 1.4; margin-top: 2px; }
@@ -129,37 +132,46 @@
 
   /* ── Ledger table specific alignments ── */
   table.ledger-table { table-layout: fixed; width: 100%; }
-  table.ledger-table th.num, table.ledger-table td.num { text-align: right; padding-right: 8px; }
-  table.ledger-table tr.row-inclusions td { padding: 5px 0 7px; border-bottom: 1px solid var(--hair); }
+  table.ledger-table th.num, table.ledger-table td.num { text-align: right; padding-right: 9px; }
+  table.ledger-table tr.row-inclusions td { padding: 6px 0 8px; border-bottom: 1px solid var(--hair); }
   table.ledger-table tr.row-cost td { padding-top: 8px; padding-bottom: 8px; }
 
-  .chip { display: inline-flex; align-items: center; font-size: 6.6pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 1.5px 5px; border: 1px solid var(--rule); border-radius: 2.5px; color: var(--ink-soft); line-height: 1.2; }
-  .chip.ok { color: var(--ok); background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
-  .chip.flag { color: var(--flag); background: var(--flag-bg); border-color: color-mix(in srgb, var(--flag) 35%, transparent); }
-  .chip.prov { color: var(--ink-faint); border: 1px dashed var(--rule); background: var(--wash); white-space: nowrap; font-size: 6.2pt; padding: 2px 5px; }
+  .chip { display: inline-flex; align-items: center; font-size: 6.6pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; color: var(--ink-soft); line-height: 1.2; }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); }
+  .chip.flag { color: var(--flag); background: var(--flag-bg); }
+  .chip.prov { color: var(--ink-faint); background: var(--wash); white-space: nowrap; font-size: 6.4pt; padding: 2px 6px; }
 
-  .incl-wrap { border: 1px solid var(--hair); background: var(--wash); padding: 7px 10px 8px; border-radius: 2px; }
-  .incl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 14px; }
-  .incl .i { font-size: 7.2pt; display: flex; gap: 5px; align-items: baseline; color: var(--ink); line-height: 1.25; }
-  .incl .i i { font-style: normal; width: 8px; color: var(--ok); font-weight: 700; flex: none; font-size: 7.5pt; }
+  /* Open and airy inclusions container — no hard border box */
+  .incl-wrap { background: var(--wash); padding: 8px 12px; border-radius: 6px; border: none; }
+  .incl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 14px; }
+  .incl .i { font-size: 7.4pt; display: flex; gap: 6px; align-items: center; color: var(--ink); line-height: 1.3; }
+  .incl .i i {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 13px; height: 13px; border-radius: 2px;
+    font-style: normal; font-weight: 700; font-size: 7pt; flex: none;
+    background: var(--ok-bg); color: var(--ok);
+  }
   .incl .i.missing { color: var(--flag); font-weight: 500; }
-  .incl .i.missing i { color: var(--flag); font-weight: 700; }
-  .incl-h { font-size: 6.8pt; letter-spacing: .08em; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 5px; }
+  .incl .i.missing i {
+    background: var(--flag-bg); color: var(--flag);
+  }
+  .incl-h { font-size: 6.6pt; letter-spacing: .08em; font-weight: 700; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 5px; }
 
   /* summary */
-  .close { display: grid; grid-template-columns: 1fr 82mm; gap: 8mm; align-items: start; margin-top: auto; padding-top: 6mm; }
-  .totals { border-top: 1.4px solid var(--ink); padding-top: 4px; }
+  .close { display: grid; grid-template-columns: 1fr 84mm; gap: 8mm; align-items: start; margin-top: auto; padding-top: 4mm; }
+  .totals { border-radius: 6px; background: var(--wash); padding: 8px 12px; border: none; }
   .totrow { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid var(--hair); font-size: 8.4pt; }
-  .totrow .k { color: var(--ink-soft); font-size: 8pt; }
-  .totrow .v { font-family: var(--mono); color: var(--ink); font-weight: 500; text-align: right; min-width: 28mm; }
-  .totrow.strong { border-bottom: 0; border-top: 1.4px solid var(--ink); margin-top: 4px; padding-top: 5px; font-weight: 700; font-size: 9.6pt; }
+  .totrow:last-child { border-bottom: 0; }
+  .totrow .k { color: var(--ink-soft); font-size: 7.8pt; font-weight: 500; }
+  .totrow .v { font-family: var(--mono); color: var(--ink); font-weight: 600; text-align: right; min-width: 28mm; }
+  .totrow.strong { border-top: 1.5px solid var(--ink); margin-top: 3px; padding-top: 4px; font-weight: 700; font-size: 9.6pt; }
   .totrow.strong .k { color: var(--ink); font-weight: 700; }
-  .totrow.strong .v { color: var(--ink); font-weight: 700; }
-  .note { font-size: 7pt; color: var(--ink-faint); margin-top: 5px; line-height: 1.35; }
+  .totrow.strong .v { color: var(--ink); font-weight: 700; font-size: 10.2pt; }
+  .note { font-size: 6.8pt; color: var(--ink-faint); margin-top: 5px; line-height: 1.3; }
 
-  .spine { border-left: 2px solid var(--accent); padding-left: 9px; display: flex; flex-direction: column; gap: 6px; }
-  .spine .big { font-family: var(--mono); font-size: 16.5pt; line-height: 1; letter-spacing: -.02em; color: var(--ink); font-weight: 700; }
-  .spine .big em { font-style: normal; font-size: 7.5pt; color: var(--ink-soft); display: block; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; font-weight: 600; }
+  .spine { border-left: 2px solid var(--accent); padding-left: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .spine .big { font-family: var(--mono); font-size: 17pt; line-height: 1; letter-spacing: -.02em; color: var(--ink); font-weight: 700; }
+  .spine .big em { font-style: normal; font-size: 7.6pt; color: var(--ink-soft); display: block; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; font-weight: 600; }
   .gauge { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 7.5pt; }
   .gauge .g .k { color: var(--ink-soft); font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 1px; font-weight: 600; }
   .gauge .g .v { font-family: var(--mono); font-size: 10pt; font-weight: 600; color: var(--ink); }
@@ -167,41 +179,42 @@
   .bar span { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 1px; }
   .bar b { position: absolute; top: -3px; bottom: -3px; width: 1.5px; background: var(--flag); }
 
-  /* signatures — ADR 0014: the name prints where there is no stored signature */
+  /* signatures: Clean open document layout — no outline boxes */
   .sigs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6mm; }
-  .sig { display: flex; flex-direction: column; }
+  .sig {
+    display: flex; flex-direction: column;
+    background: transparent; border: none;
+    padding: 0;
+  }
   .sig .k {
-    font-size: 6.8pt;
+    font-size: 6.4pt;
     letter-spacing: .08em;
     text-transform: uppercase;
     color: var(--ink-faint);
-    font-weight: 600;
-    height: 24px;
-    display: flex;
-    align-items: flex-end;
-    margin-bottom: 4px;
-    line-height: 1.25;
+    font-weight: 700;
+    margin-bottom: 2px;
+    line-height: 1.2;
   }
   .sig .plate {
-    height: 12mm;
+    height: 11mm;
     border-bottom: 1.2px solid var(--ink);
     display: flex;
     align-items: flex-end;
-    padding-bottom: 2px;
+    padding-bottom: 3px;
   }
-  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 11pt; color: var(--ink); }
+  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 11pt; color: var(--ink); font-weight: 600; }
   .sig .who { font-size: 8.4pt; font-weight: 600; margin-top: 4px; color: var(--ink); line-height: 1.2; }
-  .sig .role { font-size: 7.1pt; color: var(--ink-soft); line-height: 1.25; margin-top: 1.5px; }
-  .sig .stamp { font-family: var(--mono); font-size: 6.5pt; color: var(--ink-faint); margin-top: 3px; line-height: 1.25; }
-  .sig.awaiting .plate { border-bottom-style: dashed; }
-  .sig.awaiting .stamp { color: var(--flag); font-weight: 600; }
+  .sig .role { font-size: 6.8pt; color: var(--ink-soft); line-height: 1.25; margin-top: 1px; }
+  .sig .stamp { font-family: var(--mono); font-size: 6.4pt; color: var(--ink-faint); margin-top: 2px; line-height: 1.2; }
+  .sig.awaiting .plate { border-bottom-style: dashed; border-bottom-color: var(--rule); }
+  .sig.awaiting .stamp { color: var(--warn); font-weight: 600; }
 
   .foot { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.8pt; color: var(--ink-faint); font-family: var(--mono); }
 
   /* ── B: tender-line blocks ── */
-  .block { border: 1px solid var(--rule); display: grid; grid-template-columns: 72mm 1fr 44mm; background: var(--paper); border-radius: 2px; }
+  .block { border: 1px solid var(--hair); display: grid; grid-template-columns: 72mm 1fr 44mm; background: var(--paper); border-radius: 4px; }
   .block + .block { margin-top: 4mm; }
-  .ask { padding: 8px 10px; border-right: 1px solid var(--rule); background: var(--wash); }
+  .ask { padding: 10px 12px; border-right: 1px solid var(--hair); background: var(--wash); }
   .ask .no { font-family: var(--mono); font-size: 7.2pt; font-weight: 500; color: var(--ink-soft); margin-bottom: 2px; }
   .ask h3 { font-family: var(--serif); font-size: 11.5pt; margin: 2px 0 6px; font-weight: 600; color: var(--ink); line-height: 1.2; }
   .ask .specbody { font-size: 7.2pt; line-height: 1.42; color: var(--ink); }
@@ -209,14 +222,14 @@
   .ask ul { margin: 0; padding-left: 13px; }
   .supply { padding: 0; display: flex; flex-direction: column; }
   .supply table { width: 100%; border-collapse: collapse; }
-  .supply th, .supply td { padding: 4px 6px; vertical-align: top; }
+  .supply th, .supply td { padding: 5px 8px; vertical-align: top; }
   .supply th { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; border-bottom: 1.2px solid var(--ink); white-space: nowrap; padding-bottom: 4px; }
   .supply td.no { width: 8mm; font-size: 8pt; font-weight: 600; color: var(--ink); }
   .supply td.spec { min-width: 50mm; }
   .supply td.spec b { font-size: 8.6pt; font-weight: 600; color: var(--ink); }
   .supply td.brand { width: 32mm; font-size: 8pt; color: var(--ink); }
   .supply td.num { width: 23mm; font-size: 8.4pt; font-weight: 500; color: var(--ink); }
-  .margin-strip { border-left: 1px solid var(--rule); padding: 8px 10px; display: flex; flex-direction: column; gap: 7px; background: var(--paper); }
+  .margin-strip { border-left: 1px solid var(--hair); padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; background: var(--paper); }
   .margin-strip .k { font-size: 6.8pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 1px; }
   .margin-strip .v { font-family: var(--mono); font-size: 11pt; font-weight: 600; color: var(--ink); }
   .margin-strip .v small { font-size: 7.2pt; font-weight: 400; color: var(--ink-soft); }
@@ -225,13 +238,24 @@
   .mgmt { display: grid; grid-template-columns: 1fr; gap: 4mm; }
   .mgmt table td.num { font-size: 9pt; }
   .appendix h3 { font-family: var(--serif); font-size: 11pt; margin: 0 0 2px; }
-  .appendix .entry { border-top: 1px solid var(--rule); padding: 4px 0 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .appendix .entry { border-top: 1px solid var(--hair); padding: 6px 0 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
   .appendix .entry .col .h { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; margin-bottom: 2px; }
   .appendix .entry .col ul { margin: 0; padding-left: 12px; font-size: 7.4pt; line-height: 1.42; }
-  .verdict { font-size: 7.6pt; margin-top: 4px; padding: 5px 7px; background: var(--wash); border-left: 2.5px solid var(--flag); line-height: 1.38; }
+  .verdict { font-size: 7.6pt; margin-top: 4px; padding: 6px 8px; background: var(--wash); border-left: 2.5px solid var(--flag); line-height: 1.38; }
 
   /* ── switcher ── */
-  .switcher { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; align-items: stretch; background: #101215; color: #f4f5f7; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); font-family: var(--sans); overflow: hidden; }
+  .switcher {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50;
+    display: flex; align-items: stretch;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: #f8fafc; border-radius: 999px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.12);
+    font-family: var(--sans); overflow: hidden;
+    opacity: 0.82; transition: opacity .2s ease;
+  }
+  .switcher:hover { opacity: 1; }
   .switcher button { background: none; border: 0; color: inherit; font: inherit; padding: 10px 15px; cursor: pointer; font-size: 16px; line-height: 1; }
   .switcher button:hover { background: rgba(255,255,255,.12); }
   .switcher button:focus-visible { outline: 2px solid #8fd7bd; outline-offset: -3px; }
@@ -445,7 +469,9 @@ function variantA() {
       <thead>
         <tr class="band">
           <th colspan="2">Client / Sales</th>
-          <th colspan="4">Purchasing</th>
+          <th colspan="2">Purchasing</th>
+          <th class="num">Acquire</th>
+          <th class="num">Odoo</th>
           <th class="num">Automatic</th>
           <th class="num">Management</th>
           <th class="num">After purchase</th>

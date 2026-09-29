@@ -2,8 +2,7 @@ import {
   authenticate,
   executeKw,
   isConfigured,
-  jsonResponse,
-  ODOO_URL
+  jsonResponse
 } from "../_shared/odoo.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
@@ -71,24 +70,6 @@ function isStorefrontCustomer(partnerName: string | null | undefined, storefront
   if (!partnerName) return false;
   const name = partnerName.toLowerCase();
   return storefronts.some((s) => name.includes(s.toLowerCase()));
-}
-
-/**
- * Extract <img src="..."> URLs from raw Odoo message HTML and return them as
- * attachment objects suitable for sales_opportunity_logs.metadata.attachments.
- */
-function extractAttachments(rawText: string) {
-  const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-  const attachments: { url: string; name: string; type: string }[] = [];
-  let match;
-  while ((match = imgRegex.exec(rawText)) !== null) {
-    let url = match[1];
-    if (url.startsWith("/")) {
-      url = `${ODOO_URL}${url}`;
-    }
-    attachments.push({ url, name: "Proof_of_Payment.png", type: "image/png" });
-  }
-  return attachments;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,13 +154,11 @@ async function runSync() {
   // Process notes
   // ---------------------------------------------------------------------------
   let newQueueCount = 0;
-  let updatedDealerCount = 0;
   let skippedCount = 0;
 
   for (const note of allNotes) {
     const rawText = typeof note.content === "string" ? note.content : "";
     const cleanText = toPlainText(rawText);
-    const text = cleanText.toUpperCase();
     const soData = soMap[note.res_id];
     const partnerName: string | null = soData?.partner_id ? soData.partner_id[1] : null;
 
@@ -259,84 +238,24 @@ async function runSync() {
         newQueueCount++;
         console.log(`[odoo-sor-sync] Queued retail order: ${soNumber}`);
       }
-
-    // -----------------------------------------------------------------------
-    // Dealer / regular sale: "MODE OF PAYMENT" + "AMOUNT" → update SOR status
-    // -----------------------------------------------------------------------
-    } else if (text.includes("MODE OF PAYMENT") && text.includes("AMOUNT")) {
-      const amountMatch = cleanText.match(/AMOUNT:?\s*([\d,.]+)/i);
-      if (!amountMatch) continue;
-
-      const soNumber = note.res_name;
-      let updatedOppId: string | null = null;
-
-      // Try direct match on sales_reference
-      const { data: existing } = await supabase
-        .from("sales_opportunities")
-        .select("id")
-        .eq("sales_reference", soNumber)
-        .maybeSingle();
-
-      if (existing) {
-        updatedOppId = existing.id;
-        const { error } = await supabase
-          .from("sales_opportunities")
-          .update({ status: "CLOSED_WON" })
-          .eq("id", updatedOppId);
-        if (!error) updatedDealerCount++;
-      } else {
-        // Fall back: match by partner name on open leads
-        const soData = soMap[note.res_id];
-        if (soData?.partner_id) {
-          const partnerName = soData.partner_id[1];
-          const { data: openLeads } = await supabase
-            .from("sales_opportunities")
-            .select("id")
-            .ilike("client_name", `%${partnerName}%`)
-            .neq("status", "CLOSED_WON")
-            .neq("status", "LOST")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          if (openLeads && openLeads.length > 0) {
-            updatedOppId = openLeads[0].id;
-            const { error } = await supabase
-              .from("sales_opportunities")
-              .update({ status: "CLOSED_WON", sales_reference: soNumber })
-              .eq("id", updatedOppId);
-            if (!error) updatedDealerCount++;
-          }
-        }
-      }
-
-      // Attach Proof of Payment to the SOR log if images present
-      if (updatedOppId) {
-        const logAttachments = extractAttachments(rawText);
-        if (logAttachments.length > 0) {
-          const { data: existingLogs } = await supabase
-            .from("sales_opportunity_logs")
-            .select("id")
-            .eq("opportunity_id", updatedOppId)
-            .ilike("content", "%Proof of Payment imported%");
-
-          if (!existingLogs || existingLogs.length === 0) {
-            await supabase.from("sales_opportunity_logs").insert({
-              opportunity_id: updatedOppId,
-              type: "SYSTEM",
-              content: "Odoo Sync: Proof of Payment imported.",
-              metadata: { attachments: logAttachments },
-            });
-          }
-        }
-      }
     }
+
+    // The other half of this loop used to live here: a "MODE OF PAYMENT" +
+    // "AMOUNT" note closed the matching SOR as Won, falling back to an
+    // ilike('%partner_name%') match against any open lead when the sales
+    // reference did not match — overwriting that lead's sales_reference on the
+    // way. Running hourly against production, that is a deal silently marked
+    // Won because two customers share a word in their name. Removed outright
+    // rather than disabled — a hazard one manual invocation away is worse than
+    // no feature. The goal is worth keeping, so it is written up as issue #324,
+    // to come back with an exact sales_reference match and no fuzzy fallback.
+    // This function syncs retail, and nothing else.
   }
 
   return {
     activitiesRead: activities.length,
     messagesRead: messages.length,
     newQueuedShopeeOrders: newQueueCount,
-    updatedDealerDeals: updatedDealerCount,
     skipped: skippedCount,
   };
 }

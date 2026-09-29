@@ -6,6 +6,10 @@ import toast from "react-hot-toast";
 import { commissionService } from "../../services/commissionService";
 import { RATE_TYPES, RATE_TYPE_LABELS } from "../../utils/commission";
 import { useAuth } from "../../context/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
+import { SelectField } from "@/components/ui/SelectField";
 
 export default function CommissionRatesManager() {
   const { user } = useAuth();
@@ -50,12 +54,13 @@ export default function CommissionRatesManager() {
           </h2>
         </div>
         {!isAdding && (
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setIsAdding(true)}
-            className="text-xs font-bold text-primary flex items-center gap-1 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-colors"
+            className="h-auto gap-1 px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 hover:text-primary"
           >
             <Plus size={14} /> Add Rate
-          </button>
+          </Button>
         )}
       </div>
 
@@ -66,56 +71,52 @@ export default function CommissionRatesManager() {
             className="flex items-end gap-3 mb-6 p-4 rounded-xl border border-border bg-muted/20 flex-wrap"
           >
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Type</label>
-              <select
+              <FieldBox label="Type" />
+              <SelectField
                 value={rateType}
-                onChange={(e) => setRateType(e.target.value)}
-                className="h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
-                {Object.entries(RATE_TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+                onChange={setRateType}
+                options={Object.entries(RATE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                size="sm"
+              />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Percent</label>
-              <input
+              <FieldBox label="Percent" />
+              <Input
                 type="number"
                 step="0.001"
                 value={percent}
                 onChange={(e) => setPercent(e.target.value)}
                 placeholder="e.g. 12"
-                className="w-28 h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                containerClassName="w-28" className="h-9"
                 required
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Effective From</label>
-              <input
+              <FieldBox label="Effective From" />
+              <Input
                 type="date"
                 value={effectiveFrom}
                 onChange={(e) => setEffectiveFrom(e.target.value)}
-                className="h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="h-9"
                 required
               />
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => setIsAdding(false)}
-                className="h-9 px-3 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm font-semibold transition-colors"
+                className="h-9 px-3 text-sm font-semibold text-muted-foreground"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={addMutation.isPending}
-                className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="h-9 px-4 text-sm font-semibold"
               >
                 Save
-              </button>
+              </Button>
             </div>
           </form>
         )}

@@ -45,6 +45,11 @@
  * itself to grant read access to anyone sor_can_edit_opportunity already
  * lets write — the two were never supposed to diverge — so a plain select
  * now works for that same editor directly, no RPC detour required.
+ *
+ * That widening only fits prod's open sor_read. On the scoped model (ADR
+ * 0021) a head outside the Deal Team cannot open the SOR, so they must not
+ * read its Product List either. 20260930040000_sor_items_read_back_to_scoped.sql
+ * puts the scoped read back.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -164,14 +169,21 @@ describe("sor_replace_items — the returned 'before' snapshot bypasses sor_item
         if (editOnlySorId) await serviceClient().from("sales_opportunities").delete().eq("id", editOnlySorId)
     })
 
-    it("a plain select on sales_opportunity_items now works for an is_head-only editor too", async () => {
+    it("a head outside the Deal Team reads none of the Product List of an SOR they cannot open", async () => {
         const head = await clientFor("head")
         const { data, error } = await head
             .from("sales_opportunity_items")
             .select("product_name")
             .eq("opportunity_id", editOnlySorId)
         expect(error).toBeNull()
-        expect(data).toEqual([{ product_name: `${MARKER} Pre-existing Line` }])
+        expect(data).toEqual([])
+
+        // Not an empty fixture: the row is there for someone who can open the SOR.
+        const { data: asOwner } = await (await clientFor("dealOwner"))
+            .from("sales_opportunity_items")
+            .select("product_name")
+            .eq("opportunity_id", editOnlySorId)
+        expect(asOwner).toEqual([{ product_name: `${MARKER} Pre-existing Line` }])
     })
 
     it("and sor_replace_items still hands that same editor the true previous row directly, not an empty list", async () => {

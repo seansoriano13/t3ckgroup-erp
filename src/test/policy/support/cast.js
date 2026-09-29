@@ -225,6 +225,9 @@ export async function teardownCast() {
     // names the column that points back at an employee; the order is
     // dependency order, children before parents.
     const OWNED_BY = [
+        ["notifications", "sender_id"],
+        ["notifications", "recipient_id"],
+        ["system_audit_logs", "author_id"],
         ["committee_task_members", "employee_id"],
         ["committee_tasks", "created_by"],
         ["tasks", "logged_by"],

@@ -1,11 +1,25 @@
 # Spec: Stage Gate Engine
 
-**Status:** ready for implementation. Synthesised 2026-08-25 from the design
-session recorded in [crm-pipeline-redesign.md](./crm-pipeline-redesign.md) —
-decisions D6, D18, D21, D27, D28, D31, D41, D42, D43.
+**Status: shipped — retained for its reasoning, not its vocabulary.**
+Synthesised 2026-08-25 from the design session recorded in
+[crm-pipeline-redesign.md](./crm-pipeline-redesign.md) — decisions D6, D18,
+D21, D27, D28, D31, D41, D42, D43. `src/constants/stageGate.js` still cites
+this file as its source, which is why it is kept.
 
-**Respects:** [ADR 0004](./adr/0004-pipeline-per-deal-type.md) — a Stage belongs
-to exactly one Pipeline, so requirements attach to a (Pipeline, Stage) pair.
+**Three things below no longer match the build. The reasoning holds; the names
+and the container do not:**
+
+| This document says | What shipped |
+| --- | --- |
+| **Stage Requirement**, `stage_requirements`, `sor_requirement_status` | **Stage Condition**, `stage_conditions`, `sor_condition_status` — renamed before release, live in both databases |
+| A Stage belongs to a **Pipeline** ([ADR 0004](./adr/0004-pipeline-per-deal-type.md)) | ADR 0004 is superseded by [ADR 0006](./adr/0006-sales-flow-as-a-graph.md): a Sales Flow is a **graph**, the axis is **Sale Type**, and conditions attach to a `flow_stages` row |
+| "There is exactly one gate today — the ITB gate on For Bidding" | The ITB gate is **gone** (issue #206, ADR 0004 D12). `itb_number`/`itb_exempt` survive as read-only values |
+
+**Five kinds became eight.** `CONDITION_KINDS` added `project_evaluation`
+(#48/#50), `inclusions` and `purchasing`; issue #203 then withdrew `field` and
+`project_evaluation` from the picker and hid the other two pending the Purchase
+Requests spec, while existing conditions using them keep evaluating. Read
+`src/constants/stageGate.js` for the live set — not the table below.
 
 ---
 

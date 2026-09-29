@@ -18,12 +18,10 @@ import { deriveProjectType } from "../../utils/commission";
 import { leadSourceService } from "../../services/leadSourceService";
 import { salesFlowService } from "../../services/salesFlowService";
 import { formFieldService } from "../../services/formFieldService";
-import { stageConditionService } from "../../services/stageConditionService";
 import { resolveFormFields } from "../../constants/sorFormBuilder";
-import { entryStage } from "../../constants/salesFlow";
-import { resolvePeople } from "../../utils/resolvePeople";
-import { employeeGroupService } from "../../services/employeeGroupService";
 import RegistrationField from "./RegistrationField";
+import { Button } from "../ui/button";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const FORM_ID = "opportunity-form";
 
@@ -112,41 +110,6 @@ export default function OpportunityFormModal({
     queryKey: ["saleTypes"],
     queryFn: () => salesFlowService.getSaleTypes(),
   });
-
-  // Issue #294: an entry-Stage Assignment condition is a call-in like any
-  // other — it just happens on day one instead of later on the SOR. Read
-  // live, the same as the custom form fields below, not off the flow's
-  // locked snapshot: a Super Admin editing the draft sees the picker change
-  // immediately rather than only after the next publish.
-  const { data: flowGraph } = useQuery({
-    queryKey: ["flowGraphForSaleType", form.sale_type_id],
-    queryFn: () => salesFlowService.getFlow(form.sale_type_id),
-    enabled: !isEdit && isOpen && Boolean(form.sale_type_id),
-  });
-  const entry = entryStage(flowGraph?.stages || []);
-
-  const { data: entryConditions = [] } = useQuery({
-    queryKey: ["stageConditions", entry?.id],
-    queryFn: () => stageConditionService.getForStage(entry.id),
-    enabled: !isEdit && isOpen && Boolean(entry?.id),
-  });
-  const entryAssignmentConditions = entryConditions.filter((c) => c.kind === "assignment");
-
-  const { data: employeeGroups = [] } = useQuery({
-    queryKey: ["employeeGroups"],
-    queryFn: () => employeeGroupService.list(),
-    enabled: !isEdit && isOpen && entryAssignmentConditions.length > 0,
-  });
-  const groupMembersById = Object.fromEntries(
-    employeeGroups.map((g) => [g.id, { employeeIds: g.memberIds || [], teams: [] }]),
-  );
-
-  const [dayOneAssignments, setDayOneAssignments] = useState({});
-  if (!isOpen && Object.keys(dayOneAssignments).length > 0) {
-    // Cheap reset alongside the rest of the form's render-phase sync above —
-    // a reopened registration form starts every one of these blank too.
-    setDayOneAssignments({});
-  }
 
   // The chosen Sale Type decides the form: its flow's builder customization
   // (labels, order, hidden fields) plus any custom fields it adds. No Sale
@@ -416,12 +379,6 @@ export default function OpportunityFormModal({
       supportSales2Id: form.support_sales_2_id,
       currentProjectType: form.project_type,
     });
-    for (const condition of entryAssignmentConditions) {
-      if (condition.is_required && !dayOneAssignments[condition.id]) {
-        toast.error(`"${condition.label}" needs someone assigned before this can be registered.`);
-        return;
-      }
-    }
     onSubmit({
       ...form,
       project_type: derivedType,
@@ -432,9 +389,6 @@ export default function OpportunityFormModal({
       // Only the custom fields still on this form — see the Sale Type switch
       // above. `createOpportunity` writes these to sor_form_values.
       formValues: customValues,
-      // Issue #294 — conditionId -> employeeId. createOpportunity turns each
-      // into the same addMember call-in a checklist row makes later.
-      dayOneAssignments,
     });
   };
 
@@ -479,6 +433,16 @@ export default function OpportunityFormModal({
           />
         )}
 
+        {!isEdit && saleTypes.length > 0 && (
+          <p className="-mt-2 text-xs leading-snug text-muted-foreground">
+            {form.sale_type_id
+              ? `Showing ${visibleFields.length} field${visibleFields.length === 1 ? "" : "s"} for ${
+                  saleTypes.find((t) => t.id === form.sale_type_id)?.name || "this Sale Type"
+                }. Change the Sale Type and the fields below change with it.`
+              : "The fields below depend on the Sale Type you choose."}
+          </p>
+        )}
+
         {!isEdit && (
           <TextField
             label="Registration Date"
@@ -498,55 +462,22 @@ export default function OpportunityFormModal({
           <RegistrationField key={field.key} field={field} ctx={fieldCtx} />
         ))}
 
-        {/* Issue #294 — this Sale Type's flow calls someone in the moment a
-            deal enters its first Stage. Rendered here rather than through
-            RegistrationField/SorFormBuilder: the builder-authored field list
-            (flow_form_fields) and a Stage's Assignment conditions are two
-            different config sources today. */}
-        {entryAssignmentConditions.map((condition) => {
-          const whoSelectors = Array.isArray(condition.config?.who) ? condition.config.who : [];
-          const candidates =
-            whoSelectors.length > 0
-              ? (() => {
-                  const ids = new Set(resolvePeople(whoSelectors, { employees, groupMembersById }));
-                  return employees.filter((e) => ids.has(e.id));
-                })()
-              : employees;
-
-          return (
-            <SelectField
-              key={condition.id}
-              label={condition.label}
-              required={condition.is_required}
-              placeholder="Select…"
-              options={candidates
-                .map((e) => ({ value: e.id, label: e.name }))
-                .sort((a, b) => a.label.localeCompare(b.label))}
-              value={dayOneAssignments[condition.id] || ""}
-              onChange={(e) =>
-                setDayOneAssignments((prev) => ({ ...prev, [condition.id]: e.target.value }))
-              }
-            />
-          );
-        })}
-
         <div className="grid grid-cols-1 gap-3">
           <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col justify-between">
             <div className="flex items-center justify-between gap-2 mb-1">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
-                Sales Division
-              </label>
-              <button
+              <FieldBox label="Sales Division" className="block" />
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={toggleStrategic}
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors ${form.project_type === "STRATEGIC"
+                className={`h-auto text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors ${form.project_type === "STRATEGIC"
                     ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
                     : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
                   }`}
                 title="Toggle Strategic project override"
               >
                 {form.project_type === "STRATEGIC" ? "★ Strategic" : "Mark as Strategic"}
-              </button>
+              </Button>
             </div>
             <div className="flex items-center gap-2 pt-0.5">
               <span

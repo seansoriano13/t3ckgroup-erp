@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Building2, Info } from "lucide-react";
 import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
+import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Reusable selection component for Department and Sub-Department with manual entry fallback.
@@ -79,16 +82,17 @@ export default function DeptSubDeptSelector({
                 }}
                 close={close}
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   enableManualDept();
                   close();
                 }}
-                className="w-full text-left px-3 py-2 rounded-md text-[11px] font-bold text-mauve-10 hover:bg-mauve-2 transition-colors uppercase tracking-wider"
+                className="w-full h-auto justify-start text-left px-3 py-2 rounded-md text-[11px] font-bold text-mauve-10 hover:bg-mauve-2 transition-colors uppercase tracking-wider"
               >
                 + Add New Department
-              </button>
+              </Button>
             </div>
           )}
         </Dropdown>
@@ -127,16 +131,17 @@ export default function DeptSubDeptSelector({
                 }}
                 close={close}
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   enableManualSubDept();
                   close();
                 }}
-                className="w-full text-left px-3 py-2 rounded-md text-[11px] font-bold text-mauve-10 hover:bg-mauve-2 transition-colors uppercase tracking-wider"
+                className="w-full h-auto justify-start text-left px-3 py-2 rounded-md text-[11px] font-bold text-mauve-10 hover:bg-mauve-2 transition-colors uppercase tracking-wider"
               >
                 + Add New Sub-Dept
-              </button>
+              </Button>
             </div>
           )}
         </Dropdown>
@@ -153,10 +158,8 @@ export default function DeptSubDeptSelector({
           </div>
           {isNewDept && (
             <div>
-              <label className="text-[9px] font-bold text-foreground/60 uppercase tracking-wider mb-1 block">
-                New Department
-              </label>
-              <input
+              <FieldBox label="New Department" className="mb-1 block" />
+              <Input
                 required
                 type="text"
                 autoFocus
@@ -165,16 +168,14 @@ export default function DeptSubDeptSelector({
                 onChange={(e) =>
                   onDepartmentChange(e.target.value.toUpperCase())
                 }
-                className="w-full bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
+                containerClassName="w-full" className="h-auto bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
               />
             </div>
           )}
           {isNewSubDept && (
             <div>
-              <label className="text-[9px] font-bold text-foreground/60 uppercase tracking-wider mb-1 block">
-                New Sub-Department
-              </label>
-              <input
+              <FieldBox label="New Sub-Department" className="mb-1 block" />
+              <Input
                 required
                 type="text"
                 autoFocus
@@ -183,17 +184,18 @@ export default function DeptSubDeptSelector({
                 onChange={(e) =>
                   onSubDepartmentChange(e.target.value.toUpperCase())
                 }
-                className="w-full bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
+                containerClassName="w-full" className="h-auto bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
               />
             </div>
           )}
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={cancelManual}
-            className="text-[10px] font-bold text-mauve-10 hover:underline"
+            className="h-auto p-0 text-[10px] font-bold text-mauve-10 hover:underline"
           >
             Cancel manual entry
-          </button>
+          </Button>
         </div>
       )}
     </div>

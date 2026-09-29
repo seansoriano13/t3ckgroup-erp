@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 
 import { renderWithProviders } from "../../test/support"
-import { stubEdgeFunction } from "../../test/msw/server"
+import { stubEdgeFunction, stubRpc } from "../../test/msw/server"
 import { waitForNetworkIdle } from "../../test/network"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -48,7 +48,7 @@ function renderModal(opportunity) {
 // The Product List now lives behind its own tab (#301) rather than the
 // modal's default view, so a test after its items must open Items first.
 async function openItemsTab() {
-  fireEvent.click(await screen.findByRole("button", { name: "Items" }))
+  fireEvent.click(await screen.findByRole("button", { name: /^Products/ }))
 }
 
 const found = (items, extra = {}) => ({
@@ -62,6 +62,7 @@ const found = (items, extra = {}) => ({
 
 describe("OpportunityDetailsModal — Odoo auto-sync on open (#53)", () => {
   beforeEach(() => {
+    stubRpc("sor_can_edit_opportunity", () => true)
     stubEdgeFunction("odoo-sor-lookup", found([]))
   })
 
@@ -168,6 +169,7 @@ describe("OpportunityDetailsModal — Odoo auto-sync on open (#53)", () => {
 
 describe("OpportunityDetailsModal — manual Product List fetch (#53)", () => {
   it("refuses to replace stored items with an empty Odoo response", async () => {
+    stubRpc("sor_can_edit_opportunity", () => true)
     const owner = makeEmployee()
     const opportunity = makeOpportunity({
       registered_by: owner.id,
@@ -188,8 +190,7 @@ describe("OpportunityDetailsModal — manual Product List fetch (#53)", () => {
 
     // "Fetch Items" (#53's manual edit-form fetch) lives on Details, not
     // Items — Items' own empty-state fetch (#301) is a separate action.
-    fireEvent.click(screen.getByRole("button", { name: "Details" }))
-    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^edit( opportunity)?$/i }))
 
     const fetchButton = await screen.findByRole("button", { name: /fetch items/i })
     fireEvent.click(fetchButton)
@@ -271,6 +272,7 @@ describe("OpportunityDetailsModal — Stage Checklist and moves (#199)", () => {
     const deal = await register()
 
     renderWithProviders(<LiveModal id={deal.id} />)
+    fireEvent.click(await screen.findByRole("button", { name: /^This stage/ }))
     await screen.findByText("What blocks this stage")
     const destinationTile = (await screen.findAllByText("Qualified")).map((el) => el.closest("li")).find(Boolean)
     fireEvent.click(destinationTile)

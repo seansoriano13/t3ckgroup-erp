@@ -1,5 +1,28 @@
-import React, { useState, useRef, useEffect, useCallback, forwardRef } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useContext,
+  useMemo,
+  forwardRef,
+} from "react";
 import { createPortal } from "react-dom";
+import { DropdownNestingContext } from "./dropdownNesting";
+
+/**
+ * Nested Dropdowns both portal to document.body, so an inner popover is a
+ * *sibling* of the outer one, never a descendant. An outside-click check based
+ * on DOM containment alone therefore closes the outer Dropdown the instant you
+ * mousedown on an inner option, unmounting the inner before its click can
+ * fire — which is why no option could be picked in the Flow Canvas "View as"
+ * and "Access settings" popovers, both of which hold a PeoplePicker.
+ *
+ * Context follows the React tree through a portal even though the DOM does
+ * not, so each Dropdown hands its descendants a way to register their own
+ * popover node upward. An ancestor then counts a click inside any registered
+ * descendant popover as a click inside itself.
+ */
 
 const Dropdown = forwardRef(
   (
@@ -21,6 +44,45 @@ const Dropdown = forwardRef(
     const [coords, setCoords] = useState(null);
     const dropdownRef = useRef(null);
     const popoverRef = useRef(null);
+
+    // Popover nodes of every Dropdown nested inside this one. Registration
+    // chains upward, so a popover three levels deep is known to all three of
+    // its ancestors, not just its parent.
+    const parentNesting = useContext(DropdownNestingContext);
+    const descendantPopovers = useRef(new Set());
+
+    const registerDescendant = useCallback(
+      (node) => {
+        descendantPopovers.current.add(node);
+        parentNesting?.register(node);
+      },
+      [parentNesting],
+    );
+
+    const unregisterDescendant = useCallback(
+      (node) => {
+        descendantPopovers.current.delete(node);
+        parentNesting?.unregister(node);
+      },
+      [parentNesting],
+    );
+
+    const nesting = useMemo(
+      () => ({ register: registerDescendant, unregister: unregisterDescendant }),
+      [registerDescendant, unregisterDescendant],
+    );
+
+    // Keeps popoverRef exactly as it was, and additionally announces this
+    // popover to whichever Dropdown encloses it.
+    const setPopoverNode = useCallback(
+      (node) => {
+        const previous = popoverRef.current;
+        if (previous && previous !== node) parentNesting?.unregister(previous);
+        popoverRef.current = node;
+        if (node) parentNesting?.register(node);
+      },
+      [parentNesting],
+    );
 
     const isControlled = controlledIsOpen !== undefined;
     const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
@@ -138,6 +200,12 @@ const Dropdown = forwardRef(
           return;
         }
 
+        // Nor if we clicked inside a nested Dropdown's popover — a sibling in
+        // the DOM, a descendant in the React tree.
+        for (const node of descendantPopovers.current) {
+          if (node.contains(event.target)) return;
+        }
+
         // Close dropdown
         if (isControlled) {
           if (onClose) onClose();
@@ -148,7 +216,14 @@ const Dropdown = forwardRef(
       };
 
       const handleKeyDown = (event) => {
-        if (event.key === "Escape" && isOpen && !disabled) {
+        // Escape belongs to the innermost open Dropdown: closing an ancestor
+        // first would unmount the popover the key was meant for.
+        if (
+          event.key === "Escape" &&
+          isOpen &&
+          !disabled &&
+          descendantPopovers.current.size === 0
+        ) {
           if (isControlled) {
             if (onClose) onClose();
           } else {
@@ -200,7 +275,7 @@ const Dropdown = forwardRef(
             coords &&
             createPortal(
               <div
-                ref={popoverRef}
+                ref={setPopoverNode}
                 className={popoverClassName}
                 style={{
                   position: "fixed",
@@ -219,18 +294,20 @@ const Dropdown = forwardRef(
                   minWidth: coords.width,
                 }}
               >
-                {typeof children === "function"
-                  ? children({
-                      close: () =>
-                        isControlled ? onClose?.() : setInternalIsOpen(false),
-                    })
-                  : children}
+                <DropdownNestingContext.Provider value={nesting}>
+                  {typeof children === "function"
+                    ? children({
+                        close: () =>
+                          isControlled ? onClose?.() : setInternalIsOpen(false),
+                      })
+                    : children}
+                </DropdownNestingContext.Provider>
               </div>,
               document.body,
             )
           ) : (
             <div
-              ref={popoverRef}
+              ref={setPopoverNode}
               className={`${popoverClassName} ${placementClass}`}
               style={{
                 maxHeight: "calc(100vh - 100px)",
@@ -239,12 +316,14 @@ const Dropdown = forwardRef(
                 overflow: "hidden",
               }}
             >
-              {typeof children === "function"
-                ? children({
-                    close: () =>
-                      isControlled ? onClose?.() : setInternalIsOpen(false),
-                  })
-                : children}
+              <DropdownNestingContext.Provider value={nesting}>
+                {typeof children === "function"
+                  ? children({
+                      close: () =>
+                        isControlled ? onClose?.() : setInternalIsOpen(false),
+                    })
+                  : children}
+              </DropdownNestingContext.Provider>
             </div>
           ))}
       </div>

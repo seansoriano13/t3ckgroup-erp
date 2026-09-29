@@ -3,10 +3,13 @@
  * (see components/hr/EmployeeForm.jsx).
  */
 
+import { Input } from "@/components/ui/input";
 import Dropdown from "../ui/Dropdown";
 import { ChevronDown } from "lucide-react";
 import { FilterOptionList } from "../ui/FilterDropdown";
 
+import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 // Split so a field can swap its resting border colour out. Two border-colour
 // utilities on one element resolve by stylesheet order rather than by the
 // order they appear in the class attribute, so appending a highlight colour
@@ -44,13 +47,11 @@ export function TextField({
           form. Occupying the label's own line keeps the field's height and the
           grid's rhythm unchanged whether or not an action is present. */}
       <div className="flex items-baseline justify-between gap-2">
-        <label className={LABEL}>
-          {label}
-          {required && <span className="text-red-500 ml-0.5">*</span>}
-        </label>
+        <FieldBox label={<>{label}
+          {required && <span className="text-red-500 ml-0.5">*</span>}</>} className={LABEL} />
         {action}
       </div>
-      <input className={CONTROL} required={required} {...props} />
+      <Input className={`h-auto rounded-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 ${CONTROL}`} required={required} {...props} />
     </div>
   );
 }
@@ -85,10 +86,8 @@ export function SelectField({
   if (disabled) {
     return (
       <div className={`${BOX} ${className}`}>
-        <label className={LABEL}>
-          {label}
-          {required && <span className="text-red-500 ml-0.5">*</span>}
-        </label>
+        <FieldBox label={<>{label}
+          {required && <span className="text-red-500 ml-0.5">*</span>}</>} className={LABEL} />
         {control()}
       </div>
     );
@@ -100,10 +99,8 @@ export function SelectField({
 
   return (
     <div className={`${BOX} ${className}`}>
-      <label className={LABEL}>
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
+      <FieldBox label={<>{label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}</>} className={LABEL} />
       <Dropdown
         usePortal={true}
         trigger={({ isOpen }) => control(isOpen)}
@@ -127,11 +124,9 @@ export function SelectField({
 export function TextAreaField({ label, required, className = "", ...props }) {
   return (
     <div className={`${BOX} ${className}`}>
-      <label className={LABEL}>
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      <textarea className={`${CONTROL} resize-none`} required={required} {...props} />
+      <FieldBox label={<>{label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}</>} className={LABEL} />
+      <Textarea variant="bare" className={`resize-none ${CONTROL}`} required={required} {...props} />
     </div>
   );
 }

@@ -19,6 +19,7 @@ export type Path =
   | `/hr/management`
   | `/hr/offsets`
   | `/login`
+  | `/my-sors`
   | `/offsets`
   | `/opportunities`
   | `/opportunities/commission`
@@ -26,9 +27,13 @@ export type Path =
   | `/profile`
   | `/purchasing`
   | `/reset-password`
+  | `/retail`
   | `/settings`
   | `/settings/FAQEditor`
   | `/settings/FAQModal`
+  | `/sors`
+  | `/sors/commission`
+  | `/sors/commission-formula`
   | `/super-admin`
   | `/super-admin/activity-log`
   | `/super-admin/commission`

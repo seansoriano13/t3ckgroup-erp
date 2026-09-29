@@ -1,7 +1,11 @@
 import React, { useState, useMemo } from "react";
 import Dropdown from "../ui/Dropdown";
 import { Tag, ChevronDown, Search, Check } from "lucide-react";
-import { FilterTrigger } from "../ui/FilterDropdown";export default function CategoryDropdown({
+import { FilterTrigger } from "../ui/FilterDropdown";
+import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
+
+export default function CategoryDropdown({
   value,
   onChange,
   categories = [],
@@ -33,9 +37,10 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
       /* popoverClassName="absolute top-full left-0 mt-1.5 bg-muted border border-border rounded-xl shadow-2xl z-[110] w-[280px] popover-enter" */
       trigger={({ isOpen, disabled }) => 
         triggerClassName ? (
-          <button
+          <Button
             type="button"
-            className={triggerClassName}
+            variant="ghost"
+            className={`h-auto ${triggerClassName}`}
           >
             <Tag size={13} />
             <span className={value ? "text-foreground" : "text-mauve-7"}>
@@ -48,7 +53,7 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
                 className={value ? "text-violet-8" : "text-mauve-7"}
               />
             )}
-          </button>
+          </Button>
         ) : (
           <FilterTrigger
             label={value || "Category"}
@@ -68,12 +73,12 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
                 size={14}
                 className="text-muted-foreground shrink-0"
               />
-              <input
+              <Input
                 type="text"
                 placeholder="Search categories..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 bg-transparent outline-none text-[13px] font-medium text-foreground placeholder:text-muted-foreground"
+                containerClassName="flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent outline-none text-[13px] font-medium text-foreground placeholder:text-muted-foreground"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
               />
@@ -90,18 +95,19 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
               </p>
             ) : (
               searchedCategories.map((cat) => (
-                <button
+                <Button
                   key={cat.category_id}
                   type="button"
+                  variant="ghost"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (onChange) onChange(cat.category_id);
                     if (onResetOthers) onResetOthers();
                     close();
                   }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${
+                  className={`h-auto w-full justify-start text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${
                     value === cat.category_id
-                      ? "bg-muted/80 text-foreground font-bold"
+                      ? "bg-muted/80 text-foreground font-bold hover:bg-muted/80"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
@@ -117,7 +123,7 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
                       className="text-muted-foreground/80 shrink-0"
                     />
                   )}
-                </button>
+                </Button>
               ))
             )}
           </div>

@@ -8,7 +8,7 @@
  */
 
 import { STATUS_THEME } from "./statusTheme";
-import { isLostFlowStage } from "./salesFlow";
+import { isLostFlowStage, isPreWonFlowStage, isWonOrPostWonFlowStage } from "./salesFlow";
 
 // Lead Sources are now managed dynamically in the database (`crm_lead_sources` table).
 // Previously, they were hardcoded here as LEAD_SOURCES.
@@ -104,43 +104,25 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
  * than the Projected one.
  *
  * A fact about the deal, not a position in a list (ADR 0006). The Contract
- * Date is stamped the first time the deal reaches the Stage that wins it and
- * is never un-stamped, so it answers "has this been booked" without asking
- * where the deal currently sits — which is the only thing that still works
- * once a Sales Flow is a graph and "at or past the anchor" has no meaning.
+ * Date is stamped the first time the deal reaches the Won Stage and only a
+ * Revert of that move clears it (ADR 0026), so it answers "has this been
+ * booked" without asking where the deal currently sits. For a flow-built deal
+ * the check below decides by current Stage, not by the Contract Date.
  *
- * Two consequences, both deliberate. A deal that has since moved backwards
- * stays Realized: its history already answered the question, and the
- * positional rule's special case for exactly this existed only because
- * position kept contradicting it. A lost deal never counts, whatever its
- * Contract Date says — the one guard the positional rule carried that is
- * about the deal rather than about the ordering.
- *
- * An opportunity with no Contract Date is not Realized. Under-reporting is
- * the safe direction to fail, because the alternative silently promotes
- * pipeline deals into booked money.
+ * A lost deal never counts. A flow deal is Realized while on the Won Stage or
+ * a non-terminal Stage downstream of it, and stops being Realized if it moves
+ * back before it. A legacy deal is Realized at or past the anchor Stage, and
+ * falls back to the Contract Date only when no anchor exists.
  */
 export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_STAGE_SEED) => {
-  if (!opportunity?.contract_date) return false;
+  if (!opportunity) return false;
 
-  // Second argument is either a bare stages array (the original, still
-  // supported shape) or `{ snapshotsById, stages }` like isOpenPipelineOpportunity
-  // and isStillMovingOpportunity take — a caller juggling many flow SORs at
-  // once (the register's totals, the Board's per-column totals) can pass a
-  // bulk snapshot index instead of relying on every row embedding its own.
   const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(stagesOrContext)
     ? { stages: stagesOrContext }
     : stagesOrContext || {};
 
-  // Issue #36/#83 — a flow-built deal carries a Sale Type and has no
-  // crm_pipeline_stages code, so `status` is stale on it and `isLostCode`
-  // cannot answer "is this lost". `isLostFlowStage` asks the same question
-  // of the deal's OWN Flow Snapshot, not the live flow: a later change to
-  // the live Won Stage must not retroactively alter which SORs are
-  // Realized. Resolved from `snapshotsById[flow_snapshot_id]` first, else an
-  // embedded `flow_snapshot` — either missing answers false rather than
-  // trusting an absence, the same under-reporting direction a deal with no
-  // Contract Date fails in.
+  // For a flow-built deal, evaluated dynamically against its Flow Snapshot graph:
+  // sitting on the designated Won Stage or any non-terminal post-won Stage downstream.
   if (opportunity.sale_type_id) {
     const snapshotData =
       snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
@@ -148,10 +130,17 @@ export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_ST
     if (!snapshotData) return false;
     const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
     if (!flowStage) return false;
-    return !isLostFlowStage(flowStage, snapshotData.wonStageId);
+    return isWonOrPostWonFlowStage(flowStage, snapshotData);
   }
 
-  return !isLostCode(opportunity.status, stages);
+  // Legacy SOR (no sale_type_id): sitting at or past the anchor (AWARDED) stage,
+  // excluding terminal lost.
+  const stage = stages.find((s) => s.code === opportunity.status);
+  if (!stage || isLostCode(opportunity.status, stages)) return false;
+  if (isWonCode(opportunity.status, stages)) return true;
+  const anchor = anchorStage(stages);
+  if (!anchor) return Boolean(opportunity.contract_date);
+  return stage.sort_order >= anchor.sort_order;
 };
 
 /**
@@ -174,15 +163,35 @@ const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIP
 };
 
 /**
- * Open Pipeline (CONTEXT.md, issue #199): no Contract Date, and the current
- * Stage is not a Terminal Stage. Drives the register's Open pipeline value
- * and its Open filter, so the two always agree. An SOR whose Stage can't be
- * resolved is not counted — the same under-reporting direction Realized
- * fails in.
+ * Open Pipeline (CONTEXT.md):
+ * For Flow SORs: any active deal currently sitting on a pre-won Stage
+ * (a stage preceding the Won Stage in the flow graph).
+ * For Legacy SORs: any active deal on a stage before the anchor (AWARDED) stage.
+ * Excludes terminal stages; a lost SOR counts toward neither Open Pipeline nor Won.
  */
-export const isOpenPipelineOpportunity = (opportunity, context) => {
-  const stage = currentStageTerminality(opportunity, context);
-  return Boolean(stage) && !opportunity.contract_date && !stage.isTerminal;
+export const isOpenPipelineOpportunity = (opportunity, context = PIPELINE_STAGE_SEED) => {
+  if (!opportunity) return false;
+
+  const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(context)
+    ? { stages: context }
+    : context || {};
+
+  if (opportunity.sale_type_id) {
+    const snapshotData =
+      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
+      opportunity.flow_snapshot?.snapshot_data;
+    if (!snapshotData) return false;
+    const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
+    if (!flowStage) return false;
+    return isPreWonFlowStage(flowStage, snapshotData);
+  }
+
+  // Legacy SOR (no sale_type_id)
+  const stage = stages.find((s) => s.code === opportunity.status);
+  if (!stage || isTerminalStage(stage)) return false;
+  const anchor = anchorStage(stages);
+  if (!anchor) return true;
+  return stage.sort_order < anchor.sort_order;
 };
 
 /**
@@ -351,8 +360,35 @@ export const formatPHP = (amount) =>
     maximumFractionDigits: 2,
   })}`;
 
+/**
+ * A toolbar-width PHP figure: ₱353.7M rather than ₱353,727,836.94.
+ *
+ * Only the seven-figure-and-up amounts are shortened, because those are the
+ * only ones wide enough to crowd a toolbar — anything smaller keeps its
+ * centavos, and OpportunitiesPage.test.jsx holds that line. Use this only for
+ * a readout that is scanned rather than acted on, and only where the exact
+ * amount is still one hover away (see SorsTotals).
+ */
+export const formatPHPCompact = (amount) => {
+  const n = Number(amount || 0);
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return `₱${(n / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `₱${(n / 1e6).toFixed(1)}M`;
+  return formatPHP(n);
+};
+
 export const formatLeadSource = (source, detail, leadSources = []) => {
   const dynamicLabel = leadSources.find((s) => s.value === source)?.label;
   const label = dynamicLabel || source || "—";
   return detail ? `${label} - ${detail}` : label;
 };
+
+/** Filter value for SORs registered before Sale Types existed (`sale_type_id` null). */
+export const NO_SALE_TYPE = "NONE";
+
+/** Whether an SOR passes the register's Sale Type filter ("ALL", a Sale Type id, or NO_SALE_TYPE). */
+export function matchesSaleType(opportunity, filter) {
+  if (filter === "ALL" || !filter) return true;
+  if (filter === NO_SALE_TYPE) return !opportunity.sale_type_id;
+  return opportunity.sale_type_id === filter;
+}

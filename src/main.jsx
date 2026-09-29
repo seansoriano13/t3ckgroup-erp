@@ -11,6 +11,8 @@ import { useTheme } from "./hooks/useTheme"
 import { CustomToast } from "./components/ui/CustomToast"
 import { VersionUpdateNotifier } from "./components/VersionUpdateNotifier"
 import { StagingBanner } from "./components/StagingBanner"
+import { MaintenanceGate } from "./components/MaintenanceGate"
+import { Button } from "./components/ui/button"
 
 // Auto-reload when dynamic chunk imports fail due to new deployments
 window.addEventListener("vite:preloadError", () => {
@@ -42,12 +44,12 @@ function GlobalErrorFallback({ error, resetErrorBoundary }) {
         <pre className="text-xs bg-mauve-1 border border-mauve-4 p-4 rounded-xl text-red-11 mb-6 overflow-x-auto text-left">
           {error.message}
         </pre>
-        <button
+        <Button
           onClick={resetErrorBoundary}
-          className="bg-primary hover:bg-primary-hover text-primary-foreground px-6 py-3 rounded-xl font-bold transition-all"
+          className="h-auto rounded-xl px-6 py-3 font-bold"
         >
           Reload Dashboard
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -92,7 +94,9 @@ createRoot(document.getElementById("root")).render(
               </div>
               <VersionUpdateNotifier />
               <StagingBanner />
-              <Routes />
+              <MaintenanceGate>
+                <Routes />
+              </MaintenanceGate>
             </ThemeApplier>
           </AuthProvider>
         </GoogleOAuthProvider>

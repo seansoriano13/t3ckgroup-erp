@@ -1,106 +1,157 @@
 {
-  "generatedAt": "2026-09-16T06:44:31.499Z",
-  "since": "2026-09-09",
-  "title": "What shipped since 9 September",
+  "generatedAt": "2026-09-28T05:10:56.817Z",
+  "since": "2026-09-14",
+  "title": "What shipped since 14 September",
   "headline": [
     {
-      "id": "flow-one-canvas",
-      "block": "Flow Canvas",
-      "title": "Flow Canvas is one canvas",
-      "impact": "There used to be two places to edit a flow and a Sandbox mode to remember which one you were in. There is now one canvas. Nobody has to ask whether what they are looking at is the real flow.",
+      "id": "my-sors",
+      "block": "SORS",
+      "title": "My SORs: new screen",
+      "impact": "New screen: Sales > My SORs. Lists every SOR you were called into by a task, an assignment or a purchase request, with the Stage that called you in and how far your access reaches.",
       "changes": [
-        "The Flow Canvas no longer has a Live/Sandbox switch. It opens straight onto the real Sales Flow, which is the only thing it ever edited that mattered — the shared Sandbox scratch space has been retired.",
-        "You still see who else is working on the same flow, and a Super Admin can still open the Snapshot History from the canvas."
+        "Sales > My SORs is a new screen listing every SOR you were called into by a task, an assignment, or a purchase request. Until now those SORs appeared nowhere: the SORS register only lists SORs you own or are named on, so being called in gave you access with no way to find the record again except the notification.",
+        "Each row says which Stage called you in and how far your access reaches, in the same words the Flow Canvas uses for that setting. Opening one shows the same view the notification opens.",
+        "SORs whose access has since closed stay on the screen under Closed, so work you did last month is still findable.",
+        "The sidebar entry carries a count of the SORs you currently have open access to, and is visible to everyone — anyone can be called into an SOR, including people with no Sales access."
       ],
-      "issues": [
-        186
-      ],
-      "demo": null,
+      "issues": [],
+      "sample": "my-sors",
       "source": "changelog"
     },
     {
-      "id": "flow-versioning",
-      "block": "Flow Canvas",
-      "title": "Publish a version, and go back safely",
-      "impact": "A published flow could not be undone. Changing your mind meant rebuilding the Stages by hand and hoping the SORs sitting on them survived. A flow now publishes as a numbered version you can read, compare and revert to, and the revert keeps the Stage ids so live SORs stay attached to their history.",
+      "id": "quick-view",
+      "block": "SORS",
+      "title": "Quick View",
+      "impact": "Opening an SOR from a task or from My SORs now shows Quick View first: your open tasks on it and what the current Stage still needs. View Full Details opens the whole SOR.",
       "changes": [
-        "\"Lock this flow\" is now \"Publish\", and it shows the version number the click will create — \"Publish v3.2\" — straight from the database, so the preview and the result can never disagree. \"Unlock\" is now \"Edit draft\" and still asks for a reason.",
-        "Versions now carry meaning: v3.2 tells you it's a routine refinement of v3.x, while v4.0 means a Stage was removed or the Won Stage changed and SORs on the old version may not move up safely. Adding, renaming or rewiring Stages is minor; losing a Stage or changing the Won Stage starts a new major version.",
-        "A Sales Flow's first publish is v1.0. Every version already on record — v1, v2, v3 — now reads as v1.0, v2.0, v3.0, so the numbers on old SORs still match their history notes.",
-        "The version badge on an SOR, the version page, the history dialog and an SOR's own history notes all read vX.Y now."
+        "Every entry into an SOR from a task - My SORs, the SOR link on a task card, a task's own SOR field - lands on Quick View first instead of the full SOR window.",
+        "Quick View lists your own open tasks on the SOR and what is still open on its current Stage. \"View Full Details\" opens the whole SOR.",
+        "Clicking a task opens it on top of Quick View rather than replacing it, and Group Tasks open from it too.",
+        "The SOR link on a task card moved to the card footer as an icon.",
+        "Fixed: a task's link back to its SOR never appeared for someone called in for just that Stage. The database refused the read and the link silently rendered nothing."
       ],
-      "issues": [
-        187,
-        188,
-        192,
-        193
-      ],
-      "demo": "flow-versioning",
-      "source": "changelog"
-    },
-    {
-      "id": "flow-building",
-      "block": "Flow Canvas",
-      "title": "Building a flow got faster, and the draft tells the truth",
-      "impact": "Adding a Stage meant a form, a save and a re-drag. The canvas now behaves like the tools people already use, and the draft comparison stopped reporting Stages as changed when nothing about them had changed.",
-      "changes": [
-        "A plus button on the canvas adds a Stage where you point, and a plus on a move line inserts one between two Stages already wired together.",
-        "Archived Sale Types collapse into their own section in the picker instead of crowding the live ones.",
-        "The draft comparison now reads the process itself - name, order, terminal status, brackets, colours - rather than database timestamps and key ordering, so it stops reporting changes nobody made.",
-        "The version rail, the preview banner and the publish window read plainly: a Back to draft action, an explicit close, and a guarded Revert that explains what it will do before it does it."
-      ],
-      "issues": [
-        189,
-        191,
-        194,
-        195,
-        196,
-        197
-      ],
-      "demo": null,
+      "issues": [],
+      "sample": "quick-view",
       "source": "supplement"
     },
     {
-      "id": "crm-board",
-      "block": "CRM",
-      "title": "CRM, and a board you drag SORs across",
-      "impact": "Dragging a card was not a styling decision - it was impossible. The rule that Closed Lost needs a reason lived inside the details modal, so a drag could not enforce it and drag-and-drop was deliberately switched off. Moving the guard into the move itself is what made the board draggable. The board also shows one Sale Type at a time, because Stages of different flows have no shared order and showing them together mixed unrelated Stages into one row.",
+      "id": "retail-screen",
+      "block": "SORS",
+      "title": "Retail has its own screen",
+      "impact": "Retail is its own screen under Sales instead of a tab in the SOR register. Same people can open it: Super Admins and Sales Directors.",
       "changes": [
-        "Opportunities is now CRM, and the register runs the full width of the screen instead of sitting in a narrow column.",
+        "Retail has moved out of the SOR register and into its own entry in the sidebar, under Sales. The register's tabs are now just List, Board, Overview and Deleted.",
+        "The new screen shows marketplace orders waiting for review at the top, and what has already been counted — totals by month and storefront — below. Orders only appear at the top when there is something to review.",
+        "Who can open it has not changed: Super Admins and Sales Directors, the same as before the move."
+      ],
+      "issues": [],
+      "sample": "retail-screen",
+      "source": "changelog"
+    },
+    {
+      "id": "sor-window",
+      "block": "SORS",
+      "title": "SOR window has tabs",
+      "impact": "The SOR window has tabs: Now (what blocks the Stage, its fields, decisions, tasks, next follow-up), Journey, Items, Details and Chat.",
+      "changes": [
+        "The SOR window now has tabs. It opens on Now, which shows what the current Stage needs today: what's blocking it first, then the Stage's fields, any decisions waiting on you, the tasks, and the next follow-up.",
+        "Each task is now one line with its people, how many parts are done and its due date. Click the arrow on a group task to see each person's part, or click the title to open the task.",
+        "Journey lists every Stage the SOR has been through, newest first, with what was done on each.",
+        "Items holds the Product List with search and stock levels. Its header stays in place as you scroll long lists. If the list is empty, it tells you to fetch from Odoo or to add a Sales Reference first.",
+        "Details holds the SOR's fields, the Deal Team, Estimated Value, the quotation buttons, commission, and Inclusions and Purchasing."
+      ],
+      "issues": [
+        207,
+        298,
+        299,
+        300,
+        301,
+        302
+      ],
+      "sample": "sor-window",
+      "source": "changelog"
+    },
+    {
+      "id": "crm-board",
+      "block": "SORS",
+      "title": "SORS Board: drag SORs between Stages",
+      "impact": "SORS has a Board tab: one Sale Type at a time, one column per Stage, drag an SOR to move it. A Deleted tab lists removed SORs.",
+      "changes": [
+        "The register runs the full width of the screen instead of sitting in a narrow column.",
         "The board shows one Sale Type at a time, with one column per Stage of that flow in the same bracket order the Flow Canvas already uses.",
         "An SOR moves between Stages by dragging it.",
-        "A drag runs the same guarded move as the Stage control, so a move that needs a reason still asks for one, and a blocked move is still blocked."
+        "A drag runs the same guarded move as the Stage control, so a move that needs a reason still asks for one, and a blocked move is still blocked.",
+        "A Deleted tab lists removed SORs, with restore and a guarded permanent delete."
       ],
       "issues": [
         206,
         286,
         288
       ],
-      "demo": "crm-board",
+      "sample": "crm-board",
       "source": "supplement"
     },
     {
-      "id": "crm-itb-won",
-      "block": "CRM",
-      "title": "The ITB gate is gone, and Won is on the register",
-      "impact": "Every SOR had to carry an ITB Number to move, including the ones that never had one, so people typed placeholders to get past it. That requirement is now a Stage Field the flow decides, not a rule baked into the system. The register also shows what was won, not only what is open.",
+      "id": "sors-filters",
+      "block": "SORS",
+      "title": "All SORs filter, Filters menu, live register",
+      "impact": "SORS filters by Sale Type, including All SORs and legacy SORs with no Sale Type. The Filters menu is four tidy rows. The register and Board update when someone else moves or edits an SOR.",
       "changes": [
-        "The ITB Number requirement is no longer hardwired. A flow that wants it asks for it as a Stage Field; a flow that does not, does not.",
-        "The register shows a Won total beside open pipeline.",
-        "SORs in a Terminal Stage sort to the bottom rather than sitting among live work."
+        "An All SORs option on the SORS filters and on the Board's flow switcher.",
+        "The Filters popover is laid out in four rows with aligned dropdowns and quick toggles.",
+        "On the Board, All SORs shows a guide with a button per Sales Flow, or a one-click switch to the List.",
+        "The register and Board redraw when another person moves or edits an SOR, without a refresh."
+      ],
+      "issues": [],
+      "sample": "sors-filters",
+      "source": "supplement"
+    },
+    {
+      "id": "open-pipeline",
+      "block": "SORS",
+      "title": "Open pipeline and Won follow the Sales Flow",
+      "impact": "The Open pipeline and Won totals at the top of SORS now follow each Sales Flow's own Stages instead of fixed Stage codes.",
+      "changes": [
+        "The Open pipeline and Won totals in SORS now follow each Sales Flow's actual stages dynamically from the Flow Canvas.",
+        "An SOR is counted under Open pipeline while it is moving through stages before the Won stage. Once it reaches the Won stage or continues to post-award fulfillment stages (like Delivery or Invoicing), it counts toward Won.",
+        "SORs that are closed lost or cancelled are excluded from both totals, ensuring the pipeline accurately reflects active work."
+      ],
+      "issues": [],
+      "sample": "open-pipeline",
+      "source": "changelog"
+    },
+    {
+      "id": "stage-access",
+      "block": "SORS",
+      "title": "Who can open an SOR: Deal Team and Stage access",
+      "impact": "Who can open an SOR now follows the Deal Team, the flow's Always sees list, and people called in to a Stage. Set on the Flow Canvas. Each Stage box shows its audience.",
+      "changes": [
+        "An SOR is readable by its Deal Team (the Closing Salesperson can now open their own SOR) and by whoever the flow names under Always sees. Heads and HR no longer see every SOR automatically unless a flow names them. Super Admins are unaffected.",
+        "A Stage can call people in. An action task, an Assignment condition or day-one registration opens an access window on that Stage for that person, and the window closes by its own rule: the calling Stage is left, a chosen Stage is entered or left, or any Terminal Stage is reached. The Deal Owner or a Super Admin can remove someone early.",
+        "A called-in person sees only what their window covers, with no money on the SOR or its items. Their Journey follows the flow's Journey viewers setting, and a window that has closed stays readable but read-only.",
+        "A Stage can be Restricted: chosen Deal Team roles or Employee Groups are shut out of it, stay shut out after the SOR moves on, and cannot move it. Journey shows a Restricted Stage as one line with no contents.",
+        "The Flow Canvas shows every Stage's audience on the Stage itself - who is called in, who is shut out, or Deal Team only - with an Access tab per Stage, flow-level Access settings, and a View as preview.",
+        "Only a Super Admin can grant the right to edit Sales Flows, since editing a flow now decides who can see an SOR.",
+        "A called-in person's notification opens the SOR, and a Stage Action that calls someone in now sends one notification, not two."
       ],
       "issues": [
-        287,
-        290
+        208,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        297
       ],
-      "demo": null,
+      "sample": "stage-access",
       "source": "supplement"
     },
     {
       "id": "stage-fields",
-      "block": "CRM",
-      "title": "Any Stage can require any field",
-      "impact": "Requirements used to be written in code, which meant every new one was a development request. A Stage now carries its own fields, with its own conditions, edited on the canvas by whoever owns the process.",
+      "block": "SORS",
+      "title": "Stage Fields",
+      "impact": "Each Stage can ask for its own fields, required or optional, set on the Flow Canvas Fields tab. The field is filled in on the SOR while it is on that Stage.",
       "changes": [
         "A Stage Fields tab on the canvas defines what that Stage asks for, who it asks, and when it is required.",
         "Conditions were reworked: a who-picker that resolves to real people, a live preview of what the Stage will look like, and editing a condition without rebuilding it.",
@@ -110,16 +161,37 @@
       "issues": [
         203
       ],
-      "demo": "stage-fields",
+      "sample": "stage-fields",
+      "source": "supplement"
+    },
+    {
+      "id": "flow-canvas-editing",
+      "block": "Flow Canvas",
+      "title": "Flow Canvas: edit a Stage inline",
+      "impact": "On the Flow Canvas, conditions and fields open for editing under the item, with a preview. Each Stage shows how many fields it has. Choice options are one row each.",
+      "changes": [
+        "Editing a condition or a field opens the editor directly below that item instead of jumping to the top of the panel.",
+        "The Fields tab shows a live preview of the field as the SOR will render it: required badge, help text and options.",
+        "Each Stage on the Flow Canvas shows its fields as a column hanging beneath it, with a Required badge, beside its conditions and actions. A Stage with no fields says so.",
+        "Choice field options are built one row at a time - Add option, Enter adds a row, remove per row - instead of typed as a comma-separated line. Duplicates are flagged as you type.",
+        "The registration form builder, and Edit draft without a reason, ship on the same canvas.",
+        "The SOR window and the Flow Canvas work from the keyboard: the Stage ribbon and tabs take arrow keys, Esc cancels an edit, a blocked move states why, and the publish window says how many SORs will be offered a move before you publish."
+      ],
+      "issues": [
+        203
+      ],
+      "sample": "flow-canvas-editing",
       "source": "supplement"
     },
     {
       "id": "blocked-move",
-      "block": "CRM",
-      "title": "A blocked move says so before you click",
-      "impact": "You used to click Move, wait, and get an error telling you what you should have done first. The button now carries its own reason, and a finished checklist looks finished.",
+      "block": "SORS",
+      "title": "Move button says why it is blocked",
+      "impact": "Stages you cannot move to yet are greyed out, and a line under the stage ribbon lists what is missing: each required field and open condition on the current Stage.",
       "changes": [
-        "A Stage move that cannot proceed is disabled and states why, on the button, before the click.",
+        "Destination Stages that are blocked cannot be clicked and are greyed out; hovering one shows why.",
+        "A line under the stage ribbon reads \"Can't move on yet - missing:\" followed by each required field or condition still open.",
+        "The header shows Blocked: N until everything required is answered, then Clear to move.",
         "A checklist with everything answered reads as complete instead of looking half-done.",
         "After a move, the tasks it created and the new Stage's checklist appear without reopening the SOR."
       ],
@@ -127,14 +199,31 @@
         203,
         199
       ],
-      "demo": "blocked-move",
+      "sample": "blocked-move",
+      "source": "supplement"
+    },
+    {
+      "id": "crm-itb-won",
+      "block": "SORS",
+      "title": "ITB Number no longer required by the system; Won total",
+      "impact": "The system no longer requires an ITB Number on every SOR. A flow asks for it as a Stage Field only if it wants it. SORS shows a Won total next to Open pipeline.",
+      "changes": [
+        "The ITB Number requirement is no longer hardwired. A flow that wants it asks for it as a Stage Field; a flow that does not, does not.",
+        "The register shows a Won total beside open pipeline.",
+        "SORs in a Terminal Stage sort to the bottom rather than sitting among live work."
+      ],
+      "issues": [
+        287,
+        290
+      ],
+      "sample": "crm-itb-won",
       "source": "supplement"
     },
     {
       "id": "stage-automation",
       "block": "SOR work",
-      "title": "Stage automation people can actually configure",
-      "impact": "Automated tasks were named after the Stage, so a task list read as a column of identical titles and nobody could tell which SOR each belonged to. Task titles now carry the SOR, optional actions are decided on the SOR instead of in advance, and a Stage can chase its own follow-ups.",
+      "title": "Stage automation: task titles, Optional Actions, follow-ups",
+      "impact": "Automated task titles are templates that name the SOR. Optional Actions are taken or skipped on the SOR. A Stage can have a Follow-up Cadence.",
       "changes": [
         "Task titles are templates with tokens, shown as chips while you write them, so an automated task names the SOR it belongs to.",
         "Optional Actions are offered on the SOR and taken or skipped there, rather than being fixed when the flow was built.",
@@ -143,14 +232,14 @@
       "issues": [
         204
       ],
-      "demo": null,
+      "sample": "stage-automation",
       "source": "supplement"
     },
     {
       "id": "stock-badges",
       "block": "SOR work",
-      "title": "Odoo stock on the SOR line, not in another tab",
-      "impact": "Checking whether something was in stock meant leaving the SOR, opening Odoo, searching the product, and coming back. Free stock now sits on the line item being discussed.",
+      "title": "Odoo stock on Product List lines",
+      "impact": "Each Product List line on an SOR shows Odoo free stock: Available, Partial, Out of stock, Not tracked or Not linked to Odoo. The tab shows when the stock was last checked.",
       "changes": [
         "Each SOR line item shows Odoo free stock as a badge on the line.",
         "The figure is pulled and stamped, so what you are reading has a known age rather than being assumed current."
@@ -158,14 +247,27 @@
       "issues": [
         202
       ],
-      "demo": "stock-badges",
+      "sample": "stock-badges",
       "source": "supplement"
+    },
+    {
+      "id": "offset-approved-hours",
+      "block": "People",
+      "title": "Offset leave: approve fewer hours",
+      "impact": "HR can lower the hours before approving offset leave; it cannot go above the hours requested. The leave lists show requested and approved hours when they differ.",
+      "changes": [
+        "When HR approves offset leave, they can now change the number of hours before approving. It starts at the hours requested and can't go higher.",
+        "Where the approved hours differ from the hours requested, the leave lists show both: the requested hours crossed out, next to the hours approved."
+      ],
+      "issues": [],
+      "sample": "offset-approved-hours",
+      "source": "changelog"
     },
     {
       "id": "employee-groups",
       "block": "People",
-      "title": "Employee Groups, named once and reused",
-      "impact": "Every setting that needed a set of people had its own picker, so the same group was rebuilt by hand in each one and drifted the moment somebody changed team. A group is now named once and always means its current members.",
+      "title": "Employee Groups",
+      "impact": "Settings > Employee Groups: named sets of employees and whole teams, reused by Sales Flow settings. A group always means its current members.",
       "changes": [
         "Super Admins can now set up Employee Groups in Settings: named sets of people made of hand-picked employees and whole teams, so later Sales Flow settings can say who they are about once and reuse it.",
         "A group always means its current members. When someone joins or leaves a team, every group that includes that team follows automatically."
@@ -173,200 +275,321 @@
       "issues": [
         201
       ],
-      "demo": null,
+      "sample": "employee-groups",
       "source": "changelog"
     },
     {
-      "id": "login-password",
-      "block": "Access",
-      "title": "A second way into the portal",
-      "impact": "The only way in was a magic link, so a missing or slow email meant nobody could work. Email and password is now a real second route, and the reset links stopped being spent before the person clicked them.",
+      "id": "layout-preview",
+      "block": "SORS",
+      "title": "The SOR window: pick a layout",
+      "impact": "Eight candidate layouts for the SOR window, switchable from a bar at the bottom of any SOR. Open the demo SOR, try them, and pick one. How an SOR works does not change.",
       "changes": [
-        "Signing in with email and password is now a real, supported route alongside Google — no longer a disabled test form.",
-        "New employees are issued a password when their account is created; a banner reminds you while you're still on it, and it dismisses without blocking anything.",
-        "Change your password anytime from your profile, or reset it from the login page if you've forgotten it — both go through an emailed verification link.",
-        "A Super Admin can reissue a lost first-day password from Employee Management, but only while the employee hasn't yet set their own — after that, it's email verification only."
+        "Staging only: open any SOR and use the Layout preview bar at the bottom of the window to try different layouts for the SOR window.",
+        "Pick one from the menu, use the arrows, or press Shift + Left/Right. Your pick is remembered for every SOR you open.",
+        "Nothing about how an SOR works changes; this is for comparing layouts before one is chosen."
       ],
-      "issues": [
-        162,
-        163,
-        164,
-        165
-      ],
-      "demo": "login",
+      "issues": [],
+      "sample": "layout-preview",
       "source": "changelog"
     },
     {
-      "id": "desktop-notifications",
-      "block": "Access",
-      "title": "Desktop notifications",
-      "impact": "Work that needed someone's attention waited until they happened to open the portal. Four kinds of event now reach the desktop whether or not the tab is in front of them.",
+      "id": "revert-return",
+      "block": "SORS",
+      "title": "Revert to last stage; Resume or Start fresh",
+      "impact": "A move can be taken back one step, even from Closed Lost. Coming back to a Stage asks whether to pick up the earlier work or start again, and tasks from a Stage the SOR has left wait on hold instead of cluttering lists.",
       "changes": [
-        "You can now turn on Desktop Notifications from Settings, so a mention, a task assigned to you, a decision on your request, or an approval waiting on you can reach you even with the portal closed.",
-        "Turn it off again anytime from the same toggle — it only ever asks for permission after you turn it on.",
-        "Everything still shows up in the notification drawer as before; desktop notifications are in addition to that, not a replacement.",
-        "Deleting a notification now actually removes it, instead of coming back on your next visit."
+        "New \"Revert to last stage\" on an SOR takes it back to the stage its last move came from, even with no path drawn back and even from Closed Lost. It's available to whoever made the move, the Deal Owner, or a Super Admin, and goes back one step only.",
+        "If no work was done on the stage being left, Revert simply undoes the move. If work was done, you choose Keep progress (it's saved for when the SOR comes back) or Remove progress (it's closed off but stays on the SOR's history).",
+        "Reverting out of the Won stage clears the Contract Date that move set, and anyone the move notified is told to disregard it.",
+        "Moving an SOR back to a stage it has been on before now asks: Resume previous work, or Start fresh.",
+        "Tasks from a stage the SOR has left go on hold and drop off everyone's list until the SOR returns. Operations can mark a Stage Action to carry on past its stage instead."
       ],
       "issues": [
-        166,
-        167,
-        168,
-        169
+        386,
+        387,
+        388,
+        389,
+        390,
+        391,
+        392,
+        393
       ],
-      "demo": null,
+      "sample": "revert-return",
+      "source": "changelog"
+    },
+    {
+      "id": "always-access",
+      "block": "SORS",
+      "title": "Always sees: Everyone · Always edits · Legacy Pipeline open",
+      "impact": "Each Sales Flow says who always sees its SORs, now including Everyone, and who always edits them. Legacy Pipeline is open to everyone, as before Sales Flows; Government and Outright stay private.",
+      "changes": [
+        "Always sees and Journey viewers can be set to Everyone, and the Flow Canvas shows it on every Stage's audience.",
+        "New Always edits list per flow: the people named there can edit every SOR of that Sale Type, the way the Deal Team can.",
+        "Legacy Pipeline's Always sees and Always edits are both Everyone, so the SORs registered before Sales Flows behave as they always did.",
+        "The SOR window asks the database whether you can edit, so the Edit button and what the database allows always agree.",
+        "Every employee can edit the Flow Canvas again; saving a Stage no longer fails with a database permission error."
+      ],
+      "issues": [
+        377,
+        378,
+        379,
+        381,
+        382
+      ],
+      "sample": "always-access",
+      "source": "supplement"
+    },
+    {
+      "id": "settings-tabs",
+      "block": "Settings & Tasks",
+      "title": "Settings in tabs, saved task filters",
+      "impact": "Settings is six tabs, and you only see the ones you can use. Leave categories moved into Settings. On Tasks, Save filters as default remembers every filter.",
+      "changes": [
+        "Settings is split into tabs: General, Approval Rules, HR & Schedule, Sales Configuration, Employee Groups and System Announcements. You only see the tabs you can use.",
+        "Leave categories are managed in Settings, under HR & Schedule. HR Management has a card that takes you there.",
+        "Changing an approval rule takes effect in open approval queues straight away, with no page reload.",
+        "On Tasks, \"Save filters as default\" remembers every filter, not just SORS.",
+        "On Tasks and Group Tasks the button reads \"Default saved\" once saved, or \"Update default\" if the filters changed since.",
+        "Task windows lead with the title and description, then the task itself.",
+        "The Commission Pool card in Settings opens with the keyboard."
+      ],
+      "issues": [
+        369,
+        372,
+        373,
+        376
+      ],
+      "sample": "settings-tabs",
+      "source": "supplement"
+    },
+    {
+      "id": "sors-header",
+      "block": "SORS",
+      "title": "One-row SORS header, floating Register button",
+      "impact": "Search and figures on the left, view tabs and Filters on the right, all on one row that no longer shifts when you switch views. Register SOR is a floating button at the bottom right.",
+      "changes": [
+        "The SORS header is now a single row: search and results on the left, view tabs and Filters on the right, so switching views no longer moves them.",
+        "Search and the SOR count, Open and Won figures appear on List and Board only. Figures are shortened (e.g. ₱353.7M); hover for the exact amount.",
+        "The Filters button shows how many filters are on. On Overview and Deleted it stays in place, greyed out.",
+        "Register is now a floating button at the bottom-right, clear of the environment banner.",
+        "On phones, the view tabs and Filters show icons only."
+      ],
+      "issues": [],
+      "sample": "sors-header",
+      "source": "changelog"
+    },
+    {
+      "id": "consistent-look",
+      "block": "Whole app",
+      "title": "One consistent look",
+      "impact": "Pick-lists, form fields, tables, pop-ups and side panels look and behave the same on every screen, with keyboard support everywhere.",
+      "changes": [
+        "Dropdown pickers, form fields, tables, pop-up windows and side panels now look and behave the same on every screen, so the app feels like one product instead of a mix of one-off designs.",
+        "Pick-lists that used the browser's plain dropdown (filters, page size, employee and offset forms) now use the app's own dropdown, with keyboard support, and still work inside the Filters menu.",
+        "Pop-up windows, the notifications panel and the mobile menu now open and close smoothly, and close the same way everywhere: press Escape or click outside.",
+        "Tables in SORS, Purchasing, HR, Offsets and Group Tasks share one look, and the login and reset-password buttons now match the rest of the app."
+      ],
+      "issues": [
+        341,
+        344,
+        345,
+        346,
+        347,
+        348,
+        349,
+        350,
+        351,
+        352,
+        353,
+        354,
+        355,
+        356,
+        357,
+        359,
+        360,
+        361,
+        362,
+        363,
+        364,
+        365,
+        366,
+        367
+      ],
+      "sample": "consistent-look",
       "source": "changelog"
     }
   ],
   "underTheHood": {
-    "summary": "Correctness, safety and housekeeping. None of it changes a screen, all of it changes whether the screens can be trusted.",
+    "summary": "Fixes you would only notice by their absence. Each one shows the same screen before and after.",
     "items": [
-      {
-        "title": "An employee can no longer approve their own overtime or leave, or credit their own balance - the database refuses it now, not the screen",
-        "issues": [
-          180
-        ]
-      },
-      {
-        "title": "The migration set is append-only, and the rule is enforced rather than remembered",
-        "issues": [
-          184
-        ]
-      },
-      {
-        "title": "A password reset link is no longer spent before the person clicks it",
-        "issues": []
-      },
-      {
-        "title": "Locking a flow is one atomic write instead of two, so a failed lock no longer bricks the flow",
-        "issues": [
-          181
-        ]
-      },
       {
         "title": "Saving one field from a Stage Checklist changes only that field - it used to overwrite the rest of the SOR, including the Deal Team, dates and Product List",
         "issues": [
           199
-        ]
-      },
-      {
-        "title": "Open pipeline is judged by Contract Date and Terminal Stage, so won and lost SORs no longer inflate it",
-        "issues": [
-          199
-        ]
+        ],
+        "sample": null
       },
       {
         "title": "Tasks created for an SOR link back to it from both the task and Group Task windows",
         "issues": [
           199
-        ]
+        ],
+        "sample": null
       },
       {
-        "title": "Retail orders are marked as retail and kept out of the pipeline",
-        "issues": [
-          170,
-          171,
-          172,
-          173,
-          174
-        ]
+        "title": "Three bugs blocking Individual Task Stage Actions fixed, and Assign To now shows when adding an Individual Task automation",
+        "issues": [],
+        "sample": null
       },
       {
-        "title": "Group Task Tags, and a CRM filter on both Tasks and Group Tasks",
+        "title": "Group Task Tags, and a SORS filter on both Tasks and Group Tasks",
         "issues": [
           205
-        ]
+        ],
+        "sample": null
       },
       {
-        "title": "Scattered configuration was consolidated into Settings, gated the same way",
+        "title": "Stage Visit and Stage Participant reads are narrowed to people who can open the SOR, and a called-in person can read the SOR's member list",
         "issues": [
-          177
-        ]
+          327
+        ],
+        "sample": null
       },
       {
-        "title": "Any employee can start a Group Task",
-        "issues": [
-          176
-        ]
+        "title": "A notification is written in the app even when the push send fails",
+        "issues": [],
+        "sample": null
       },
       {
-        "title": "HR: Undertime on TG-13, Leaves and Overtime merged into one My Requests list, one signature band on every form, and a Super Admin can edit the working week",
-        "issues": [
-          146,
-          152,
-          153,
-          158
-        ]
+        "title": "Nested pickers close correctly: nothing could be selected inside the Flow Canvas View as and Access settings popovers",
+        "issues": [],
+        "sample": null
       },
       {
-        "title": "One bracket-grouping rule for every brace, so the canvas and the SOR modal stop disagreeing",
+        "title": "Approved offset hours are part of the atomic group decision: capped at the hours requested, spread across the days in proportion, and refunded on undo or withdraw",
         "issues": [
-          182
-        ]
+          328
+        ],
+        "sample": null
       },
       {
-        "title": "Mention notifications open the chat the mention was made in, at the message",
+        "title": "The six Quota tables are archived before they are dropped",
         "issues": [
-          200
-        ]
+          329
+        ],
+        "sample": null
       },
       {
-        "title": "Toasts stay clickable inside the SOR modal",
+        "title": "Historical SORs get a Legacy Pipeline backfill that also sets each SOR's current Stage, and Sales Flows transfer between environments by script",
         "issues": [
-          175
-        ]
+          330,
+          331
+        ],
+        "sample": null
       },
       {
-        "title": "Deprecated Quota System tables dropped, and the seed now covers every migrated table or names why not",
+        "title": "Production's migration ledger is checked as a hard gate before any push, prod is caught up to the baseline it claims, and the whole cutover is rehearsed twice against a throwaway copy of prod",
         "issues": [
-          179
-        ]
+          332,
+          335,
+          336
+        ],
+        "sample": null
+      },
+      {
+        "title": "Edge functions deploy from a manually triggered workflow, and the cutover has a written runbook",
+        "issues": [
+          333,
+          335
+        ],
+        "sample": null
+      },
+      {
+        "title": "The test suite runs faster: scoped preflight, per-environment projects, no delay in simulated typing",
+        "issues": [
+          315
+        ],
+        "sample": null
+      },
+      {
+        "title": "The seed resyncs its identity sequences after a restore and covers every migrated table or names why not",
+        "issues": [],
+        "sample": null
+      },
+      {
+        "title": "The local dev login keeps its magic user and fills itself in",
+        "issues": [],
+        "sample": null
+      },
+      {
+        "title": "An SOR's Product List, and its Estimated Value, could double",
+        "issues": [],
+        "sample": "product-list-doubling"
+      },
+      {
+        "title": "Opening an SOR no longer logs a false \"Added product(s)\"",
+        "issues": [],
+        "sample": "spurious-added-products"
+      },
+      {
+        "title": "An SOR on a Sales Flow's Closed Lost leaves the commission pool",
+        "issues": [],
+        "sample": "lost-commission-pool"
+      },
+      {
+        "title": "Registering an SOR no longer asks for the first Stage's assignments",
+        "issues": [],
+        "sample": "registration-pickers"
+      },
+      {
+        "title": "An empty register shows its empty state on the Board too",
+        "issues": [],
+        "sample": "board-empty-state"
       }
     ]
   },
   "roadmap": {
     "phases": [
       {
-        "name": "Finish CRM",
+        "name": "Finish SORS",
         "epics": [
           {
             "number": 206,
-            "title": "CRM register",
+            "title": "SORS register",
             "unlocks": "The register stops being a list and becomes the place the commercial process is run from.",
             "total": 5,
-            "done": 4,
-            "open": [
-              289
-            ],
+            "done": 5,
+            "open": [],
             "tickets": [
               {
                 "number": 286,
-                "title": "CRM rename + full-width layout",
-                "open": true,
-                "shipped": true
+                "title": null,
+                "open": false,
+                "shipped": false
               },
               {
                 "number": 287,
-                "title": "Register totals: Open pipeline + Won, Terminal-Stage sort",
-                "open": true,
-                "shipped": true
+                "title": null,
+                "open": false,
+                "shipped": false
               },
               {
                 "number": 288,
-                "title": "Board redesign: per-Sale-Type columns with drag-and-drop moves",
-                "open": true,
-                "shipped": true
+                "title": null,
+                "open": false,
+                "shipped": false
               },
               {
                 "number": 289,
-                "title": "Deleted bin: restore + permanent delete",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 290,
-                "title": "ITB gate removal",
-                "open": true,
-                "shipped": true
+                "title": null,
+                "open": false,
+                "shipped": false
               }
             ]
           },
@@ -375,19 +598,13 @@
             "title": "SOR modal organised around the Stage Visit",
             "unlocks": "Opening an SOR shows what this Stage needs now, what already happened, what is being sold, and the conversation, instead of one long form.",
             "total": 6,
-            "done": 1,
-            "open": [
-              297,
-              299,
-              300,
-              301,
-              302
-            ],
+            "done": 6,
+            "open": [],
             "tickets": [
               {
                 "number": 297,
-                "title": "SOR modal access states: full, participant, locked, restricted",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
@@ -398,26 +615,26 @@
               },
               {
                 "number": 299,
-                "title": "SOR modal: Now tab redesign (conditions, Stage Fields, Optional Actions, task rows, follow-up)",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 300,
-                "title": "SOR modal: Journey tab (getJourney service, journeyRows, tab UI)",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 301,
-                "title": "SOR modal: Items tab (Product List, search, sticky header, stock badges)",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 302,
-                "title": "SOR modal: Details tab (fields, Deal Team, Expected Value, commission)",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               }
             ]
@@ -427,51 +644,154 @@
             "title": "Stage-scoped SOR visibility",
             "unlocks": "A purchaser or engineer called into one Stage sees that Stage and nothing else, and some Stages can be closed to some of the Deal Team. Enforced by the database (ADR 0021).",
             "total": 6,
-            "done": 0,
-            "open": [
-              291,
-              292,
-              293,
-              294,
-              295,
-              296
-            ],
+            "done": 6,
+            "open": [],
             "tickets": [
               {
                 "number": 291,
-                "title": "Flow editor capability",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 292,
-                "title": "Access configuration: flow-level settings and Canvas Access tab",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 293,
-                "title": "Deal Team cutover on SOR reads",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 294,
-                "title": "Stage Participant windows: call-ins, closing, and day-one registration",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 295,
-                "title": "Visit-scoped reads and participant-safe SOR record",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
               },
               {
                 "number": 296,
-                "title": "Restricted Stages",
-                "open": true,
+                "title": null,
+                "open": false,
                 "shipped": false
+              }
+            ]
+          },
+          {
+            "number": 384,
+            "title": "Revert to last stage, and Resume or Start fresh on a Return",
+            "unlocks": "A wrong move can be taken back, and a Stage visited twice asks what to do with the work already done there.",
+            "total": 9,
+            "done": 9,
+            "open": [],
+            "tickets": [
+              {
+                "number": 386,
+                "title": null,
+                "open": false,
+                "shipped": false
+              },
+              {
+                "number": 387,
+                "title": null,
+                "open": false,
+                "shipped": false
+              },
+              {
+                "number": 388,
+                "title": null,
+                "open": false,
+                "shipped": false
+              },
+              {
+                "number": 389,
+                "title": null,
+                "open": false,
+                "shipped": false
+              },
+              {
+                "number": 390,
+                "title": null,
+                "open": false,
+                "shipped": false
+              },
+              {
+                "number": 391,
+                "title": null,
+                "open": false,
+                "shipped": false
+              },
+              {
+                "number": 392,
+                "title": null,
+                "open": false,
+                "shipped": false
+              },
+              {
+                "number": 393,
+                "title": null,
+                "open": false,
+                "shipped": false
+              },
+              {
+                "number": 401,
+                "title": "Staging QA: Revert, Return and tasks on hold (#384)",
+                "open": true,
+                "shipped": true
+              }
+            ]
+          },
+          {
+            "number": 394,
+            "title": "SOR History shows each visit's whole Stage Work",
+            "unlocks": "Every pass through a Stage keeps its evidence, fields, follow-ups, actions and tasks, readable after the SOR moves on.",
+            "total": 6,
+            "done": 6,
+            "open": [],
+            "tickets": [
+              {
+                "number": 395,
+                "title": "History: rename the Journey tab",
+                "open": true,
+                "shipped": true
+              },
+              {
+                "number": 396,
+                "title": "Held and cancelled tasks open read-only",
+                "open": true,
+                "shipped": true
+              },
+              {
+                "number": 397,
+                "title": "History: past visit shows condition evidence, Stage fields and follow-ups",
+                "open": true,
+                "shipped": true
+              },
+              {
+                "number": 398,
+                "title": "History: past visit shows what each Stage Action did, and its tasks open",
+                "open": true,
+                "shipped": true
+              },
+              {
+                "number": 399,
+                "title": "Activity: a created task shows as a task card",
+                "open": true,
+                "shipped": true
+              },
+              {
+                "number": 400,
+                "title": "History: closed-off work is marked and says why",
+                "open": true,
+                "shipped": true
               }
             ]
           }
@@ -902,11 +1222,31 @@
         ]
       }
     ],
-    "epicCount": 9,
-    "ticketCount": 66,
-    "openCount": 73,
-    "openTicketCount": 61,
-    "unassigned": []
+    "epicCount": 11,
+    "ticketCount": 81,
+    "openCount": 64,
+    "openTicketCount": 49,
+    "unassigned": [
+      413,
+      412,
+      411,
+      409,
+      408,
+      407,
+      406,
+      405,
+      404,
+      324,
+      323,
+      322,
+      321,
+      320,
+      319,
+      318,
+      317,
+      316,
+      315
+    ]
   },
   "prototypes": [
     {

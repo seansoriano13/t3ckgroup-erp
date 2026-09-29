@@ -79,11 +79,11 @@ describe("getPermissionContext", () => {
 });
 
 describe("isNavEntryVisible", () => {
-  const permittedEntry = { key: "sales.sorCrm", isPermitted: () => true };
+  const permittedEntry = { key: "sales.sors", isPermitted: () => true };
   const deniedEntry = { key: "admin.systemAdmin", isPermitted: () => false };
 
   it("hides an entry the flags permit when the override names it", () => {
-    const ctx = getPermissionContext({ hiddenNavKeys: ["sales.sorCrm"] });
+    const ctx = getPermissionContext({ hiddenNavKeys: ["sales.sors"] });
     expect(isNavEntryVisible(ctx, permittedEntry)).toBe(false);
   });
 

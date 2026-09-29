@@ -1,3 +1,4 @@
+import { Input } from "@/components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import toast from "react-hot-toast";
@@ -6,9 +7,9 @@ import { redeemRecoveryToken } from "../../lib/recoveryToken";
 import { markRecoveryActive, clearRecoveryActive } from "../../lib/recoveryFlag";
 import { readRecoveryParams } from "../../lib/recoveryLink";
 import { passwordService } from "../../services/passwordService";
-import PrimaryButton from "../../components/PrimaryButton";
+import { Button } from "../../components/ui/button";
 import Spinner from "@/components/ui/Spinner";
-import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Where the password-reset email link lands.
@@ -291,12 +292,10 @@ export default function ResetPassword() {
         </div>
 
         <div className="grid gap-2">
-          <label htmlFor="new-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-            New Password
-          </label>
-          <input
+          <FieldBox label="New Password" htmlFor="new-password" />
+          <Input
             id="new-password"
-            className={`${INPUT_STYLE} cursor-text`}
+            className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
             type="password"
             autoComplete="new-password"
             value={password}
@@ -305,12 +304,10 @@ export default function ResetPassword() {
         </div>
 
         <div className="grid gap-2">
-          <label htmlFor="confirm-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-            Confirm Password
-          </label>
-          <input
+          <FieldBox label="Confirm Password" htmlFor="confirm-password" />
+          <Input
             id="confirm-password"
-            className={`${INPUT_STYLE} cursor-text`}
+            className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
             type="password"
             autoComplete="new-password"
             value={confirmPassword}
@@ -318,10 +315,9 @@ export default function ResetPassword() {
           />
         </div>
 
-        <PrimaryButton
-          label={isSubmitting ? "Saving..." : "Save Password"}
-          className={`w-full ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
-        />
+        <Button type="submit" className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}>
+{isSubmitting ? "Saving..." : "Save Password"}
+</Button>
       </form>
     </div>
   );

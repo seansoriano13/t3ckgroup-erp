@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Archive, RotateCcw, Plus } from "lucide-react";
+import { SelectField } from "@/components/ui/SelectField";
 
 // Super Admins and heads manage the one shared vocabulary Group Tasks tag
 // from (issue #205). Archiving, not deleting, so history on already-tagged
@@ -72,17 +73,11 @@ export default function ManageTagsModal({ isOpen, onClose, userId }) {
             placeholder="New tag name"
             className="flex-1"
           />
-          <select
+          <SelectField
             value={newColor}
-            onChange={(e) => setNewColor(e.target.value)}
-            className="border border-border rounded-md px-2 text-sm"
-          >
-            {TASK_TAG_COLORS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            onChange={setNewColor}
+            options={TASK_TAG_COLORS.map((c) => ({ value: c, label: c }))}
+          />
           <Button
             type="button"
             disabled={!newName.trim() || createMutation.isPending}
@@ -99,45 +94,44 @@ export default function ManageTagsModal({ isOpen, onClose, userId }) {
               className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${tag.archived_at ? "opacity-50" : ""}`}
             >
               <span className={`h-3 w-3 rounded-full shrink-0 ${taskTagClasses(tag.color)}`} />
-              <input
+              <Input
                 defaultValue={tag.name}
                 disabled={!!tag.archived_at}
                 onBlur={(e) => {
                   const name = e.target.value.trim();
                   if (name && name !== tag.name) renameMutation.mutate({ id: tag.id, name });
                 }}
-                className="flex-1 bg-transparent text-sm font-semibold outline-none"
+                containerClassName="flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-semibold outline-none"
               />
-              <select
+              <SelectField
                 value={tag.color}
                 disabled={!!tag.archived_at}
-                onChange={(e) => recolorMutation.mutate({ id: tag.id, color: e.target.value })}
-                className="border border-border rounded-md px-1 text-xs"
-              >
-                {TASK_TAG_COLORS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={(color) => recolorMutation.mutate({ id: tag.id, color })}
+                options={TASK_TAG_COLORS.map((c) => ({ value: c, label: c }))}
+                size="sm"
+              />
               {tag.archived_at ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   title="Restore"
                   onClick={() => restoreMutation.mutate(tag.id)}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <RotateCcw size={14} />
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   title="Archive"
                   onClick={() => archiveMutation.mutate(tag.id)}
                   className="text-muted-foreground hover:text-destructive"
                 >
                   <Archive size={14} />
-                </button>
+                </Button>
               )}
             </div>
           ))}

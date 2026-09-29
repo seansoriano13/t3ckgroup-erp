@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Briefcase } from "lucide-react";
+import { ArrowUpRight, Briefcase } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
+import { Button } from "../ui/button";
 
 /**
  * The link from a task back to the SOR it was created for (issue #199), shared
@@ -24,23 +25,27 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
 
   const open = () => {
     onClose?.();
+    // Quick View, not the full modal — every entry point into an SOR
+    // from a task lands there first, whatever the viewer's access level.
     window.dispatchEvent(
-      new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: opportunityId, type: "OPPORTUNITY" } }),
+      new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: opportunityId, type: "OPPORTUNITY_QUICK_VIEW" } }),
     );
   };
 
   if (variant === "inline") {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={open}
-        className="ml-2 flex items-center gap-1.5 transition-colors hover:text-foreground"
+        className="h-auto ml-2 gap-1.5 p-0 hover:bg-transparent"
       >
         <Briefcase size={14} className="text-muted-foreground" />
         <span className="max-w-[200px] truncate" title={label}>
           Deal: {label}
         </span>
-      </button>
+        <ArrowUpRight size={12} className="text-muted-foreground" />
+      </Button>
     );
   }
 
@@ -49,14 +54,18 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
       <span className="flex items-center gap-1.5 pl-1 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
         <Briefcase size={12} /> Sales Opportunity
       </span>
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={open}
-        className="flex items-center gap-2 rounded-xl border border-border/50 bg-muted px-4 py-3 text-left text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted/70"
+        className="h-auto justify-between gap-2 rounded-xl border border-border/50 bg-muted px-4 py-3 text-left text-sm font-bold text-foreground shadow-sm hover:bg-muted/70"
       >
-        <Briefcase size={14} />
-        {label}
-      </button>
+        <span className="flex items-center gap-2">
+          <Briefcase size={14} />
+          {label}
+        </span>
+        <ArrowUpRight size={14} className="text-muted-foreground" />
+      </Button>
     </div>
   );
 }

@@ -22,6 +22,9 @@ import {
   summariseCompleteness,
 } from "../../constants/projectEvaluation";
 import { REQUEST_UNITS } from "../../constants/procurement";
+import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
+import { SelectField } from "@/components/ui/SelectField";
 
 /**
  * Inclusions (issue #43) — the client's specification, broken out.
@@ -142,7 +145,7 @@ function InclusionRow({
 
         {isEditingCost ? (
           <form onSubmit={submitManualCost} className="mt-1 flex items-center gap-1.5">
-            <input
+            <Input
               autoFocus
               type="number"
               min="0"
@@ -150,40 +153,45 @@ function InclusionRow({
               value={manualAmount}
               onChange={(e) => setManualAmount(e.target.value)}
               placeholder="Manual cost"
-              className="w-28 rounded-md border border-border bg-card px-2 py-0.5 text-[12px] font-semibold text-foreground outline-none focus:border-mauve-8"
+              containerClassName="w-28" className="h-auto rounded-md border border-border bg-card px-2 py-0.5 text-[12px] font-semibold text-foreground outline-none focus:border-mauve-8"
             />
-            <button type="submit" className="text-[11px] font-bold text-primary hover:underline">
+            <Button type="submit" variant="link" className="h-auto p-0 text-[11px]">
               Save
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => setIsEditingCost(false)}
-              className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+              className="h-auto p-0 text-[11px] font-semibold text-muted-foreground hover:bg-transparent hover:text-foreground"
             >
               Cancel
-            </button>
+            </Button>
           </form>
         ) : (
           <p className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
             <CostLine inclusion={inclusion} />
             {canEditCanvass && (
               <>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => onRefreshCost(inclusion.id)}
                   title="Refresh cost"
-                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  className="h-auto w-auto p-0.5 text-muted-foreground opacity-0 hover:bg-transparent hover:text-foreground group-hover:opacity-100"
                 >
                   <RefreshCw size={11} />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => setIsEditingCost(true)}
                   title="Set manual cost"
-                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  className="h-auto w-auto p-0.5 text-muted-foreground opacity-0 hover:bg-transparent hover:text-foreground group-hover:opacity-100"
                 >
                   <Pencil size={11} />
-                </button>
+                </Button>
               </>
             )}
           </p>
@@ -222,15 +230,17 @@ function InclusionRow({
         />
 
         {canEdit && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             onClick={() => onRemove(inclusion)}
             disabled={isPending}
             aria-label={`Remove ${inclusion.description}`}
-            className="rounded-lg p-1 text-muted-foreground opacity-0 transition-all hover:bg-red-a3 hover:text-red-11 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-30"
+            className="text-muted-foreground opacity-0 hover:bg-red-a3 hover:text-red-11 group-hover:opacity-100 focus-visible:opacity-100"
           >
             <Trash2 size={13} />
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -255,50 +265,46 @@ function Composer({ onAdd, onCancel, isPending }) {
       onSubmit={submit}
       className="flex items-center gap-2 rounded-xl border border-dashed border-mauve-7 bg-muted/30 px-3 py-2"
     >
-      <input
+      <Input
         autoFocus
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="What the client asked for…"
-        className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+        containerClassName="min-w-0 flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
       />
-      <input
+      <Input
         type="number"
         min="0"
         step="any"
         value={quantity}
         onChange={(e) => setQuantity(e.target.value)}
         aria-label="Quantity"
-        className="w-16 rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
+        containerClassName="w-16" className="h-auto rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
       />
-      <select
+      <SelectField
         value={unit}
-        onChange={(e) => setUnit(e.target.value)}
+        onChange={setUnit}
         aria-label="Unit"
-        className="rounded-md border border-border bg-card px-2 py-1 text-[13px] font-semibold text-foreground outline-none focus:border-mauve-4"
-      >
-        {REQUEST_UNITS.map((u) => (
-          <option key={u} value={u}>
-            {u}
-          </option>
-        ))}
-      </select>
+        options={REQUEST_UNITS.map((u) => ({ value: u, label: u }))}
+      />
 
-      <button
+      <Button
         type="submit"
         disabled={!description.trim() || isPending}
-        className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground transition-opacity disabled:opacity-40"
+        className="px-3 py-1.5 text-[12px]"
       >
         Add
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-sm"
         onClick={onCancel}
         aria-label="Close"
-        className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+        className="text-muted-foreground"
       >
         <X size={14} />
-      </button>
+      </Button>
     </form>
   );
 }
@@ -311,30 +317,32 @@ function Composer({ onAdd, onCancel, isPending }) {
 function DraftRow({ draft, onChange, onDiscard, isPending }) {
   return (
     <div className="flex items-center gap-2 rounded-xl border border-dashed border-violet-7 bg-violet-a2 px-3 py-2">
-      <input
+      <Input
         value={draft.description}
         onChange={(e) => onChange({ description: e.target.value })}
         aria-label="Imported description"
-        className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none"
+        containerClassName="min-w-0 flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-medium text-foreground outline-none"
       />
-      <input
+      <Input
         type="number"
         min="0"
         step="any"
         value={draft.quantity}
         onChange={(e) => onChange({ quantity: e.target.value })}
         aria-label="Imported quantity"
-        className="w-16 rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
+        containerClassName="w-16" className="h-auto rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
       />
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-sm"
         onClick={onDiscard}
         disabled={isPending}
         aria-label={`Discard ${draft.description}`}
-        className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-red-a3 hover:text-red-11 disabled:opacity-30"
+        className="text-muted-foreground hover:bg-red-a3 hover:text-red-11"
       >
         <X size={14} />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -509,21 +517,24 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
   return (
     <div className="rounded-xl border border-border/50 p-6 space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => setIsFolded(!isFolded)}
-          className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+          className="h-auto gap-1.5 p-0 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:bg-transparent hover:text-foreground"
         >
           <ChevronDown
             size={12}
             className={cn("transition-transform duration-150", isFolded && "-rotate-90")}
           />
           Inclusions
-        </button>
+        </Button>
 
         {canEdit && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={handleImport}
             disabled={!salesReference || isImporting}
             title={
@@ -531,11 +542,11 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
                 ? "Import the order line description(s) from Odoo"
                 : "Bind a Sales Reference first to import from Odoo"
             }
-            className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11px] font-bold text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
+            className="gap-1.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary"
           >
             <Download size={12} />
             {isImporting ? "Importing…" : "Import from Odoo"}
-          </button>
+          </Button>
         )}
 
         {/* An untouched breakdown has no percentage, deliberately — "0%" would
@@ -594,22 +605,23 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
                 />
               ))}
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
                   onClick={() => saveDraftsMutation.mutate()}
                   disabled={saveDraftsMutation.isPending}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground transition-opacity disabled:opacity-40"
+                  className="px-3 py-1.5 text-[12px]"
                 >
                   Save imported ({drafts.length})
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setDrafts([])}
                   disabled={saveDraftsMutation.isPending}
-                  className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                  className="h-auto p-0 text-[11px] font-semibold text-muted-foreground hover:bg-transparent hover:text-foreground"
                 >
                   Discard all
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -661,13 +673,14 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
           )}
 
           {canEdit && !isComposing && (
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setIsComposing(true)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              className="h-auto w-full gap-1.5 rounded-xl border-dashed py-2 text-[12px] text-muted-foreground hover:border-primary hover:bg-primary/5 hover:text-primary"
             >
               <Plus size={14} /> Add Inclusion
-            </button>
+            </Button>
           )}
         </>
       )}

@@ -1,6 +1,8 @@
 import React, { useState, useRef } from "react";
 import { Plus, X, GripVertical, FolderPlus, Trash2 } from "lucide-react";
 import { parseChecklistGroups } from "../utils/checklist";
+import { Button } from "./ui/button";
+import { Input } from "@/components/ui/input";
 
 let idCounter = 0;
 function createLocalId(prefix) {
@@ -278,7 +280,7 @@ export default function ChecklistTaskInput({
                 <span className="w-5 h-5 rounded-md bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
                   {gIdx + 1}
                 </span>
-                <input
+                <Input
                   type="text"
                   data-section-title="true"
                   value={group.title}
@@ -295,19 +297,21 @@ export default function ChecklistTaskInput({
                     }
                   }}
                   placeholder={`Section title (e.g. Phase ${gIdx + 1})...`}
-                  className="bg-transparent border-none outline-none text-xs font-bold text-foreground placeholder:text-muted-foreground/60 w-full"
+                  containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-xs font-bold text-foreground placeholder:text-muted-foreground/60"
                 />
               </div>
 
               {groups.length > 1 && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => removeSection(gIdx)}
                   title="Remove section"
-                  className="text-muted-foreground/60 hover:text-destructive p-1 rounded hover:bg-destructive/10 transition-colors"
+                  className="h-auto w-auto text-muted-foreground/60 hover:text-destructive p-1 rounded hover:bg-destructive/10 transition-colors"
                 >
                   <Trash2 size={13} />
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -333,7 +337,7 @@ export default function ChecklistTaskInput({
 
                 <div className="w-4 h-4 border border-border rounded shrink-0 bg-background/80" />
 
-                <input
+                <Input
                   type="text"
                   data-item-input="true"
                   value={item.text}
@@ -384,16 +388,18 @@ export default function ChecklistTaskInput({
                     }
                   }}
                   placeholder="List detailed condition..."
-                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-foreground font-medium text-xs py-1 placeholder:text-muted-foreground transition-all"
+                  containerClassName="flex-1 min-w-0" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-foreground font-medium text-xs py-1 placeholder:text-muted-foreground transition-all"
                 />
 
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => removeItem(gIdx, iIdx)}
-                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0 p-1 rounded hover:bg-destructive/10"
+                  className="h-auto w-auto text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0 p-1 rounded hover:bg-destructive/10"
                 >
                   <X size={14} />
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -401,13 +407,14 @@ export default function ChecklistTaskInput({
           {/* Add item button for this section */}
           {isMultiGroup && (
             <div className="pt-1">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => addItem(gIdx)}
-                className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-all py-1 px-2 rounded-lg hover:bg-muted/60"
+                className="h-auto flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-all py-1 px-2 rounded-lg hover:bg-muted/60"
               >
                 <Plus size={13} /> Add item to this section
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -416,25 +423,27 @@ export default function ChecklistTaskInput({
       {/* Footer Controls: Add Item (for flat) & Add Section */}
       <div className="pt-2 flex items-center justify-between gap-2 border-t border-border/30">
         {!isMultiGroup ? (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => addItem(0)}
-            className="flex items-center gap-1.5 text-xs font-bold text-foreground transition-all py-1.5 px-3 rounded-lg hover:bg-muted"
+            className="h-auto flex items-center gap-1.5 text-xs font-bold text-foreground transition-all py-1.5 px-3 rounded-lg hover:bg-muted"
           >
             <Plus size={15} /> Add Item
-          </button>
+          </Button>
         ) : (
           <div />
         )}
 
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={addSection}
-          className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all py-1.5 px-3 rounded-lg hover:bg-muted"
+          className="h-auto flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all py-1.5 px-3 rounded-lg hover:bg-muted"
         >
           <FolderPlus size={14} />
           <span>{isMultiGroup ? "Add Another Section" : "Add Section / Steps"}</span>
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -22,6 +22,7 @@
  * Usage:
  *   pnpm db:ledger:check staging
  *   pnpm db:ledger:check prod
+ *   pnpm db:ledger:check prod --include-all   (tolerate out-of-order pending)
  *
  * Reads STAGING_DB_URL / PROD_DB_URL from .env.local (or from the environment
  * in CI) — the same read-only connection scripts/db-snapshot.mjs uses.
@@ -41,6 +42,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
 
 const target = process.argv[2];
+const includeAll = process.argv.includes('--include-all');
 if (!['prod', 'staging'].includes(target)) {
   console.error('Usage: node scripts/db-ledger-check.mjs <prod|staging>');
   process.exit(1);
@@ -78,7 +80,7 @@ const files = readdirSync(join(repoRoot, 'supabase', 'migrations'));
 // back past what the remote has already recorded without --include-all. A
 // pending file that sorts before the tip is the "my timestamp is too early"
 // trap — the remedy is a NEW file with a current timestamp, never a rename.
-const { orphans, pending, outOfOrder, remoteTip, fileCount, ok } = analyzeLedger({ ledger, files });
+const { orphans, pending, outOfOrder, remoteTip, fileCount, ok } = analyzeLedger({ ledger, files, includeAll });
 
 const bold = (s) => `[1m${s}[0m`;
 console.log(`\n${bold(`Migration ledger — ${target}`)} (${projectRef})\n`);

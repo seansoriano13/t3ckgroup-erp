@@ -37,12 +37,14 @@ vi.mock("../services/opportunityService", () => ({
     getLockedSummary: vi.fn(async () => null),
     getItems: vi.fn(async () => []),
     getNotes: vi.fn(async () => []),
+    getStageChecklist: vi.fn(async () => []),
   },
 }));
 
 vi.mock("../services/taskService", () => ({
   taskService: {
     getTaskById: vi.fn(async () => null),
+    getMyOpenTasksForOpportunity: vi.fn(async () => []),
   },
 }));
 
@@ -94,6 +96,31 @@ describe("GlobalDetailManager", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Acme CCTV Rollout")).toBeInTheDocument();
+      expect(screen.getByText("Acme Corp")).toBeInTheDocument();
+    });
+  });
+
+  it("opens Quick View, not the full modal, when OPEN_ENTITY_DETAILS is fired with type OPPORTUNITY_QUICK_VIEW", async () => {
+    renderWithProviders(<GlobalDetailManager />);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("OPEN_ENTITY_DETAILS", {
+          detail: { id: "opp-123", type: "OPPORTUNITY_QUICK_VIEW" },
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("S01234")).toBeInTheDocument();
+      expect(screen.getByText("Acme CCTV Rollout")).toBeInTheDocument();
+    });
+    // The full modal's expected-value field never renders in Quick View.
+    expect(screen.queryByText("500000")).not.toBeInTheDocument();
+
+    screen.getByRole("button", { name: "View Full Details" }).click();
+
+    await waitFor(() => {
       expect(screen.getByText("Acme Corp")).toBeInTheDocument();
     });
   });

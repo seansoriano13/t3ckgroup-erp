@@ -5,16 +5,21 @@ import TaskHeader from "./TaskHeader"
 import ManagementSection from "./ManagementSection"
 import StandardDetailsSection from "./StandardDetailsSection"
 import TaskBodySection from "./TaskBodySection"
+import TaskMetaDetails from "./TaskMetaDetails"
 import ProcurementResolutionPanel from "./ProcurementResolutionPanel"
 import TaskEvaluationSection from "./TaskEvaluationSection"
 import TaskActivityTimeline from "./TaskActivityTimeline"
 import { formatDate, toLocalDatetimeString } from "../utils/formatDate"
-import { isCategoryMetadataRemarks } from "../utils/taskFormatters"
+import {
+  extractOthersDetailsFromRemarks,
+  isCategoryMetadataRemarks,
+} from "../utils/taskFormatters"
 import { PencilLine, AlertTriangle, Columns2, Maximize2 } from "lucide-react"
 import TaskFooter from "./TaskFooter.jsx"
+import ReadOnlyTaskBanner from "./ReadOnlyTaskBanner"
+import { isTaskClosedOff } from "../constants/journey"
 import { TASK_STATUS } from "../constants/status.js"
 import { useQuery } from "@tanstack/react-query"
-import { supabase } from "../lib/supabase.js"
 import { toast } from "react-hot-toast"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import { activeChatService } from "../services/tasks/activeChatService"
@@ -22,7 +27,9 @@ import { taskQueryService } from "@/services/tasks/taskQueryService"
 import { purchasingService } from "@/services/purchasingService"
 import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { useAppSettings } from "@/hooks/useAppSettings"
 import { cn } from "@/lib/utils"
+import { Button } from "./ui/button"
 
 export default function TaskDetails({
   isOpen,
@@ -43,14 +50,7 @@ export default function TaskDetails({
     return false
   })
 
-  const { data: appSettings } = useQuery({
-    queryKey: ["appSettings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings").select("*").single()
-      return data
-    },
-    staleTime: 5 * 60 * 1000, // 5 mins — setting rarely changes
-  })
+  const { settings: appSettings } = useAppSettings()
 
   const [approvalGrade, setApprovalGrade] = useState(null)
   const [editGrade, setEditGrade] = useState(null)
@@ -167,7 +167,18 @@ export default function TaskDetails({
   const isManagement = isHr || isHead
   const isSuperAdmin =
     user?.is_super_admin === true || user?.isSuperAdmin === true
-  const canEvaluate = isHead || isSuperAdmin
+
+  // A task on hold or cancelled is a frozen record: it opens for reading
+  // (including its chat) but nothing on it can move — no edits, no
+  // approve/reject/verify, no delete. See issue #396.
+  // Closed-off individual tasks are stored DELETED with a cancel_reason
+  // (tasks.status has no CANCELLED), so the reason is what marks them.
+  const isClosedOff = isTaskClosedOff(task)
+  const isReadOnly =
+    task?.status === TASK_STATUS.ON_HOLD ||
+    task?.status === TASK_STATUS.CANCELLED ||
+    isClosedOff
+  const canEvaluate = !isReadOnly && (isHead || isSuperAdmin)
 
   // Re-evaluation: head is editing a task already approved but not yet HR-verified.
   const canReEvalGrade =
@@ -187,12 +198,13 @@ export default function TaskDetails({
   // Reset states when closed
   useEffect(() => {
     if (!isOpen) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setIsEditing(false)
         setIsSubmitting(false)
         setIsExpanded(false)
         setIsSplitScreen(typeof window !== "undefined" && window.innerWidth >= 1024)
       }, 300)
+      return () => clearTimeout(timer)
     }
   }, [isOpen])
 
@@ -208,11 +220,12 @@ export default function TaskDetails({
   const isHrRejected =
     task.status === TASK_STATUS.NOT_APPROVED && (task.grade ?? 0) > 0
   const canEdit =
-    isHr ||
-    isHead ||
-    (isOwner &&
-      task.status !== TASK_STATUS.COMPLETE &&
-      task.status !== TASK_STATUS.AWAITING_APPROVAL)
+    !isReadOnly &&
+    (isHr ||
+      isHead ||
+      (isOwner &&
+        task.status !== TASK_STATUS.COMPLETE &&
+        task.status !== TASK_STATUS.AWAITING_APPROVAL))
 
   // Checklist detection — now uses the dedicated checklist field
   let hasChecklist = false
@@ -251,6 +264,19 @@ export default function TaskDetails({
     selectedCategoryObj?.category_id?.toUpperCase().includes("OTHERS") ||
     selectedCategoryObj?.description?.toUpperCase().includes("OTHERS")
 
+  // An Individual Task has no title of its own (CONTEXT.md): its Project /
+  // Campaign Title stands in, then its Category.
+  const categoryLabel =
+    extractOthersDetailsFromRemarks(task?.remarks) ||
+    topologyData?.filteredCategories?.find(
+      (c) => c.category_id === task?.categoryId,
+    )?.description ||
+    activeTask?.categoryDesc ||
+    "Unknown Category"
+  const taskTitle =
+    formData.projectTitle?.trim() ||
+    (task?.categoryId ? categoryLabel : "Task Details")
+
   const isComplete = task.status === TASK_STATUS.COMPLETE
 
   const hasUndeliveredProcurement =
@@ -269,6 +295,7 @@ export default function TaskDetails({
     : task?.remarks
 
   const handleToggleEdit = () => {
+    if (isReadOnly) return
     setIsEditing(true)
   }
 
@@ -293,6 +320,9 @@ export default function TaskDetails({
     setFormData({ ...formData, loggedById: e.target.value, categoryId: "" })
 
   const executeUpdate = async (payload, silent = false) => {
+    // Belt-and-braces: every mutation flows through here, so a held/cancelled
+    // task cannot change even if some control slipped past its own gating.
+    if (isReadOnly) return
     if (!silent) setIsSubmitting(true)
     const toastId = !silent ? toast.loading("Processing...") : undefined
     try {
@@ -393,7 +423,7 @@ export default function TaskDetails({
   }
 
   const handleKeyDown = (e) => {
-    if (!isOpen || isSubmitting || isEditing) return
+    if (!isOpen || isSubmitting || isEditing || isReadOnly) return
 
     if (
       e.target.tagName === "INPUT" ||
@@ -451,6 +481,7 @@ export default function TaskDetails({
   }
 
   const handleDelete = () => {
+    if (isReadOnly) return
     confirmDeleteToast(
       "Delete Task?",
       "This will permanently remove the task from all active queues and history.",
@@ -495,6 +526,8 @@ export default function TaskDetails({
             <TaskHeader
               isEditing={isEditing}
               isHrVerified={task.hrVerified}
+              title={taskTitle}
+              status={isClosedOff ? TASK_STATUS.CANCELLED : task.status}
               onClose={onClose}
               onOpenChat={
                 !isSplitScreen
@@ -509,8 +542,10 @@ export default function TaskDetails({
               }
               extraButtons={
                 <>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="icon"
                     onClick={() => {
                       setIsSplitScreen((prev) => !prev)
                     }}
@@ -520,30 +555,32 @@ export default function TaskDetails({
                         : "Split Screen (Task + Chat)"
                     }
                     className={cn(
-                      "h-9 w-9 flex items-center justify-center rounded-xl transition-all active:scale-95 border",
+                      "h-9 w-9 rounded-xl transition-all active:scale-95",
                       isSplitScreen
                         ? "text-primary bg-primary/10 border-primary/20 hover:bg-primary/20"
                         : "text-muted-foreground border-transparent hover:bg-muted hover:border-border",
                     )}
                   >
                     <Columns2 size={16} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="icon"
                     onClick={() => {
                       setIsExpanded((prev) => !prev)
                     }}
                     title={isExpanded ? "Collapse" : "Expand"}
-                    className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95 border border-transparent hover:border-border"
+                    className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95 border-transparent hover:border-border"
                   >
                     <Maximize2 size={16} />
-                  </button>
+                  </Button>
                 </>
               }
             />
 
             <div className="p-6 flex-1 overflow-y-auto space-y-6 custom-scrollbar bg-card">
-              {task.status === "DELETED" && (
+              {task.status === "DELETED" && !isClosedOff && (
                 <div className="bg-destructive/5 border border-destructive/30 rounded-xl p-4 flex items-center gap-3 text-destructive shadow-sm mt-0 -mb-4">
                   <div className="bg-red-100 p-2 rounded-lg">
                     <AlertTriangle size={20} className="text-destructive" />
@@ -560,30 +597,44 @@ export default function TaskDetails({
                 </div>
               )}
 
+              {isReadOnly && (
+                <ReadOnlyTaskBanner
+                  held={task.status === TASK_STATUS.ON_HOLD}
+                  heldAt={task.heldAt}
+                  cancelReason={task.cancelReason}
+                />
+              )}
+
               <div className="space-y-4">
-                <ManagementSection
-                  isEditing={isEditing}
-                  isHr={isHr}
-                  isHead={isHead}
-                  task={task}
-                  formData={formData}
-                  taskLoggedByName={task.loggedByName}
-                  reportedToName={task.reportedToName}
-                  topologyData={topologyData}
-                  handlers={{
-                    handleDeptChange,
-                    handleSubDeptChange,
-                    handleAssigneeChange,
-                  }}
-                />
-                <StandardDetailsSection
-                  isEditing={isEditing}
-                  isManagement={isManagement}
-                  formData={formData}
-                  handleChange={handleChange}
-                  topologyData={topologyData}
-                  task={task}
-                />
+                {/* Who/what fields lead only while editing, where they are
+                    controls. In view mode they sit last (TaskMetaDetails). */}
+                {isEditing && (
+                  <>
+                    <ManagementSection
+                      isEditing={isEditing}
+                      isHr={isHr}
+                      isHead={isHead}
+                      task={task}
+                      formData={formData}
+                      taskLoggedByName={task.loggedByName}
+                      reportedToName={task.reportedToName}
+                      topologyData={topologyData}
+                      handlers={{
+                        handleDeptChange,
+                        handleSubDeptChange,
+                        handleAssigneeChange,
+                      }}
+                    />
+                    <StandardDetailsSection
+                      isEditing={isEditing}
+                      isManagement={isManagement}
+                      formData={formData}
+                      handleChange={handleChange}
+                      topologyData={topologyData}
+                      task={task}
+                    />
+                  </>
+                )}
 
                 <TaskBodySection
                   isEditing={isEditing}
@@ -654,6 +705,14 @@ export default function TaskDetails({
                   setApprovalRemarks={setApprovalRemarks}
                   timelineMessageRef={timelineMessageRef}
                 />
+
+                {!isEditing && (
+                  <TaskMetaDetails
+                    task={task}
+                    formData={formData}
+                    categoryLabel={categoryLabel}
+                  />
+                )}
 
                 {/* --- UNIFIED ACTIVITY TIMELINE --- */}
                 {!isEditing && !isSplitScreen && (
@@ -783,8 +842,8 @@ export default function TaskDetails({
               permissions={{
                 canEdit,
                 canEvaluate,
-                isHr,
-                isManagement,
+                isHr: isHr && !isReadOnly,
+                isManagement: isManagement && !isReadOnly,
                 isOwner,
               }}
               state={{

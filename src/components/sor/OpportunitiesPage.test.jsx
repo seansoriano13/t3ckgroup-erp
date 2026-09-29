@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { renderWithProviders, setupUser } from "../../test/support";
-import OpportunitiesPage from "../../pages/crm/index";
+import OpportunitiesPage from "../../pages/sors/index";
 import { opportunityService } from "../../services/opportunityService";
 import { makeFlowSnapshot } from "../../test/factories";
 
@@ -260,7 +260,7 @@ describe("Open Pipeline value", () => {
     wonFlow = row("o-won-flow", "Won flow deal", 20000, { ...flow, flow_stage_id: "stage-delivery", contract_date: "2026-08-10" })
     lostFlow = row("o-lost-flow", "Lost flow deal", 300000, { ...flow, flow_stage_id: "stage-lost" })
     openLegacy = row("o-open-legacy", "Open legacy deal", 4000, { status: "NEGOTIATION" })
-    wonLegacy = row("o-won-legacy", "Won legacy deal", 50000, { status: "NEGOTIATION", contract_date: "2026-08-11" })
+    wonLegacy = row("o-won-legacy", "Won legacy deal", 50000, { status: "AWARDED", contract_date: "2026-08-11" })
     opportunityService.getOpportunities.mockResolvedValue([openFlow, wonFlow, lostFlow, openLegacy, wonLegacy])
   })
 
@@ -328,7 +328,7 @@ describe("default sort sinks Terminal Stage SORs", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Terminal (CLOSED_WON) has the higher serial_no — under the untouched
-    // "No." sort it would render first, but it must sink below the
+    // "SOR" sort it would render first, but it must sink below the
     // still-moving one instead.
     notTerminal = row("o-open", 1, { status: "NEGOTIATION" })
     terminal = row("o-terminal", 2, { status: "CLOSED_WON" })
@@ -364,8 +364,8 @@ describe("default sort sinks Terminal Stage SORs", () => {
     // flips hasExplicitSort. Ascending first (ties the sink's own order),
     // then descending — which the sink would never produce, since it always
     // sinks the terminal SOR regardless of column direction.
-    await user.click(screen.getByText("No."))
-    await user.click(screen.getByText("No."))
+    await user.click(screen.getByText("SOR"))
+    await user.click(screen.getByText("SOR"))
 
     expect(rowOrder()).toEqual(["Company 2", "Company 1"])
   })

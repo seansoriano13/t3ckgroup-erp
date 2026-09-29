@@ -52,7 +52,7 @@ describe('HrLeavesManagerPage', () => {
     );
 
     // Wait for the Pending Requests tab to be available
-    const pendingTab = await screen.findByRole('button', { name: /Pending Requests/i });
+    const pendingTab = await screen.findByRole('tab', { name: /Pending Requests/i });
     await user.click(pendingTab);
 
     // Verify the future request is visible in the pending list
@@ -90,7 +90,7 @@ describe('HrLeavesManagerPage', () => {
       </MemoryRouter>
     );
 
-    const pendingTab = await screen.findByRole('button', { name: /Pending Requests/i });
+    const pendingTab = await screen.findByRole('tab', { name: /Pending Requests/i });
     await user.click(pendingTab);
 
     // Both requests together commit 8 of the 16 hrs, so each row should read
@@ -111,7 +111,7 @@ describe('HrLeavesManagerPage', () => {
       </MemoryRouter>
     );
 
-    const balancesTab = await screen.findByRole('button', { name: /Employee Balances/i });
+    const balancesTab = await screen.findByRole('tab', { name: /Employee Balances/i });
     await user.click(balancesTab);
 
     await waitFor(() => {
@@ -148,7 +148,7 @@ describe('HrLeavesManagerPage', () => {
         </MemoryRouter>
       );
 
-      const documentsTab = await screen.findByRole('button', { name: /Document Center/i });
+      const documentsTab = await screen.findByRole('tab', { name: /Document Center/i });
       await user.click(documentsTab);
 
       const checkbox = await screen.findByRole('checkbox', { name: /Add Printable Employee's OFFSET record to the tray/i });
@@ -186,7 +186,7 @@ describe('HrLeavesManagerPage', () => {
         </MemoryRouter>
       );
 
-      const documentsTab = await screen.findByRole('button', { name: /Document Center/i });
+      const documentsTab = await screen.findByRole('tab', { name: /Document Center/i });
       await user.click(documentsTab);
 
       // Add Beta first, then Alpha — the tray (and so the preview) should
@@ -220,7 +220,7 @@ describe('HrLeavesManagerPage', () => {
         </MemoryRouter>
       );
 
-      const documentsTab = await screen.findByRole('button', { name: /Document Center/i });
+      const documentsTab = await screen.findByRole('tab', { name: /Document Center/i });
       await user.click(documentsTab);
 
       await screen.findByRole('checkbox', { name: /Add Searchable Alpha's OFFSET record to the tray/i });
@@ -246,7 +246,7 @@ describe('HrLeavesManagerPage', () => {
         </MemoryRouter>
       );
 
-      const documentsTab = await screen.findByRole('button', { name: /Document Center/i });
+      const documentsTab = await screen.findByRole('tab', { name: /Document Center/i });
       await user.click(documentsTab);
 
       const checkbox = await screen.findByRole('checkbox', { name: /Add Removable Employee's OVERTIME record to the tray/i });
@@ -272,7 +272,7 @@ describe('HrLeavesManagerPage', () => {
         </MemoryRouter>
       );
 
-      const historyTab = await screen.findByRole('button', { name: /Request History/i });
+      const historyTab = await screen.findByRole('tab', { name: /Request History/i });
       await user.click(historyTab);
 
       const row = await screen.findByText('History Employee');

@@ -36,6 +36,7 @@ export default function HRFilters({
   uniqueSubDepts = [],
   uniqueRoles = [],
   uniqueStatuses = [],
+  extraFilters = null,
 }) {
   const [showAdvanced, setShowAdvanced] = useState(
     deptFilter !== "ALL" ||
@@ -180,12 +181,13 @@ export default function HRFilters({
 
           {/* Clear All */}
           {isAnyFilterActive && (
-            <button
+            <Button
+              variant="ghost"
               onClick={handleClearAll}
-              className="ml-auto xl:ml-2 text-sm text-muted-foreground hover:text-foreground font-semibold px-3 py-2 shrink-0 transition-colors"
+              className="h-auto ml-auto xl:ml-2 text-sm text-muted-foreground hover:text-foreground hover:bg-transparent font-semibold px-3 py-2 shrink-0 transition-colors"
             >
               Clear All
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -307,6 +309,10 @@ export default function HRFilters({
               />
             )}
           </Dropdown>
+
+          {extraFilters && (
+            <div className="flex-1 min-w-[160px]">{extraFilters}</div>
+          )}
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { purchasingService } from "./purchasingService";
 import { notificationService } from "./notificationService";
+import { accessWindowSummary } from "../utils/stageAudience";
 import { sorStageParticipantService } from "./sorStageParticipantService";
 import { pipelineStageService } from "./pipelineStageService";
 import { getCurrentLocalDate } from "../utils/formatDate";
@@ -39,7 +40,16 @@ import {
 import { formatSnapshotVersion } from "../constants/flowVersion";
 import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
-import { visitOwnsTask } from "../constants/journey";
+import {
+  visitOwnsTask,
+  stageFieldRows,
+  stageFollowUpLogs,
+  stageFollowUpReminderCount,
+  stageActionRuns,
+  visitClosedOff,
+} from "../constants/journey";
+import { AVAILABLE_RETURN_CHOICES, RETURN_CHOICE } from "../constants/returnChoice";
+import { REVERT_CHOICE } from "../constants/revertChoice";
 
 /**
  * Decides what `odoo_partner_id` should be after an update.
@@ -260,6 +270,7 @@ function attachmentsFromLog(log) {
     ...a,
     uploadedBy: log.author_id,
     uploadedAt: log.created_at,
+    carriedFromVisitId: log.metadata?.carriedFromVisitId || null,
   }));
 }
 
@@ -314,9 +325,9 @@ async function conditionsByStageFor(stageIds, narrow = (query) => query) {
 // Journey visit's list — in one place, so the two can't drift apart on which
 // columns decide a row's due date, parts done, owner, or Stage Visit.
 const SOR_TASK_COLUMNS =
-  "id, project_title, task_description, status, created_at, end_at, stage_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)";
+  "id, project_title, task_description, status, cancel_reason, created_at, end_at, stage_visit_id, carried_from_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)";
 const SOR_GROUP_TASK_COLUMNS = `
-  id, title, description, status, created_at, due_date, stage_visit_id,
+  id, title, description, status, created_at, due_date, stage_visit_id, carried_from_visit_id,
   creator:employees!committee_tasks_created_by_fkey(id, name, avatar_path),
   members:committee_task_members(
     id, role, custom_role, task_description, status,
@@ -355,34 +366,42 @@ async function currentVisitFor(opportunityId) {
  * this one evidence read with the legacy pipeline's gate and the read-only
  * checklist.
  */
-async function gateEvidenceFor(opportunityId, conditions, { stageVisitId, asOf } = {}) {
-  if (conditions.length === 0) {
+async function gateEvidenceFor(opportunityId, conditions, { stageVisitId, asOf, preloaded } = {}) {
+  if (conditions.length === 0 && !stageVisitId) {
     return { attachments: [], members: [], statusRowsByCondition: {} };
   }
 
   const conditionIds = conditions.map((r) => r.id);
-  let statusQuery = supabase
-    .from("sor_condition_status")
-    .select("*")
-    .eq("opportunity_id", opportunityId)
-    .in("condition_id", conditionIds);
-  // Issue #203, story 28: a tickbox certified on a visit that has since
-  // closed must ask again. Scoped only when a visit is known — a legacy
-  // pipeline deal (no flow Stage, so no visit ever opens for it) keeps the
-  // pre-#203 opportunity-wide read.
-  if (stageVisitId) statusQuery = statusQuery.eq("stage_visit_id", stageVisitId);
+  let statusRows = [];
+  if (conditionIds.length > 0) {
+    let statusQuery = supabase
+      .from("sor_condition_status")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .in("condition_id", conditionIds);
+    // Issue #203, story 28: a tickbox certified on a visit that has since
+    // closed must ask again. Scoped only when a visit is known — a legacy
+    // pipeline deal (no flow Stage, so no visit ever opens for it) keeps the
+    // pre-#203 opportunity-wide read.
+    if (stageVisitId) statusQuery = statusQuery.eq("stage_visit_id", stageVisitId);
+    const { data, error } = await statusQuery;
+    if (error) throw error;
+    statusRows = data || [];
+  }
 
-  const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, memberRows, groups] =
-    await Promise.all([
-      statusQuery,
-      supabase
-        .from("sales_opportunity_logs")
-        .select("author_id, created_at, metadata")
-        .eq("opportunity_id", opportunityId),
-      opportunityService.getMembers(opportunityId),
-      employeeGroupService.list(),
-    ]);
-  if (statusError) throw statusError;
+  // `preloaded` lets a caller judging many visits of one SOR (the History
+  // tab) read the logs, members and groups once instead of once per visit —
+  // a per-visit log read is what made the History take seconds to load.
+  const [{ data: logs, error: logsError }, memberRows, groups] = preloaded
+    ? [{ data: preloaded.logs, error: null }, preloaded.memberRows, preloaded.groups]
+    : await Promise.all([
+        supabase
+          .from("sales_opportunity_logs")
+          .select("author_id, created_at, metadata")
+          .eq("opportunity_id", opportunityId),
+        opportunityService.getMembers(opportunityId),
+        employeeGroupService.list(),
+      ]);
   if (logsError) throw logsError;
 
   let attachments = (logs || []).flatMap(attachmentsFromLog);
@@ -613,7 +632,7 @@ async function hasEverMoved(opportunityId) {
  * applied to flow-built deals. `stage_conditions` DO apply to flow-built
  * deals, because they are keyed to `flow_stages(id)`.
  */
-async function moveAlongFlow(existing, nextStageId, actorId) {
+async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = null } = {}) {
   // Issue #83 — every rule this move is judged by (which Stages exist, which
   // edges are legal, what conditions gate the stage being left, where the
   // deal is won) is resolved from the SOR's OWN Flow Snapshot, not the live
@@ -649,11 +668,377 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     throw new Error(`${from?.name || "This stage"} cannot move straight to ${to.name}.`);
   }
 
+  // Issue #390 — a Return must say what happens to the Stage's earlier work,
+  // and is never blocked by the Stage being left. Only a Return asks.
+  const isReturn = (await opportunityService.getReturnStageIds(existing.id)).includes(to.id);
+  if (isReturn) assertReturnChoice(to, returnChoice);
+
+  const currentVisit = await currentVisitFor(existing.id);
+  if (!isReturn) {
+    await assertCanLeaveStage({ existing, from, currentVisit, snapshotConditions, snapshotStageFields });
+  }
+
+  // 2. Perform move
+  //
+  // `status` is deliberately left alone here. It still holds a
+  // crm_pipeline_stages code (see isRealizedOpportunity's comment above), and
+  // the requireSalesReferenceOnStageMove trigger (migration 0011) fires
+  // whenever `status` changes on UPDATE — writing a flow Stage's name into it
+  // makes that trigger read the move as a global-pipeline transition and
+  // demand a Sales Reference to "leave Lead", which a Sales Flow move was
+  // never subject to. Display code that wants the current flow Stage's name
+  // reads `flow_stage_id` against the loaded flow, not `status`.
+  const patch = { flow_stage_id: to.id };
+
+  const stampsContractDate = wonStageId === to.id && !existing.contract_date;
+  if (stampsContractDate) {
+    patch.contract_date = getCurrentLocalDate();
+  }
+
+  // A Return's move and its choice commit together (sor_move_and_resume /
+  // sor_move_and_start_fresh): a refused choice leaves the SOR where it was.
+  // It lands before the entry Actions run, so a Start fresh's closed-off
+  // action runs let those Actions fire again for the new visit.
+  if (isReturn) {
+    const rpcName = returnChoice === RETURN_CHOICE.START_FRESH ? "sor_move_and_start_fresh" : "sor_move_and_resume";
+    const { error: returnChoiceError } = await supabase.rpc(rpcName, {
+      p_opportunity_id: existing.id,
+      p_flow_stage_id: to.id,
+      p_contract_date: patch.contract_date ?? null,
+    });
+    if (returnChoiceError) throw new Error(returnChoiceError.message.replace(/^(Resume|Start fresh): /, ""));
+  }
+
+  const { data, error } = await (isReturn
+    ? supabase.from("sales_opportunities").select(PARTICIPANT_SELECT).eq("id", existing.id)
+    : supabase.from("sales_opportunities").update(patch).eq("id", existing.id).select(PARTICIPANT_SELECT)
+  ).single();
+  if (error) throw error;
+
+  const fromName = from?.name || "—";
+  const stageChangeEvent = {
+    event: "STAGE_CHANGED",
+    from: from?.id ?? null,
+    to: to.id,
+    employeeId: actorId,
+    stampedContractDate: stampsContractDate,
+    ...(isReturn ? { returnChoice } : {}),
+  };
+  const returnChoiceLabel =
+    returnChoice === RETURN_CHOICE.START_FRESH ? " (started fresh)" : " (resumed previous work)";
+  await opportunityService.addSystemNote(
+    existing.id,
+    `Stage moved: ${fromName} → ${to.name}${isReturn ? returnChoiceLabel : ""}`,
+    stageChangeEvent,
+    actorId,
+  );
+
+  systemAuditLogService.addSystemEvent(
+    "OPPORTUNITY",
+    existing.id,
+    `${auditLabel(existing)}: ${fromName} → ${to.name}`,
+    stageChangeEvent,
+    actorId,
+  ).catch(console.error);
+
+  // 2b. Issue #204 Part 2 — leaving a Stage skips any of its still-`pending`
+  // "When confirmed" runs: they were never decided while the deal sat here,
+  // and re-entering later must not re-offer them (the unique constraint on
+  // sor_action_runs is per (opportunity, stage, action), not per-visit, so
+  // this also guarantees story 19 — a skipped action isn't re-offered on
+  // loop-back).
+  if (currentVisit) {
+    const { data: pendingRuns, error: pendingRunsError } = await supabase
+      .from("sor_action_runs")
+      .select("id, action_id")
+      .eq("stage_visit_id", currentVisit.id)
+      .eq("outcome", "pending");
+    if (pendingRunsError) {
+      console.error("Failed to load pending action runs:", pendingRunsError);
+    } else {
+      for (const pendingRun of pendingRuns || []) {
+        const { error: skipError } = await supabase.rpc("sor_finish_action_run", {
+          p_run_id: pendingRun.id,
+          p_outcome: "skipped",
+        });
+        if (skipError) {
+          console.error("sor_finish_action_run (auto-skip) failed:", skipError);
+          continue;
+        }
+        await opportunityService.addSystemNote(
+          existing.id,
+          `Not created: left ${fromName} undecided.`,
+          { event: "ACTION_RUN_SKIPPED", stageId: from.id, actionId: pendingRun.action_id, runId: pendingRun.id },
+          actorId,
+        ).catch(() => {});
+      }
+    }
+  }
+
+  // 3. Execute Stage Actions (Automations) for the new stage — read from the
+  // SOR's own snapshot (issue #83), not the live table, so entering a Stage
+  // fires the automations agreed at registration time and not ones added
+  // since.
+  //
+  // Issue #409 — the actual run (begin, notify-or-create, finish) happens in
+  // ONE server-side call, `sor_run_stage_actions`, inside its own Postgres
+  // transaction. Before this, each action's begin/create/finish was its own
+  // awaited round-trip from the browser; a mover closing the tab mid-loop
+  // left the rest of the Stage's actions with no run row at all — not
+  // created, not failed — and the fire-once gate then refused to ever offer
+  // them again. Now the RPC either returns (everything on this Stage is
+  // created-or-failed) or the whole call never happened (nothing began, so
+  // the fire-once gate still lets a retry pick it all up).
+  const failedStageActions = [];
+  let actionsAttempted = false;
+  try {
+    const actions = actionsForSnapshotStage(snapshotActions, to.id);
+    if (actions.length > 0) {
+      const newVisit = await currentVisitFor(existing.id).catch(() => null);
+
+      actionsAttempted = true;
+      // Issue #204 — template context shared by title/description rendering
+      // for every action on this Stage entry. Kept in sync with
+      // TEMPLATE_VARIABLES in src/constants/taskTemplates.js.
+      const templateContext = {
+        salesReference: existing.sales_reference,
+        projectTitle: existing.project_title,
+        company: existing.client_name,
+        stageName: to.name,
+        dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+        saleType: existing.sale_type || null,
+      };
+
+      // Every action's payload is assembled client-side (title/description
+      // rendering — issue #204/#408's token vocabulary stays in JS — plus
+      // Decider resolution and Group Task member lists), then sent as one
+      // batch. sor_run_stage_actions applies sor_begin_action_run's
+      // fire-once gate per action itself, so an action already begun by an
+      // earlier partial run is skipped there, not here.
+      const actionsPayload = actions.map((action) => {
+        const config = action.config || {};
+        const dealTitle = stageActionTaskTitle({
+          salesReference: existing.sales_reference,
+          projectTitle: existing.project_title,
+        });
+        const isConfirm = config.confirmMode === "confirm";
+        // Spec: "the Deal Owner by default" — an unset decider is not "no
+        // one may decide", it's the default selector.
+        const deciderSelectors = config.decider?.length
+          ? config.decider
+          : [{ type: "role", role: "deal_owner" }];
+
+        const payload = {
+          action_id: action.id,
+          kind: action.kind,
+          name: stageActionName(action),
+          confirm: isConfirm,
+        };
+
+        if (isConfirm) {
+          payload.decider = deciderSelectors;
+          payload.stage_name = to.name;
+          return payload;
+        }
+
+        if (action.kind === "create_group_task") {
+          const members = config.members?.length > 0
+            ? config.members
+            : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }];
+          payload.group_title = renderActionTitle(action, templateContext);
+          payload.group_description = config.descriptionTemplate || config.description
+            ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
+            : "";
+          payload.created_by = actorId;
+          payload.members = members.map((m) => ({
+            employee_id: m.employeeId,
+            task_description: m.taskDescription || "",
+            checklist: m.checklist || null,
+            role: m.role || null,
+            custom_role: m.customRole || null,
+          }));
+          payload.tag_ids = config.tagIds?.length > 0 ? config.tagIds : null;
+          payload.template_id = config.templateId || null;
+          if (config.dueDateOffsetDays) {
+            const due = new Date();
+            due.setDate(due.getDate() + parseInt(config.dueDateOffsetDays));
+            payload.due_date = due.toISOString();
+          }
+        } else if (action.kind === "create_individual_task") {
+          const title = renderActionTitle(action, templateContext);
+          // Back-compat: see buildAndCreateActionTask's own comment on this.
+          const description = config.descriptionTemplate || config.description
+            ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
+            : config.title
+              ? renderTemplate(config.title, templateContext)
+              : "";
+          payload.task_description = description || title || dealTitle;
+          payload.project_title = title || dealTitle;
+          payload.category_id = config.categoryId || null;
+          payload.logged_by = config.loggedById || actorId;
+          payload.priority = config.priority || "MEDIUM";
+          payload.checklist = config.checklist || null;
+          if (config.dueOffsetDays) {
+            const due = new Date();
+            due.setDate(due.getDate() + parseInt(config.dueOffsetDays));
+            payload.end_at = due.toISOString();
+          }
+        }
+
+        return payload;
+      });
+
+      // "When confirmed" Deciders are resolved here (needs the employees/
+      // groups tables) and their ids sent along so the RPC can write the
+      // decision-due notification directly, in the same transaction as the
+      // run it belongs to.
+      for (const payload of actionsPayload) {
+        if (!payload.confirm) continue;
+        payload.decider_ids = await resolveDeciderIds(payload.decider, existing);
+        const action = actions.find((a) => a.id === payload.action_id);
+        payload.notification_title = renderActionTitle(action, templateContext) || stageActionTaskTitle({
+          salesReference: existing.sales_reference,
+          projectTitle: existing.project_title,
+        });
+      }
+
+      const { data: runResult, error: runError } = await supabase.rpc("sor_run_stage_actions", {
+        p_opportunity_id: existing.id,
+        p_stage_id: to.id,
+        p_stage_visit_id: newVisit?.id ?? null,
+        p_actions: actionsPayload,
+      });
+
+      if (runError) {
+        // The whole batch never ran (e.g. the caller lost full access
+        // mid-move) — nothing began, so every action is unaccounted for,
+        // same as the pre-#409 "reading the guard failed" case below.
+        console.error("sor_run_stage_actions failed:", runError);
+        for (const action of actions) {
+          const name = stageActionName(action);
+          if (!failedStageActions.includes(name)) failedStageActions.push(name);
+        }
+      } else {
+        for (const name of runResult?.failed || []) failedStageActions.push(name);
+
+        // The RPC already created the task/group task and marked the run —
+        // that part survives the mover leaving. What's left is best-effort
+        // narration (system note, Stage Participant window): its own
+        // failure mode stays "note/window maybe missing", never "task never
+        // created".
+        for (const created of runResult?.created || []) {
+          const action = actions.find((a) => a.id === created.action_id);
+          const payload = actionsPayload.find((p) => p.action_id === created.action_id);
+          if (!action || !payload) continue;
+          const config = action.config || {};
+          try {
+            if (created.kind === "create_individual_task" && created.task_id) {
+              await opportunityService.addSystemNote(
+                existing.id,
+                `Task "${payload.project_title}" created on entering Stage: ${to.name}.`,
+                { event: "STAGE_ACTION_TASK_CREATED", stageId: to.id, actionId: action.id, taskId: created.task_id },
+                actorId,
+              );
+              const loggedById = payload.logged_by;
+              // Issue #204 Part 2's own createTask flow sends TASK_ASSIGNED
+              // when the mover assigns someone else; sor_run_stage_actions
+              // inserts the task directly, so that notification is sent
+              // here instead, best-effort, same as everything else in this
+              // follow-up loop.
+              if (loggedById && loggedById !== actorId) {
+                await notificationService.createNotification({
+                  recipient_id: loggedById,
+                  sender_id: actorId,
+                  type: "TASK_ASSIGNED",
+                  title: "New Task Assigned",
+                  message: `A Stage Action assigned you a new task: "${payload.task_description}".`,
+                  reference_id: created.task_id,
+                });
+              }
+              if (newVisit?.id && loggedById) {
+                await sorStageParticipantService.openWindow(
+                  {
+                    opportunityId: existing.id,
+                    employeeId: loggedById,
+                    source: "action",
+                    sourceId: action.id,
+                    openedVisitId: newVisit.id,
+                    access: config.access,
+                    notify: loggedById === actorId,
+                  },
+                  actorId,
+                );
+              }
+            } else if (created.kind === "create_group_task" && created.group_task_id) {
+              await opportunityService.addSystemNote(
+                existing.id,
+                `Group Task "${payload.group_title}" created on entering Stage: ${to.name}.`,
+                { event: "STAGE_ACTION_TASK_CREATED", stageId: to.id, actionId: action.id, groupTaskId: created.group_task_id },
+                actorId,
+              );
+              if (newVisit?.id) {
+                for (const member of payload.members || []) {
+                  if (!member?.employee_id) continue;
+                  await sorStageParticipantService.openWindow(
+                    {
+                      opportunityId: existing.id,
+                      employeeId: member.employee_id,
+                      source: "action",
+                      sourceId: action.id,
+                      openedVisitId: newVisit.id,
+                      access: config.access,
+                      notify: false,
+                    },
+                    actorId,
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Stage Action follow-up (note/window/notify) failed:", err);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // Reading the guard or loading a service failed before any action ran:
+    // every action on this Stage is then unaccounted for.
+    console.error("Failed to execute stage actions:", err);
+    if (!actionsAttempted) {
+      for (const action of actionsForSnapshotStage(snapshotActions, to.id)) {
+        const name = stageActionName(action);
+        if (!failedStageActions.includes(name)) failedStageActions.push(name);
+      }
+    }
+  }
+
+  return { ...data, failedStageActions };
+}
+
+/**
+ * Issue #390/#391 — refuses a Return made without an available choice, naming
+ * what is needed. `needsReturnChoice` lets a caller that skipped the prompt
+ * open it.
+ */
+function assertReturnChoice(to, returnChoice) {
+  if (AVAILABLE_RETURN_CHOICES.includes(returnChoice)) return;
+  const error = new Error(
+    `${to.name} was visited before — choose Resume previous work or Start fresh to return to it.`,
+  );
+  error.needsReturnChoice = true;
+  throw error;
+}
+
+/**
+ * The gate on the Stage being left: its required Stage Fields, then its
+ * blocking Stage Conditions, each refusal naming what is missing. A Return
+ * skips it (#390).
+ */
+async function assertCanLeaveStage({ existing, from, currentVisit, snapshotConditions, snapshotStageFields }) {
   // 1. Evaluate Stage Conditions for the stage being left — from the SOR's
   // own snapshot; only the per-deal evidence (attachments, members, status
   // rows) is read live, since that's evidence about the deal, not the flow.
   const conditionsForFrom = conditionsForSnapshotStage(snapshotConditions, from.id);
-  const currentVisit = await currentVisitFor(existing.id);
   const { attachments, members, statusRowsByCondition } = await gateEvidenceFor(
     existing.id,
     conditionsForFrom,
@@ -719,178 +1104,6 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     error.missingConditions = missing;
     throw error;
   }
-
-  // 2. Perform move
-  //
-  // `status` is deliberately left alone here. It still holds a
-  // crm_pipeline_stages code (see isRealizedOpportunity's comment above), and
-  // the requireSalesReferenceOnStageMove trigger (migration 0011) fires
-  // whenever `status` changes on UPDATE — writing a flow Stage's name into it
-  // makes that trigger read the move as a global-pipeline transition and
-  // demand a Sales Reference to "leave Lead", which a Sales Flow move was
-  // never subject to. Display code that wants the current flow Stage's name
-  // reads `flow_stage_id` against the loaded flow, not `status`.
-  const patch = { flow_stage_id: to.id };
-
-  if (wonStageId === to.id && !existing.contract_date) {
-    patch.contract_date = getCurrentLocalDate();
-  }
-
-  const { data, error } = await supabase
-    .from("sales_opportunities")
-    .update(patch)
-    .eq("id", existing.id)
-    .select(PARTICIPANT_SELECT)
-    .single();
-  if (error) throw error;
-
-  const fromName = from?.name || "—";
-  await opportunityService.addSystemNote(
-    existing.id,
-    `Stage moved: ${fromName} → ${to.name}`,
-    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId },
-    actorId,
-  );
-
-  systemAuditLogService.addSystemEvent(
-    "OPPORTUNITY",
-    existing.id,
-    `${auditLabel(existing)}: ${fromName} → ${to.name}`,
-    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId },
-    actorId,
-  ).catch(console.error);
-
-  // 2b. Issue #204 Part 2 — leaving a Stage skips any of its still-`pending`
-  // "When confirmed" runs: they were never decided while the deal sat here,
-  // and re-entering later must not re-offer them (the unique constraint on
-  // sor_action_runs is per (opportunity, stage, action), not per-visit, so
-  // this also guarantees story 19 — a skipped action isn't re-offered on
-  // loop-back).
-  if (currentVisit) {
-    const { data: pendingRuns, error: pendingRunsError } = await supabase
-      .from("sor_action_runs")
-      .select("id, action_id")
-      .eq("stage_visit_id", currentVisit.id)
-      .eq("outcome", "pending");
-    if (pendingRunsError) {
-      console.error("Failed to load pending action runs:", pendingRunsError);
-    } else {
-      for (const pendingRun of pendingRuns || []) {
-        const { error: skipError } = await supabase.rpc("sor_finish_action_run", {
-          p_run_id: pendingRun.id,
-          p_outcome: "skipped",
-        });
-        if (skipError) {
-          console.error("sor_finish_action_run (auto-skip) failed:", skipError);
-          continue;
-        }
-        await opportunityService.addSystemNote(
-          existing.id,
-          `Not created: left ${fromName} undecided.`,
-          { event: "ACTION_RUN_SKIPPED", stageId: from.id, actionId: pendingRun.action_id, runId: pendingRun.id },
-          actorId,
-        ).catch(() => {});
-      }
-    }
-  }
-
-  // 3. Execute Stage Actions (Automations) for the new stage — read from the
-  // SOR's own snapshot (issue #83), not the live table, so entering a Stage
-  // fires the automations agreed at registration time and not ones added
-  // since.
-  //
-  // Issue #199 — awaited, not detached: the move resolves once its actions
-  // have run, so the caller's refresh already sees the tasks. The move is
-  // committed above and a failing action never undoes it; each action is
-  // tried on its own and failures come back named on the result.
-  const failedStageActions = [];
-  let actionsAttempted = false;
-  try {
-    const actions = actionsForSnapshotStage(snapshotActions, to.id);
-    if (actions.length > 0) {
-      // Issue #204 Part 2 — fire-once per (deal, stage, action) now lives in
-      // sor_action_runs, gated by sor_begin_action_run's upsert-if-absent.
-      // This replaces both the old STAGE_ACTIONS_FIRED log marker and the
-      // ILIKE-on-description fallback.
-      const newVisit = await currentVisitFor(existing.id).catch(() => null);
-
-      actionsAttempted = true;
-      // Issue #204 — template context shared by title/description rendering
-      // for every action on this Stage entry. Kept in sync with
-      // TEMPLATE_VARIABLES in src/constants/taskTemplates.js.
-      const templateContext = {
-        salesReference: existing.sales_reference,
-        projectTitle: existing.project_title,
-        company: existing.client_name,
-        stageName: to.name,
-        dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
-        saleType: existing.sale_type || null,
-      };
-
-      for (const action of actions) {
-        const config = action.config || {};
-        // Issue #178 — both automation kinds name their task after the
-        // deal, not the Stage, via this one shared builder.
-        const dealTitle = stageActionTaskTitle({
-          salesReference: existing.sales_reference,
-          projectTitle: existing.project_title,
-        });
-
-        // Issue #204 Part 2 — fire-once gate. sor_begin_action_run upserts
-        // if absent and always returns the row for (opportunity, stage,
-        // action); if it already existed (any outcome), this action has
-        // already been handled for this deal+stage and is skipped. A
-        // "When confirmed" action's decider selectors are stored on the run
-        // right away so sor_decide_action_run can validate against them.
-        // Spec: "the Deal Owner by default" — an unset decider is not "no
-        // one may decide", it's the default selector.
-        const deciderSelectors = config.decider?.length
-          ? config.decider
-          : [{ type: "role", role: "deal_owner" }];
-        const { data: run, error: runError } = await supabase.rpc("sor_begin_action_run", {
-          p_opportunity_id: existing.id,
-          p_stage_id: to.id,
-          p_action_id: action.id,
-          p_stage_visit_id: newVisit?.id ?? null,
-          p_decider: config.confirmMode === "confirm" ? deciderSelectors : null,
-        });
-        if (runError) {
-          console.error("sor_begin_action_run failed:", runError);
-          failedStageActions.push(stageActionName(action));
-          continue;
-        }
-        const runRow = Array.isArray(run) ? run[0] : run;
-        if (!runRow || runRow.outcome !== "pending") {
-          // Already begun previously (created/skipped/failed) — fire-once.
-          continue;
-        }
-
-        if (config.confirmMode === "confirm") {
-          // Issue #204 Part 2 — "When confirmed": no task yet. Notify the
-          // Deciders and leave the run pending; PendingActionDecisions.jsx
-          // (or decideAction) resolves it later.
-          await notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors).catch((err) =>
-            console.error("notifyDeciders failed:", err),
-          );
-          continue;
-        }
-
-        await buildAndCreateActionTask(action, existing, to, actorId, runRow, templateContext, failedStageActions);
-      }
-    }
-  } catch (err) {
-    // Reading the guard or loading a service failed before any action ran:
-    // every action on this Stage is then unaccounted for.
-    console.error("Failed to execute stage actions:", err);
-    if (!actionsAttempted) {
-      for (const action of actionsForSnapshotStage(snapshotActions, to.id)) {
-        const name = stageActionName(action);
-        if (!failedStageActions.includes(name)) failedStageActions.push(name);
-      }
-    }
-  }
-
-  return { ...data, failedStageActions };
 }
 
 /**
@@ -952,27 +1165,6 @@ function dealTeamIds(opportunity) {
     }
   }
   return [...ids];
-}
-
-/**
- * Issue #204 Part 2 — notifies every Decider of a newly-pending "When
- * confirmed" action, once, when `sor_begin_action_run` first creates the
- * run (never on a subsequent gate-hit, since the run is no longer pending).
- */
-async function notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors) {
-  const deciderIds = await resolveDeciderIds(deciderSelectors, existing);
-  for (const recipientId of deciderIds) {
-    await notificationService
-      .createNotification({
-        recipient_id: recipientId,
-        sender_id: actorId,
-        type: "OPPORTUNITY_ACTION_DECISION_DUE",
-        title: stageActionName(action) || dealTitle,
-        message: `A Stage Action on "${existing.project_title || dealTitle}" (${to.name}) needs your decision: Create or Skip.`,
-        reference_id: existing.id,
-      })
-      .catch((err) => console.error("notifyDeciders failed:", err));
-  }
 }
 
 /**
@@ -1060,6 +1252,9 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
               sourceId: action.id,
               openedVisitId: runRow.stage_visit_id,
               access: config.access,
+              // groupTaskService.createGroupTask already sent this member a
+              // GROUP_ASSIGNED that names the task and opens it.
+              notify: false,
             },
             actorId,
           ).catch((err) => console.error("openWindow failed for action task:", err));
@@ -1090,6 +1285,10 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       opportunityId: existing.id,
       stageActionId: action.id,
       stageVisitId: runRow?.stage_visit_id ?? null,
+      // Issue #404 — routes the insert through sor_create_stage_action_task
+      // instead of the mover's own tasks-insert permissions, so the run's id
+      // must be known before the task exists.
+      stageActionRunId: runRow.id,
     };
     if (config.dueOffsetDays) {
       const due = new Date();
@@ -1097,6 +1296,8 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       payload.endAt = due.toISOString();
     }
 
+    // sor_create_stage_action_task marks the run `created` itself, atomically
+    // with the insert; only a failure still needs sor_finish_action_run here.
     const task = await taskService.createTask(payload).catch((err) => {
       console.error("Stage Action failed:", err);
       failedStageActions?.push(stageActionName(action));
@@ -1104,12 +1305,13 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
     });
 
     const taskId = task ? (task.id ?? task.data?.id ?? null) : null;
-    const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
-      p_run_id: runRow.id,
-      p_outcome: task ? "created" : "failed",
-      p_task_id: taskId,
-    });
-    if (finishError) console.error("sor_finish_action_run failed:", finishError);
+    if (!task) {
+      const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
+        p_run_id: runRow.id,
+        p_outcome: "failed",
+      });
+      if (finishError) console.error("sor_finish_action_run failed:", finishError);
+    }
 
     if (task) {
       await opportunityService.addSystemNote(
@@ -1129,6 +1331,14 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
             sourceId: action.id,
             openedVisitId: runRow.stage_visit_id,
             access: config.access,
+            // `taskService.createTask` already sent this person a
+            // TASK_ASSIGNED naming the task and opening it, because a Stage
+            // Action always submits on someone else's behalf
+            // (submittedById = the mover, loggedById = the assignee). Adding
+            // "Added to a deal" beside it is two notifications for one event,
+            // and the vaguer of the two. When the assignee IS the mover no
+            // TASK_ASSIGNED is sent, so the call-in still speaks for itself.
+            notify: payload.submittedById === payload.loggedById,
           },
           actorId,
         ).catch((err) => console.error("openWindow failed for action task:", err));
@@ -1302,6 +1512,55 @@ async function eligibleOpportunityIdsForVersionMove(targetSnapshotId) {
   return (deals || []).map((d) => d.id);
 }
 
+/**
+ * Turns raw `sor_stage_participants` rows into the shape both My SORs and the
+ * SOR modal's own banner render: the Stage that CALLED the person in (the
+ * Stage the opening visit sits on, not the Stage the deal is on now — those
+ * differ the moment it moves, and the first is the answer to "why am I here"),
+ * and the end Stage a longer window names.
+ *
+ * Returns a mapper rather than mapped rows so both callers resolve their Stage
+ * names in one round trip each instead of one per window.
+ */
+async function shapeAccessWindows(windows) {
+  const visitIds = [...new Set(windows.map((w) => w.opened_visit_id).filter(Boolean))];
+  const { data: visits } = visitIds.length
+    ? await supabase.from("sor_stage_visits").select("id, flow_stage_id").in("id", visitIds)
+    : { data: [] };
+  const stageIdByVisit = Object.fromEntries((visits || []).map((v) => [v.id, v.flow_stage_id]));
+
+  const stageIds = [
+    ...new Set([
+      ...Object.values(stageIdByVisit).filter(Boolean),
+      ...windows.map((w) => w.until_stage_id).filter(Boolean),
+    ]),
+  ];
+  const { data: stages } = stageIds.length
+    ? await supabase.from("flow_stages").select("id, name").in("id", stageIds)
+    : { data: [] };
+  const stageNameById = Object.fromEntries((stages || []).map((s) => [s.id, s.name]));
+
+  return (w) => {
+    // `accessWindowSummary` is the Flow Canvas Access tab's own wording, and
+    // its fallback when an end Stage no longer resolves is the rule the
+    // database actually applies. Reusing it is what keeps the screen a person
+    // reads and the canvas an admin configures from drifting apart.
+    const summary = accessWindowSummary(
+      { until: w.until_rule, stageId: w.until_stage_id },
+      stageNameById,
+    );
+    return {
+      id: w.id,
+      source: w.source,
+      calledInAtStageName: stageNameById[stageIdByVisit[w.opened_visit_id]] ?? null,
+      untilRule: w.until_rule,
+      untilStageName: w.until_stage_id ? stageNameById[w.until_stage_id] ?? null : null,
+      reachLabel: summary.reachLabel,
+      closedAt: w.closed_at ?? null,
+    };
+  };
+}
+
 export const opportunityService = {
   /**
    * The SOR Register. Every register count, the board, the matrix, and the
@@ -1365,19 +1624,40 @@ export const opportunityService = {
   },
 
   /**
+   * The SOR the Release Notes deck opens: the newest one
+   * scripts/seed-release-demo.mjs made. A Scratch SOR, so only this read and
+   * getOpportunityById can reach it. Null until the script has run.
+   */
+  async getReleaseDemoSor() {
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select(PARTICIPANT_SELECT)
+      .eq("is_scratch", true)
+      .neq("is_deleted", true)
+      .contains("metadata", { releaseDemo: true })
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+    return data?.[0] ?? null;
+  },
+
+  /**
    * How a task names the SOR it was created for: the Sales Reference, else the
    * Company (issue #199). Null when the SOR can't be read. Kept narrow so a
    * task modal can resolve it without depending on how the task was loaded.
    */
+  /**
+   * A plain Stage Participant (a task's assignee with no deal-team role)
+   * cannot select `sales_opportunities` directly — `sor_read` carries no
+   * Participant clause. `sor_link_label` is a SECURITY DEFINER RPC scoped to
+   * exactly this: the one-column label a task's SOR link renders (#199).
+   */
   async getOpportunityLinkLabel(id) {
     if (!id) return null;
-    const { data, error } = await supabase
-      .from("sales_opportunities")
-      .select("sales_reference, client_name")
-      .eq("id", id)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("sor_link_label", { p_opportunity_id: id });
     if (error) throw error;
-    return data ? data.sales_reference || data.client_name || null : null;
+    return data || null;
   },
 
   /**
@@ -1707,7 +1987,8 @@ export const opportunityService = {
    * Moves an opportunity to a new pipeline stage and records the move on its
    * timeline. `lostReason` is required when moving to CLOSED_LOST;
    * `salesReference` is required when leaving Lead and none is on record yet
-   * (mirrored by a trigger — see migration 0011).
+   * (mirrored by a trigger — see migration 0011). `returnChoice` is required
+   * when a flow deal's move is a Return (issue #390).
    *
    * The ITB gate that used to sit at For Bidding was removed (issue #206,
    * ADR 0004 D12) — Sales Flows replaced it. Existing `itb_number`/
@@ -1718,8 +1999,7 @@ export const opportunityService = {
     id,
     nextStatus,
     actorId,
-    lostReason = null,
-    salesReference = null,
+    { lostReason = null, salesReference = null, returnChoice = null } = {},
   ) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
@@ -1741,7 +2021,7 @@ export const opportunityService = {
     // Branching here rather than adding a second public method is deliberate:
     // two ways to move an SOR is the defect that reusing this funnel prevents.
     if (existing.sale_type_id) {
-      return moveAlongFlow(existing, nextStatus, actorId);
+      return moveAlongFlow(existing, nextStatus, actorId, { returnChoice });
     }
 
     if (existing.status === nextStatus) return existing;
@@ -2025,6 +2305,30 @@ export const opportunityService = {
    * How many SORs a "Move up to vX.Y" offer would move, without moving them
    * (issue #190) — the offer states N before anyone accepts it.
    */
+  /**
+   * Before a publish exists: how many live SORs sit on any Flow Snapshot of
+   * `major` for this flow. Those are the deals a minor publish of that major
+   * will offer to move up — the same set eligibleOpportunityIdsForVersionMove
+   * finds afterwards, counted ahead of time for the Publish dialog.
+   */
+  async countOpportunitiesOnFlowMajor(flowId, major) {
+    const { data: snapshots, error: snapshotError } = await supabase
+      .from("flow_snapshots")
+      .select("id")
+      .eq("flow_id", flowId)
+      .eq("version", major);
+    if (snapshotError) throw snapshotError;
+    const ids = (snapshots || []).map((s) => s.id);
+    if (ids.length === 0) return 0;
+    const { data: deals, error } = await supabase
+      .from("sales_opportunities")
+      .select("id")
+      .in("flow_snapshot_id", ids)
+      .neq("is_deleted", true);
+    if (error) throw error;
+    return (deals || []).length;
+  },
+
   async countOpportunitiesEligibleForVersionMove(targetSnapshotId) {
     const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
     return ids.length;
@@ -2809,36 +3113,26 @@ export const opportunityService = {
       throw new Error("Only a tickbox condition can be satisfied this way.");
     }
 
-    // Issue #203, story 28: certification is scoped to the currently-open
-    // visit, so a tick from a visit that has since closed (a loop back) no
-    // longer counts and this insert is not blocked by it either.
-    const currentVisit = await currentVisitFor(opportunityId);
-
-    let satisfiedQuery = supabase
-      .from("sor_condition_status")
-      .select("*")
-      .eq("opportunity_id", opportunityId)
-      .eq("condition_id", conditionId);
-    if (currentVisit?.id) satisfiedQuery = satisfiedQuery.eq("stage_visit_id", currentVisit.id);
-    const { data: satisfied, error: satisfiedError } = await satisfiedQuery.maybeSingle();
-    if (satisfiedError) throw satisfiedError;
-    if (satisfied) return satisfied;
-
-    const { data, error } = await supabase
-      .from("sor_condition_status")
-      .insert({
-        opportunity_id: opportunityId,
-        condition_id: conditionId,
-        satisfied_by: actorId,
-        stage_visit_id: currentVisit?.id ?? null,
-      })
-      .select()
-      .single();
+    // Issue #413 — resolving "the current visit" and writing the tick used to
+    // be two separate requests, so a Revert landing between them could steal
+    // the write onto whatever visit opened next. sor_certify_condition does
+    // both in one transaction: either this Stage is still open when the row
+    // goes in, or the certify is refused outright (issue #203, story 28's
+    // same visit-scoping, now race-proof).
+    const { data, error } = await supabase.rpc("sor_certify_condition", {
+      p_opportunity_id: opportunityId,
+      p_condition_id: conditionId,
+      p_stage_id: condition.stage_id,
+      p_actor_id: actorId,
+    });
     if (error) throw error;
+    const result = data?.[0];
 
-    await noteConditionSatisfied(opportunityId, condition, actorId);
+    if (result.was_new) {
+      await noteConditionSatisfied(opportunityId, condition, actorId);
+    }
 
-    return data;
+    return result;
   },
 
   /**
@@ -2884,6 +3178,17 @@ export const opportunityService = {
   },
 
   /**
+   * #379: the database's own answer to "may I edit this SOR?" —
+   * `sor_can_edit_opportunity`, the same function the update policies use.
+   */
+  async canEdit(opportunityId) {
+    if (!opportunityId) return false;
+    const { data, error } = await supabase.rpc("sor_can_edit_opportunity", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data === true;
+  },
+
+  /**
    * ADR 0021 / #297: whether the caller may open the Journey tab —
    * `sor_can_view_journey`. Always true at full access; at participant
    * access, matched against the owning flow's `journey_viewers` selectors
@@ -2903,6 +3208,104 @@ export const opportunityService = {
    * "This stage is restricted" banner — same call, same rule. Null below
    * locked access.
    */
+  /**
+   * My SORs — every deal this person was called into, open windows and closed
+   * ones alike.
+   *
+   * ADR 0021 deliberately keeps a Stage Participant out of
+   * `sales_opportunities`: `sor_read` is Super Admin, Deal Team or Always-sees,
+   * so the SORS register structurally cannot list a deal someone was merely
+   * called into. That left 11 people on staging holding 33 valid access
+   * windows with nowhere to see them. This is that list.
+   *
+   * It reads `sor_stage_participants` rather than the register because that is
+   * the one table whose read policy already names the person themselves
+   * (`employee_id = get_employee_id()`), which is why this needs no new policy.
+   * The per-deal headline comes from `sor_locked_summary`, the same
+   * security-definer projection the locked modal uses — safe at every access
+   * level and money-free by construction.
+   *
+   * One row per deal, with its windows listed under it. Two call-ins on one
+   * person are two windows (CONTEXT.md, Stage Participant) and stay visible as
+   * two, because "why can I see this" has two different answers.
+   */
+  async getMySors(employeeId) {
+    if (!employeeId) return [];
+
+    const { data: windows, error } = await supabase
+      .from("sor_stage_participants")
+      .select("*")
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    if (!windows || windows.length === 0) return [];
+
+    const shape = await shapeAccessWindows(windows);
+
+    const byOpportunity = new Map();
+    for (const w of windows) {
+      if (!byOpportunity.has(w.opportunity_id)) byOpportunity.set(w.opportunity_id, []);
+      byOpportunity.get(w.opportunity_id).push(w);
+    }
+
+    const rows = await Promise.all(
+      [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
+        const summary = await opportunityService.getLockedSummary(opportunityId).catch(() => null);
+        return {
+          opportunityId,
+          salesReference: summary?.sales_reference ?? null,
+          projectTitle: summary?.project_title ?? null,
+          currentStageName: summary?.current_stage_name ?? null,
+          isOpen: ownWindows.some((w) => !w.closed_at),
+          windows: ownWindows.map(shape),
+        };
+      }),
+    );
+
+    // Open work first; within each group the most recent call-in leads.
+    return rows.sort((a, b) => Number(b.isOpen) - Number(a.isOpen));
+  },
+
+  /**
+   * The My SORs badge: how many SORs this person still has an OPEN window on.
+   * Closed windows are listed on the screen but never counted — the badge is
+   * "work waiting", not "SORs I have touched".
+   *
+   * Counts distinct SORs, not windows, even though two call-ins on one SOR are
+   * deliberately two windows (CONTEXT.md, Stage Participant). The badge has to
+   * match what the screen shows when it is clicked, and the screen shows one
+   * row per SOR; a badge of 2 over a list of 1 reads as a bug.
+   */
+  /**
+   * This person's own access windows on ONE deal, for the banner the SOR modal
+   * shows a Stage Participant. Same shaping as My SORs, so the two cannot
+   * describe the same window differently.
+   */
+  async getMyWindowsOn(opportunityId, employeeId) {
+    if (!opportunityId || !employeeId) return [];
+    const { data, error } = await supabase
+      .from("sor_stage_participants")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+    const shape = await shapeAccessWindows(data);
+    return data.map(shape);
+  },
+
+  async countMyOpenSors(employeeId) {
+    if (!employeeId) return 0;
+    const { data, error } = await supabase
+      .from("sor_stage_participants")
+      .select("opportunity_id")
+      .eq("employee_id", employeeId)
+      .is("closed_at", null);
+    if (error) throw error;
+    return new Set((data || []).map((r) => r.opportunity_id)).size;
+  },
+
   async getLockedSummary(opportunityId) {
     if (!opportunityId) return null;
     const { data, error } = await supabase.rpc("sor_locked_summary", { p_opportunity_id: opportunityId });
@@ -3064,12 +3467,75 @@ export const opportunityService = {
       .select("id")
       .eq("opportunity_id", opportunityId)
       .eq("flow_stage_id", flowStageId)
+      .is("undone_at", null)
       .not("left_at", "is", null)
       .order("sequence", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
     return data?.id ?? null;
+  },
+
+  /**
+   * Issue #386 — the SOR's Stage Visits as the Revert action needs them
+   * (see `canRevertStage`). Undone visits are included: "straight after a
+   * Revert" is read off them.
+   */
+  async getVisitsForRevert(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase
+      .from("sor_stage_visits")
+      .select("id, sequence, left_at, undone_at, entered_by, opened_by_revert")
+      .eq("opportunity_id", opportunityId)
+      .order("sequence", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Issue #386 — "Revert to last stage": takes the SOR back to the Stage its
+   * latest move came from. All rules live in `sor_revert_stage` (ADR 0013);
+   * this only names its refusals. `progressChoice` (issue #392) is "keep" or
+   * "remove", needed only when Stage Work was done on the Stage being left.
+   */
+  /**
+   * Issue #392 — whether Revert would open the Keep/Remove progress dialog:
+   * Stage Work was done on the Stage being left, and the caller is not shut
+   * out of it. Asked up front, the same way `getReturnStageIds` lets #390's
+   * Return prompt decide before calling `move`.
+   */
+  async revertNeedsProgressChoice(opportunityId) {
+    const { data, error } = await supabase.rpc("sor_revert_needs_progress_choice", {
+      p_opportunity_id: opportunityId,
+    });
+    if (error) throw error;
+    return Boolean(data);
+  },
+
+  async revertStage(opportunityId, progressChoice = null) {
+    const { data, error } = await supabase.rpc("sor_revert_stage", {
+      p_opportunity_id: opportunityId,
+      p_progress_choice: progressChoice,
+    });
+    if (error) throw new Error(error.message.replace(/^Revert: /, ""));
+    return Array.isArray(data) ? data[0] : data;
+  },
+
+  /**
+   * Stage ids a move to which is a Return (issue #390): every Stage the SOR has
+   * an earlier visit on that was neither undone nor had its progress removed
+   * by a Revert (a removed visit holds nothing to resume).
+   */
+  async getReturnStageIds(opportunityId) {
+    const { data, error } = await supabase
+      .from("sor_stage_visits")
+      .select("flow_stage_id, revert_choice")
+      .eq("opportunity_id", opportunityId)
+      .is("undone_at", null);
+    if (error) throw error;
+    return [
+      ...new Set((data || []).filter((v) => v.revert_choice !== REVERT_CHOICE.REMOVE).map((v) => v.flow_stage_id)),
+    ];
   },
 
   // ── Deal Owner visibility (ticket 6) ────────────────────────────────────────
@@ -3398,15 +3864,17 @@ export const opportunityService = {
         // Only the Snapshot pointer is wanted, and only as a fallback for a
         // visit that carries none — `getOpportunityById` would drag five
         // employee joins along for one column.
-        supabase.from("sales_opportunities").select("id, flow_snapshot_id").eq("id", opportunityId).maybeSingle(),
+        supabase.from("sales_opportunities").select("id, flow_snapshot_id, sales_reference, project_title, client_name").eq("id", opportunityId).maybeSingle(),
         supabase
           .from("sor_stage_visits")
           .select(`
             *,
             enteredBy:employees!sor_stage_visits_entered_by_fkey(id, name, avatar_path),
-            leftBy:employees!sor_stage_visits_left_by_fkey(id, name, avatar_path)
+            leftBy:employees!sor_stage_visits_left_by_fkey(id, name, avatar_path),
+            resumedBy:employees!sor_stage_visits_resumed_by_fkey(id, name, avatar_path)
           `)
           .eq("opportunity_id", opportunityId)
+          .is("undone_at", null)
           .order("sequence", { ascending: false }),
       ]);
     if (opportunityError) throw opportunityError;
@@ -3436,23 +3904,56 @@ export const opportunityService = {
     const snapshotIds = [...new Set(visits.map(snapshotIdFor).filter(Boolean))];
     const stageIds = [...new Set(visits.map((v) => v.flow_stage_id).filter(Boolean))];
 
-    const [snapshotsRes, stagesRes, tasksRes, groupTasksRes] = await Promise.all([
-      snapshotIds.length > 0
-        ? supabase.from("flow_snapshots").select("id, snapshot_data").in("id", snapshotIds)
-        : Promise.resolve({ data: [] }),
-      stageIds.length > 0
-        ? supabase.from("flow_stages").select("id, name, bracket_label").in("id", stageIds)
-        : Promise.resolve({ data: [] }),
-      supabase.from("tasks").select(SOR_TASK_COLUMNS).eq("opportunity_id", opportunityId),
-      supabase.from("committee_tasks").select(SOR_GROUP_TASK_COLUMNS).eq("opportunity_id", opportunityId),
-    ]);
+    const visitIds = visits.map((v) => v.id);
+
+    const [snapshotsRes, stagesRes, tasksRes, groupTasksRes, stageFieldValuesRes, opportunityLogsRes, actionRunsRes] =
+      await Promise.all([
+        snapshotIds.length > 0
+          ? supabase.from("flow_snapshots").select("id, snapshot_data").in("id", snapshotIds)
+          : Promise.resolve({ data: [] }),
+        stageIds.length > 0
+          ? supabase.from("flow_stages").select("id, name, bracket_label").in("id", stageIds)
+          : Promise.resolve({ data: [] }),
+        supabase.from("tasks").select(SOR_TASK_COLUMNS).eq("opportunity_id", opportunityId),
+        supabase.from("committee_tasks").select(SOR_GROUP_TASK_COLUMNS).eq("opportunity_id", opportunityId),
+        // #397: a visit's custom Stage Field values — fetched for the whole
+        // SOR, same as tasks/groupTasks above, and filtered per visit below.
+        // RLS on `sor_stage_field_values` is what actually keeps a Restricted
+        // Stage's values out for anyone shut out of it; `isRestricted` is
+        // only what tells this shaper not to bother looking.
+        supabase.from("sor_stage_field_values").select("field_id, value, stage_visit_id").in("stage_visit_id", visitIds),
+        // #397: Logged Follow-ups and reminder counts read the same timeline
+        // `gateEvidenceFor` already reads per-condition, but scoped once here
+        // for the whole SOR since every visit needs it, not just ones with
+        // conditions.
+        supabase.from("sales_opportunity_logs").select("author_id, created_at, content, metadata").eq("opportunity_id", opportunityId),
+        // #398: every Stage Action run for this SOR, scoped per visit below by
+        // `stage_visit_id` — the fire-once ledger from #204, so a visit's
+        // "what did each action do" is provable from its own runs, not a
+        // rebuild from task timestamps.
+        supabase
+          .from("sor_action_runs")
+          .select(
+            "id, stage_id, action_id, stage_visit_id, outcome, decided_by, decided_at, held_at, task_id, group_task_id, closed_off_at, closed_off_reason",
+          )
+          .eq("opportunity_id", opportunityId),
+      ]);
     if (snapshotsRes.error) throw snapshotsRes.error;
     if (stagesRes.error) throw stagesRes.error;
     if (tasksRes.error) throw tasksRes.error;
     if (groupTasksRes.error) throw groupTasksRes.error;
+    if (stageFieldValuesRes.error) throw stageFieldValuesRes.error;
+    if (opportunityLogsRes.error) throw opportunityLogsRes.error;
+    if (actionRunsRes.error) throw actionRunsRes.error;
 
     const snapshotsById = Object.fromEntries((snapshotsRes.data || []).map((s) => [s.id, s]));
     const liveStagesById = Object.fromEntries((stagesRes.data || []).map((s) => [s.id, s]));
+
+    const fieldValuesByVisit = {};
+    for (const row of stageFieldValuesRes.data || []) {
+      (fieldValuesByVisit[row.stage_visit_id] ??= {})[row.field_id] = row.value;
+    }
+    const opportunityLogs = opportunityLogsRes.data || [];
 
     // The SOR's own Snapshot names the Stage, never the live row (issue #83):
     // a Stage renamed or moved to another bracket since must not rewrite what
@@ -3472,6 +3973,32 @@ export const opportunityService = {
 
     const tasks = tasksRes.data || [];
     const groupTasks = groupTasksRes.data || [];
+    const actionRuns = actionRunsRes.data || [];
+    const tasksById = Object.fromEntries(tasks.map((t) => [t.id, t]));
+    const groupTasksById = Object.fromEntries(groupTasks.map((t) => [t.id, t]));
+
+    // #400: a Start fresh closes off the EARLIER visit to this Stage, but the
+    // acting employee is stamped on the NEW visit's `entered_by` (whoever made
+    // the Return), never on the old visit or its action runs — mirroring
+    // `sor_start_fresh_stage_work`'s own lookup of "the latest visit to this
+    // Stage before the one that started fresh". A Revert's Remove progress
+    // needs no such lookup: it closes off the visit it leaves, whose own
+    // `left_by`/`left_at` already name who and when.
+    const startFreshClosureByVisitId = {};
+    const startFreshAtByVisitId = {};
+    for (const v of visits) {
+      if (v.return_choice !== "start_fresh") continue;
+      const prior = visits
+        .filter((o) => o.flow_stage_id === v.flow_stage_id && o.sequence < v.sequence)
+        .sort((a, b) => b.sequence - a.sequence)[0];
+      if (prior) {
+        startFreshClosureByVisitId[prior.id] = v.enteredBy || null;
+        // A Start fresh later reverted with Remove progress reopens the
+        // earlier work, so only an unreverted one closes it off.
+        if (!v.revert_choice) startFreshAtByVisitId[prior.id] = v.entered_at;
+      }
+    }
+    const rawVisitById = Object.fromEntries(visits.map((v) => [v.id, v]));
 
     const shaped = visits.map((visit) => {
       const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
@@ -3483,6 +4010,11 @@ export const opportunityService = {
         flowSnapshotId: snapshotIdFor(visit),
         enteredBy: visit.enteredBy || null,
         leftBy: visit.leftBy || null,
+        // ADR 0027: a Resume moves the visit's work to the new visit and leaves this one line.
+        resumedAt: visit.resumed_at || null,
+        resumedBy: visit.resumedBy || null,
+        // #392: a visit left by a Keep/Remove Revert stands, saying which.
+        revertChoice: visit.revert_choice || null,
         // #296: a restricted visit's contents never populate these — RLS on
         // tasks/committee_tasks/sor_condition_status already excludes them —
         // but `isRestricted` is what tells the tab to render one line
@@ -3493,8 +4025,75 @@ export const opportunityService = {
         // #209 fills this in with the visit's Purchase Requests; until it does,
         // the slot exists so the tab renders the same shape either way.
         requestedItems: [],
+        // #397: labelled from the visit's own Flow Snapshot, never the live
+        // flow_stage_fields — same "frozen with everything else" rule the
+        // Stage itself is named from (see `stageFor`, above).
+        stageFields: isRestricted
+          ? { filled: [], notFilled: [] }
+          : stageFieldRows(
+              snapshotRows(snapshotsById[snapshotIdFor(visit)]?.snapshot_data?.stageFields).filter(
+                (f) => f.stage_id === visit.flow_stage_id,
+              ),
+              fieldValuesByVisit[visit.id] || {},
+            ),
+        followUps: isRestricted ? [] : stageFollowUpLogs(opportunityLogs, visit.id),
+        followUpReminderCount: isRestricted ? 0 : stageFollowUpReminderCount(opportunityLogs, visit.id),
+        // #398: what each Stage Action run did on this visit, in the Stage's
+        // own flow order — scoped to runs stamped with THIS visit's id, since
+        // #204's fire-once ledger means a looped-back visit's already-decided
+        // actions belong to the visit that first fired them, not this one.
+        actionRuns: isRestricted
+          ? []
+          : stageActionRuns(
+              actionsForSnapshotStage(snapshotsById[snapshotIdFor(visit)]?.snapshot_data?.actions || [], visit.flow_stage_id),
+              actionRuns.filter((r) => r.stage_visit_id === visit.id),
+              {
+                tasksById,
+                groupTasksById,
+                // An undecided run has no task yet, so its name is the action's raw
+                // title — fill its {{tokens}} the way the created task's title was.
+                labelFor: (action) =>
+                  renderTemplate(stageActionName(action), {
+                    salesReference: opportunity?.sales_reference,
+                    projectTitle: opportunity?.project_title,
+                    company: opportunity?.client_name,
+                    stageName: stageFor(visit).name,
+                  }),
+                closedOffActors: {
+                  startFresh: startFreshClosureByVisitId[visit.id] || null,
+                  reverted: visit.leftBy || null,
+                },
+              },
+            ),
       };
     });
+
+    // #400: derived from the very actionRuns just shaped, so a visit's
+    // closed-off marker can never disagree with what its runs say.
+    // A Stage with no actions has no runs to stamp, so its closure is read
+    // off the visits themselves: a later Start fresh to the same Stage, or
+    // this visit's own Remove progress. A reverted Start fresh undoes its
+    // visit, which drops out of `visits` and takes the marker with it.
+    for (const visit of shaped) {
+      if (visit.isRestricted) {
+        visit.closedOff = null;
+        continue;
+      }
+      const raw = rawVisitById[visit.id];
+      visit.closedOff =
+        visitClosedOff(visit.actionRuns) ??
+        (startFreshAtByVisitId[visit.id]
+          ? { reason: "start_fresh", at: startFreshAtByVisitId[visit.id], by: startFreshClosureByVisitId[visit.id] }
+          : raw?.revert_choice === "remove"
+            ? { reason: "reverted", at: raw.left_at, by: raw.leftBy || null }
+            : null);
+    }
+
+    const [memberRows, groups] = await Promise.all([
+      opportunityService.getMembers(opportunityId),
+      employeeGroupService.list(),
+    ]);
+    const preloaded = { logs: opportunityLogs, memberRows, groups };
 
     const withConditions = await Promise.all(
       shaped.map(async (visit) => {
@@ -3508,28 +4107,57 @@ export const opportunityService = {
           // it is not a visit's condition list either.
           .filter((c) => c.kind !== CONDITION_KINDS.DEADLINE)
           .sort((a, b) => a.sort_order - b.sort_order);
-        if (conditions.length === 0) return { ...visit, conditions: [] };
+        if (conditions.length === 0) {
+          const { attachments } = await gateEvidenceFor(opportunityId, [], { stageVisitId: visit.id, asOf: visit.leftAt, preloaded });
+          return { ...visit, conditions: [], attachments: attachments || [] };
+        }
 
         const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing] = await Promise.all([
-          gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt }),
+          gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt, preloaded }),
           resolveHasInclusions(conditions, opportunityId, { asOf: visit.leftAt }),
           resolveHasPurchasing(conditions, opportunityId, { asOf: visit.leftAt }),
         ]);
 
         return {
           ...visit,
+          attachments: attachments || [],
           conditions: conditions
-            .map((condition) => ({
-              condition,
-              ...evaluateCondition(condition, {
+            .map((condition) => {
+              const evaluation = evaluateCondition(condition, {
                 opportunity,
                 attachments,
                 members,
                 statusRow: statusRowsByCondition[condition.id] ?? null,
                 hasInclusions,
                 hasPurchasing,
-              }),
-            }))
+              });
+
+              let matchedFiles = [];
+              if (condition.kind === CONDITION_KINDS.ATTACHMENT) {
+                if (condition.config?.documentType) {
+                  matchedFiles = (attachments || []).filter((a) => a.documentType === condition.config.documentType);
+                } else {
+                  const accepts = Array.isArray(condition.config?.accepts) ? condition.config.accepts : [];
+                  matchedFiles = (attachments || []).filter(
+                    (a) => a.conditionId === condition.id && (accepts.length === 0 || accepts.includes(a.type)),
+                  );
+                }
+              }
+
+              return {
+                condition,
+                ...evaluation,
+                files: matchedFiles,
+                // ADR 0027 / issue #412 — evidence a Resume carried here keeps
+                // its mark. Reads matchedFiles, not the visit's whole
+                // attachments list: a Stage with more than one Attachment
+                // condition must mark only the one whose own file carried,
+                // not every Attachment condition on the Stage.
+                carried:
+                  Boolean(statusRowsByCondition[condition.id]?.carried_from_visit_id) ||
+                  matchedFiles.some((a) => a.carriedFromVisitId),
+              };
+            })
             // Same rule as `getStageChecklist`: a removed kind can never be
             // satisfied, so it is not a row anyone can act on or read.
             .filter((row) => row.status !== CONDITION_STATUS.NOT_APPLICABLE),
@@ -3537,10 +4165,17 @@ export const opportunityService = {
       }),
     );
 
-    // Evidence names its actor by id; the tab shows a face beside "met by",
-    // so they are resolved once here rather than a lookup per rendered row.
+    // Evidence names its actor by id; the tab shows a face beside "met by"
+    // and beside a Logged Follow-up, so every actor id across both is
+    // resolved once here rather than a lookup per rendered row.
     const satisfierIds = [
-      ...new Set(withConditions.flatMap((v) => v.conditions.map((c) => c.satisfiedBy)).filter(Boolean)),
+      ...new Set([
+        ...withConditions.flatMap((v) => (v.conditions || []).map((c) => c.satisfiedBy)),
+        ...withConditions.flatMap((v) => (v.attachments || []).map((a) => a.uploadedBy)),
+        ...withConditions.flatMap((v) => (v.conditions || []).flatMap((c) => (c.files || []).map((f) => f.uploadedBy))),
+        ...withConditions.flatMap((v) => (v.followUps || []).map((f) => f.loggedBy)),
+        ...withConditions.flatMap((v) => (v.actionRuns || []).map((r) => r.decidedBy)),
+      ].filter(Boolean)),
     ];
     let peopleById = {};
     if (satisfierIds.length > 0) {
@@ -3554,9 +4189,25 @@ export const opportunityService = {
 
     return withConditions.map((visit) => ({
       ...visit,
-      conditions: visit.conditions.map((row) => ({
+      attachments: (visit.attachments || []).map((a) => ({
+        ...a,
+        uploader: a.uploadedBy ? (peopleById[a.uploadedBy] ?? null) : null,
+      })),
+      conditions: (visit.conditions || []).map((row) => ({
         ...row,
         satisfiedBy: row.satisfiedBy ? (peopleById[row.satisfiedBy] ?? null) : null,
+        files: (row.files || []).map((f) => ({
+          ...f,
+          uploader: f.uploadedBy ? (peopleById[f.uploadedBy] ?? null) : null,
+        })),
+      })),
+      followUps: visit.followUps.map((row) => ({
+        ...row,
+        loggedBy: row.loggedBy ? (peopleById[row.loggedBy] ?? null) : null,
+      })),
+      actionRuns: visit.actionRuns.map((row) => ({
+        ...row,
+        decidedBy: row.decidedBy ? (peopleById[row.decidedBy] ?? null) : null,
       })),
     }));
   },

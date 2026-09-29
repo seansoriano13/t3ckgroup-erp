@@ -17,14 +17,18 @@ export default function AppLayout() {
   // `/flow-versions/:id` is the same shape: a read-only Flow Snapshot, panned
   // and zoomed, opened from the version badge on an SOR.
   //
-  // `/crm` joins them (issue #206): the register is something you pan or scan
-  // across (a board, a large list), not a form. Its Commission pages are
-  // ordinary pages and stay centred.
+  // `/sors` joins them (issue #206, renamed by ADR 0024): the register is
+  // something you pan or scan across (a board, a large list), not a form. Its
+  // Commission pages are ordinary pages and stay centred.
+  //
+  // The legacy `/crm` and `/opportunities` paths are not listed: they render a
+  // redirect, never the register, so the frame they would briefly get does not
+  // matter and naming them here would only be one more place to keep in step.
   const isFullBleed =
     location.pathname.startsWith("/super-admin/flow-canvas") ||
     location.pathname.startsWith("/flow-versions/") ||
-    (location.pathname.startsWith("/crm") &&
-      !location.pathname.startsWith("/crm/commission"));
+    (location.pathname.startsWith("/sors") &&
+      !location.pathname.startsWith("/sors/commission"));
 
   if (
     location.pathname === "/login" ||

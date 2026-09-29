@@ -1,0 +1,366 @@
+/**
+ * Issue #390 (parent #384, ADR 0027) — a Return's Resume moves the earlier
+ * visit's Stage Work to the new visit. Moves run as a signed-in user.
+ */
+import { describe, it, expect, beforeAll, afterAll } from "vitest"
+import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
+import { serviceClient } from "./support/stack.js"
+import { MARKER, makeSor } from "./support/rows.js"
+
+let saleTypeId, flowId, stageA, stageB, actionId, conditionId, fieldId
+const sorIds = []
+const svc = () => serviceClient()
+
+async function stage(name, sortOrder) {
+    const { data, error } = await svc()
+        .from("flow_stages")
+        .insert({ flow_id: flowId, name: `${MARKER} ${name}`, sort_order: sortOrder })
+        .select("id")
+        .single()
+    if (error) throw new Error(error.message)
+    return data.id
+}
+
+beforeAll(async () => {
+    await ensureCastLoaded()
+    saleTypeId = (await svc().from("sale_types").insert({ name: `${MARKER} Resume` }).select("id").single()).data.id
+    flowId = (await svc().from("sales_flows").insert({ sale_type_id: saleTypeId }).select("id").single()).data.id
+    stageA = await stage("A", 10)
+    stageB = await stage("B", 20)
+    actionId = (await svc().from("flow_stage_actions").insert({ stage_id: stageA, kind: "create_individual_task" }).select("id").single()).data.id
+    const cond = await svc().from("stage_conditions").insert({ stage_id: stageA, kind: "tickbox", label: `${MARKER} ok` }).select("id").single()
+    if (cond.error) throw new Error(cond.error.message)
+    conditionId = cond.data.id
+    const f = await svc().from("flow_stage_fields").insert({ stage_id: stageA, label: `${MARKER} f`, source: "custom", field_type: "text" }).select("id").single()
+    if (f.error) throw new Error(f.error.message)
+    fieldId = f.data.id
+})
+
+afterAll(async () => {
+    await svc().from("tasks").delete().in("opportunity_id", sorIds)
+    await svc().from("committee_tasks").delete().in("opportunity_id", sorIds)
+    await svc().from("sales_opportunities").delete().in("id", sorIds)
+    await svc().from("stage_conditions").delete().eq("id", conditionId)
+    await svc().from("flow_stage_fields").delete().eq("id", fieldId)
+    await svc().from("flow_stage_actions").delete().eq("id", actionId)
+    await svc().from("flow_stages").delete().eq("flow_id", flowId)
+    await svc().from("sales_flows").delete().eq("id", flowId)
+    await svc().from("sale_types").delete().eq("id", saleTypeId)
+})
+
+async function moveTo(sorId, stageId, who = "dealOwner") {
+    const client = await clientFor(who)
+    const { error } = await client.from("sales_opportunities").update({ flow_stage_id: stageId }).eq("id", sorId)
+    if (error) throw new Error(error.message)
+}
+
+/** An SOR that did work on A, went to B, and Returned to A (visit 3). */
+async function returned() {
+    const id = await makeSor({
+        registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, closingSalesId: ids.closingSales, saleTypeId, flowStageId: stageA,
+    })
+    sorIds.push(id)
+    const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+    const mk = (status, extra = {}) =>
+        svc().from("tasks")
+            .insert({ logged_by: ids.closingSales, opportunity_id: id, stage_visit_id: visit1, stage_action_id: actionId, task_description: `${MARKER} t`, status, ...extra })
+            .select("id").single().then((r) => r.data.id)
+    const open = await mk("INCOMPLETE", { end_at: "2026-10-10T00:00:00Z" })
+    const undated = await mk("INCOMPLETE")
+    const group = (await svc().from("committee_tasks")
+        .insert({ title: `${MARKER} g`, created_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visit1, stage_action_id: actionId, due_date: "2026-10-10T00:00:00Z" })
+        .select("id").single()).data.id
+    const done = await mk("COMPLETED")
+    await svc().from("sor_condition_status").insert({ opportunity_id: id, condition_id: conditionId, stage_visit_id: visit1, satisfied_by: ids.dealOwner })
+    await svc().from("sor_stage_field_values").insert({ opportunity_id: id, stage_visit_id: visit1, field_id: fieldId, value: "kept" })
+    await svc().from("sales_opportunity_logs").insert({
+        opportunity_id: id, author_id: ids.dealOwner, type: "SYSTEM", content: "Follow-up",
+        metadata: { event: "FOLLOW_UP_LOGGED", stageVisitId: visit1 },
+    })
+    await moveTo(id, stageB)
+    // Held for two days.
+    const held = new Date(Date.now() - 2 * 86400000).toISOString()
+    await svc().from("tasks").update({ held_at: held }).in("id", [open, undated])
+    await svc().from("committee_tasks").update({ held_at: held }).eq("id", group)
+    await moveTo(id, stageA)
+    const visit3 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).eq("sequence", 3).single()).data.id
+    return { id, visit1, visit3, open, done, undated, group }
+}
+
+describe("sor_resume_stage_work", () => {
+    it("moves the earlier visit's Stage Work to the new visit, reopening held tasks with due dates pushed back", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        const { data, error } = await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })
+        expect(error).toBeNull()
+        expect(data.return_choice).toBe("resume")
+
+        const t = (await svc().from("tasks").select("*").eq("id", s.open).single()).data
+        expect(t.status).toBe("INCOMPLETE")
+        expect(t.held_at).toBeNull()
+        expect(t.stage_visit_id).toBe(s.visit3)
+        expect(t.carried_from_visit_id).toBe(s.visit1)
+        const shiftDays = (new Date(t.end_at) - new Date("2026-10-10T00:00:00Z")) / 86400000
+        expect(shiftDays).toBeGreaterThan(1.99)
+        expect(shiftDays).toBeLessThan(2.1)
+        const undatedRow = (await svc().from("tasks").select("status, end_at").eq("id", s.undated).single()).data
+        expect(undatedRow).toEqual({ status: "INCOMPLETE", end_at: null })
+        const g = (await svc().from("committee_tasks").select("status, due_date").eq("id", s.group).single()).data
+        expect(g.status).toBe("ACTIVE")
+        const groupShift = (new Date(g.due_date) - new Date("2026-10-10T00:00:00Z")) / 86400000
+        expect(groupShift).toBeGreaterThan(1.99)
+        expect(groupShift).toBeLessThan(2.1)
+        expect((await svc().from("tasks").select("stage_visit_id").eq("id", s.done).single()).data.stage_visit_id).toBe(s.visit3)
+
+        const cond = await svc().from("sor_condition_status").select("stage_visit_id, satisfied_by").eq("opportunity_id", s.id)
+        expect(cond.data).toEqual([{ stage_visit_id: s.visit3, satisfied_by: ids.dealOwner }])
+        const field = await svc().from("sor_stage_field_values").select("stage_visit_id, value").eq("opportunity_id", s.id)
+        expect(field.data).toEqual([{ stage_visit_id: s.visit3, value: "kept" }])
+        const log = await svc().from("sales_opportunity_logs").select("stage_visit_id, metadata").eq("opportunity_id", s.id).eq("metadata->>event", "FOLLOW_UP_LOGGED").single()
+        expect(log.data.stage_visit_id).toBe(s.visit3)
+        expect(log.data.metadata.stageVisitId).toBe(s.visit3)
+
+        const earlier = (await svc().from("sor_stage_visits").select("*").eq("id", s.visit1).single()).data
+        expect(earlier.resumed_at).not.toBeNull()
+        expect(earlier.resumed_by).toBe(ids.dealOwner)
+        expect(earlier.resumed_into_visit_id).toBe(s.visit3)
+    })
+
+    it("refuses when the SOR is not on a Return", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const client = await clientFor("dealOwner")
+        const { error } = await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })
+        expect(error?.message).toMatch(/not a Return/)
+    })
+
+    it("refuses someone who did not make the move", async () => {
+        const s = await returned()
+        const client = await clientFor("closingSales")
+        const { error } = await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })
+        expect(error?.message).toMatch(/only whoever made the move/)
+    })
+
+    it("refuses a second choice on the same visit", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error?.message).toMatch(/already recorded/)
+    })
+
+    it("only retags condition files and Follow-up logs, not other notes", async () => {
+        const s = await returned()
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: s.id, author_id: ids.dealOwner, type: "SYSTEM", content: "a comment",
+            metadata: { stageVisitId: s.visit1 },
+        })
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+        const note = (await svc().from("sales_opportunity_logs").select("metadata").eq("opportunity_id", s.id).eq("content", "a comment").single()).data
+        expect(note.metadata.stageVisitId).toBe(s.visit1)
+    })
+
+    it("issue #412: carries an Attachment condition's file to the new visit", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+        const attachmentConditionId = crypto.randomUUID()
+
+        // Mimics StageChecklist.jsx's stampAndAttach: the file is recorded only
+        // as an attachment note, tagged with the condition and the Stage Visit
+        // active when it was given — both the trigger-set stage_visit_id
+        // column (#295) and the file's own metadata.attachments[].stageVisitId
+        // land on visit1, since the SOR is still there at insert time.
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: id, author_id: ids.dealOwner, type: "COMMENT", content: `${MARKER} Attached document`,
+            metadata: { attachments: [{ url: "https://example.com/f.pdf", name: "f.pdf", conditionId: attachmentConditionId, stageVisitId: visit1 }] },
+        })
+
+        await moveTo(id, stageB)
+        await moveTo(id, stageA)
+        const client = await clientFor("dealOwner")
+        const { data, error } = await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })
+        expect(error).toBeNull()
+
+        const log = (await svc().from("sales_opportunity_logs").select("stage_visit_id, metadata")
+            .eq("opportunity_id", id).eq("content", `${MARKER} Attached document`).single()).data
+        expect(log.stage_visit_id).toBe(data.id)
+        expect(log.metadata.stageVisitId).toBe(data.id)
+        expect(log.metadata.carriedFromVisitId).toBe(visit1)
+        // The evidence opportunityService.js's gateEvidenceFor actually reads:
+        // the file's own stageVisitId, not just the log's.
+        expect(log.metadata.attachments[0].stageVisitId).toBe(data.id)
+        expect(log.metadata.attachments[0].conditionId).toBe(attachmentConditionId)
+    })
+})
+
+describe("sor_move_and_resume", () => {
+    it("moves and resumes in one call", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        await moveTo(id, stageB)
+        const client = await clientFor("dealOwner")
+        const { data, error } = await client.rpc("sor_move_and_resume", { p_opportunity_id: id, p_flow_stage_id: stageA })
+        expect(error).toBeNull()
+        expect(data.return_choice).toBe("resume")
+        expect((await svc().from("sales_opportunities").select("flow_stage_id").eq("id", id).single()).data.flow_stage_id).toBe(stageA)
+    })
+
+    it("leaves the SOR where it was when the Resume is refused (not a Return)", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const client = await clientFor("dealOwner")
+        const { error } = await client.rpc("sor_move_and_resume", { p_opportunity_id: id, p_flow_stage_id: stageB })
+        expect(error?.message).toMatch(/not a Return/)
+        expect((await svc().from("sales_opportunities").select("flow_stage_id").eq("id", id).single()).data.flow_stage_id).toBe(stageA)
+    })
+})
+
+describe("reverting a Return undoes its Resume (ADR 0027)", () => {
+    it("moves the carried work back to the earlier visit and puts its open tasks back on hold", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+
+        const { error } = await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })
+        expect(error).toBeNull()
+
+        const t = (await svc().from("tasks").select("*").eq("id", s.open).single()).data
+        expect(t.stage_visit_id).toBe(s.visit1)
+        expect(t.carried_from_visit_id).toBeNull()
+        expect(t.status).toBe("ON_HOLD")
+        expect(t.held_from_visit_id).toBe(s.visit1)
+        expect((await svc().from("tasks").select("status, stage_visit_id").eq("id", s.done).single()).data)
+            .toEqual({ status: "COMPLETED", stage_visit_id: s.visit1 })
+        expect((await svc().from("sor_condition_status").select("stage_visit_id").eq("opportunity_id", s.id).single()).data.stage_visit_id).toBe(s.visit1)
+        expect((await svc().from("sor_stage_field_values").select("stage_visit_id").eq("opportunity_id", s.id).single()).data.stage_visit_id).toBe(s.visit1)
+        const log = (await svc().from("sales_opportunity_logs").select("stage_visit_id, metadata").eq("opportunity_id", s.id).eq("metadata->>event", "FOLLOW_UP_LOGGED").single()).data
+        expect(log.stage_visit_id).toBe(s.visit1)
+        expect(log.metadata.stageVisitId).toBe(s.visit1)
+        expect(log.metadata.carriedFromVisitId).toBeUndefined()
+
+        const earlier = (await svc().from("sor_stage_visits").select("resumed_at, resumed_into_visit_id").eq("id", s.visit1).single()).data
+        expect(earlier).toEqual({ resumed_at: null, resumed_into_visit_id: null })
+    })
+
+    it("still refuses when new Stage Work was done on the Return visit", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: s.id, author_id: ids.dealOwner, type: "SYSTEM", content: "Follow-up",
+            metadata: { event: "FOLLOW_UP_LOGGED", stageVisitId: s.visit3 }, stage_visit_id: s.visit3,
+        })
+        const { error } = await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })
+        expect(error?.message).toMatch(/follow-up was logged/)
+    })
+
+    it("a later Resume gathers the work a Keep-Revert handed back, plus the reverted visit's own (SOR-218)", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+        // Own work on the Return visit, so the Revert must choose Keep.
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: s.id, author_id: ids.dealOwner, type: "COMMENT", content: `${MARKER} own file`, stage_visit_id: s.visit3,
+            metadata: { attachments: [{ url: "https://example.com/o.pdf", name: "o.pdf", conditionId: crypto.randomUUID(), stageVisitId: s.visit3 }] },
+        })
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: s.id, p_progress_choice: "keep" })).error).toBeNull()
+        expect((await svc().from("tasks").select("stage_visit_id").eq("id", s.open).single()).data.stage_visit_id).toBe(s.visit1)
+
+        await moveTo(s.id, stageA)
+        const visit5 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", s.id).eq("sequence", 5).single()).data.id
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+
+        const t = (await svc().from("tasks").select("status, stage_visit_id").eq("id", s.open).single()).data
+        expect(t).toEqual({ status: "INCOMPLETE", stage_visit_id: visit5 })
+        expect((await svc().from("sor_condition_status").select("stage_visit_id").eq("opportunity_id", s.id).single()).data.stage_visit_id).toBe(visit5)
+        const own = (await svc().from("sales_opportunity_logs").select("stage_visit_id").eq("opportunity_id", s.id).eq("content", `${MARKER} own file`).single()).data
+        expect(own.stage_visit_id).toBe(visit5)
+        const sources = (await svc().from("sor_stage_visits").select("id").eq("resumed_into_visit_id", visit5)).data.map((v) => v.id)
+        expect(sources.sort()).toEqual([s.visit1, s.visit3].sort())
+
+        // Reverting that Resume hands each visit its own work back.
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: s.id, p_progress_choice: "keep" })).error).toBeNull()
+        expect((await svc().from("tasks").select("status, stage_visit_id").eq("id", s.open).single()).data)
+            .toEqual({ status: "ON_HOLD", stage_visit_id: s.visit1 })
+        expect((await svc().from("sales_opportunity_logs").select("stage_visit_id").eq("opportunity_id", s.id).eq("content", `${MARKER} own file`).single()).data.stage_visit_id).toBe(s.visit3)
+        expect((await svc().from("sor_stage_visits").select("id").eq("resumed_into_visit_id", visit5)).data).toEqual([])
+    })
+
+    it("issue #412: moves a carried Attachment condition's file back too", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: id, author_id: ids.dealOwner, type: "COMMENT", content: `${MARKER} Attached document`,
+            metadata: { attachments: [{ url: "https://example.com/f.pdf", name: "f.pdf", conditionId: crypto.randomUUID(), stageVisitId: visit1 }] },
+        })
+        await moveTo(id, stageB)
+        await moveTo(id, stageA)
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })).error).toBeNull()
+
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: id })).error).toBeNull()
+
+        const log = (await svc().from("sales_opportunity_logs").select("stage_visit_id, metadata")
+            .eq("opportunity_id", id).eq("content", `${MARKER} Attached document`).single()).data
+        expect(log.stage_visit_id).toBe(visit1)
+        expect(log.metadata.stageVisitId).toBe(visit1)
+        expect(log.metadata.carriedFromVisitId).toBeUndefined()
+        expect(log.metadata.attachments[0].stageVisitId).toBe(visit1)
+    })
+})
+
+describe("issue #403: Resume reopens the Stage Participant windows the departure closed", () => {
+    it("reopens a window on the new visit, and reverting the Resume closes it again", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+
+        const win = (await svc().from("sor_stage_participants")
+            .insert({ opportunity_id: id, employee_id: ids.stageParticipant, source: "action", opened_visit_id: visit1, until_rule: "stage_left" })
+            .select("id").single()).data.id
+        await svc().from("tasks")
+            .insert({ logged_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visit1, stage_action_id: actionId, task_description: `${MARKER} t`, status: "INCOMPLETE" })
+
+        await moveTo(id, stageB) // leaves A: window closes (rule_met)
+        expect((await svc().from("sor_stage_participants").select("closed_reason").eq("id", win).single()).data.closed_reason).toBe("rule_met")
+
+        await moveTo(id, stageA) // Return to A
+        const visit3 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).order("sequence", { ascending: false }).limit(1).single()).data.id
+
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })).error).toBeNull()
+
+        const reopened = (await svc().from("sor_stage_participants").select("closed_at, opened_visit_id").eq("id", win).single()).data
+        expect(reopened.closed_at).toBeNull()
+        expect(reopened.opened_visit_id).toBe(visit3)
+
+        // Reverting the Resume undoes it: the window moves back and closes.
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: id })).error).toBeNull()
+        const closedAgain = (await svc().from("sor_stage_participants").select("closed_at, closed_reason, opened_visit_id").eq("id", win).single()).data
+        expect(closedAgain.opened_visit_id).toBe(visit1)
+        expect(closedAgain.closed_at).not.toBeNull()
+        expect(closedAgain.closed_reason).toBe("rule_met")
+    })
+
+    it("a window a Terminal Stage closed does not reopen just because Resume ran", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+        const win = (await svc().from("sor_stage_participants")
+            .insert({ opportunity_id: id, employee_id: ids.stageParticipant, source: "action", opened_visit_id: visit1, until_rule: "terminal" })
+            .select("id").single()).data.id
+        await svc().from("sor_stage_participants").update({ closed_at: new Date().toISOString(), closed_reason: "terminal" }).eq("id", win)
+
+        await moveTo(id, stageB)
+        await moveTo(id, stageA)
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })).error).toBeNull()
+
+        const row = (await svc().from("sor_stage_participants").select("closed_at, closed_reason").eq("id", win).single()).data
+        expect(row.closed_reason).toBe("terminal")
+        expect(row.closed_at).not.toBeNull()
+    })
+})
+

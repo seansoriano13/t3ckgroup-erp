@@ -5,6 +5,10 @@ import { ListTodo } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 import { stageFieldService } from "../../services/stageFieldService";
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
+import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
+import { SelectField } from "@/components/ui/SelectField";
 
 /**
  * A Stage's own small form, under its checklist — never checklist rows
@@ -99,14 +103,12 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
 
           return (
             <div key={field.id} className="space-y-1">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                {field.label}
+              <FieldBox label={<>{field.label}
                 {field.is_required && (
                   <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
                     Required
                   </span>
-                )}
-              </label>
+                )}</>} />
               {field.help && <p className="text-[11px] text-muted-foreground">{field.help}</p>}
 
               {savedThisVisit !== null && savedThisVisit !== undefined && savedThisVisit !== "" ? (
@@ -120,21 +122,16 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                   )}
                   <div className="flex items-center gap-2 max-w-sm">
                     {field.source === "custom" && field.field_type === "choice" ? (
-                      <select
+                      <SelectField
                         aria-label={field.label}
                         value={value}
-                        onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
-                      >
-                        <option value="">Select…</option>
-                        {(field.options || []).map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(next) => setDraft((p) => ({ ...p, [field.id]: next }))}
+                        options={(field.options || []).map((opt) => ({ value: opt, label: opt }))}
+                        placeholder="Select…"
+                        className="w-full"
+                      />
                     ) : (
-                      <input
+                      <Input
                         aria-label={field.label}
                         type={
                           isSor
@@ -148,17 +145,17 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                         value={value}
                         onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
                         placeholder={`Enter ${field.label.toLowerCase()}`}
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
+                        containerClassName="flex w-full" className="h-8 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
                       />
                     )}
-                    <button
+                    <Button
                       type="button"
                       disabled={isSaving || !value}
                       onClick={() => handleSave(field)}
-                      className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-mauve-12 px-3 text-[11px] font-medium text-mauve-1 shadow hover:bg-mauve-12/90 disabled:opacity-50"
+                      className="shrink-0 px-3 text-[11px]"
                     >
                       {isSaving ? "…" : "Save"}
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}

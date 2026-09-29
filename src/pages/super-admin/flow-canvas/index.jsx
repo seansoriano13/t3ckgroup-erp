@@ -1,11 +1,11 @@
 import ProtectedRoute from "@/components/ProtectedRoute.jsx";
-import FlowCanvas from "@/components/settings/FlowCanvas.jsx";
-import { FlowDataProvider } from "@/components/settings/FlowDataContext.jsx";
+import FlowCanvas from "@/components/flow-canvas/FlowCanvas.jsx";
+import { FlowDataProvider } from "@/components/flow-canvas/FlowDataContext.jsx";
 import { isProductionSupabase } from "@/lib/supabase.js";
 
 /**
  * The Flow Canvas (issue #36) — one screen, one nav entry, for what was always
- * one activity: building and refining the CRM process.
+ * one activity: building and refining the SORS process.
  *
  * It edits `sales_flows` directly — real Sale Types, Stages and Scratch SORs.
  * The Live/Sandbox toggle and its one shared Sandbox document are gone (issue

@@ -1,3 +1,5 @@
+import { Button } from "./ui/button";
+
 /**
  * GradeSelector — Extracted from ManagerEvaluation.
  * Renders the 1-5 grade buttons for head task evaluation.
@@ -46,21 +48,22 @@ export default function GradeSelector({
         }
 
         return (
-          <button
+          <Button
             key={num}
             type="button"
+            variant="ghost"
             disabled={!canEvaluate}
             onClick={() => onSelect?.(Number(grade) === num ? null : num)}
-            className={`flex items-center justify-center font-bold transition-all rounded-full ${
+            className={`h-auto flex items-center justify-center font-bold transition-all rounded-full ${
               compact ? "w-6 h-7 text-[10px]" : "flex-1 py-2 text-sm"
             } ${!canEvaluate ? "opacity-50 cursor-not-allowed" : ""} ${
               isSelected
-                ? `${activeColorMap[num]} scale-[1.02] z-10 shadow-md`
+                ? `${activeColorMap[num]} scale-[1.02] z-10 shadow-md hover:opacity-90`
                 : `text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm`
             }`}
           >
             {num}
-          </button>
+          </Button>
         );
       })}
     </div>

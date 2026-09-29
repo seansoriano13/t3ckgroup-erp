@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { Button } from "../ui/button";
 
 /**
  * Stage Gate Engine, ticket 6 (.scratch/stage-gate-engine/issues/06-deal-
@@ -112,7 +113,11 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     // attachment (or a pick from another condition's file) can never
     // satisfy it.
     uploaded.conditionId = condition.id;
-    if (currentVisitId) uploaded.stageVisitId = currentVisitId;
+    // Read the visit fresh, not from the cached query: that cache is keyed by
+    // Stage, so after a Revert then Resume back to the same Stage it can still
+    // hold an earlier visit's id and stamp the file there (same race as #413).
+    const visitId = (await opportunityService.getCurrentStageVisitId(opportunityId)) ?? currentVisitId;
+    if (visitId) uploaded.stageVisitId = visitId;
     await opportunityService.addNote(
       opportunityId,
       actorId,
@@ -295,15 +300,16 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
               </p>
             )}
             {existingFiles.map((file, idx) => (
-              <button
+              <Button
                 key={`${file.url}-${idx}`}
                 type="button"
+                variant="ghost"
                 disabled={pickExistingMutation.isPending}
                 onClick={() => pickingFor && pickExistingMutation.mutate({ condition: pickingFor, file })}
-                className="flex w-full items-center gap-2 truncate rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
+                className="h-auto w-full justify-start truncate rounded-lg px-2.5 py-1.5 text-left text-sm"
               >
                 {file.name || "Attachment"}
-              </button>
+              </Button>
             ))}
           </div>
         </DialogContent>
