@@ -56,7 +56,8 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: /retail overview/i })).toBeInTheDocument();
+    // The first render pays for loading the chart library, which is slow on a busy machine.
+    expect(await screen.findByRole("heading", { name: /retail overview/i }, { timeout: 5000 })).toBeInTheDocument();
     // Total sales and This month both read 4,000; the average order is 2,000.
     expect((await screen.findAllByText(formatPHP(4000))).length).toBeGreaterThan(0);
     expect(screen.getByText(formatPHP(2000))).toBeInTheDocument();
