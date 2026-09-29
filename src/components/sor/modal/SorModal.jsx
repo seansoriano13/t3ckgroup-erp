@@ -362,6 +362,13 @@ export default function SorModal({
     // cards (#399) read each task's live status under these keys.
     queryClient.invalidateQueries({ queryKey: ["globalTask"] });
     queryClient.invalidateQueries({ queryKey: ["globalGroupTask"] });
+    // These are keyed by Stage, so a Return to a Stage would otherwise reuse
+    // the earlier visit's cached id: the Now tab listed no tasks (it filters
+    // by visit), Revert hid itself, and files stamped the old visit.
+    queryClient.invalidateQueries({ queryKey: ["revertVisits", id] });
+    queryClient.invalidateQueries({ queryKey: ["stageVisitId", id] });
+    queryClient.invalidateQueries({ queryKey: ["currentStageVisit", id] });
+    queryClient.invalidateQueries({ queryKey: ["followUpStatus", id] });
   }, [queryClient, id]);
 
   const handleMentionClick = (person) => {
