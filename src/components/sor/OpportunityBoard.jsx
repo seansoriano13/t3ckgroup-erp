@@ -172,6 +172,12 @@ export default function OpportunityBoard({
 
   const isLegacy = isLegacyValue(selected) || (selected !== "ALL" && saleTypes.length === 0);
 
+  // Once the cutover backfill has attached every SOR to the Legacy Pipeline
+  // Sale Type, this no-Sale-Type view is empty and only doubles that flow's
+  // name in the switcher. It stays while an SOR with no Sale Type exists (one
+  // registered on the old UI between backfill runs), or is the current view.
+  const showLegacyOption = pipelineOpportunities.length > 0 || saleTypes.length === 0 || isLegacy;
+
   const activeFlow = useMemo(() => {
     if (selected === "ALL" || isLegacy || !flowStagesIndex) return null;
     return Object.values(flowStagesIndex.flowsById).find((f) => f.sale_type_id === selected) || null;
@@ -288,19 +294,23 @@ export default function OpportunityBoard({
                   {st.name}
                 </Button>
               ))}
-              {saleTypes.length > 0 && <div className="my-1 h-px bg-border" />}
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  chooseSaleType(LEGACY_KEY);
-                  close();
-                }}
-                className={`h-auto justify-start px-2.5 py-1.5 text-left text-[13px] ${isLegacy ? "bg-muted text-foreground hover:bg-muted hover:text-foreground" : "text-foreground"
-                  }`}
-              >
-                Legacy pipeline
-              </Button>
+              {showLegacyOption && (
+                <>
+                  {saleTypes.length > 0 && <div className="my-1 h-px bg-border" />}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      chooseSaleType(LEGACY_KEY);
+                      close();
+                    }}
+                    className={`h-auto justify-start px-2.5 py-1.5 text-left text-[13px] ${isLegacy ? "bg-muted text-foreground hover:bg-muted hover:text-foreground" : "text-foreground"
+                      }`}
+                  >
+                    Legacy pipeline
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </Dropdown>
@@ -346,14 +356,16 @@ export default function OpportunityBoard({
                       {st.name}
                     </Button>
                   ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => chooseSaleType(LEGACY_KEY)}
-                    className="gap-1.5 rounded-xl bg-muted/40 px-3.5 text-xs"
-                  >
-                    Legacy pipeline
-                  </Button>
+                  {showLegacyOption && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => chooseSaleType(LEGACY_KEY)}
+                      className="gap-1.5 rounded-xl bg-muted/40 px-3.5 text-xs"
+                    >
+                      Legacy pipeline
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

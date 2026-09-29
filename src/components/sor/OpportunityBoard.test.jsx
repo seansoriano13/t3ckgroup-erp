@@ -308,6 +308,48 @@ describe("OpportunityBoard", () => {
       expect(card).toHaveAttribute("draggable", "false");
     });
 
+    describe("the no-Sale-Type 'Legacy pipeline' option", () => {
+      const legacyPipelineType = { id: "st-legacy", name: "Legacy Pipeline" };
+      const openSwitcher = async (user) => {
+        await user.click(await screen.findByText("Outright"));
+      };
+
+      it("is hidden once every SOR has a Sale Type, so it doesn't double the real Legacy Pipeline flow", async () => {
+        const user = setupUser();
+        renderWithProviders(
+          <OpportunityBoard
+            opportunities={[flowDeal()]}
+            search=""
+            flowStagesIndex={flowStagesIndex}
+            snapshotsById={snapshotsById}
+            saleTypes={[...saleTypes, legacyPipelineType]}
+            onCardClick={() => {}}
+          />,
+        );
+
+        await openSwitcher(user);
+        expect(screen.getAllByText(/^legacy pipeline$/i)).toHaveLength(1);
+      });
+
+      it("stays while an SOR with no Sale Type still exists", async () => {
+        makePipelineStage({ code: "QUALIFIED", label: "Qualified", sort_order: 10 });
+        const user = setupUser();
+        renderWithProviders(
+          <OpportunityBoard
+            opportunities={[flowDeal(), opportunity({ id: "orphan" })]}
+            search=""
+            flowStagesIndex={flowStagesIndex}
+            snapshotsById={snapshotsById}
+            saleTypes={[...saleTypes, legacyPipelineType]}
+            onCardClick={() => {}}
+          />,
+        );
+
+        await openSwitcher(user);
+        expect(screen.getAllByText(/^legacy pipeline$/i)).toHaveLength(2);
+      });
+    });
+
     describe("remembering the chosen Sale Type", () => {
       const KEY = "erp_board_sale_type_user-1";
       afterEach(() => localStorage.clear());
