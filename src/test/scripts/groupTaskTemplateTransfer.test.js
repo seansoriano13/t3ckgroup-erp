@@ -43,4 +43,22 @@ describe("planTemplateTransfer", () => {
         const { errors } = planTemplateTransfer({ ...base, targetTemplateNames: ["closeout"] })
         expect(errors).toEqual([expect.stringContaining("Closeout")])
     })
+
+    it("with skipExisting, leaves same-named templates and their members out and lists them", () => {
+        const { errors, templates: t, members: m, skipped } = planTemplateTransfer({
+            ...base, targetTemplateNames: ["closeout"], skipExisting: true,
+        })
+        expect(errors).toEqual([])
+        expect(skipped).toEqual(["Closeout"])
+        expect(t.map((x) => x.id)).toEqual(["tpl1"])
+        expect(m.map((x) => x.id)).toEqual(["m1", "m2"])
+    })
+
+    it("with skipExisting, a skipped template's unknown employees don't stop the run", () => {
+        const { errors } = planTemplateTransfer({
+            ...base, targetEmployees: [targetEmployees[1]], targetTemplateNames: ["onboarding"], skipExisting: true,
+        })
+        // Ann only created Onboarding (skipped) and is a member of Closeout: still needed.
+        expect(errors).toEqual([expect.stringContaining("Ann Cruz")])
+    })
 })

@@ -7,7 +7,8 @@
  * Ids are kept. `created_by` and member `employee_id` are remapped by employee
  * NAME on the target. A missing or ambiguous name, or a target template with
  * the same name, stops the run and lists them. Nothing is guessed or nulled.
- * One transaction; without --apply it rolls back (dry run).
+ * `--skip-existing` leaves templates the target already has (by name) alone and
+ * lists them, instead of stopping. One transaction; without --apply it rolls back (dry run).
  *
  * Usage:
  *   node scripts/transfer-group-task-templates.mjs --from staging --to prod
@@ -33,6 +34,7 @@ function parseArgs(argv) {
         else if (a === "--to") args.to = argv[++i]
         else if (a === "--to-url") args.toUrl = argv[++i]
         else if (a === "--apply") args.apply = true
+        else if (a === "--skip-existing") args.skipExisting = true
     }
     return args
 }
@@ -71,7 +73,7 @@ async function insertRow(client, table, row) {
 async function main() {
     const args = parseArgs(process.argv.slice(2))
     if (!args.from || !(args.to || args.toUrl)) {
-        fail("Usage: node scripts/transfer-group-task-templates.mjs --from staging --to prod [--to-url <url>] [--apply]")
+        fail("Usage: node scripts/transfer-group-task-templates.mjs --from staging --to prod [--to-url <url>] [--skip-existing] [--apply]")
     }
     const sourceUrl = urlFor(args.from)
     const targetUrl = args.toUrl ?? urlFor(args.to)
@@ -92,9 +94,11 @@ async function main() {
             const plan = planTemplateTransfer({
                 templates, members, sourceEmployees, targetEmployees,
                 targetTemplateNames: existing.map((r) => r.name),
+                skipExisting: args.skipExisting,
             })
             if (plan.errors.length) throw new Error(plan.errors.join("\n  "))
 
+            for (const name of plan.skipped) console.log(`  = skipped "${name}" (target already has it)`)
             for (const t of plan.templates) await insertRow(target, "group_task_templates", t)
             for (const m of plan.members) await insertRow(target, "group_task_template_members", m)
             const archived = plan.templates.filter((t) => t.archived_at != null).length
