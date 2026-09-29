@@ -639,3 +639,31 @@ describe("open pipeline and still moving", () => {
     })
   })
 })
+
+// Cutover (#414): the backfill attaches every old SOR to Legacy Pipeline, a
+// flow with no published version. Those SORs keep being judged by their
+// stage code, not dropped from Open / Won.
+describe("an SOR on a flow with no version on record", () => {
+  const versionless = (status) => ({ status, sale_type_id: "legacy-pipeline", flow_stage_id: "fs-1", flow_snapshot_id: null })
+
+  it("counts toward Open Pipeline before the anchor stage", () => {
+    expect(isOpenPipelineOpportunity(versionless("LEAD"))).toBe(true)
+    expect(isOpenPipelineOpportunity(versionless("AWARDED"))).toBe(false)
+  })
+
+  it("counts as Realized at or past the anchor stage", () => {
+    expect(isRealizedOpportunity(versionless("AWARDED"))).toBe(true)
+    expect(isRealizedOpportunity(versionless("LEAD"))).toBe(false)
+  })
+
+  it("is terminal by its stage code", () => {
+    expect(isOnTerminalStage(versionless("CLOSED_WON"))).toBe(true)
+    expect(isStillMovingOpportunity(versionless("LEAD"), {})).toBe(true)
+  })
+
+  it("an SOR whose version just isn't loaded yet still counts toward neither", () => {
+    const pinned = { ...versionless("LEAD"), flow_snapshot_id: "snap-1" }
+    expect(isOpenPipelineOpportunity(pinned, { snapshotsById: {} })).toBe(false)
+    expect(isRealizedOpportunity(pinned, { snapshotsById: {} })).toBe(false)
+  })
+})

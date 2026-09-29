@@ -100,6 +100,19 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
   stages.find((s) => s.is_default) ?? null;
 
 /**
+ * Whether an SOR is judged by its legacy stage code rather than a Flow
+ * Snapshot graph: a legacy SOR (no Sale Type), or one on a flow with no
+ * version on record at all. Legacy Pipeline SORs attached by the cutover
+ * backfill are the second kind. An SOR that has a version, not yet loaded, is
+ * still judged by its snapshot.
+ */
+export const isJudgedByStageCode = (opportunity) =>
+  !opportunity?.sale_type_id || (!opportunity.flow_snapshot_id && !opportunity.flow_snapshot);
+
+const flowSnapshotData = (opportunity, snapshotsById = {}) =>
+  snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ?? opportunity.flow_snapshot?.snapshot_data;
+
+/**
  * Whether an opportunity counts toward the Realized Commission Pool rather
  * than the Projected one.
  *
@@ -123,17 +136,16 @@ export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_ST
 
   // For a flow-built deal, evaluated dynamically against its Flow Snapshot graph:
   // sitting on the designated Won Stage or any non-terminal post-won Stage downstream.
-  if (opportunity.sale_type_id) {
-    const snapshotData =
-      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
-      opportunity.flow_snapshot?.snapshot_data;
+  if (!isJudgedByStageCode(opportunity)) {
+    const snapshotData = flowSnapshotData(opportunity, snapshotsById);
     if (!snapshotData) return false;
     const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
     if (!flowStage) return false;
     return isWonOrPostWonFlowStage(flowStage, snapshotData);
   }
 
-  // Legacy SOR (no sale_type_id): sitting at or past the anchor (AWARDED) stage,
+  // Legacy SOR (no sale_type_id, or on a flow with no version on record, e.g.
+  // Legacy Pipeline after the cutover backfill): sitting at or past the anchor (AWARDED) stage,
   // excluding terminal lost.
   const stage = stages.find((s) => s.code === opportunity.status);
   if (!stage || isLostCode(opportunity.status, stages)) return false;
@@ -151,10 +163,8 @@ export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_ST
  */
 const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = {}) => {
   if (!opportunity) return null;
-  if (opportunity.sale_type_id) {
-    const snapshotData =
-      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
-      opportunity.flow_snapshot?.snapshot_data;
+  if (!isJudgedByStageCode(opportunity)) {
+    const snapshotData = flowSnapshotData(opportunity, snapshotsById);
     const flowStage = (snapshotData?.stages || []).find((s) => s.id === opportunity.flow_stage_id);
     return flowStage ? { isTerminal: Boolean(flowStage.is_terminal) } : null;
   }
@@ -176,17 +186,15 @@ export const isOpenPipelineOpportunity = (opportunity, context = PIPELINE_STAGE_
     ? { stages: context }
     : context || {};
 
-  if (opportunity.sale_type_id) {
-    const snapshotData =
-      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
-      opportunity.flow_snapshot?.snapshot_data;
+  if (!isJudgedByStageCode(opportunity)) {
+    const snapshotData = flowSnapshotData(opportunity, snapshotsById);
     if (!snapshotData) return false;
     const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
     if (!flowStage) return false;
     return isPreWonFlowStage(flowStage, snapshotData);
   }
 
-  // Legacy SOR (no sale_type_id)
+  // Legacy SOR (no sale_type_id, or on a flow with no version on record)
   const stage = stages.find((s) => s.code === opportunity.status);
   if (!stage || isTerminalStage(stage)) return false;
   const anchor = anchorStage(stages);

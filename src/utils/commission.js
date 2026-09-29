@@ -1,4 +1,5 @@
 import {
+  isJudgedByStageCode,
   isLostCode,
   isRealizedOpportunity,
   PIPELINE_STAGE_SEED,
@@ -242,7 +243,7 @@ export const isRealizedCommissionOpportunity = (opp, stages = PIPELINE_STAGE_SEE
  * Stage cannot be resolved is not treated as lost.
  */
 const isLostOpportunity = (opp, stages) => {
-  if (!opp?.sale_type_id) return isLostCode(opp?.status, stages);
+  if (isJudgedByStageCode(opp)) return isLostCode(opp?.status, stages);
   const snapshotData = opp.flow_snapshot?.snapshot_data;
   const flowStage = (snapshotData?.stages || []).find((s) => s.id === opp.flow_stage_id);
   if (!flowStage?.is_terminal) return false;
