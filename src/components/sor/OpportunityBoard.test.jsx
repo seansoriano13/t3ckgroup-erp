@@ -1,5 +1,5 @@
 import { screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import OpportunityBoard from "./OpportunityBoard";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makePipelineStage } from "@/test/factories";
@@ -306,6 +306,49 @@ describe("OpportunityBoard", () => {
 
       const card = (await screen.findByText("Acme Corp")).closest("button");
       expect(card).toHaveAttribute("draggable", "false");
+    });
+
+    describe("remembering the chosen Sale Type", () => {
+      const KEY = "erp_board_sale_type_user-1";
+      afterEach(() => localStorage.clear());
+
+      const renderBoard = (extra = {}) => {
+        const onSaleTypeChange = vi.fn();
+        renderWithProviders(
+          <OpportunityBoard
+            opportunities={[flowDeal({ sale_type_id: "st-govt", flow_stage_id: "gov-lead", flow_snapshot_id: null })]}
+            search=""
+            flowStagesIndex={flowStagesIndex}
+            snapshotsById={snapshotsById}
+            saleTypes={saleTypes}
+            currentUserId="user-1"
+            saleTypeFilter="ALL"
+            onSaleTypeChange={onSaleTypeChange}
+            onCardClick={() => {}}
+            {...extra}
+          />,
+        );
+        return onSaleTypeChange;
+      };
+
+      it("reopens on the flow last chosen, even though the page opens on ALL", async () => {
+        localStorage.setItem(KEY, "st-govt");
+
+        const onSaleTypeChange = renderBoard();
+
+        expect(await screen.findByText("Gov Lead")).toBeInTheDocument();
+        expect(screen.queryByText("All SORs Selected")).not.toBeInTheDocument();
+        expect(onSaleTypeChange).toHaveBeenCalledWith("st-govt");
+      });
+
+      it("falls back to All SORs when the remembered flow no longer exists", async () => {
+        localStorage.setItem(KEY, "st-gone");
+
+        const onSaleTypeChange = renderBoard();
+
+        expect(await screen.findByText("All SORs Selected")).toBeInTheDocument();
+        expect(onSaleTypeChange).toHaveBeenLastCalledWith("ALL");
+      });
     });
 
     it("shows prompt card when All SORs is selected, with quick flow buttons and switch to list", async () => {
