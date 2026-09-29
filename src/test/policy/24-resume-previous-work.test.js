@@ -255,6 +255,38 @@ describe("reverting a Return undoes its Resume (ADR 0027)", () => {
         expect(error?.message).toMatch(/follow-up was logged/)
     })
 
+    it("a later Resume gathers the work a Keep-Revert handed back, plus the reverted visit's own (SOR-218)", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+        // Own work on the Return visit, so the Revert must choose Keep.
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: s.id, author_id: ids.dealOwner, type: "COMMENT", content: `${MARKER} own file`, stage_visit_id: s.visit3,
+            metadata: { attachments: [{ url: "https://example.com/o.pdf", name: "o.pdf", conditionId: crypto.randomUUID(), stageVisitId: s.visit3 }] },
+        })
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: s.id, p_progress_choice: "keep" })).error).toBeNull()
+        expect((await svc().from("tasks").select("stage_visit_id").eq("id", s.open).single()).data.stage_visit_id).toBe(s.visit1)
+
+        await moveTo(s.id, stageA)
+        const visit5 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", s.id).eq("sequence", 5).single()).data.id
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+
+        const t = (await svc().from("tasks").select("status, stage_visit_id").eq("id", s.open).single()).data
+        expect(t).toEqual({ status: "INCOMPLETE", stage_visit_id: visit5 })
+        expect((await svc().from("sor_condition_status").select("stage_visit_id").eq("opportunity_id", s.id).single()).data.stage_visit_id).toBe(visit5)
+        const own = (await svc().from("sales_opportunity_logs").select("stage_visit_id").eq("opportunity_id", s.id).eq("content", `${MARKER} own file`).single()).data
+        expect(own.stage_visit_id).toBe(visit5)
+        const sources = (await svc().from("sor_stage_visits").select("id").eq("resumed_into_visit_id", visit5)).data.map((v) => v.id)
+        expect(sources.sort()).toEqual([s.visit1, s.visit3].sort())
+
+        // Reverting that Resume hands each visit its own work back.
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: s.id, p_progress_choice: "keep" })).error).toBeNull()
+        expect((await svc().from("tasks").select("status, stage_visit_id").eq("id", s.open).single()).data)
+            .toEqual({ status: "ON_HOLD", stage_visit_id: s.visit1 })
+        expect((await svc().from("sales_opportunity_logs").select("stage_visit_id").eq("opportunity_id", s.id).eq("content", `${MARKER} own file`).single()).data.stage_visit_id).toBe(s.visit3)
+        expect((await svc().from("sor_stage_visits").select("id").eq("resumed_into_visit_id", visit5)).data).toEqual([])
+    })
+
     it("issue #412: moves a carried Attachment condition's file back too", async () => {
         const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
         sorIds.push(id)
