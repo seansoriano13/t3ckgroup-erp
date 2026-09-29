@@ -156,6 +156,7 @@ describe("navigation registry", () => {
       const salesUser = {
         id: "sales-1",
         has_sales_flow: true,
+        has_retail_access: true,
       };
 
       const groups = getFilteredNavigationGroups(salesUser);
@@ -169,16 +170,13 @@ describe("navigation registry", () => {
         "My SORs",
         "Commission Dashboard",
         "Commission Formula",
-        // Retail moved out of the register's tab strip onto its own screen.
-        // The sidebar gate is the coarse one — the same shape Commission
-        // Dashboard uses — because `isPermitted` is synchronous and the real
-        // eligibility (Sales Director on a live opportunity, issue #173) can
-        // only be answered by a query. The page itself enforces that.
+        // Retail moved out of the register's tab strip onto its own screen,
+        // gated by the Retail access right (on by default for SALES).
         "Retail",
       ]);
     });
 
-    it("keeps Retail out of the sidebar for an employee with no sales flow", () => {
+    it("keeps Retail out of the sidebar for an employee without the Retail access right", () => {
       const taskUser = { id: "task-1", has_task_flow: true };
 
       const groups = getFilteredNavigationGroups(taskUser);
@@ -193,8 +191,12 @@ describe("navigation registry", () => {
       expect(retail).toBeDefined();
       expect(retail.link).toBe("/retail");
       expect(retail.isPermitted(buildUserPermissionContext(taskUser))).toBe(false);
+      // Sales flow alone no longer opens Retail — the access right does.
       expect(
         retail.isPermitted(buildUserPermissionContext({ id: "s", has_sales_flow: true })),
+      ).toBe(false);
+      expect(
+        retail.isPermitted(buildUserPermissionContext({ id: "s", has_retail_access: true })),
       ).toBe(true);
       expect(
         retail.isPermitted(buildUserPermissionContext({ id: "a", isSuperAdmin: true })),
@@ -279,7 +281,7 @@ describe("navigation registry", () => {
     // Issue #133/#134 — the hidden_nav_keys override.
     describe("hidden_nav_keys override", () => {
       it("hides an entry the flags permit when its key is in the override", () => {
-        const salesUser = { id: "sales-3", has_sales_flow: true };
+        const salesUser = { id: "sales-3", has_sales_flow: true, has_retail_access: true };
         const withOverride = { ...salesUser, hidden_nav_keys: ["sales.commissionDashboard"] };
 
         const groups = getFilteredNavigationGroups(withOverride);
@@ -293,7 +295,7 @@ describe("navigation registry", () => {
       });
 
       it("leaves an entry visible when the override does not name it", () => {
-        const salesUser = { id: "sales-4", has_sales_flow: true, hidden_nav_keys: ["purchasing.queue"] };
+        const salesUser = { id: "sales-4", has_sales_flow: true, has_retail_access: true, hidden_nav_keys: ["purchasing.queue"] };
 
         const groups = getFilteredNavigationGroups(salesUser);
         const salesGroup = groups.find((g) => g.key === "sales");
@@ -319,7 +321,7 @@ describe("navigation registry", () => {
       });
 
       it("ignores an unknown key without error", () => {
-        const salesUser = { id: "sales-5", has_sales_flow: true, hidden_nav_keys: ["not.a.real.key"] };
+        const salesUser = { id: "sales-5", has_sales_flow: true, has_retail_access: true, hidden_nav_keys: ["not.a.real.key"] };
 
         expect(() => getFilteredNavigationGroups(salesUser)).not.toThrow();
         const groups = getFilteredNavigationGroups(salesUser);
@@ -393,7 +395,7 @@ describe("navigation registry", () => {
     });
   });
 
-  // The safety net for issue #124: every combination of the seven
+  // The safety net for issue #124: every combination of the eight
   // capability flags, crossed with department present/absent and
   // sub-department present/absent, run through every navigation predicate.
   // A single differing cell fails the build — that is what makes the
@@ -408,6 +410,7 @@ describe("navigation registry", () => {
       "hasSalesFlow",
       "hasTaskFlow",
       "hasPurchasingFlow",
+      "hasRetailAccess",
     ];
 
     function* flagCombinations() {

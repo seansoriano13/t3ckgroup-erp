@@ -14,6 +14,7 @@ export function getPermissionContext(user) {
   const hasSalesFlow = !!(user?.has_sales_flow ?? user?.hasSalesFlow);
   const hasTaskFlow = !!(user?.has_task_flow ?? user?.hasTaskFlow);
   const hasPurchasingFlow = !!(user?.has_purchasing_flow ?? user?.hasPurchasingFlow);
+  const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
   const subDepartment = user?.subDepartment || user?.sub_department || null;
   const canManage = isHead || isSuperAdmin;
@@ -28,6 +29,7 @@ export function getPermissionContext(user) {
     hasSalesFlow,
     hasTaskFlow,
     hasPurchasingFlow,
+    hasRetailAccess,
     isRoleSimulator,
     subDepartment,
     canManage,

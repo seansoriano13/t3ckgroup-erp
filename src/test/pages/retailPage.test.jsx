@@ -74,10 +74,9 @@ describe("Retail page", () => {
     expect(await screen.findByRole("heading", { name: /recorded orders/i })).toBeInTheDocument();
   });
 
-  // Issue #173's gate, carried over unchanged: a Super Admin, or a Sales
-  // Director on a live opportunity. Nobody else, because approving a retail
-  // order writes an SOR.
-  it("refuses an employee who is neither Super Admin nor Sales Director", async () => {
+  // The Retail access right (System Access Rights), on by default for SALES.
+  // Nobody else, because approving a retail order writes an SOR.
+  it("refuses an employee without the Retail access right", async () => {
     mockUser.current = plainEmployee;
     queueItem();
 
@@ -90,22 +89,19 @@ describe("Retail page", () => {
     expect(screen.queryByRole("heading", { name: /recorded orders/i })).not.toBeInTheDocument();
   });
 
-  it("admits a Sales Director who is not a Super Admin", async () => {
-    mockUser.current = plainEmployee;
-    // A Sales Director is not a flag — it is whoever is named on a live,
-    // non-scratch, non-retail opportunity.
-    makeOpportunity({ sales_director_id: plainEmployee.id, is_retail: false, is_scratch: false });
+  it("admits an employee who has the Retail access right", async () => {
+    mockUser.current = { ...plainEmployee, has_retail_access: true };
 
     renderPage();
 
     expect(await screen.findByRole("heading", { name: /recorded orders/i })).toBeInTheDocument();
   });
 
-  // The same opportunity row, flagged retail, must not confer the access —
-  // otherwise approving one Shopee order grants the approver the screen.
-  it("does not admit someone named only on a retail opportunity", async () => {
+  // Being named as a Sales Director no longer opens the screen by itself —
+  // the right is what grants it.
+  it("does not admit a Sales Director who lacks the right", async () => {
     mockUser.current = plainEmployee;
-    makeOpportunity({ sales_director_id: plainEmployee.id, is_retail: true });
+    makeOpportunity({ sales_director_id: plainEmployee.id, is_retail: false, is_scratch: false });
 
     renderPage();
 

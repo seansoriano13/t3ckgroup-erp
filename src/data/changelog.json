@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-09-29",
+        "title": "Retail Access for Sales",
+        "version": "1.8.1",
+        "changes": [
+            "Retail: every Sales employee can now open the Retail screen to review marketplace orders (Shopee, Lazada) and see the totals.",
+            "HR: Retail is a new switch under System Access Rights in the employee form. It is on by default for Sales and can be turned off or on for anyone."
+        ]
+    },
+    {
+        "date": "2026-09-29",
         "title": "SORs Redesigned, Revert & Resume, and Group Task Templates",
         "version": "1.8.0",
         "changes": [

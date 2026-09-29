@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ChevronDown, Clock, EyeOff, X } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, ChevronDown, Clock, EyeOff, X } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ export default function EmployeeForm({
     has_sales_flow: false,
     has_task_flow: true,
     has_purchasing_flow: false,
+    has_retail_access: false,
     employment_status: "",
     sil_hours_balance: 0,
     offset_hours_balance: 0,
@@ -57,6 +58,7 @@ export default function EmployeeForm({
       has_sales_flow: false,
       has_task_flow: true,
       has_purchasing_flow: false,
+      has_retail_access: false,
       hiddenNavKeys: [],
       employment_status: "",
       sil_hours_balance: 0,
@@ -178,7 +180,15 @@ export default function EmployeeForm({
         department={formData.department}
         subDepartment={formData.subDepartment}
         onDepartmentChange={(val) =>
-          setFormData((prev) => ({ ...prev, department: val }))
+          setFormData((prev) => ({
+            ...prev,
+            department: val,
+            // Retail is open to Sales by default: moving someone into SALES
+            // switches it on. It stays a plain switch — turn it off below.
+            ...(val === "SALES" && prev.department !== "SALES"
+              ? { has_retail_access: true }
+              : {}),
+          }))
         }
         onSubDepartmentChange={(val) =>
           setFormData((prev) => ({ ...prev, subDepartment: val }))
@@ -402,6 +412,19 @@ export default function EmployeeForm({
             checked={formData.has_sales_flow}
             onChange={(val) =>
               setFormData((prev) => ({ ...prev, has_sales_flow: val }))
+            }
+            activeColor="bg-green-3 text-green-10"
+            hoverColor="group-hover:bg-green-2"
+          />
+
+          {/* Retail — on by default for SALES */}
+          <AccessSwitch
+            label="Retail"
+            description="Review marketplace orders and see Retail totals"
+            icon={ShoppingBag}
+            checked={formData.has_retail_access}
+            onChange={(val) =>
+              setFormData((prev) => ({ ...prev, has_retail_access: val }))
             }
             activeColor="bg-green-3 text-green-10"
             hoverColor="group-hover:bg-green-2"

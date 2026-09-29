@@ -2,10 +2,10 @@ import { ShoppingBag } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
-import Spinner from "../../components/ui/Spinner";
 import RetailOrdersQueue from "../../components/sor/RetailOrdersQueue";
 import RetailTab from "../../components/sor/RetailTab";
-import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
+import { useAuth } from "../../context/AuthContext";
+import { getPermissionContext } from "../../utils/permissions";
 
 /**
  * Retail — marketplace orders (Shopee, Lazada), on their own screen.
@@ -21,19 +21,12 @@ import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
  * `is_retail` flag, issue #171). Nothing here deletes one.
  */
 function RetailScreen() {
-  // Issue #173's gate, unchanged by the move: a Super Admin, or a Sales
-  // Director on a live opportunity — the same eligibility as the RLS policy
-  // guarding the queue table, because approving an item writes an SOR.
-  const { hasAccess, isResolving } = useSalesDirectorAccess();
-
-  if (isResolving) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
-        <Spinner size="sm" />
-        <span className="text-sm font-bold uppercase tracking-widest">Checking access…</span>
-      </div>
-    );
-  }
+  // The Retail access right (System Access Rights in the employee form; on by
+  // default for SALES), or a Super Admin. The same eligibility as the RLS
+  // policy guarding the queue table, because approving an item writes an SOR.
+  const { user } = useAuth();
+  const { isSuperAdmin, hasRetailAccess } = getPermissionContext(user);
+  const hasAccess = isSuperAdmin || hasRetailAccess;
 
   if (!hasAccess) {
     return (
@@ -43,8 +36,8 @@ function RetailScreen() {
           You don&apos;t have access to Retail
         </p>
         <p className="max-w-sm text-xs leading-relaxed">
-          Reviewing a marketplace order creates an SOR, so this screen is open to
-          Super Admins and Sales Directors only.
+          Reviewing a marketplace order creates an SOR, so this screen needs the
+          Retail access right. Ask a Super Admin or HR to turn it on for you.
         </p>
       </div>
     );

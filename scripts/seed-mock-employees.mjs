@@ -21,10 +21,10 @@ export const MOCK_DOMAIN = "mock.t3ck.test"
 
 export const MOCK = {
   "super-admin": { name: "Mock Super Admin", department: "SUPER ADMIN", role: "SYSTEM ADMINISTRATOR", is_super_admin: true },
-  "sales-head": { name: "Mock Sales Head", department: "SALES", role: "SALES DIRECTOR", is_head: true, has_sales_flow: true },
-  "sales-subhead": { name: "Mock Sales Sub Head", department: "SALES", sub_department: "NGO", role: "NGO TEAM LEAD", is_head: true, has_sales_flow: true },
-  "sales-exec": { name: "Mock Sales Executive", department: "SALES", sub_department: "NGO", role: "SALES EXECUTIVE", has_sales_flow: true },
-  "sales-exec-2": { name: "Mock Sales Executive Two", department: "SALES", sub_department: "GOV", role: "SALES EXECUTIVE", has_sales_flow: true },
+  "sales-head": { name: "Mock Sales Head", department: "SALES", role: "SALES DIRECTOR", is_head: true, has_sales_flow: true, has_retail_access: true },
+  "sales-subhead": { name: "Mock Sales Sub Head", department: "SALES", sub_department: "NGO", role: "NGO TEAM LEAD", is_head: true, has_sales_flow: true, has_retail_access: true },
+  "sales-exec": { name: "Mock Sales Executive", department: "SALES", sub_department: "NGO", role: "SALES EXECUTIVE", has_sales_flow: true, has_retail_access: true },
+  "sales-exec-2": { name: "Mock Sales Executive Two", department: "SALES", sub_department: "GOV", role: "SALES EXECUTIVE", has_sales_flow: true, has_retail_access: true },
   "hr": { name: "Mock HR Officer", department: "ADMIN", sub_department: "HR", role: "HR OFFICER", is_hr: true },
   "leave-manager": { name: "Mock Leave Manager", department: "ADMIN", sub_department: "HR", role: "HR ASSISTANT", can_manage_leaves: true },
   "admin-head": { name: "Mock Admin Head", department: "ADMIN", sub_department: "ADMIN", role: "ADMIN MANAGER", is_head: true, has_task_flow: true },
@@ -37,7 +37,7 @@ export const MOCK = {
   "plain": { name: "Mock Plain Employee", department: "OPERATIONS", sub_department: "WAREHOUSE", role: "WAREHOUSE STAFF" },
 }
 
-const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow"]
+const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow", "has_retail_access"]
 
 async function main() {
   const url = loadDotEnvLocal(repoRoot).STAGING_DB_URL ?? process.env.STAGING_DB_URL
