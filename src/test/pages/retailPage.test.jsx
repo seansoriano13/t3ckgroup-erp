@@ -3,8 +3,9 @@ import { screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import RetailPage from "@/pages/retail/index";
 import { renderWithProviders } from "@/test/support";
-import { makeEmployee, makeOpportunity } from "@/test/factories";
+import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
+import { formatPHP } from "@/constants/sor";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -20,26 +21,25 @@ function renderPage() {
   );
 }
 
-function queueItem(overrides = {}) {
-  return db.seed("odoo_retail_queue", {
-    odoo_so_number: "S08286",
-    odoo_so_id: 8286,
-    odoo_partner_name: "Shopee T3ck Outdoor",
-    odoo_person_name: "Juan Dela Cruz",
-    odoo_amount: 1500,
-    status: "pending",
-    client_name: "Shopee T3ck Outdoor",
-    contact_person: "Juan Dela Cruz",
-    expected_value: 1500,
-    project_title: "Retail: Shopee T3ck Outdoor",
+let soSerial = 8000;
+function retailOrder(overrides = {}) {
+  soSerial += 1;
+  return db.seed("retail_orders", {
+    odoo_so_number: `S0${soSerial}`,
+    odoo_so_id: soSerial,
+    storefront: "Shopee",
+    partner_name: "Shopee T3ck Outdoor",
+    buyer_name: "Juan Dela Cruz",
+    amount: 1500,
+    ordered_at: new Date().toISOString(),
+    odoo_state: "sale",
+    is_excluded: false,
     ...overrides,
   });
 }
 
-// Issues #170-#174 built these two surfaces as tabs inside the SOR register.
-// They moved out to their own page because the register's tab strip was the
-// crowded thing, not retail — the queue is a short, bursty list and the totals
-// are what the page is actually opened for.
+// Retail is a report: orders synced from Odoo into `retail_orders`, read-only.
+// The approval queue that used to sit above the totals is hidden.
 describe("Retail page", () => {
   let superAdmin;
   let plainEmployee;
@@ -50,43 +50,67 @@ describe("Retail page", () => {
     mockUser.current = superAdmin;
   });
 
-  it("shows the pending-review band above the recorded totals", async () => {
-    queueItem();
-    makeOpportunity({ is_retail: true, client_name: "Shopee T3ck Outdoor", expected_value: 1500 });
+  it("totals the orders in range", async () => {
+    retailOrder({ amount: 1000 });
+    retailOrder({ amount: 3000, storefront: "Lazada", partner_name: "Lazada Store" });
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: /retail orders queue/i })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: /recorded orders/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /retail overview/i })).toBeInTheDocument();
+    // Total sales and This month both read 4,000; the average order is 2,000.
+    expect((await screen.findAllByText(formatPHP(4000))).length).toBeGreaterThan(0);
+    expect(screen.getByText(formatPHP(2000))).toBeInTheDocument();
+    expect(screen.getByText("Total sales")).toBeInTheDocument();
+    expect(screen.getByText("Orders")).toBeInTheDocument();
   });
 
-  // The queue carries a collapsible Dismissed history alongside the review
-  // rows. Hiding the whole section when nothing is pending would put that
-  // history out of reach exactly when somebody goes looking for it, so the
-  // band stays mounted and shows its own empty state.
-  it("keeps the queue section mounted when nothing is pending", async () => {
-    makeOpportunity({ is_retail: true, client_name: "Lazada Store", expected_value: 900 });
+  it("leaves out a cancelled order and one dismissed in the old queue", async () => {
+    retailOrder({ amount: 1000 });
+    retailOrder({ amount: 7000, odoo_state: "cancel" });
+    retailOrder({ amount: 9000, is_excluded: true });
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: /retail orders queue/i })).toBeInTheDocument();
-    expect(await screen.findByText(/no pending retail orders/i)).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: /recorded orders/i })).toBeInTheDocument();
+    expect((await screen.findAllByText(formatPHP(1000))).length).toBeGreaterThan(0);
+    expect(screen.queryByText(formatPHP(7000))).not.toBeInTheDocument();
+    expect(screen.queryByText(formatPHP(9000))).not.toBeInTheDocument();
+    expect(screen.queryByText(formatPHP(17000))).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state when nothing has been synced", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText(/no retail orders in this range/i)).length).toBeGreaterThan(0);
+  });
+
+  it("no longer offers approvals", async () => {
+    db.seed("odoo_retail_queue", {
+      odoo_so_number: "S08286",
+      odoo_so_id: 8286,
+      odoo_partner_name: "Shopee T3ck Outdoor",
+      odoo_amount: 1500,
+      status: "pending",
+    });
+    retailOrder();
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: /retail overview/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /retail orders queue/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
   });
 
   // The Retail access right (System Access Rights), on by default for SALES.
-  // Nobody else, because approving a retail order writes an SOR.
   it("refuses an employee without the Retail access right", async () => {
     mockUser.current = plainEmployee;
-    queueItem();
+    retailOrder();
 
     renderPage();
 
     expect(await screen.findByText(/don't have access to retail/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.queryByRole("heading", { name: /retail orders queue/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /retail overview/i })).not.toBeInTheDocument();
     });
-    expect(screen.queryByRole("heading", { name: /recorded orders/i })).not.toBeInTheDocument();
   });
 
   it("admits an employee who has the Retail access right", async () => {
@@ -94,14 +118,13 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: /recorded orders/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /retail overview/i })).toBeInTheDocument();
   });
 
   // Being named as a Sales Director no longer opens the screen by itself —
   // the right is what grants it.
   it("does not admit a Sales Director who lacks the right", async () => {
     mockUser.current = plainEmployee;
-    makeOpportunity({ sales_director_id: plainEmployee.id, is_retail: false, is_scratch: false });
 
     renderPage();
 
