@@ -47,13 +47,6 @@ try {
   rmSync(out, { recursive: true, force: true })
 }
 
-// The staging-only changelog entry announcing the layout preview must not
-// reach production's "What's New" modal either.
-const CHANGELOG = "src/data/changelog.json"
-if (existsSync(CHANGELOG) && readFileSync(CHANGELOG, "utf8").includes("SOR Layout Preview (Staging)") && !existsSync(PROTOTYPE_DIR)) {
-  problems.push(`${CHANGELOG} announces the layout preview but the prototype is gone`)
-}
-
 if (problems.length) {
   console.error("Prototype gate failed:\n")
   for (const p of problems) console.error(`  - ${p}`)

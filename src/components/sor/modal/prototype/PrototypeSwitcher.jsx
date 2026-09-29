@@ -89,11 +89,12 @@ export default function PrototypeSwitcher({ variant, setVariant }) {
       const el = document.activeElement;
       if (el?.tagName === "INPUT" || el?.tagName === "TEXTAREA" || el?.isContentEditable) return;
       e.preventDefault();
-      step(e.key === "ArrowLeft" ? -1 : 1);
+      const dir = e.key === "ArrowLeft" ? -1 : 1;
+      setVariant(VARIANTS[(index + dir + VARIANTS.length) % VARIANTS.length].key);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [index, setVariant]);
 
   const current = VARIANTS[index];
 

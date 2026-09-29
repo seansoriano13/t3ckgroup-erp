@@ -6,11 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import allChangelog from "@/data/changelog.json";
 import { visibleEntries } from "../../scripts/lib/changelog.mjs";
+import { isStaging } from "@/lib/appEnv";
 
-const isStaging =
-  import.meta.env.MODE === "staging" ||
-  import.meta.env.VITE_APP_ENV === "staging" ||
-  window.location.hostname.includes("staging");
 const changelog = visibleEntries(allChangelog, isStaging);
 
 export default function ChangelogModal({ manualOpen = false, onManualClose = null }) {

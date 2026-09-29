@@ -1,14 +1,8 @@
 import { useEffect } from "react"
 import { AlertTriangle } from "lucide-react"
+import { isStaging, isLocal } from "@/lib/appEnv"
 
 export function StagingBanner() {
-  const isStaging =
-    import.meta.env.MODE === "staging" ||
-    import.meta.env.VITE_APP_ENV === "staging" ||
-    window.location.hostname.includes("staging")
-
-  const isLocal = import.meta.env.VITE_APP_ENV === "local"
-
   useEffect(() => {
     if (isStaging) {
       document.title = `[STAGING] ${document.title.replace("[STAGING] ", "").replace("[LOCAL] ", "")}`

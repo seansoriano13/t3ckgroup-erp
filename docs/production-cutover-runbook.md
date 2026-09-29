@@ -23,7 +23,7 @@ Order: set `VITE_MAINTENANCE` → merge release → `main` (Vercel stays connect
 All must be true, or the window moves to the next evening:
 
 - [ ] **Freeze:** release branch cut from staging at the freeze commit; SHA noted in the ticket.
-- [ ] **Rehearsal green** on a fresh prod clone, at the freeze commit, with **all migrations applied** (`ls supabase/migrations/*.sql | wc -l` matches the ledger's applied count) (see [Rehearsal](#rehearsal)).
+- [ ] **Rehearsal green** on a fresh prod clone, at the freeze commit, with **all 103 migrations applied** (`ls supabase/migrations/*.sql | wc -l` matches the ledger's applied count) (see [Rehearsal](#rehearsal)).
 - [ ] #337 sign-offs done: department heads and HR told about SOR visibility, PITR status confirmed, and Operations has published fresh Government and Outright snapshots on staging and confirmed those are the versions to ship.
 - [ ] `hyper-action` decided on (#334).
 - [ ] **Prototype bundle check:** the SOR modal layout prototype is build-gated, not deleted ([ADR 0028](adr/0028-layout-prototypes-live-on-main-build-gated.md)). Vercel prod must NOT set `VITE_APP_ENV` to `staging`/`local`. **Check:** `node scripts/check-no-prototypes.mjs` passes on the freeze commit; CI's "No prototypes in the prod bundle" runs it. Sunset: delete `src/components/sor/modal/prototype/` by 2026-12-31 or bump the date on purpose.
@@ -57,7 +57,7 @@ pg_dump "$PROD_DB_URL" --format=custom --no-owner --file=prod-pre-cutover-$(date
 1. Actions → **Repair migration history** → project `prod`, version `20260914013100`, status `reverted`. That version is an orphan (`offset_leaves.approved_hours`, #198) and the tip. While it stands, `db push` refuses everything. #328 forward-ports the column as `20260929010000_offset_leave_approved_hours.sql` (`add column if not exists`).
 2. Actions → **Repair migration history** → project `prod`, version `20260904000000`, status `applied` (the baseline; marked, never run). Do it second.
 
-**Check (hard gate):** `pnpm db:ledger:check prod` → zero orphans, zero out-of-order, exit 0.
+**Check (hard gate):** `pnpm db:ledger:check prod --include-all` → zero orphans, exit 0. Out-of-order pending files are expected here (#423); step 5 applies them.
 
 ### 5. Migrate
 
