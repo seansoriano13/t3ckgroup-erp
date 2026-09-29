@@ -24,28 +24,31 @@ import { SelectField } from "@/components/ui/SelectField";
 const ROLE_BUTTON =
   "h-auto justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold outline outline-1 -outline-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
 
+// Colors follow the deal's journey (migration 20260930320000): Pursue blues,
+// Compete purples, Award golds, Fulfil teals, Cash greens. The hint names the
+// Stage each color already means, so a new Stage picks by phase, not by taste.
 const COLOR_SWATCHES = [
   { value: null, dot: "bg-mauve-8", label: "Default (by role)" },
-  { value: "tomato", dot: "bg-tomato-9", label: "Tomato" },
-  { value: "red", dot: "bg-red-9", label: "Red" },
-  { value: "crimson", dot: "bg-crimson-9", label: "Crimson" },
-  { value: "pink", dot: "bg-pink-9", label: "Pink" },
-  { value: "plum", dot: "bg-plum-9", label: "Plum" },
-  { value: "violet", dot: "bg-violet-9", label: "Violet" },
-  { value: "indigo", dot: "bg-indigo-9", label: "Indigo" },
-  { value: "blue", dot: "bg-blue-9", label: "Blue" },
-  { value: "sky", dot: "bg-sky-9", label: "Sky" },
-  { value: "cyan", dot: "bg-cyan-9", label: "Cyan" },
-  { value: "teal", dot: "bg-teal-9", label: "Teal" },
-  { value: "jade", dot: "bg-jade-9", label: "Jade" },
-  { value: "green", dot: "bg-green-9", label: "Green" },
-  { value: "lime", dot: "bg-lime-9", label: "Lime" },
-  { value: "yellow", dot: "bg-yellow-9", label: "Yellow" },
-  { value: "amber", dot: "bg-amber-9", label: "Amber" },
-  { value: "orange", dot: "bg-orange-9", label: "Orange" },
-  { value: "gold", dot: "bg-gold-9", label: "Gold" },
-  { value: "brown", dot: "bg-brown-9", label: "Brown" },
-  { value: "mauve", dot: "bg-mauve-9", label: "Mauve" },
+  { value: "tomato", dot: "bg-tomato-9", label: "Tomato", hint: "Closed Lost" },
+  { value: "red", dot: "bg-red-9", label: "Red", hint: "Reserved for the brand, avoid" },
+  { value: "crimson", dot: "bg-crimson-9", label: "Crimson", hint: "Compete · Negotiation" },
+  { value: "pink", dot: "bg-pink-9", label: "Pink", hint: "Compete · Post Qualification" },
+  { value: "plum", dot: "bg-plum-9", label: "Plum", hint: "Compete · Bid Submitted" },
+  { value: "violet", dot: "bg-violet-9", label: "Violet", hint: "Compete · For Bidding" },
+  { value: "indigo", dot: "bg-indigo-9", label: "Indigo", hint: "Compete · Proposal Submitted" },
+  { value: "blue", dot: "bg-blue-9", label: "Blue", hint: "Pursue · Qualified" },
+  { value: "sky", dot: "bg-sky-9", label: "Sky", hint: "Pursue · Lead" },
+  { value: "cyan", dot: "bg-cyan-9", label: "Cyan", hint: "Fulfil · PMS Sourcing" },
+  { value: "teal", dot: "bg-teal-9", label: "Teal", hint: "Fulfil · Delivery" },
+  { value: "jade", dot: "bg-jade-9", label: "Jade", hint: "Cash · Collection" },
+  { value: "green", dot: "bg-green-9", label: "Green", hint: "Cash · Closed Won" },
+  { value: "lime", dot: "bg-lime-9", label: "Lime", hint: "Cash · Payment Verification" },
+  { value: "yellow", dot: "bg-yellow-9", label: "Yellow", hint: "Award · Notice to Proceed" },
+  { value: "amber", dot: "bg-amber-9", label: "Amber", hint: "Award · Awarded / NOA" },
+  { value: "orange", dot: "bg-orange-9", label: "Orange", hint: "Award · Performance Bond" },
+  { value: "gold", dot: "bg-gold-9", label: "Gold", hint: "Award · CA / PO Received" },
+  { value: "brown", dot: "bg-brown-9", label: "Brown", hint: "Retention" },
+  { value: "mauve", dot: "bg-mauve-9", label: "Mauve", hint: "SO Evaluation" },
 ];
 
 export default function StageSettingsPanel({
@@ -296,7 +299,7 @@ export default function StageSettingsPanel({
                     disabled={disabled}
                     onClick={() => onColorChange(swatch.value)}
                     aria-label={swatch.label}
-                    title={swatch.label}
+                    title={swatch.hint ? `${swatch.label} — ${swatch.hint}` : swatch.label}
                     className={cn(
                       "rounded-full outline outline-1 -outline-offset-1 outline-mauve-6 transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50",
                       (stage.color ?? null) === swatch.value && "outline-2 outline-primary",
