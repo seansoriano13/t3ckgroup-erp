@@ -87,8 +87,8 @@ node scripts/transfer-sales-flows.mjs --from staging --to prod --replace --apply
 All templates (archived too) and members. Employees remapped by **name**; a missing/ambiguous name or a same-named template on prod stops the run unless a naming option is passed. `--tag-all` copies every template as "<name> (staging)" ("(staging 2)" for repeats). Alternatives: `--rename-clashes`, `--skip-existing`. Nothing is overwritten.
 
 ```bash
-node scripts/transfer-group-task-templates.mjs --from staging --to prod            # dry run
-node scripts/transfer-group-task-templates.mjs --from staging --to prod --apply
+node scripts/transfer-group-task-templates.mjs --from staging --to prod --tag-all            # dry run
+node scripts/transfer-group-task-templates.mjs --from staging --to prod --tag-all --apply
 ```
 
 **Check:** dry-run counts: 11 templates (2 archived), 64 members, all "... (staging)" (as of Sep 29); prod ends with 17 templates.

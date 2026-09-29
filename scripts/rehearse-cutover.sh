@@ -93,11 +93,16 @@ LEFT=$(scalar "select count(*) from information_schema.tables where table_schema
 POLICIES=$(scalar "select count(*) from pg_policies where tablename in ('sor_stage_visits','sor_stage_participants') and policyname like '%_read' and qual like '%sor_access_level%'")
 [ "$POLICIES" = "2" ] || fail "visit/participant read policies not narrowed ($POLICIES)"
 
-step "7. transfer Government and Outright from staging"
-node scripts/transfer-sales-flows.mjs --from staging --to-url "$LOCAL" --apply Government Outright
+# Same commands as runbook 6a-6c. Prod already holds both flows (same ids);
+# Outright is identical and stays, Government is stale and gets replaced.
+step "7. replace Government from staging"
+node scripts/transfer-sales-flows.mjs --from staging --to-url "$LOCAL" --replace --apply Government
 
-step "7b. transfer Group Task Templates from staging"
-node scripts/transfer-group-task-templates.mjs --from staging --to-url "$LOCAL" --apply
+step "7b. transfer Group Task Templates from staging, tagged (staging)"
+node scripts/transfer-group-task-templates.mjs --from staging --to-url "$LOCAL" --tag-all --apply
+
+step "7c. repoint Government's Project Delivery template to prod's DELIVERY"
+node scripts/repoint-government-delivery-template.mjs --to prod --to-url "$LOCAL" --apply
 
 step "8. Legacy Pipeline rename and backfill"
 docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X < supabase/scripts/cutover/legacy_pipeline_backfill.sql
