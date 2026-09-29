@@ -24,3 +24,19 @@ export function diffPolicies(prodRows, stagingRows) {
   }
   return out
 }
+
+/**
+ * Differences accepted on purpose, so the gate can exit 0. Each entry is
+ * "<kind>: <table>.<policy>". system_updates: prod-only leftover, accepted
+ * 2026-09-26 (docs/production-cutover-runbook.md, step 9).
+ */
+export const ACCEPTED = new Set([
+  "only on production: system_updates.Enable read for authenticated users",
+  "only on production: system_updates.Enable write operations for authenticated users",
+])
+
+/** Splits a diff into what the gate fails on and what it accepts. */
+export function partitionAccepted(diff, accepted = ACCEPTED) {
+  const isAccepted = (d) => accepted.has(`${d.kind}: ${d.policy}`)
+  return { failing: diff.filter((d) => !isAccepted(d)), accepted: diff.filter(isAccepted) }
+}

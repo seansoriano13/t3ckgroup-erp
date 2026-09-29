@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Cutover gate: compares every public RLS policy (name, command, definition)
- * between production and staging. Prints nothing and exits 0 when they match;
- * lists each differing policy and exits 1 otherwise. Read-only.
+ * between production and staging. Prints nothing and exits 0 when they match
+ * (bar the differences in ACCEPTED, noted on stderr); lists each other
+ * differing policy and exits 1 otherwise. Read-only.
  *
  * Prod's migration ledger isn't proof a migration is applied, so this is the
  * pass/fail gate (docs/production-cutover-runbook.md).
@@ -14,7 +15,7 @@ import pg from 'pg';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { loadDotEnvLocal } from './lib/seedShared.mjs';
-import { POLICY_SQL, diffPolicies } from './lib/policyDiff.mjs';
+import { POLICY_SQL, diffPolicies, partitionAccepted } from './lib/policyDiff.mjs';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const env = loadDotEnvLocal(repoRoot);
@@ -35,7 +36,10 @@ async function policies(envVar) {
   }
 }
 
-const diff = diffPolicies(await policies('PROD_DB_URL'), await policies('STAGING_DB_URL'));
+const { failing: diff, accepted } = partitionAccepted(
+  diffPolicies(await policies('PROD_DB_URL'), await policies('STAGING_DB_URL')),
+);
+for (const d of accepted) console.error(`accepted: ${d.kind}: ${d.policy}`);
 for (const d of diff) {
   console.log(`${d.kind}: ${d.policy}`);
   if (d.kind === 'differs') {
