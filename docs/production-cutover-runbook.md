@@ -54,6 +54,8 @@ pg_dump "$PROD_DB_URL" --format=custom --no-owner --file=prod-pre-cutover-$(date
 
 ### 4. Repair the ledger
 
+As of 2026-09-29 both repairs below are **already done on prod** (orphan gone, baseline applied; quota tables already in `archive_quota`). Run the check first; do a repair only if the check still shows its version.
+
 1. Actions → **Repair migration history** → project `prod`, version `20260914013100`, status `reverted`. That version is an orphan (`offset_leaves.approved_hours`, #198) and the tip. While it stands, `db push` refuses everything. #328 forward-ports the column as `20260929010000_offset_leave_approved_hours.sql` (`add column if not exists`).
 2. Actions → **Repair migration history** → project `prod`, version `20260904000000`, status `applied` (the baseline; marked, never run). Do it second.
 

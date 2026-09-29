@@ -17,20 +17,24 @@ scalar() { docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERR
 fail() { echo "✖ REHEARSAL FAILED: $*" >&2; exit 1; }
 
 step "2. pg_dump production (read-only) and restore it as the stand-in for prod"
+# Prod archived the quota tables on 2026-09-23, so they may already sit in
+# archive_quota. Count them wherever they are.
+QS=$(docker exec "$DB_CONTAINER" psql "$PROD_DB_URL" -X -At -c   "select case when to_regclass('public.sales_quotas') is null then 'archive_quota' else 'public' end")
+echo "prod quota tables in schema: $QS"
 PRE_COUNTS=$(docker exec "$DB_CONTAINER" psql "$PROD_DB_URL" -X -At -c "
   select string_agg(t || '=' || n, ' ' order by t) from (
-    select 'sales_quotas' t, count(*) n from public.sales_quotas union all
-    select 'sales_quota_logs', count(*) from public.sales_quota_logs union all
-    select 'sales_weekly_plans', count(*) from public.sales_weekly_plans union all
-    select 'sales_activities', count(*) from public.sales_activities union all
-    select 'sales_activity_logs', count(*) from public.sales_activity_logs union all
-    select 'sales_revenue_logs', count(*) from public.sales_revenue_logs) x")
+    select 'sales_quotas' t, count(*) n from $QS.sales_quotas union all
+    select 'sales_quota_logs', count(*) from $QS.sales_quota_logs union all
+    select 'sales_weekly_plans', count(*) from $QS.sales_weekly_plans union all
+    select 'sales_activities', count(*) from $QS.sales_activities union all
+    select 'sales_activity_logs', count(*) from $QS.sales_activity_logs union all
+    select 'sales_revenue_logs', count(*) from $QS.sales_revenue_logs) x")
 echo "prod quota row counts: $PRE_COUNTS"
 PROD_APPROVED_DIFF=$(docker exec "$DB_CONTAINER" psql "$PROD_DB_URL" -X -At -c \
   "select count(*) from public.offset_leaves where approved_hours is not null and approved_hours is distinct from hours")
 echo "prod offset rows with approved_hours != hours: $PROD_APPROVED_DIFF"
 
-docker exec "$DB_CONTAINER" pg_dump "$PROD_DB_URL" -n public -n supabase_migrations \
+docker exec "$DB_CONTAINER" pg_dump "$PROD_DB_URL" -n public -n supabase_migrations -n archive_quota \
   --no-owner --no-privileges --format=plain -f /tmp/prod.sql
 docker exec "$DB_CONTAINER" sh -c 'wc -c /tmp/prod.sql'
 
@@ -50,11 +54,14 @@ alter default privileges in schema public grant all on sequences to anon, authen
 SQL
 echo "restored. ledger:"; scalar "select string_agg(version, ' ' order by version) from supabase_migrations.schema_migrations"
 
-step "3. repair: revert the orphan 20260914013100"
-supabase migration repair --status reverted 20260914013100 --db-url "$LOCAL"
+# Prod's ledger was already repaired on 2026-09-23; each repair only runs if
+# its row still needs it, same as runbook step 4.
+has() { scalar "select count(*) from supabase_migrations.schema_migrations where version='$1'"; }
+step "3. repair: revert the orphan 20260914013100 (if present)"
+if [ "$(has 20260914013100)" != "0" ]; then supabase migration repair --status reverted 20260914013100 --db-url "$LOCAL"; else echo "already gone"; fi
 
-step "4. repair: mark the baseline 20260904000000 applied"
-supabase migration repair --status applied 20260904000000 --db-url "$LOCAL"
+step "4. repair: mark the baseline 20260904000000 applied (if missing)"
+if [ "$(has 20260904000000)" = "0" ]; then supabase migration repair --status applied 20260904000000 --db-url "$LOCAL"; else echo "already applied"; fi
 
 step "4. gate: ledger check must be clean"
 PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod --include-all || fail "ledger check blocked"
