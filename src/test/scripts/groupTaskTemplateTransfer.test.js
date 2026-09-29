@@ -76,4 +76,11 @@ describe("planTemplateTransfer", () => {
         const { templates: t } = planTemplateTransfer({ ...base, unarchive: true })
         expect(t.map((x) => x.archived_at)).toEqual([null, null])
     })
+
+    it("with tagAll, every template gets the suffix, repeats numbered", () => {
+        const dup = [...templates, { id: "tpl3", name: "onboarding", created_by: S.ann, archived_at: null }]
+        const { errors, templates: t } = planTemplateTransfer({ ...base, templates: dup, tagAll: " (staging)" })
+        expect(errors).toEqual([])
+        expect(t.map((x) => x.name)).toEqual(["Onboarding (staging)", "Closeout (staging)", "onboarding (staging 2)"])
+    })
 })

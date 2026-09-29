@@ -36,6 +36,7 @@ function parseArgs(argv) {
         else if (a === "--apply") args.apply = true
         else if (a === "--skip-existing") args.skipExisting = true
         else if (a === "--rename-clashes") args.renameClashes = " (staging)"
+        else if (a === "--tag-all") args.tagAll = " (staging)"
         else if (a === "--unarchive") args.unarchive = true
     }
     return args
@@ -75,7 +76,7 @@ async function insertRow(client, table, row) {
 async function main() {
     const args = parseArgs(process.argv.slice(2))
     if (!args.from || !(args.to || args.toUrl)) {
-        fail("Usage: node scripts/transfer-group-task-templates.mjs --from staging --to prod [--to-url <url>] [--skip-existing | --rename-clashes] [--unarchive] [--apply]")
+        fail("Usage: node scripts/transfer-group-task-templates.mjs --from staging --to prod [--to-url <url>] [--skip-existing | --rename-clashes | --tag-all] [--unarchive] [--apply]")
     }
     const sourceUrl = urlFor(args.from)
     const targetUrl = args.toUrl ?? urlFor(args.to)
@@ -96,7 +97,7 @@ async function main() {
             const plan = planTemplateTransfer({
                 templates, members, sourceEmployees, targetEmployees,
                 targetTemplateNames: existing.map((r) => r.name),
-                skipExisting: args.skipExisting, renameClashes: args.renameClashes, unarchive: args.unarchive,
+                skipExisting: args.skipExisting, renameClashes: args.renameClashes, tagAll: args.tagAll, unarchive: args.unarchive,
             })
             if (plan.errors.length) throw new Error(plan.errors.join("\n  "))
 

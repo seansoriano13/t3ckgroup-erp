@@ -10,7 +10,7 @@ const norm = (s) => String(s ?? "").trim().toLowerCase()
  * (with its members, and without checking its employees) and listed in `skipped`
  * instead of being an error. A null member employee_id stays null (the source row already had none).
  */
-export function planTemplateTransfer({ templates, members, sourceEmployees, targetEmployees, targetTemplateNames, skipExisting = false, renameClashes = null, unarchive = false }) {
+export function planTemplateTransfer({ templates, members, sourceEmployees, targetEmployees, targetTemplateNames, skipExisting = false, renameClashes = null, tagAll = null, unarchive = false }) {
     const sourceName = new Map(sourceEmployees.map((e) => [e.id, e.name]))
     const targetByName = new Map()
     for (const e of targetEmployees) {
@@ -30,19 +30,22 @@ export function planTemplateTransfer({ templates, members, sourceEmployees, targ
         return null
     }
 
+    const suffix = tagAll ?? renameClashes
     const errors = []
     const taken = new Set(targetTemplateNames.map(norm))
     const clashes = templates.filter((t) => taken.has(norm(t.name)))
-    if (!skipExisting && renameClashes == null) {
+    if (!skipExisting && suffix == null) {
         for (const t of clashes) errors.push(`Target already has a template named "${t.name}".`)
     }
     const skippedIds = new Set(skipExisting ? clashes.map((t) => t.id) : [])
 
     const used = new Set(taken)
     const rename = (t) => {
-        if (renameClashes == null) return t.name
-        let name = t.name
-        for (let n = 1; used.has(norm(name)); n++) name = `${t.name}${n === 1 ? renameClashes : renameClashes.replace(")", ` ${n})`)}`
+        if (suffix == null) return t.name
+        const tag = (n) => (n <= 1 ? suffix : suffix.replace(")", ` ${n})`))
+        let n = tagAll != null ? 1 : 0
+        let name = n ? `${t.name}${tag(n)}` : t.name
+        while (used.has(norm(name))) name = `${t.name}${tag(++n)}`
         used.add(norm(name))
         return name
     }
