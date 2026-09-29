@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ArrowUpRight, ShieldOff, UserPlus, Users2 } from "lucide-react";
 
+import Avatar from "@/components/Avatar";
+import TemplateTokenText from "@/components/ui/TemplateTokenText";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { SELECTOR_TYPES, DEAL_TEAM_ROLES } from "@/utils/resolvePeople";
-import { initialsOf, stageAudience } from "@/utils/stageAudience";
+import { stageAudience } from "@/utils/stageAudience";
 import { employeeService } from "@/services/employeeService";
 import { employeeGroupService } from "@/services/employeeGroupService";
 
@@ -64,16 +66,16 @@ const SectionHeading = ({ icon: Icon, children, count }) => (
  * Two calls means two windows — the database opens a row per call-in, so
  * collapsing them into one line here would be a lie about the access granted.
  */
-const CalledInRow = ({ person }) => (
-  <li className="flex gap-2.5 py-2">
-    <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-full bg-violet-a4 text-[10px] font-black text-violet-11">
-      {initialsOf(person.name)}
-    </span>
+const CalledInRow = ({ person, avatarPath }) => (
+  <li className="flex gap-3 py-3">
+    <Avatar name={person.name} src={avatarPath} size="md" />
     <div className="min-w-0 flex-1">
-      <p className="truncate text-xs font-bold text-foreground">{person.name}</p>
+      <p className="truncate text-[13px] font-bold text-foreground">{person.name}</p>
       {person.calls.map((call, index) => (
-        <p key={index} className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-          <span className="font-semibold text-mauve-11">{call.label}</span> — sees{" "}
+        <p key={index} className="mt-1.5 text-xs leading-loose text-muted-foreground">
+          <span className="font-semibold text-mauve-11">
+            <TemplateTokenText text={call.label} />
+          </span> — sees{" "}
           {call.window.reachLabel}
           {call.window.fellBack && (
             <span className="text-amber-11">
@@ -136,6 +138,10 @@ function StageAccessForm({
   // resolvePeople reads `sub_department`; the service hands back `subDepartment`.
   const employees = useMemo(
     () => rawEmployees.map((e) => ({ ...e, sub_department: e.subDepartment })),
+    [rawEmployees],
+  );
+  const avatarById = useMemo(
+    () => Object.fromEntries(rawEmployees.map((e) => [e.id, e.avatarPath])),
     [rawEmployees],
   );
   const groupMembersById = useMemo(
@@ -256,7 +262,11 @@ function StageAccessForm({
         {audience.calledIn.length > 0 ? (
           <ul className="divide-y divide-mauve-a4">
             {audience.calledIn.map((person) => (
-              <CalledInRow key={person.employeeId} person={person} />
+              <CalledInRow
+                key={person.employeeId}
+                person={person}
+                avatarPath={avatarById[person.employeeId]}
+              />
             ))}
           </ul>
         ) : (

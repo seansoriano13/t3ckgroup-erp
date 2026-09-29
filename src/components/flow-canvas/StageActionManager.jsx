@@ -154,7 +154,12 @@ export default function StageActionManager({ stageId, disabled = false }) {
               key={action.id}
               className="group rounded-xl bg-card outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:outline-mauve-8"
             >
-              <div className="flex items-center gap-3 px-3 py-2.5">
+              <div
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-4 py-3 transition-colors",
+                  isExpanded ? "rounded-b-none bg-mauve-a3" : "hover:bg-mauve-a2",
+                )}
+              >
                 {!disabled && (
                   <div className="flex shrink-0 flex-col">
                     <Button
@@ -185,7 +190,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                   variant="ghost"
                   onClick={() => setExpandedId(isExpanded ? null : action.id)}
                   aria-expanded={isExpanded}
-                  className="h-auto min-w-0 flex-1 justify-start gap-3 rounded-lg text-left"
+                  className="h-auto min-w-0 flex-1 justify-start gap-3 rounded-lg p-0 text-left hover:bg-transparent aria-expanded:bg-transparent"
                 >
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
                     <Icon size={15} strokeWidth={2.5} />
