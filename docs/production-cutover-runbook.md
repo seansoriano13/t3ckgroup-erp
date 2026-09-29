@@ -70,6 +70,17 @@ node scripts/transfer-sales-flows.mjs --from staging --to prod --apply Governmen
 
 **Check:** counts match staging (Government 17 Stages, 16 edges; Outright 5 Stages, 4 edges). Both flows end with zero `flow_access_settings` rows, so they stay private to their Deal Team. The script refuses otherwise.
 
+### 4b. Transfer Group Task Templates (#419)
+
+All templates (archived too) and members. Employees remapped by **name**; a missing/ambiguous name or a same-named template on prod stops the run, nothing written.
+
+```bash
+node scripts/transfer-group-task-templates.mjs --from staging --to prod
+node scripts/transfer-group-task-templates.mjs --from staging --to prod --apply
+```
+
+**Check:** dry-run counts match staging's template and member counts.
+
 ### 5. Legacy Pipeline backfill (#382)
 
 ```bash
