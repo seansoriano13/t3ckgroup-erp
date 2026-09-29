@@ -51,3 +51,17 @@ that entry point.
 - `flow_plans` and its RLS policies are gone. The policy tier no longer asserts
   anything about a Sandbox document.
 - Later versioning tickets fake one service surface, not two.
+
+## Amendment 2026-09-29 — the canvas opens on production too
+
+At the production cutover (#414) the operator chose to allow the Flow Canvas on
+production, reversing "production is never the drafting surface". The
+`isProductionSupabase` gate on the canvas page is gone.
+
+- Edits on production are live for staff the moment they are saved; there is no
+  staging copy to try them on first.
+- Staging and production flows can now drift. `scripts/transfer-sales-flows.mjs
+  --replace` overwrites the target's copy, so edit each flow in one place and
+  don't replace a flow on production that was edited there.
+- Scratch SORs made on the production canvas are real rows there (they stay out
+  of the register, as on staging).
