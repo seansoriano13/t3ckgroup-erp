@@ -305,7 +305,7 @@ async function seedSor(client, people, { map: flowMap, flowId }) {
   // Registration: the insert trigger opens visit 1 on Lead.
   await actAs(client, owner.email)
   const registeredAt = clock(srcVisits[0].entered_at)
-  const { serial_no: _serial, opportunity_no: _no, ...srcColumns } = src
+  const { serial_no: _serial, opportunity_no: _no, sor_code: _code, ...srcColumns } = src
   await insertRows(client, "sales_opportunities", [
     {
       ...remap(srcColumns, map),
