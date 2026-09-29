@@ -25,12 +25,15 @@ const order = (overrides = {}) => ({
 const NOW = new Date(2026, 8, 29, 12) // 29 Sep 2026
 
 describe("isCountedOrder", () => {
-  it("counts an ordinary order and one whose Odoo state is not known yet", () => {
-    expect(isCountedOrder(order())).toBe(true)
+  it("counts a confirmed or done order, and one whose Odoo state is not known yet", () => {
+    expect(isCountedOrder(order({ odoo_state: "sale" }))).toBe(true)
+    expect(isCountedOrder(order({ odoo_state: "done" }))).toBe(true)
     expect(isCountedOrder(order({ odoo_state: null }))).toBe(true)
   })
 
-  it("leaves out a cancelled order and one dismissed in the old queue", () => {
+  it("leaves out a quotation, a cancelled order and one dismissed in the old queue", () => {
+    expect(isCountedOrder(order({ odoo_state: "draft" }))).toBe(false)
+    expect(isCountedOrder(order({ odoo_state: "sent" }))).toBe(false)
     expect(isCountedOrder(order({ odoo_state: "cancel" }))).toBe(false)
     expect(isCountedOrder(order({ is_excluded: true }))).toBe(false)
   })

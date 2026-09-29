@@ -14,12 +14,19 @@ export const RETAIL_RANGES = [
 ]
 
 /**
- * An order counts toward the report unless somebody dismissed it in the old
- * queue or Odoo cancelled it. A null Odoo state (a backfilled row the sync has
- * not refreshed yet) counts.
+ * Odoo states that are a real sale. A quotation (draft, sent) is not one yet,
+ * and a cancelled order is not one any more.
+ */
+const CONFIRMED_STATES = ["sale", "done"]
+
+/**
+ * An order counts toward the report when Odoo has confirmed it and nobody
+ * dismissed it in the old queue. A null Odoo state (a backfilled row the sync
+ * has not refreshed yet) counts until the sync says otherwise.
  */
 export function isCountedOrder(order) {
-  return !order.is_excluded && order.odoo_state !== "cancel"
+  if (order.is_excluded) return false
+  return order.odoo_state == null || CONFIRMED_STATES.includes(order.odoo_state)
 }
 
 /** "2026-08" — the sortable key a month is grouped under, in local time. */

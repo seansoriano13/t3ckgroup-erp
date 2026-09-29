@@ -10,7 +10,7 @@ const COLUMNS =
 /**
  * Every order the Retail report can count: synced from Odoo into
  * `retail_orders`, minus the ones somebody dismissed in the old queue. The
- * cancelled-in-Odoo filter and the date range live in `utils/retailReport.js`,
+ * confirmed-in-Odoo filter and the date range live in `utils/retailReport.js`,
  * so the totals are testable without a database.
  */
 export async function getRetailOrders() {

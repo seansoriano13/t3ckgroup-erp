@@ -53,7 +53,7 @@ comment on table public.retail_orders is
 comment on column public.retail_orders.ordered_at is
   'Odoo date_order, falling back to create_date. The date the report groups by.';
 comment on column public.retail_orders.odoo_state is
-  'Odoo sale.order state (draft, sent, sale, done, cancel). Null until the sync has refreshed a backfilled row. The report leaves out cancel.';
+  'Odoo sale.order state (draft, sent, sale, done, cancel). Null until the sync has refreshed a backfilled row. The report counts only sale and done.';
 comment on column public.retail_orders.is_excluded is
   'True for an order somebody dismissed in the old queue. The sync never clears it; the report leaves it out.';
 

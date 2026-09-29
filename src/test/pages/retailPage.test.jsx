@@ -64,17 +64,19 @@ describe("Retail page", () => {
     expect(screen.getByText("Orders")).toBeInTheDocument();
   });
 
-  it("leaves out a cancelled order and one dismissed in the old queue", async () => {
+  it("leaves out a quotation, a cancelled order and one dismissed in the old queue", async () => {
     retailOrder({ amount: 1000 });
     retailOrder({ amount: 7000, odoo_state: "cancel" });
     retailOrder({ amount: 9000, is_excluded: true });
+    retailOrder({ amount: 5000, odoo_state: "draft" });
 
     renderPage();
 
     expect((await screen.findAllByText(formatPHP(1000))).length).toBeGreaterThan(0);
     expect(screen.queryByText(formatPHP(7000))).not.toBeInTheDocument();
     expect(screen.queryByText(formatPHP(9000))).not.toBeInTheDocument();
-    expect(screen.queryByText(formatPHP(17000))).not.toBeInTheDocument();
+    expect(screen.queryByText(formatPHP(5000))).not.toBeInTheDocument();
+    expect(screen.queryByText(formatPHP(22000))).not.toBeInTheDocument();
   });
 
   it("shows an empty state when nothing has been synced", async () => {
