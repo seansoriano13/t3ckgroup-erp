@@ -43,7 +43,6 @@ function versionGeneratorPlugin() {
                 source: JSON.stringify({
                     version: appVersion,
                     builtAt: buildTime,
-                    changes: latestChangelogEntry?.changes || [],
                 }, null, 2),
             })
         },
