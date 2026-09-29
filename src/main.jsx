@@ -11,6 +11,7 @@ import { useTheme } from "./hooks/useTheme"
 import { CustomToast } from "./components/ui/CustomToast"
 import { VersionUpdateNotifier } from "./components/VersionUpdateNotifier"
 import { StagingBanner } from "./components/StagingBanner"
+import { MaintenanceGate } from "./components/MaintenanceGate"
 import { Button } from "./components/ui/button"
 
 // Auto-reload when dynamic chunk imports fail due to new deployments
@@ -93,7 +94,9 @@ createRoot(document.getElementById("root")).render(
               </div>
               <VersionUpdateNotifier />
               <StagingBanner />
-              <Routes />
+              <MaintenanceGate>
+                <Routes />
+              </MaintenanceGate>
             </ThemeApplier>
           </AuthProvider>
         </GoogleOAuthProvider>
