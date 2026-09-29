@@ -113,7 +113,11 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     // attachment (or a pick from another condition's file) can never
     // satisfy it.
     uploaded.conditionId = condition.id;
-    if (currentVisitId) uploaded.stageVisitId = currentVisitId;
+    // Read the visit fresh, not from the cached query: that cache is keyed by
+    // Stage, so after a Revert then Resume back to the same Stage it can still
+    // hold an earlier visit's id and stamp the file there (same race as #413).
+    const visitId = (await opportunityService.getCurrentStageVisitId(opportunityId)) ?? currentVisitId;
+    if (visitId) uploaded.stageVisitId = visitId;
     await opportunityService.addNote(
       opportunityId,
       actorId,

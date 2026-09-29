@@ -847,7 +847,7 @@ export default function GroupTaskDetailModal({
             type="button"
             variant="ghost"
             onClick={() => setActiveTab("overview")}
-            className={`h-auto rounded-none py-3 text-sm font-bold border-b-2 hover:bg-transparent ${
+            className={`h-auto rounded-none border-0 border-b-2 py-3 text-sm font-bold shadow-none hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:bg-muted/50 ${
               activeTab === "overview"
                 ? "border-primary text-primary hover:text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -859,7 +859,7 @@ export default function GroupTaskDetailModal({
             type="button"
             variant="ghost"
             onClick={() => setActiveTab("history")}
-            className={`h-auto rounded-none py-3 text-sm font-bold border-b-2 hover:bg-transparent ${
+            className={`h-auto rounded-none border-0 border-b-2 py-3 text-sm font-bold shadow-none hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:bg-muted/50 ${
               activeTab === "history"
                 ? "border-primary text-primary hover:text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"

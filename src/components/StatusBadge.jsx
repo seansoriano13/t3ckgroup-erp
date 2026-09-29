@@ -28,7 +28,7 @@ export default function StatusBadge({
     <span
       className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap ${appliedStyle} ${className}`}
     >
-      {children || label || status || "UNKNOWN"}
+      {children || label || (status ? String(status).replace(/_/g, " ") : "UNKNOWN")}
     </span>
   );
 }

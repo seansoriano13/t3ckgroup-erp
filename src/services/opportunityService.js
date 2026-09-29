@@ -3864,7 +3864,7 @@ export const opportunityService = {
         // Only the Snapshot pointer is wanted, and only as a fallback for a
         // visit that carries none — `getOpportunityById` would drag five
         // employee joins along for one column.
-        supabase.from("sales_opportunities").select("id, flow_snapshot_id").eq("id", opportunityId).maybeSingle(),
+        supabase.from("sales_opportunities").select("id, flow_snapshot_id, sales_reference, project_title, client_name").eq("id", opportunityId).maybeSingle(),
         supabase
           .from("sor_stage_visits")
           .select(`
@@ -4050,7 +4050,15 @@ export const opportunityService = {
               {
                 tasksById,
                 groupTasksById,
-                labelFor: stageActionName,
+                // An undecided run has no task yet, so its name is the action's raw
+                // title — fill its {{tokens}} the way the created task's title was.
+                labelFor: (action) =>
+                  renderTemplate(stageActionName(action), {
+                    salesReference: opportunity?.sales_reference,
+                    projectTitle: opportunity?.project_title,
+                    company: opportunity?.client_name,
+                    stageName: stageFor(visit).name,
+                  }),
                 closedOffActors: {
                   startFresh: startFreshClosureByVisitId[visit.id] || null,
                   reverted: visit.leftBy || null,
