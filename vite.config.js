@@ -18,6 +18,7 @@ const appVersion = process.env.VERCEL_GIT_COMMIT_SHA || Date.now().toString()
 const buildTime = new Date().toISOString()
 
 import fs from "fs"
+import { visibleEntries } from './scripts/lib/changelog.mjs'
 
 function readChangelog() {
     try {
@@ -30,8 +31,6 @@ function readChangelog() {
     }
 }
 
-const latestChangelogEntry = readChangelog()[0]
-const appSemver = latestChangelogEntry?.version || 'dev'
 
 function versionGeneratorPlugin() {
     return {
@@ -50,11 +49,11 @@ function versionGeneratorPlugin() {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     plugins: [react(), tailwindcss(), Generouted(), versionGeneratorPlugin()],
     define: {
         __APP_VERSION__: JSON.stringify(appVersion),
-        __APP_SEMVER__: JSON.stringify(appSemver),
+        __APP_SEMVER__: JSON.stringify(visibleEntries(readChangelog(), mode === 'staging' || process.env.VITE_APP_ENV === 'staging')[0]?.version || 'dev'),
         __BUILD_TIME__: JSON.stringify(buildTime),
     },
     resolve: {
@@ -62,4 +61,4 @@ export default defineConfig({
             "@": path.resolve(__dirname, "./src"),
         },
     },
-})
+}))

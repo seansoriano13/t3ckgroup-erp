@@ -42,3 +42,9 @@ export function addEntry(existingList, { version, title, changes, date } = {}) {
 
   return [newEntry, ...existingList];
 }
+
+// Entries flagged `"env": "staging"` are for staging testers only. Prod
+// builds drop them so What's New (which shows the top entry) never leaks one.
+export function visibleEntries(list, isStaging) {
+  return isStaging ? list : list.filter((e) => e.env !== "staging")
+}

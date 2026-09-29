@@ -4,7 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import changelog from "@/data/changelog.json";
+import allChangelog from "@/data/changelog.json";
+import { visibleEntries } from "../../scripts/lib/changelog.mjs";
+
+const isStaging =
+  import.meta.env.MODE === "staging" ||
+  import.meta.env.VITE_APP_ENV === "staging" ||
+  window.location.hostname.includes("staging");
+const changelog = visibleEntries(allChangelog, isStaging);
 
 export default function ChangelogModal({ manualOpen = false, onManualClose = null }) {
   const { user } = useAuth();
