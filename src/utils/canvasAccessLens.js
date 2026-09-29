@@ -3,8 +3,14 @@
  *
  * A pure function so the eye-chip/dimming behavior on the canvas is provable
  * without a live snapshot, a signed-in session, or a database: give it a
- * snapshot-shaped draft and a selector to view as, get back one of
- * `hidden` | `calls-in` | `visible` per Stage.
+ * snapshot-shaped draft and a selector to view as, get back one verdict per
+ * Stage:
+ *   hidden     no access at all — shut out, or named nowhere on the flow
+ *   calls-in   called in as a Stage Participant
+ *   deal-team  a Deal Team role (full access)
+ *   can-edit   Always edits (or Everyone)
+ *   view-only  Always sees, not Always edits
+ *   visible    no selector: the lens is off
  *
  * `selector` is the same shape resolvePeople.js already uses everywhere else
  * a "who" is named:
@@ -30,6 +36,8 @@
  *     }],
  *     groupMembersById?: Record<string, { employeeIds?: string[], teams?: string[] }>,
  *     employees?: Array<{ id, sub_department?, is_deleted? }>,
+ *     alwaysSees?: Array<selector>,     // flow_access_settings.always_sees
+ *     alwaysEdits?: Array<selector>,    // flow_access_settings.always_edits
  *   }
  */
 import { resolveGroupMemberIds, normaliseTeam, SELECTOR_TYPES } from "./resolvePeople";
@@ -38,6 +46,8 @@ import { CONDITION_KINDS } from "../constants/stageGate";
 /** Whether `selector` (the viewer) is or resolves into `other` (a Stage's own selector). */
 function selectorMatchesViewer(other, selector, { employees, groupMembersById }) {
   if (!other || !selector) return false;
+
+  if (other.type === SELECTOR_TYPES.EVERYONE) return true;
 
   if (other.type === selector.type) {
     if (other.type === SELECTOR_TYPES.ROLE) return other.role === selector.role;
@@ -93,19 +103,33 @@ function isCalledIn(stage, selector, context) {
 }
 
 /**
- * One access-lens entry per Stage: `hidden` (this identity cannot see it at
- * all), `calls-in` (named to be called into it — always wins over hidden,
- * since being called in is what grants the access a shut-out role would
- * otherwise lack), or `visible` (nothing restricts or calls them).
+ * One access-lens entry per Stage, for the identity being viewed:
+ *
+ *   `calls-in`  named to be called into it — always wins over shut out, since
+ *               a Stage Participant sits outside the Deal Team a Restricted
+ *               Stage closes.
+ *   `hidden`    no access at all: shut out here, or not a Deal Team role, not
+ *               in Always sees / Always edits, and not called in. A person
+ *               may still hold a Deal Team role on an individual SOR — the
+ *               canvas has no SOR to check.
+ *   `deal-team` a Deal Team role: full access.
+ *   `can-edit`  in Always edits (which implies view), or Everyone.
+ *   `view-only` in Always sees but not Always edits.
+ *   `visible`   no selector — the lens is off.
+ *
+ * A Restricted Stage shuts out Always sees and Always edits too.
  *
  * @param {{ snapshotLikeDraft: object, selector: object }} args
- * @returns {Record<string, "hidden" | "calls-in" | "visible">}
+ * @returns {Record<string, "hidden" | "calls-in" | "deal-team" | "can-edit" | "view-only" | "visible">}
  */
 export function canvasAccessLens({ snapshotLikeDraft, selector } = {}) {
   const stages = snapshotLikeDraft?.stages || [];
   const employees = snapshotLikeDraft?.employees || [];
   const groupMembersById = snapshotLikeDraft?.groupMembersById || {};
+  const alwaysSees = snapshotLikeDraft?.alwaysSees || [];
+  const alwaysEdits = snapshotLikeDraft?.alwaysEdits || [];
   const context = { employees, groupMembersById };
+  const inList = (list) => list.some((other) => selectorMatchesViewer(other, selector, context));
 
   const lens = {};
   for (const stage of stages) {
@@ -120,8 +144,14 @@ export function canvasAccessLens({ snapshotLikeDraft, selector } = {}) {
       lens[stage.id] = "calls-in";
     } else if (isShutOut(stage, selector, context)) {
       lens[stage.id] = "hidden";
+    } else if (selector.type === SELECTOR_TYPES.ROLE) {
+      lens[stage.id] = "deal-team";
+    } else if (inList(alwaysEdits)) {
+      lens[stage.id] = "can-edit";
+    } else if (inList(alwaysSees)) {
+      lens[stage.id] = "view-only";
     } else {
-      lens[stage.id] = "visible";
+      lens[stage.id] = "hidden";
     }
   }
   return lens;

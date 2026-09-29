@@ -74,7 +74,7 @@ describe("FlowCanvasNode", () => {
         accessLensState: "hidden",
         viewAsLabel: "Sales Director",
       })
-      expect(screen.getByText("Hidden from Sales Director")).toBeInTheDocument()
+      expect(screen.getByText("No access for Sales Director")).toBeInTheDocument()
       expect(screen.queryByText("called in")).not.toBeInTheDocument()
     })
 
@@ -85,6 +85,15 @@ describe("FlowCanvasNode", () => {
         viewAsLabel: "Raquel Galacgac",
       })
       expect(screen.getByText("Calls Raquel Galacgac in")).toBeInTheDocument()
+    })
+
+    it.each([
+      ["deal-team", "Deal Team"],
+      ["can-edit", "Can view and edit"],
+      ["view-only", "Can view, can't edit"],
+    ])("says %s explicitly", (accessLensState, text) => {
+      renderNode({ audience: AUDIENCE, accessLensState, viewAsLabel: "Someone" })
+      expect(screen.getByText(text)).toBeInTheDocument()
     })
   })
 

@@ -225,8 +225,9 @@ const LENS_COPY = {
   hidden: {
     icon: EyeOff,
     tone: "text-mauve-11",
-    text: (who) => `Hidden from ${who}`,
-    title: (who) => `${who} cannot see this Stage — shut out here.`,
+    text: (who) => `No access for ${who}`,
+    title: (who) =>
+      `${who} has no access to this Stage — shut out here, or not named on this flow. They may still hold a Deal Team role on an individual SOR.`,
   },
   "calls-in": {
     icon: Eye,
@@ -234,16 +235,31 @@ const LENS_COPY = {
     text: (who) => `Calls ${who} in`,
     title: (who) => `This Stage calls ${who} in, which is what opens their access window.`,
   },
-  visible: {
+  "deal-team": {
     icon: Eye,
     tone: "text-mauve-11",
-    text: (who) => `${who} can see this`,
-    title: (who) => `Nothing on this Stage shuts ${who} out.`,
+    text: () => "Deal Team",
+    title: (who) => `${who} is on the Deal Team: full access to this Stage.`,
+  },
+  "can-edit": {
+    icon: Eye,
+    tone: "text-mauve-11",
+    text: () => "Can view and edit",
+    title: (who) => `${who} is in Always edits: can see and edit SORs on this Stage.`,
+  },
+  "view-only": {
+    icon: Eye,
+    tone: "text-mauve-11",
+    text: () => "Can view, can't edit",
+    title: (who) =>
+      `${who} is in Always sees: can read and move SORs on this Stage, but not edit them.`,
   },
 };
+// Lens off never reaches this copy; an unknown state reads as the safest one.
+const LENS_FALLBACK = LENS_COPY.hidden;
 
 const LensLine = ({ state, viewAsLabel }) => {
-  const copy = LENS_COPY[state] || LENS_COPY.visible;
+  const copy = LENS_COPY[state] || LENS_FALLBACK;
   const Icon = copy.icon;
   return (
     <>
@@ -285,7 +301,7 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
   const roster = calledIn.map((person) => person.name).join(", ");
   const everyone = Boolean(audience?.everyoneSees);
   const title = viewAsLabel
-    ? (LENS_COPY[lensState] || LENS_COPY.visible).title(viewAsLabel)
+    ? (LENS_COPY[lensState] || LENS_FALLBACK).title(viewAsLabel)
     : everyone
       ? "Everyone sees this Stage (Always sees includes Everyone)."
       : calledIn.length > 0
@@ -293,18 +309,24 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
       : "Nobody is called in here. Only the Deal Team sees this Stage.";
 
   return (
-    <div className="mt-0.5 border-t border-mauve-a4 pt-2">
+    // Full-bleed footer: the hover tint fills the whole bottom of the node,
+    // not just the button, so it reads as one region.
+    <div
+      // The button inside is the keyboard target; its click bubbles here, so
+      // one handler covers the whole footer.
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen?.();
+      }}
+      className="nodrag nopan -mx-4 -mb-3.5 mt-0.5 cursor-pointer rounded-b-2xl border-t border-mauve-a4 px-4 pt-2 pb-3 transition-colors hover:bg-mauve-a3"
+    >
       <Button
         type="button"
         variant="ghost"
-        onClick={(event) => {
-          event.stopPropagation();
-          onOpen?.();
-        }}
         title={title}
         aria-label={title}
         className={cn(
-          "nodrag nopan -my-0.5 h-auto w-full justify-start gap-2 rounded-lg px-1 py-1 text-left",
+          "nodrag nopan -my-0.5 h-auto w-full justify-start gap-2 rounded-lg px-1 py-1 text-left hover:bg-transparent",
         )}
       >
         {viewAsLabel ? (
@@ -410,7 +432,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
         "transition-[box-shadow,outline-color,opacity] duration-150",
         "-outline-offset-1",
         outlineClass,
-        isHiddenForViewer && "opacity-50",
+        isHiddenForViewer && "opacity-50 grayscale",
         callsViewerIn && "outline-2 outline-amber-9 shadow-[0_0_0_4px_var(--amber-a4)]",
       )}
     >

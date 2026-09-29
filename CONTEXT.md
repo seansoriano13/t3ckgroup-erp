@@ -393,6 +393,16 @@ opens from it.
 _Avoid_: Builder, Planner, Designer, Flow Plan (a sandbox mode removed by #186 —
 the canvas edits the live flow only)
 
+**View as**:
+A Flow Canvas preview of what one role, group or person can do at each Stage.
+Off by default; while on, every Stage answers with one verdict for that
+identity: no access (dimmed — shut out, or named nowhere on the flow), called
+in, Deal Team, can view and edit (Always edits, which implies view), or can
+view but not edit (Always sees). A Restricted Stage still shuts out Always sees
+and Always edits; being called in wins over being shut out. A person shows no
+access even if they hold a Deal Team role on some SOR, because the canvas has
+no SOR. It changes what the canvas shows, never what anyone can actually do.
+
 **Publish**:
 The action that freezes the current draft into a new Flow Snapshot new SORs
 of that Sale Type are registered against, and — for a Sales Flow that already
