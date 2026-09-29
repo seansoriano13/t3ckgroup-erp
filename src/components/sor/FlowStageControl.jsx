@@ -109,7 +109,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
 
                 <ul
                   className={cn(
-                    "flex h-11 gap-[2px]",
+                    "flex h-12 gap-[2px]",
                     run.label && "border-t-2 border-violet-8 pt-1",
                   )}
                 >
@@ -138,7 +138,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
                           }
                         }}
                         className={cn(
-                          "relative flex flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
+                          "relative flex flex-none items-center justify-center px-6 text-xs font-bold tracking-wider uppercase transition-all duration-200",
                           isClickable ? "cursor-pointer hover:brightness-110" : "cursor-default",
                           isBlockedDestination && "opacity-40 saturate-50",
                           isDestination && disabled && "opacity-40 saturate-50",

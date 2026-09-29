@@ -104,7 +104,7 @@ export default function SorModalHeader({
   const legacyRibbon = (
     <div className="relative w-full">
       <StageRibbonScroller>
-        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-11 min-w-full w-max gap-[2px]">
+        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-12 min-w-full w-max gap-[2px]">
           {pipelineStages.map((s, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
@@ -131,7 +131,7 @@ export default function SorModalHeader({
                 }}
                 title={moveDisabled ? moveDisabledReason : undefined}
                 className={cn(
-                  "relative h-full focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current flex-none rounded-none px-5 text-[11px] font-bold tracking-wider uppercase",
+                  "relative h-full focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current flex-none rounded-none px-6 text-xs font-bold tracking-wider uppercase",
                   moveDisabled ? "cursor-default" : "cursor-pointer",
                   isCompleted && classes.completed,
                   isCurrent && cn(classes.current, "shadow-inner"),
@@ -177,22 +177,22 @@ export default function SorModalHeader({
   );
 
   return (
-    <div className="flex shrink-0 flex-col gap-3 border-b border-border/60 px-6 pt-5 pb-4">
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex shrink-0 flex-col gap-5 border-b border-border/60 px-5 pt-5 pb-5 sm:gap-6 sm:px-8 sm:pt-7 sm:pb-6">
+      <div className="flex items-start justify-between gap-3 sm:gap-6">
         <div className="min-w-0">
-          <div className="mb-1.5 flex items-center gap-2">
-            <div className="flex size-[18px] shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
-              <Target size={11} strokeWidth={2.5} />
+          <div className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+            <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Target size={13} strokeWidth={2.5} />
             </div>
             {sorCodeOf(opportunity) && (
-              <span className="font-mono text-xs font-bold text-primary">{sorCodeOf(opportunity)}</span>
+              <span className="font-mono text-[13px] font-bold text-primary">{sorCodeOf(opportunity)}</span>
             )}
             {opportunity.sales_reference ? (
-              <span className="font-mono text-xs font-bold text-muted-foreground">
+              <span className="font-mono text-[13px] font-bold text-muted-foreground">
                 {opportunity.sales_reference}
               </span>
             ) : (
-              <span className="truncate text-xs font-bold text-muted-foreground">
+              <span className="truncate text-[13px] font-bold text-muted-foreground">
                 {opportunity.client_name}
               </span>
             )}
@@ -220,37 +220,37 @@ export default function SorModalHeader({
             </div>
           ) : (
             <>
-              <h2 className="truncate text-lg font-black text-foreground">{opportunity.project_title}</h2>
-              <p className="truncate text-xs font-medium text-muted-foreground">{opportunity.client_name}</p>
+              <h2 className="line-clamp-2 text-xl leading-tight font-black tracking-[-0.02em] text-balance text-foreground sm:text-[26px]">{opportunity.project_title}</h2>
+              <p className="mt-1.5 truncate text-sm font-medium text-muted-foreground">{opportunity.client_name}</p>
             </>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="-mt-1 -mr-2 flex shrink-0 items-center gap-1 sm:-mr-3">
           {(hasPrev || hasNext) && (
             <>
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={onPrev}
                 disabled={!hasPrev}
                 title="Previous"
                 aria-label="Previous opportunity"
                 className="text-muted-foreground"
               >
-                <ChevronLeft size={15} />
+                <ChevronLeft size={17} />
               </Button>
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={onNext}
                 disabled={!hasNext}
                 title="Next"
                 aria-label="Next opportunity"
                 className="text-muted-foreground"
               >
-                <ChevronRightIcon size={15} />
+                <ChevronRightIcon size={17} />
               </Button>
               <div className="mx-1 h-4 w-px bg-border/60" />
             </>
@@ -280,13 +280,13 @@ export default function SorModalHeader({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={handleEditToggle}
                   title="Edit"
                   aria-label="Edit opportunity"
                   className="text-muted-foreground"
                 >
-                  <Pencil size={14} />
+                  <Pencil size={16} />
                 </Button>
               )}
               {/* Rarely-used actions live behind one menu so the header keeps a single row of intent. */}
@@ -298,12 +298,12 @@ export default function SorModalHeader({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     title="More actions"
                     aria-label="More actions"
                     className="text-muted-foreground"
                   >
-                    <MoreHorizontal size={15} />
+                    <MoreHorizontal size={17} />
                   </Button>
                 }
               >
@@ -345,13 +345,13 @@ export default function SorModalHeader({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={onClose}
                 title="Close"
                 aria-label="Close"
                 className="text-muted-foreground"
               >
-                <X size={15} />
+                <X size={17} />
               </Button>
             </>
           )}
@@ -359,25 +359,25 @@ export default function SorModalHeader({
       </div>
 
       <div className="w-full">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="flex flex-wrap items-center gap-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <p className="flex flex-wrap items-center gap-2.5 text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
             Pipeline Stage
             {isFlowDeal && flowCanvas && (
               <>
                 <span className="text-muted-foreground/40">—</span>
                 <span className="text-foreground">{flowCanvas.saleType.name}</span>
                 {flowCanvas.flow.won_stage_id === currentFlowStage?.id ? (
-                  <span className="rounded-full bg-green-9/15 px-1.5 py-0.5 text-green-11">Won</span>
+                  <span className="rounded-full bg-green-9/15 px-2 py-0.5 text-green-11">Won</span>
                 ) : (
                   currentFlowStage?.is_terminal && (
-                    <span className="rounded-full bg-mauve-9/15 px-1.5 py-0.5 text-mauve-11">Closed</span>
+                    <span className="rounded-full bg-mauve-9/15 px-2 py-0.5 text-mauve-11">Closed</span>
                   )
                 )}
               </>
             )}
             <span
               className={cn(
-                "rounded-full px-1.5 py-0.5",
+                "rounded-full px-2 py-0.5",
                 blockedCount > 0 ? "bg-red-9/15 text-red-11" : "bg-green-9/15 text-green-11",
               )}
             >
