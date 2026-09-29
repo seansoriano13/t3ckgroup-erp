@@ -520,19 +520,12 @@ export const offsetService = {
    * instead. See ADR 0012.
    */
   async getCalendarOffsetLeaves(startDate = null, endDate = null) {
-    let query = supabase
-      .from('offset_leaves')
-      .select(`
-        id, employee_id, date, start_time, end_time, hours, status, leave_group_id,
-        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path),
-        category:hr_leave_categories(label)
-      `)
-      .order('created_at', { ascending: false });
-
-    if (startDate) query = query.gte('date', startDate);
-    if (endDate) query = query.lt('date', endDate);
-
-    const { data, error } = await query;
+    // RPC (security definer): table RLS is own-row/HR only, so a direct select
+    // would hide colleagues' leaves. The function returns the projection only.
+    const { data, error } = await supabase.rpc('get_calendar_offset_leaves', {
+      p_start: startDate,
+      p_end: endDate,
+    });
     if (error) throw new Error(error.message);
     return data || [];
   },

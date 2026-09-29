@@ -3,6 +3,7 @@ import { silService } from "./silService"
 import { db } from "@/test/db/store"
 import { makeCompany, makeEmployee, makeHrEmployee, makeSilLeave } from "@/test/factories"
 import { stubSilLeaveDecisionRpcs } from "@/test/stubs/leaveDecisionRpc"
+import { stubCalendarSilLeavesRpc } from "@/test/stubs/calendarLeavesRpc"
 import { waitForNetworkIdle } from "@/test/network"
 import { upcomingWeekdays } from "@/test/dates"
 import { getMonthBoundaries } from "@/utils/dateUtils"
@@ -22,6 +23,7 @@ describe("silService", () => {
     employee = makeEmployee({ name: "Ana Reyes", sil_hours_balance: 40 })
     hr = makeHrEmployee({ name: "HR Officer" })
     stubSilLeaveDecisionRpcs()
+    stubCalendarSilLeavesRpc()
   })
 
   const findRow = (table, id) => db.internal.rowsOf(table).find((row) => row.id === id)
