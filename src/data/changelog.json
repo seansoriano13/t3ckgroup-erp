@@ -1,5 +1,18 @@
 [
     {
+        "date": "2026-09-29",
+        "title": "SOR History Shows Each Stage's Full Work",
+        "version": "1.7.35",
+        "changes": [
+            "Opening a stage in the SOR History now shows everything done there, in order: conditions, files, stage fields, stage actions, other tasks, follow-ups and requested items. It also says who gave a file, who ticked a box or who was assigned.",
+            "Each stage action shows what it did, including when its task was later deleted or when its decision is being held for a Resume.",
+            "Tasks that are on hold or were closed off by Start fresh or a Revert now open read-only, with a note saying when they were held or why they were cancelled.",
+            "Tasks closed off by a Revert now show as Cancelled everywhere instead of disappearing, and the stage is marked \"Closed off\" with who did it and when.",
+            "A stage whose work was resumed later is marked \"Resumed\" instead of showing its old work as unmet.",
+            "The History tab loads much faster."
+        ]
+    },
+    {
         "date": "2026-09-28",
         "title": "Group Tasks: Start Date, Lead Time, and Removing Members",
         "version": "1.7.34",
