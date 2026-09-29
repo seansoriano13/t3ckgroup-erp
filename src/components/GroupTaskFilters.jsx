@@ -297,9 +297,9 @@ export default function GroupTaskFilters({
 
       {/* Row 2: Advanced Filters */}
       {showAdvanced && (
-        <div className="bg-mauve-2 border border-[#E5E7EB] p-4 rounded-xl flex flex-wrap gap-3 relative z-10 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="bg-mauve-2 border border-[#E5E7EB] p-4 rounded-xl grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 relative z-10 animate-in fade-in slide-in-from-top-2 duration-200">
           <Dropdown
-            className="flex-1 min-w-[170px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
                 label={currentStatusLabel}
@@ -315,7 +315,7 @@ export default function GroupTaskFilters({
           </Dropdown>
 
           <Dropdown
-            className="flex-1 min-w-[180px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
                 label={currentDeptLabel}
@@ -340,7 +340,7 @@ export default function GroupTaskFilters({
 
           <Dropdown
             disabled={deptFilter === "ALL"}
-            className="flex-1 min-w-[180px]"
+            className="min-w-0"
             trigger={({ isOpen, disabled }) => (
               <FilterTrigger
                 label={currentSubDeptLabel}
@@ -357,7 +357,7 @@ export default function GroupTaskFilters({
           </Dropdown>
 
           <Dropdown
-            className="flex-1 min-w-[180px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
                 label={currentCreatorLabel}
@@ -373,7 +373,7 @@ export default function GroupTaskFilters({
           </Dropdown>
 
           <Dropdown
-            className="flex-1 min-w-[180px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
                 label={currentMemberLabel}
@@ -391,8 +391,9 @@ export default function GroupTaskFilters({
           {/* DUE DATE FILTER */}
           <Dropdown
             usePortal
+            matchTriggerWidth={false}
             placement="bottom-start"
-            className="flex-1 min-w-[150px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <div
                 className={`bg-card flex items-center border rounded-lg px-3 py-2.5 h-[40px] md:h-[46px] shadow-sm transition-colors shrink-0 cursor-pointer w-full group ${

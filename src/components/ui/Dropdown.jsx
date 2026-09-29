@@ -37,6 +37,7 @@ const Dropdown = forwardRef(
       placement = "bottom-start", // bottom-start, bottom-end, etc.
       disabled = false,
       usePortal = false,
+      matchTriggerWidth = true, // false: portal popover sizes to its content (calendars)
     },
     ref,
   ) => {
@@ -291,7 +292,7 @@ const Dropdown = forwardRef(
                   ...(placement.endsWith("end")
                     ? { right: coords.right, left: "auto" }
                     : { left: coords.left, right: "auto" }),
-                  minWidth: coords.width,
+                  ...(matchTriggerWidth ? { minWidth: coords.width } : {}),
                 }}
               >
                 <DropdownNestingContext.Provider value={nesting}>
