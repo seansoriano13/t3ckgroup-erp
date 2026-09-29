@@ -158,13 +158,26 @@ set session_replication_role = replica;
 create temp table zz as select * from public.sales_opportunities limit 1;
 update zz set id = gen_random_uuid(),
   serial_no = (select coalesce(max(serial_no),0) + 1 from public.sales_opportunities),
-  opportunity_no = null, sor_code = null, sales_reference = 'ZZREHEARSAL', is_deleted = false,
+  opportunity_no = null, sales_reference = null, project_title = 'ZZREHEARSAL', is_deleted = false,
   sale_type_id = (select id from public.sale_types where name = 'Government'),
+  flow_stage_id = (select fs.id from public.flow_stages fs join public.sales_flows f on f.id = fs.flow_id
+                    join public.sale_types st on st.id = f.sale_type_id where st.name = 'Government' limit 1),
+  flow_snapshot_id = null,
   registered_by = '$OWNER_ID', deal_owner_id = '$OWNER_ID',
   closing_sales_id = null, support_sales_1_id = null, support_sales_2_id = null, sales_director_id = null;
-insert into public.sales_opportunities select * from zz;
+-- Generated columns (sor_code) can't be inserted: copy every other column.
+do \$\$
+declare cols text;
+begin
+  select string_agg(quote_ident(column_name), ', ' order by ordinal_position) into cols
+    from information_schema.columns
+   where table_schema = 'public' and table_name = 'sales_opportunities'
+     and is_generated = 'NEVER' and coalesce(identity_generation, '') <> 'ALWAYS';
+  execute format('insert into public.sales_opportunities (%s) select %s from zz', cols, cols);
+end
+\$\$;
 SQL
-GOV="sales_reference = 'ZZREHEARSAL'"
+GOV="project_title = 'ZZREHEARSAL'"
 GO=$(visible_as "$OWNER" "$GOV"); GX=$(visible_as "$OUTSIDER" "$GOV")
 echo "throwaway Government SOR: its owner sees $GO, an outsider sees $GX"
 [ "$GO" = "1" ] || fail "Deal Owner can't see their Government SOR ($GO)"
