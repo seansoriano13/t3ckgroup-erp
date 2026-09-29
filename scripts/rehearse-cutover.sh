@@ -136,6 +136,8 @@ OUTSIDER=$(scalar "select e.email from public.employees e
       (o.registered_by, o.deal_owner_id, o.support_sales_1_id, o.sales_director_id, o.closing_sales_id))
   limit 1")
 A=$(visible_as "$ADMIN"); O=$(visible_as "$OWNER"); X=$(visible_as "$OUTSIDER")
+echo "sales_opportunities policies:"; scalar "select policyname||' '||cmd||' roles='||roles::text||' qual='||coalesce(qual,'-') from pg_policies where tablename='sales_opportunities' order by 1"
+echo "rls on: $(scalar "select relrowsecurity||'/'||relforcerowsecurity from pg_class where oid='public.sales_opportunities'::regclass") | authenticated bypassrls: $(scalar "select rolbypassrls from pg_roles where rolname='authenticated'")"
 echo "non-deleted SORs: $TOTAL | Super Admin sees $A | a Deal Owner sees $O | an employee on no Deal Team sees $X"
 [ "$A" = "$TOTAL" ] || fail "Super Admin sees $A of $TOTAL"
 [ "$O" -gt 0 ] || fail "Deal Owner sees none of their SORs"
