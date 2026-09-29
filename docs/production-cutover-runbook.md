@@ -71,7 +71,7 @@ Actions → **Apply migrations — production** → confirm `apply`, tick **incl
 
 Every transfer is: dry run → read the output → apply → check.
 
-> **Status 2026-09-29: 6a–6c are already applied on prod** (Government 18 Stages; 17 templates, the 11 staging ones tagged "(staging)"; Delivery already points at DELIVERY). Run only the dry runs as checks: 6b would fail on duplicate ids, so skip its `--apply`.
+> **Status 2026-09-29: 6a–6c are already applied on prod** (Government 18 Stages; 17 templates, the 11 staging ones tagged "(staging)"; Delivery already points at DELIVERY). Don't re-run them. Check only: 6a and 6c dry runs (6c prints "already points at DELIVERY"); for 6b, skip the script entirely (even its dry run fails on duplicate ids) and confirm `select count(*) from group_task_templates` = 17, 11 of them named "... (staging)".
 
 #### 6a. Government and Outright flows
 
