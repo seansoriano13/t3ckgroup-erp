@@ -1,6 +1,25 @@
 [
     {
         "date": "2026-09-29",
+        "title": "SORs Redesigned, Revert & Resume, and Group Task Templates",
+        "version": "1.8.0",
+        "changes": [
+            "SORs: opening an SOR now shows a two-column Summary first. Open This stage, History and the other views from there.",
+            "SORs: new Revert to last stage takes an SOR back one step. When it returns to a stage it was on before, choose Resume previous work or Start fresh.",
+            "SORs: the History shows everything done at each stage, including who did it, and loads much faster.",
+            "SORs: new My SORs screen lists every SOR you were called into by a task, assignment or purchase request.",
+            "SORs: the header is one row, Register is a floating button, and Open and Won totals follow each Sales Flow's own stages.",
+            "SORs: fixed the Product List and Estimated Value sometimes doubling.",
+            "Sales Flows: the Government and Outright flows are now live.",
+            "Group Tasks: tasks have a Start Date and Lead Time, and removing a member now really removes them. Templates brought over are marked (staging) so you can check and adjust them.",
+            "Settings: now split into tabs, with leave categories under HR & Schedule. Saved task filters remember every filter.",
+            "HR: offset leave can be approved with fewer hours than requested.",
+            "Everywhere: fields, tables and pop-ups look and behave the same on every screen.",
+            "Updates: when a new version is out, a small notice offers Later or Reload."
+        ]
+    },
+    {
+        "date": "2026-09-29",
         "title": "SOR History Shows Each Stage's Full Work",
         "version": "1.7.35",
         "changes": [
