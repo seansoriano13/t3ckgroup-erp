@@ -1,13 +1,10 @@
-import { CalendarClock, ListChecks, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CalendarClock, ListChecks } from "lucide-react";
 
+import Avatar from "../Avatar";
 import AccessWindowConfig from "./AccessWindowConfig";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
-import { taskTagService } from "../../services/taskTagService";
-import { TagPill } from "../ui/TagPill";
 import { Switch } from "../ui/switch";
-import { FieldBox } from "../ui/FieldBox";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -28,7 +25,7 @@ const Field = ({ label, children }) => (
     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
       {label}
     </p>
-    <div className="mt-0.5 text-xs leading-relaxed text-foreground">{children}</div>
+    <div className="mt-1.5 text-xs leading-relaxed text-foreground">{children}</div>
   </div>
 );
 
@@ -38,10 +35,10 @@ const Checklist = ({ value }) => {
 
   return (
     <Field label={`Checklist · ${items.length}`}>
-      <ul className="space-y-1">
+      <ul className="space-y-2">
         {items.map((item, i) => (
-          <li key={item.id ?? i} className="flex items-start gap-1.5">
-            <ListChecks size={12} className="mt-0.5 shrink-0 text-violet-11" />
+          <li key={item.id ?? i} className="flex items-start gap-2.5">
+            <ListChecks size={14} className="mt-px shrink-0 text-violet-11" />
             <span>{item.text}</span>
           </li>
         ))}
@@ -69,17 +66,7 @@ export default function StageActionDetail({
   const config = action?.config ?? {};
   const nameOf = (id) =>
     employees.find((e) => e.id === id)?.name ?? "Someone no longer listed";
-
-  const [allTags, setAllTags] = useState([]);
-  const hasTagIds = action?.kind === "create_group_task" && (config.tagIds?.length ?? 0) > 0;
-  useEffect(() => {
-    if (!hasTagIds) return;
-    taskTagService.list({ includeArchived: true }).then(setAllTags).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasTagIds, action?.id]);
-  const configuredTags = (config.tagIds || [])
-    .map((id) => allTags.find((t) => t.id === id))
-    .filter(Boolean);
+  const employeeOf = (id) => employees.find((e) => e.id === id);
 
   const assigneeNames = (config.members || [])
     .map((member) => member?.employeeId)
@@ -93,7 +80,7 @@ export default function StageActionDetail({
         : `${assigneeNames[0]} and ${assigneeNames.length - 1} others`;
 
   return (
-    <div className="space-y-3 border-t border-mauve-5 px-3 py-3">
+    <div className="space-y-5 border-t border-mauve-5 px-4 py-5">
       {/* Issue #204 Part 2 — the same confirmMode/decider config the modal
           writes, read back here so it's verifiable without re-opening the
           modal (see the file doc comment on why this panel exists at all). */}
@@ -117,16 +104,6 @@ export default function StageActionDetail({
             <Field label="Objective">{config.description}</Field>
           )}
 
-          {configuredTags.length > 0 && (
-            <Field label="Tags applied">
-              <div className="flex flex-wrap gap-1">
-                {configuredTags.map((tag) => (
-                  <TagPill key={tag.id} tag={tag} />
-                ))}
-              </div>
-            </Field>
-          )}
-
           {config.dueDateOffsetDays ? (
             <Field label="Due">
               <span className="inline-flex items-center gap-1.5">
@@ -140,31 +117,36 @@ export default function StageActionDetail({
           )}
 
           <Field label={`Assignees · ${config.members?.length ?? 0}`}>
-            <ul className="space-y-2">
-              {(config.members ?? []).map((member, i) => (
-                <li
-                  key={member.employeeId ?? i}
-                  className="rounded-lg bg-mauve-a2 px-2.5 py-2"
-                >
-                  <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-                    <User size={12} className="shrink-0 text-violet-11" />
-                    {nameOf(member.employeeId)}
-                    {(member.customRole || member.role) && (
-                      <span className="rounded bg-mauve-a3 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.1em] text-mauve-11">
-                        {member.customRole || member.role}
-                      </span>
-                    )}
-                  </p>
-                  {member.taskDescription?.trim() && (
-                    <p className="mt-1 leading-relaxed text-muted-foreground">
-                      {member.taskDescription}
-                    </p>
-                  )}
-                  <div className="mt-1">
-                    <Checklist value={member.checklist} />
-                  </div>
-                </li>
-              ))}
+            <ul className="mt-2 space-y-3">
+              {(config.members ?? []).map((member, i) => {
+                const employee = employeeOf(member.employeeId);
+                return (
+                  <li
+                    key={member.employeeId ?? i}
+                    className="flex items-start gap-3 rounded-xl bg-mauve-a2 p-4"
+                  >
+                    <Avatar name={employee?.name} src={employee?.avatarPath} size="md" />
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div className="space-y-1.5">
+                        <p className="text-[13px] font-bold leading-tight text-foreground">
+                          {nameOf(member.employeeId)}
+                        </p>
+                        {(member.customRole || member.role) && (
+                          <span className="inline-block rounded bg-mauve-a3 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-mauve-11">
+                            {member.customRole || member.role}
+                          </span>
+                        )}
+                      </div>
+                      {member.taskDescription?.trim() && (
+                        <p className="leading-relaxed text-muted-foreground">
+                          {member.taskDescription}
+                        </p>
+                      )}
+                      <Checklist value={member.checklist} />
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </Field>
         </>
@@ -191,24 +173,23 @@ export default function StageActionDetail({
       )}
 
       {onCarriesOnChange && (
-        <FieldBox inline className="items-start gap-2.5 rounded-lg bg-mauve-a2 px-2.5 py-2">
+        <div className="flex items-center justify-between gap-4 rounded-xl bg-mauve-a2 p-4">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-foreground">Keep going after this stage</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              {config.carries_on === true
+                ? "Stays active after the SOR moves on."
+                : "Pauses when the SOR moves to another stage."}
+            </p>
+          </div>
           <Switch
-            size="sm"
-            className="mt-0.5"
+            className="shrink-0"
+            aria-label="Keep going after this stage"
             checked={config.carries_on === true}
             disabled={disabled}
             onCheckedChange={(checked) => onCarriesOnChange(checked)}
           />
-          <span className="min-w-0">
-            <span className="block text-xs font-bold text-foreground">
-              Carries on past the stage
-            </span>
-            <span className="block text-xs leading-snug text-muted-foreground">
-              Off: the task goes on hold when the SOR leaves this Stage. On: it stays live for work
-              that continues afterwards.
-            </span>
-          </span>
-        </FieldBox>
+        </div>
       )}
 
       {/* The access window lives here, after the automation it applies to,

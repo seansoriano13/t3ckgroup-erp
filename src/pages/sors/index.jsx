@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Spinner from "../../components/ui/Spinner";
+import PageHeader from "../../components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
@@ -643,18 +644,27 @@ export default function OpportunitiesPage() {
           Its header is two rows, not the old page header + filter bar: the tabs
           pick which records, the row beneath narrows within them. */}
       <div className="flex h-full min-h-0 flex-col">
-        {/* One row, in reading order: what you are looking for, what it came
-            to, which view of it, and how it is narrowed. The primary action
-            left this row for the floating button below — the top-right corner
-            belongs to the environment ribbon, which was cutting straight
-            through it. Left padding clears the SideNav's mobile trigger. */}
-        <div className="flex h-14 min-w-0 shrink-0 items-center gap-2 border-b border-border bg-card pl-14 pr-3 sm:gap-3 sm:pr-4 md:pl-6 md:pr-6">
-          {/* Search and the figures speak only for List and Board: Overview
-              draws straight from `opportunities` and Deleted runs its own
-              query. They sit on the left, where dropping them moves nothing
-              else along the row. */}
-          {supportsFiltering && (
-            <>
+        {/* The standard PageHeader, in its compact form: the register keeps the
+            title every other screen has, and gives back only the padding. The
+            view strip rides in its action slot. Left padding clears the
+            SideNav's mobile trigger. The primary action lives in the floating
+            button below — the top-right corner belongs to the environment
+            ribbon, which was cutting straight through it. */}
+        <PageHeader
+          compact
+          title="SOR Register"
+          className="shrink-0 bg-card pl-14 pr-3 pt-3 sm:pr-4 md:pl-6 md:pr-6"
+        >
+          <SorsViewTabs view={view} onChange={changeView} />
+        </PageHeader>
+
+        {/* The toolbar, in reading order: what you are looking for, what it came
+            to, how it is narrowed. Search, the figures and Filters speak only
+            for List and Board — Overview draws straight from `opportunities`
+            and Deleted runs its own query — so on those the row is not drawn
+            at all, and the space goes to the content. */}
+        {supportsFiltering && (
+        <div className="flex h-12 min-w-0 shrink-0 items-center gap-2 border-b border-border bg-card px-3 sm:gap-3 sm:px-4 md:px-6">
               <div className="flex h-9 min-w-[7rem] max-w-[360px] flex-1 2xl:max-w-[520px] items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 focus-within:border-mauve-7 sm:px-3">
                 <Search size={15} className="shrink-0 text-muted-foreground" />
                 <Input
@@ -690,23 +700,12 @@ export default function OpportunitiesPage() {
                   <X size={12} className="shrink-0" />
                 </Button>
               )}
-            </>
-          )}
 
           <div className="flex-1" />
 
-          {/* Tabs and Filters hold the right edge on every tab, so switching
-              view never slides them out from under the pointer. */}
-          <SorsViewTabs view={view} onChange={changeView} />
-
-          <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border sm:block" />
-
-          {/* Filters popover — every filter the register offered lives here, so
+          {/* Filters popover — every filter the register offers lives here, so
               the row stays one line regardless of how many are active, and the
-              badge says how many that is. On the two tabs it cannot narrow it
-              stays in place, disabled, rather than vanishing and dragging the
-              tabs sideways. */}
-          {supportsFiltering ? (
+              badge says how many that is. */}
             <Dropdown
               usePortal={true}
               placement="bottom-end"
@@ -937,16 +936,8 @@ export default function OpportunitiesPage() {
               </div>
             )}
             </Dropdown>
-          ) : (
-            <FilterTrigger
-              className="h-9 w-auto shrink-0 gap-2 px-2.5 sm:px-3"
-              labelClassName="hidden sm:block"
-              icon={SlidersHorizontal}
-              label="Filters"
-              disabled
-            />
-          )}
         </div>
+        )}
 
         {/* Bottom-right is the one corner nothing else claims: the environment
             ribbon owns top-right, the SideNav trigger top-left, the month

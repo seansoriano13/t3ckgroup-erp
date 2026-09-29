@@ -14,6 +14,13 @@ beforeAll(() => {
   if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = () => {}
   }
+  // Same for Element.scrollTo, which the SOR modal's stage ribbon calls from a
+  // requestAnimationFrame. Unpolyfilled, it throws after the test body has
+  // finished — an uncaught exception that makes `vitest run` exit 1 even
+  // though every test passed.
+  if (!Element.prototype.scrollTo) {
+    Element.prototype.scrollTo = () => {}
+  }
   // jsdom has no ResizeObserver. React Flow constructs one the moment it
   // mounts, so every test that renders the Flow Canvas — or any screen that
   // embeds it — throws before its first assertion without this.

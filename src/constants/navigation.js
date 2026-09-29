@@ -121,20 +121,16 @@ export const NAV_MODULES = {
       // was the crowded thing, and retail is a sideline that nobody scans the
       // register for. Last in the group for the same reason.
       //
-      // This gate is deliberately coarser than the screen's own: `isPermitted`
-      // is synchronous, and the real eligibility (#173 — a Super Admin, or a
-      // Sales Director on a live opportunity) needs a query to answer. Same
-      // arrangement as Commission Dashboard: the sidebar offers the entry, the
-      // page decides. So a salesperson who is not a Sales Director does see
-      // this entry and is refused on arrival. That is the cost of a coarse
-      // sidebar gate, not a hole — the page and the queue table's RLS policy
-      // both enforce the real one, and nothing is reachable without them.
+      // Gated by the Retail access right (`has_retail_access`, System Access
+      // Rights in the employee form), which is on by default for SALES
+      // employees. The same right backs the screen, the queue table's RLS
+      // policy and the approve RPC, so the sidebar and the data agree.
       {
         key: "sales.retail",
         label: "Retail",
         link: "/retail",
         icon: ShoppingBag,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasSalesFlow,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasRetailAccess,
         exactMatch: true,
       },
     ],

@@ -26,13 +26,13 @@ describe("canvasAccessLens", () => {
     };
     const lens = canvasAccessLens({ snapshotLikeDraft: draft, selector: { type: "role", role: "support_sales" } });
     expect(lens.s1).toBe("hidden");
-    expect(lens.s2).toBe("visible");
+    expect(lens.s2).toBe("deal-team");
   });
 
   it("does not hide a role not named in shutOutRoles", () => {
     const draft = { stages: [{ id: "s1", shutOutRoles: ["support_sales"] }] };
     const lens = canvasAccessLens({ snapshotLikeDraft: draft, selector: { type: "role", role: "deal_owner" } });
-    expect(lens.s1).toBe("visible");
+    expect(lens.s1).toBe("deal-team");
   });
 
   it("hides a stage from a group selector it excludes", () => {
@@ -61,14 +61,14 @@ describe("canvasAccessLens", () => {
     expect(lens.s1).toBe("hidden");
   });
 
-  it("leaves a same-role colleague outside the excluded group visible", () => {
+  it("gives a colleague outside the excluded group no access unless named on the flow", () => {
     const draft = {
       stages: [{ id: "s1", excludedGroupIds: ["g1"] }],
       employees,
       groupMembersById: { g1: { employeeIds: ["emp-outsider"] } },
     };
     const lens = canvasAccessLens({ snapshotLikeDraft: draft, selector: { type: "employee", id: "emp-support" } });
-    expect(lens.s1).toBe("visible");
+    expect(lens.s1).toBe("hidden");
   });
 
   it("marks a stage calls-in for a role it explicitly calls, even when that role is also shut out", () => {
@@ -110,7 +110,7 @@ describe("canvasAccessLens", () => {
       groupMembersById: { g1: { employeeIds: ["emp-owner"] } },
     };
     const lens = canvasAccessLens({ snapshotLikeDraft: draft, selector: { type: "employee", id: "emp-support" } });
-    expect(lens.s1).toBe("visible");
+    expect(lens.s1).toBe("hidden");
   });
 
   it("ignores stages with no id", () => {
@@ -125,20 +125,71 @@ describe("canvasAccessLens", () => {
   });
 });
 
-describe("canvasAccessLens with Always sees", () => {
-  const draft = (alwaysSees) => ({
+describe("canvasAccessLens with Always sees / Always edits", () => {
+  const draft = ({ alwaysSees = [], alwaysEdits = [] }) => ({
     stages: [{ id: "s1", shutOutRoles: ["support_sales"] }, { id: "s2" }],
     employees,
+    groupMembersById: { g1: { employeeIds: ["emp-owner"] } },
     alwaysSees,
+    alwaysEdits,
   })
+  const asEmployee = (id) => ({ type: "employee", id })
 
   it("still hides a Restricted Stage from a shut-out role when Always sees is Everyone", () => {
     const lens = canvasAccessLens({
-      snapshotLikeDraft: draft([{ type: "everyone" }]),
+      snapshotLikeDraft: draft({ alwaysSees: [{ type: "everyone" }] }),
       selector: { type: "role", role: "support_sales" },
     })
     expect(lens.s1).toBe("hidden")
-    expect(lens.s2).toBe("visible")
+    expect(lens.s2).toBe("deal-team")
+  })
+
+  it("reads Everyone in both lists as can-edit (Legacy Pipeline)", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft({ alwaysSees: [{ type: "everyone" }], alwaysEdits: [{ type: "everyone" }] }),
+      selector: asEmployee("emp-outsider"),
+    })
+    expect(lens).toEqual({ s1: "can-edit", s2: "can-edit" })
+  })
+
+  it("reads Always sees alone as view-only", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft({ alwaysSees: [asEmployee("emp-owner")] }),
+      selector: asEmployee("emp-owner"),
+    })
+    expect(lens.s2).toBe("view-only")
+  })
+
+  it("lets Always edits imply view", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft({ alwaysEdits: [asEmployee("emp-owner")] }),
+      selector: asEmployee("emp-owner"),
+    })
+    expect(lens.s2).toBe("can-edit")
+  })
+
+  it("resolves Always sees through a group the employee belongs to", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft({ alwaysSees: [{ type: "group", id: "g1" }] }),
+      selector: asEmployee("emp-owner"),
+    })
+    expect(lens.s2).toBe("view-only")
+  })
+
+  it("shuts Always sees out of a Restricted Stage for an excluded group", () => {
+    const d = draft({ alwaysSees: [{ type: "group", id: "g1" }] })
+    d.stages[0].excludedGroupIds = ["g1"]
+    const lens = canvasAccessLens({ snapshotLikeDraft: d, selector: asEmployee("emp-owner") })
+    expect(lens.s1).toBe("hidden")
+    expect(lens.s2).toBe("view-only")
+  })
+
+  it("gives someone named nowhere no access", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft({ alwaysSees: [asEmployee("emp-owner")] }),
+      selector: asEmployee("emp-outsider"),
+    })
+    expect(lens).toEqual({ s1: "hidden", s2: "hidden" })
   })
 })
 

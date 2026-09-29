@@ -99,12 +99,13 @@ Deno.serve(async (req) => {
     // Stock rides along with every fetch (issue #202) so the Product List and
     // its availability badges are always as fresh as each other. A stock
     // read failure must not fail the whole lookup — the lines and customer
-    // are still good — so it's swallowed here and comes back empty; the
-    // caller keeps whatever snapshot it already had.
+    // are still good — so it's swallowed here and comes back as null (never an
+    // empty snapshot, which would overwrite good figures); the caller keeps
+    // whatever snapshot it already had.
     const productIds = items
       .map((it) => it.odoo_product_id)
       .filter((id) => Number.isInteger(id));
-    let stock = { warehouses: [], products: {} };
+    let stock = null;
     try {
       stock = await fetchProductStock(uid, productIds);
     } catch (err) {

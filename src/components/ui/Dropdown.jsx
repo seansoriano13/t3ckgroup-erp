@@ -2,6 +2,7 @@ import React, {
   useState,
   useRef,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useContext,
   useMemo,
@@ -37,11 +38,16 @@ const Dropdown = forwardRef(
       placement = "bottom-start", // bottom-start, bottom-end, etc.
       disabled = false,
       usePortal = false,
+      matchTriggerWidth = true, // false: portal popover sizes to its content (calendars)
     },
     ref,
   ) => {
     const [internalIsOpen, setInternalIsOpen] = useState(false);
     const [coords, setCoords] = useState(null);
+    // Pixels a portal popover is nudged rightward (negative = left) so it
+    // stays inside the viewport. The popover's width is only known once it
+    // renders, so this is measured, not computed from the trigger.
+    const [shiftX, setShiftX] = useState(0);
     const dropdownRef = useRef(null);
     const popoverRef = useRef(null);
 
@@ -185,6 +191,25 @@ const Dropdown = forwardRef(
       }
     }, [isOpen, usePortal, updateCoords]);
 
+    useLayoutEffect(() => {
+      if (!isOpen || !usePortal || !coords || !popoverRef.current) return;
+      const margin = 12;
+      const rect = popoverRef.current.getBoundingClientRect();
+      if (rect.width === 0) return; // not laid out (hidden, or no layout engine)
+      // The rect already includes the current shift; work from where the
+      // popover would sit unshifted so the result is stable across renders.
+      const naturalLeft = rect.left - shiftX;
+      const naturalRight = rect.right - shiftX;
+      const next =
+        naturalRight > coords.windowWidth - margin
+          ? Math.min(0, coords.windowWidth - margin - naturalRight)
+          : naturalLeft < margin
+            ? margin - naturalLeft
+            : 0;
+      const rounded = Math.round(next);
+      if (rounded !== shiftX) setShiftX(rounded);
+    }, [isOpen, usePortal, coords, shiftX]);
+
     useEffect(() => {
       const handleClickOutside = (event) => {
         // Don't close if it's disabled or not open
@@ -288,10 +313,11 @@ const Dropdown = forwardRef(
                   display: "flex",
                   flexDirection: "column",
                   overflow: "hidden",
+                  maxWidth: "calc(100vw - 24px)",
                   ...(placement.endsWith("end")
-                    ? { right: coords.right, left: "auto" }
-                    : { left: coords.left, right: "auto" }),
-                  minWidth: coords.width,
+                    ? { right: coords.right - shiftX, left: "auto" }
+                    : { left: coords.left + shiftX, right: "auto" }),
+                  ...(matchTriggerWidth ? { minWidth: coords.width } : {}),
                 }}
               >
                 <DropdownNestingContext.Provider value={nesting}>

@@ -19,8 +19,6 @@ import Dropdown from "@/components/ui/Dropdown";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupRoleService } from "../../../services/groupRoleService";
 import { groupTaskTemplateService } from "../../../services/groupTaskTemplateService";
-import { taskTagService } from "../../../services/taskTagService";
-import { taskTagClasses } from "../../../constants/taskTagColors";
 import { confirmActionToast } from "../../../components/ui/CustomToast";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import GroupRoleManagerModal from "./GroupRoleManagerModal";
@@ -96,13 +94,6 @@ export default function CreateGroupTaskModal({
   const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
   const [confirmMode, setConfirmMode] = useState(undefined);
   const [decider, setDecider] = useState([]);
-  const [tagIds, setTagIds] = useState([]);
-
-  const { data: allTags = [] } = useQuery({
-    queryKey: ["taskTags"],
-    queryFn: () => taskTagService.list(),
-    enabled: isOpen,
-  });
 
   const titleRef = useRef(null);
   const descriptionRef = useRef(null);
@@ -126,7 +117,6 @@ export default function CreateGroupTaskModal({
         setIsSaveTemplateModalOpen(false);
         setConfirmMode(initialData.confirmMode);
         setDecider(initialData.decider || []);
-        setTagIds(initialData.tagIds || []);
       } else {
         const first = makeMember();
         // Resetting on open is the point: the modal keeps its fields mounted
@@ -144,7 +134,6 @@ export default function CreateGroupTaskModal({
         setIsSaveTemplateModalOpen(false);
         setConfirmMode(undefined);
         setDecider([]);
-        setTagIds([]);
       }
       setTimeout(() => titleRef.current?.focus(), 150);
     }
@@ -296,7 +285,6 @@ export default function CreateGroupTaskModal({
       decider: mode === "automation" && confirmMode === "confirm" ? decider : undefined,
       createdBy: user.id,
       templateId: appliedTemplateId ?? null,
-      tagIds,
       members: validMembers.map((m) => {
         return {
           employeeId: m.employeeId,
@@ -474,35 +462,6 @@ export default function CreateGroupTaskModal({
                       onInsert={(token) => descriptionRef.current?.insertToken(token)}
                     />
                   )}
-                </div>
-
-                <div className="flex flex-col shrink-0 max-w-[260px]">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
-                    Tags
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {allTags.length === 0 && (
-                      <span className="text-[11px] text-muted-foreground">No tags yet</span>
-                    )}
-                    {allTags.map((tag) => {
-                      const active = tagIds.includes(tag.id);
-                      return (
-                        <Button
-                          key={tag.id}
-                          type="button"
-                          variant="outline"
-                          onClick={() =>
-                            setTagIds((prev) =>
-                              active ? prev.filter((id) => id !== tag.id) : [...prev, tag.id],
-                            )
-                          }
-                          className={`h-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-opacity ${taskTagClasses(tag.color)} ${active ? "" : "opacity-40 hover:opacity-70"}`}
-                        >
-                          {tag.name}
-                        </Button>
-                      );
-                    })}
-                  </div>
                 </div>
 
                 <div className="flex flex-col shrink-0">

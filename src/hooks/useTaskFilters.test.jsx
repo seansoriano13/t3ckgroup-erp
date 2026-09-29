@@ -383,17 +383,17 @@ describe("useTaskFilters", () => {
       ])
     })
 
-    it("puts higher priority first within a status", () => {
+    it("ignores priority within a status, ordering by date only", () => {
       const tasks = [
-        task({ taskDescription: "Low", priority: "LOW" }),
-        task({ taskDescription: "High", priority: "HIGH" }),
-        task({ taskDescription: "Medium", priority: "MEDIUM" }),
+        task({ taskDescription: "Old high", priority: "HIGH", createdAt: "2026-03-01T00:00:00Z" }),
+        task({ taskDescription: "New low", priority: "LOW", createdAt: "2026-03-05T00:00:00Z" }),
+        task({ taskDescription: "Mid medium", priority: "MEDIUM", createdAt: "2026-03-03T00:00:00Z" }),
       ]
 
       expect(filter(tasks).filteredTasks.map((t) => t.taskDescription)).toEqual([
-        "High",
-        "Medium",
-        "Low",
+        "New low",
+        "Mid medium",
+        "Old high",
       ])
     })
 

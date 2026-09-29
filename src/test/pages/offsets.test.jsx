@@ -4,6 +4,7 @@ import EmployeeLeavesPage from '@/pages/offsets/index';
 import { chooseOption, renderWithProviders, setupUser } from '@/test/support';
 import { within } from '@testing-library/react';
 import { makeEmployee, makeOffsetLeave, makeOvertimeRequest, makeUndertimeRequest } from '@/test/factories';
+import { stubCalendarOffsetLeavesRpc, stubCalendarSilLeavesRpc } from '@/test/stubs/calendarLeavesRpc';
 
 // The page's history queries are bound to the currently displayed month
 // (defaulting to "today"), while its pending queries are unbounded. A test
@@ -31,6 +32,9 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
       sil_hours_balance: 20,
     });
     mockUser.current = { id: employee.id, name: employee.name, offset_hours_balance: 10, sil_hours_balance: 20 };
+    // The page reads the viewer's own leaves through the calendar projection RPCs.
+    stubCalendarOffsetLeavesRpc({ viewerId: employee.id });
+    stubCalendarSilLeavesRpc({ viewerId: employee.id });
   });
 
   it('renders the My Requests header and both balances', () => {

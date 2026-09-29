@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, ListChecks, ArrowUp, ArrowDown, Archive, ArchiveRestore, X, Pencil } from "lucide-react";
+import { Plus, ListChecks, Archive, ArchiveRestore, X, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
+import { SortableStageList, SortableStageRow, DragGrip } from "./SortableStageList";
 import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
 import StageFieldPreview from "./StageFieldPreview";
 import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
@@ -165,16 +166,16 @@ export default function StageFieldManager({ stageId, disabled = false }) {
     },
   });
 
-  const moveField = (index, direction) => {
-    if (!fields) return;
-    const newIndex = direction === "up" ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= fields.length) return;
-    const a = fields[index];
-    const b = fields[newIndex];
-    reorderMutation.mutate([
-      { id: a.id, sortOrder: b.sort_order },
-      { id: b.id, sortOrder: a.sort_order },
-    ]);
+  const reorderFields = (next) => {
+    // Hand the existing sort_order values back out in the new order, so the
+    // set of values (and any uniqueness rule on them) never changes.
+    const orders = fields.map((f) => f.sort_order).sort((x, y) => x - y);
+    const updates = next
+      .map((f, i) => ({ id: f.id, sortOrder: orders[i] }))
+      .filter((u, i) => u.sortOrder !== next[i].sort_order);
+    if (updates.length === 0) return;
+    queryClient.setQueryData(["stageFields", stageId], next.map((f, i) => ({ ...f, sort_order: orders[i] })));
+    reorderMutation.mutate(updates);
   };
 
   const startEdit = (field) => {
@@ -350,43 +351,21 @@ export default function StageFieldManager({ stageId, disabled = false }) {
             </p>
           </div>
         ) : (
-          fields?.map((field, index) => {
+          <SortableStageList items={fields ?? []} onReorder={reorderFields} disabled={disabled || reorderMutation.isPending}>
+          {fields?.map((field) => {
             const isEditing = editingId === field.id;
 
             return (
-              <div key={field.id} className="space-y-2">
+              <SortableStageRow key={field.id} id={field.id} className="space-y-2">
                 <div
                   className={cn(
                     "group flex items-center gap-3 rounded-xl bg-card px-3 py-2.5 outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:outline-mauve-8",
                     isEditing && "outline-mauve-8 bg-mauve-a2",
                   )}
                 >
-                  {!disabled && (
-                    <div className="flex shrink-0 flex-col">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => moveField(index, "up")}
-                        disabled={index === 0 || reorderMutation.isPending}
-                        aria-label={`Move ${field.label} earlier`}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <ArrowUp size={13} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => moveField(index, "down")}
-                        disabled={index === fields.length - 1 || reorderMutation.isPending}
-                        aria-label={`Move ${field.label} later`}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <ArrowDown size={13} />
-                      </Button>
-                    </div>
-                  )}
+                  {!disabled && <DragGrip label={`Reorder ${field.label}`} />}
 
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-a3 text-amber-11">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-a3 text-blue-11">
                     <ListChecks size={15} strokeWidth={2.5} />
                   </span>
 
@@ -442,9 +421,10 @@ export default function StageFieldManager({ stageId, disabled = false }) {
                     {renderForm()}
                   </div>
                 )}
-              </div>
+              </SortableStageRow>
             );
-          })
+          })}
+          </SortableStageList>
         )}
 
         {stageId && !disabled && (

@@ -857,7 +857,6 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
             role: m.role || null,
             custom_role: m.customRole || null,
           }));
-          payload.tag_ids = config.tagIds?.length > 0 ? config.tagIds : null;
           payload.template_id = config.templateId || null;
           if (config.dueDateOffsetDays) {
             const due = new Date();
@@ -1209,7 +1208,6 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       opportunityId: existing.id,
       stageActionId: action.id,
       stageVisitId: runRow?.stage_visit_id ?? null,
-      tagIds: config.tagIds || [],
     };
     if (config.dueDateOffsetDays) {
       const due = new Date();

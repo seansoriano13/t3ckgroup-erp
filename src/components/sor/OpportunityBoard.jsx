@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, ChevronDown, LayoutGrid, Rows3, GitBranch } from "lucide-react";
 import Avatar from "../Avatar";
 import Dropdown from "../ui/Dropdown";
@@ -73,15 +73,44 @@ export default function OpportunityBoard({
 
   // Sale Type switcher — remembered per person, like the sidebar's own state.
   const storageKey = currentUserId ? `erp_board_sale_type_${currentUserId}` : null;
+  // The parent opens on "ALL" by default, which says nothing about what this
+  // person last picked, so only a flow the parent was deliberately given wins
+  // over the remembered one.
+  const remembered = useRef(null);
   const [selected, setSelected] = useState(() => {
-    if (saleTypeFilter) return saleTypeFilter;
-    if (!storageKey) return null;
-    try {
-      return localStorage.getItem(storageKey) || null;
-    } catch {
-      return null;
+    if (saleTypeFilter && saleTypeFilter !== "ALL") return saleTypeFilter;
+    if (storageKey) {
+      try {
+        remembered.current = localStorage.getItem(storageKey) || null;
+      } catch {
+        remembered.current = null;
+      }
     }
+    return remembered.current || saleTypeFilter || null;
   });
+
+  // Hand a remembered flow up so the parent's filter matches the board; the
+  // sync effect below would otherwise pull the board back to the parent's "ALL".
+  useEffect(() => {
+    if (remembered.current && remembered.current !== saleTypeFilter) {
+      onSaleTypeChange?.(remembered.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A remembered flow can since have been archived or deleted.
+  useEffect(() => {
+    if (!remembered.current || saleTypes.length === 0) return;
+    const stale =
+      !isLegacyValue(remembered.current) &&
+      !saleTypes.some((t) => t.id === remembered.current);
+    remembered.current = null;
+    if (stale) {
+      setSelected("ALL");
+      onSaleTypeChange?.("ALL");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saleTypes.length]);
 
   useEffect(() => {
     if (selected) return;
@@ -97,7 +126,10 @@ export default function OpportunityBoard({
   }, [saleTypes.length]);
 
   // Sync when parent filter changes (e.g. from Filters popover)
+  const lastParentFilter = useRef(saleTypeFilter);
   useEffect(() => {
+    if (lastParentFilter.current === saleTypeFilter) return;
+    lastParentFilter.current = saleTypeFilter;
     if (saleTypeFilter !== undefined && saleTypeFilter !== selected) {
       setSelected(saleTypeFilter);
     }
@@ -139,6 +171,12 @@ export default function OpportunityBoard({
   };
 
   const isLegacy = isLegacyValue(selected) || (selected !== "ALL" && saleTypes.length === 0);
+
+  // Once the cutover backfill has attached every SOR to the Legacy Pipeline
+  // Sale Type, this no-Sale-Type view is empty and only doubles that flow's
+  // name in the switcher. It stays while an SOR with no Sale Type exists (one
+  // registered on the old UI between backfill runs), or is the current view.
+  const showLegacyOption = pipelineOpportunities.length > 0 || saleTypes.length === 0 || isLegacy;
 
   const activeFlow = useMemo(() => {
     if (selected === "ALL" || isLegacy || !flowStagesIndex) return null;
@@ -256,19 +294,23 @@ export default function OpportunityBoard({
                   {st.name}
                 </Button>
               ))}
-              {saleTypes.length > 0 && <div className="my-1 h-px bg-border" />}
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  chooseSaleType(LEGACY_KEY);
-                  close();
-                }}
-                className={`h-auto justify-start px-2.5 py-1.5 text-left text-[13px] ${isLegacy ? "bg-muted text-foreground hover:bg-muted hover:text-foreground" : "text-foreground"
-                  }`}
-              >
-                Legacy pipeline
-              </Button>
+              {showLegacyOption && (
+                <>
+                  {saleTypes.length > 0 && <div className="my-1 h-px bg-border" />}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      chooseSaleType(LEGACY_KEY);
+                      close();
+                    }}
+                    className={`h-auto justify-start px-2.5 py-1.5 text-left text-[13px] ${isLegacy ? "bg-muted text-foreground hover:bg-muted hover:text-foreground" : "text-foreground"
+                      }`}
+                  >
+                    Legacy pipeline
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </Dropdown>
@@ -314,14 +356,16 @@ export default function OpportunityBoard({
                       {st.name}
                     </Button>
                   ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => chooseSaleType(LEGACY_KEY)}
-                    className="gap-1.5 rounded-xl bg-muted/40 px-3.5 text-xs"
-                  >
-                    Legacy pipeline
-                  </Button>
+                  {showLegacyOption && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => chooseSaleType(LEGACY_KEY)}
+                      className="gap-1.5 rounded-xl bg-muted/40 px-3.5 text-xs"
+                    >
+                      Legacy pipeline
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

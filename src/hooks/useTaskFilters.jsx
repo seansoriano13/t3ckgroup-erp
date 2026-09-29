@@ -176,12 +176,7 @@ export function useTaskFilters(rawTasks = [], filters = {}, options = {}) {
       const rankB = getStatusRank(b.status);
       if (rankA !== rankB) return rankA - rankB;
 
-      const priorityWeight = { HIGH: 3, MEDIUM: 2, LOW: 1 };
-      const weightA = priorityWeight[a.priority] || 0;
-      const weightB = priorityWeight[b.priority] || 0;
-      if (weightA !== weightB) return weightB - weightA;
-
-      // Date tiebreaker: respects sortBy direction
+      // Within a status, order by date only, respecting sortBy direction
       if (sortBy === "OLDEST") {
         return new Date(a.createdAt) - new Date(b.createdAt);
       }

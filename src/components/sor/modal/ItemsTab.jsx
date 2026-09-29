@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 export function ItemStockRow({ item, snapshotData }) {
   const [expanded, setExpanded] = useState(false);
   const product = item.odoo_product_id ? snapshotData?.products?.[item.odoo_product_id] || null : null;
-  const badge = stockBadge({ quantity: item.quantity, product });
+  const badge = stockBadge({ quantity: item.quantity, product, odooProductId: item.odoo_product_id });
   const warehouses = snapshotData?.warehouses || [];
   const canExpand = !!product && warehouses.length > 0;
 

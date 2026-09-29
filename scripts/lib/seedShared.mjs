@@ -93,6 +93,8 @@ export const SEED_EXCLUDED_TABLES = {
     "IP addresses and throttle state for public document verification. Personal data, and meaningless off the server.",
   sor_stock_snapshots:
     "A timestamped Odoo stock reading, not a fact about the deal. A local stack has no Odoo credentials to refresh it against, so a seeded row would go stale the moment it landed.",
+  retail_orders:
+    "Marketplace orders synced from Odoo by odoo-sor-sync, carrying individual buyers' names. A local stack has no Odoo credentials to re-sync it, and unlike odoo_retail_queue no sanitizer covers it yet.",
   sor_action_runs:
     "A fire-once ledger derived from Stage Actions actually firing (issue #204), not a fact to seed — a local stack regenerates it the first time a seeded deal moves through a Flow Stage.",
 }

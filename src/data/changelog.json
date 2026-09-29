@@ -1,6 +1,25 @@
 [
     {
         "date": "2026-09-29",
+        "title": "Retail Is Now a Sales Report",
+        "version": "1.8.2",
+        "changes": [
+            "Retail: the screen is now a report. See total sales, number of orders, the average order and this month against last month, with a monthly chart for Shopee and Lazada.",
+            "Retail: pick a range (30 days, 3 months, this year, all time or your own dates). Only confirmed orders count, so quotations and cancelled orders are left out of every total.",
+            "Retail: orders now come straight from Odoo, so there is nothing to approve. The approval list is hidden for now."
+        ]
+    },
+    {
+        "date": "2026-09-29",
+        "title": "Retail Access for Sales",
+        "version": "1.8.1",
+        "changes": [
+            "Retail: every Sales employee can now open the Retail screen to review marketplace orders (Shopee, Lazada) and see the totals.",
+            "HR: Retail is a new switch under System Access Rights in the employee form. It is on by default for Sales and can be turned off or on for anyone."
+        ]
+    },
+    {
+        "date": "2026-09-29",
         "title": "SORs Redesigned, Revert & Resume, and Group Task Templates",
         "version": "1.8.0",
         "changes": [

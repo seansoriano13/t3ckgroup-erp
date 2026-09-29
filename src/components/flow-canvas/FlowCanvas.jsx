@@ -404,6 +404,7 @@ function FlowCanvasInner() {
           employees: allEmployees,
           groupMembersById,
           alwaysSees: flowAccess?.alwaysSees || [],
+          alwaysEdits: flowAccess?.alwaysEdits || [],
         },
         selector: viewAsSelector,
       }),

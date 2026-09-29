@@ -25,7 +25,6 @@ import StatusBadge from "../../../components/StatusBadge";
 import HighlightText from "../../../components/HighlightText";
 import { formatDueDate } from "../../../utils/formatDate";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
-import { TagPill } from "../../../components/ui/TagPill";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
 import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/SelectField";
@@ -220,14 +219,9 @@ export default function GroupTaskTableView({
                             <HighlightText text={task.description} search={searchTerm} />
                           </p>
                         )}
-                        {(task.opportunity || (task.tags && task.tags.length > 0)) && (
+                        {task.opportunity && (
                           <div className="flex flex-wrap items-center gap-1">
                             <SorLinkChip opportunityId={task.opportunity_id} opportunity={task.opportunity} />
-                            {(task.tags || [])
-                              .filter((t) => !t.archived_at)
-                              .map((tag) => (
-                                <TagPill key={tag.id} tag={tag} />
-                              ))}
                           </div>
                         )}
                         {task.status === "ACTIVE" && task.hr_remarks && (

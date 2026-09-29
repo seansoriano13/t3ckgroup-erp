@@ -5,7 +5,6 @@ import {
   Users,
   Building2,
   Briefcase,
-  Tag,
   Calendar as CalendarIcon,
   ChevronDown,
 } from "lucide-react";
@@ -14,7 +13,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Dropdown from "./ui/Dropdown";
-import { FilterTrigger, FilterOptionList, MultiFilterOptionList } from "./ui/FilterDropdown";
+import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
 
 export default function GroupTaskFilters({
   searchTerm,
@@ -35,15 +34,12 @@ export default function GroupTaskFilters({
   setSelectedDateFilter,
   dueDate,
   setDueDate,
-  tagFilter = [],
-  setTagFilter,
   crmOnly = false,
   setCrmOnly,
   uniqueCreators = [],
   uniqueDepts = [],
   uniqueSubDepts = [],
   uniqueMembers = [],
-  uniqueTags = [],
   actions,
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -56,7 +52,6 @@ export default function GroupTaskFilters({
     subDeptFilter !== "ALL" ||
     selectedDateFilter !== "" ||
     dueDate !== null ||
-    tagFilter.length > 0 ||
     crmOnly ||
     searchTerm !== "";
 
@@ -69,7 +64,6 @@ export default function GroupTaskFilters({
     if (setSubDeptFilter) setSubDeptFilter("ALL");
     if (setSelectedDateFilter) setSelectedDateFilter("");
     if (setDueDate) setDueDate(null);
-    if (setTagFilter) setTagFilter([]);
     if (setCrmOnly) setCrmOnly(false);
   };
 
@@ -105,14 +99,6 @@ export default function GroupTaskFilters({
     { value: "ALL", label: "All Sub-Depts" },
     ...uniqueSubDepts.filter((s) => s !== "ALL").map((s) => ({ value: s, label: s })),
   ];
-
-  const tagOptions = uniqueTags.map((t) => ({ value: t.id, label: t.name }));
-  const currentTagLabel =
-    tagFilter.length === 0
-      ? "Tags: Any"
-      : tagFilter.length === 1
-        ? tagOptions.find((o) => o.value === tagFilter[0])?.label || "1 tag"
-        : `${tagFilter.length} tags`;
 
   const currentStatusLabel =
     statusOptions.find((o) => o.value === statusFilter)?.label ||
@@ -311,9 +297,9 @@ export default function GroupTaskFilters({
 
       {/* Row 2: Advanced Filters */}
       {showAdvanced && (
-        <div className="bg-mauve-2 border border-[#E5E7EB] p-4 rounded-xl flex flex-wrap gap-3 relative z-10 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="bg-mauve-2 border border-[#E5E7EB] p-4 rounded-xl grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 relative z-10 animate-in fade-in slide-in-from-top-2 duration-200">
           <Dropdown
-            className="flex-1 min-w-[170px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
                 label={currentStatusLabel}
@@ -329,7 +315,7 @@ export default function GroupTaskFilters({
           </Dropdown>
 
           <Dropdown
-            className="flex-1 min-w-[180px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
                 label={currentDeptLabel}
@@ -354,7 +340,7 @@ export default function GroupTaskFilters({
 
           <Dropdown
             disabled={deptFilter === "ALL"}
-            className="flex-1 min-w-[180px]"
+            className="min-w-0"
             trigger={({ isOpen, disabled }) => (
               <FilterTrigger
                 label={currentSubDeptLabel}
@@ -371,7 +357,7 @@ export default function GroupTaskFilters({
           </Dropdown>
 
           <Dropdown
-            className="flex-1 min-w-[180px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
                 label={currentCreatorLabel}
@@ -387,7 +373,7 @@ export default function GroupTaskFilters({
           </Dropdown>
 
           <Dropdown
-            className="flex-1 min-w-[180px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
                 label={currentMemberLabel}
@@ -402,29 +388,12 @@ export default function GroupTaskFilters({
             )}
           </Dropdown>
 
-          {setTagFilter && (
-            <Dropdown
-              className="flex-1 min-w-[170px]"
-              trigger={({ isOpen }) => (
-                <FilterTrigger
-                  label={currentTagLabel}
-                  isActive={tagFilter.length > 0}
-                  isOpen={isOpen}
-                  icon={Tag}
-                />
-              )}
-            >
-              {() => (
-                <MultiFilterOptionList options={tagOptions} values={tagFilter} onChange={setTagFilter} />
-              )}
-            </Dropdown>
-          )}
-
           {/* DUE DATE FILTER */}
           <Dropdown
             usePortal
+            matchTriggerWidth={false}
             placement="bottom-start"
-            className="flex-1 min-w-[150px]"
+            className="min-w-0"
             trigger={({ isOpen }) => (
               <div
                 className={`bg-card flex items-center border rounded-lg px-3 py-2.5 h-[40px] md:h-[46px] shadow-sm transition-colors shrink-0 cursor-pointer w-full group ${

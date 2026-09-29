@@ -2,38 +2,31 @@ import { ShoppingBag } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
-import Spinner from "../../components/ui/Spinner";
-import RetailOrdersQueue from "../../components/sor/RetailOrdersQueue";
-import RetailTab from "../../components/sor/RetailTab";
-import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
+import RetailReport from "../../components/sor/RetailReport";
+import { useAuth } from "../../context/AuthContext";
+import { getPermissionContext } from "../../utils/permissions";
 
 /**
- * Retail — marketplace orders (Shopee, Lazada), on their own screen.
+ * Retail — marketplace orders (Shopee, Lazada), as a report.
  *
- * Issues #170-#174 built this as two tabs inside the SOR register. They moved
- * here because the register's tab strip was the crowded thing, not retail:
- * the queue is a short, bursty list that is usually empty, and the totals are
- * what somebody actually opens this for. Stacking them on one page — pending
- * review above, what's already counted below — says that in the layout.
+ * Issues #170-#174 built this as a review queue plus a totals list: an order
+ * was approved into a hidden SOR before it counted. Retail orders are already
+ * entered in Odoo and have no stages, so the queue is hidden for now and this
+ * screen is pure data — totals, a monthly trend by storefront, and the orders
+ * behind them — read from `retail_orders`, which `odoo-sor-sync` keeps current.
+ * No SOR is created and nothing here is approved or edited.
  *
- * A Retail SOR is a real row with a real Sales Reference and amount, excluded
- * from the pipeline, the commission engine and every aggregate read (see the
- * `is_retail` flag, issue #171). Nothing here deletes one.
+ * The queue component (`RetailOrdersQueue`), its table and the approve function
+ * are still in the codebase: bringing approvals back is a matter of mounting
+ * the component again, once Sales say what they want from Retail.
  */
 function RetailScreen() {
-  // Issue #173's gate, unchanged by the move: a Super Admin, or a Sales
-  // Director on a live opportunity — the same eligibility as the RLS policy
-  // guarding the queue table, because approving an item writes an SOR.
-  const { hasAccess, isResolving } = useSalesDirectorAccess();
-
-  if (isResolving) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
-        <Spinner size="sm" />
-        <span className="text-sm font-bold uppercase tracking-widest">Checking access…</span>
-      </div>
-    );
-  }
+  // The Retail access right (System Access Rights in the employee form; on by
+  // default for SALES), or a Super Admin. The same eligibility as the RLS
+  // policy guarding `retail_orders`.
+  const { user } = useAuth();
+  const { isSuperAdmin, hasRetailAccess } = getPermissionContext(user);
+  const hasAccess = isSuperAdmin || hasRetailAccess;
 
   if (!hasAccess) {
     return (
@@ -43,8 +36,8 @@ function RetailScreen() {
           You don&apos;t have access to Retail
         </p>
         <p className="max-w-sm text-xs leading-relaxed">
-          Reviewing a marketplace order creates an SOR, so this screen is open to
-          Super Admins and Sales Directors only.
+          This screen needs the Retail access right. Ask a Super Admin or HR to
+          turn it on for you.
         </p>
       </div>
     );
@@ -56,12 +49,7 @@ function RetailScreen() {
         title="Retail"
         description="Marketplace orders from Odoo. Kept out of the pipeline and the commission engine, and counted here instead."
       />
-      {/* Always mounted, including when nothing is pending: the queue carries a
-          collapsible Dismissed history alongside the review rows, and hiding
-          the section on an empty pending count would put that history out of
-          reach exactly when somebody goes looking for it. */}
-      <RetailOrdersQueue />
-      <RetailTab />
+      <RetailReport />
     </PageContainer>
   );
 }

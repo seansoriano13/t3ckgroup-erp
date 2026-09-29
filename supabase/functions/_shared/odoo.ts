@@ -37,24 +37,51 @@ export function jsonResponse(body, status = 200) {
   });
 }
 
+// Warehouse reads in flight at once in fetchProductStock.
+const WAREHOUSE_READ_CONCURRENCY = 5;
+
+// Odoo.com throttles bursts with an HTML "Rate limit exceeded" page (HTTP 429)
+// rather than a JSON-RPC error, so `res.json()` alone surfaces as the
+// unreadable "Unexpected token '<'". Retry those with a short backoff, and
+// fail with a readable message if the reply still is not JSON.
+const ODOO_MAX_ATTEMPTS = 5;
+
 export async function odooCall(service, method, args) {
-  const res = await fetch(`${ODOO_URL}/jsonrpc`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "call",
-      params: { service, method, args },
-      id: Date.now(),
-    }),
-  });
-  const json = await res.json();
-  if (json.error) {
-    const message =
-      json.error.data?.message || json.error.message || "Odoo API error.";
-    throw new Error(message);
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(`${ODOO_URL}/jsonrpc`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "call",
+        params: { service, method, args },
+        id: Date.now(),
+      }),
+    });
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      if (res.status === 429 && attempt < ODOO_MAX_ATTEMPTS) {
+        const retryAfter = Number(res.headers.get("Retry-After"));
+        const wait = retryAfter > 0 ? retryAfter * 1000 : 500 * 2 ** (attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, wait));
+        continue;
+      }
+      throw new Error(
+        res.status === 429
+          ? "Odoo is rate-limiting requests — try again in a minute."
+          : `Odoo returned a non-JSON reply (HTTP ${res.status}).`,
+      );
+    }
+    if (json.error) {
+      const message =
+        json.error.data?.message || json.error.message || "Odoo API error.";
+      throw new Error(message);
+    }
+    return json.result;
   }
-  return json.result;
 }
 
 export async function authenticate() {
@@ -212,9 +239,11 @@ export function normalizeReference(salesReference) {
  *
  * `product.product` already returns `free_qty`/`qty_available`/
  * `virtual_available` scoped to whatever `warehouse` sits in the read
- * context, so the per-warehouse breakdown is the same `read` call repeated
- * once per warehouse rather than a separate `stock.quant` query. Warehouses
- * are few (single digits for this instance), so the call count stays small.
+ * context, so the per-warehouse breakdown is that same `read` repeated per
+ * warehouse. This instance has dozens of warehouses but only a handful ever
+ * hold or expect stock, and one read each is what tripped Odoo's rate limit,
+ * so only warehouses that hold quants or have open moves for these products
+ * are read; every other one is all zeros and is left out of the snapshot.
  *
  * Returns `{ warehouses, products }` shaped to drop straight into
  * `sor_stock_snapshots.data` — see that migration's header comment.
@@ -225,10 +254,35 @@ export async function fetchProductStock(uid, productIds) {
 
   const fields = ["type", "free_qty", "qty_available", "virtual_available"];
 
-  const [warehouses, totals] = await Promise.all([
+  const [allWarehouses, totals, quants, moves] = await Promise.all([
     executeKw(uid, "stock.warehouse", "search_read", [[], ["id", "name"]]),
     executeKw(uid, "product.product", "read", [ids, fields]),
+    executeKw(uid, "stock.quant", "search_read", [
+      [["product_id", "in", ids], ["location_id.usage", "=", "internal"]],
+      ["location_id"],
+    ]),
+    executeKw(uid, "stock.move", "search_read", [
+      [
+        ["product_id", "in", ids],
+        ["state", "in", ["waiting", "confirmed", "assigned", "partially_available"]],
+      ],
+      ["location_id", "location_dest_id"],
+    ]),
   ]);
+
+  const locationIds = new Set();
+  for (const q of quants) locationIds.add(q.location_id[0]);
+  for (const m of moves) {
+    locationIds.add(m.location_id[0]);
+    locationIds.add(m.location_dest_id[0]);
+  }
+  const locations = locationIds.size
+    ? await executeKw(uid, "stock.location", "read", [[...locationIds], ["warehouse_id"]])
+    : [];
+  const activeWarehouseIds = new Set(
+    locations.map((l) => l.warehouse_id?.[0]).filter(Boolean),
+  );
+  const warehouses = allWarehouses.filter((w) => activeWarehouseIds.has(w.id));
 
   const products = {};
   for (const p of totals) {
@@ -241,13 +295,20 @@ export async function fetchProductStock(uid, productIds) {
     };
   }
 
-  const perWarehouse = await Promise.all(
-    warehouses.map((w) =>
-      executeKw(uid, "product.product", "read", [ids, fields], {
-        context: { warehouse: w.id },
-      }),
-    ),
-  );
+  // Still a few at a time — a burst of parallel reads is what Odoo throttles.
+  const perWarehouse = [];
+  for (let i = 0; i < warehouses.length; i += WAREHOUSE_READ_CONCURRENCY) {
+    const batch = warehouses.slice(i, i + WAREHOUSE_READ_CONCURRENCY);
+    perWarehouse.push(
+      ...(await Promise.all(
+        batch.map((w) =>
+          executeKw(uid, "product.product", "read", [ids, fields], {
+            context: { warehouse: w.id },
+          }),
+        ),
+      )),
+    );
+  }
 
   perWarehouse.forEach((rows, i) => {
     const warehouseId = warehouses[i].id;

@@ -10,37 +10,26 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// `state` is stored as-is; the Retail report counts only `sale` and `done`.
+const ORDER_FIELDS = [
+  "name",
+  "create_date",
+  "date_order",
+  "partner_id",
+  "user_id",
+  "amount_total",
+  "state",
+];
+
+// Rows per Odoo read / Supabase upsert. Odoo.com throttles bursts, so a big
+// historical load goes through in slices rather than one giant call.
+const BATCH_SIZE = 200;
+
+const ROLLING_WINDOW_DAYS = 30;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Look up an employee ID by a partial name match against the employees table.
- * Used to match Odoo salesperson names to internal employees.
- */
-function findEmployeeId(employees: { id: string; name: string }[], searchStr: string): string | null {
-  if (!employees || !searchStr) return null;
-  const s = searchStr.toLowerCase();
-  const match = employees.find((e) => {
-    const full = (e.name || "").toLowerCase();
-    return full.includes(s) || s.includes(full);
-  });
-  return match ? match.id : null;
-}
-
-/**
- * Find the employee whose name contains the given fragment. Returns the UUID.
- * This avoids hardcoding environment-specific UUIDs in the function.
- */
-function requireEmployee(
-  employees: { id: string; name: string }[],
-  nameFragment: string,
-  label: string
-): string | null {
-  const id = findEmployeeId(employees, nameFragment);
-  if (!id) console.warn(`[odoo-sor-sync] Could not find employee for "${label}" (searched: "${nameFragment}")`);
-  return id;
-}
 
 /**
  * Strip Odoo's message HTML down to plain text, preserving line breaks.
@@ -60,80 +49,115 @@ function toPlainText(rawText: string): string {
 }
 
 /**
+ * The configured storefront (e.g. "Shopee") an Odoo customer belongs to, or
+ * null when it is not a marketplace customer.
+ *
  * Issue #172: retail is whoever the Odoo customer is, not what lead source a
  * record was tagged with or what words appear in a note. Production has a
  * ₱144,000 government proposal tagged Shopee, and retail-shaped records
  * appear under three other lead sources — so this checks the one field that
  * actually says who bought it.
  */
-function isStorefrontCustomer(partnerName: string | null | undefined, storefronts: string[]): boolean {
-  if (!partnerName) return false;
+function storefrontFor(partnerName: string | null | undefined, storefronts: string[]): string | null {
+  if (!partnerName) return null;
   const name = partnerName.toLowerCase();
-  return storefronts.some((s) => name.includes(s.toLowerCase()));
+  return storefronts.find((s) => name.includes(s.toLowerCase())) ?? null;
+}
+
+/**
+ * Odoo domain: customer matches any storefront, AND the extra leaf.
+ * Prefix notation — n storefronts need n-1 leading "|".
+ */
+function storefrontDomain(storefronts: string[], extraLeaf: unknown[]): unknown[] {
+  const ors = storefronts.slice(1).map(() => "|");
+  const leaves = storefronts.map((s) => ["partner_id", "ilike", s]);
+  return [...ors, ...leaves, extraLeaf];
+}
+
+/** Odoo wants "YYYY-MM-DD HH:MM:SS" in UTC. */
+function odooDate(date: Date): string {
+  return date.toISOString().slice(0, 19).replace("T", " ");
+}
+
+/** Odoo timestamps are UTC without a zone marker; Postgres needs one. */
+function toTimestamptz(odooValue: string | false | null | undefined): string | null {
+  return odooValue ? `${odooValue.replace(" ", "T")}Z` : null;
+}
+
+/**
+ * Best-effort buyer name from a sale order's chatter ("NAME: ..."). It only
+ * enriches the report — an order with no note is still recorded.
+ */
+async function fetchBuyerNames(uid: number, orderIds: number[]): Promise<Map<number, string>> {
+  const buyers = new Map<number, string>();
+  const remember = (resId: number, content: unknown) => {
+    if (buyers.has(resId) || typeof content !== "string") return;
+    const match = toPlainText(content).match(/NAME:?\s*([^\n]+)/i);
+    if (match) buyers.set(resId, match[1].trim());
+  };
+
+  for (let i = 0; i < orderIds.length; i += BATCH_SIZE) {
+    const ids = orderIds.slice(i, i + BATCH_SIZE);
+    const [activities, messages] = await Promise.all([
+      executeKw(uid, "mail.activity", "search_read", [
+        [["res_model", "=", "sale.order"], ["res_id", "in", ids]],
+        ["res_id", "note"],
+      ]),
+      executeKw(uid, "mail.message", "search_read", [
+        [
+          ["model", "=", "sale.order"],
+          ["res_id", "in", ids],
+          ["message_type", "in", ["comment", "notification"]],
+        ],
+        ["res_id", "body"],
+      ]),
+    ]);
+    for (const a of activities) remember(a.res_id, a.note);
+    for (const m of messages) remember(m.res_id, m.body);
+  }
+  return buyers;
+}
+
+/**
+ * Which orders to read. Default is a rolling window of orders changed in the
+ * last 30 days, which is how an order that was cancelled or re-priced later gets
+ * refreshed. `?since=YYYY-MM-DD` loads every order dated on or after that day
+ * (one-time historical load); `?since=earliest` starts from the oldest order
+ * already in `retail_orders`.
+ */
+async function resolveWindow(since: string | null): Promise<{ leaf: unknown[]; label: string }> {
+  if (!since) {
+    const from = new Date();
+    from.setDate(from.getDate() - ROLLING_WINDOW_DAYS);
+    return { leaf: ["write_date", ">=", odooDate(from)], label: `changed in the last ${ROLLING_WINDOW_DAYS} days` };
+  }
+
+  let day = since;
+  if (since === "earliest") {
+    const { data } = await supabase
+      .from("retail_orders")
+      .select("ordered_at")
+      .not("ordered_at", "is", null)
+      .order("ordered_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!data?.ordered_at) {
+      throw new Error("since=earliest needs at least one order already in retail_orders.");
+    }
+    day = data.ordered_at.slice(0, 10);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    throw new Error("since must be YYYY-MM-DD or 'earliest'.");
+  }
+  return { leaf: ["date_order", ">=", `${day} 00:00:00`], label: `dated on or after ${day}` };
 }
 
 // ---------------------------------------------------------------------------
 // Main sync
 // ---------------------------------------------------------------------------
 
-async function runSync() {
+async function runSync(since: string | null = null) {
   const uid = await authenticate();
-
-  // Search window: last 30 days
-  const searchDaysAgo = new Date();
-  searchDaysAgo.setDate(searchDaysAgo.getDate() - 30);
-  const dateStr = searchDaysAgo.toISOString().split("T")[0] + " 00:00:00";
-
-  // Fetch Odoo mail activities and messages for sale.orders in the window
-  const [activities, messages] = await Promise.all([
-    executeKw(uid, "mail.activity", "search_read", [
-      [
-        ["res_model", "=", "sale.order"],
-        ["create_date", ">=", dateStr],
-      ],
-      ["id", "res_id", "res_name", "note", "create_date"],
-    ]),
-    executeKw(uid, "mail.message", "search_read", [
-      [
-        ["model", "=", "sale.order"],
-        ["create_date", ">=", dateStr],
-        ["message_type", "in", ["comment", "notification"]],
-      ],
-      ["id", "res_id", "record_name", "body", "create_date"],
-    ]),
-  ]);
-
-  const allNotes = [
-    ...activities.map((a: any) => ({
-      id: `act_${a.id}`,
-      res_id: a.res_id,
-      res_name: a.res_name,
-      content: a.note || "",
-      date: a.create_date,
-    })),
-    ...messages.map((m: any) => ({
-      id: `msg_${m.id}`,
-      res_id: m.res_id,
-      res_name: m.record_name,
-      content: m.body || "",
-      date: m.create_date,
-    })),
-  ];
-
-  // Batch-fetch all referenced sale.orders from Odoo
-  const soIds = Array.from(new Set(allNotes.map((n) => n.res_id)));
-  let saleOrders: any[] = [];
-  if (soIds.length > 0) {
-    saleOrders = await executeKw(uid, "sale.order", "read", [
-      soIds,
-      ["name", "create_date", "date_order", "partner_id", "user_id", "amount_total"],
-    ]);
-  }
-  const soMap = Object.fromEntries(saleOrders.map((so: any) => [so.id, so]));
-
-  // Fetch employees once for name matching
-  const { data: employees } = await supabase.from("employees").select("id, name");
-  const empList = employees || [];
 
   // Issue #172: configurable storefront list, not a hardcoded lead source or
   // note-text pattern.
@@ -145,119 +169,84 @@ async function runSync() {
     ? appSettings.retail_storefronts
     : ["Shopee", "Lazada"];
 
-  // Resolve "Shara" as fallback deal owner and "101" as default sales director
-  // by name so the UUIDs aren't environment-specific.
-  const fallbackOwnerId = requireEmployee(empList, "shara", "Shara (fallback deal owner)");
-  const salesDirectorId = requireEmployee(empList, "101", "101 (sales director)");
+  const { leaf, label } = await resolveWindow(since);
+  const domain = storefrontDomain(storefronts, leaf);
 
-  // ---------------------------------------------------------------------------
-  // Process notes
-  // ---------------------------------------------------------------------------
-  let newQueueCount = 0;
-  let skippedCount = 0;
-
-  for (const note of allNotes) {
-    const rawText = typeof note.content === "string" ? note.content : "";
-    const cleanText = toPlainText(rawText);
-    const soData = soMap[note.res_id];
-    const partnerName: string | null = soData?.partner_id ? soData.partner_id[1] : null;
-
-    // -----------------------------------------------------------------------
-    // Retail order (issue #172): detected by the Odoo customer matching the
-    // configurable storefront list — not by words in the note, and not by
-    // lead source. The note, if present and parseable, only enriches the
-    // buyer's name; it never gates whether the order is processed.
-    // -----------------------------------------------------------------------
-    if (isStorefrontCustomer(partnerName, storefronts)) {
-      const nameMatch = cleanText.match(/NAME:?\s*([^\n]+)/i);
-      const personName = nameMatch ? nameMatch[1].trim() : null;
-      // Issue #172: the sale's value is the Odoo order's own total, not a
-      // number typed into a note — the note may not even mention one.
-      const expectedValue = typeof soData?.amount_total === "number" ? soData.amount_total : 0;
-      const soNumber = note.res_name;
-
-      const odooDateOrder = soData?.date_order || null;
-      const odooCreateDate = soData?.create_date || null;
-      const clientName = partnerName || `Retail: ${personName || soNumber}`;
-      const odooSalesperson = soData?.user_id ? soData.user_id[1] : null;
-      const odooSoId = soData?.id || note.res_id;
-
-      // Resolve deal owner: try Odoo salesperson, fall back to Shara
-      const matchedOwnerId = odooSalesperson
-        ? findEmployeeId(empList, odooSalesperson)
-        : null;
-      const dealOwnerId = matchedOwnerId || fallbackOwnerId;
-
-      // Check: already in queue (any status — we never re-insert dismissed items)
-      const { data: existingQueue } = await supabase
-        .from("odoo_retail_queue")
-        .select("id, status")
-        .eq("odoo_so_number", soNumber)
-        .maybeSingle();
-
-      if (existingQueue) {
-        skippedCount++;
-        continue; // already queued/approved/dismissed — do nothing
-      }
-
-      // Check: already directly in SOR (pre-queue entries from old sync)
-      const { data: existingSor } = await supabase
-        .from("sales_opportunities")
-        .select("id")
-        .eq("sales_reference", soNumber)
-        .maybeSingle();
-
-      if (existingSor) {
-        skippedCount++;
-        continue; // old direct SOR entry — leave it alone
-      }
-
-      // Insert into queue
-      const { error } = await supabase.from("odoo_retail_queue").insert({
-        odoo_so_number: soNumber,
-        odoo_so_id: odooSoId,
-        odoo_partner_name: clientName,
-        odoo_person_name: personName,
-        odoo_amount: expectedValue,
-        odoo_salesperson_name: odooSalesperson,
-        odoo_date_order: odooDateOrder,
-        odoo_create_date: odooCreateDate,
-        // Pre-filled editable fields
-        client_name: clientName,
-        contact_person: personName,
-        expected_value: expectedValue,
-        lead_source: "SHOPEE",
-        project_title: `Retail: ${clientName}`,
-        deal_owner_id: dealOwnerId,
-        sales_director_id: salesDirectorId,
-      });
-
-      if (error) {
-        console.error(`[odoo-sor-sync] Error queuing ${soNumber}:`, error);
-      } else {
-        newQueueCount++;
-        console.log(`[odoo-sor-sync] Queued retail order: ${soNumber}`);
-      }
-    }
-
-    // The other half of this loop used to live here: a "MODE OF PAYMENT" +
-    // "AMOUNT" note closed the matching SOR as Won, falling back to an
-    // ilike('%partner_name%') match against any open lead when the sales
-    // reference did not match — overwriting that lead's sales_reference on the
-    // way. Running hourly against production, that is a deal silently marked
-    // Won because two customers share a word in their name. Removed outright
-    // rather than disabled — a hazard one manual invocation away is worse than
-    // no feature. The goal is worth keeping, so it is written up as issue #324,
-    // to come back with an exact sales_reference match and no fuzzy fallback.
-    // This function syncs retail, and nothing else.
+  // Read the orders straight from Odoo by customer. This used to discover
+  // orders through chatter activity on them, which silently missed any order
+  // nobody left a note on — fine for a review queue, wrong for a report.
+  const orders: any[] = [];
+  for (let offset = 0; ; offset += BATCH_SIZE) {
+    const page = await executeKw(uid, "sale.order", "search_read", [domain, ORDER_FIELDS], {
+      limit: BATCH_SIZE,
+      offset,
+      order: "id asc",
+    });
+    orders.push(...page);
+    if (page.length < BATCH_SIZE) break;
   }
 
-  return {
-    activitiesRead: activities.length,
-    messagesRead: messages.length,
-    newQueuedShopeeOrders: newQueueCount,
-    skipped: skippedCount,
-  };
+  if (orders.length === 0) {
+    return { window: label, ordersRead: 0, upserted: 0 };
+  }
+
+  const buyers = await fetchBuyerNames(uid, orders.map((o) => o.id));
+
+  // Keep what we already know: a buyer name found once is not erased by a
+  // later read whose chatter has since changed.
+  const soNumbers = orders.map((o) => o.name);
+  const knownBuyers = new Map<string, string>();
+  for (let i = 0; i < soNumbers.length; i += BATCH_SIZE) {
+    const { data, error } = await supabase
+      .from("retail_orders")
+      .select("odoo_so_number, buyer_name")
+      .in("odoo_so_number", soNumbers.slice(i, i + BATCH_SIZE));
+    if (error) throw error;
+    for (const row of data || []) {
+      if (row.buyer_name) knownBuyers.set(row.odoo_so_number, row.buyer_name);
+    }
+  }
+
+  // `is_excluded`, `excluded_reason` and `source` are deliberately absent: a new
+  // row takes their defaults, and an existing row keeps what it has — the sync
+  // never un-excludes an order somebody dismissed.
+  const rows = orders.map((so) => {
+    const partnerName: string = so.partner_id ? so.partner_id[1] : "";
+    return {
+      odoo_so_number: so.name,
+      odoo_so_id: so.id,
+      storefront: storefrontFor(partnerName, storefronts) ?? partnerName,
+      partner_name: partnerName,
+      buyer_name: buyers.get(so.id) ?? knownBuyers.get(so.name) ?? null,
+      odoo_salesperson_name: so.user_id ? so.user_id[1] : null,
+      amount: typeof so.amount_total === "number" ? so.amount_total : 0,
+      // The order date, not the record's creation date: the two can land on
+      // either side of a month boundary.
+      ordered_at: toTimestamptz(so.date_order) ?? toTimestamptz(so.create_date),
+      odoo_state: so.state ?? null,
+    };
+  });
+
+  let upserted = 0;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const { error } = await supabase
+      .from("retail_orders")
+      .upsert(rows.slice(i, i + BATCH_SIZE), { onConflict: "odoo_so_number" });
+    if (error) throw error;
+    upserted += Math.min(BATCH_SIZE, rows.length - i);
+  }
+
+  // The other half of this function used to close a matching SOR as Won when a
+  // "MODE OF PAYMENT" + "AMOUNT" note appeared, falling back to an
+  // ilike('%partner_name%') match against any open lead. Running hourly against
+  // production, that is a deal silently marked Won because two customers share
+  // a word in their name. Removed outright rather than disabled — a hazard one
+  // manual invocation away is worse than no feature. The goal is worth keeping,
+  // so it is written up as issue #324, to come back with an exact
+  // sales_reference match and no fuzzy fallback.
+  // This function syncs retail, and nothing else.
+
+  return { window: label, ordersRead: orders.length, upserted };
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +266,7 @@ if (typeof Deno.cron === "function") {
 }
 
 // ---------------------------------------------------------------------------
-// HTTP handler (manual trigger / local testing)
+// HTTP handler (manual trigger / local testing / one-time historical load)
 // ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
@@ -292,7 +281,8 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const stats = await runSync();
+    const since = new URL(req.url).searchParams.get("since");
+    const stats = await runSync(since);
     return jsonResponse({ success: true, message: "Sync complete", stats });
   } catch (err: any) {
     console.error("[odoo-sor-sync] Error:", err);

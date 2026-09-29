@@ -14,12 +14,9 @@ export default function StatCard({ title, value, subtitle, icon, color, onClick 
   };
 
   const valStr = String(value ?? "");
-  const valueFontSize =
-    valStr.length > 13
-      ? "text-2xl"
-      : valStr.length > 9
-      ? "text-3xl"
-      : "text-3xl sm:text-4xl";
+  // The figure is never clipped: it scales down to fit the width its card
+  // gives it (tabular digits are ~0.6em wide), stopping at a readable floor.
+  const valueFontSize = `clamp(1.25rem, calc(100cqw / ${Math.max(valStr.length, 1) * 0.6}), 2.25rem)`;
 
   return (
     <Card
@@ -35,13 +32,13 @@ export default function StatCard({ title, value, subtitle, icon, color, onClick 
       />
 
       <div className="flex justify-between items-start gap-2 mb-4 relative z-10">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 [container-type:inline-size]">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.15em] mb-1 truncate">
             {title}
           </p>
           <h3
-            className={`${valueFontSize} font-extrabold tracking-tight text-foreground tabular-nums truncate`}
-            title={valStr}
+            className="font-extrabold leading-tight tracking-tight text-foreground tabular-nums whitespace-nowrap"
+            style={{ fontSize: valueFontSize }}
           >
             {value}
           </h3>
@@ -52,7 +49,7 @@ export default function StatCard({ title, value, subtitle, icon, color, onClick 
           </div>
         )}
       </div>
-      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest relative z-10 truncate">
+      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest relative z-10 leading-relaxed">
         {subtitle}
       </p>
       {onClick && (

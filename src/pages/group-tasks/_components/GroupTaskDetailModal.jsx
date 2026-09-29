@@ -663,11 +663,11 @@ export default function GroupTaskDetailModal({
           "p-0 gap-0 z-[70] shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] flex flex-col transition-all duration-300 overflow-hidden outline-none",
           isExpanded
             ? "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !border-0 m-0"
-            : isSplitScreen
-              ? "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:max-w-[1400px] rounded-2xl"
-              : // Widened from 960px: the member area is a master/detail pair
-                // now, and a 240px rail off 960px left the panel too narrow.
-                "max-h-[90vh] sm:max-w-none w-[95vw] max-w-[1120px] rounded-2xl",
+            : // Same footprint with or without the chat pane, so toggling split
+              // adds the pane without resizing the modal. (The unsplit branch
+              // used `sm:max-w-none`, which defeated its own max-w and let the
+              // modal run the full viewport width.)
+              "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:max-w-[1400px] rounded-2xl",
         )}
       >
         {/* CONTENT WRAPPER — split when isSplitScreen */}
@@ -771,8 +771,12 @@ export default function GroupTaskDetailModal({
                       {task.lead_time}
                     </div>
                   )}
-                  <SorLink opportunityId={task.opportunity_id} onClose={onClose} variant="inline" />
                 </div>
+                {task.opportunity_id && (
+                  <div className="pt-2">
+                    <SorLink opportunityId={task.opportunity_id} onClose={onClose} variant="inline" />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -893,8 +897,8 @@ export default function GroupTaskDetailModal({
               )}
 
               {/* MEMBERS — detail / master. The selected assignment (the
-                  viewer's own, on open) leads; the member rail supports it
-                  from the right, and below it on narrow screens. */}
+                  viewer's own, on open) leads; the member rail sits to its
+                  left, and below it on narrow screens. */}
               <div className="animate-content-in stagger-2 flex-1 flex flex-col md:flex-row min-h-[420px] border border-border rounded-2xl overflow-hidden bg-card">
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">
                   {draft ? (
@@ -1083,16 +1087,24 @@ export default function GroupTaskDetailModal({
                           {/* The "no assignment details" fallback was merged into the description render block above */}
 
                           {/* Attachments Section */}
-                          <div className="flex flex-col gap-1.5 mt-2">
-                            <div className="flex items-center justify-between">
-                              <FieldBox label="Attachments" className="block" />
+                          <div className="flex flex-col gap-2 mt-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-baseline gap-2 min-w-0">
+                                <FieldBox label="Attachments" className="block" />
+                                {member.attachments?.length > 0 && (
+                                  <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
+                                    {member.attachments.length}
+                                  </span>
+                                )}
+                              </div>
                               {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
                                 <FileInput
                                   multiple
                                   accept={ALLOWED_EXTENSIONS_STRING}
-                                  variant="link"
+                                  variant="outline"
+                                  size="sm"
                                   disabled={isUploadingAttachment || isUploadingMemberFile}
-                                  className="h-auto gap-1 p-0 text-[10px] font-semibold text-primary hover:text-primary/80 hover:no-underline"
+                                  className="h-7 gap-1.5 rounded-lg px-2.5 text-[11px] font-semibold"
                                   onFiles={async (files) => {
                                     setIsUploadingMemberFile(true);
                                     try {
@@ -1119,17 +1131,11 @@ export default function GroupTaskDetailModal({
                                       setIsUploadingMemberFile(false);
                                     }
                                   }}>
-                                  <Paperclip size={10} />
+                                  <Paperclip size={12} />
                                   {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
                                 </FileInput>
                               )}
                             </div>
-
-                            {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
-                              <p className="text-[10px] text-muted-foreground/70">
-                                Images, documents, and short videos — up to {formatBytes(MAX_ATTACHMENT_BYTES)} each.
-                              </p>
-                            )}
 
                             {member.attachments && member.attachments.length > 0 ? (
                               <AttachmentList
@@ -1137,7 +1143,15 @@ export default function GroupTaskDetailModal({
                                 className="p-3 bg-muted/20 rounded-xl border border-border/50"
                               />
                             ) : (
-                              <p className="text-[13px] text-muted-foreground italic">No attachments.</p>
+                              <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/10 px-4 py-5 text-center">
+                                <Paperclip size={16} className="text-muted-foreground/50" />
+                                <p className="text-[13px] text-muted-foreground">No attachments yet</p>
+                                {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
+                                  <p className="text-[11px] text-muted-foreground/70">
+                                    Images, documents, and short videos — up to {formatBytes(MAX_ATTACHMENT_BYTES)} each.
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
 
@@ -1202,7 +1216,7 @@ export default function GroupTaskDetailModal({
                   )}
                 </div>
 
-                <div className="w-full md:w-[220px] shrink-0 h-[200px] md:h-auto md:min-h-0 border-t md:border-t-0 md:border-l border-border">
+                <div className="w-full md:w-[220px] shrink-0 h-[200px] md:h-auto md:min-h-0 md:order-first border-t md:border-t-0 md:border-r border-border">
                   <GroupTaskMemberRail
                     members={orderedMembers}
                     selectedId={draft && !draft.id ? null : effectiveMemberId}

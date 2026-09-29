@@ -364,8 +364,9 @@ describe("default sort sinks Terminal Stage SORs", () => {
     // flips hasExplicitSort. Ascending first (ties the sink's own order),
     // then descending — which the sink would never produce, since it always
     // sinks the terminal SOR regardless of column direction.
-    await user.click(screen.getByText("SOR"))
-    await user.click(screen.getByText("SOR"))
+    // The page title also reads "SOR Register", so target the column header.
+    await user.click(screen.getByRole("columnheader", { name: /^SOR/ }))
+    await user.click(screen.getByRole("columnheader", { name: /^SOR/ }))
 
     expect(rowOrder()).toEqual(["Company 2", "Company 1"])
   })

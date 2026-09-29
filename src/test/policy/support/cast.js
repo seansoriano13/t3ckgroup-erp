@@ -208,6 +208,7 @@ function employeeRow(key, id) {
         has_sales_flow: spec.has_sales_flow ?? false,
         has_task_flow: spec.has_task_flow ?? false,
         has_purchasing_flow: spec.has_purchasing_flow ?? false,
+        has_retail_access: spec.has_retail_access ?? false,
         is_deleted: spec.is_deleted ?? false,
         offset_hours_balance: 0,
         sil_hours_balance: 0,

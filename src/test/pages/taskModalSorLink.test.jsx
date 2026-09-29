@@ -77,7 +77,7 @@ describe("the SOR link on task modals", () => {
       />,
     )
 
-    fireEvent.click(await screen.findByRole("button", { name: /Deal: Pasig City Hall/ }))
+    fireEvent.click(await screen.findByRole("button", { name: /Open SOR.*Pasig City Hall/ }))
 
     expect(onClose).toHaveBeenCalled()
     expect(opened).toEqual([{ id: sor.id, type: "OPPORTUNITY_QUICK_VIEW" }])
