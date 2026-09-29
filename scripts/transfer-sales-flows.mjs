@@ -24,6 +24,9 @@
  * Usage:
  *   node scripts/transfer-sales-flows.mjs --from staging --to prod Government Outright
  *   node scripts/transfer-sales-flows.mjs --from staging --to prod --apply Government Outright
+ *   node scripts/transfer-sales-flows.mjs --from staging --to prod --replace --apply Government
+ *     --replace: first delete the target's same-id Sale Type (and its flow) in the same
+ *     transaction. Refused if the target has any SORs on it.
  *
  * Reads STAGING_DB_URL / PROD_DB_URL from .env.local or the environment, the
  * same connections scripts/db-ledger-check.mjs uses. `--to-url <url>` points
@@ -46,6 +49,7 @@ function parseArgs(argv) {
         else if (a === "--to") args.to = argv[++i]
         else if (a === "--to-url") args.toUrl = argv[++i]
         else if (a === "--apply") args.apply = true
+        else if (a === "--replace") args.replace = true
         else args.names.push(a)
     }
     return args
@@ -161,8 +165,18 @@ async function countsFor(target, flowId) {
     }
 }
 
-async function transferOne(source, target, item) {
+async function transferOne(source, target, item, replace) {
     const { name, saleType, flow, snapshot } = item
+
+    if (replace && (await idSet(target, "sale_types", [saleType.id])).size) {
+        // A stale copy of the same flow (same ids). Refuse if anything real hangs off it:
+        // sales_opportunities.sale_type_id is RESTRICT, the flow's own tables cascade.
+        const { rows: [{ n }] } = await target.query("select count(*) n from public.sales_opportunities where sale_type_id = $1", [saleType.id])
+        if (Number(n) > 0) throw new Error(`--replace: target Sale Type "${name}" has ${n} SORs; refusing to delete it.`)
+        const before = await countsFor(target, flow.id)
+        await target.query("delete from public.sale_types where id = $1", [saleType.id])
+        console.log(`  - replaced stale "${name}" on target (${before.stages} Stages, ${before.edges} edges deleted)`)
+    }
 
     if ((await idSet(target, "sale_types", [saleType.id])).size) throw new Error(`Target already has Sale Type ${saleType.id} ("${name}").`)
     const { rows: nameClash } = await target.query(
@@ -225,7 +239,7 @@ async function main() {
         console.log(`${args.apply ? "APPLYING" : "DRY RUN (rolls back; pass --apply to commit)"}: ${args.from} → ${args.toUrl ? "--to-url" : args.to}`)
         await target.query("begin")
         try {
-            for (const item of items) await transferOne(source, target, item)
+            for (const item of items) await transferOne(source, target, item, args.replace)
             await target.query(args.apply ? "commit" : "rollback")
         } catch (err) {
             await target.query("rollback")

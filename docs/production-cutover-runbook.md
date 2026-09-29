@@ -61,14 +61,16 @@ Spot-check `offset_leaves.approved_hours` (`select count(*) from offset_leaves w
 
 ### 4. Transfer Government and Outright
 
-Dry run first (one transaction, rolled back), then apply:
+Prod already holds an earlier copy of both (same ids, from a mistaken run, no SORs). Outright is identical to staging: leave it. Government is stale (prod v4.1, 17 Stages; staging v4.12, 18 Stages): `--replace` deletes prod's copy and re-transfers staging's in the same transaction. It refuses if the Sale Type has any SORs.
+
+Back up prod's Government first (`scripts/backup-flows.mjs`), dry run (rolled back), then apply:
 
 ```bash
-node scripts/transfer-sales-flows.mjs --from staging --to prod Government Outright
-node scripts/transfer-sales-flows.mjs --from staging --to prod --apply Government Outright
+node scripts/transfer-sales-flows.mjs --from staging --to prod --replace Government
+node scripts/transfer-sales-flows.mjs --from staging --to prod --replace --apply Government
 ```
 
-**Check:** counts match staging (Government 17 Stages, 16 edges; Outright 5 Stages, 4 edges). Both flows end with zero `flow_access_settings` rows, so they stay private to their Deal Team. The script refuses otherwise.
+**Check:** Government 18 Stages, 17 edges (staging's latest). Outright stays 5 Stages, 4 edges. Zero `flow_access_settings` rows on Government, so it stays private to its Deal Team. The script refuses otherwise.
 
 ### 4b. Transfer Group Task Templates (#419)
 
