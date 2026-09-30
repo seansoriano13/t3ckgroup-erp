@@ -9,7 +9,10 @@ import PageHeader from "./PageHeader";
  * body — whatever order a Page passes them in. A Page cannot reorder them.
  *
  * `frame` is "centred" (default, the wrapper) or "full"; full-width stays an
- * explicit per-route choice. The body is `children` (or `body`).
+ * explicit per-route choice. A full frame fills the app frame: the header,
+ * tabs and toolbar stay put and the body is the scroll region (a Board inside
+ * it sizes itself to the body and scrolls its own columns). The body is
+ * `children` (or `body`).
  *
  * Phone behaviour lives here: the header stacks, the tabs strip scrolls
  * sideways (TabGroup), the toolbar wraps.
@@ -25,22 +28,38 @@ export default function PageShell({
   frame = "centred",
   className = "",
 }) {
+  const full = frame === "full";
+  const pinned = full ? "shrink-0" : "";
+
   return (
     <PageContainer
-      maxWidth={frame === "full" ? "full" : "7xl"}
+      maxWidth={full ? "full" : "7xl"}
+      fill={full}
       spaceY="4"
       className={className}
     >
       <PageHeader title={title} description={description}>
         {action}
       </PageHeader>
-      {tabs && <div data-testid="page-tabs" className="max-w-full overflow-x-auto">{tabs}</div>}
+      {tabs && (
+        <div data-testid="page-tabs" className={`max-w-full overflow-x-auto ${pinned}`}>
+          {tabs}
+        </div>
+      )}
       {toolbar && (
-        <div data-testid="page-toolbar" className="flex flex-wrap items-center gap-3">
+        <div
+          data-testid="page-toolbar"
+          className={`flex flex-wrap items-center gap-3 ${pinned}`}
+        >
           {toolbar}
         </div>
       )}
-      <div data-testid="page-body">{body ?? children}</div>
+      <div
+        data-testid="page-body"
+        className={full ? "custom-scrollbar min-h-0 flex-1 overflow-y-auto" : undefined}
+      >
+        {body ?? children}
+      </div>
     </PageContainer>
   );
 }

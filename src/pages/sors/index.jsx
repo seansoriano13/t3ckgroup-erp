@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Spinner from "../../components/ui/Spinner";
-import PageHeader from "../../components/ui/PageHeader";
+import PageShell from "../../components/ui/PageShell";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
@@ -637,70 +637,51 @@ export default function OpportunitiesPage() {
     setEmployeeFilter("ALL");
   };
 
-  return (
-    <ProtectedRoute>
-      {/* Issue #206 — the register is something you pan or scan across, so it
-          fills the app frame instead of sitting in the centred page column.
-          Its header is two rows, not the old page header + filter bar: the tabs
-          pick which records, the row beneath narrows within them. */}
-      <div className="flex h-full min-h-0 flex-col">
-        {/* The standard PageHeader: the register keeps the title every other
-            screen has. The
-            view strip rides in its action slot. Left padding clears the
-            SideNav's mobile trigger. The primary action lives in the floating
-            button below — the top-right corner belongs to the environment
-            ribbon, which was cutting straight through it. */}
-        <PageHeader
-          title="SOR Register"
-          className="shrink-0 bg-card pl-14 pr-3 pt-3 sm:pr-4 md:pl-6 md:pr-6"
+  // The toolbar, in reading order: what you are looking for, what it came
+  // to, how it is narrowed. Search, the figures and Filters speak only for List
+  // and Board — Overview draws straight from `opportunities` and Deleted runs
+  // its own query — so on those the toolbar slot is left empty and the space
+  // goes to the content. It is the one-line filter form: search, the result
+  // readout, and a Filters popover carrying every other filter with a count.
+  const toolbar = supportsFiltering && (
+    <div className="flex w-full min-w-0 items-center gap-2 sm:gap-3">
+      <div className="flex h-9 min-w-[7rem] max-w-[360px] flex-1 items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 focus-within:border-mauve-7 sm:px-3 2xl:max-w-[520px]">
+        <Search size={15} className="shrink-0 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search number, client, project, deal owner…"
+          containerClassName="w-full"
+          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-medium text-foreground shadow-none outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
+        />
+      </div>
+
+      <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border lg:block" />
+
+      <SorsTotals
+        className="hidden lg:flex"
+        count={totals.count}
+        openValue={totals.openValue}
+        wonValue={totals.wonValue}
+      />
+
+      {/* The drill-down arriving from Overview or a notification. It is counted
+          in the Filters badge like any other filter, but it is the one a
+          visitor lands on without having set it, so it keeps a one-click way
+          back out. */}
+      {employeeFilter && employeeFilter !== "ALL" && (
+        <Button
+          variant="outline"
+          onClick={() => setEmployeeFilter("ALL")}
+          title={`Filtered to ${employeeFilterName || "employee"} — click to clear`}
+          className="hidden h-9 max-w-[120px] shrink-0 gap-1.5 rounded-xl border-mauve-6 bg-muted px-3 text-xs font-bold text-foreground ring-1 ring-mauve-4 hover:bg-muted sm:inline-flex xl:max-w-[170px]"
         >
-          <SorsViewTabs view={view} onChange={changeView} />
-        </PageHeader>
+          <span className="truncate">{employeeFilterName || "employee"}</span>
+          <X size={12} className="shrink-0" />
+        </Button>
+      )}
 
-        {/* The toolbar, in reading order: what you are looking for, what it came
-            to, how it is narrowed. Search, the figures and Filters speak only
-            for List and Board — Overview draws straight from `opportunities`
-            and Deleted runs its own query — so on those the row is not drawn
-            at all, and the space goes to the content. */}
-        {supportsFiltering && (
-        <div className="flex h-12 min-w-0 shrink-0 items-center gap-2 border-b border-border bg-card px-3 sm:gap-3 sm:px-4 md:px-6">
-              <div className="flex h-9 min-w-[7rem] max-w-[360px] flex-1 2xl:max-w-[520px] items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 focus-within:border-mauve-7 sm:px-3">
-                <Search size={15} className="shrink-0 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search number, client, project, deal owner…"
-                  containerClassName="w-full"
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-medium text-foreground shadow-none outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
-                />
-              </div>
-
-              <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border lg:block" />
-
-              <SorsTotals
-                className="hidden lg:flex"
-                count={totals.count}
-                openValue={totals.openValue}
-                wonValue={totals.wonValue}
-              />
-
-              {/* The drill-down arriving from Overview or a notification. It
-                  is counted in the Filters badge like any other filter, but it
-                  is the one a visitor lands on without having set it, so it
-                  keeps a one-click way back out. */}
-              {employeeFilter && employeeFilter !== "ALL" && (
-                <Button
-                  variant="outline"
-                  onClick={() => setEmployeeFilter("ALL")}
-                  title={`Filtered to ${employeeFilterName || "employee"} — click to clear`}
-                  className="hidden h-9 max-w-[120px] shrink-0 gap-1.5 rounded-xl border-mauve-6 bg-muted px-3 text-xs font-bold text-foreground ring-1 ring-mauve-4 hover:bg-muted sm:inline-flex xl:max-w-[170px]"
-                >
-                  <span className="truncate">{employeeFilterName || "employee"}</span>
-                  <X size={12} className="shrink-0" />
-                </Button>
-              )}
-
-          <div className="flex-1" />
+      <div className="flex-1" />
 
           {/* Filters popover — every filter the register offers lives here, so
               the row stays one line regardless of how many are active, and the
@@ -934,33 +915,35 @@ export default function OpportunitiesPage() {
                 </div>
               </div>
             )}
-            </Dropdown>
-        </div>
-        )}
+      </Dropdown>
+    </div>
+  );
 
-        {/* Bottom-right is the one corner nothing else claims: the environment
-            ribbon owns top-right, the SideNav trigger top-left, the month
-            picker top-centre. z-30 sits under the SideNav, modals and ribbon. */}
-        <Button
-          onClick={() => setFormOpen(true)}
-          className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-6 z-30 gap-2 rounded-full py-3.5 pl-4 pr-5 text-[13px] font-bold shadow-[0_10px_30px_-8px_rgb(0_0_0/0.45)] focus-visible:ring-mauve-8"
-        >
-          <Plus size={16} strokeWidth={2.5} className="shrink-0" />
-          Register SOR
-        </Button>
-
-        <div
-          // pb-24 on the scrolling views is the floating button's keep-out:
-          // without it the last row of the register sits under Register SOR with
-          // no way to scroll past it. The board manages its own scroll, so it
-          // keeps the plain padding.
-          className={`flex-1 min-h-0 px-4 pt-4 md:px-6 ${view === "board" ? "flex flex-col overflow-hidden pb-4" : "overflow-y-auto custom-scrollbar pb-24"
-            }`}
-        >
+  return (
+    <ProtectedRoute>
+      {/* Issue #206: the register is something you pan or scan across, so it
+          fills the app frame (frame="full") instead of sitting in the centred
+          page column. Register type (ADR 0029): the view strip is the display
+          toggle and Register SOR the one main action, both in the header's
+          action slot; the one-line filter row is the toolbar slot. */}
+      <PageShell
+        title="SOR Register"
+        frame="full"
+        action={
+          <>
+            <SorsViewTabs view={view} onChange={changeView} />
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus size={16} strokeWidth={2.5} />
+              Register SOR
+            </Button>
+          </>
+        }
+        toolbar={toolbar}
+      >
         {view === "deleted" ? (
           <DeletedOpportunitiesView currentUserId={user?.id} isSuperAdmin={isSuperAdmin} />
         ) : view === "overview" ? (
-          <div className="mt-4">
+          <div>
             {isLoading ? (
               <div className="border border-border rounded-2xl overflow-hidden bg-card">
                 <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
@@ -983,7 +966,7 @@ export default function OpportunitiesPage() {
             )}
           </div>
         ) : isLoading ? (
-          <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
+          <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
               <Spinner size="sm" />
               <span className="text-sm font-bold uppercase tracking-widest">
@@ -1009,7 +992,7 @@ export default function OpportunitiesPage() {
             onSwitchToList={() => changeView("list")}
           />
         ) : filtered.length === 0 ? (
-          <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
+          <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground mb-3">
                 <Target size={18} />
@@ -1027,7 +1010,7 @@ export default function OpportunitiesPage() {
             </div>
           </div>
         ) : (
-          <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
+          <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
               <Table className="table-fixed">
                 <TableHeader>
@@ -1180,8 +1163,7 @@ export default function OpportunitiesPage() {
             </div>
           </div>
         )}
-        </div>
-      </div>
+      </PageShell>
 
       <OpportunityFormModal
         isOpen={formOpen}
