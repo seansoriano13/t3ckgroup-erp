@@ -1,43 +1,49 @@
-import { useState, useMemo } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PackageSearch, ExternalLink } from "lucide-react";
-import toast from "react-hot-toast";
+import { useQuery } from "@tanstack/react-query";
+import { CircleDot, FileText, PackageSearch, UserRound } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
-import PageContainer from "../../components/ui/PageContainer";
-import PageHeader from "../../components/ui/PageHeader";
+import PageShell from "../../components/ui/PageShell";
+import EmptyState from "../../components/ui/EmptyState";
 import Spinner from "../../components/ui/Spinner";
-import StatusBadge from "../../components/StatusBadge";
-import { Button } from "@/components/ui/button";
-import Avatar from "../../components/Avatar";
 import FilterBar from "../../components/ui/FilterBar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { FilterSelect } from "../../components/ui/FilterDropdown";
+import SlideOver, { SlideOverBody, SlideOverFooter } from "../../components/ui/SlideOver";
+import { DetailRow, DetailSection, PersonChip } from "../../components/ui/DetailParts";
+import StatusBadge from "../../components/StatusBadge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import Avatar from "../../components/Avatar";
 import { purchasingService } from "../../services/purchasingService";
 import { employeeService } from "../../services/employeeService";
-import { daysWaiting, displayOutcome, procurementAffinity, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
+import {
+  daysWaiting,
+  displayOutcome,
+  procurementAffinity,
+  PROCUREMENT_OUTCOME_LABELS,
+} from "../../constants/procurement";
 import { useAuth } from "../../context/AuthContext";
+import { useRecordParam } from "../../hooks/useRecordParam";
+import { formatDate } from "../../utils/formatDate.js";
+import { BuyerSelect } from "./_components/BuyerSelect";
 
 /**
- * The Purchasing queue (issue #39).
+ * The Purchasing queue (issue #39), a Queue page (#439).
  *
  * Every other read of a procurement request is scoped to one thing — one deal,
  * one task, one purchaser. This is the only screen that answers "what is
  * purchasing sourcing this week", which until now meant opening Tasks one at a
  * time, and is why that answer has been living in a spreadsheet.
  *
- * A row is deliberately not editable here. This ticket is the list; resolving
- * still happens where it already does, on the SOR the ask came from, so there
- * is exactly one place a request is answered.
+ * A row opens the request in the slide-over (`?record=`). What purchasing does
+ * to a request here is assign a Buyer; resolving it still happens on the SOR
+ * the ask came from ("Open SOR"), so there is exactly one place a request is
+ * answered.
  */
+
+const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const CHIP = "h-9 w-auto gap-2 px-2.5";
+const CHIP_WRAPPER = "w-auto shrink-0";
 
 /** How long a request has been waiting, in words a purchaser reads at a glance. */
 function waitedFor(request, now) {
@@ -48,110 +54,58 @@ function waitedFor(request, now) {
   return `${days} days`;
 }
 
-function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
-  const queryClient = useQueryClient();
+const matches = (request, term) =>
+  [
+    request.requested_name,
+    request.requested_description,
+    request.opportunity?.sales_reference,
+    request.opportunity?.client_name,
+    request.requester?.name,
+  ].some((field) => field?.toLowerCase().includes(term));
+
+function QueueRow({ request, now, onOpen, buyers, currentUserId }) {
   const { raw: outcomeRaw, label: outcomeLabel } = displayOutcome(request);
   const days = daysWaiting(request, now);
   const sor = request.opportunity;
 
-  const { mutate: assign, isPending: isAssigning } = useMutation({
-    mutationFn: (newAssigneeId) =>
-      purchasingService.assignRequests([request.id], newAssigneeId, currentUserId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["procurementQueue"] });
-      toast.success("Request reassigned.");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
   return (
-    <TableRow className="group">
+    <TableRow
+      tabIndex={0}
+      onClick={() => onOpen(request.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target === e.currentTarget) {
+          e.preventDefault();
+          onOpen(request.id);
+        }
+      }}
+      className="group cursor-pointer outline-none focus-visible:bg-muted"
+    >
       <TableCell>
-        <span className="block text-sm font-bold text-foreground">
-          {request.requested_name}
-        </span>
+        <span className="block text-sm font-bold text-foreground">{request.requested_name}</span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
           {Number(request.requested_quantity)} {request.requested_unit || "unit"}
         </span>
       </TableCell>
 
       <TableCell>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onOpenSor(sor.id)}
-          className="group/sor h-auto justify-start gap-1.5 rounded p-0 text-left font-normal hover:bg-transparent"
-        >
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-foreground group-hover/sor:text-primary">
-              {sor.sales_reference || "Unregistered"}
-            </span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-              {sor.client_name}
-            </span>
-          </span>
-          <ExternalLink
-            size={13}
-            className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-          />
-        </Button>
+        <span className="block text-sm font-semibold text-foreground">{sor.sales_reference || "Unregistered"}</span>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">{sor.client_name}</span>
       </TableCell>
 
       <TableCell>
         <div className="flex items-center gap-2">
-          <Avatar
-            src={request.requester?.avatar_path}
-            name={request.requester?.name}
-            size="xs"
-          />
-          <span className="truncate text-xs font-medium text-foreground">
-            {request.requester?.name || "—"}
-          </span>
+          <Avatar src={request.requester?.avatar_path} name={request.requester?.name} size="xs" />
+          <span className="truncate text-xs font-medium text-foreground">{request.requester?.name || "—"}</span>
         </div>
       </TableCell>
 
-      <TableCell>
-        <Select
-          value={request.assignee?.id || "unassigned"}
-          onValueChange={(val) => {
-            if (val !== "unassigned" && val !== request.assignee?.id) assign(val);
-          }}
-          disabled={isAssigning}
-        >
-          <SelectTrigger className="h-8 w-40 border-transparent bg-transparent hover:bg-mauve-a3 focus:ring-0 shadow-none -ml-2">
-            <SelectValue>
-              {request.assignee ? (
-                <div className="flex items-center gap-2">
-                  <Avatar
-                    src={request.assignee.avatar_path}
-                    name={request.assignee.name}
-                    size="xs"
-                  />
-                  <span className="truncate text-xs font-medium text-foreground">
-                    {request.assignee.name}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-xs font-semibold uppercase tracking-wider text-amber-11">
-                  Unassigned
-                </span>
-              )}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectItem value="unassigned" disabled>
-              Unassigned
-            </SelectItem>
-            {buyers.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
-                <div className="flex items-center gap-2">
-                  <Avatar src={b.avatar_path} name={b.name} size="xs" />
-                  <span className="truncate">{b.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <TableCell onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <BuyerSelect
+          request={request}
+          buyers={buyers}
+          currentUserId={currentUserId}
+          className="-ml-2 h-8 w-40 border-transparent bg-transparent shadow-none hover:bg-mauve-a3 focus:ring-0"
+        />
       </TableCell>
 
       <TableCell>
@@ -173,10 +127,77 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
   );
 }
 
+const sheetIdentity = (now) => (r) => {
+  const { raw, label } = displayOutcome(r);
+  return {
+    ref: r.opportunity.sales_reference || "Unregistered",
+    title: r.requested_name,
+    badge: <StatusBadge status={raw} label={label} />,
+    subtitle: `waiting ${waitedFor(r, now)}`,
+  };
+};
+
+function RequestSheet({ request, now, index, total, onStep, onClose, onOpenSor, buyers, currentUserId }) {
+  return (
+    <SlideOver
+      record={request}
+      icon={PackageSearch}
+      crumb="Purchasing Queue"
+      identity={sheetIdentity(now)}
+      index={index}
+      total={total}
+      onStep={onStep}
+      onClose={onClose}
+      onOpenFull={(r) => onOpenSor(r.opportunity.id)}
+      openFullLabel="Open SOR"
+    >
+      {(r) => (
+        <>
+          <SlideOverBody>
+            <DetailSection title="Request">
+              <dl className="divide-y divide-border">
+                <DetailRow label="Product">{r.requested_name}</DetailRow>
+                <DetailRow label="Quantity">
+                  {Number(r.requested_quantity)} {r.requested_unit || "unit"}
+                </DetailRow>
+                <DetailRow label="Description">{r.requested_description}</DetailRow>
+                <DetailRow label="Raised">{formatDate(r.created_at)}</DetailRow>
+                <DetailRow label="Waiting">{waitedFor(r, now)}</DetailRow>
+              </dl>
+            </DetailSection>
+            <DetailSection title="Requested by">
+              {r.requester ? (
+                <PersonChip
+                  person={{ id: r.requester.id, name: r.requester.name, avatarPath: r.requester.avatar_path }}
+                />
+              ) : (
+                "—"
+              )}
+            </DetailSection>
+            <DetailSection title="SOR">
+              <dl className="divide-y divide-border">
+                <DetailRow label="Reference">{r.opportunity.sales_reference || "Unregistered"}</DetailRow>
+                <DetailRow label="Client">{r.opportunity.client_name}</DetailRow>
+              </dl>
+            </DetailSection>
+          </SlideOverBody>
+          <SlideOverFooter>
+            <DetailSection title="Buyer">
+              <BuyerSelect request={r} buyers={buyers} currentUserId={currentUserId} className="w-full" />
+            </DetailSection>
+          </SlideOverFooter>
+        </>
+      )}
+    </SlideOver>
+  );
+}
+
 function PurchasingQueue() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { recordId, open, step, close } = useRecordParam();
 
+  const [search, setSearch] = useState("");
   const [filterAssignee, setFilterAssignee] = useState("all");
   const [filterOutcome, setFilterOutcome] = useState("all");
   const [filterSor, setFilterSor] = useState("all");
@@ -217,7 +238,9 @@ function PurchasingQueue() {
 
   const filteredRequests = useMemo(() => {
     if (!requests) return [];
-    return requests.filter(req => {
+    const term = search.trim().toLowerCase();
+    return requests.filter((req) => {
+      if (term && !matches(req, term)) return false;
       if (filterAssignee === "unassigned" && req.assignee) return false;
       if (filterAssignee !== "all" && filterAssignee !== "unassigned" && req.assignee?.id !== filterAssignee) return false;
       const { raw } = displayOutcome(req);
@@ -225,132 +248,156 @@ function PurchasingQueue() {
       if (filterSor !== "all" && req.opportunity?.id !== filterSor) return false;
       return true;
     });
-  }, [requests, filterAssignee, filterOutcome, filterSor]);
+  }, [requests, search, filterAssignee, filterOutcome, filterSor]);
 
-  const count = filteredRequests?.length ?? 0;
+  const count = filteredRequests.length;
+  const index = filteredRequests.findIndex((r) => String(r.id) === recordId);
+  const openRequest = index >= 0 ? filteredRequests[index] : null;
+
+  const hasActiveFilters = search !== "" || filterAssignee !== "all" || filterOutcome !== "all" || filterSor !== "all";
+
+  const assigneeOptions = [
+    { value: "all", label: "Any buyer" },
+    { value: "unassigned", label: "Unassigned" },
+    ...buyers.map((b) => ({ value: b.id, label: b.name })),
+  ];
+  const outcomeOptions = [
+    { value: "all", label: "Any outcome" },
+    ...Object.entries(PROCUREMENT_OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
+  ];
+  const sorOptions = [
+    { value: "all", label: "Any SOR" },
+    ...uniqueSors.map((s) => ({ value: s.id, label: s.sales_reference || s.client_name })),
+  ];
+
+  const toolbar = (
+    <FilterBar
+      search={{ value: search, onChange: setSearch, placeholder: "Search requests" }}
+      chips={
+        <>
+          <FilterSelect
+            icon={UserRound}
+            label="Assignee"
+            options={assigneeOptions}
+            value={filterAssignee}
+            onChange={setFilterAssignee}
+            allValue="all"
+            className={CHIP}
+            wrapperClassName={CHIP_WRAPPER}
+          />
+          <FilterSelect
+            icon={CircleDot}
+            label="Outcome"
+            options={outcomeOptions}
+            value={filterOutcome}
+            onChange={setFilterOutcome}
+            allValue="all"
+            className={CHIP}
+            wrapperClassName={CHIP_WRAPPER}
+          />
+          <FilterSelect
+            icon={FileText}
+            label="SOR"
+            options={sorOptions}
+            value={filterSor}
+            onChange={setFilterSor}
+            allValue="all"
+            className={CHIP}
+            wrapperClassName={CHIP_WRAPPER}
+          />
+        </>
+      }
+      hasActiveFilters={hasActiveFilters}
+      onClearAll={() => {
+        setSearch("");
+        setFilterAssignee("all");
+        setFilterOutcome("all");
+        setFilterSor("all");
+      }}
+    />
+  );
 
   return (
-    <PageContainer maxWidth="7xl" className="pt-4">
-      <PageHeader
+    <>
+      <PageShell
         title="Purchasing Queue"
         description="Every product still waiting on purchasing, across all SORs."
-      />
-
-      <FilterBar
-        className="mb-6"
-        hasActiveFilters={filterAssignee !== "all" || filterOutcome !== "all" || filterSor !== "all"}
-        onClearAll={() => {
-          setFilterAssignee("all");
-          setFilterOutcome("all");
-          setFilterSor("all");
-        }}
+        toolbar={toolbar}
       >
-        <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-          <SelectTrigger className="w-[180px] bg-background">
-            <SelectValue placeholder="Assignee" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any Assignee</SelectItem>
-            <SelectItem value="unassigned">Unassigned</SelectItem>
-            {buyers.map((b) => (
-              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filterOutcome} onValueChange={setFilterOutcome}>
-          <SelectTrigger className="w-[180px] bg-background">
-            <SelectValue placeholder="Outcome" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any Outcome</SelectItem>
-            {Object.entries(PROCUREMENT_OUTCOME_LABELS).map(([val, label]) => (
-              <SelectItem key={val} value={val}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filterSor} onValueChange={setFilterSor}>
-          <SelectTrigger className="w-[200px] bg-background">
-            <SelectValue placeholder="SOR" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any SOR</SelectItem>
-            {uniqueSors.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.sales_reference || s.client_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterBar>
-
-      {isLoading && (
-        <div className="flex justify-center py-20">
-          <Spinner />
-        </div>
-      )}
-
-      {isError && (
-        <div className="rounded-2xl border border-red-6 bg-red-a2 px-5 py-8 text-center">
-          <p className="text-sm font-semibold text-red-11">
-            The queue could not be loaded.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">{error?.message}</p>
-        </div>
-      )}
-
-      {!isLoading && !isError && count === 0 && (
-        <div className="rounded-2xl border border-dashed border-mauve-7 px-5 py-16 text-center">
-          <PackageSearch size={26} className="mx-auto mb-3 text-muted-foreground/60" />
-          <p className="text-sm font-semibold text-foreground">Nothing to source</p>
-          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-            Every product sales has sent to purchasing has an answer against it.
-          </p>
-        </div>
-      )}
-
-      {!isLoading && !isError && count > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <span className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-              {count} open {count === 1 ? "request" : "requests"}
-            </span>
+        {isLoading && (
+          <div className="flex justify-center py-20">
+            <Spinner />
           </div>
+        )}
 
-          <div className="overflow-x-auto">
-            <Table className="min-w-[52rem]">
-              <TableHeader>
-                <TableRow>
-                  {["Product", "SOR", "Requested by", "Assigned to", "Waiting", ""].map(
-                    (heading, i) => (
-                      <TableHead
-                        key={heading || `col-${i}`}
-                        className={heading === "" ? "text-right" : undefined}
-                      >
+        {isError && (
+          <div className="rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center">
+            <p className="text-sm font-semibold text-red-11">The queue could not be loaded.</p>
+            <p className="mt-1 text-xs text-muted-foreground">{error?.message}</p>
+          </div>
+        )}
+
+        {!isLoading && !isError && count === 0 && (
+          <EmptyState
+            icon={PackageSearch}
+            title={hasActiveFilters ? "No matching requests" : "Nothing to source"}
+            description={
+              hasActiveFilters
+                ? "No open request matches these filters."
+                : "Every product sales has sent to purchasing has an answer against it."
+            }
+          />
+        )}
+
+        {!isLoading && !isError && count > 0 && (
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[52rem]">
+                <TableHeader>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    {["Product", "SOR", "Requested by", "Assigned to", "Waiting", "Status"].map((heading) => (
+                      <TableHead key={heading} className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}>
                         {heading}
                       </TableHead>
-                    ),
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRequests.map((request) => (
-                  <QueueRow
-                    key={request.id}
-                    request={request}
-                    now={now}
-                    onOpenSor={openSor}
-                    buyers={buyers}
-                    currentUserId={user?.id}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRequests.map((request) => (
+                    <QueueRow
+                      key={request.id}
+                      request={request}
+                      now={now}
+                      onOpen={open}
+                      buyers={buyers}
+                      currentUserId={user?.id}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+              {count} open {count === 1 ? "request" : "requests"}
+            </div>
           </div>
-        </div>
-      )}
-    </PageContainer>
+        )}
+      </PageShell>
+
+      <RequestSheet
+        request={openRequest}
+        now={now}
+        index={index}
+        total={count}
+        onStep={(d) => {
+          const to = filteredRequests[index + d];
+          if (to) step(to.id);
+        }}
+        onClose={close}
+        onOpenSor={openSor}
+        buyers={buyers}
+        currentUserId={user?.id}
+      />
+    </>
   );
 }
 
