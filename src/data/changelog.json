@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-09-30",
+        "title": "Commission Formula in One Place, Tidier Settings",
+        "version": "1.8.3",
+        "changes": [
+            "Commission: rates, department allocations and splits are now all on the Formula tab of the Commission Dashboard. The old Commission Pool page in Administration is gone and its link now opens the Formula tab.",
+            "Commission: Super Admins can add a new dated rate and edit allocations and positions right on the Formula tab. Sales Directors edit splits. Everyone else can view them.",
+            "Settings, Profile and HR Management: setup screens now share the same layout, with underlined tabs and simpler section headings. Profile's Save settings button is now at the top of the page."
+        ]
+    },
+    {
         "date": "2026-09-29",
         "title": "Retail Is Now a Sales Report",
         "version": "1.8.2",
