@@ -90,11 +90,13 @@ describe("ReportFigure", () => {
     expect(container.firstChild.className).toContain("border-b");
   });
 
-  it("shows a clickable stat's hover as an underline, not a background", () => {
+  it("shows a clickable stat's hover as a darker label, not a background or underline", () => {
     render(<ReportFigure stats={[{ label: "Won", value: 4, onClick: () => {} }]} />);
     const button = screen.getByRole("button", { name: /won/i });
     expect(button.className).toContain("hover:bg-transparent");
-    expect(screen.getByText("Won").className).toContain("group-hover/stat:underline");
+    const label = screen.getByText("Won");
+    expect(label.className).toContain("group-hover/stat:text-foreground");
+    expect(label.className).not.toContain("underline");
   });
 
   it("marks a clickable stat with an arrow that a plain one lacks", () => {

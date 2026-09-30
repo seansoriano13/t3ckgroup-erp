@@ -7,7 +7,7 @@ function Stat({ label, value, sub, tone, onClick, large, divided }) {
   const valueTone = isZero ? "text-muted-foreground" : tone === "attention" ? "text-amber-11" : "text-foreground";
   const body = (
     <>
-      <dt className="text-xs text-muted-foreground underline-offset-4 group-hover/stat:text-foreground group-hover/stat:underline group-focus-visible/stat:underline">
+      <dt className="text-xs text-muted-foreground group-hover/stat:text-foreground group-focus-visible/stat:text-foreground">
         {label}
         {onClick && (
           <ArrowUpRight
