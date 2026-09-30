@@ -207,7 +207,7 @@ function HrVerificationQueue() {
       >
 
         {view === "GROUP" ? (
-          <GroupTaskApprovalSection />
+          <GroupTaskApprovalSection searchTerm={searchQuery} />
         ) : (
           <>
             {showAdvanced && (
@@ -251,7 +251,8 @@ function HrVerificationQueue() {
               selectable={bulkEnabled}
               selectedIds={selectedIds}
               onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
-              onToggleAll={(on) => setSelectedIds(on ? items.map((i) => i.id) : [])}
+              onToggleAll={(on, pageItems) => setSelectedIds(on ? pageItems.map((i) => i.id) : [])}
+              paginate
               searchTerm={searchQuery}
               keyboard={!open && !viewTask}
               renderRowAction={(item) =>

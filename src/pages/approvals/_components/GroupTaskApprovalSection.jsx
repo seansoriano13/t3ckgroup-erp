@@ -1,17 +1,189 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Star, Users } from "lucide-react";
+import toast from "react-hot-toast";
 import { groupTaskService } from "../../../services/groupTaskService";
 import { useAuth } from "../../../context/AuthContext";
-import { useState } from "react";
-import { Users, CheckCircle2, XCircle, Search, Star } from "lucide-react";
-import toast from "react-hot-toast";
+import { useRecordParam } from "../../../hooks/useRecordParam";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-
 import { Textarea } from "@/components/ui/textarea";
-export default function GroupTaskApprovalSection() {
+import Spinner from "@/components/ui/Spinner";
+import HighlightText from "../../../components/HighlightText";
+import { formatDate } from "../../../utils/formatDate.js";
+import { relativeAge, shortRef } from "../../../utils/approvalItems.js";
+import { isStaleSince, resolveApprovalShortcut } from "../../../utils/approvalQueue.js";
+import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
+import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
+import { ApprovalTable } from "./ApprovalTable";
+import { ApprovalSheet } from "./ApprovalSheet";
+import { APPROVE_CLASS, NOTE_PRESETS } from "./approvalUi";
+
+const QUEUE = { label: "Group Tasks", icon: Users };
+
+/** A group task as an ApprovalItem in the HR queue: Created → Head grading → HR verification. */
+function groupTaskToItem(task, now = Date.now()) {
+  const clockAt = task.updated_at || task.created_at;
+  const members = task.members || [];
+  return {
+    id: task.id,
+    queue: "hr",
+    ref: shortRef("GRP", task.id),
+    title: task.title,
+    typeLabel: `Group task · ${members.length} member${members.length === 1 ? "" : "s"}`,
+    person: {
+      id: task.created_by,
+      name: task.creator?.name || "Unknown",
+      avatarPath: task.creator?.avatar_path || null,
+      dept: task.creator?.sub_department || task.creator?.department || "",
+    },
+    submittedAt: task.created_at,
+    clockAt,
+    isStale: isStaleSince(clockAt, now),
+    done: false,
+    isHighPriority: false,
+    attachmentCount: 0,
+    chain: [
+      { label: "Created", who: task.creator?.name || "Head", state: "done", at: task.created_at },
+      { label: "Head grading", who: task.creator?.name || "Head", state: "done", at: null },
+      { label: "HR verification", who: "HR", state: "current", at: null },
+    ],
+    source: task,
+  };
+}
+
+function MemberEvaluation({ member, searchTerm }) {
+  return (
+    <li className="rounded-xl border border-border bg-card p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate text-[13px] font-semibold text-foreground">
+          <HighlightText text={member.employee?.name || "Unknown"} search={searchTerm} />
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 font-mono text-xs font-bold tabular-nums text-amber-11">
+          {member.grade ?? "—"} <Star size={11} fill="currentColor" />
+        </span>
+      </div>
+      {member.task_description && <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{member.task_description}</p>}
+      {member.grade_remarks && <p className="mt-1.5 text-xs italic text-muted-foreground">“{member.grade_remarks}”</p>}
+    </li>
+  );
+}
+
+/** HR's sign-off on one graded group task, inside the sheet. Keys: Enter verify, X return. */
+function GroupTaskReview({ item, onVerify, onReturn, isSubmitting, onDecided, searchTerm }) {
+  const task = item.source;
+  const members = task.members || [];
+  const graded = members.filter((m) => m.grade != null);
+  const average = graded.length ? (graded.reduce((sum, m) => sum + Number(m.grade), 0) / graded.length).toFixed(1) : null;
+  const [note, setNote] = useState("");
+  const noteRef = useRef(null);
+
+  const run = async (action, { loading, success, failure }) => {
+    const id = toast.loading(loading);
+    try {
+      await action(note);
+      toast.success(success, { id, duration: 4000 });
+      onDecided();
+    } catch (err) {
+      toast.error(err?.message || failure, { id, duration: 4000 });
+    }
+  };
+
+  const verify = () => {
+    if (isSubmitting) return;
+    run(onVerify, { loading: "Verifying group task…", success: "Group task verified.", failure: "Could not verify the group task." });
+  };
+
+  const reject = () => {
+    if (isSubmitting) return;
+    if (!note.trim()) {
+      toast.error("Add audit notes so the head knows what to fix.");
+      noteRef.current?.focus();
+      return;
+    }
+    run(onReturn, { loading: "Returning group task…", success: "Group task returned to the head.", failure: "Could not return the group task." });
+  };
+
+  useEffect(() => {
+    const onKey = (e) => {
+      const action = resolveApprovalShortcut(e, { isHr: true, isReadOnly: false });
+      if (action === "submit") {
+        e.preventDefault();
+        verify();
+      } else if (action === "reject") {
+        e.preventDefault();
+        reject();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  return (
+    <>
+      <SlideOverBody>
+        <PersonChip person={item.person} size="lg" />
+
+        <DetailSection title="Details">
+          <dl className="divide-y divide-border/70">
+            <DetailRow label="Members">{members.length}</DetailRow>
+            <DetailRow label="Average grade">{average && <span className="font-mono tabular-nums">{average} / 5</span>}</DetailRow>
+            {task.due_date && <DetailRow label="Due">{formatDate(task.due_date)}</DetailRow>}
+            <DetailRow label="Created">{formatDate(task.created_at)}</DetailRow>
+            <DetailRow label="Waiting">
+              <span className={item.isStale ? "font-semibold text-amber-11" : ""}>{relativeAge(item.clockAt).replace(" ago", "")}</span>
+            </DetailRow>
+          </dl>
+        </DetailSection>
+
+        {task.description && (
+          <DetailSection title="Brief">
+            <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground">
+              <HighlightText text={task.description} search={searchTerm} />
+            </p>
+          </DetailSection>
+        )}
+
+        <DetailSection title={`Member evaluations · ${members.length}`}>
+          <ul className="space-y-2">
+            {members.map((m) => (
+              <MemberEvaluation key={m.id} member={m} searchTerm={searchTerm} />
+            ))}
+          </ul>
+        </DetailSection>
+
+        <DetailSection title="Approval chain">
+          <ApprovalChain chain={item.chain} />
+        </DetailSection>
+      </SlideOverBody>
+
+      <SlideOverFooter>
+        <Textarea
+          ref={noteRef}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          placeholder="Add HR audit notes (required to return)"
+          className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
+        />
+        <NotePresets presets={NOTE_PRESETS.hr} onPick={(q) => setNote((n) => (n ? `${n} ${q}` : q))} />
+        <div className="flex gap-2">
+          <Button variant="destructive" className="flex-1" onClick={reject} disabled={isSubmitting} title="Shortcut: X">
+            Return
+          </Button>
+          <Button className={`flex-1 ${APPROVE_CLASS}`} onClick={verify} disabled={isSubmitting} title="Shortcut: Enter">
+            Verify & sign
+          </Button>
+        </div>
+      </SlideOverFooter>
+    </>
+  );
+}
+
+/** HR verification for group tasks: the Approval Center's table and slide-over, same as every other queue. */
+export default function GroupTaskApprovalSection({ searchTerm = "" }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
+  const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
 
   const { data: groupTasks = [], isLoading } = useQuery({
     queryKey: ["groupTasksForHR"],
@@ -19,131 +191,83 @@ export default function GroupTaskApprovalSection() {
     enabled: !!user?.id,
   });
 
-  const pendingHrTasks = groupTasks.filter(t => t.status === "HR_PENDING");
-  
-  const filteredTasks = pendingHrTasks.filter(t => {
-    if (!searchTerm) return true;
-    const q = searchTerm.toLowerCase();
-    return t.title.toLowerCase().includes(q) || t.creator?.name.toLowerCase().includes(q);
-  });
+  const items = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return groupTasks
+      .filter((t) => t.status === "HR_PENDING")
+      .filter((t) => !q || t.title.toLowerCase().includes(q) || t.creator?.name?.toLowerCase().includes(q))
+      .map((t) => groupTaskToItem(t));
+  }, [groupTasks, searchTerm]);
 
+  const index = items.findIndex((i) => i.id === recordId);
+  const open = index >= 0 ? items[index] : null;
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["groupTasksForHR"] });
   const verifyMutation = useMutation({
     mutationFn: ({ id, remarks }) => groupTaskService.verifyGroupTask(id, user.id, remarks),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasksForHR"] });
-      toast.success("Group Task Verified!");
-    },
-    onError: (err) => toast.error(err.message)
+    onSuccess: refresh,
   });
-
   const rejectMutation = useMutation({
     mutationFn: ({ id, remarks }) => groupTaskService.rejectGroupTask(id, user.id, remarks),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasksForHR"] });
-      toast.success("Group Task Rejected back to Head!");
-    },
-    onError: (err) => toast.error(err.message)
+    onSuccess: refresh,
   });
 
-  const [actionRemarks, setActionRemarks] = useState({});
-
   if (isLoading) {
-    return <div className="py-20 text-center font-bold text-muted-foreground">Loading Group Task Approvals...</div>;
-  }
-
-  if (pendingHrTasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 bg-card border border-border rounded-xl shadow-sm text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-6 bg-muted text-muted-foreground ring-4 ring-muted/50">
-          <Users size={32} />
-        </div>
-        <p className="text-foreground font-bold text-2xl tracking-tight">No Group Tasks Pending</p>
-        <p className="text-muted-foreground mt-2 font-medium">There are no group tasks awaiting HR verification right now.</p>
+      <div className="flex justify-center py-20">
+        <Spinner />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="relative w-full max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="text"
-          placeholder="Search by title or creator..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          containerClassName="w-full" className="pl-9 pr-4"
-        />
-      </div>
+    <>
+      <ApprovalTable
+        items={items}
+        queueIcon={QUEUE.icon}
+        personLabel="Created by"
+        onOpen={(item) => openRecord(item.id)}
+        searchTerm={searchTerm}
+        keyboard={!open}
+        renderRowAction={(item) => (
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openRecord(item.id)}>
+            Verify
+          </Button>
+        )}
+        empty={{ title: "No Group Tasks Pending", description: "Graded group tasks awaiting HR verification will appear here." }}
+      />
 
-      <div className="grid gap-6">
-        {filteredTasks.map(task => (
-          <div key={task.id} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-            <div className="p-5 border-b border-border flex flex-col md:flex-row justify-between gap-4">
-               <div>
-                  <h3 className="font-black text-xl text-foreground">{task.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Created by: <span className="font-bold text-foreground">{task.creator?.name}</span></p>
-                  {task.description && <p className="text-sm text-muted-foreground mt-2">{task.description}</p>}
-               </div>
-               <div className="shrink-0 flex flex-col gap-2 min-w-[250px]">
-                  <Textarea 
-                    placeholder="HR Remarks (required for rejection)"
-                    value={actionRemarks[task.id] || ""}
-                    onChange={(e) => setActionRemarks(prev => ({ ...prev, [task.id]: e.target.value }))}
-                    className="h-16 min-h-0 resize-none rounded-lg p-2 text-xs md:text-xs"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => verifyMutation.mutate({ id: task.id, remarks: actionRemarks[task.id] })}
-                      disabled={verifyMutation.isPending}
-                      className="flex-1 h-auto py-1.5 text-xs font-bold bg-green-9 text-primary-foreground hover:bg-green-9"
-                    >
-                      <CheckCircle2 size={14} /> Verify
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => {
-                        if (!actionRemarks[task.id]?.trim()) {
-                          toast.error("Remarks are required to reject.");
-                          return;
-                        }
-                        rejectMutation.mutate({ id: task.id, remarks: actionRemarks[task.id] });
-                      }}
-                      disabled={rejectMutation.isPending}
-                      className="flex-1 h-auto py-1.5 text-xs font-bold bg-destructive text-primary-foreground hover:bg-destructive"
-                    >
-                      <XCircle size={14} /> Reject
-                    </Button>
-                  </div>
-               </div>
-            </div>
-            
-            <div className="p-5 bg-muted/10">
-               <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Member Evaluations</h4>
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                 {task.members?.map(m => (
-                   <div key={m.id} className="bg-card border border-border p-3 rounded-lg flex flex-col gap-1.5">
-                     <div className="flex justify-between items-start">
-                       <span className="font-bold text-sm">{m.employee?.name}</span>
-                       <div className="flex items-center text-amber-9 bg-warning/10 px-1.5 py-0.5 rounded text-xs font-bold gap-0.5">
-                         {m.grade} <Star size={10} fill="currentColor" />
-                       </div>
-                     </div>
-                     <p className="text-[11px] text-muted-foreground line-clamp-2">{m.task_description}</p>
-                     {m.grade_remarks && (
-                       <div className="mt-1 p-1.5 bg-muted rounded text-[10px] text-muted-foreground italic">
-                         "{m.grade_remarks}"
-                       </div>
-                     )}
-                   </div>
-                 ))}
-               </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+      <ApprovalSheet
+        item={open}
+        queueLabel={QUEUE.label}
+        queueIcon={QUEUE.icon}
+        index={index}
+        total={items.length}
+        onStep={(d) => {
+          const to = items[index + d];
+          if (to) stepRecord(to.id);
+        }}
+        onClose={closeRecord}
+        onOpenDetails={(item) =>
+          window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: item.id, type: "GROUP_TASK" } }))
+        }
+      >
+        {(item) => (
+          <GroupTaskReview
+            key={item.id}
+            item={item}
+            searchTerm={searchTerm}
+            isSubmitting={verifyMutation.isPending || rejectMutation.isPending}
+            onVerify={(remarks) => verifyMutation.mutateAsync({ id: item.id, remarks })}
+            onReturn={(remarks) => rejectMutation.mutateAsync({ id: item.id, remarks })}
+            onDecided={() => {
+              const next = items[index + 1] || items[index - 1];
+              if (next) stepRecord(next.id);
+              else closeRecord();
+            }}
+          />
+        )}
+      </ApprovalSheet>
+    </>
   );
 }

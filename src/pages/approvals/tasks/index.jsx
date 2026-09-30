@@ -314,7 +314,8 @@ function TaskApprovalsQueue() {
           selectable={bulkEnabled}
           selectedIds={selectedIds}
           onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
-          onToggleAll={(on) => setSelectedIds(on ? items.map((i) => i.id) : [])}
+          onToggleAll={(on, pageItems) => setSelectedIds(on ? pageItems.map((i) => i.id) : [])}
+          paginate
           repliedIds={repliedIds}
           searchTerm={searchQuery}
           keyboard={!open && !viewTask}
