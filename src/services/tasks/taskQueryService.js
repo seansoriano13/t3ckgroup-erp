@@ -70,9 +70,19 @@ const extractSubmittedByName = (activityLogs = [], fallbackName = null) => {
   return match?.[1] || fallbackName;
 };
 
+/** Narrows a tasks query to a created_at window and/or a row range. */
+function applyWindow(query, { from, to, createdFrom, createdTo }) {
+  if (createdFrom) query = query.gte("created_at", createdFrom);
+  if (createdTo) query = query.lte("created_at", createdTo);
+  if (Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= from) {
+    query = query.range(from, to);
+  }
+  return query;
+}
+
 export const taskQueryService = {
   // 1. HR/HEAD VIEW: Get everything
-  async getAllTasks({ from = null, to = null } = {}) {
+  async getAllTasks({ from = null, to = null, createdFrom = null, createdTo = null } = {}) {
     let query = supabase
       .from("tasks")
       .select(
@@ -89,9 +99,7 @@ export const taskQueryService = {
       .not("status", "in", HIDDEN_TASK_STATUS_FILTER)
       .order("created_at", { ascending: false });
 
-    if (Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= from) {
-      query = query.range(from, to);
-    }
+    query = applyWindow(query, { from, to, createdFrom, createdTo });
 
     const { data, error } = await query;
 
@@ -139,7 +147,7 @@ export const taskQueryService = {
   },
 
   // 2. EMPLOYEE VIEW: Get only tasks logged by the current user
-  async getMyTasks(userId, { from = null, to = null } = {}) {
+  async getMyTasks(userId, { from = null, to = null, createdFrom = null, createdTo = null } = {}) {
     let query = supabase
       .from("tasks")
       .select(
@@ -157,9 +165,7 @@ export const taskQueryService = {
       .not("status", "in", HIDDEN_TASK_STATUS_FILTER)
       .order("created_at", { ascending: false });
 
-    if (Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= from) {
-      query = query.range(from, to);
-    }
+    query = applyWindow(query, { from, to, createdFrom, createdTo });
 
     const { data, error } = await query;
 

@@ -8,7 +8,7 @@ import TaskTableView from "../../components/TaskTableView.jsx";
 import TaskFilterBar from "../../components/TaskFilterBar.jsx";
 import { useAuth } from "../../context/AuthContext";
 import { taskService } from "../../services/taskService.js";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, keepPreviousData, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 
@@ -28,6 +28,43 @@ import Dot from "../../components/ui/Dot";
 // Every mutation and the realtime hook below need the page's own list and the
 // dashboard's shared task list to agree on freshness after any change.
 const TASK_QUERY_KEYS = [["tasks"], ["dashboardTasks"]];
+
+const TASKS_PAGE_SIZE = 100;
+
+/**
+ * The created_at window a timeframe filter covers, as ISO bounds, so the
+ * server only sends that period. Mirrors useTaskFilters' client-side match;
+ * an empty or unparseable filter means no window.
+ */
+function createdWindow(timeframe, value) {
+  if (!value) return {};
+  const parts = value.split("-").map(Number);
+  if (parts.some(Number.isNaN)) return {};
+  const [y, m = 1, d = 1] = parts;
+  let start;
+  let end;
+  if (timeframe === "YEARLY") {
+    start = new Date(y, 0, 1);
+    end = new Date(y + 1, 0, 1);
+  } else if (timeframe === "MONTHLY") {
+    start = new Date(y, m - 1, 1);
+    end = new Date(y, m, 1);
+  } else if (timeframe === "DAILY") {
+    start = new Date(y, m - 1, d);
+    end = new Date(y, m - 1, d + 1);
+  } else if (timeframe === "WEEKLY") {
+    const picked = new Date(y, m - 1, d);
+    const day = picked.getDay();
+    start = new Date(y, m - 1, d - day + (day === 0 ? -6 : 1));
+    end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+  } else {
+    return {};
+  }
+  return {
+    createdFrom: start.toISOString(),
+    createdTo: new Date(end.getTime() - 1).toISOString(),
+  };
+}
 
 /** Whose tasks a person sees when looking at only their own. */
 const ownScope = (user) => ({
@@ -194,18 +231,35 @@ export default function TasksPage() {
       ? "all"
       : "personal";
 
+  // Only the selected period is fetched, and in pages, so a wide filter (a
+  // whole year) doesn't pull every task up front. Older pages load on demand.
+  const range = createdWindow(filters.timeframe, filters.selectedDateFilter);
   const {
-    data: rawTasks = [],
+    data,
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ["tasks", user?.id, fetchStrategy],
-    queryFn: () =>
-      fetchStrategy === "all"
-        ? taskService.getAllTasks()
-        : taskService.getMyTasks(user?.id),
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["tasks", user?.id, fetchStrategy, range.createdFrom, range.createdTo],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const page = {
+        ...range,
+        from: pageParam,
+        to: pageParam + TASKS_PAGE_SIZE - 1,
+      };
+      return fetchStrategy === "all"
+        ? taskService.getAllTasks(page)
+        : taskService.getMyTasks(user?.id, page);
+    },
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.length === TASKS_PAGE_SIZE ? pages.length * TASKS_PAGE_SIZE : undefined,
     enabled: !!user?.id,
+    placeholderData: keepPreviousData,
   });
+  const rawTasks = useMemo(() => data?.pages.flat() ?? [], [data]);
 
   useEffect(() => {
     if (!location.state?.openTaskId) return;
@@ -635,6 +689,18 @@ export default function TasksPage() {
           />
         )}
       </div>
+      )}
+
+      {hasNextPage && (
+        <div className="flex justify-center pb-10">
+          <Button
+            variant="outline"
+            disabled={isFetchingNextPage}
+            onClick={() => fetchNextPage()}
+          >
+            {isFetchingNextPage ? "Loading…" : "Load older tasks"}
+          </Button>
+        </div>
       )}
 
       <TaskDetails
