@@ -542,6 +542,7 @@ async function latestSnapshotFor(saleTypeId) {
     .select("*")
     .eq("flow_id", flow.id)
     .order("version", { ascending: false })
+    .order("version_minor", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (snapshotError) throw snapshotError;

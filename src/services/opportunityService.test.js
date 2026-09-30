@@ -1657,6 +1657,23 @@ describe("opportunityService", () => {
       )
     })
 
+    // A move added and Published lands as a minor (v1.1) beside v1.0, both
+    // sharing major 1. A deal registered afterwards has to pin the newest of
+    // them, or the move just published is one it can never take.
+    it("pins a new deal to the latest minor of the newest major, so a move published since is takeable", async () => {
+      makeFlowSnapshot({ flow_id: flow.id })
+      makeFlowEdge(lead, awarded)
+      makeFlowSnapshot({ flow_id: flow.id, version: 1, version_minor: 1 })
+
+      const deal = await opportunityService.createOpportunity(
+        payload({ sale_type_id: saleType.id }),
+        registrar.id,
+      )
+      const moved = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+      expect(moved.flow_stage_id).toBe(awarded.id)
+    })
+
     it("permits a loop back that was drawn", async () => {
       const deal = await register()
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
