@@ -1,6 +1,9 @@
 import PageContainer from "./PageContainer";
 import PageHeader from "./PageHeader";
 
+/** PageContainer width per `frame`. */
+const FRAME_WIDTH = { centred: "7xl", narrow: "4xl", full: "full" };
+
 /**
  * The Page skeleton (ADR 0029, DESIGN.md "Pages → PageShell").
  *
@@ -32,12 +35,11 @@ export default function PageShell({
   className = "",
 }) {
   const full = frame === "full";
-  const maxWidth = full ? "full" : frame === "narrow" ? "4xl" : "7xl";
   const pinned = full ? "shrink-0" : "";
 
   return (
     <PageContainer
-      maxWidth={maxWidth}
+      maxWidth={FRAME_WIDTH[frame] ?? "7xl"}
       fill={full}
       spaceY="4"
       className={className}

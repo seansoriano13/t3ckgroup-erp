@@ -527,9 +527,9 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="p-5 space-y-4">
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                Live Preview
-              </p>
+              <h3 className="text-sm font-semibold text-foreground">
+                Live preview
+              </h3>
               <div className="relative rounded-lg overflow-hidden h-28 border border-border">
                 <Image
                   src={bannerPreviewUrl || "/leaf-background.jpg"}
@@ -553,9 +553,9 @@ export default function ProfilePage() {
             <div className="space-y-4 rounded-xl border border-border bg-card p-5">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black text-foreground uppercase tracking-widest">
+                  <h3 className="text-sm font-semibold text-foreground">
                     Profile photo
-                  </p>
+                  </h3>
                   <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-[150px]">
                     {avatarFile ? avatarFile.name : "Custom avatar or default"}
                   </p>
@@ -609,9 +609,9 @@ export default function ProfilePage() {
             <div className="space-y-4 rounded-xl border border-border bg-card p-5">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black text-foreground uppercase tracking-widest">
+                  <h3 className="text-sm font-semibold text-foreground">
                     Dashboard banner
-                  </p>
+                  </h3>
                   <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-[150px]">
                     {bannerFile ? bannerFile.name : "URL, upload, or random"}
                   </p>
@@ -689,9 +689,9 @@ export default function ProfilePage() {
           <div className="space-y-4 rounded-xl border border-border bg-card p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <p className="text-[10px] font-black text-foreground uppercase tracking-widest">
-                  Motivational Quote
-                </p>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Motivational quote
+                </h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   Set a daily reminder for yourself.
                 </p>

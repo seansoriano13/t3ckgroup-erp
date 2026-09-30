@@ -220,15 +220,17 @@ export default function EmployeeManagement() {
     }
   };
 
+  const isEmployees = activeTab === "employees";
+
   return (
     <ProtectedRoute requireHr={true}>
       <PageShell
         // Employees is a Register; the two configuration tabs are Config (a narrow column).
-        frame={activeTab === "employees" ? "centred" : "narrow"}
+        frame={isEmployees ? "centred" : "narrow"}
         title="HR Management"
         description="Manage system access, roles, departments, and task categories."
         action={
-          activeTab === "employees" && (
+          isEmployees && (
             <Button onClick={handleAddNew}>
               <UserPlus size={16} />
               Add Employee

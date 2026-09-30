@@ -206,7 +206,7 @@ export default function SystemUpdateManager() {
         className={`flex items-center justify-between px-5 py-4 ${isOpen ? "border-b border-border/60" : ""}`}
       >
         <div>
-          <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             System updates banner
           </h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">

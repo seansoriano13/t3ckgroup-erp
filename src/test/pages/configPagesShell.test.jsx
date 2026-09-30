@@ -122,6 +122,9 @@ describe("Profile on PageShell", () => {
     expect(narrowColumn()).toHaveClass("max-w-4xl", "mx-auto");
     expect(screen.getByRole("heading", { name: "Organizational details" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Signature" })).toBeInTheDocument();
+    for (const title of ["Live preview", "Profile photo", "Dashboard banner", "Motivational quote"]) {
+      expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+    }
     expect(shoutingHeadings(container)).toEqual([]);
   });
 });
