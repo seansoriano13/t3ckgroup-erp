@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { Pencil } from "lucide-react";
 import { commissionService } from "../../../services/commissionService";
 import { useSalesDirectorAccess } from "../../../hooks/useSalesDirectorAccess";
 import { Button } from "../../ui/button";
@@ -10,15 +11,24 @@ import { useCommissionSplits } from "./useCommissionDashboard";
 import { Meter, SplitBar, Swatch, UsageRow, UsageSection } from "./parts";
 import CommissionCalculator from "./CommissionCalculator";
 
-/** The expanded body of a Split rule: read-only for most, editable for a Sales Director or Super Admin. */
+/**
+ * The expanded body of a Split rule. Read-only by default; a Sales Director or
+ * Super Admin gets an Edit button that turns the roles into inputs.
+ */
 function SplitDetail({ projectType, splits, canEdit, actorId }) {
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(null);
   const roles = projectType.roles;
   const saved = Object.fromEntries(roles.map((role) => [role, Number(splits.find((s) => s.shareRole === role)?.percent) || 0]));
   const values = draft ?? saved;
   const total = roles.reduce((sum, role) => sum + (Number(values[role]) || 0), 0);
   const dirty = draft !== null && roles.some((role) => Number(draft[role]) !== saved[role]);
+
+  const stopEditing = () => {
+    setDraft(null);
+    setEditing(false);
+  };
 
   const save = useMutation({
     mutationFn: () => commissionService.saveSplitsForProjectType(projectType.value, roles.map((role) => ({ shareRole: role, percent: Number(values[role]) || 0 })), actorId),
@@ -27,20 +37,27 @@ function SplitDetail({ projectType, splits, canEdit, actorId }) {
       queryClient.invalidateQueries({ queryKey: ["commissionDashboard"] });
       queryClient.invalidateQueries({ queryKey: ["commissionBreakdown"] });
       toast.success(`${projectType.long} split updated.`);
-      setDraft(null);
+      stopEditing();
     },
     onError: (err) => toast.error(err.message),
   });
 
-  if (!canEdit) {
+  if (!editing) {
     return (
-      <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-        {splitRows(splits, projectType.value).map((r) => (
-          <div key={r.role} className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex items-center gap-2 text-muted-foreground"><Swatch tone={r.role} />{r.label}</span>
-            <span className="font-medium tabular-nums text-foreground">{r.percent}%</span>
-          </div>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
+        <div className="grid flex-1 gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+          {splitRows(splits, projectType.value).map((r) => (
+            <div key={r.role} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground"><Swatch tone={r.role} />{r.label}</span>
+              <span className="font-medium tabular-nums text-foreground">{r.percent}%</span>
+            </div>
+          ))}
+        </div>
+        {canEdit && (
+          <Button type="button" variant="outline" size="sm" aria-label={`Edit ${projectType.long} split`} onClick={() => setEditing(true)}>
+            <Pencil /> Edit
+          </Button>
+        )}
       </div>
     );
   }
@@ -72,7 +89,7 @@ function SplitDetail({ projectType, splits, canEdit, actorId }) {
         <span className={`text-xs tabular-nums ${Math.abs(total - 100) > 0.01 ? "font-semibold text-destructive" : "text-muted-foreground"}`}>
           Total {total.toFixed(2)}%{Math.abs(total - 100) > 0.01 && " — must be 100%"}
         </span>
-        {dirty && <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)}>Discard</Button>}
+        <Button type="button" variant="ghost" size="sm" onClick={stopEditing}>Cancel</Button>
         <Button type="button" size="sm" disabled={!dirty || save.isPending || Math.abs(total - 100) > 0.01} onClick={() => save.mutate()}>
           Save split
         </Button>
@@ -120,7 +137,7 @@ export default function FormulaTab({ access, departments }) {
 
       <UsageSection
         title="Split rules"
-        description={canEditSplits ? "How the Sales fund is divided on a SOR, by Project Type. Open one to see or change each role." : "How the Sales fund is divided on a SOR, by Project Type. Open one to see each role."}
+        description={canEditSplits ? "How the Sales fund is divided on a SOR, by Project Type. Open one to see each role, and edit it." : "How the Sales fund is divided on a SOR, by Project Type. Open one to see each role."}
       >
         {SPLIT_PROJECT_TYPES.map((p) => {
           const rows = splitRows(splits[p.value], p.value);

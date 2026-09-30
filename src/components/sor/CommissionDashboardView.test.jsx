@@ -252,13 +252,32 @@ describe("CommissionDashboardView", () => {
       expect(screen.queryByRole("button", { name: /Save split/ })).not.toBeInTheDocument();
     });
 
-    it("lets a Sales Director change and save a split", async () => {
+    it("shows a Sales Director the split read-only until they press Edit, and Cancel goes back", async () => {
+      commissionService.isSalesDirector.mockResolvedValue(true);
+      asUser(aliceUser);
+      renderView({ path: "/sors/commission?tab=formula" });
+
+      fireEvent.click(await screen.findByRole("button", { name: /Single Salesperson Project/ }));
+      expect(await screen.findByRole("button", { name: /^Edit/ })).toBeInTheDocument();
+      expect(screen.getByText("80%")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Deal Owner percent")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Save split/ })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Edit/ }));
+      expect(screen.getByLabelText("Deal Owner percent")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Cancel/ }));
+      expect(screen.queryByLabelText("Deal Owner percent")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^Edit/ })).toBeInTheDocument();
+    });
+
+    it("lets a Sales Director change and save a split, then returns to the read-only view", async () => {
       commissionService.isSalesDirector.mockResolvedValue(true);
       commissionService.saveSplitsForProjectType.mockResolvedValue(SPLITS.SSP);
       asUser(aliceUser);
       renderView({ path: "/sors/commission?tab=formula" });
 
       fireEvent.click(await screen.findByRole("button", { name: /Single Salesperson Project/ }));
+      fireEvent.click(await screen.findByRole("button", { name: /^Edit/ }));
       const owner = await screen.findByLabelText("Deal Owner percent");
       fireEvent.change(owner, { target: { value: "70" } });
       fireEvent.change(screen.getByLabelText("Sales Director percent"), { target: { value: "30" } });
@@ -271,6 +290,7 @@ describe("CommissionDashboardView", () => {
           "user-alice",
         );
       });
+      await waitFor(() => expect(screen.queryByLabelText("Deal Owner percent")).not.toBeInTheDocument());
     });
 
     it("works the formula through for a typed contract value", async () => {
