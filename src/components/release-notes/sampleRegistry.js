@@ -30,7 +30,7 @@ import { LeavesManagerSample } from "./leavesManagerSamples"
 import { NotificationsSample } from "./notificationSamples"
 import { LoginSample } from "./loginSamples"
 import { ChatMentionSample } from "./chatSamples"
-import { LeaveFormSample, RequestStagesSample, PrintedFormsSample } from "./hrSamples"
+import { LeaveFormSample, RequestStagesSample, PrintedFormsSample, SignatureSample } from "./hrSamples"
 import {
   CanvasEditingSample,
   StageAccessSample,
@@ -69,6 +69,7 @@ export const SAMPLES = {
   "leave-form": LeaveFormSample,
   "request-stages": RequestStagesSample,
   "hr-forms": PrintedFormsSample,
+  signature: SignatureSample,
   "approval-center": ApprovalCenterSample,
   "leaves-manager": LeavesManagerSample,
   "offset-hours": OffsetSample,

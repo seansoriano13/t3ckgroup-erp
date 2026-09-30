@@ -217,9 +217,16 @@ export const SECTIONS = [
       {
         id: "hr-forms",
         title: "Printed forms with three signatures and a QR code",
-        body: "Approved requests print on new forms: TG-11 for leave, TG-12 for overtime and TG-13 for undertime. Each carries your signature, your head's and HR's, and a QR code anyone can scan to check the record is real and still approved. Add your signature once in Profile and it is signed onto every request you file. HR prints the forms from the Leaves Manager, two to a sheet.",
+        body: "Approved requests print on new forms: TG-11 for leave, TG-12 for overtime and TG-13 for undertime. Each carries your signature, your head's and HR's, and a QR code anyone can scan to check the record is real and still approved. HR prints the forms from the Leaves Manager, two to a sheet.",
         who: ["Everyone", "HR"],
         sample: "hr-forms",
+      },
+      {
+        id: "signature",
+        title: "Add your signature once, in Profile",
+        body: "In Profile, press Add Signature and draw it with your mouse or finger, or upload a photo of it signed on paper; the white background is taken out for you. From then on it is signed onto every request you file and prints on its form. If you replace it later, requests you already filed keep the old one.",
+        who: ["Everyone"],
+        sample: "signature",
       },
       {
         id: "approval-center",

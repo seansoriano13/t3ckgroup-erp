@@ -20,8 +20,11 @@ const INK_COLOR = "#1B1620"; // mauve-ink, matches the printed forms' typography
  * itself has no automated test: it needs a real Canvas implementation this
  * environment doesn't have. Its contract is that it emits a PNG blob, and
  * that blob's journey from there is what signatureService.test.js covers.
+ *
+ * `save` stores the PNG; Release Notes swaps it for one that stores nothing
+ * (ADR 0030).
  */
-export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onSuccess }) {
+export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onSuccess, save = signatureService.saveSignature }) {
   const [activeTab, setActiveTab] = useState("draw");
   const [hasDrawn, setHasDrawn] = useState(false);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState(null);
@@ -126,7 +129,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
       if (!blob) throw new Error("Could not export the signature image.");
 
       const file = new File([blob], "signature.png", { type: "image/png" });
-      const updated = await signatureService.saveSignature(employeeId, file);
+      const updated = await save(employeeId, file);
       toast.success("Signature saved.");
       onSuccess?.(updated);
       onClose();

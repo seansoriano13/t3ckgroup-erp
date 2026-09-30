@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
-import { Plus } from "lucide-react"
+import { PenLine, Plus } from "lucide-react"
 import { SampleAuthProvider } from "@/context/AuthContext"
 import TabGroup from "@/components/ui/TabGroup"
 import { Button } from "@/components/ui/button"
 import ApplyLeaveModal from "../offsets/ApplyLeaveModal"
+import SignatureCaptureModal from "../profile/SignatureCaptureModal"
 import RequestsTable from "../../pages/offsets/_components/RequestsTable"
 import { getFormType } from "../../lib/pdf/formTypeRegistry"
 import { buildPrintableDocument, hydrateRecordsForPrint } from "../../lib/pdf/htmlPrinter"
@@ -240,24 +241,29 @@ const PRINTED_FORMS = [
   },
 ]
 
-export function PrintedFormsSample() {
-  const [form, setForm] = useState(PRINTED_FORMS[0].value)
+// The Document Center's own pipeline: view model, QR code, printable page.
+// Nothing here is marked printed; that happens only when HR prints. A
+// signature drawn in the sample goes on the applicant's plate.
+function usePrintedPage(record, applicantSignature = null) {
   const [html, setHtml] = useState("")
-
-  // The Document Center's own pipeline: view model, QR code, printable page.
-  // Nothing here is marked printed; that happens only when HR prints.
   useEffect(() => {
     let cancelled = false
-    const { record } = PRINTED_FORMS.find((f) => f.value === form)
     hydrateRecordsForPrint([record])
       .catch(() => [{ ...getFormType(record.type).buildViewModel(record), qrDataUrl: "", qrText: "" }])
-      .then((mapped) => {
-        if (!cancelled) setHtml(buildPrintableDocument(mapped))
+      .then(([page]) => {
+        if (applicantSignature) page.sigs[0].signatureBase64 = applicantSignature
+        if (!cancelled) setHtml(buildPrintableDocument([page]))
       })
     return () => {
       cancelled = true
     }
-  }, [form])
+  }, [record, applicantSignature])
+  return html
+}
+
+export function PrintedFormsSample() {
+  const [form, setForm] = useState(PRINTED_FORMS[0].value)
+  const html = usePrintedPage(PRINTED_FORMS.find((f) => f.value === form).record)
 
   return (
     <div className="space-y-4">
@@ -270,5 +276,52 @@ export function PrintedFormsSample() {
         className="block h-[528px] w-[816px] max-w-none rounded-sm border-0 bg-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)]"
       />
     </div>
+  )
+}
+
+/* ── Your signature, drawn once in Profile ──────────────────────────────── */
+
+const readAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+export function SignatureSample() {
+  const [open, setOpen] = useState(false)
+  const [signature, setSignature] = useState(null)
+  const html = usePrintedPage(PRINTED_FORMS[0].record, signature)
+
+  // Puts the drawing on the form instead of storing it, and says so: a
+  // "Signature saved." here would leave someone thinking Profile has theirs.
+  const save = async (_employeeId, file) => {
+    setSignature(await readAsDataUrl(file))
+    setOpen(false)
+    throw new Error(`${SAMPLE_SAVE_BLOCKED} Add yours in Profile.`)
+  }
+
+  return (
+    <SampleProvider>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOpen(true)}
+            className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+          >
+            <PenLine size={14} /> Add Signature
+          </Button>
+          <p className="text-xs text-muted-foreground">Draw one and press Save: it goes on the Requested by line below.</p>
+        </div>
+        {/* The signature band of a leave form, cropped from the printed page. */}
+        <div className="h-[150px] w-[816px] overflow-hidden rounded-sm bg-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)]">
+          <iframe title="Signatures on a printed form, sample" srcDoc={html} scrolling="no" className="-mt-[362px] block h-[528px] w-[816px] max-w-none border-0" />
+        </div>
+      </div>
+      <SignatureCaptureModal isOpen={open} onClose={() => setOpen(false)} employeeId={APPLICANT.id} save={save} />
+    </SampleProvider>
   )
 }
