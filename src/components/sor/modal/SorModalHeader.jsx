@@ -2,8 +2,6 @@ import { useEffect, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
-  Maximize2,
-  Minimize2,
   MoreHorizontal,
   Pencil,
   Target,
@@ -47,8 +45,6 @@ export default function SorModalHeader({
   handleEditToggle,
   updateMutation,
   deleteMutation,
-  isExpanded,
-  setIsExpanded,
   onClose,
   isFlowDeal,
   flowCanvas,
@@ -316,18 +312,6 @@ export default function SorModalHeader({
               >
                 {({ close }) => (
                   <div className="flex flex-col gap-0.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        close();
-                        setIsExpanded((v) => !v);
-                      }}
-                      className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground hover:bg-mauve-a3 hover:text-foreground"
-                    >
-                      {isExpanded ? <Minimize2 size={14} className="text-muted-foreground" /> : <Maximize2 size={14} className="text-muted-foreground" />}
-                      {isExpanded ? "Collapse" : "Expand to full screen"}
-                    </Button>
                     {canEdit && (
                       <Button
                         type="button"

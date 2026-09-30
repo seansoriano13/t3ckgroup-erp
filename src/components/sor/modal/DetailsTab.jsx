@@ -136,7 +136,6 @@ export default function DetailsTab({ ctx }) {
     handleDownloadQuotation,
     fetchingOdoo,
     handleFetchFromOdoo,
-    isExpanded,
     onClose,
     accessLevel,
   } = ctx;
@@ -382,7 +381,7 @@ export default function DetailsTab({ ctx }) {
         <div className="flex flex-col gap-6 lg:col-span-8">
           <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
             <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Deal Details</p>
-            <div className={cn("grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3", isExpanded && "xl:grid-cols-4")}>
+            <div className={cn("grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3",)}>
               <Detail
                 label="Lead Source"
                 isEditing={isEditing}

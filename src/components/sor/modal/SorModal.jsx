@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { RecordModalContent } from "@/components/ui/record-modal";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { opportunityService } from "../../../services/opportunityService";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../context/AuthContext";
@@ -135,7 +135,6 @@ export default function SorModal({
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
 
-  const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [fetchingOdoo, setFetchingOdoo] = useState(false);
@@ -164,7 +163,6 @@ export default function SorModal({
     setLostReason("");
     setSalesRef("");
 
-    setIsExpanded(false);
     setIsEditing(false);
     setEditForm({});
     attachments.clear();
@@ -893,7 +891,6 @@ export default function SorModal({
     handleFetchFromOdoo,
     items,
     itemsLoading,
-    isExpanded,
     autoSyncingOdoo,
     handleRefreshStock,
     refreshingStock,
@@ -908,8 +905,6 @@ export default function SorModal({
     handleEditToggle,
     updateMutation,
     deleteMutation,
-    isExpanded,
-    setIsExpanded,
     onClose,
     isFlowDeal,
     flowCanvas,
@@ -1015,14 +1010,9 @@ export default function SorModal({
         onClose();
       }}
     >
-      <DialogContent
+      <RecordModalContent
         showCloseButton={false}
-        style={isExpanded ? { width: "100vw", height: "100vh" } : undefined}
-        className={cn(
-          "flex flex-col gap-0 overflow-hidden p-0 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)] outline-none transition-all duration-300",
-          isExpanded ? "!max-w-none !max-h-none !rounded-none !border-0" : "w-full max-w-[95vw] md:max-w-[1200px] max-h-[90vh] rounded-2xl",
-          !isExpanded && "h-[90vh]",
-        )}
+        className="flex flex-col shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)]"
       >
         {PrototypeShell ? (
           <Suspense fallback={null}>
@@ -1034,7 +1024,7 @@ export default function SorModal({
           </div>
         )}
         {returnPrompt.dialog}
-      </DialogContent>
+      </RecordModalContent>
     </Dialog>
   );
 }

@@ -14,7 +14,7 @@ import {
   extractOthersDetailsFromRemarks,
   isCategoryMetadataRemarks,
 } from "../utils/taskFormatters"
-import { PencilLine, AlertTriangle, Columns2, Maximize2 } from "lucide-react"
+import { PencilLine, AlertTriangle, Columns2 } from "lucide-react"
 import TaskFooter from "./TaskFooter.jsx"
 import ReadOnlyTaskBanner from "./ReadOnlyTaskBanner"
 import { isTaskClosedOff } from "../constants/journey"
@@ -26,7 +26,8 @@ import { activeChatService } from "../services/tasks/activeChatService"
 import { taskQueryService } from "@/services/tasks/taskQueryService"
 import { purchasingService } from "@/services/purchasingService"
 import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
+import { RecordModalContent } from "@/components/ui/record-modal"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { cn } from "@/lib/utils"
 import { Button } from "./ui/button"
@@ -42,7 +43,6 @@ export default function TaskDetails({
   const { user } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(false)
   const [isSplitScreen, setIsSplitScreen] = useState(() => {
     if (typeof window !== "undefined") {
       return window.innerWidth >= 1024
@@ -201,7 +201,6 @@ export default function TaskDetails({
       const timer = setTimeout(() => {
         setIsEditing(false)
         setIsSubmitting(false)
-        setIsExpanded(false)
         setIsSplitScreen(typeof window !== "undefined" && window.innerWidth >= 1024)
       }, 300)
       return () => clearTimeout(timer)
@@ -502,17 +501,10 @@ export default function TaskDetails({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
+      <RecordModalContent
         showCloseButton={false}
         onKeyDown={handleKeyDown}
-        className={cn(
-          "p-0 gap-0 z-[70] shadow-2xl flex flex-col transition-all duration-300 overflow-hidden outline-none",
-          isExpanded
-            ? "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !border-0 m-0"
-            : isSplitScreen
-              ? "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:w-[1400px] rounded-2xl"
-              : "max-h-[90vh] sm:max-w-none w-[960px] max-w-[95vw] rounded-2xl",
-        )}
+        className="z-[70] flex flex-col transition-all duration-300"
       >
         {/* CONTENT WRAPPER */}
         <div
@@ -562,18 +554,6 @@ export default function TaskDetails({
                     )}
                   >
                     <Columns2 size={16} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      setIsExpanded((prev) => !prev)
-                    }}
-                    title={isExpanded ? "Collapse" : "Expand"}
-                    className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95 border-transparent hover:border-border"
-                  >
-                    <Maximize2 size={16} />
                   </Button>
                 </>
               }
@@ -897,7 +877,7 @@ export default function TaskDetails({
             />
           )}
         </div>
-      </DialogContent>
+      </RecordModalContent>
     </Dialog>
   )
 }

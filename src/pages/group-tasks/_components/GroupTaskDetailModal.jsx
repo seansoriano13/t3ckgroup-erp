@@ -1,7 +1,8 @@
 import { FileInput } from "@/components/ui/FileInput";
 import { ExternalLink } from "@/components/ui/external-link";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { RecordModalContent } from "@/components/ui/record-modal";
 import toast from "react-hot-toast";
 import {
   X,
@@ -9,7 +10,6 @@ import {
   Star,
   Calendar,
   FileText,
-  Maximize2,
   Check,
   Trash2,
   Clock,
@@ -110,7 +110,6 @@ export default function GroupTaskDetailModal({
   isUploadingAttachment,
   searchTerm,
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [isSplitScreen, setIsSplitScreen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [showRejectForm, setShowRejectForm] = useState(false);
@@ -308,10 +307,8 @@ export default function GroupTaskDetailModal({
   // resets for free, while the group-tasks page keeps it mounted forever and
   // depends on this. So the reset stays here until someone decides which
   // reopen behaviour they want.
-  /* eslint-disable react-hooks/set-state-in-effect -- see note above */
   useEffect(() => {
     if (isOpen) {
-      setIsExpanded(false);
       setIsSplitScreen(false);
       setActiveTab("overview");
       setSelectedMemberId(null);
@@ -327,7 +324,6 @@ export default function GroupTaskDetailModal({
       setIsSaveTemplateModalOpen(false);
     }
   }, [isOpen, clearAttachments]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // --- Inline chat: fetch messages ---
   const { data: rawMessages = [], isLoading: isLoadingChat } = useQuery({
@@ -657,18 +653,9 @@ export default function GroupTaskDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
+      <RecordModalContent
         showCloseButton={false}
-        className={cn(
-          "p-0 gap-0 z-[70] shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] flex flex-col transition-all duration-300 overflow-hidden outline-none",
-          isExpanded
-            ? "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !border-0 m-0"
-            : // Same footprint with or without the chat pane, so toggling split
-              // adds the pane without resizing the modal. (The unsplit branch
-              // used `sm:max-w-none`, which defeated its own max-w and let the
-              // modal run the full viewport width.)
-              "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:max-w-[1400px] rounded-2xl",
-        )}
+        className="z-[70] flex flex-col transition-all duration-300"
       >
         {/* CONTENT WRAPPER — split when isSplitScreen */}
         <div className={cn("flex flex-1 overflow-hidden", isSplitScreen ? "flex-row" : "flex-col")}>
@@ -818,19 +805,6 @@ export default function GroupTaskDetailModal({
               aria-label={isSplitScreen ? "Exit Split Screen" : "Split Screen (Task + Chat)"}
             >
               <Columns2 size={14} />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => {
-                setIsExpanded(!isExpanded);
-              }}
-              className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-              title={isExpanded ? "Collapse" : "Expand"}
-              aria-label={isExpanded ? "Collapse" : "Expand"}
-            >
-              <Maximize2 size={14} />
             </Button>
             <Button
               type="button"
@@ -1671,7 +1645,7 @@ export default function GroupTaskDetailModal({
             )}
           </div>
         </div>
-      </DialogContent>
+      </RecordModalContent>
       <GroupRoleManagerModal
         isOpen={isRoleManagerOpen}
         onClose={() => setIsRoleManagerOpen(false)}

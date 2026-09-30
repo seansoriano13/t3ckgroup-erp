@@ -5,7 +5,7 @@
  * Delete this folder once a variant wins and is rebuilt properly.
  */
 import { useEffect } from "react";
-import { ChevronLeft, ChevronRight, ExternalLink, FileDown, Link2, Maximize2, Minimize2, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, FileDown, Link2, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -269,18 +269,6 @@ export function HeaderActions({ p, extra = null }) {
           >
             {({ close }) => (
               <div className="flex flex-col gap-0.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    close();
-                    p.setIsExpanded((v) => !v);
-                  }}
-                  className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm"
-                >
-                  {p.isExpanded ? <Minimize2 size={14} className="text-muted-foreground" /> : <Maximize2 size={14} className="text-muted-foreground" />}
-                  {p.isExpanded ? "Collapse" : "Expand to full screen"}
-                </Button>
                 {p.canEdit && (
                   <Button
                     type="button"
