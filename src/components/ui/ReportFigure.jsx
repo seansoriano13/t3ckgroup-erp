@@ -7,7 +7,7 @@ function Stat({ label, value, sub, tone, onClick, large, divided }) {
   const valueTone = isZero ? "text-muted-foreground" : tone === "attention" ? "text-amber-11" : "text-foreground";
   const body = (
     <>
-      <dt className="text-xs text-muted-foreground">
+      <dt className="text-xs text-muted-foreground underline-offset-4 group-hover/stat:text-foreground group-hover/stat:underline group-focus-visible/stat:underline">
         {label}
         {onClick && (
           <ArrowUpRight
@@ -31,7 +31,7 @@ function Stat({ label, value, sub, tone, onClick, large, divided }) {
         type="button"
         variant="ghost"
         onClick={onClick}
-        className="group/stat -mx-2 -my-1 h-auto w-full flex-col items-start justify-start gap-0 whitespace-normal px-2 py-1 text-left font-normal"
+        className="group/stat h-auto w-full flex-col items-start justify-start gap-0 whitespace-normal rounded-sm p-0 text-left font-normal hover:bg-transparent"
       >
         {body}
       </Button>
