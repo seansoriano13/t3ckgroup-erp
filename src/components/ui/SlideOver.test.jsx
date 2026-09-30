@@ -62,4 +62,19 @@ describe("SlideOver", () => {
     fireEvent.click(screen.getByLabelText("Open full"));
     expect(onOpenFull).toHaveBeenCalledWith(rec);
   });
+
+  it("labels Open full with openFullLabel", () => {
+    render(ui({ onOpenFull: () => {}, openFullLabel: "View Full Details" }));
+    expect(screen.getByLabelText("View Full Details")).toBeInTheDocument();
+  });
+
+  it("hides the position count and arrows for a lone record", () => {
+    const onStep = vi.fn();
+    render(ui({ index: 0, total: 1, onStep }));
+    expect(screen.queryByText("1 / 1")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/next record/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/previous record/i)).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "j" });
+    expect(onStep).not.toHaveBeenCalled();
+  });
 });

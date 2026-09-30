@@ -17,7 +17,21 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "./drawer"
  * on the panel itself rather than its first button, so a bare Enter reaches a
  * decision shortcut instead of clicking the crumb.
  */
-export default function SlideOver({ record, icon: Icon, crumb, identity, index, total, onStep, onClose, onOpenFull, children }) {
+export default function SlideOver({
+  record,
+  icon: Icon,
+  crumb,
+  identity,
+  index = 0,
+  total = 1,
+  onStep,
+  onClose,
+  onOpenFull,
+  openFullLabel = "Open full",
+  children,
+}) {
+  // A lone record (no list to step through) shows no position count or arrows.
+  const stepping = total > 1;
   const [shown, setShown] = useState(record);
   if (record && record !== shown) setShown(record);
   const current = record || shown;
@@ -29,12 +43,13 @@ export default function SlideOver({ record, icon: Icon, crumb, identity, index, 
       const t = e.target;
       if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!stepping) return;
       if (e.key === "j" && index < total - 1) onStep(1);
       if (e.key === "k" && index > 0) onStep(-1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [record, index, total, onStep]);
+  }, [record, stepping, index, total, onStep]);
 
   const who = current ? identity(current) : null;
 
@@ -63,17 +78,21 @@ export default function SlideOver({ record, icon: Icon, crumb, identity, index, 
                 </div>
                 {who.subtitle && <DrawerDescription className="mt-0.5 text-xs">{who.subtitle}</DrawerDescription>}
               </div>
-              <span className="hidden pt-1.5 font-mono text-[11px] text-muted-foreground sm:inline">
-                {index + 1} / {total}
-              </span>
-              <Button variant="outline" size="icon-sm" disabled={index <= 0} onClick={() => onStep(-1)} aria-label="Previous record (K)">
-                <ChevronLeft size={14} />
-              </Button>
-              <Button variant="outline" size="icon-sm" disabled={index >= total - 1} onClick={() => onStep(1)} aria-label="Next record (J)">
-                <ChevronRight size={14} />
-              </Button>
+              {stepping && (
+                <>
+                  <span className="hidden pt-1.5 font-mono text-[11px] text-muted-foreground sm:inline">
+                    {index + 1} / {total}
+                  </span>
+                  <Button variant="outline" size="icon-sm" disabled={index <= 0} onClick={() => onStep(-1)} aria-label="Previous record (K)">
+                    <ChevronLeft size={14} />
+                  </Button>
+                  <Button variant="outline" size="icon-sm" disabled={index >= total - 1} onClick={() => onStep(1)} aria-label="Next record (J)">
+                    <ChevronRight size={14} />
+                  </Button>
+                </>
+              )}
               {onOpenFull && (
-                <Button variant="ghost" size="icon-sm" onClick={() => onOpenFull(current)} aria-label="Open full">
+                <Button variant="ghost" size="icon-sm" onClick={() => onOpenFull(current)} aria-label={openFullLabel}>
                   <Maximize2 size={14} />
                 </Button>
               )}
