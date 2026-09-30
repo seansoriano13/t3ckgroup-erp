@@ -143,6 +143,21 @@ export const SECTIONS = [
         sample: "task-filters",
       },
       {
+        id: "task-sor-tag",
+        title: "Tasks and Group Tasks show their SOR",
+        body: "A task or Group Task made for an SOR now carries a small SOR tag in the list, with the Sales Reference or, if there is none, the Company. You see which deal it belongs to without opening it. To see only these, use \"SORs only\" in the Filters menu.",
+        who: ["Everyone"],
+        sample: "task-sor-tag",
+      },
+      {
+        id: "chat-mention",
+        kind: "fix",
+        title: "Typing @ in a Chat shows the list of people again",
+        body: "In the Chat window on a task or Group Task, the list of people appeared to do nothing when you typed @, so you could not mention anyone. It is drawn again, above the message box.",
+        who: ["Everyone"],
+        sample: "chat-mention",
+      },
+      {
         id: "tasks-period",
         title: "All Tasks loads one period at a time",
         body: "Pick a period and only that loads. Load older brings in more. Long task histories open much faster.",
@@ -157,7 +172,13 @@ export const SECTIONS = [
       {
         id: "group-task-dates",
         title: "Group Tasks: Start Date, Lead Time and templates",
-        body: "A Group Task can have a Start Date and a Lead Time note, such as \"120 calendar days\". Templates were brought over, and the window keeps one size with the members on the left.",
+        body: "A Group Task can have a Start Date and a Lead Time note, such as \"120 calendar days\". The window keeps one size, with the members on the left.",
+        who: ["Everyone"],
+      },
+      {
+        id: "group-task-templates",
+        title: "Your Group Task templates are now on live",
+        body: "The Group Task templates you built while testing on staging have been moved over. Open Task Templates to find them, or pick one when you make a Group Task.",
         who: ["Everyone"],
       },
       {
@@ -189,7 +210,7 @@ export const SECTIONS = [
       {
         id: "leaves-manager",
         title: "Leaves Manager: tabs and Who's out",
-        body: "Its views are tabs across the top. Who is out today and tomorrow is one button in the header, and a request opens in a side panel.",
+        body: "Its views are tabs across the top: Pending, Calendar, Request History, Document Center and Employee Balances. Who is out today and tomorrow is one button in the header. Click a request, or a person under Employee Balances, to open it in a side panel.",
         who: ["HR"],
         sample: "leaves-manager",
       },
@@ -276,6 +297,20 @@ export const SECTIONS = [
         who: ["Everyone"],
       },
       {
+        id: "login-password",
+        title: "Sign in with email and password, not only Google",
+        body: "The login page now has an email and password form beside the Google button. Your password is issued when your account is made, and a banner reminds you to change it from your profile. Forgot it? Use Forgot password? on the login page or Change password in your profile: we email you a link that works once and only when you open it, and the page says plainly if it has expired. If you lose your first password before changing it, a Super Admin can issue a new one.",
+        who: ["Everyone", "Super Admin"],
+        sample: "login",
+      },
+      {
+        id: "notifications",
+        title: "Notifications reach you once, and open the right screen",
+        body: "When a Stage Action calls you into an SOR you get one notification, not two, and clicking it opens that SOR. Reverting an SOR tells whoever the move notified to disregard it. A decision-due notification now shows its proper title. With Desktop Notifications on in Settings, the same alert also reaches your desktop when the portal is closed, and is still kept in the app if the phone or desktop one fails to send. Press a button to see one, in the app and on your desktop.",
+        who: ["Everyone"],
+        sample: "notifications",
+      },
+      {
         id: "consistent-look",
         kind: "fix",
         title: "One look for fields, tables and pop-ups",
@@ -356,6 +391,13 @@ export const SECTIONS = [
     label: "Coming next",
     intro: "What we are building next. The designs below are early mock-ups: nothing is built behind them yet, and they will change.",
     items: [
+      {
+        id: "purchasing-queue-retiring",
+        kind: "next",
+        title: "The Purchasing Queue will be removed",
+        body: "It stays for now. Once the Purchasing modules below are all in use, it goes away and they take its place: Purchase Requests, IPAS, Costing Matrix, Canvass, Transmittal and TSR, and Order Monitoring.",
+        who: ["Purchasing", "Sales"],
+      },
       {
         id: "purchase-requests",
         kind: "next",

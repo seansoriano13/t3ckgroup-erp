@@ -20,12 +20,16 @@ import {
 import {
   TaskFiltersSample,
   ApprovalCenterSample,
-  LeavesManagerSample,
   OffsetSample,
   RetailReportSample,
   CommissionPoolSample,
   PageLayoutSample,
 } from "./workSamples"
+import { TaskSorTagSample } from "./taskSorTagSamples"
+import { LeavesManagerSample } from "./leavesManagerSamples"
+import { NotificationsSample } from "./notificationSamples"
+import { LoginSample } from "./loginSamples"
+import { ChatMentionSample } from "./chatSamples"
 import {
   CanvasEditingSample,
   StageAccessSample,
@@ -58,6 +62,8 @@ export const SAMPLES = {
   "board-empty-state": BoardEmptyStateSample,
   // Tasks
   "task-filters": TaskFiltersSample,
+  "task-sor-tag": TaskSorTagSample,
+  "chat-mention": ChatMentionSample,
   // Approvals & Leaves
   "approval-center": ApprovalCenterSample,
   "leaves-manager": LeavesManagerSample,
@@ -69,6 +75,8 @@ export const SAMPLES = {
   "lost-commission-pool": LostCommissionPoolSample,
   // Everywhere
   "page-layout": PageLayoutSample,
+  notifications: NotificationsSample,
+  login: LoginSample,
   "consistent-look": ConsistentLookSample,
   // For admins
   "canvas-editing": CanvasEditingSample,

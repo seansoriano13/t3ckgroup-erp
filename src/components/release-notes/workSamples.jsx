@@ -12,9 +12,6 @@ import { colourDepartments } from "../sor/commission/commissionView"
 import { ApprovalTable } from "../../pages/approvals/_components/ApprovalTable"
 import { ApprovalSheet } from "../../pages/approvals/_components/ApprovalSheet"
 import { LeaveReview } from "../../pages/approvals/_components/LeaveReview"
-import WhoIsOut from "../../pages/hr/offsets/_components/WhoIsOut"
-import PendingList from "../../pages/hr/offsets/_components/PendingList"
-import { LEAVE_VIEWS } from "../../pages/hr/offsets/_components/leaveDisplay"
 import { leaveToItem } from "../../utils/approvalItems"
 import ApproveOffsetModal from "../offsets/ApproveOffsetModal"
 import SampleProvider, { SAMPLE_SAVE_BLOCKED } from "./SampleProvider"
@@ -138,42 +135,6 @@ export function ApprovalCenterSample() {
       >
         {(record) => <LeaveReview key={record.id} item={record} onDecide={refuse} isSubmitting={false} />}
       </ApprovalSheet>
-    </SampleProvider>
-  )
-}
-
-/* ── Leaves Manager: tabs and Who's out ─────────────────────────────────── */
-
-const withBalances = (person) => ({ ...person, department: person.department, offset_hours_balance: 16, sil_hours_balance: 40 })
-
-const OUT = [
-  { employee_id: PEOPLE.joy.id, type: "SIL", date: isoDate(0), employee: PEOPLE.joy },
-  { employee_id: PEOPLE.mark.id, type: "OFFSET", date: isoDate(0), employee: PEOPLE.mark },
-  { employee_id: PEOPLE.nina.id, type: "SIL", date: isoDate(1), employee: PEOPLE.nina },
-]
-
-const PENDING = [
-  { id: "pl-1", type: "SIL", status: "PENDING", date: isoDate(7), hours: 8, dayCount: 1, employee: withBalances(PEOPLE.lara), created_at: hoursAgo(5) },
-  { id: "pl-2", type: "OFFSET", status: "PENDING", date: isoDate(3), hours: 4, dayCount: 1, employee: withBalances(PEOPLE.carlo), created_at: daysAgo(2) },
-  { id: "pl-3", type: "OVERTIME", status: "PENDING", date: isoDate(-1), hours: 3, dayCount: 1, start_time: "17:00:00", end_time: "20:00:00", employee: withBalances(PEOPLE.paolo), created_at: hoursAgo(20) },
-]
-
-export function LeavesManagerSample() {
-  const [view, setView] = useState("pending")
-  return (
-    <SampleProvider>
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-base font-bold text-foreground">Leaves Manager</p>
-          <WhoIsOut approvedLeaves={OUT} />
-        </div>
-        <TabGroup variant="underline" tabs={LEAVE_VIEWS.map(({ value, label }) => ({ value, label }))} activeTab={view} onChange={setView} />
-        {view === "pending" ? (
-          <PendingList rows={PENDING} total={PENDING.length} loading={false} availableHoursFor={() => null} asc onOpen={noop} />
-        ) : (
-          <EmptyState icon={Inbox} title="Only Pending is filled in here" description="The other tabs work the same way in the real Leaves Manager." />
-        )}
-      </div>
     </SampleProvider>
   )
 }
