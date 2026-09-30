@@ -54,8 +54,8 @@ export default function LeadSourceManager() {
           <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
             <Shield size={14} className="text-primary" />
           </div>
-          <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-            Lead Sources
+          <h2 className="text-sm font-semibold text-foreground">
+            Lead sources
           </h2>
         </div>
         {!isAdding && (

@@ -48,10 +48,10 @@ describe("SettingsPage", () => {
     mockUser.current = makeEmployee({ name: "Rank And File" });
     renderAt("/settings?tab=approvals");
 
-    expect(await screen.findByText("App Preferences")).toBeInTheDocument();
+    expect(await screen.findByText("App preferences")).toBeInTheDocument();
     expect(tabNames()).toEqual(["General"]);
     await waitFor(() => expect(screen.getByTestId("loc")).toHaveTextContent("?tab=general|REPLACE"));
-    expect(screen.queryByText("Approval Rules", { selector: "h2" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Approval rules", { selector: "h2" })).not.toBeInTheDocument();
   });
 
   it("shows an HR Officer General and HR & Schedule, with no Working Week", async () => {
@@ -61,14 +61,14 @@ describe("SettingsPage", () => {
     await screen.findByRole("tab", { name: "HR & Schedule", hidden: true });
     expect(tabNames()).toEqual(["General", "HR & Schedule"]);
     expect(screen.queryByText(/working week/i)).not.toBeInTheDocument();
-    expect(await screen.findByText("Leave Categories")).toBeInTheDocument();
+    expect(await screen.findByText("Leave categories")).toBeInTheDocument();
   });
 
   it("shows a Super Admin Leave Categories and Working Week together", async () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
     renderAt("/settings?tab=hr");
 
-    expect(await screen.findByText("Leave Categories")).toBeInTheDocument();
+    expect(await screen.findByText("Leave categories")).toBeInTheDocument();
     expect(screen.getByText(/working week/i)).toBeInTheDocument();
   });
 
@@ -76,7 +76,7 @@ describe("SettingsPage", () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
     renderAt("/settings");
 
-    await screen.findByText("App Preferences");
+    await screen.findByText("App preferences");
     expect(tabNames()).toEqual([
       "General",
       "Approval Rules",
@@ -89,10 +89,10 @@ describe("SettingsPage", () => {
     await setupUser().click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
     expect(screen.getByTestId("loc")).toHaveTextContent("?tab=approvals|PUSH");
     await waitFor(() => expect(screen.getByText("Ops Manager Marketing Approvals")).toBeInTheDocument());
-    expect(screen.queryByText("App Preferences")).not.toBeInTheDocument();
+    expect(screen.queryByText("App preferences")).not.toBeInTheDocument();
 
     await setupUser().click(screen.getByRole("tab", { name: "Sales Configuration", hidden: true }));
-    expect(await screen.findByText("Lead Sources")).toBeInTheDocument();
+    expect(await screen.findByText("Lead sources")).toBeInTheDocument();
     expect(screen.getByText("Commission Pool")).toBeInTheDocument();
   });
 
@@ -101,7 +101,7 @@ describe("SettingsPage", () => {
     const spy = vi.spyOn(appSettingsService, "getAppSettings");
     renderAt("/settings");
 
-    await screen.findByText("App Preferences");
+    await screen.findByText("App preferences");
     expect(spy).not.toHaveBeenCalled();
 
     await setupUser().click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
@@ -119,7 +119,7 @@ describe("SettingsPage", () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
     const user = setupUser();
     renderAt("/settings");
-    await screen.findByText("App Preferences");
+    await screen.findByText("App preferences");
 
     for (const name of tabNames()) {
       await user.click(screen.getByRole("tab", { name, hidden: true }));

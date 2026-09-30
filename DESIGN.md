@@ -338,7 +338,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/Tooltip.jsx`. Props: `content`, `side`, `align`, `delay`, `className`, `children`.
 
 #### PageShell
-`ui/PageShell.jsx`. The Page skeleton (ADR 0029). Props: `title`, `description`, `action`, `banner` (above the header; only the Dashboard's greeting), `tabs`, `toolbar`, `body` (or `children`), `frame` (`centred` | `full`), `className`. Slots render in fixed order; wraps `ui/PageContainer.jsx` and `ui/PageHeader.jsx` (compact-only title, last word red).
+`ui/PageShell.jsx`. The Page skeleton (ADR 0029). Props: `title`, `description`, `action`, `banner` (above the header; only the Dashboard's greeting), `tabs`, `toolbar`, `body` (or `children`), `frame` (`centred` | `narrow` | `full`), `className`. Slots render in fixed order; wraps `ui/PageContainer.jsx` and `ui/PageHeader.jsx` (compact-only title, last word red).
 
 #### ReportFigure
 `ui/ReportFigure.jsx`. The Report layout's headline figure: big figure with its note, supporting stats, chart beside them. Props: `label`, `figure`, `note`, `stats` (`{ label, value, sub, onClick }`; `onClick` makes the stat a button), `chart`, `className`. Every part is optional, so a row of counts is `stats` alone. Replaces gradient summary cards.
@@ -427,6 +427,7 @@ PageShell also owns phone behaviour (header stacks, level-1 tabs scroll sideways
 
 ### Frames
 - **Centred** (default): the `wrapper`, max 80rem.
+- **Narrow**: the Config type's column, max 56rem, centred; header, tabs and body all sit in it.
 - **Full-width**: SOR Register, Leaves Manager, Flow Canvas and flow version pages. Full-width stays an explicit per-route list in the app layout, so a new Page never becomes full-width by accident.
 - The Dashboard's greeting banner sits above the standard layout.
 

@@ -207,7 +207,7 @@ export default function SystemUpdateManager() {
       >
         <div>
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-            System Updates Banner
+            System updates banner
           </h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             Manage the "What's New" banner shown on the dashboard.

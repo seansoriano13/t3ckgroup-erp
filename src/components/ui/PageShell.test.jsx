@@ -49,6 +49,12 @@ describe("PageShell", () => {
     expect(container.firstChild.className).toContain("max-w-full");
   });
 
+  it("gives a Config Page a narrow centred column", () => {
+    const { container } = render(<PageShell title="A" frame="narrow" />);
+    expect(container.firstChild.className).toContain("max-w-4xl");
+    expect(container.firstChild.className).toContain("mx-auto");
+  });
+
   it("omits slots the Page leaves empty", () => {
     render(<PageShell title="A" />);
     expect(screen.queryByTestId("page-tabs")).toBeNull();

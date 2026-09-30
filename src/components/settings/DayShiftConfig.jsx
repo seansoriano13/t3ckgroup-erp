@@ -105,8 +105,8 @@ export default function DayShiftConfig() {
         <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
           <Clock size={14} className="text-primary" />
         </div>
-        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-          Working Week
+        <h2 className="text-sm font-semibold text-foreground">
+          Working week
         </h2>
       </div>
       <p className="px-5 pt-4 text-xs text-muted-foreground leading-relaxed relative z-10">

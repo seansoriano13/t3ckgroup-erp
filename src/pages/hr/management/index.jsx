@@ -223,13 +223,17 @@ export default function EmployeeManagement() {
   return (
     <ProtectedRoute requireHr={true}>
       <PageShell
+        // Employees is a Register; the two configuration tabs are Config (a narrow column).
+        frame={activeTab === "employees" ? "centred" : "narrow"}
         title="HR Management"
         description="Manage system access, roles, departments, and task categories."
         action={
-          <Button onClick={handleAddNew}>
-            <UserPlus size={16} />
-            Add Employee
-          </Button>
+          activeTab === "employees" && (
+            <Button onClick={handleAddNew}>
+              <UserPlus size={16} />
+              Add Employee
+            </Button>
+          )
         }
         tabs={
           <TabGroup
@@ -473,7 +477,7 @@ export default function EmployeeManagement() {
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
             <div className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-base font-black text-foreground uppercase tracking-wide">Leave Categories</h2>
+                <h2 className="text-base font-semibold text-foreground">Leave categories</h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Leave categories now live in Settings under HR &amp; Schedule.
                 </p>

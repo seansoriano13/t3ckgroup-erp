@@ -13,8 +13,7 @@ import { canEditFAQ } from "../../utils/faqAccess";
 
 import { useAppSettings } from "@/hooks/useAppSettings";
 import toast from "react-hot-toast";
-import PageHeader from "../../components/ui/PageHeader";
-import PageContainer from "../../components/ui/PageContainer";
+import PageShell from "../../components/ui/PageShell";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
 import LeaveCategoriesConfig from "../../components/hr/LeaveCategoriesConfig";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
@@ -97,8 +96,8 @@ function GeneralPanel() {
       {/* PREFERENCES SECTION */}
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-border bg-muted/30">
-          <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-            App Preferences
+          <h2 className="text-sm font-semibold text-foreground">
+            App preferences
           </h2>
         </div>
 
@@ -166,7 +165,7 @@ function GeneralPanel() {
       {canEditFAQContent && (
         <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border bg-muted/30">
-            <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+            <h2 className="text-sm font-semibold text-foreground">
               Content
             </h2>
           </div>
@@ -191,8 +190,8 @@ function GeneralPanel() {
       {/* DANGER ZONE SECTION */}
       <div className="bg-card border border-destructive/20 rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-border bg-destructive/5 flex items-center gap-2.5">
-          <h2 className="text-[10px] font-black text-destructive/80 uppercase tracking-[0.2em]">
-            Account Actions
+          <h2 className="text-sm font-semibold text-destructive">
+            Account actions
           </h2>
         </div>
 
@@ -238,8 +237,8 @@ function ApprovalRulesPanel() {
         <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
           <Shield size={14} className="text-primary" />
         </div>
-        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-          Approval Rules
+        <h2 className="text-sm font-semibold text-foreground">
+          Approval rules
         </h2>
       </div>
       <div className="divide-y divide-border relative z-10">
@@ -329,8 +328,8 @@ function EmployeeGroupsPanel() {
         <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
           <Users size={14} className="text-muted-foreground" />
         </div>
-        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-          Employee Groups
+        <h2 className="text-sm font-semibold text-foreground">
+          Employee groups
         </h2>
       </div>
       <EmployeeGroupManager />
@@ -345,8 +344,8 @@ function AnnouncementsPanel() {
         <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
           <Megaphone size={14} className="text-primary" />
         </div>
-        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-          System Announcements
+        <h2 className="text-sm font-semibold text-foreground">
+          System announcements
         </h2>
       </div>
       <SystemUpdateBanner />
@@ -383,32 +382,27 @@ export default function SettingsPage() {
   }, [requestedTab, requested, setSearchParams]);
 
   return (
-    <PageContainer maxWidth="4xl" className="pt-4">
-      <FAQModal isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
-
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <PageHeader
-          title="Settings"
-          description="Configure your portal experience."
-        />
-        <Button
-          id="open-faq-btn"
-          variant="outline"
-          onClick={() => setShowFAQ(true)}
-          className="h-auto shrink-0 gap-2 rounded-xl bg-card px-4 py-2.5 text-sm font-semibold shadow-sm"
-        >
+    <PageShell
+      frame="narrow"
+      title="Settings"
+      description="Configure your portal experience."
+      action={
+        <Button id="open-faq-btn" variant="outline" onClick={() => setShowFAQ(true)}>
           <HelpCircle size={15} />
           Help & FAQ
         </Button>
-      </div>
-
-      <div className="mb-6 max-w-full">
+      }
+      tabs={
         <TabGroup
+          variant="underline"
+          size="md"
           tabs={visibleTabs.map(({ value, label }) => ({ value, label }))}
           activeTab={activeTab}
           onChange={(value) => setSearchParams({ tab: value })}
         />
-      </div>
+      }
+    >
+      <FAQModal isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
 
       {/* Only the active panel is mounted, so an inactive tab issues no queries. */}
       <div className="space-y-6">
@@ -426,6 +420,6 @@ export default function SettingsPage() {
           Have questions? View the Help & FAQ
         </Button>
       </div>
-    </PageContainer>
+    </PageShell>
   );
 }

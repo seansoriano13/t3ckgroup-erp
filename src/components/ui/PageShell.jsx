@@ -9,8 +9,9 @@ import PageHeader from "./PageHeader";
  * `tabs` (level 1), `toolbar` (level 2 pills, filter bar, display toggle),
  * body — whatever order a Page passes them in. A Page cannot reorder them.
  *
- * `frame` is "centred" (default, the wrapper) or "full"; full-width stays an
- * explicit per-route choice. A full frame fills the app frame: the header,
+ * `frame` is "centred" (default, the wrapper), "narrow" (the Config type: a
+ * narrow centred column for settings rows and forms) or "full"; full-width
+ * stays an explicit per-route choice. A full frame fills the app frame: the header,
  * tabs and toolbar stay put and the body is the scroll region (a Board inside
  * it sizes itself to the body and scrolls its own columns). The body is
  * `children` (or `body`).
@@ -31,11 +32,12 @@ export default function PageShell({
   className = "",
 }) {
   const full = frame === "full";
+  const maxWidth = full ? "full" : frame === "narrow" ? "4xl" : "7xl";
   const pinned = full ? "shrink-0" : "";
 
   return (
     <PageContainer
-      maxWidth={full ? "full" : "7xl"}
+      maxWidth={maxWidth}
       fill={full}
       spaceY="4"
       className={className}

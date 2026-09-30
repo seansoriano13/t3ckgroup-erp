@@ -26,8 +26,7 @@ import { aiService } from "../../services/aiService";
 import ImageCropModal from "../../components/ImageCropModal";
 import SignatureCaptureModal from "../../components/profile/SignatureCaptureModal";
 import { HIDDEN_TASK_STATUS_FILTER, TASK_STATUS } from "../../constants/status";
-import PageHeader from "../../components/ui/PageHeader";
-import PageContainer from "../../components/ui/PageContainer";
+import PageShell from "../../components/ui/PageShell";
 import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
@@ -328,21 +327,21 @@ export default function ProfilePage() {
     bannerUrlInput.trim() !== initialBannerUrl;
 
   return (
-    <PageContainer maxWidth="7xl" className="pt-4">
-      <PageHeader
-        title="My Profile"
-        description="Manage your employee information and access levels."
-      >
+    <PageShell
+      frame="narrow"
+      title="My Profile"
+      description="Manage your employee information and access levels."
+      action={
         <Button
           type="button"
           onClick={() => savePreferencesMutation.mutate()}
           disabled={isSaving || !hasChanges}
-          className="h-auto gap-2 rounded-full px-5 py-2.5 text-[11px] font-black uppercase tracking-widest shadow-sm disabled:opacity-70"
         >
           {isSaving ? <Spinner size="sm" /> : <Save size={16} />}
-          Save Settings
+          Save settings
         </Button>
-      </PageHeader>
+      }
+    >
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN: The ID Card */}
@@ -396,8 +395,8 @@ export default function ProfilePage() {
         <div className="lg:col-span-2 space-y-6 flex flex-col">
           {/* Department Info */}
           <div className="bg-card border border-border rounded-2xl p-8 shadow-sm flex-1">
-            <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-5 border-b border-border pb-3">
-              Organizational Details
+            <h3 className="text-base font-semibold text-foreground mb-5 border-b border-border pb-3">
+              Organizational details
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -448,7 +447,7 @@ export default function ProfilePage() {
           {/* Signature */}
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between border-b border-border pb-3 mb-5">
-              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+              <h3 className="text-base font-semibold text-foreground">
                 Signature
               </h3>
               <Button
@@ -507,8 +506,8 @@ export default function ProfilePage() {
         <div className="lg:col-span-3 bg-card border border-border rounded-2xl p-5 md:p-6 shadow-sm space-y-5">
           <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
             <div>
-              <h3 className="text-base font-black text-foreground">
-                Dashboard Personalization
+              <h3 className="text-base font-semibold text-foreground">
+                Dashboard personalization
               </h3>
               <p className="text-xs text-muted-foreground mt-1">
                 Banner, quote, and avatar apply across all dashboard views.
@@ -761,6 +760,6 @@ export default function ProfilePage() {
         employeeId={user?.id}
         onSuccess={(updated) => updateUserPreferences({ signaturePath: updated.signature_path })}
       />
-    </PageContainer>
+    </PageShell>
   );
 }
