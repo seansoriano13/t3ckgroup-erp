@@ -211,6 +211,18 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+const noop = async () => {};
+
+/**
+ * Signs a Release Notes sample in as a made-up employee (ADR 0030), so a
+ * real form inside it reads the sample's department and balances instead
+ * of the viewer's own. Only Sample Data uses it; it cannot sign anyone in.
+ */
+export function SampleAuthProvider({ user, children }) {
+  const [value] = useState(() => ({ user, isAuthLoading: false, handleLogin: noop, logout: noop, updateUserPreferences: noop }));
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);

@@ -13,7 +13,7 @@
 
 export const RELEASE = {
   title: "What's new: September–October",
-  window: "Everything that changed in the ERP from 14 September to 30 September 2026.",
+  window: "Everything that changed in the ERP from 4 September to 30 September 2026.",
 }
 
 export const SECTIONS = [
@@ -198,8 +198,29 @@ export const SECTIONS = [
   {
     key: "approvals",
     label: "Approvals & Leaves",
-    intro: "Task Approvals, HR Verifications, Leave Approvals and the Leaves Manager.",
+    intro: "Filing leave, overtime and undertime, who approves it, and the forms HR prints. Then Task Approvals, HR Verifications and the Leaves Manager.",
     items: [
+      {
+        id: "leave-form",
+        title: "One form for leave, overtime and undertime",
+        body: "Apply Leave / OT on My Requests opens one form with four tabs: Overtime, Offset, SIL and the new Undertime. Leave can cover several days at once, with the hours for each day. The form shows the hours you can still use after what is already waiting for approval, and takes off the 1-hour lunch break on days of 5 hours or more. HR can file for an employee from the Leaves Manager.",
+        who: ["Everyone"],
+        sample: "leave-form",
+      },
+      {
+        id: "request-stages",
+        title: "Your department head approves first, then HR",
+        body: "Every request now goes to your department head before HR. The form picks your head from your department, and you can change it. My Requests is one list of everything you filed, and its Stage column says where each one is: waiting on your head, with HR, approved or printed. If your head declines, their note is there. Heads decide in Approvals, under Leave Approvals.",
+        who: ["Everyone", "Department heads"],
+        sample: "request-stages",
+      },
+      {
+        id: "hr-forms",
+        title: "Printed forms with three signatures and a QR code",
+        body: "Approved requests print on new forms: TG-11 for leave, TG-12 for overtime and TG-13 for undertime. Each carries your signature, your head's and HR's, and a QR code anyone can scan to check the record is real and still approved. Add your signature once in Profile and it is signed onto every request you file. HR prints the forms from the Leaves Manager, two to a sheet.",
+        who: ["Everyone", "HR"],
+        sample: "hr-forms",
+      },
       {
         id: "approval-center",
         title: "Approvals: one table, decide at the side",
@@ -222,7 +243,11 @@ export const SECTIONS = [
         sample: "offset-hours",
       },
     ],
-    alsoFixed: ["The shared leave calendar shows colleagues' approved leaves again."],
+    alsoFixed: [
+      "The shared leave calendar shows colleagues' approved leaves again.",
+      "No one can approve their own leave or overtime.",
+      "Approving or undoing a request changes the balance in one step, so it can no longer be left half-updated.",
+    ],
   },
   {
     key: "retail",

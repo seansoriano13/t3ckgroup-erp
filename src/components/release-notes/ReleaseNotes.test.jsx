@@ -14,12 +14,20 @@ import { SAMPLE_EMPLOYEES } from "./sampleData"
 // writes real records, a sample that blanks its section, an item pointing at
 // a sample that does not exist, or a real colleague's name in the Sample Data.
 
-vi.mock("@/context/AuthContext", () => ({
-  useAuth: () => ({ user: { id: "viewer", name: "Viewer" }, isSuperAdmin: false }),
+// Signed in as a viewer, unless a sample signs in its own made-up employee
+// with SampleAuthProvider, as it does on the real page.
+const { fakeAuth } = vi.hoisted(() => ({
+  fakeAuth: async () => {
+    const { createContext, createElement, useContext } = await import("react")
+    const Auth = createContext({ user: { id: "viewer", name: "Viewer" }, isSuperAdmin: false })
+    return {
+      useAuth: () => useContext(Auth),
+      SampleAuthProvider: ({ user, children }) => createElement(Auth.Provider, { value: { user } }, children),
+    }
+  },
 }))
-vi.mock("../../context/AuthContext", () => ({
-  useAuth: () => ({ user: { id: "viewer", name: "Viewer" }, isSuperAdmin: false }),
-}))
+vi.mock("@/context/AuthContext", fakeAuth)
+vi.mock("../../context/AuthContext", fakeAuth)
 
 let requests = []
 const record = ({ request }) => requests.push(`${request.method} ${request.url}`)
