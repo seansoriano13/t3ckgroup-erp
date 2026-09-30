@@ -1,4 +1,11 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
 import { Tooltip } from "../ui/Tooltip";
 import StatusBadge from "../StatusBadge";
 
@@ -15,7 +22,11 @@ const VIA_LABEL = {
 
 const formatSince = (iso) =>
   iso
-    ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(iso).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
     : "—";
 
 const describeWindow = (w) =>
@@ -25,81 +36,83 @@ const describeWindow = (w) =>
 
 export default function MySorsTable({ rows, onOpen }) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>SOR</TableHead>
-          <TableHead>Now on</TableHead>
-          <TableHead>Called in at</TableHead>
-          <TableHead>Via</TableHead>
-          <TableHead>Access</TableHead>
-          <TableHead>Since</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((row) => {
-          const [first, ...others] = row.windows;
-          return (
-            <TableRow
-              key={row.opportunityId}
-              tabIndex={0}
-              onClick={() => onOpen(row.opportunityId)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onOpen(row.opportunityId);
-                }
-              }}
-              className="cursor-pointer"
-            >
-              <TableCell>
-                <div className="font-mono text-xs font-bold text-foreground">
-                  {row.salesReference || "—"}
-                </div>
-                <div className="max-w-xs truncate text-muted-foreground">
-                  {row.projectTitle || "Untitled"}
-                </div>
-              </TableCell>
-              <TableCell>
-                {row.currentStageName ? (
-                  <StatusBadge theme="blue" label={row.currentStageName} />
-                ) : (
-                  "—"
-                )}
-              </TableCell>
-              <TableCell>{first?.calledInAtStageName || "—"}</TableCell>
-              <TableCell>{VIA_LABEL[first?.source] || "—"}</TableCell>
-              <TableCell>
-                <span className="inline-flex items-center gap-2">
-                  {first ? `Sees ${first.reachLabel}` : "—"}
-                  {others.length > 0 && (
-                    <Tooltip
-                      content={
-                        <ul className="space-y-1 font-medium">
-                          {others.map((w) => (
-                            <li key={w.id}>{describeWindow(w)}</li>
-                          ))}
-                        </ul>
-                      }
-                    >
-                      <span
-                        tabIndex={0}
-                        aria-label={`${others.length} more windows`}
-                        className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-black text-muted-foreground"
-                      >
-                        +{others.length}
-                      </span>
-                    </Tooltip>
+    <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+      <Table className="min-w-[900px]">
+        <TableHeader>
+          <TableRow>
+            <TableHead>SOR</TableHead>
+            <TableHead>Now on</TableHead>
+            <TableHead>Called in at</TableHead>
+            <TableHead>Via</TableHead>
+            <TableHead>Access</TableHead>
+            <TableHead>Since</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => {
+            const [first, ...others] = row.windows;
+            return (
+              <TableRow
+                key={row.opportunityId}
+                tabIndex={0}
+                onClick={() => onOpen(row.opportunityId)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onOpen(row.opportunityId);
+                  }
+                }}
+                className="group cursor-pointer"
+              >
+                <TableCell>
+                  <div className="font-mono text-[13px] font-semibold text-foreground">
+                    {row.salesReference || "—"}
+                  </div>
+                  <div className="max-w-xs truncate text-muted-foreground">
+                    {row.projectTitle || "Untitled"}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {row.currentStageName ? (
+                    <StatusBadge theme="blue" label={row.currentStageName} />
+                  ) : (
+                    "—"
                   )}
-                </span>
-              </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">
-                {formatSince(first?.createdAt)}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+                </TableCell>
+                <TableCell>{first?.calledInAtStageName || "—"}</TableCell>
+                <TableCell>{VIA_LABEL[first?.source] || "—"}</TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-2">
+                    {first ? `Sees ${first.reachLabel}` : "—"}
+                    {others.length > 0 && (
+                      <Tooltip
+                        content={
+                          <ul className="space-y-1 font-medium">
+                            {others.map((w) => (
+                              <li key={w.id}>{describeWindow(w)}</li>
+                            ))}
+                          </ul>
+                        }
+                      >
+                        <span
+                          tabIndex={0}
+                          aria-label={`${others.length} more windows`}
+                          className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-black text-muted-foreground"
+                        >
+                          +{others.length}
+                        </span>
+                      </Tooltip>
+                    )}
+                  </span>
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {formatSince(first?.createdAt)}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
