@@ -123,6 +123,10 @@ const SATELLITE_TAB = { [GATE]: "conditions", [FIELDS]: "fields", [RUN]: "action
 const NO_EMPLOYEES = Object.freeze([]);
 const NO_GROUPS = Object.freeze([]);
 
+// A previewed version is fitted clear of what floats over the pane: the top
+// bar (with the preview banner) and the Versions rail on the left (w-80 at left-4).
+const VERSION_FIT_PADDING = { top: "96px", right: "48px", bottom: "48px", left: "368px" };
+
 const EDGE_COLOR = "var(--mauve-9)";
 const SATELLITE_COLOR = {
   [GATE]: "var(--amber-a8)",
@@ -1023,7 +1027,12 @@ function FlowCanvasInner() {
         // read-only mode. See FlowVersionViewer's own note on why: this
         // canvas reads/writes through FlowDataContext and a mutable service
         // surface a frozen document has nothing to call.
-        <FlowVersionViewer snapshotData={viewingSnapshot.snapshot_data} />
+        // Keyed per version, so switching versions frames the new one afresh.
+        <FlowVersionViewer
+          key={viewingSnapshot.id}
+          snapshotData={viewingSnapshot.snapshot_data}
+          fitPadding={VERSION_FIT_PADDING}
+        />
       ) : (
         <ReactFlow
           nodes={rfNodes}
@@ -1112,8 +1121,8 @@ function FlowCanvasInner() {
 
       {/* ── Version-viewing banner (issue #193) ────────────────────────── */}
       {flow && viewingSnapshot && (
-        <div className="pointer-events-none absolute inset-x-0 top-[4.25rem] z-30 flex justify-center px-3">
-          <div className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-card/95 px-4 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+        <div className="pointer-events-none absolute inset-x-0 top-[4.25rem] z-30 flex justify-center px-3 2xl:top-3">
+          <div className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-card/95 px-4 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
             <div className="flex items-center gap-2">
               <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                 Preview

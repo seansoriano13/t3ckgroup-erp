@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
     ReactFlow,
     ReactFlowProvider,
@@ -6,6 +6,7 @@ import {
     BackgroundVariant,
     Controls,
     MarkerType,
+    useNodesInitialized,
     useReactFlow,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
@@ -40,6 +41,9 @@ const SATELLITE_COLOR = { [GATE]: "var(--amber-a8)", [RUN]: "var(--violet-a8)" }
  */
 const MIN_ZOOM = 0.05
 
+/** Space kept around the whole flow when it is fitted. A number is a fraction of the pane. */
+const FIT_PADDING = 0.15
+
 /**
  * A Flow Snapshot, drawn read-only.
  *
@@ -69,7 +73,7 @@ export default function FlowVersionViewer(props) {
     )
 }
 
-function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
+function FlowVersionCanvas({ snapshotData, currentStageId = null, fitPadding = FIT_PADDING }) {
     const stages = useMemo(() => snapshotData?.stages ?? [], [snapshotData])
     const edges = useMemo(() => snapshotData?.edges ?? [], [snapshotData])
     // Both snapshot shapes — a flat array (newer) or an object keyed by
@@ -273,7 +277,7 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
     // paint before that happens — which left the deal's Stage off-screen while
     // the viewport sat at its default. The snapshot already records pos_x and
     // pos_y, so there is nothing to wait for.
-    const { setCenter } = useReactFlow()
+    const { setCenter, fitView } = useReactFlow()
     useEffect(() => {
         if (!currentStageId) return
         const target = stages.find((s) => s.id === currentStageId)
@@ -284,6 +288,32 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
             { zoom: 0.75, duration: 250 },
         )
     }, [currentStageId, stages, setCenter])
+
+    // Opened on its own, the whole flow is fitted: once the nodes are measured,
+    // and again whenever the pane changes size (the page settling, the window
+    // resizing), until the reader pans or zooms. React Flow's `fitView` prop
+    // fits once, at mount, against whatever size the pane had then.
+    // `fitPadding` lets a host keep the flow clear of what it lays over the
+    // pane (the Flow Canvas's Versions rail and top bar).
+    const fitOptions = useMemo(() => ({ padding: fitPadding, minZoom: MIN_ZOOM }), [fitPadding])
+    const nodesInitialized = useNodesInitialized()
+    const paneRef = useRef(null)
+    const readerMoved = useRef(false)
+    useEffect(() => {
+        if (currentStageId || !nodesInitialized) return
+        fitView(fitOptions)
+        const pane = paneRef.current
+        if (!pane) return
+        const observer = new ResizeObserver(() => {
+            if (!readerMoved.current) fitView(fitOptions)
+        })
+        observer.observe(pane)
+        return () => observer.disconnect()
+    }, [currentStageId, nodesInitialized, fitView, fitOptions])
+    // `event` is null for a programmatic move (a fit), set for a reader's.
+    const onMoveStart = useCallback((event) => {
+        if (event) readerMoved.current = true
+    }, [])
 
     if (stages.length === 0) {
         return (
@@ -296,14 +326,15 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
     }
 
     return (
-        <div className="relative h-full w-full">
+        <div ref={paneRef} className="relative h-full w-full">
             <ReactFlow
                 nodes={nodes}
                 edges={flowEdges}
                 nodeTypes={nodeTypes}
                 minZoom={MIN_ZOOM}
                 fitView={!currentStageId}
-                fitViewOptions={{ padding: 0.15, minZoom: MIN_ZOOM }}
+                fitViewOptions={fitOptions}
+                onMoveStart={onMoveStart}
                 onNodeClick={onNodeClick}
                 onPaneClick={onPaneClick}
                 // Every editing affordance off: this is a record of what the
