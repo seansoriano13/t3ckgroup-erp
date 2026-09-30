@@ -26,6 +26,7 @@ export type Path =
   | `/opportunities/commission-formula`
   | `/profile`
   | `/purchasing`
+  | `/release-notes`
   | `/reset-password`
   | `/retail`
   | `/settings`
@@ -38,7 +39,6 @@ export type Path =
   | `/super-admin/commission`
   | `/super-admin/flow-canvas`
   | `/super-admin/lead-sources`
-  | `/super-admin/release-notes`
   | `/tasks`
   | `/verify/:token`
 

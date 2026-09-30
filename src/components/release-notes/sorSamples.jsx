@@ -1,243 +1,140 @@
 import { useState } from "react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Plus, Search, SlidersHorizontal } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import PageShell from "@/components/ui/PageShell"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { FilterTrigger } from "@/components/ui/FilterDropdown"
 import StageFieldPreview from "../flow-canvas/StageFieldPreview"
 import OpportunityQuickView from "../sor/OpportunityQuickView"
 import OpportunityBoard from "../sor/OpportunityBoard"
-import RetailOrdersQueue from "../sor/RetailOrdersQueue"
 import FlowStageControl from "../sor/FlowStageControl"
-import PendingActionDecisions from "../sor/PendingActionDecisions"
+import MySorsTable from "../sor/MySorsTable"
 import SorsViewTabs from "../sor/SorsViewTabs"
 import SorsTotals from "../sor/SorsTotals"
-import SaleTypeFilter from "../sor/SaleTypeFilter"
-import FollowUpCadenceEditor from "../flow-canvas/FollowUpCadenceEditor"
-import EmployeeGroupManager from "../settings/EmployeeGroupManager"
-import { FlowDataContext } from "../flow-canvas/FlowDataContext"
-import ApproveOffsetModal from "../offsets/ApproveOffsetModal"
-import TemplateTokenText from "../ui/TemplateTokenText"
-import { Button } from "../ui/button"
-import { useQuery } from "@tanstack/react-query"
-import OpportunityDetailsModal from "../sor/OpportunityDetailsModal"
+import RevertChoice from "../sor/RevertChoice"
+import ReturnChoice from "../sor/ReturnChoice"
+import { ItemStockRow } from "../sor/modal/ItemsTab"
+import { AttentionList, KeyFacts, SectionTitle, StatsBand, StatusLine, TeamAndQuote } from "../sor/modal/summary/DigestSummary"
+import { MoneyBars, StageTimeChart } from "../sor/modal/summary/SummaryCharts"
+import { useDigest } from "../sor/modal/summary/useDigest"
+import { Identity } from "../sor/modal/summary/shared"
 import StatusBadge from "../StatusBadge"
-import { opportunityService } from "../../services/opportunityService"
-import { formatPHP, matchesSaleType } from "../../constants/sor"
+import { formatPHP } from "../../constants/sor"
 import { CONDITION_STATUS } from "../../constants/stageGate"
-import SampleProvider, { ReadOnly } from "./SampleProvider"
+import { REVERT_CHOICE } from "../../constants/revertChoice"
+import { RETURN_CHOICE } from "../../constants/returnChoice"
+import SampleProvider from "./SampleProvider"
 import {
+  PEOPLE,
   SALE_TYPE_ID,
+  SAMPLE_ACTOR,
   SAMPLE_BOARD_OPPORTUNITIES,
   SAMPLE_CANVAS,
   SAMPLE_FLOW_STAGES_INDEX,
+  SAMPLE_LINES,
   SAMPLE_OPPORTUNITY,
   SAMPLE_SALE_TYPE,
+  SAMPLE_STAGES,
+  STOCK_SNAPSHOT,
+  daysAgo,
+  inDays,
 } from "./sampleData"
 
 /**
- * The SORS screens and the modals around them, as the app's own components
- * fed made-up data (ADR 0022). Each sample sits in a SampleProvider whose
- * cache is pre-filled, so nothing here reaches the network. A modal opens from
- * a "Click me" button, because opening it is what the row is about.
+ * The SOR screens, as the app's own components fed Sample Data (ADR 0030).
+ * Each sits in a SampleProvider, so what it reads is seeded and anything it
+ * would save is refused.
  */
 
 const noop = () => {}
-const SAMPLE_ACTOR = "sample-actor"
-const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString()
+const SEED_CANVAS = [["salesFlow", SALE_TYPE_ID], SAMPLE_CANVAS]
 
-function ClickMe({ children }) {
+function OpenButton({ label, children }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="space-y-3">
       <Button type="button" onClick={() => setOpen(true)}>
-        Click me
+        {label}
       </Button>
-      {children(open, () => setOpen(false), setOpen)}
+      {children(open, () => setOpen(false))}
     </div>
   )
 }
 
-const SEED_CANVAS = [["salesFlow", SALE_TYPE_ID], SAMPLE_CANVAS]
+/* ── SOR Register ───────────────────────────────────────────────────────── */
 
-const PENDING_ACTIONS = [
-  {
-    runId: "run-1",
-    title: "S99002 - Send bid clarification to client",
-    stageName: "Bid Submitted",
-    target: { kind: "individual", assignee: { name: "Maria Duran" } },
-  },
+const REGISTER_ROWS = [
+  { id: "r1", ref: "S00001", client: "Demo Clinic", owner: PEOPLE.lara.name, stage: "Lead", value: 500000 },
+  { id: "r2", ref: "S00002", client: "Demo City Hospital", owner: PEOPLE.lara.name, stage: "Bid Submitted", value: 1000000 },
+  { id: "r3", ref: "S00003", client: "Demo Province", owner: PEOPLE.mark.name, stage: "Bid Submitted", value: 3000000 },
+  { id: "r4", ref: "S00005", client: "Demo Town Hall", owner: PEOPLE.paolo.name, stage: "Awarded", value: 2000000 },
 ]
 
-/* ── Quick View ─────────────────────────────────────────────────────────── */
-
-const QUICK_TASKS = [
-  {
-    id: "t1",
-    kind: "individual",
-    title: "Prepare technical compliance sheet",
-    taskDescription: "Match every line of the TOR to the offered specification.",
-    dueAt: inDays(3),
-    priority: "HIGH",
-  },
-  {
-    id: "g1",
-    kind: "group",
-    title: "Bid pack - S99002",
-    taskDescription: "Assemble and submit the bid documents.",
-    dueAt: inDays(5),
-    checklistProgress: { checked: 1, total: 3 },
-  },
-]
-
-const QUICK_CHECKLIST = [
-  { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c1", label: "Bid security attached" } },
-  { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c2", label: "Bid Deadline filled in" } },
-  { status: CONDITION_STATUS.SATISFIED, condition: { id: "c3", label: "Client company confirmed" } },
-]
-
-export function QuickViewSample() {
-  return (
-    <SampleProvider
-      seed={[
-        [["quickViewTasks", SAMPLE_OPPORTUNITY.id, SAMPLE_ACTOR], QUICK_TASKS],
-        [["quickViewChecklist", SAMPLE_OPPORTUNITY.id, SAMPLE_OPPORTUNITY.flow_stage_id], QUICK_CHECKLIST],
-      ]}
-    >
-      <ClickMe>
-        {(open, close) => (
-          <OpportunityQuickView
-            isOpen={open}
-            onClose={close}
-            opportunity={SAMPLE_OPPORTUNITY}
-            opportunityId={SAMPLE_OPPORTUNITY.id}
-            userId={SAMPLE_ACTOR}
-            onViewFullDetails={close}
-            onOpenTask={close}
-            onOpenGroupTask={close}
-          />
-        )}
-      </ClickMe>
-    </SampleProvider>
-  )
-}
-
-/* ── SORS title, tabs, totals, filter ───────────────────────────────────── */
-
-export function SorsRenameSample() {
+export function SorRegisterSample() {
   const [view, setView] = useState("list")
+  const [search, setSearch] = useState("")
+  const needle = search.trim().toLowerCase()
+  const rows = REGISTER_ROWS.filter((r) => !needle || `${r.ref} ${r.client} ${r.owner}`.toLowerCase().includes(needle))
+
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-      {/* The register itself dropped this title when its header split into two
-          rows — the SideNav already says where you are. This slide keeps it,
-          because the rename to "SORS" is the whole point of the slide. */}
-      <h1 className="shrink-0 text-sm font-black uppercase tracking-widest text-foreground">
-        SORS
-      </h1>
-      <SorsViewTabs view={view} onChange={setView} />
-    </div>
-  )
-}
-
-export function OpenPipelineSample() {
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-      <SorsViewTabs view="list" onChange={noop} />
-      <SorsTotals openValue={353727836.94} wonValue={56711120} />
-    </div>
-  )
-}
-
-export function ItbWonSample() {
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-        <SorsTotals openValue={353727836.94} wonValue={56711120} />
-      </div>
-      <div className="max-w-sm">
-        <StageFieldPreview
-          draft={{
-            label: "ITB Number",
-            source: "custom",
-            isRequired: false,
-            help: "Ask for it on the Stages that need it.",
-            fieldType: "text",
-            options: [],
-          }}
-        />
-      </div>
-    </div>
-  )
-}
-
-const FILTER_SALE_TYPES = [
-  SAMPLE_SALE_TYPE,
-  { id: "st-2", name: "Private", archived_at: null },
-  { id: "st-3", name: "Retail (old)", archived_at: "2026-08-01" },
-]
-
-const MOCK_SORS = [
-  { id: "m1", ref: "S99001", client: "Demo Hospital", sale_type_id: SALE_TYPE_ID, stage: "Lead", value: 480000 },
-  { id: "m2", ref: "S99002", client: "Demo City LGU", sale_type_id: SALE_TYPE_ID, stage: "Bid Submitted", value: 1250000 },
-  { id: "m3", ref: "S99003", client: "Demo Province", sale_type_id: SALE_TYPE_ID, stage: "Awarded", value: 3100000 },
-  { id: "m4", ref: "S99004", client: "Demo Trading Co.", sale_type_id: "st-2", stage: "Quotation Sent", value: 210000 },
-  { id: "m5", ref: "S99005", client: "Demo Clinic", sale_type_id: "st-2", stage: "Won", value: 89000 },
-  { id: "m6", ref: "S99006", client: "Demo Distributor", sale_type_id: "st-3", stage: "Closed", value: 64000 },
-  { id: "m7", ref: "S05512", client: "Demo School (old)", sale_type_id: null, stage: "PO Received", value: 520000 },
-  { id: "m8", ref: "S05530", client: "Demo LGU (old)", sale_type_id: null, stage: "Lead", value: 97000 },
-]
-
-export function SorsFiltersSample() {
-  const [value, setValue] = useState("ALL")
-  const rows = MOCK_SORS.filter((o) => matchesSaleType(o, value))
-  const nameOf = (id) => FILTER_SALE_TYPES.find((s) => s.id === id)?.name ?? "No Sale Type (legacy)"
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="w-64">
-          <SaleTypeFilter saleTypes={FILTER_SALE_TYPES} value={value} onChange={setValue} className="w-full" />
+    <PageShell
+      className="!px-0 !pb-0"
+      title="SOR Register"
+      action={
+        <>
+          <SorsViewTabs view={view} onChange={setView} />
+          <Button type="button" onClick={noop}>
+            <Plus size={16} strokeWidth={2.5} />
+            Register SOR
+          </Button>
+        </>
+      }
+      toolbar={
+        <div className="flex w-full min-w-0 items-center gap-2 sm:gap-3">
+          <div className="flex h-9 min-w-[7rem] max-w-[360px] flex-1 items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 sm:px-3">
+            <Search size={15} className="shrink-0 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search number, client, project, deal owner…"
+              containerClassName="w-full"
+              className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-medium shadow-none focus-visible:ring-0"
+            />
+          </div>
+          <SorsTotals className="hidden lg:flex" count={rows.length} openValue={4500000} wonValue={2000000} />
+          <div className="flex-1" />
+          <FilterTrigger className="h-9 w-auto gap-2 px-3" icon={SlidersHorizontal} label="Filters" count={0} isActive={false} />
         </div>
-        <p className="text-[13px] font-semibold text-muted-foreground">
-          Showing {rows.length} of {MOCK_SORS.length} SORs
-        </p>
-      </div>
+      }
+    >
       <div className="overflow-x-auto rounded-2xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Sales Ref.</TableHead>
               <TableHead>Company</TableHead>
-              <TableHead>Sale Type</TableHead>
+              <TableHead>Deal Owner</TableHead>
               <TableHead>Stage</TableHead>
               <TableHead className="text-right">Expected value</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((o) => (
-              <TableRow key={o.id}>
-                <TableCell className="font-mono text-xs font-bold text-foreground">{o.ref}</TableCell>
-                <TableCell className="font-medium text-foreground">{o.client}</TableCell>
-                <TableCell className="text-muted-foreground">{nameOf(o.sale_type_id)}</TableCell>
+            {rows.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="font-mono text-xs font-bold text-foreground">{r.ref}</TableCell>
+                <TableCell className="font-medium text-foreground">{r.client}</TableCell>
+                <TableCell className="text-muted-foreground">{r.owner}</TableCell>
                 <TableCell>
-                  <StatusBadge label={o.stage} theme="mauve" />
+                  <StatusBadge label={r.stage} theme="blue" />
                 </TableCell>
-                <TableCell className="text-right font-bold text-foreground">{formatPHP(o.value)}</TableCell>
+                <TableCell className="text-right font-bold tabular-nums text-foreground">{formatPHP(r.value)}</TableCell>
               </TableRow>
             ))}
-            {rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                  No SORs match this filter.
-                </TableCell>
-              </TableRow>
-            )}
           </TableBody>
         </Table>
       </div>
-    </div>
+    </PageShell>
   )
 }
 
@@ -251,7 +148,7 @@ export function BoardSample() {
         [["pipelineStages", "all"], []],
       ]}
     >
-      <div className="h-[420px]">
+      <div className="h-[420px] min-w-[720px]">
         <OpportunityBoard
           opportunities={SAMPLE_BOARD_OPPORTUNITIES}
           search=""
@@ -271,83 +168,231 @@ export function BoardSample() {
   )
 }
 
-/* ── Retail ─────────────────────────────────────────────────────────────── */
+/* ── SOR window: Summary ────────────────────────────────────────────────── */
 
-const RETAIL_ORDERS = [
-  {
-    id: "r1",
-    odoo_so_number: "S45118",
-    odoo_partner_name: "Shopee - Demo Buyer",
-    odoo_salesperson_name: "Maria Duran",
-    odoo_date_order: "2026-09-19",
-    odoo_amount: 4590,
-  },
-  {
-    id: "r2",
-    odoo_so_number: "S45121",
-    odoo_partner_name: "Lazada - Demo Buyer",
-    odoo_salesperson_name: "Raquel Galacgac",
-    odoo_date_order: "2026-09-20",
-    odoo_amount: 12800,
-  },
+const SUMMARY_ITEMS = SAMPLE_LINES.map((line, i) => ({ ...line, id: `line-${i}`, sort_order: i }))
+const CURRENT_VISIT = { id: "visit-bid", enteredAt: daysAgo(6), leftAt: null }
+const VISITS = [
+  { id: "v1", stage: SAMPLE_STAGES[0], enteredAt: daysAgo(20), leftAt: daysAgo(15) },
+  { id: "v2", stage: SAMPLE_STAGES[1], enteredAt: daysAgo(15), leftAt: daysAgo(6) },
+  { id: "v3", stage: SAMPLE_STAGES[2], enteredAt: daysAgo(6), leftAt: null },
 ]
 
-export function RetailSample() {
-  return (
-    <SampleProvider seed={[[["retailQueue", "pending"], RETAIL_ORDERS]]}>
-      <ReadOnly>
-        <RetailOrdersQueue />
-      </ReadOnly>
-    </SampleProvider>
-  )
+const SUMMARY_P = {
+  id: SAMPLE_OPPORTUNITY.id,
+  opportunity: SAMPLE_OPPORTUNITY,
+  ctx: {
+    automationTasks: {
+      groupTasks: [
+        {
+          id: "gt1",
+          title: "Bid documents",
+          due_date: inDays(3),
+          stage_visit_id: CURRENT_VISIT.id,
+          members: [
+            { id: "m1", employee: PEOPLE.lara, status: "DONE" },
+            { id: "m2", employee: PEOPLE.joy, status: "PENDING" },
+          ],
+        },
+      ],
+      individualTasks: [],
+    },
+    items: SUMMARY_ITEMS,
+    itemsLoading: false,
+    estimatedValueDisplay: formatPHP(1000000),
+    accessLevel: "full",
+    activeLeadSources: [],
+    isEditing: false,
+    pendingStage: null,
+    stageLabel: (s) => s,
+    buildingLink: false,
+    downloadStep: null,
+    handlePreviewQuotation: noop,
+    handleCopyQuotationLink: noop,
+    handleDownloadQuotation: noop,
+  },
+  notes: [
+    { id: "n1", type: "COMMENT", author: PEOPLE.lara, content: "Pre-bid conference is on Friday. I'll attend for the team.", created_at: daysAgo(2) },
+  ],
+  checklist: [
+    { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c1", label: "Bid security attached", is_required: true } },
+    { status: CONDITION_STATUS.SATISFIED, condition: { id: "c2", label: "Technical documents checked", is_required: true } },
+  ],
+  stageMutation: { isPending: false, mutate: noop },
+  isFlowDeal: true,
+  flowCanvas: SAMPLE_CANVAS,
+  currentFlowStage: SAMPLE_STAGES[2],
+  currentFlowStageTone: "blue",
+  returnStageIds: [],
+  moveDisabled: false,
+  isRestricted: false,
+  canViewJourney: true,
 }
 
-/* ── SOR window ─────────────────────────────────────────────────────────── */
-
-/**
- * Not sample data. This deck is a Super Admin screen in the environment it
- * describes, so this one opens the real SOR window on the newest SOR the
- * register would list, through the same query the register uses. It is a real
- * record: what you do in the window is done to it.
- */
-export function SorWindowSample() {
-  const { data: sors = [], isLoading, isError } = useQuery({
-    queryKey: ["opportunities"],
-    queryFn: () => opportunityService.getOpportunities(),
-  })
-  const sor = sors.find((o) => o.sale_type_id) || sors[0] || null
-
-  if (isLoading) return <p className="text-[14px] text-muted-foreground">Loading a real SOR…</p>
-  if (isError || !sor) {
-    return <p className="text-[14px] text-muted-foreground">No SOR in this environment to open.</p>
-  }
-
+function SummaryBody({ p }) {
+  const dg = useDigest(p)
   return (
-    <div className="space-y-3">
-      <p className="text-[14px] text-muted-foreground">
-        Live data: opens {sor.sales_reference || "an SOR"} - {sor.client_name}, the newest SOR you can see.
-      </p>
-      <ClickMe>
-        {(open, close) => <OpportunityDetailsModal isOpen={open} onClose={close} opportunity={sor} />}
-      </ClickMe>
+    <div className="space-y-6">
+      <Identity p={p} />
+      <StatusLine p={p} dg={dg} />
+      <StatsBand p={p} dg={dg} />
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-7">
+          <AttentionList dg={dg} go={noop} />
+          <section>
+            <SectionTitle aside={<span className="text-xs font-semibold tabular-nums text-muted-foreground">{dg.itemsTotal}</span>}>
+              Where the money is
+            </SectionTitle>
+            <div className="rounded-xl border border-border/70 bg-card p-5">
+              <MoneyBars p={p} onOpen={noop} />
+            </div>
+          </section>
+        </div>
+        <div className="space-y-6 lg:col-span-5">
+          <section>
+            <SectionTitle>Time in each stage</SectionTitle>
+            <div className="rounded-xl border border-border/70 bg-card p-5">
+              <StageTimeChart p={p} visits={VISITS} onOpen={noop} />
+            </div>
+          </section>
+          <div className="rounded-xl border border-border/70 bg-card p-5">
+            <TeamAndQuote p={p} />
+          </div>
+          <div className="rounded-xl border border-border/70 bg-card p-5">
+            <KeyFacts p={p} />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
-/* ── Blocked move ───────────────────────────────────────────────────────── */
+export function SorSummarySample() {
+  return (
+    <SampleProvider
+      seed={[
+        [["currentStageVisit", SAMPLE_OPPORTUNITY.id, SAMPLE_OPPORTUNITY.flow_stage_id], CURRENT_VISIT],
+        [["followUpStatus", SAMPLE_OPPORTUNITY.id, SAMPLE_OPPORTUNITY.flow_stage_id], { nextDue: inDays(2) }],
+      ]}
+    >
+      <div className="min-w-[640px] rounded-2xl border border-border bg-background p-6">
+        <SummaryBody p={SUMMARY_P} />
+      </div>
+    </SampleProvider>
+  )
+}
+
+/* ── Revert, then Resume or Start fresh ─────────────────────────────────── */
+
+export function RevertResumeSample() {
+  const [revert, setRevert] = useState(REVERT_CHOICE.KEEP)
+  const [ret, setRet] = useState(RETURN_CHOICE.RESUME)
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
+        <p className="text-sm font-bold text-foreground">Revert out of Bid Submitted?</p>
+        <RevertChoice stageName="Bid Submitted" value={revert} onChange={setRevert} />
+      </div>
+      <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
+        <p className="text-sm font-bold text-foreground">Move back to Technical Review?</p>
+        <ReturnChoice stageName="Technical Review" value={ret} onChange={setRet} />
+      </div>
+    </div>
+  )
+}
+
+/* ── Quick View ─────────────────────────────────────────────────────────── */
+
+const QUICK_TASKS = [
+  {
+    id: "t1",
+    kind: "individual",
+    title: "Prepare the technical compliance sheet",
+    taskDescription: "Match every line of the terms of reference to what we offer.",
+    dueAt: inDays(3),
+    priority: "HIGH",
+  },
+  {
+    id: "g1",
+    kind: "group",
+    title: "Bid documents",
+    taskDescription: "Put together and submit the bid documents.",
+    dueAt: inDays(5),
+    checklistProgress: { checked: 1, total: 3 },
+  },
+]
+
+const QUICK_CHECKLIST = [
+  { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c1", label: "Bid security attached" } },
+  { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c2", label: "Bid deadline filled in" } },
+  { status: CONDITION_STATUS.SATISFIED, condition: { id: "c3", label: "Client company confirmed" } },
+]
+
+export function QuickViewSample() {
+  return (
+    <SampleProvider
+      seed={[
+        [["quickViewTasks", SAMPLE_OPPORTUNITY.id, SAMPLE_ACTOR], QUICK_TASKS],
+        [["quickViewChecklist", SAMPLE_OPPORTUNITY.id, SAMPLE_OPPORTUNITY.flow_stage_id], QUICK_CHECKLIST],
+      ]}
+    >
+      <OpenButton label="Open Quick View">
+        {(open, close) => (
+          <OpportunityQuickView
+            isOpen={open}
+            onClose={close}
+            opportunity={SAMPLE_OPPORTUNITY}
+            opportunityId={SAMPLE_OPPORTUNITY.id}
+            userId={SAMPLE_ACTOR}
+            onViewFullDetails={close}
+            onOpenTask={close}
+            onOpenGroupTask={close}
+          />
+        )}
+      </OpenButton>
+    </SampleProvider>
+  )
+}
+
+/* ── My SORs ────────────────────────────────────────────────────────────── */
+
+const MY_SORS = [
+  {
+    opportunityId: "my-1",
+    salesReference: "S00002",
+    projectTitle: "Demo: 10 hospital beds",
+    currentStageName: "Bid Submitted",
+    isOpen: true,
+    windows: [
+      { id: "w1", calledInAtStageName: "Technical Review", source: "action", reachLabel: "the rest of the SOR", closedAt: null, createdAt: daysAgo(9) },
+    ],
+  },
+  {
+    opportunityId: "my-2",
+    salesReference: "S00003",
+    projectTitle: "Demo: rescue equipment",
+    currentStageName: "Technical Review",
+    isOpen: true,
+    windows: [
+      { id: "w2", calledInAtStageName: "Technical Review", source: "assignment", reachLabel: "this Stage only", closedAt: null, createdAt: daysAgo(4) },
+      { id: "w3", calledInAtStageName: "Lead", source: "purchase_request", reachLabel: "this Stage only", closedAt: daysAgo(6), createdAt: daysAgo(12) },
+    ],
+  },
+]
+
+export function MySorsSample() {
+  return <MySorsTable rows={MY_SORS} onOpen={noop} />
+}
+
+/* ── Move button says why it is blocked ─────────────────────────────────── */
 
 export function BlockedMoveSample() {
   return (
     <SampleProvider seed={[SEED_CANVAS]}>
       <div className="max-w-3xl space-y-6">
         <div className="space-y-2">
-          <p className="text-[13px] font-semibold text-muted-foreground">A required field and a condition are open</p>
-          <FlowStageControl
-            opportunity={SAMPLE_OPPORTUNITY}
-            onMove={noop}
-            isMoving={false}
-            blockedBy={["Bid Deadline", "Bid security attached"]}
-          />
+          <p className="text-[13px] font-semibold text-muted-foreground">A required field and a checklist item are still open</p>
+          <FlowStageControl opportunity={SAMPLE_OPPORTUNITY} onMove={noop} isMoving={false} blockedBy={["Bid deadline", "Bid security attached"]} />
         </div>
         <div className="space-y-2">
           <p className="text-[13px] font-semibold text-muted-foreground">Everything answered</p>
@@ -358,92 +403,46 @@ export function BlockedMoveSample() {
   )
 }
 
-/* ── Stage automation ───────────────────────────────────────────────────── */
+/* ── Open and Won, ITB Number ───────────────────────────────────────────── */
 
-const SAMPLE_CADENCE = {
-  enabled: true,
-  everyDays: 7,
-  proofRequired: true,
-  recipients: [{ type: "role", role: "deal_owner" }],
-}
-
-const SAMPLE_FLOW_DATA = {
-  followUp: { getForStage: async () => SAMPLE_CADENCE, save: async () => {} },
-}
-
-export function StageAutomationSample() {
+export function OpenWonSample() {
   return (
-    <SampleProvider
-      seed={[
-        [["followUpCadence", "s-bid"], SAMPLE_CADENCE],
-        [["pendingActionDecisions", SAMPLE_OPPORTUNITY.id, SAMPLE_ACTOR], PENDING_ACTIONS],
-        [["employees"], []],
-        [["employeeGroups", "all"], []],
-      ]}
-    >
-      <ReadOnly>
-        <FlowDataContext.Provider value={SAMPLE_FLOW_DATA}>
-          <div className="grid max-w-4xl grid-cols-1 gap-6 xl:grid-cols-2">
-            <div className="min-w-0 space-y-3">
-              <p className="text-[13px] font-semibold text-muted-foreground">Task title template</p>
-              <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground">
-                <TemplateTokenText text="{{so_number}} - Prepare technical compliance sheet" />
-              </p>
-              <p className="text-[13px] font-semibold text-muted-foreground">Optional Action waiting on you</p>
-              <PendingActionDecisions opportunity={SAMPLE_OPPORTUNITY} actorId={SAMPLE_ACTOR} onChanged={noop} />
-            </div>
-            <div className="min-w-0 space-y-3">
-              <p className="text-[13px] font-semibold text-muted-foreground">Follow-up Cadence on a Stage</p>
-              <FollowUpCadenceEditor stageId="s-bid" />
-            </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+        <SorsTotals count={5} openValue={4500000} wonValue={2000000} />
+      </div>
+      <div className="max-w-sm">
+        <StageFieldPreview
+          draft={{
+            label: "ITB Number",
+            source: "custom",
+            isRequired: false,
+            help: "Asked for only on the Stages that need it.",
+            fieldType: "text",
+            options: [],
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/* ── Stock on the Product List ──────────────────────────────────────────── */
+
+export function StockSample() {
+  return (
+    <div className="grid max-w-2xl grid-cols-12 gap-x-3 gap-y-3 rounded-2xl border border-border bg-card p-4">
+      {SAMPLE_LINES.map((line, i) => (
+        <div key={line.product_name} className="col-span-12 space-y-1">
+          <div className="flex justify-between text-[14px] font-medium text-foreground">
+            <span>{line.product_name}</span>
+            <span className="text-muted-foreground">×{line.quantity}</span>
           </div>
-        </FlowDataContext.Provider>
-      </ReadOnly>
-    </SampleProvider>
-  )
-}
-
-/* ── Offset leave ───────────────────────────────────────────────────────── */
-
-const OFFSET_REQUEST = {
-  leave_group_id: "sample-group",
-  hours: 8,
-  dayCount: 2,
-  date: "2026-09-24",
-  employee: { name: "Maria Duran" },
-}
-
-export function OffsetSample() {
-  return (
-    <ClickMe>
-      {(open, close) => (
-        <ApproveOffsetModal isOpen={open} onClose={close} request={OFFSET_REQUEST} hrId={SAMPLE_ACTOR} onSuccess={noop} />
-      )}
-    </ClickMe>
-  )
-}
-
-/* ── Employee Groups ────────────────────────────────────────────────────── */
-
-const SAMPLE_GROUPS = [
-  { id: "g1", name: "Purchasing", description: "Everyone who raises purchase orders", archived_at: null, memberIds: ["e1", "e2", "e3"], teams: [] },
-  { id: "g2", name: "Sales Directors", description: null, archived_at: null, memberIds: ["e4"], teams: [] },
-  { id: "g3", name: "Old Bid Team", description: "Replaced in August", archived_at: "2026-08-20", memberIds: ["e1", "e5"], teams: [] },
-]
-
-export function EmployeeGroupsSample() {
-  return (
-    <SampleProvider
-      seed={[
-        [["employeeGroups", "all"], SAMPLE_GROUPS],
-        [["employees"], []],
-      ]}
-    >
-      <ReadOnly>
-        <div className="max-w-2xl">
-          <EmployeeGroupManager />
+          <div className="grid grid-cols-12">
+            <ItemStockRow item={{ ...line, id: `stock-${i}` }} snapshotData={STOCK_SNAPSHOT} />
+          </div>
         </div>
-      </ReadOnly>
-    </SampleProvider>
+      ))}
+    </div>
   )
 }

@@ -1,6 +1,19 @@
 [
     {
         "date": "2026-09-30",
+        "title": "A Big Update: See Everything in Release Notes",
+        "version": "1.9.0",
+        "changes": [
+            "Release Notes: a new page under Workspace that shows every change since mid-September, screen by screen.",
+            "SORs: a cleaner register, a Summary when you open an SOR, Revert and Resume, and a Board you can drag SORs across.",
+            "Approvals and Leaves: one table each, and you review and decide in a panel at the side.",
+            "Retail is now a sales report, and the Commission Dashboard is redesigned.",
+            "Everywhere: every page shares one layout, so once you know one, you know them all."
+        ],
+        "link": "/release-notes"
+    },
+    {
+        "date": "2026-09-30",
         "title": "Commission Formula in One Place, Tidier Settings",
         "version": "1.8.3",
         "changes": [

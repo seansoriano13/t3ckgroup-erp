@@ -76,6 +76,19 @@ describe("addEntry", () => {
     expect(() => addEntry(existing, { ...valid, title: "  " })).toThrow(/title/)
   })
 
+  // ADR 0030: a release entry can point the What's New modal at a page in
+  // the app (Release Notes), offered as the modal's main button.
+  it("keeps a link to a page in the app, after the four fields", () => {
+    const result = addEntry(existing, { ...valid, date: "2026-09-08", link: "/release-notes" })
+
+    expect(Object.keys(result[0])).toEqual(["date", "title", "version", "changes", "link"])
+    expect(result[0].link).toBe("/release-notes")
+  })
+
+  it("refuses a link that leaves the app, since the modal navigates in-app", () => {
+    expect(() => addEntry(existing, { ...valid, link: "https://example.com" })).toThrow(/link/)
+  })
+
   it("refuses an entry with nothing to announce", () => {
     expect(() => addEntry(existing, { ...valid, changes: [] })).toThrow(/at least one change/)
     expect(() => addEntry(existing, { ...valid, changes: ["", "  "] })).toThrow(/at least one change/)

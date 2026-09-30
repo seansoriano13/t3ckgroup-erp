@@ -14,7 +14,7 @@ import {
   Workflow,
   ShoppingCart,
   ShoppingBag,
-  Presentation,
+  Sparkles,
   Handshake,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
@@ -45,6 +45,15 @@ export const NAV_MODULES = {
         label: "My Requests",
         link: "/offsets",
         icon: Clock,
+        isPermitted: () => true,
+      },
+      // What changed in the ERP, for everyone (ADR 0030). The What's new
+      // popup points here once; this entry is how people find it again.
+      {
+        key: "workspace.releaseNotes",
+        label: "Release Notes",
+        link: "/release-notes",
+        icon: Sparkles,
         isPermitted: () => true,
       },
     ],
@@ -243,17 +252,6 @@ export const NAV_MODULES = {
         link: "/super-admin/flow-canvas",
         icon: Workflow,
         isPermitted: () => true,
-      },
-      // The deck for walking someone through what shipped in a date window.
-      // It is a nav entry rather than a remembered URL because it is opened
-      // from whatever screen the conversation is already on; the role gate is
-      // what keeps it out of everyone else's way.
-      {
-        key: "admin.releaseNotes",
-        label: "Release Notes",
-        link: "/super-admin/release-notes",
-        icon: Presentation,
-        isPermitted: (ctx) => ctx.isSuperAdmin,
       },
     ],
   },

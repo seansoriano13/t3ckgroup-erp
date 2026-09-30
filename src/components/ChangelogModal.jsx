@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
@@ -12,6 +13,7 @@ const changelog = visibleEntries(allChangelog, isStaging);
 
 export default function ChangelogModal({ manualOpen = false, onManualClose = null }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [autoOpen, setAutoOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -57,6 +59,13 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
     }
   };
 
+  // An entry with a `link` (the release's Release Notes page, ADR 0030)
+  // offers it as the main button; dismissing still records the version seen.
+  const handleOpenLink = async () => {
+    await handleDismiss();
+    navigate(latestRelease.link);
+  };
+
   if (!latestRelease) return null;
 
   const isOpen = manualOpen || autoOpen;
@@ -97,13 +106,28 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
           </div>
 
           {/* Footer */}
-          <Button 
-            className="w-full shrink-0 bg-foreground text-background hover:bg-foreground/90 font-medium h-11 shadow-sm transition-all rounded-lg" 
-            onClick={handleDismiss} 
-            disabled={isUpdating}
-          >
-            {isUpdating ? "Saving..." : "Continue to App"}
-          </Button>
+          {latestRelease.link ? (
+            <div className="flex shrink-0 flex-col gap-2">
+              <Button
+                className="w-full bg-foreground text-background hover:bg-foreground/90 font-medium h-11 shadow-sm transition-all rounded-lg"
+                onClick={handleOpenLink}
+                disabled={isUpdating}
+              >
+                See everything in Release Notes
+              </Button>
+              <Button variant="ghost" className="w-full h-10 font-medium text-muted-foreground" onClick={handleDismiss} disabled={isUpdating}>
+                {isUpdating ? "Saving..." : "Continue to App"}
+              </Button>
+            </div>
+          ) : (
+            <Button 
+              className="w-full shrink-0 bg-foreground text-background hover:bg-foreground/90 font-medium h-11 shadow-sm transition-all rounded-lg" 
+              onClick={handleDismiss} 
+              disabled={isUpdating}
+            >
+              {isUpdating ? "Saving..." : "Continue to App"}
+            </Button>
+          )}
 
         </div>
       </DialogContent>

@@ -214,24 +214,6 @@ describe("opportunityService", () => {
       expect(found.is_scratch).toBe(true)
     })
 
-    // The Release Notes deck opens the demo SOR scripts/seed-release-demo.mjs
-    // made last: a Scratch SOR, so the register never shows it.
-    it("finds the newest Release Notes demo SOR, and nothing else", async () => {
-      makeOpportunity({ registered_by: registrar.id, is_scratch: true, metadata: { releaseDemo: true }, created_at: "2026-09-27T00:00:00Z" })
-      const newest = makeOpportunity({ registered_by: registrar.id, is_scratch: true, metadata: { releaseDemo: true }, created_at: "2026-09-28T00:00:00Z" })
-      makeOpportunity({ registered_by: registrar.id, is_scratch: true, metadata: {}, created_at: "2026-09-29T00:00:00Z" })
-
-      const found = await opportunityService.getReleaseDemoSor()
-
-      expect(found.id).toBe(newest.id)
-    })
-
-    it("returns null when no demo SOR has been seeded", async () => {
-      makeOpportunity({ registered_by: registrar.id })
-
-      expect(await opportunityService.getReleaseDemoSor()).toBeNull()
-    })
-
     // Issue #170/#171 — same mechanism as Scratch: a retail order runs
     // identical code paths to a real deal, so the Register must ask.
     it("hides Retail SORs from the register", async () => {

@@ -2,6 +2,9 @@
 
 ## Status
 
+Superseded 2026-09-30 by ADR 0030 (self-serve page for everyone, Sample Data
+only, no generator, no live record).
+
 Accepted 2026-09-16, from the presentation grilling session. Applies to
 `/super-admin/release-notes`, the Super-Admin surface for walking someone
 through what shipped in a date window.

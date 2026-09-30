@@ -1,8 +1,9 @@
 import { screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router"
 
 import FlowCanvasAdminPage from "@/pages/super-admin/flow-canvas/index.jsx"
-import ReleaseNotesPage from "@/pages/super-admin/release-notes/index.jsx"
+import ReleaseNotesPage from "@/pages/release-notes/index.jsx"
 import { renderWithProviders } from "@/test/support"
 
 /**
@@ -45,12 +46,19 @@ describe("Flow Canvas on PageShell", () => {
 })
 
 describe("Release Notes on PageShell", () => {
-  it("renders one PageShell title over the deck", async () => {
-    renderWithProviders(<ReleaseNotesPage />)
+  it("renders the PageShell title over one level-1 tab per section", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/release-notes?tab=next"]}>
+        <ReleaseNotesPage />
+      </MemoryRouter>,
+    )
 
+    // Samples inside the body may be whole pages with titles of their own;
+    // the page's own title is the first.
     const headings = await screen.findAllByRole("heading", { level: 1 })
-    expect(headings).toHaveLength(1)
     expect(headings[0]).toHaveTextContent(/release\s*notes/i)
-    expect(within(screen.getByTestId("page-body")).getByRole("button", { name: /overview/i })).toBeInTheDocument()
+    const tabs = within(screen.getByTestId("page-tabs"))
+    expect(tabs.getByRole("tab", { name: "SORs" })).toBeInTheDocument()
+    expect(tabs.getByRole("tab", { name: "Coming next" })).toBeInTheDocument()
   })
 })

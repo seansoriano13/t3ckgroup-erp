@@ -5,28 +5,23 @@ import SorChatColumn from "../sor/modal/SorChatColumn"
 import { formatPHP } from "../../constants/sor"
 import SampleProvider from "./SampleProvider"
 import BeforeAfter, { ScreenshotPair } from "./BeforeAfter"
+import { PEOPLE, SAMPLE_ACTOR, SAMPLE_LINES, hoursAgo } from "./sampleData"
 
 /**
- * Under the hood: one slide per fix, each the same screen before and after.
- * Where the bug was in the data, the app's own component is fed the data the
- * bug produced and the data it produces now. Where the old screen is gone
- * from the code, it is a screenshot pair (see ScreenshotPair).
+ * Fixes shown as the same screen before and after (ADR 0030). Where the bug
+ * was in the data, the app's own component is fed the data the bug produced
+ * and the data it produces now. Where the old screen is gone from the code,
+ * it is a pair of screenshots (see ScreenshotPair).
  */
 
 const noop = () => {}
-const hoursAgo = (n) => new Date(Date.now() - n * 3600000).toISOString()
 
 /* ── Product List could double ──────────────────────────────────────────── */
 
-const LINES = [
-  { product_name: "[M8101HV] Meret Omni Pro X (High Viz)", unit: "Set", quantity: 65, unit_price: 58424, odoo_product_id: 11258 },
-  { product_name: "[M8120-TB] Meret Efak Pro X (black)", unit: "pc", quantity: 140, unit_price: 4946, odoo_product_id: 11266 },
-  { product_name: "[SC357E2] Dinglee eDraulic Combi Tool", unit: "Unit", quantity: 1, unit_price: 523800, odoo_product_id: 9120 },
-]
 const withIds = (lines, prefix) => lines.map((line, i) => ({ ...line, id: `${prefix}-${i}`, sort_order: i }))
 
 function ProductList({ id, items }) {
-  const opportunity = { id, sales_reference: "S98001", client_name: "Province of Sierra Alta — PDRRMO" }
+  const opportunity = { id, sales_reference: "S00002", client_name: "Demo City Hospital" }
   const ctx = {
     opportunity,
     id,
@@ -35,7 +30,7 @@ function ProductList({ id, items }) {
     isEditing: false,
     editForm: {},
     setEditForm: noop,
-    user: { id: "sample-actor" },
+    user: { id: SAMPLE_ACTOR },
     invalidate: noop,
     autoSyncingOdoo: false,
     handleRefreshStock: noop,
@@ -55,28 +50,25 @@ export function ProductListDoublingSample() {
   return (
     <BeforeAfter
       beforeNote="Open in two places at once: every line twice, the Estimated Value doubled."
-      afterNote="Saving replaces the list in one step. It cannot stack."
-      before={<ProductList id="doubled" items={withIds([...LINES, ...LINES], "d")} />}
-      after={<ProductList id="fixed" items={withIds(LINES, "f")} />}
+      afterNote="Saving replaces the list in one step, so it cannot stack."
+      before={<ProductList id="doubled" items={withIds([...SAMPLE_LINES, ...SAMPLE_LINES], "d")} />}
+      after={<ProductList id="fixed" items={withIds(SAMPLE_LINES, "f")} />}
     />
   )
 }
 
 /* ── A false "Added product(s)" on every open ───────────────────────────── */
 
-const AUTHOR = { id: "a1", name: "Maria Duran" }
 const ADDED = {
   type: "SYSTEM",
   content: "Details updated",
   metadata: {
-    changes: [
-      "Added product(s): [M8101HV] Meret Omni Pro X (High Viz) ×65, [M8120-TB] Meret Efak Pro X (black) ×140, [SC357E2] Dinglee eDraulic Combi Tool ×1",
-    ],
+    changes: ["Added product(s): Demo hospital bed, manual ×10, Demo mattress, foam ×10, Demo IV pole ×20"],
   },
 }
 const REAL_NOTES = [
-  { id: "n1", type: "COMMENT", author: AUTHOR, content: "Pre-bid is online on the 18th. I'll join for the bid team.", created_at: hoursAgo(30) },
-  { id: "n2", type: "SYSTEM", content: "Stage moved: Qualified → For Bidding", created_at: hoursAgo(26) },
+  { id: "n1", type: "COMMENT", author: PEOPLE.lara, content: "Pre-bid conference is on Friday. I'll attend for the team.", created_at: hoursAgo(30) },
+  { id: "n2", type: "SYSTEM", content: "Stage moved: Technical Review → Bid Submitted", created_at: hoursAgo(26) },
 ]
 const SPURIOUS = [
   { id: "s1", ...ADDED, created_at: hoursAgo(20) },
@@ -112,21 +104,23 @@ function Notes({ notes }) {
 
 export function SpuriousAddedProductsSample() {
   return (
-    <BeforeAfter
-      beforeNote="A department head opening the SOR logged the whole list as newly added. Every time."
-      afterNote="Opening an SOR writes nothing to its timeline."
-      before={<Notes notes={oldestFirst([...REAL_NOTES, ...SPURIOUS])} />}
-      after={<Notes notes={oldestFirst(REAL_NOTES)} />}
-    />
+    <SampleProvider>
+      <BeforeAfter
+        beforeNote="Opening the SOR logged the whole Product List as newly added. Every time."
+        afterNote="Opening an SOR writes nothing to its Chat."
+        before={<Notes notes={oldestFirst([...REAL_NOTES, ...SPURIOUS])} />}
+        after={<Notes notes={oldestFirst(REAL_NOTES)} />}
+      />
+    </SampleProvider>
   )
 }
 
 /* ── Lost SORs left the commission pool ─────────────────────────────────── */
 
 const POOL = [
-  { ref: "S07213", client: "Municipality of San Andres", stage: "Collection", value: 2840000 },
-  { ref: "S07488", client: "Provincial Health Office", stage: "Closed Won", value: 1965000 },
-  { ref: "S07702", client: "City DRRMO, Sta. Lucia", stage: "Closed Lost", value: 4120000, lost: true },
+  { ref: "S00005", client: "Demo Town Hall", stage: "Awarded", value: 2000000 },
+  { ref: "S00006", client: "Demo Health Office", stage: "Awarded", value: 1000000 },
+  { ref: "S00007", client: "Demo Rescue Unit", stage: "Closed Lost", value: 4000000, lost: true },
 ]
 
 function Pool({ rows }) {
@@ -146,12 +140,14 @@ function Pool({ rows }) {
           <TableRow key={r.ref}>
             <TableCell className="font-mono text-xs font-bold">{r.ref}</TableCell>
             <TableCell>{r.client}</TableCell>
-            <TableCell className={r.lost ? "font-semibold text-red-700 dark:text-red-300" : "text-muted-foreground"}>{r.stage}</TableCell>
+            <TableCell className={r.lost ? "font-semibold text-red-11" : "text-muted-foreground"}>{r.stage}</TableCell>
             <TableCell className="text-right tabular-nums">{formatPHP(r.value)}</TableCell>
           </TableRow>
         ))}
         <TableRow>
-          <TableCell colSpan={3} className="font-bold">Commission pool is drawn from</TableCell>
+          <TableCell colSpan={3} className="font-bold">
+            Commission Pool is drawn from
+          </TableCell>
           <TableCell className="text-right font-bold tabular-nums">{formatPHP(total)}</TableCell>
         </TableRow>
       </TableBody>
@@ -162,8 +158,8 @@ function Pool({ rows }) {
 export function LostCommissionPoolSample() {
   return (
     <BeforeAfter
-      beforeNote="An SOR moved to a Sales Flow's Closed Lost still counted as Won."
-      afterNote="Closed Lost on any flow leaves the pool."
+      beforeNote="An SOR moved to Closed Lost on a Sales Flow still counted as won."
+      afterNote="Closed Lost on any Sales Flow leaves the pool."
       before={<Pool rows={POOL} />}
       after={<Pool rows={POOL.filter((r) => !r.lost)} />}
     />
@@ -177,7 +173,7 @@ export function RegistrationPickersSample() {
     <ScreenshotPair
       name="registration-pickers"
       before="Registering asked you to assign people for the first Stage."
-      after="Registering only registers. The Stage asks on the SOR's Now tab; the form says which Sale Type's fields it shows."
+      after="Registering only registers. Each Stage asks for its own people when the SOR reaches it."
     />
   )
 }
@@ -186,8 +182,18 @@ export function BoardEmptyStateSample() {
   return (
     <ScreenshotPair
       name="board-empty"
-      before="An empty register on the Board: a column per Stage, each saying nothing is there."
-      after="The register's own empty state, on the Board as on the List."
+      before="An empty register on the Board: a column per Stage, each one empty."
+      after="One clear message, the same as the list shows."
+    />
+  )
+}
+
+export function ConsistentLookSample() {
+  return (
+    <ScreenshotPair
+      name="consistent-look"
+      before="Each screen drew its own: the browser's plain dropdowns, hand-made tables and pop-ups."
+      after="The same pick-lists, tables and pop-ups on every screen, keyboard included."
     />
   )
 }

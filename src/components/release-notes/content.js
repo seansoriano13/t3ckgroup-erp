@@ -1,0 +1,389 @@
+/**
+ * Release Notes content: the one hand-written source for /release-notes
+ * (ADR 0030). Replace it for the next release; git keeps the old one.
+ *
+ * Written for every employee, not for developers: plain words, what changed
+ * on their screen, no ticket numbers. Each item says who uses it and, where
+ * a picture says it better, names a sample (a key in sampleRegistry.js) —
+ * the real screen, fed Sample Data.
+ *
+ * kind: "new" (default) · "fix" (a before/after sample) · "removed"
+ * who:  the people who use it, shown as chips.
+ */
+
+export const RELEASE = {
+  title: "What's new: September–October",
+  window: "Everything that changed in the ERP from 14 September to 30 September 2026.",
+}
+
+export const SECTIONS = [
+  {
+    key: "sors",
+    label: "SORs",
+    intro: "The SOR Register, the Board and the SOR window.",
+    items: [
+      {
+        id: "sor-register",
+        title: "A cleaner SOR Register",
+        body: "The page is now called SOR Register. Register SOR is a normal button at the top right, and search, the totals and Filters sit on one line under it.",
+        who: ["Sales"],
+        sample: "sor-register",
+      },
+      {
+        id: "sor-board",
+        title: "Drag SORs between Stages on the Board",
+        body: "Switch the register to Board for one column per Stage of a Sales Flow, and drag an SOR to move it. The Board remembers the last Sale Type you picked.",
+        who: ["Sales"],
+        sample: "sor-board",
+      },
+      {
+        id: "sor-summary",
+        title: "Opening an SOR shows a Summary first",
+        body: "The SOR window opens on one screen that says where the SOR stands, what needs attention, where the money is and how long each Stage took. History shows everything done at each Stage, with its files and Group Tasks.",
+        who: ["Sales", "Deal Team"],
+        sample: "sor-summary",
+      },
+      {
+        id: "revert-resume",
+        title: "Revert to last stage, then Resume or Start fresh",
+        body: "Revert takes an SOR back one step. If work was done on the Stage you leave, you choose to keep it or remove it. When an SOR comes back to a Stage it was on before, you choose to pick up the old work or start again.",
+        who: ["Sales"],
+        sample: "revert-resume",
+      },
+      {
+        id: "quick-view",
+        title: "Quick View opens at the side",
+        body: "Click an SOR in the register and a panel slides in from the right with your open tasks on it and what is left before it can move. The full SOR is one click away.",
+        who: ["Sales", "Deal Team"],
+        sample: "quick-view",
+      },
+      {
+        id: "my-sors",
+        title: "My SORs",
+        body: "Every SOR you were called into by a task, an assignment or a purchase request, in one table: where it is now, how you got there and what you can see.",
+        who: ["Everyone"],
+        sample: "my-sors",
+      },
+      {
+        id: "blocked-move",
+        title: "The move button says why it is blocked",
+        body: "When a required field or checklist item is still open, the button lists exactly what is missing instead of just greying out.",
+        who: ["Sales"],
+        sample: "blocked-move",
+      },
+      {
+        id: "open-won",
+        title: "Open and Won totals follow each Sales Flow",
+        body: "The register's Open and Won figures count each SOR by its own flow's Stages. ITB Number is no longer forced by the system: a Stage asks for it only where it is needed.",
+        who: ["Sales", "Management"],
+        sample: "open-won",
+      },
+      {
+        id: "stock",
+        title: "Odoo stock on Product List lines",
+        body: "Each Product List line shows how many are free in the warehouse, straight from Odoo.",
+        who: ["Sales", "Purchasing"],
+        sample: "stock",
+      },
+      {
+        id: "flows-live",
+        title: "Government and Outright Sales Flows are live",
+        body: "SORs on these Sale Types now follow their own Stages, conditions and tasks.",
+        who: ["Sales"],
+      },
+      {
+        id: "product-list-doubling",
+        kind: "fix",
+        title: "The Product List no longer doubles",
+        body: "With an SOR open in two places, saving could list every product twice and double the Estimated Value.",
+        who: ["Sales"],
+        sample: "product-list-doubling",
+      },
+      {
+        id: "spurious-added-products",
+        kind: "fix",
+        title: "Opening an SOR no longer logs changes nobody made",
+        body: "Opening an SOR used to write \"Added product(s)\" to its Chat, every time.",
+        who: ["Sales", "Deal Team"],
+        sample: "spurious-added-products",
+      },
+      {
+        id: "registration-pickers",
+        kind: "fix",
+        title: "Registering an SOR only registers it",
+        body: "The form no longer asks you to assign people for the first Stage. The Stage asks for them itself, once the SOR is on it.",
+        who: ["Sales"],
+        sample: "registration-pickers",
+      },
+      {
+        id: "board-empty-state",
+        kind: "fix",
+        title: "An empty Board says so",
+        body: "With no SORs to show, the Board used to draw a column per Stage, each one empty. Now it shows one clear message, like the list does.",
+        who: ["Sales"],
+        sample: "board-empty-state",
+      },
+    ],
+    alsoFixed: [
+      "Saving one field on a Stage Checklist no longer overwrites the rest of the SOR, such as the Deal Team, dates and Product List.",
+      "Stock no longer reads \"Not linked\" when Odoo is busy. It tries again instead.",
+      "Changes that come from Odoo are logged as System, and a renamed product reads as a rename.",
+    ],
+  },
+  {
+    key: "tasks",
+    label: "Tasks",
+    intro: "All Tasks and Group Tasks.",
+    items: [
+      {
+        id: "task-filters",
+        title: "Filters on one line",
+        body: "Search, the main filters and a Filters menu for the rest sit on one line. Lists show as tables by default, and Save as default remembers every filter you set.",
+        who: ["Everyone"],
+        sample: "task-filters",
+      },
+      {
+        id: "tasks-period",
+        title: "All Tasks loads one period at a time",
+        body: "Pick a period and only that loads. Load older brings in more. Long task histories open much faster.",
+        who: ["Everyone"],
+      },
+      {
+        id: "tasks-order",
+        title: "Tasks sort by date within each status",
+        body: "Inside each status, the newest date comes first, instead of sorting by priority.",
+        who: ["Everyone"],
+      },
+      {
+        id: "group-task-dates",
+        title: "Group Tasks: Start Date, Lead Time and templates",
+        body: "A Group Task can have a Start Date and a Lead Time note, such as \"120 calendar days\". Templates were brought over, and the window keeps one size with the members on the left.",
+        who: ["Everyone"],
+      },
+      {
+        id: "group-task-tags",
+        kind: "removed",
+        title: "Group Task Tags are gone",
+        body: "To find the tasks for SORs, use \"SORs only\" in the Filters menu.",
+        who: ["Everyone"],
+      },
+    ],
+    alsoFixed: [
+      "Removing a member from a Group Task now really removes them.",
+      "Individual Task Stage Actions work again, and Assign To shows when you add one.",
+      "Tasks created for an SOR link back to it from both the task and the Group Task.",
+    ],
+  },
+  {
+    key: "approvals",
+    label: "Approvals & Leaves",
+    intro: "Task Approvals, HR Verifications, Leave Approvals and the Leaves Manager.",
+    items: [
+      {
+        id: "approval-center",
+        title: "Approvals: one table, decide at the side",
+        body: "Task Approvals, HR Verifications and Leave Approvals are one table each. Click a row to review it in a panel from the right and decide there, then step to the next one. Long queues come in pages, and every request has a link of its own you can share.",
+        who: ["Approvers", "HR"],
+        sample: "approval-center",
+      },
+      {
+        id: "leaves-manager",
+        title: "Leaves Manager: tabs and Who's out",
+        body: "Its views are tabs across the top. Who is out today and tomorrow is one button in the header, and a request opens in a side panel.",
+        who: ["HR"],
+        sample: "leaves-manager",
+      },
+      {
+        id: "offset-hours",
+        title: "Approve fewer offset hours than requested",
+        body: "When approving offset leave, HR can grant fewer hours than were asked for. It can never be more.",
+        who: ["HR"],
+        sample: "offset-hours",
+      },
+    ],
+    alsoFixed: ["The shared leave calendar shows colleagues' approved leaves again."],
+  },
+  {
+    key: "retail",
+    label: "Retail",
+    intro: "Marketplace sales from Shopee and Lazada.",
+    items: [
+      {
+        id: "retail-report",
+        title: "Retail is a sales report",
+        body: "Total sales, number of orders, the average order and this month against last, with a monthly chart by storefront. Only confirmed Odoo orders count. Pick a range: 30 days, 3 months, this year, all time or your own dates.",
+        who: ["Sales"],
+        sample: "retail-report",
+      },
+      {
+        id: "retail-access",
+        title: "Open to Sales by default",
+        body: "Retail is a switch under System Access Rights in the employee form. It is on for Sales, and HR can turn it on or off for anyone.",
+        who: ["Sales", "HR"],
+      },
+    ],
+  },
+  {
+    key: "commission",
+    label: "Commission",
+    intro: "The Commission Dashboard. It is always an estimate, never a payout.",
+    items: [
+      {
+        id: "commission-pool",
+        title: "The Commission Dashboard, redesigned",
+        body: "The Pool tab shows the pool, how it moved month by month and where it goes by department, then every SOR and salesperson behind it. What you see depends on your role: most people see only their own share.",
+        who: ["Sales", "Management"],
+        sample: "commission-pool",
+      },
+      {
+        id: "commission-formula",
+        title: "Rates, allocations and splits in one place",
+        body: "Every commission rule is on the Formula tab. The old Commission Pool page under Administration is gone. Split rules open read-only; click Edit to change them.",
+        who: ["Management"],
+      },
+      {
+        id: "lost-commission-pool",
+        kind: "fix",
+        title: "A lost SOR leaves the Commission Pool",
+        body: "An SOR moved to Closed Lost on a Sales Flow still counted as won.",
+        who: ["Sales", "Management"],
+        sample: "lost-commission-pool",
+      },
+    ],
+  },
+  {
+    key: "everywhere",
+    label: "Everywhere",
+    intro: "Changes you will notice on every screen.",
+    items: [
+      {
+        id: "page-layout",
+        title: "Every page shares one layout",
+        body: "The title sits at the top left, the one main button at the top right, tabs under them, then the filters. Learn one page and you know them all.",
+        who: ["Everyone"],
+        sample: "page-layout",
+      },
+      {
+        id: "slide-overs",
+        title: "Details open at the side",
+        body: "Looking at a record from a list, such as an approval, a leave or an SOR's Quick View, opens a panel from the right, so the list stays where you left it. On a phone it fills the screen.",
+        who: ["Everyone"],
+      },
+      {
+        id: "update-notice",
+        title: "A new version asks before it reloads",
+        body: "When a new version is out, a small notice offers Later or Reload, so nothing you are typing is lost.",
+        who: ["Everyone"],
+      },
+      {
+        id: "consistent-look",
+        kind: "fix",
+        title: "One look for fields, tables and pop-ups",
+        body: "Each screen used to draw its own dropdowns, tables and pop-ups. Now they look and work the same everywhere, keyboard included.",
+        who: ["Everyone"],
+        sample: "consistent-look",
+      },
+    ],
+    alsoFixed: [
+      "Dashboard figures show in full instead of being cut off.",
+      "The Activity Log wraps long entries instead of scrolling sideways.",
+      "A notification is saved in the app even when the phone notification fails to send.",
+      "The Document Center has the standard Print button.",
+    ],
+  },
+  {
+    key: "admins",
+    label: "For admins",
+    intro: "Setting up Sales Flows, access and the company's settings.",
+    items: [
+      {
+        id: "canvas-editing",
+        title: "Flow Canvas: edit a Stage in place",
+        body: "Click a Stage to edit its fields, conditions and actions right on the canvas, and drag to reorder them. Stage colours follow the phase of the sale, and any past version can be previewed.",
+        who: ["Admins"],
+        sample: "canvas-editing",
+      },
+      {
+        id: "stage-access",
+        title: "Who can open an SOR, and View as",
+        body: "An SOR is open to its Deal Team and to whoever a Stage calls in. On the canvas, View as picks a person and shows, Stage by Stage, whether they have no access, can only view or can edit.",
+        who: ["Admins"],
+        sample: "stage-access",
+      },
+      {
+        id: "always-access",
+        title: "Always sees and Always edits",
+        body: "Per Sales Flow, name the people or groups who always see or always edit its SORs. SORs from before Sales Flows stay open to everyone.",
+        who: ["Admins"],
+        sample: "always-access",
+      },
+      {
+        id: "stage-fields",
+        title: "Stage Fields",
+        body: "Ask for information on the Stage that needs it: text, dates or a choice, required or optional, with a line of help.",
+        who: ["Admins"],
+        sample: "stage-fields",
+      },
+      {
+        id: "stage-automation",
+        title: "Stage Automation",
+        body: "Task titles fill in the SOR number, Optional Actions wait for someone to accept them, and follow-up reminders repeat on a schedule.",
+        who: ["Admins"],
+        sample: "stage-automation",
+      },
+      {
+        id: "employee-groups",
+        title: "Employee Groups",
+        body: "Named sets of people and teams, set up once in Settings and reused across Sales Flows.",
+        who: ["Admins"],
+        sample: "employee-groups",
+      },
+      {
+        id: "settings-tabs",
+        title: "Settings in tabs",
+        body: "Settings, Profile and HR Management share one layout with underlined tabs. Leave categories moved under HR & Schedule.",
+        who: ["Admins", "HR"],
+        sample: "settings-tabs",
+      },
+    ],
+    alsoFixed: [
+      "A Decider card on the Flow Canvas names the actual person, instead of always saying \"the assignee\".",
+      "Pickers inside the canvas's View as and Access settings open and close properly.",
+    ],
+  },
+  {
+    key: "next",
+    label: "Coming next",
+    intro: "What we are building next. The designs below are early mock-ups: nothing is built behind them yet, and they will change.",
+    items: [
+      {
+        id: "purchase-requests",
+        kind: "next",
+        title: "Purchase Requests",
+        body: "Sales and Purchasing coordinate what to buy for each SOR, in the ERP instead of in chats and spreadsheets.",
+        who: ["Sales", "Purchasing"],
+      },
+      {
+        id: "printed-forms",
+        kind: "next",
+        title: "IPAS, costing and the forms that go with them",
+        body: "Purchasing and Finance record, approve and file each purchase order as an IPAS. Bids get a Costing Matrix, suppliers are compared on a Canvass, and goods are handed over on a Transmittal and TSR. Each one prints like the paper form.",
+        who: ["Purchasing", "Finance", "Sales"],
+        prototypes: [
+          { id: "printed-ipas", title: "IPAS", file: "/prototypes/printed-ipas.html" },
+          { id: "printed-costing-matrix", title: "Costing Matrix", file: "/prototypes/printed-costing-matrix.html" },
+          { id: "printed-canvass", title: "Canvass", file: "/prototypes/printed-canvass.html" },
+          { id: "printed-transmittal-tsr", title: "Transmittal and TSR", file: "/prototypes/printed-transmittal-tsr.html" },
+        ],
+      },
+      {
+        id: "order-monitoring",
+        kind: "next",
+        title: "Order Monitoring",
+        body: "Every purchase order in one place: which step it is on, what is waiting on us and what is waiting on someone else.",
+        who: ["Purchasing", "Management"],
+        prototypes: [{ id: "order-monitoring", title: "Order Monitoring", file: "/prototypes/order-monitoring.html" }],
+      },
+    ],
+  },
+]

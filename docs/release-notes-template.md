@@ -10,6 +10,7 @@ For the agent writing the one curated prod `changelog.json` entry. What's New sh
 4. **Write:** plain words, short sentences, what changed for them. No ticket numbers, file names, jargon.
 5. **Group by area** (e.g. SORs, Tasks, Sales, Settings). One bullet per change; lead with the area name.
 6. **Add** on top of `src/data/changelog.json` (no `env` field), via `node scripts/add-changelog.mjs`. Bump the version. Title: short, names the release theme.
+7. **Big release?** Also rewrite the Release Notes page (`src/components/release-notes/content.js`, ADR 0030) and pass `--link /release-notes`: What's New then offers it as its main button, so this entry can stay short. In Git Bash, prefix `MSYS_NO_PATHCONV=1` or the path is rewritten.
 
 ## Shape
 
@@ -21,6 +22,7 @@ For the agent writing the one curated prod `changelog.json` entry. What's New sh
   "changes": [
     "SORs: what users can now do.",
     "Tasks: what got fixed or easier."
-  ]
+  ],
+  "link": "/release-notes"
 }
 ```

@@ -1623,25 +1623,6 @@ export const opportunityService = {
   },
 
   /**
-   * The SOR the Release Notes deck opens: the newest one
-   * scripts/seed-release-demo.mjs made. A Scratch SOR, so only this read and
-   * getOpportunityById can reach it. Null until the script has run.
-   */
-  async getReleaseDemoSor() {
-    const { data, error } = await supabase
-      .from("sales_opportunities")
-      .select(PARTICIPANT_SELECT)
-      .eq("is_scratch", true)
-      .neq("is_deleted", true)
-      .contains("metadata", { releaseDemo: true })
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (error) throw error;
-    return data?.[0] ?? null;
-  },
-
-  /**
    * How a task names the SOR it was created for: the Sales Reference, else the
    * Company (issue #199). Null when the SOR can't be read. Kept narrow so a
    * task modal can resolve it without depending on how the task was loaded.

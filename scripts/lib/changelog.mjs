@@ -12,7 +12,7 @@ export function todayInManila() {
   return formatter.format(new Date());
 }
 
-export function addEntry(existingList, { version, title, changes, date } = {}) {
+export function addEntry(existingList, { version, title, changes, date, link } = {}) {
   if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
     throw new Error("Version must follow major.minor.patch format (e.g. 1.8.0)");
   }
@@ -33,11 +33,17 @@ export function addEntry(existingList, { version, title, changes, date } = {}) {
     throw new Error("Entry must have at least one change");
   }
 
+  // What's New navigates to it in-app, so it must be a path, not a URL.
+  if (link != null && !/^\/(?!\/)/.test(link)) {
+    throw new Error("A link must be a path in the app, starting with /");
+  }
+
   const newEntry = {
     date: date || todayInManila(),
     title: title.trim(),
     version,
     changes: cleanedChanges,
+    ...(link ? { link } : {}),
   };
 
   return [newEntry, ...existingList];
