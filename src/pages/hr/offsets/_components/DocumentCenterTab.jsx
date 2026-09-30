@@ -105,7 +105,7 @@ export default function DocumentCenterTab(props) {
         <Button
           onClick={handlePrint}
           disabled={tray.length === 0 || isBusy || isRendering}
-          className="h-11 w-full gap-2 text-sm font-bold sm:w-auto sm:self-start sm:px-6"
+          className="self-start"
         >
           <Printer className="h-4 w-4" />
           {isBusy ? 'Working…' : 'Print'}

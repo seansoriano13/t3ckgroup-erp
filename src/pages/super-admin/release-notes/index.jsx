@@ -1,5 +1,5 @@
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
-import PageContainer from "../../../components/ui/PageContainer";
+import PageShell from "../../../components/ui/PageShell";
 import PresentationDeck from "../../../components/presentation/PresentationDeck";
 import presentation from "../../../data/presentation.json";
 
@@ -14,9 +14,9 @@ import presentation from "../../../data/presentation.json";
 export default function ReleaseNotesPage() {
   return (
     <ProtectedRoute requireSuperAdmin={true}>
-      <PageContainer maxWidth="full" spaceY="4" className="pt-4">
+      <PageShell title="Release Notes" description={presentation.title}>
         <PresentationDeck data={presentation} />
-      </PageContainer>
+      </PageShell>
     </ProtectedRoute>
   );
 }

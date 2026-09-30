@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+﻿import { render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import DocumentCenterTab from "./DocumentCenterTab"
 import { makeEmployee } from "@/test/factories"
@@ -84,5 +84,17 @@ describe("DocumentCenterTab", () => {
     // Verify it was cleared from localStorage
     const saved = JSON.parse(localStorage.getItem("documentCenterTray:v1"))
     expect(saved).toHaveLength(0)
+  })
+
+  it("uses Sentence-case step headings and the standard-size Print button", () => {
+    render(
+      <DocumentCenterTab approvedRecords={[]} allLoadedRecords={[]} hrId="hr_1" onPrinted={vi.fn()} />
+    )
+
+    for (const name of ["Choose records", "Set the order", "Check and print"]) {
+      expect(screen.getByRole("heading", { name: new RegExp(name) })).toBeInTheDocument()
+    }
+    const print = screen.getByRole("button", { name: /print/i })
+    expect(print.className).not.toMatch(/\bh-11\b|\bw-full\b/)
   })
 })
