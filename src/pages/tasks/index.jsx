@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { LayoutGrid, Table as TableIcon } from "lucide-react";
+import { LayoutGrid, ListChecks, Table as TableIcon } from "lucide-react";
 import { TASK_STATUS } from "../../constants/status.js";
 import TaskDetails from "../../components/TaskDetails.jsx";
 import TaskCard from "../../components/TaskCard";
 import TaskTableView from "../../components/TaskTableView.jsx";
-import TaskFilters from "../../components/TaskFilters.jsx";
+import TaskFilterBar from "../../components/TaskFilterBar.jsx";
 import { useAuth } from "../../context/AuthContext";
 import { taskService } from "../../services/taskService.js";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,12 +19,11 @@ import { useTaskFilters } from "../../hooks/useTaskFilters.jsx";
 import { useSavedFilters } from "../../hooks/useSavedFilters.js";
 import { useTableRealtime } from "../../hooks/useTableRealtime.js";
 import { employeeService } from "../../services/employeeService.js";
-import PageHeader from "../../components/ui/PageHeader";
-import PageContainer from "../../components/ui/PageContainer";
+import PageShell from "../../components/ui/PageShell";
+import EmptyState from "../../components/ui/EmptyState";
 import TabGroup from "../../components/ui/TabGroup";
 import Spinner from "@/components/ui/Spinner";
 import Dot from "../../components/ui/Dot";
-import SaveDefaultButton from "../../components/ui/SaveDefaultButton";
 
 // Every mutation and the realtime hook below need the page's own list and the
 // dashboard's shared task list to agree on freshness after any change.
@@ -84,12 +83,13 @@ export default function TasksPage() {
   // HR Specific Toggle
   const [hrViewMode, setHrViewMode] = useState("ALL"); // "ALL" or "PERSONAL"
 
-  // View Switcher Mode (Grid vs Table)
+  // View Switcher Mode (Table vs Grid). Table is the Register default; the grid
+  // stays as a display toggle because a card carries progress a row cannot.
   const [viewMode, setViewMode] = useState(() => {
     try {
-      return localStorage.getItem("tasks_view_mode") || "grid";
+      return localStorage.getItem("tasks_view_mode") || "table";
     } catch {
-      return "grid";
+      return "table";
     }
   });
 
@@ -119,24 +119,8 @@ export default function TasksPage() {
       statusFilter: location.state?.presetFilter?.status || saved.statusFilter,
     };
   });
-  const {
-    statusFilter,
-    priorityFilter,
-    sortBy,
-    timeframe,
-    selectedDateFilter,
-    deptFilter,
-    subDeptFilter,
-    employeeFilter,
-    reportedToFilter,
-    crmOnly,
-  } = filters;
+  const { deptFilter, subDeptFilter } = filters;
   const [searchTerm, setSearchTerm] = useState("");
-  // Track if advanced filter panel should be open (auto-open when preset active)
-  const [advancedOpen, setAdvancedOpen] = useState(
-    !!location.state?.presetFilter,
-  );
-
   // Clear nav state so back-nav doesn't re-apply deep-link filters
   useEffect(() => {
     if (location.state?.filterEmployeeId) {
@@ -348,98 +332,97 @@ export default function TasksPage() {
       </div>
     );
 
+  const isPersonalView = isHr && hrViewMode === "PERSONAL";
+  // A staff member, or HR looking at their own tasks, is locked to their own
+  // tasks; only a wider view lets the people/department filters move.
+  const canPickPeople = isManagement && !isPersonalView;
+  const canPickDepartment = isHr ? !isPersonalView : isDeptWideHead;
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setGroupPages({});
+    setFilters((prev) => ({
+      ...prev,
+      statusFilter: "ALL",
+      priorityFilter: "ALL",
+      selectedDateFilter: "",
+      reportedToFilter: "ALL",
+      crmOnly: false,
+      ...(canPickPeople && {
+        ...(canPickDepartment && { deptFilter: "ALL" }),
+        subDeptFilter: "ALL",
+        employeeFilter: "ALL",
+      }),
+    }));
+  };
+
+  const title = isHr
+    ? hrViewMode === "ALL"
+      ? "All Tasks"
+      : "My Tasks"
+    : isManagement
+      ? "Team Tasks"
+      : "My Tasks";
+
+  const description = isHr
+    ? hrViewMode === "ALL"
+      ? "Monitor and filter all task logs."
+      : "Manage and filter your own personal tasks."
+    : isManagement
+      ? "Monitor and filter employee task logs."
+      : "Manage and filter your logged tasks.";
+
   return (
-    <PageContainer maxWidth="7xl" className="pt-4">
-      <PageHeader
-        title={
-          isHr
-            ? hrViewMode === "ALL"
-              ? `All Tasks`
-              : "My Tasks"
-            : isManagement
-              ? "Team tasks"
-              : "My Tasks"
-        }
-        description={
-          isHr
-            ? hrViewMode === "ALL"
-              ? "Monitor and filter all task logs."
-              : "Manage and filter your own personal tasks."
-            : isManagement
-              ? "Monitor and filter employee task logs."
-              : "Manage and filter your logged tasks."
-        }
-      >
-        {isHr && (
-          <TabGroup
-            variant="pill"
-            tabs={[
-              { value: "ALL", label: "Company" },
-              { value: "PERSONAL", label: "My Tasks" },
-            ]}
-            activeTab={hrViewMode}
-            onChange={handleHrViewModeChange}
-          />
-        )}
-      </PageHeader>
-
-      {/* FILTER CONTROL BARS */}
-      <TaskFilters
-        searchTerm={searchTerm}
-        setSearchTerm={wrapFilter(setSearchTerm)}
-        statusFilter={statusFilter}
-        setStatusFilter={changeFilter("statusFilter")}
-        priorityFilter={priorityFilter}
-        setPriorityFilter={changeFilter("priorityFilter")}
-        timeframe={timeframe}
-        setTimeframe={changeFilter("timeframe")}
-        selectedDateFilter={selectedDateFilter}
-        setSelectedDateFilter={changeFilter("selectedDateFilter")}
-        deptFilter={deptFilter}
-        setDeptFilter={changeFilter("deptFilter")}
-        subDeptFilter={subDeptFilter}
-        setSubDeptFilter={changeFilter("subDeptFilter")}
-        employeeFilter={employeeFilter}
-        setEmployeeFilter={changeFilter("employeeFilter")}
-        reportedToFilter={reportedToFilter}
-        setReportedToFilter={changeFilter("reportedToFilter")}
-        isManagement={isManagement}
-        isHr={isHr}
-        hrViewMode={hrViewMode}
-        disableDeptFilter={isHr ? hrViewMode === "PERSONAL" : !isDeptWideHead}
-        uniqueDepts={uniqueDepts}
-        uniqueSubDepts={uniqueSubDepts}
-        uniqueEmployees={uniqueEmployees}
-        sortBy={sortBy}
-        setSortBy={changeFilter("sortBy")}
-        forceAdvancedOpen={advancedOpen}
-        onAdvancedOpenChange={setAdvancedOpen}
-        crmOnly={crmOnly}
-        setCrmOnly={changeFilter("crmOnly")}
-        actions={
-          <TabGroup
-            variant="pill"
-            size="sm"
-            tabs={[
-              { value: "grid", label: "Grid", icon: LayoutGrid },
-              { value: "table", label: "Table", icon: TableIcon },
-            ]}
-            activeTab={viewMode}
-            onChange={handleViewModeChange}
-            className="shrink-0"
-          />
-        }
-      />
-
-      <div className="flex justify-end -mt-2 mb-2">
-        <SaveDefaultButton
-          hasSavedDefault={hasSavedDefault}
-          isDirty={isDirty(filters)}
-          onSave={() => saveDefault(filters)}
-          onClear={clearDefault}
+    <PageShell
+      title={title}
+      description={description}
+      action={
+        <TabGroup
+          variant="pill"
+          size="sm"
+          tabs={[
+            { value: "table", label: "Table", icon: TableIcon },
+            { value: "grid", label: "Grid", icon: LayoutGrid },
+          ]}
+          activeTab={viewMode}
+          onChange={handleViewModeChange}
+          className="shrink-0"
         />
-      </div>
-
+      }
+      toolbar={
+        <>
+          {isHr && (
+            <TabGroup
+              variant="pill"
+              size="sm"
+              tabs={[
+                { value: "ALL", label: "Company" },
+                { value: "PERSONAL", label: "My Tasks" },
+              ]}
+              activeTab={hrViewMode}
+              onChange={handleHrViewModeChange}
+            />
+          )}
+          <TaskFilterBar
+            searchTerm={searchTerm}
+            onSearchChange={wrapFilter(setSearchTerm)}
+            filters={filters}
+            onChange={(key, value) => changeFilter(key)(value)}
+            onClearAll={clearAllFilters}
+            saveDefault={{
+              hasSavedDefault,
+              isDirty: isDirty(filters),
+              onSave: () => saveDefault(filters),
+              onClear: clearDefault,
+            }}
+            scope={{ canPickPeople, canPickDepartment }}
+            departments={uniqueDepts}
+            subDepartments={uniqueSubDepts}
+            people={uniqueEmployees}
+          />
+        </>
+      }
+    >
       {viewMode === "table" ? (
         <div className="pb-10">
           <TaskTableView
@@ -645,14 +628,11 @@ export default function TasksPage() {
         })}
 
         {sortedAndFilteredTasks.length === 0 && (
-          <div className="text-center py-12 md:py-20 bg-card border border-border border-dashed rounded-xl mt-4 mx-1">
-            <p className="text-muted-foreground/80 font-bold text-base md:text-lg">
-              No tasks found.
-            </p>
-            <p className="text-muted-foreground text-xs md:text-sm mt-1 px-4">
-              Try adjusting your filters or search term.
-            </p>
-          </div>
+          <EmptyState
+            icon={ListChecks}
+            title="No tasks found"
+            description="Try adjusting your filters or search term."
+          />
         )}
       </div>
       )}
@@ -667,6 +647,6 @@ export default function TasksPage() {
         onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
         searchTerm={searchTerm}
       />
-    </PageContainer>
+    </PageShell>
   );
 }

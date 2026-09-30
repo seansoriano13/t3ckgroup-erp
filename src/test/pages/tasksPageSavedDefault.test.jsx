@@ -18,6 +18,12 @@ vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) })
 const control = (name) => screen.findByRole("button", { name, hidden: true })
 const queryControl = (name) => screen.queryByRole("button", { name, hidden: true })
 
+// SORs-only lives behind the Filters popover, which stays open across toggles.
+async function toggleSorsOnly(user) {
+  if (!queryControl("SORs only")) await user.click(await control(/^Filters/))
+  await user.click(await control("SORs only"))
+}
+
 function renderPage() {
   return renderWithProviders(
     <MemoryRouter>
@@ -55,15 +61,15 @@ describe("TasksPage — saved default filters", () => {
     await user.click(await control("Save filters as default"))
     expect(queryControl("Update default")).not.toBeInTheDocument()
 
-    await user.click(await control("SORS"))
+    await toggleSorsOnly(user)
     expect(await control("Update default")).toBeInTheDocument()
 
     // Changing it back is no change at all.
-    await user.click(await control("SORS"))
+    await toggleSorsOnly(user)
     expect(queryControl("Update default")).not.toBeInTheDocument()
     expect(screen.getByText("Default saved")).toBeInTheDocument()
 
-    await user.click(await control("SORS"))
+    await toggleSorsOnly(user)
     await user.click(await control("Clear saved default filters"))
     expect(await control("Save filters as default")).toBeInTheDocument()
   })
@@ -73,7 +79,7 @@ describe("TasksPage — saved default filters", () => {
     authUser = { id: head.id, department: "IT", is_head: true, is_hr: false, isSuperAdmin: false }
     const user = setupUser()
     const first = renderPage()
-    await user.click(await control("SORS"))
+    await toggleSorsOnly(user)
     await user.click(await control("Save filters as default"))
     first.unmount()
 

@@ -1,71 +1,100 @@
-import { useState } from "react";
-import { Filter } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "./button";
+import { Input } from "./input";
+import Dropdown from "./Dropdown";
+import { FilterTriggerButton } from "./FilterDropdown";
+import SaveDefaultButton from "./SaveDefaultButton";
 
 /**
- * FilterBar provides a dual-row filtering layout:
- * - The primary row contains search, primary filters, the "Add Filter" button, and optional actions (like Tabs).
- * - The secondary row (toggled via "Add Filter") houses advanced dropdown filters.
+ * The one filter surface (DESIGN.md "Filter bar"), on a single line:
+ * search, up to three inline dropdown chips, a Filters popover carrying the
+ * rest with a count of how many are set, Save as default.
+ *
+ * - `search`       `{ value, onChange, placeholder }`
+ * - `chips`        the inline dropdowns (FilterSelect); keep to three.
+ * - `filters`      the popover body: a node, or `({ close }) => node`. No
+ *                  Filters button is drawn without it.
+ * - `activeCount`  how many of the popover's filters are set.
+ * - `saveDefault`  SaveDefaultButton props; omit where the page keeps none.
+ * - `actions`      trailing extras (a toggle that is not a filter).
+ * - `hasActiveFilters` + `onClearAll` draw a Clear all when anything (search
+ *   included) narrows the list.
+ *
+ * `children` render after the search, like `chips`, for callers that predate
+ * the named slots.
  */
 export default function FilterBar({
+  search,
+  chips,
   children,
-  advancedFilters,
-  isAdvancedOpen,
-  onAdvancedOpenChange,
-  defaultAdvancedOpen = false,
+  filters,
+  activeCount = 0,
+  saveDefault,
+  actions,
   hasActiveFilters = false,
   onClearAll,
   className,
-  actions,
 }) {
-  const [internalOpen, setInternalOpen] = useState(defaultAdvancedOpen);
-  const open = isAdvancedOpen !== undefined ? isAdvancedOpen : internalOpen;
-
-  const toggle = () => {
-    const next = !open;
-    setInternalOpen(next);
-    onAdvancedOpenChange?.(next);
-  };
-
   return (
-    <div className={cn("grid gap-3 md:gap-4", className)}>
-      <div className="bg-card border border-border p-3 md:p-4 rounded-xl flex flex-col xl:flex-row items-stretch xl:items-center gap-3 md:gap-4 relative z-20">
-        
-        <div className="flex flex-1 items-center gap-2.5 flex-wrap">
-          {children}
-          {advancedFilters && (
-            <Button
-              variant={open ? "secondary" : "outline"}
-              onClick={toggle}
-              className="flex items-center gap-2 h-10 px-4 text-[13px] shrink-0 font-semibold rounded-xl"
-            >
-              <Filter size={15} />
-              Add Filter
-            </Button>
-          )}
-        </div>
-
-        {(actions || (hasActiveFilters && onClearAll)) && (
-          <div className="flex items-center justify-between xl:justify-end gap-3 w-full xl:w-auto shrink-0">
-            {actions}
-            {hasActiveFilters && onClearAll && (
-              <button
-                onClick={onClearAll}
-                className="text-sm text-muted-foreground hover:text-foreground font-semibold px-3 py-2 shrink-0 transition-colors"
-              >
-                Clear All
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {open && advancedFilters && (
-        <div className="bg-muted/40 border border-border p-4 rounded-xl flex flex-wrap gap-3 relative z-10 animate-in fade-in slide-in-from-top-2 duration-200">
-          {advancedFilters}
-        </div>
+    <div className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-2", className)}>
+      {search && (
+        <Input
+          icon={Search}
+          value={search.value}
+          onChange={(e) => search.onChange(e.target.value)}
+          placeholder={search.placeholder ?? "Search"}
+          aria-label={search.placeholder ?? "Search"}
+          containerClassName="w-full sm:w-64 sm:flex-none"
+          className="h-9 rounded-lg text-[13px]"
+        />
       )}
+
+      {chips}
+      {children}
+
+      {filters && (
+        <Dropdown
+          usePortal
+          placement="bottom-start"
+          matchTriggerWidth={false}
+          className="w-auto shrink-0"
+          trigger={({ isOpen }) => (
+            <FilterTriggerButton
+              popup="dialog"
+              wrapperClassName="w-auto"
+              className="h-9 w-auto gap-2 px-2.5"
+              icon={SlidersHorizontal}
+              label="Filters"
+              count={activeCount}
+              isActive={activeCount > 0}
+              isOpen={isOpen}
+            />
+          )}
+        >
+          {(api) => (
+            <div className="flex w-[min(90vw,560px)] flex-col gap-2.5 p-2">
+              {typeof filters === "function" ? filters(api) : filters}
+            </div>
+          )}
+        </Dropdown>
+      )}
+
+      {hasActiveFilters && onClearAll && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onClearAll}
+          className="shrink-0 text-muted-foreground"
+        >
+          Clear all
+        </Button>
+      )}
+
+      {actions}
+
+      {saveDefault && <SaveDefaultButton {...saveDefault} className={cn("sm:ml-auto", saveDefault.className)} />}
     </div>
   );
 }

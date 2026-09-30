@@ -74,7 +74,7 @@ describe("TaskTableView", () => {
       <TaskTableView tasks={[]} searchTerm="" onView={vi.fn()} />,
     );
 
-    expect(screen.getByText("No tasks found.")).toBeInTheDocument();
+    expect(screen.getByText("No tasks found")).toBeInTheDocument();
   });
 
   it("renders checklist progress correctly", () => {
