@@ -82,7 +82,7 @@ export default function PeriodFilter({ timeframe, onTimeframeChange, value, onCh
             className="flex h-full items-center gap-2 px-2.5"
           >
             <CalendarIcon size={14} className={cn("shrink-0", value || isOpen ? "text-foreground" : "text-muted-foreground")} />
-            <span className={cn("min-w-[92px] truncate text-left text-[13px]", value ? "font-medium text-foreground" : "text-muted-foreground")}>
+            <span className={cn("truncate text-left text-[13px]", value ? "font-medium text-foreground" : "text-muted-foreground")}>
               {periodLabel(timeframe, value)}
             </span>
           </button>

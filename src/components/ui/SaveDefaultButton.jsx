@@ -26,21 +26,27 @@ function ClearDefaultButton({ onClear, size, className = "" }) {
  * Two honest states for "remember these filters":
  * - nothing saved: an outlined bookmark button that reads as an action.
  * - saved: a confirmed status chip with an explicit reset affordance.
+ *
+ * `compact` keeps the icons and moves the words to the title and screen
+ * readers, so the control fits at the end of a one-line FilterBar.
  */
 export default function SaveDefaultButton({
   hasSavedDefault,
   isDirty = false,
   onSave,
   onClear,
+  compact = false,
   className = "",
 }) {
+  const label = compact ? "sr-only" : undefined;
+
   if (hasSavedDefault && isDirty) {
     return (
       <div className={`inline-flex items-center gap-1 ${className}`}>
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          size={compact ? "icon-sm" : "sm"}
           onClick={() => {
             onSave();
             toast.success("Default updated");
@@ -48,7 +54,7 @@ export default function SaveDefaultButton({
           title="Replace your saved default with the current filters"
         >
           <BookmarkPlus aria-hidden="true" />
-          Update default
+          <span className={label}>Update default</span>
         </Button>
         <ClearDefaultButton onClear={onClear} size="icon-sm" />
       </div>
@@ -58,10 +64,11 @@ export default function SaveDefaultButton({
   if (hasSavedDefault) {
     return (
       <div
-        className={`inline-flex h-7 items-center gap-1.5 rounded-lg border border-transparent bg-muted pl-2.5 pr-1 text-[0.8rem] font-medium text-foreground ${className}`}
+        title={compact ? "Default saved" : undefined}
+        className={`inline-flex h-7 items-center gap-1.5 rounded-lg border border-transparent bg-muted ${compact ? "pl-2" : "pl-2.5"} pr-1 text-[0.8rem] font-medium text-foreground ${className}`}
       >
         <BookmarkCheck className="size-3.5 text-muted-foreground" aria-hidden="true" />
-        <span>Default saved</span>
+        <span className={label}>Default saved</span>
         <ClearDefaultButton onClear={onClear} size="icon-xs" className="hover:bg-background" />
       </div>
     );
@@ -71,7 +78,7 @@ export default function SaveDefaultButton({
     <Button
       type="button"
       variant="outline"
-      size="sm"
+      size={compact ? "icon-sm" : "sm"}
       className={className}
       onClick={() => {
         onSave();
@@ -80,7 +87,7 @@ export default function SaveDefaultButton({
       title="Open this page with the current filters next time"
     >
       <Bookmark aria-hidden="true" />
-      Save filters as default
+      <span className={label}>Save filters as default</span>
     </Button>
   );
 }

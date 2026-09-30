@@ -24,6 +24,14 @@ describe("FilterBar (one line)", () => {
     expect(screen.queryByText("popover body")).not.toBeInTheDocument();
   });
 
+  it("draws Save as default icon-only so the row fits, keeping its name for screen readers", () => {
+    render(<FilterBar search={{ value: "", onChange: () => {} }} saveDefault={saveDefault} />);
+
+    const save = screen.getByRole("button", { name: "Save filters as default" });
+    expect(save).toHaveAttribute("title");
+    expect(screen.getByText("Save filters as default")).toHaveClass("sr-only");
+  });
+
   it("shows the active count on the Filters button and opens the popover on click", async () => {
     const user = setupUser();
     render(

@@ -288,7 +288,7 @@ const Dropdown = forwardRef(
       >
         <div
           onClick={handleToggle}
-          className={`w-full ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+          className={`h-full w-full ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
         >
           {typeof trigger === "function"
             ? trigger({ isOpen, disabled })

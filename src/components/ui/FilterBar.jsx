@@ -16,7 +16,8 @@ import SaveDefaultButton from "./SaveDefaultButton";
  * - `filters`      the popover body: a node, or `({ close }) => node`. No
  *                  Filters button is drawn without it.
  * - `activeCount`  how many of the popover's filters are set.
- * - `saveDefault`  SaveDefaultButton props; omit where the page keeps none.
+ * - `saveDefault`  SaveDefaultButton props (drawn compact); omit where the
+ *                  page keeps none.
  * - `actions`      trailing extras (a toggle that is not a filter).
  * - `hasActiveFilters` + `onClearAll` draw a Clear all when anything (search
  *   included) narrows the list.
@@ -45,7 +46,7 @@ export default function FilterBar({
           onChange={(e) => search.onChange(e.target.value)}
           placeholder={search.placeholder ?? "Search"}
           aria-label={search.placeholder ?? "Search"}
-          containerClassName="w-full sm:w-64 sm:flex-none"
+          containerClassName="w-full sm:w-auto sm:min-w-36 sm:max-w-64 sm:flex-1"
           className="h-9 rounded-lg text-[13px]"
         />
       )}
@@ -94,7 +95,7 @@ export default function FilterBar({
 
       {actions}
 
-      {saveDefault && <SaveDefaultButton {...saveDefault} className={cn("sm:ml-auto", saveDefault.className)} />}
+      {saveDefault && <SaveDefaultButton compact {...saveDefault} className={cn("sm:ml-auto", saveDefault.className)} />}
     </div>
   );
 }
