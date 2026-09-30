@@ -2,11 +2,11 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskService } from "../../services/groupTaskService";
-import PageHeader from "../../components/ui/PageHeader";
-import PageContainer from "../../components/ui/PageContainer";
+import PageShell from "../../components/ui/PageShell";
+import EmptyState from "../../components/ui/EmptyState";
 import { employeeService } from "../../services/employeeService";
 import toast from "react-hot-toast";
-import { Users, Plus, Search, LayoutGrid, Table as TableIcon } from "lucide-react";
+import { Users, Plus, LayoutGrid, Table as TableIcon } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
 import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
@@ -16,10 +16,9 @@ import GroupTaskTableView from "./_components/GroupTaskTableView";
 import CreateGroupTaskModal from "./_components/CreateGroupTaskModal";
 import GroupTaskDetailModal from "./_components/GroupTaskDetailModal";
 import RateEmployeesModal from "./_components/RateEmployeesModal";
-import GroupTaskFilters from "../../components/GroupTaskFilters";
+import GroupTaskFilterBar from "../../components/GroupTaskFilterBar";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
-import SaveDefaultButton from "../../components/ui/SaveDefaultButton";
 import { useMemo } from "react";
 
 const GROUP_TASK_FILTER_DEFAULTS = {
@@ -89,12 +88,12 @@ export default function GroupTasksPage() {
     employeeService.getAllEmployees().then(setEmployees);
   }, []);
 
-  // --- UI State ---
+  // --- UI State --- (table is the Register default; grid stays as a toggle)
   const [viewMode, setViewMode] = useState(() => {
     try {
-      return localStorage.getItem("group_tasks_view_mode") || "grid";
+      return localStorage.getItem("group_tasks_view_mode") || "table";
     } catch {
-      return "grid";
+      return "table";
     }
   });
 
@@ -159,6 +158,31 @@ export default function GroupTasksPage() {
     timeframe,
     selectedDateFilter,
     crmOnly,
+  };
+
+  const filters = { ...currentFilters, dueDate };
+  const setFilter = {
+    statusFilter: setStatusFilter,
+    creatorFilter: setCreatorFilter,
+    memberFilter: setMemberFilter,
+    deptFilter: setDeptFilter,
+    subDeptFilter: setSubDeptFilter,
+    timeframe: setTimeframe,
+    selectedDateFilter: setSelectedDateFilter,
+    dueDate: setDueDate,
+    crmOnly: setCrmOnly,
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("ALL");
+    setCreatorFilter("ALL");
+    setMemberFilter("ALL");
+    setDeptFilter("ALL");
+    setSubDeptFilter("ALL");
+    setSelectedDateFilter("");
+    setDueDate(null);
+    setCrmOnly(false);
   };
 
   const uniqueDepts = useMemo(() => {
@@ -350,73 +374,52 @@ export default function GroupTasksPage() {
   }
 
   return (
-    <PageContainer maxWidth="7xl" className="pt-4">
-      <PageHeader
-        title="Group Tasks"
-        description={
-          canManage
-            ? "Create and manage group task assignments."
-            : "View your group task assignments and update progress."
-        }
-      >
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus size={16} className="mr-1.5" />
-          Create Group Task
-        </Button>
-      </PageHeader>
-
-      {/* TOOLBAR */}
-      <div className="mb-6">
-        <GroupTaskFilters
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          creatorFilter={creatorFilter}
-          setCreatorFilter={setCreatorFilter}
-          memberFilter={memberFilter}
-          setMemberFilter={setMemberFilter}
-          deptFilter={deptFilter}
-          setDeptFilter={setDeptFilter}
-          subDeptFilter={subDeptFilter}
-          setSubDeptFilter={setSubDeptFilter}
-          timeframe={timeframe}
-          setTimeframe={setTimeframe}
-          selectedDateFilter={selectedDateFilter}
-          setSelectedDateFilter={setSelectedDateFilter}
-          dueDate={dueDate}
-          setDueDate={setDueDate}
-          crmOnly={crmOnly}
-          setCrmOnly={setCrmOnly}
-          uniqueCreators={uniqueCreators}
-          uniqueMembers={uniqueMembers}
-          uniqueDepts={uniqueDepts}
-          uniqueSubDepts={uniqueSubDepts}
-          isManagement={canManage}
-          actions={
-            <TabGroup
-              variant="pill"
-              size="sm"
-              tabs={[
-                { value: "grid", label: "Grid", icon: LayoutGrid },
-                { value: "table", label: "Table", icon: TableIcon },
-              ]}
-              activeTab={viewMode}
-              onChange={handleViewModeChange}
-              className="shrink-0"
-            />
-          }
-        />
-        <div className="flex justify-end mt-2">
-          <SaveDefaultButton
-            hasSavedDefault={hasSavedDefault}
-            isDirty={isDirty(currentFilters)}
-            onSave={() => saveDefault(currentFilters)}
-            onClear={clearDefault}
+    <PageShell
+      title="Group Tasks"
+      description={
+        canManage
+          ? "Create and manage group task assignments."
+          : "View your group task assignments and update progress."
+      }
+      action={
+        <>
+          <TabGroup
+            variant="pill"
+            size="sm"
+            tabs={[
+              { value: "table", label: "Table", icon: TableIcon },
+              { value: "grid", label: "Grid", icon: LayoutGrid },
+            ]}
+            activeTab={viewMode}
+            onChange={handleViewModeChange}
+            className="shrink-0"
           />
-        </div>
-      </div>
-
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus size={16} className="mr-1.5" />
+            Create Group Task
+          </Button>
+        </>
+      }
+      toolbar={
+        <GroupTaskFilterBar
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          filters={filters}
+          onChange={(key, value) => setFilter[key](value)}
+          onClearAll={clearAllFilters}
+          saveDefault={{
+            hasSavedDefault,
+            isDirty: isDirty(currentFilters),
+            onSave: () => saveDefault(currentFilters),
+            onClear: clearDefault,
+          }}
+          creators={uniqueCreators}
+          members={uniqueMembers}
+          departments={uniqueDepts}
+          subDepartments={uniqueSubDepts}
+        />
+      }
+    >
       {viewMode === "table" ? (
         <div className="pb-10">
           <GroupTaskTableView
@@ -444,17 +447,15 @@ export default function GroupTasksPage() {
             ))}
           </div>
         ) : (
-          <div className="py-20 text-center bg-card border border-border border-dashed rounded-2xl">
-            <Users size={32} className="mx-auto text-muted-foreground/50 mb-3" />
-            <h3 className="text-lg font-bold text-foreground">
-              No Group Tasks Found
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              {searchTerm
+          <EmptyState
+            icon={Users}
+            title="No Group Tasks Found"
+            description={
+              searchTerm
                 ? "Try adjusting your search criteria."
-                : "There are no active group tasks at the moment."}
-            </p>
-          </div>
+                : "There are no active group tasks at the moment."
+            }
+          />
         )
       )}
 
@@ -524,6 +525,6 @@ export default function GroupTasksPage() {
           isSubmitting={rateMutation.isPending}
         />
       )}
-    </PageContainer>
+    </PageShell>
   );
 }

@@ -1,6 +1,7 @@
 import React from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Dropdown from "./Dropdown";
 
 /**
  * FilterTrigger - A standardized trigger button for filter dropdowns.
@@ -67,6 +68,24 @@ export function FilterTrigger({
         )}
       />
     </div>
+  );
+}
+
+/**
+ * FilterTriggerButton - FilterTrigger under a real button, so the chip takes
+ * focus and Enter/Space open it (the trigger alone is a styled div). Takes
+ * FilterTrigger's props; `popup` names the popup it opens for assistive tech.
+ */
+export function FilterTriggerButton({ popup = "listbox", disabled, wrapperClassName, ...trigger }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-haspopup={popup}
+      className={cn("block w-full text-left", wrapperClassName)}
+    >
+      <FilterTrigger disabled={disabled} {...trigger} />
+    </button>
   );
 }
 
@@ -190,6 +209,50 @@ export function MultiFilterOptionList({ options, values = [], onChange }) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * FilterSelect - the whole single-choice filter: trigger showing the chosen
+ * option's label, popover list underneath. Used for the inline chips of a
+ * FilterBar and for the fields inside its Filters popover.
+ *
+ * `isActive` defaults to "anything other than `allValue`"; `className` lands on
+ * the trigger (e.g. `h-9 w-auto` for a chip).
+ */
+export function FilterSelect({
+  options,
+  value,
+  onChange,
+  icon,
+  label,
+  allValue = "ALL",
+  isActive,
+  disabled = false,
+  className,
+  wrapperClassName,
+}) {
+  const current = options.find((o) => o.value === value);
+  return (
+    <Dropdown
+      usePortal
+      disabled={disabled}
+      className={cn("min-w-0", wrapperClassName)}
+      trigger={({ isOpen, disabled: isDisabled }) => (
+        <FilterTriggerButton
+          label={current?.label ?? label}
+          icon={icon}
+          isOpen={isOpen}
+          isActive={isActive ?? value !== allValue}
+          disabled={isDisabled}
+          className={className}
+        />
+      )}
+    >
+      {({ close }) => (
+        <FilterOptionList options={options} value={value} onChange={onChange} close={close} />
+      )}
+    </Dropdown>
   );
 }
 

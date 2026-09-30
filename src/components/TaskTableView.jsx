@@ -9,10 +9,12 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  ListChecks,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import StatusBadge from "./StatusBadge";
 import Dot from "./ui/Dot";
+import EmptyState from "./ui/EmptyState";
 import { Button } from "./ui/button";
 import { SorLinkChip } from "./ui/SorLinkChip";
 import HighlightText from "./HighlightText";
@@ -171,14 +173,11 @@ export default function TaskTableView({
 
   if (tasks.length === 0) {
     return (
-      <div className="text-center py-16 md:py-24 bg-card border border-border border-dashed rounded-2xl">
-        <p className="text-muted-foreground/80 font-bold text-base md:text-lg">
-          No tasks found.
-        </p>
-        <p className="text-muted-foreground text-xs md:text-sm mt-1 px-4">
-          Try adjusting your search query or active filters.
-        </p>
-      </div>
+      <EmptyState
+        icon={ListChecks}
+        title="No tasks found"
+        description="Try adjusting your search query or active filters."
+      />
     );
   }
 

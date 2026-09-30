@@ -18,11 +18,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  Users,
 } from "lucide-react";
 import Avatar from "../../../components/Avatar";
 import AvatarGroup from "../../../components/AvatarGroup";
 import StatusBadge from "../../../components/StatusBadge";
 import HighlightText from "../../../components/HighlightText";
+import EmptyState from "../../../components/ui/EmptyState";
 import { formatDueDate } from "../../../utils/formatDate";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
@@ -108,16 +110,15 @@ export default function GroupTaskTableView({
 
   if (tasks.length === 0) {
     return (
-      <div className="py-20 text-center bg-card border border-border border-dashed rounded-2xl">
-        <p className="text-muted-foreground/80 font-bold text-base md:text-lg">
-          No Group Tasks Found
-        </p>
-        <p className="text-sm text-muted-foreground mt-1 px-4">
-          {searchTerm
+      <EmptyState
+        icon={Users}
+        title="No Group Tasks Found"
+        description={
+          searchTerm
             ? "Try adjusting your search criteria."
-            : "There are no active group tasks at the moment."}
-        </p>
-      </div>
+            : "There are no active group tasks at the moment."
+        }
+      />
     );
   }
 
