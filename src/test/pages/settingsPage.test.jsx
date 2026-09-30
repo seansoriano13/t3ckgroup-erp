@@ -137,8 +137,10 @@ describe("SettingsPage", () => {
     const card = await screen.findByRole("link", { name: /Commission Pool/, hidden: true });
     card.focus();
     expect(card).toHaveFocus();
+    // The Commission Formula is the Commission Dashboard's Formula tab now.
+    expect(card).toHaveAttribute("href", "/sors/commission?tab=formula");
     await user.keyboard("{Enter}");
 
-    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/sors/commission-formula"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/sors/commission"));
   });
 });

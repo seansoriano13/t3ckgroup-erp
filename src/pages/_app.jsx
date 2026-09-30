@@ -28,7 +28,10 @@ export default function AppLayout() {
     location.pathname.startsWith("/super-admin/flow-canvas") ||
     location.pathname.startsWith("/flow-versions/") ||
     (location.pathname.startsWith("/sors") &&
-      !location.pathname.startsWith("/sors/commission"));
+      !location.pathname.startsWith("/sors/commission")) ||
+    // The Leaves Manager's view sidebar sits flush on the panel edge; the page
+    // carries its own content padding.
+    location.pathname === "/hr/offsets";
 
   if (
     location.pathname === "/login" ||

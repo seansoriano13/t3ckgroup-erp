@@ -309,7 +309,7 @@ function SalesPanel() {
     <>
       <LeadSourceManager />
       <Link
-        to="/sors/commission-formula"
+        to="/sors/commission?tab=formula"
         className="bg-card border border-border rounded-2xl shadow-sm p-5 flex items-center justify-between hover:bg-muted/30 transition-colors group outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <div>

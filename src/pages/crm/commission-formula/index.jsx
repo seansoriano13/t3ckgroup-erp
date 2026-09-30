@@ -1,6 +1,5 @@
-import { Navigate, useLocation } from "react-router";
+import { Navigate } from "react-router";
 
 export default function CrmCommissionFormulaRedirect() {
-  const location = useLocation();
-  return <Navigate to={`/sors/commission-formula${location.search}${location.hash}`} replace />;
+  return <Navigate to="/sors/commission?tab=formula" replace />;
 }

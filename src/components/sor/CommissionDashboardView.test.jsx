@@ -1,44 +1,89 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router";
 import CommissionDashboardView from "./CommissionDashboardView";
 import { commissionService } from "../../services/commissionService";
 import * as AuthContext from "../../context/AuthContext";
 
 const mockNavigate = vi.fn();
-let mockLocationState = {};
-
-vi.mock("react-router", () => ({
+vi.mock("react-router", async (importOriginal) => ({
+  ...(await importOriginal()),
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ pathname: "/sors/commission", state: mockLocationState }),
 }));
 
 vi.mock("../../services/commissionService", () => ({
   commissionService: {
     getCommissionDashboardData: vi.fn(),
+    listRateHistory: vi.fn(),
+    getSplitsForProjectType: vi.fn(),
+    isSalesDirector: vi.fn(),
+    saveSplitsForProjectType: vi.fn(),
   },
 }));
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return ({ children }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+function renderView({ path = "/sors/commission", state } = {}) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[{ pathname: path.split("?")[0], search: path.includes("?") ? `?${path.split("?")[1]}` : "", state }]}>
+        <CommissionDashboardView />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
+
+const asUser = (user) => vi.spyOn(AuthContext, "useAuth").mockReturnValue({ user });
+const superAdmin = { id: "user-admin", is_super_admin: true, name: "Admin Boss" };
+const aliceUser = { id: "user-alice", name: "Alice Rep", is_super_admin: false, is_head: false, department: "Sales" };
 
 const alice = { id: "user-alice", name: "Alice Rep", avatarPath: null };
 const bob = { id: "user-bob", name: "Bob Rep", avatarPath: null };
 
-const mockDashboardData = {
-  totalDealsCount: 2,
-  wonDealsCount: 2,
-  totalContractValue: 3000000,
+function deal(overrides) {
+  return {
+    status: "AWARDED",
+    projectType: "SSP",
+    contractDate: "2026-02-10",
+    createdAt: "2026-01-15",
+    contractValue: 1000000,
+    rates: { vatPercent: 12, withholdingPercent: 8, poolPercent: 1 },
+    commissionableRevenue: 821428.57,
+    commissionPool: 8214.29,
+    salesShareAmount: 4107.14,
+    unattributedSalesAmount: 0,
+    salesRoleShares: [{ role: "deal_owner", employee: alice, amount: 4107.14, percent: 100 }],
+    participants: { dealOwner: alice, support1: null, support2: null, salesDirector: null },
+    ...overrides,
+  };
+}
+
+const alpha = deal({ id: "opp-1", opportunityNo: "SOR-001", projectTitle: "Alpha Corp Solution", clientName: "Alpha Corp" });
+const beta = deal({
+  id: "opp-2",
+  opportunityNo: "SOR-002",
+  projectTitle: "Beta Corp Rollout",
+  clientName: "Beta Corp",
+  status: "CLOSED_WON",
+  projectType: "CP",
+  contractDate: "2026-03-01",
+  contractValue: 2000000,
+  commissionableRevenue: 1642857.14,
+  commissionPool: 16428.57,
+  salesShareAmount: 8214.29,
+  salesRoleShares: [
+    { role: "deal_owner", employee: bob, amount: 4928.57, percent: 60 },
+    { role: "supporting_salesperson", employee: alice, amount: 3285.71, percent: 40 },
+  ],
+  participants: { dealOwner: bob, support1: alice, support2: null, salesDirector: null },
+});
+
+const dashboardData = (dealLedger = [alpha, beta]) => ({
+  totalDealsCount: dealLedger.length,
+  wonDealsCount: dealLedger.length,
   totalCommissionableRevenue: 2464285.71,
   totalCommissionPool: 24642.86,
   salesDeptTotal: 12321.43,
-  otherDeptsTotal: 12321.43,
   departmentTotals: [
     { name: "Sales", allocationPercent: 50, amount: 12321.43, isSales: true },
     { name: "Operations", allocationPercent: 25, amount: 6160.71, isSales: false },
@@ -47,292 +92,177 @@ const mockDashboardData = {
     { name: "Finance & Accounting", allocationPercent: 5, amount: 1232.14, isSales: false },
   ],
   salesEmployees: [
-    {
-      employeeId: "user-alice",
-      name: "Alice Rep",
-      avatarPath: null,
-      wonDealsCount: 2,
-      totalDealsCount: 2,
-      totalContractValue: 3000000,
-      totalCommissionShare: 9035.71,
-      roleBreakdown: {
-        deal_owner: 4107.14,
-        supporting_salesperson: 4928.57,
-        sales_director: 0,
-      },
-      dealIds: ["opp-1", "opp-2"],
-    },
-    {
-      employeeId: "user-bob",
-      name: "Bob Rep",
-      avatarPath: null,
-      wonDealsCount: 1,
-      totalDealsCount: 1,
-      totalContractValue: 2000000,
-      totalCommissionShare: 3285.71,
-      roleBreakdown: {
-        deal_owner: 3285.71,
-        supporting_salesperson: 0,
-        sales_director: 0,
-      },
-      dealIds: ["opp-2"],
-    },
+    { employeeId: "user-alice", name: "Alice Rep", avatarPath: null, wonDealsCount: 2, totalDealsCount: 2, totalCommissionShare: 9035.71, roleBreakdown: { deal_owner: 4107.14, supporting_salesperson: 4928.57, sales_director: 0 } },
+    { employeeId: "user-bob", name: "Bob Rep", avatarPath: null, wonDealsCount: 1, totalDealsCount: 1, totalCommissionShare: 3285.71, roleBreakdown: { deal_owner: 3285.71, supporting_salesperson: 0, sales_director: 0 } },
   ],
-  dealLedger: [
-    {
-      id: "opp-1",
-      opportunityNo: "SOR-001",
-      projectTitle: "Alpha Corp Solution",
-      clientName: "Alpha Corp",
-      status: "AWARDED",
-      projectType: "SSP",
-      contractDate: "2026-02-10",
-      createdAt: "2026-01-15",
-      contractValue: 1000000,
-      rates: { vatPercent: 12, withholdingPercent: 8, poolPercent: 1 },
-      commissionableRevenue: 821428.57,
-      commissionPool: 8214.29,
-      departmentShares: [
-        { name: "Sales", allocationPercent: 50, amount: 4107.14 },
-      ],
-      salesRoleShares: [
-        { role: "deal_owner", employee: alice, amount: 4107.14 },
-      ],
-      salesShareAmount: 4107.14,
-      participants: { dealOwner: alice, support1: null, support2: null, salesDirector: null },
-    },
-    {
-      id: "opp-2",
-      opportunityNo: "SOR-002",
-      projectTitle: "Beta Corp Rollout",
-      clientName: "Beta Corp",
-      status: "CLOSED_WON",
-      projectType: "CP",
-      contractDate: "2026-03-01",
-      createdAt: "2026-02-01",
-      contractValue: 2000000,
-      rates: { vatPercent: 12, withholdingPercent: 8, poolPercent: 1 },
-      commissionableRevenue: 1642857.14,
-      commissionPool: 16428.57,
-      departmentShares: [
-        { name: "Sales", allocationPercent: 50, amount: 8214.29 },
-      ],
-      salesRoleShares: [
-        { role: "deal_owner", employee: bob, amount: 4928.57 },
-        { role: "supporting_salesperson", employee: alice, amount: 3285.71 },
-      ],
-      salesShareAmount: 8214.29,
-      participants: { dealOwner: bob, support1: alice, support2: null, salesDirector: null },
-    },
-  ],
+  dealLedger,
+});
+
+const SPLITS = {
+  SSP: [{ shareRole: "deal_owner", percent: 80 }, { shareRole: "sales_director", percent: 20 }],
+  CP: [{ shareRole: "deal_owner", percent: 60 }, { shareRole: "supporting_salesperson", percent: 20 }, { shareRole: "sales_director", percent: 20 }],
+  STRATEGIC: [{ shareRole: "deal_owner", percent: 40 }, { shareRole: "closing_salesperson", percent: 20 }, { shareRole: "supporting_salesperson", percent: 20 }, { shareRole: "sales_director", percent: 20 }],
 };
 
 describe("CommissionDashboardView", () => {
   beforeEach(() => {
-    mockLocationState = {};
-    commissionService.getCommissionDashboardData.mockResolvedValue(mockDashboardData);
+    vi.clearAllMocks();
+    commissionService.getCommissionDashboardData.mockResolvedValue(dashboardData());
+    commissionService.listRateHistory.mockResolvedValue([
+      { rate_type: "VAT", percent: 12 },
+      { rate_type: "WITHHOLDING", percent: 8 },
+      { rate_type: "POOL", percent: 1 },
+    ]);
+    commissionService.getSplitsForProjectType.mockImplementation((pt) => Promise.resolve(SPLITS[pt]));
+    commissionService.isSalesDirector.mockResolvedValue(false);
   });
 
-  it("renders executive KPI cards and unmasked values for Finance & Accounting / Super Admin", async () => {
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: { id: "user-admin", is_super_admin: true, name: "Admin Boss" },
+  describe("Pool tab", () => {
+    it("shows the pool, the Sales fund and the CSV export to Finance & Accounting / Super Admin", async () => {
+      asUser(superAdmin);
+      renderView();
+
+      expect(await screen.findByText("₱24,642.86")).toBeInTheDocument();
+      expect(screen.getByText("₱12,321.43")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Export CSV/i })).toBeInTheDocument();
     });
 
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
+    it("masks the pool and peers' amounts for a standard sales rep, but shows their own", async () => {
+      asUser(aliceUser);
+      renderView();
 
-    await waitFor(() => {
-      expect(screen.getByText("₱24,642.86")).toBeInTheDocument(); // Commission Pool
-      expect(screen.getByText("₱2,464,285.71")).toBeInTheDocument(); // Commissionable Revenue
-      expect(screen.getAllByText("₱12,321.43").length).toBeGreaterThanOrEqual(1); // Sales Dept Share
+      await screen.findByText("SOR-001");
+      expect(screen.queryByText("₱24,642.86")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Export CSV/i })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("tab", { name: /People/ }));
+      expect(screen.getByText("₱9,035.71")).toBeInTheDocument();
+      expect(screen.queryByText("₱3,285.71")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Export CSV/i)).toBeInTheDocument();
-  });
+    it("filters SORs by search", async () => {
+      asUser(superAdmin);
+      renderView();
 
-  it("switches tabs between Sales Roster, Transaction Ledger, and Department Allocations", async () => {
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: { id: "user-admin", is_super_admin: true, name: "Admin Boss" },
+      await screen.findByText("SOR-001");
+      fireEvent.change(screen.getByPlaceholderText(/Search SORs/i), { target: { value: "Beta" } });
+
+      expect(screen.queryByText("SOR-001")).not.toBeInTheDocument();
+      expect(screen.getByText("SOR-002")).toBeInTheDocument();
     });
 
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
+    it("pages the SOR list ten at a time", async () => {
+      const many = Array.from({ length: 12 }, (_, i) => deal({ id: `opp-${i}`, opportunityNo: `SOR-1${String(i).padStart(2, "0")}`, clientName: `Client ${i}` }));
+      commissionService.getCommissionDashboardData.mockResolvedValue(dashboardData(many));
+      asUser(superAdmin);
+      renderView();
 
-    await waitFor(() => {
-      expect(screen.getByText("Alice Rep")).toBeInTheDocument();
+      await screen.findByText("SOR-100");
+      expect(screen.getByText("1–10")).toBeInTheDocument();
+      expect(screen.queryByText("SOR-111")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(screen.getByText("11–12")).toBeInTheDocument();
+      expect(screen.getByText("SOR-111")).toBeInTheDocument();
     });
 
-    // Switch to Transaction Ledger tab
-    const ledgerTab = screen.getByRole("tab", { name: /Transaction Ledger/i });
-    fireEvent.click(ledgerTab);
+    it("downloads the ledger as CSV", async () => {
+      const createObjectURL = vi.fn().mockReturnValue("blob:mock-url");
+      global.URL.createObjectURL = createObjectURL;
+      global.URL.revokeObjectURL = vi.fn();
+      asUser(superAdmin);
+      renderView();
 
-    expect(screen.getByText("SOR-001")).toBeInTheDocument();
-    expect(screen.getByText("Alpha Corp Solution")).toBeInTheDocument();
-    expect(screen.getByText("SOR-002")).toBeInTheDocument();
-
-    // Switch to Department Allocations tab
-    const deptsTab = screen.getByRole("tab", { name: /Department Allocations/i });
-    fireEvent.click(deptsTab);
-
-    expect(screen.getAllByText("Operations").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Administration").length).toBeGreaterThanOrEqual(1);
-
-    // Switch to Commission Formula & Split Rules tab
-    const rulesTab = screen.getByRole("tab", { name: /Split Rules/i });
-    fireEvent.click(rulesTab);
-
-    expect(screen.getByText(/Commission Formula & Allocation Rules/i)).toBeInTheDocument();
-    expect(screen.getByText(/Solo Sales Project/i)).toBeInTheDocument();
-    expect(screen.getByText(/Collaborative Project/i)).toBeInTheDocument();
-  });
-
-  it("masks peer monetary amounts when viewed by a standard sales rep", async () => {
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: {
-        id: "user-alice",
-        name: "Alice Rep",
-        is_super_admin: false,
-        is_head: false,
-        is_hr: false,
-        department: "Sales",
-      },
+      fireEvent.click(await screen.findByRole("button", { name: /Export CSV/i }));
+      expect(createObjectURL).toHaveBeenCalled();
     });
 
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
+    it("refetches for the Projected scope", async () => {
+      asUser(superAdmin);
+      renderView();
 
-    await waitFor(() => {
-      expect(screen.getByText("Alice Rep")).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole("button", { name: "Projected" }));
+      await waitFor(() => {
+        expect(commissionService.getCommissionDashboardData).toHaveBeenCalledWith(expect.objectContaining({ scope: "FORECAST" }));
+      });
     });
 
-    // Alice sees her own total: ₱9,035.71
-    expect(screen.getByText("₱9,035.71")).toBeInTheDocument();
+    it("opens a SOR's receipt from its row, and the receipt opens the SOR", async () => {
+      asUser(superAdmin);
+      renderView();
 
-    // Bob Rep's total is masked as percentage or bullet, so his total ₱3,285.71 is not shown
-    // Bob's row has bullet dots instead of currency
-    // Bob's row has bullet dots instead of currency
-    expect(screen.getByText("26.7% Share")).toBeInTheDocument();
+      fireEvent.click((await screen.findByText("SOR-002")).closest("tr"));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText("Beta Corp")).toBeInTheDocument();
+      expect(within(dialog).getByText("How the pool is worked out")).toBeInTheDocument();
+      expect(within(dialog).getByText("Bob Rep")).toBeInTheDocument();
 
-    // Export CSV should be hidden for standard sales rep
-    expect(screen.queryByText(/Export CSV/i)).not.toBeInTheDocument();
-  });
-
-  it("highlights deep-linked opportunity row when opened with location state", async () => {
-    mockLocationState = { openOpportunityId: "opp-1" };
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: { id: "user-admin", is_super_admin: true },
+      fireEvent.click(within(dialog).getByRole("button", { name: /Open SOR/ }));
+      expect(mockNavigate).toHaveBeenCalledWith("/sors", { state: { openOpportunityId: "opp-2" } });
     });
 
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
+    it("opens the linked SOR's receipt when arriving from a SOR", async () => {
+      asUser(superAdmin);
+      renderView({ state: { openOpportunityId: "opp-1" } });
 
-    // Should switch to ledger tab and find SOR-001
-    await waitFor(() => {
-      expect(screen.getByText("SOR-001")).toBeInTheDocument();
-    });
-  });
-
-  it("filters ledger transactions by search query", async () => {
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: { id: "user-admin", is_super_admin: true },
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText("Alpha Corp")).toBeInTheDocument();
     });
 
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
+    it("sends a person's row to the SOR Register filtered to them", async () => {
+      asUser(superAdmin);
+      renderView();
 
-    await waitFor(() => {
-      expect(screen.getByText("Alice Rep")).toBeInTheDocument();
-    });
-
-    const ledgerTab = screen.getByRole("tab", { name: /Transaction Ledger/i });
-    fireEvent.click(ledgerTab);
-
-    expect(screen.getByText("Alpha Corp Solution")).toBeInTheDocument();
-    expect(screen.getByText("Beta Corp Rollout")).toBeInTheDocument();
-
-    const searchInput = screen.getByPlaceholderText(/Search deals, clients, reps…/i);
-    fireEvent.change(searchInput, { target: { value: "Alpha" } });
-
-    expect(screen.getByText("Alpha Corp Solution")).toBeInTheDocument();
-    expect(screen.queryByText("Beta Corp Rollout")).not.toBeInTheDocument();
-  });
-
-  it("triggers CSV export download when Export CSV button is clicked", async () => {
-    const createObjectURLSpy = vi.fn().mockReturnValue("blob:mock-url");
-    const revokeObjectURLSpy = vi.fn();
-    global.URL.createObjectURL = createObjectURLSpy;
-    global.URL.revokeObjectURL = revokeObjectURLSpy;
-
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: { id: "user-admin", is_super_admin: true },
-    });
-
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      expect(screen.getByText(/Export CSV/i)).toBeInTheDocument();
-    });
-
-    const exportBtn = screen.getByRole("button", { name: /Export CSV/i });
-    fireEvent.click(exportBtn);
-
-    expect(createObjectURLSpy).toHaveBeenCalled();
-  });
-
-  it("toggles between Realized Pool and Pipeline Forecast", async () => {
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: { id: "user-admin", is_super_admin: true },
-    });
-
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      expect(screen.getByText("Realized Pool")).toBeInTheDocument();
-    });
-
-    const forecastBtn = screen.getByRole("button", { name: /Pipeline Forecast/i });
-    fireEvent.click(forecastBtn);
-
-    await waitFor(() => {
-      expect(commissionService.getCommissionDashboardData).toHaveBeenCalledWith(
-        expect.objectContaining({ scope: "FORECAST" }),
-      );
+      await screen.findByText("SOR-001");
+      fireEvent.click(screen.getByRole("tab", { name: /People/ }));
+      fireEvent.click(screen.getByText("Alice Rep").closest("tr"));
+      expect(mockNavigate).toHaveBeenCalledWith("/sors", { state: { filterEmployeeId: "user-alice" } });
     });
   });
 
-  it("navigates to SOR register with filterEmployeeId when a salesperson row is clicked", async () => {
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: { id: "user-admin", is_super_admin: true },
+  describe("Formula tab", () => {
+    it("shows the rates, the departments and each Project Type's split", async () => {
+      asUser(aliceUser);
+      renderView({ path: "/sors/commission?tab=formula" });
+
+      expect((await screen.findAllByText("Pool rate")).length).toBeGreaterThan(0);
+      expect(screen.getByText("Operations")).toBeInTheDocument();
+
+      fireEvent.click(await screen.findByRole("button", { name: /Collaborative Project/ }));
+      await waitFor(() => expect(screen.getAllByText("60%").length).toBeGreaterThan(0));
+      expect(screen.queryByRole("button", { name: /Save split/ })).not.toBeInTheDocument();
     });
 
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
+    it("lets a Sales Director change and save a split", async () => {
+      commissionService.isSalesDirector.mockResolvedValue(true);
+      commissionService.saveSplitsForProjectType.mockResolvedValue(SPLITS.SSP);
+      asUser(aliceUser);
+      renderView({ path: "/sors/commission?tab=formula" });
 
-    await waitFor(() => {
-      expect(screen.getByText("Alice Rep")).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole("button", { name: /Single Salesperson Project/ }));
+      const owner = await screen.findByLabelText("Deal Owner percent");
+      fireEvent.change(owner, { target: { value: "70" } });
+      fireEvent.change(screen.getByLabelText("Sales Director percent"), { target: { value: "30" } });
+      fireEvent.click(screen.getByRole("button", { name: /Save split/ }));
+
+      await waitFor(() => {
+        expect(commissionService.saveSplitsForProjectType).toHaveBeenCalledWith(
+          "SSP",
+          [{ shareRole: "deal_owner", percent: 70 }, { shareRole: "sales_director", percent: 30 }],
+          "user-alice",
+        );
+      });
     });
 
-    const aliceRow = screen.getByText("Alice Rep").closest("tr");
-    fireEvent.click(aliceRow);
+    it("works the formula through for a typed contract value", async () => {
+      asUser(aliceUser);
+      renderView({ path: "/sors/commission?tab=formula" });
 
-    expect(mockNavigate).toHaveBeenCalledWith("/sors", {
-      state: { filterEmployeeId: "user-alice" },
-    });
-  });
-
-  it("navigates to SOR register with openOpportunityId when a transaction row is clicked", async () => {
-    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
-      user: { id: "user-admin", is_super_admin: true },
-    });
-
-    render(<CommissionDashboardView />, { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      expect(screen.getByText("Alice Rep")).toBeInTheDocument();
-    });
-
-    const ledgerTab = screen.getByRole("tab", { name: /Transaction Ledger/i });
-    fireEvent.click(ledgerTab);
-
-    const dealRow = screen.getByText("SOR-001").closest("tr");
-    fireEvent.click(dealRow);
-
-    expect(mockNavigate).toHaveBeenCalledWith("/sors", {
-      state: { openOpportunityId: "opp-1" },
+      const input = await screen.findByLabelText("Contract value");
+      fireEvent.change(input, { target: { value: "1120000" } });
+      // 1,120,000 ÷ 1.12 = 1,000,000; less 8% = 920,000 commissionable; 1% = 9,200 pool.
+      expect(await screen.findByText("₱920,000.00")).toBeInTheDocument();
+      expect(screen.getByText("₱9,200.00")).toBeInTheDocument();
     });
   });
 });

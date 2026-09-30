@@ -1,67 +1,59 @@
-import { useState, useMemo, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { useAuth } from "../../../context/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Check, Clock, History, Layers, Users } from "lucide-react";
+import toast from "react-hot-toast";
 import { taskService } from "../../../services/taskService.js";
 import { employeeService } from "../../../services/employeeService.js";
 import { TASK_STATUS } from "../../../constants/status.js";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
-import {
-  ShieldCheck,
-  History,
-  Search,
-  Users,
-  Clock,
-  AlertTriangle,
-  Layers,
-  ListFilter,
-  UserCheck
-} from "lucide-react";
-import toast from "react-hot-toast";
-import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import Spinner from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import TaskDetails from "../../../components/TaskDetails.jsx";
 import TaskFilters from "../../../components/TaskFilters.jsx";
-import GroupTaskApprovalSection from "../_components/GroupTaskApprovalSection.jsx";
-import { ApprovalHeader } from "../_components/ApprovalHeader";
-import { ApprovalSplitView } from "../_components/ApprovalSplitView";
-import BulkVerifyModal from "./_components/BulkVerifyModal";
-import { Button } from "@/components/ui/button";
+import { filterAndSortTasks, summariseQueueEmployees } from "../../../utils/approvalQueue.js";
+import { taskToItem } from "../../../utils/approvalItems.js";
 import { sameDepartment } from "../../../utils/compareDepartment.js";
-import PageContainer from "../../../components/ui/PageContainer";
-import { useAppSettings } from "@/hooks/useAppSettings";
-import TabGroup from "../../../components/ui/TabGroup";
+import { APPROVAL_QUEUES, useApprovalQueues } from "../_components/useApprovalQueues";
+import { ApprovalCenterLayout } from "../_components/ApprovalCenterLayout";
+import { ApprovalToolbar, SelectionBar } from "../_components/ApprovalToolbar";
+import { ApprovalTable } from "../_components/ApprovalTable";
+import { ApprovalSheet } from "../_components/ApprovalSheet";
+import { TaskReview } from "../_components/TaskReview";
+import { APPROVE_CLASS } from "../_components/approvalUi";
+import GroupTaskApprovalSection from "../_components/GroupTaskApprovalSection.jsx";
+import BulkVerifyModal from "./_components/BulkVerifyModal";
 
+const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "hr");
+
+/**
+ * HR Verifications — HR's sign-off queue in the Approval Center: tasks a head
+ * has graded that HR has not yet verified for payroll, plus Group Tasks
+ * waiting on HR. Same table and review sheet as every other queue.
+ */
 export default function HrVerificationPage() {
   return (
     <ProtectedRoute requireHr={true}>
-      <HrVerificationQueueContent />
+      <HrVerificationQueue />
     </ProtectedRoute>
   );
 }
 
-function HrVerificationQueueContent() {
-  const { user } = useAuth();
+function HrVerificationQueue() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const q = useApprovalQueues();
+  const { user, isHr, isSuperAdmin } = q.roles;
 
-  const isHr = user?.is_hr === true || user?.isHr === true;
-  const isSuperAdmin =
-    user?.is_super_admin === true || user?.isSuperAdmin === true;
-  const isManagement = isHr || isSuperAdmin;
-
-  const { data: rawTasks = [], isLoading } = useQuery({
-    queryKey: ["dashboardTasks", user?.id, "all"],
-    queryFn: () => taskService.getAllTasks(),
-    enabled: !!user?.id,
-  });
-
-  const { settings: appSettings } = useAppSettings();
-
+  const [view, setView] = useState("ALL");
+  const [openId, setOpenId] = useState(null);
   const [viewTask, setViewTask] = useState(null);
-  const [activeTaskId, setActiveTaskId] = useState(null);
-
-  // Smart Tabs: "ALL" | "ACTIVE" | "STALE" | "VERIFIED" | "GROUP"
-  const [activeTab, setActiveTab] = useState("ALL");
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isBulkVerifyOpen, setIsBulkVerifyOpen] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
@@ -71,522 +63,279 @@ function HrVerificationQueueContent() {
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [subDeptFilter, setSubDeptFilter] = useState("ALL");
   const [employeeFilter, setEmployeeFilter] = useState("ALL");
-  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  const [isBulkVerifyModalOpen, setIsBulkVerifyModalOpen] = useState(false);
+  const narrowing = (set) => (v) => {
+    set(v);
+    setSelectedIds([]);
+  };
 
-  const { data: allEmployees = [] } = useQuery({
-    queryKey: ["allEmployees"],
-    queryFn: () => employeeService.getAllEmployees(),
-  });
+  const { data: allEmployees = [] } = useQuery({ queryKey: ["allEmployees"], queryFn: () => employeeService.getAllEmployees() });
+  const { data: allCategories = [] } = useQuery({ queryKey: ["allCategories"], queryFn: () => employeeService.getAllCategories() });
 
-  const { data: allCategories = [] } = useQuery({
-    queryKey: ["allCategories"],
-    queryFn: () => employeeService.getAllCategories(),
-  });
-
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  // DEEP-LINK HOOK
-  useEffect(() => {
-    if (!location.state?.openTaskId) return;
-    const openId = location.state.openTaskId;
-    if (rawTasks.length > 0) {
-      const targetTask = rawTasks.find((t) => t.id === openId);
-      queueMicrotask(() => {
-        setActiveTaskId(openId);
-        if (targetTask) {
-          setViewTask(targetTask);
-        } else {
-          import("../../../services/tasks/taskQueryService.js").then(
-            ({ taskQueryService }) => {
-              taskQueryService
-                .getTaskById(openId)
-                .then((task) => {
-                  if (task) {
-                    setViewTask(task);
-                    setActiveTaskId(task.id);
-                  }
-                })
-                .catch((err) => toast.error(err.message || "Something went wrong"));
-            },
-          );
-        }
-      });
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state, rawTasks, navigate, location.pathname]);
-
-  useEffect(() => {
-    setSelectedTaskIds([]);
-  }, [
-    searchQuery,
-    priorityFilter,
-    sortBy,
-    timeframe,
-    selectedDateFilter,
-    deptFilter,
-    subDeptFilter,
-    employeeFilter,
-    activeTab,
-  ]);
-
-
-
-  const uniqueDepts = useMemo(
-    () =>
-      [
-        ...new Set(allCategories.map((c) => c.department).filter(Boolean)),
-      ].sort(),
-    [allCategories],
-  );
-
+  const uniqueDepts = useMemo(() => [...new Set(allCategories.map((c) => c.department).filter(Boolean))].sort(), [allCategories]);
   const uniqueSubDepts = useMemo(() => {
-    const filteredCats =
-      deptFilter === "ALL"
-        ? allCategories
-        : allCategories.filter((c) => sameDepartment(c.department, deptFilter));
-    return [
-      ...new Set(filteredCats.map((c) => c.subDepartment).filter(Boolean)),
-    ].sort();
+    const cats = deptFilter === "ALL" ? allCategories : allCategories.filter((c) => sameDepartment(c.department, deptFilter));
+    return [...new Set(cats.map((c) => c.subDepartment).filter(Boolean))].sort();
   }, [allCategories, deptFilter]);
-
   const uniqueEmployees = useMemo(() => {
     let pool = allEmployees.filter((e) => !e.isSuperAdmin);
-    if (deptFilter !== "ALL")
-      pool = pool.filter((e) => sameDepartment(e.department, deptFilter));
-    if (subDeptFilter !== "ALL")
-      pool = pool.filter((e) => sameDepartment(e.subDepartment, subDeptFilter));
+    if (deptFilter !== "ALL") pool = pool.filter((e) => sameDepartment(e.department, deptFilter));
+    if (subDeptFilter !== "ALL") pool = pool.filter((e) => sameDepartment(e.subDepartment, subDeptFilter));
     return pool.sort((a, b) => a.name.localeCompare(b.name));
   }, [allEmployees, deptFilter, subDeptFilter]);
 
-  // HR PENDING QUEUE:
-  // Tasks that are COMPLETE, graded by a Head (evaluated_by != null), and NOT yet hr_verified
-  const pendingTasks = useMemo(() => {
-    return rawTasks
-      .filter((t) => {
-        const isNotMe = t.loggedById !== user?.id;
-        return (
-          isNotMe &&
-          t.status === TASK_STATUS.COMPLETE &&
-          !t.hrVerified &&
-          t.evaluatedById != null
+  // HR's clock runs from the head's grade, so staleness is read off the item
+  // (taskToItem measures an "hr" item from evaluatedAt), not off createdAt.
+  const { hrPending: pending, hrVerified: verified } = q;
+  const pendingItems = useMemo(() => pending.map((t) => taskToItem(t, "hr")), [pending]);
+  const staleIds = useMemo(() => new Set(pendingItems.filter((i) => i.isStale).map((i) => i.id)), [pendingItems]);
+  const active = useMemo(() => pending.filter((t) => !staleIds.has(t.id)), [pending, staleIds]);
+  const stale = useMemo(() => pending.filter((t) => staleIds.has(t.id)), [pending, staleIds]);
+  const source = view === "VERIFIED" ? verified : view === "ACTIVE" ? active : view === "STALE" ? stale : pending;
+
+  const people = useMemo(() => summariseQueueEmployees(source), [source]);
+  const items = useMemo(
+    () =>
+      filterAndSortTasks(source, {
+        searchQuery,
+        priorityFilter,
+        statusFilter: "ALL",
+        timeframe,
+        selectedDateFilter,
+        deptFilter,
+        subDeptFilter,
+        employeeFilter,
+        sortBy,
+        employees: allEmployees,
+      }).map((t) => taskToItem(t, "hr")),
+    [source, searchQuery, priorityFilter, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
+  );
+
+  const index = items.findIndex((i) => i.id === openId);
+  const open = index >= 0 ? items[index] : null;
+
+  useEffect(() => {
+    const openTaskId = location.state?.openTaskId;
+    if (!openTaskId || !q.rawTasks.length) return;
+    navigate(location.pathname, { replace: true, state: {} });
+    queueMicrotask(() => {
+      if (pending.some((t) => t.id === openTaskId) || verified.some((t) => t.id === openTaskId)) {
+        setOpenId(openTaskId);
+        return;
+      }
+      const known = q.rawTasks.find((t) => t.id === openTaskId);
+      if (known) setViewTask(known);
+      else
+        import("../../../services/tasks/taskQueryService.js").then(({ taskQueryService }) =>
+          taskQueryService
+            .getTaskById(openTaskId)
+            .then((task) => task && setViewTask(task))
+            .catch((err) => toast.error(err.message || "Could not open that task.")),
         );
-      })
-      .sort(
-        (a, b) =>
-          new Date(a.evaluatedAt || a.createdAt) -
-          new Date(b.evaluatedAt || b.createdAt),
-      );
-  }, [rawTasks, user?.id]);
-
-  // Split HR pending into Active (<48h since graded) and Stale/Backlog (>=48h since graded).
-  // The clock measures how long HR has been sitting on the work, not how long the employee
-  // took to get graded — so we use evaluatedAt, the moment the Head's decision landed.
-  const activePendingTasks = useMemo(() => {
-    return pendingTasks.filter((t) => {
-      const clock = t.evaluatedAt || t.createdAt;
-      if (!clock) return true;
-      const hrs = (new Date() - new Date(clock)) / (1000 * 60 * 60);
-      return hrs < 48;
     });
-  }, [pendingTasks]);
+  }, [location.state, location.pathname, q.rawTasks, pending, verified, navigate]);
 
-  const stalePendingTasks = useMemo(() => {
-    return pendingTasks.filter((t) => {
-      const clock = t.evaluatedAt || t.createdAt;
-      if (!clock) return false;
-      const hrs = (new Date() - new Date(clock)) / (1000 * 60 * 60);
-      return hrs >= 48;
-    });
-  }, [pendingTasks]);
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
+    queryClient.invalidateQueries({ queryKey: ["tasks"] });
+  }, [queryClient]);
 
-  // HR VERIFIED QUEUE
-  const verifiedTasks = useMemo(() => {
-    return rawTasks
-      .filter((t) => {
-        const isNotMe = t.loggedById !== user?.id;
-        return isNotMe && t.status === TASK_STATUS.COMPLETE && t.hrVerified;
-      })
-      .sort(
-        (a, b) =>
-          new Date(b.hrVerifiedAt || b.createdAt) -
-          new Date(a.hrVerifiedAt || a.createdAt),
-      );
-  }, [rawTasks, user?.id]);
+  const editTask = useMutation({ mutationFn: (payload) => taskService.updateTask(payload.id, payload), onSuccess: invalidate });
+  const deleteTask = useMutation({ mutationFn: ({ id, userId }) => taskService.deleteTask(id, userId), onSuccess: invalidate });
 
-  const activeRawData = useMemo(() => {
-    if (activeTab === "VERIFIED") return verifiedTasks;
-    if (activeTab === "ACTIVE") return activePendingTasks;
-    if (activeTab === "STALE") return stalePendingTasks;
-    return pendingTasks;
-  }, [activeTab, verifiedTasks, activePendingTasks, stalePendingTasks, pendingTasks]);
+  const selected = items.filter((i) => selectedIds.includes(i.id));
 
-  // Quick Employee Filter Pills
-  const queueEmployees = useMemo(() => {
-    const map = new Map();
-    for (const t of activeRawData) {
-      if (!t.loggedById) continue;
-      const existing = map.get(t.loggedById) || {
-        id: t.loggedById,
-        name: t.loggedByName || "Unknown",
-        avatar: t.loggedByAvatar,
-        count: 0,
-      };
-      existing.count += 1;
-      map.set(t.loggedById, existing);
-    }
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [activeRawData]);
-
-  const filteredTasks = useMemo(() => {
-    let result = [...activeRawData];
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (t) =>
-          (t.loggedByName || "").toLowerCase().includes(q) ||
-          (t.categoryId || "").toLowerCase().includes(q) ||
-          (t.taskDescription || "").toLowerCase().includes(q),
-      );
-    }
-    if (priorityFilter !== "ALL") {
-      result = result.filter((t) => t.priority === priorityFilter);
-    }
-    if (employeeFilter !== "ALL") {
-      result = result.filter((t) => t.loggedById === employeeFilter);
-    }
-    if (deptFilter !== "ALL" || subDeptFilter !== "ALL") {
-      const empMap = new Map();
-      for (const emp of allEmployees) empMap.set(emp.id, emp);
-      result = result.filter((task) => {
-        let matchesDept = true,
-          matchesSubDept = true;
-        const taskOwner = empMap.get(task.loggedById);
-        if (deptFilter !== "ALL")
-          matchesDept = sameDepartment(taskOwner?.department, deptFilter);
-        if (subDeptFilter !== "ALL")
-          matchesSubDept = sameDepartment(taskOwner?.subDepartment, subDeptFilter);
-        return matchesDept && matchesSubDept;
-      });
-    }
-    if (sortBy === "NEWEST")
-      result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    else if (sortBy === "OLDEST")
-      result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-    else if (sortBy === "NAME")
-      result.sort((a, b) =>
-        (a.loggedByName || "").localeCompare(b.loggedByName || ""),
-      );
-    return result;
-  }, [
-    activeRawData,
-    searchQuery,
-    priorityFilter,
-    sortBy,
-    deptFilter,
-    subDeptFilter,
-    employeeFilter,
-    allEmployees,
-  ]);
-
-  const editTaskMutation = useMutation({
-    mutationFn: (updatedData) =>
-      taskService.updateTask(updatedData.id, updatedData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    },
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: ({ id, userId }) => taskService.deleteTask(id, userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    },
-  });
-
-  const handleSelectAll = () =>
-    setSelectedTaskIds(filteredTasks.map((t) => t.id));
-  const handleDeselectAll = () => setSelectedTaskIds([]);
-  const toggleTaskSelection = (taskId) =>
-    setSelectedTaskIds((prev) =>
-      prev.includes(taskId)
-        ? prev.filter((id) => id !== taskId)
-        : [...prev, taskId],
-    );
-
-  const handleBulkVerify = async ({ notes }) => {
-    if (!selectedTaskIds.length) return;
-    setIsBulkVerifyModalOpen(false);
+  const unverify = async (ids, message = "Verification undone.") => {
     try {
-      const idsToUndo = [...selectedTaskIds];
-      await taskService.bulkVerifyTasks(selectedTaskIds, user.id, notes);
-      queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      setSelectedTaskIds([]);
-      undoableSuccessToast(
-        `${idsToUndo.length} tasks verified successfully.`,
-        "Undo",
-        async () => {
-          try {
-            await taskService.bulkUnverifyTasks(idsToUndo, user.id);
-            queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
-            queryClient.invalidateQueries({ queryKey: ["tasks"] });
-            toast.success("Verification undone.");
-          } catch (e) {
-            toast.error(e.message || "Failed to undo.");
-          }
-        },
-        6000,
-      );
+      await taskService.bulkUnverifyTasks(ids, user.id);
+      invalidate();
+      toast.success(message);
     } catch (err) {
-      toast.error(err.message || "Bulk verification failed.");
+      toast.error(err.message || "Could not undo the verification.");
     }
   };
 
-  const handleBulkUnverify = async () => {
-    if (!selectedTaskIds.length) return;
+  const verify = async (ids, notes = "") => {
     try {
-      await taskService.bulkUnverifyTasks(selectedTaskIds, user.id);
-      queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      setSelectedTaskIds([]);
-      toast.success("Verification undone successfully.");
+      await taskService.bulkVerifyTasks(ids, user.id, notes);
+      invalidate();
+      setSelectedIds([]);
+      undoableSuccessToast(`${ids.length} task${ids.length === 1 ? "" : "s"} verified.`, "Undo", () => unverify(ids), 6000);
     } catch (err) {
-      toast.error(err.message || "Failed to unverify tasks.");
+      toast.error(err.message || "Verification failed.");
     }
   };
 
-  if (isLoading) {
+  if (q.isLoadingTasks) {
     return (
-      <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
+      <div className="flex h-[60vh] flex-col items-center justify-center py-20 text-muted-foreground">
         <Spinner size="md" />
-        <p className="font-bold animate-pulse tracking-wider uppercase text-sm mt-3">
-          Loading Verification Queue...
-        </p>
+        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Verification Queue...</p>
       </div>
     );
   }
 
+  const bulkEnabled = !!q.appSettings?.enable_bulk_approval;
+  const isVerifiedView = view === "VERIFIED";
+
   return (
     <>
-      <PageContainer className="pt-3 pb-8 space-y-4">
-        <ApprovalHeader
-          isHr={true}
-          isSuperAdmin={isSuperAdmin}
-          appSettings={appSettings}
-          pendingTasksCount={activeRawData.length}
-          filteredTasksCount={filteredTasks.length}
-          selectedCount={selectedTaskIds.length}
-          onSelectAllPending={handleSelectAll}
-          onDeselectAll={handleDeselectAll}
-          handleBulkApprove={() => setIsBulkVerifyModalOpen(true)}
-          handleUndoBulk={handleBulkUnverify}
-          isVerifiedTab={activeTab === "VERIFIED"}
-          pageTitle="HR Verification Queue"
-          pageDescription="Audit and sign off evaluated tasks for payroll accuracy."
+      <ApprovalCenterLayout queue="hr" counts={q.counts}>
+        <ApprovalToolbar
+          views={[
+            { value: "ALL", label: "All Pending", icon: Layers, badge: pending.length || undefined },
+            { value: "ACTIVE", label: "Active (<48h graded)", icon: Clock, badge: active.length || undefined },
+            { value: "STALE", label: "Stale Backlog (≥48h graded)", icon: AlertTriangle, badge: stale.length || undefined },
+            { value: "VERIFIED", label: "Recently Verified", icon: History, badge: verified.length || undefined },
+            { value: "GROUP", label: "Group Tasks", icon: Users },
+          ]}
+          view={view}
+          onViewChange={narrowing((v) => {
+            setView(v);
+            setEmployeeFilter("ALL");
+          })}
+          people={view === "GROUP" ? [] : people}
+          person={employeeFilter}
+          onPersonChange={narrowing(setEmployeeFilter)}
+          search={searchQuery}
+          onSearchChange={narrowing(setSearchQuery)}
+          advancedOpen={showAdvanced}
+          onAdvancedToggle={view === "GROUP" ? undefined : () => setShowAdvanced((s) => !s)}
         />
 
-        {/* TAB TOGGLE */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-border/60 pb-3">
-          <TabGroup
-            tabs={[
-              {
-                value: "ALL",
-                label: "All Pending",
-                icon: Layers,
-                badge: pendingTasks.length || undefined,
-              },
-              {
-                value: "ACTIVE",
-                label: "Active (<48h graded)",
-                icon: Clock,
-                badge: activePendingTasks.length || undefined,
-              },
-              {
-                value: "STALE",
-                label: "Stale Backlog (≥48h graded)",
-                icon: AlertTriangle,
-                badge: stalePendingTasks.length || undefined,
-                activeClass: stalePendingTasks.length > 0 ? "bg-amber-500/10 text-amber-600 font-bold" : undefined,
-              },
-              {
-                value: "VERIFIED",
-                label: "Recently Verified",
-                icon: History,
-                badge: verifiedTasks.length || undefined,
-              },
-              {
-                value: "GROUP",
-                label: "Group Tasks",
-                icon: Users,
-              },
-            ]}
-            activeTab={activeTab}
-            onChange={(val) => {
-              setActiveTab(val);
-              setEmployeeFilter("ALL");
-            }}
-            size="md"
-          />
-
-          <div className="flex items-center gap-2">
-            {activeTab !== "GROUP" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className={`h-8 text-xs font-semibold rounded-lg gap-1.5 ${showAdvancedFilters ? "bg-muted text-foreground" : "text-muted-foreground"
-                  }`}
-              >
-                <ListFilter className="w-3.5 h-3.5" />
-                <span>Filters</span>
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* GROUP TAB */}
-        {activeTab === "GROUP" ? (
+        {view === "GROUP" ? (
           <GroupTaskApprovalSection />
         ) : (
           <>
-            {/* QUICK TEAM MEMBER FILTER CHIPS */}
-            {queueEmployees.length > 1 && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-4 text-xs">
-                <span className="text-muted-foreground font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
-                  <UserCheck className="w-3 h-3" /> Quick Filter:
-                </span>
-                <Button
-                  variant="outline"
-                  onClick={() => setEmployeeFilter("ALL")}
-                  className={`h-auto rounded-full px-2.5 py-1 text-xs font-semibold shrink-0 ${employeeFilter === "ALL"
-                    ? "bg-foreground text-background border-foreground shadow-xs hover:bg-foreground hover:text-background"
-                    : "bg-card hover:bg-muted text-muted-foreground border-border"
-                    }`}
-                >
-                  All ({activeRawData.length})
-                </Button>
-                {queueEmployees.map((emp) => (
-                  <Button
-                    key={emp.id}
-                    variant="outline"
-                    onClick={() => setEmployeeFilter(emp.id === employeeFilter ? "ALL" : emp.id)}
-                    className={`h-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium shrink-0 ${emp.id === employeeFilter
-                      ? "bg-foreground text-background border-foreground shadow-xs font-bold hover:bg-foreground hover:text-background"
-                      : "bg-card hover:bg-muted text-foreground border-border"
-                      }`}
-                  >
-                    <span>{emp.name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${emp.id === employeeFilter
-                      ? "bg-background/20 text-background"
-                      : "bg-muted text-muted-foreground"
-                      }`}>
-                      {emp.count}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-            )}
-
-            {/* ADVANCED FILTERS */}
-            {showAdvancedFilters && (
-              <div className="bg-card border border-border/80 rounded-xl p-3 shadow-xs">
+            {showAdvanced && (
+              <div className="rounded-xl border border-border bg-card p-3">
                 <TaskFilters
                   searchTerm={searchQuery}
-                  setSearchTerm={setSearchQuery}
+                  setSearchTerm={narrowing(setSearchQuery)}
                   statusFilter={TASK_STATUS.COMPLETE}
-                  setStatusFilter={() => { }}
+                  setStatusFilter={() => {}}
                   priorityFilter={priorityFilter}
-                  setPriorityFilter={setPriorityFilter}
+                  setPriorityFilter={narrowing(setPriorityFilter)}
                   timeframe={timeframe}
-                  setTimeframe={setTimeframe}
+                  setTimeframe={narrowing(setTimeframe)}
                   selectedDateFilter={selectedDateFilter}
-                  setSelectedDateFilter={setSelectedDateFilter}
+                  setSelectedDateFilter={narrowing(setSelectedDateFilter)}
                   deptFilter={deptFilter}
-                  setDeptFilter={setDeptFilter}
+                  setDeptFilter={narrowing(setDeptFilter)}
                   subDeptFilter={subDeptFilter}
-                  setSubDeptFilter={setSubDeptFilter}
+                  setSubDeptFilter={narrowing(setSubDeptFilter)}
                   employeeFilter={employeeFilter}
-                  setEmployeeFilter={setEmployeeFilter}
-                  isManagement={isManagement}
+                  setEmployeeFilter={narrowing(setEmployeeFilter)}
+                  isManagement={isHr || isSuperAdmin}
                   isHr={isHr}
                   hrViewMode="ALL"
                   disableDeptFilter={false}
                   uniqueDepts={uniqueDepts}
                   uniqueSubDepts={uniqueSubDepts}
                   uniqueEmployees={uniqueEmployees}
-                  showStatusFilter={true}
-                  disableStatusFilter={true}
+                  showStatusFilter
+                  disableStatusFilter
                   sortBy={sortBy}
                   setSortBy={setSortBy}
                 />
               </div>
             )}
 
-            {/* MASTER-DETAIL SPLIT VIEW */}
-            <ApprovalSplitView
-              tasks={filteredTasks}
-              isHr={true}
-              isVerifiedTab={activeTab === "VERIFIED"}
-              currentUserId={user?.id}
-              activeTaskId={activeTaskId}
-              onSelectTaskId={setActiveTaskId}
-              onProcessTask={(payload) =>
-                editTaskMutation.mutateAsync({
-                  ...payload,
-                  editedBy: user.id,
-                })
-              }
-              isSubmitting={editTaskMutation.isPending}
-              onViewFullDetails={setViewTask}
-              selectedTaskIds={selectedTaskIds}
-              onToggleTaskSelection={
-                appSettings?.enable_bulk_approval ? toggleTaskSelection : undefined
-              }
-              enableBulkApproval={appSettings?.enable_bulk_approval}
+            <ApprovalTable
+              items={items}
+              queueIcon={QUEUE.icon}
+              onOpen={(item) => setOpenId(item.id)}
+              selectable={bulkEnabled}
+              selectedIds={selectedIds}
+              onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
+              onToggleAll={(on) => setSelectedIds(on ? items.map((i) => i.id) : [])}
               searchTerm={searchQuery}
-              emptyMessage={{
-                title:
-                  activeTab === "STALE"
-                    ? "No Stale Backlog!"
-                    : activeTab === "VERIFIED"
-                      ? "No Verified Tasks"
-                      : "HR Queue is Clear!",
-                description:
-                  activeTab === "STALE"
-                    ? "All tasks older than 48 hours have been verified."
-                    : activeTab === "VERIFIED"
-                      ? "Tasks you sign and audit will appear here."
-                      : "No tasks are awaiting HR verification right now.",
-              }}
+              keyboard={!open && !viewTask}
+              renderRowAction={(item) =>
+                !item.done && (
+                  <Tooltip content="Verify & sign">
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Verify ${item.title}`}
+                      className="hover:border-green-7 hover:bg-green-3 hover:text-green-11"
+                      onClick={() => verify([item.id])}
+                    >
+                      <Check size={14} />
+                    </Button>
+                  </Tooltip>
+                )
+              }
+              empty={
+                view === "STALE"
+                  ? { title: "No Stale Backlog!", description: "Every task graded more than 48 hours ago has been verified." }
+                  : isVerifiedView
+                    ? { title: "No Verified Tasks", description: "Tasks you sign off will appear here." }
+                    : { title: "HR Queue is Clear!", description: "No tasks are awaiting HR verification right now." }
+              }
             />
           </>
         )}
-      </PageContainer>
+      </ApprovalCenterLayout>
 
-      {/* FULL DETAILS MODAL */}
+      <SelectionBar count={selected.length} onClear={() => setSelectedIds([])}>
+        {isVerifiedView ? (
+          <Button variant="outline" size="sm" onClick={() => unverify(selected.map((i) => i.id)).then(() => setSelectedIds([]))}>
+            Undo verification
+          </Button>
+        ) : (
+          <Button size="sm" className={APPROVE_CLASS} onClick={() => setIsBulkVerifyOpen(true)}>
+            Verify {selected.length}
+          </Button>
+        )}
+      </SelectionBar>
+
+      <ApprovalSheet
+        item={open}
+        queueLabel={QUEUE.label}
+        queueIcon={QUEUE.icon}
+        index={index}
+        total={items.length}
+        onStep={(d) => setOpenId(items[index + d]?.id ?? openId)}
+        onClose={() => setOpenId(null)}
+        onOpenDetails={(item) => setViewTask(item.source)}
+      >
+        {(item) => (
+          <TaskReview
+            key={item.id}
+            item={item}
+            currentUserId={user?.id}
+            onProcess={(payload) => editTask.mutateAsync({ ...payload, editedBy: user.id })}
+            isSubmitting={editTask.isPending}
+            searchTerm={searchQuery}
+            onDecided={() => {
+              const next = items[index + 1] || items[index - 1];
+              setOpenId(next ? next.id : null);
+            }}
+          />
+        )}
+      </ApprovalSheet>
+
       <TaskDetails
         isOpen={!!viewTask}
         onClose={() => setViewTask(null)}
         task={viewTask}
-        onUpdateTask={(updatedTask) =>
-          editTaskMutation.mutateAsync(updatedTask)
-        }
-        onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
+        onUpdateTask={(t) => editTask.mutateAsync(t)}
+        onDeleteTask={(payload) => deleteTask.mutateAsync(payload)}
       />
 
-      {/* BULK VERIFY MODAL */}
       <BulkVerifyModal
-        isOpen={isBulkVerifyModalOpen}
-        onClose={() => setIsBulkVerifyModalOpen(false)}
-        selectedCount={selectedTaskIds.length}
-        onConfirm={handleBulkVerify}
-        isSubmitting={editTaskMutation.isPending}
+        isOpen={isBulkVerifyOpen}
+        onClose={() => setIsBulkVerifyOpen(false)}
+        selectedCount={selected.length}
+        onConfirm={({ notes }) => {
+          setIsBulkVerifyOpen(false);
+          verify(
+            selected.map((i) => i.id),
+            notes,
+          );
+        }}
+        isSubmitting={editTask.isPending}
       />
     </>
   );

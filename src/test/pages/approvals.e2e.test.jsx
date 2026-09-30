@@ -20,7 +20,7 @@ import { waitForNetworkIdle } from "@/test/network"
  *
  * The narrow rules these journeys pass through are covered far more cheaply one
  * layer down: pure queue logic in src/utils/approvalQueue.test.js, and the
- * component-to-service wiring in components/ApprovalSplitView.test.jsx. Add a
+ * component-to-service wiring in src/test/pages/approvalReview.test.jsx. Add a
  * journey here only for a path a user actually takes end to end.
  *
  * Lives under src/test/pages rather than beside the pages: Generouted routes
@@ -99,19 +99,15 @@ describe("approval journeys", () => {
 
         await renderPage(TaskApprovals, reviewer)
 
-        // The task is waiting, and opening the page opens it in the pane.
-        await waitFor(() => {
-            expect(
-                screen.getAllByText("Replace the office switch").length,
-            ).toBeGreaterThan(0)
-        })
+        // The task is waiting in the table; clicking it opens the review sheet.
+        await user.click(await screen.findByText("Replace the office switch"))
 
-        await user.click(screen.getByRole("button", { name: /^4$/ }))
+        await user.click(await screen.findByRole("button", { name: /^4$/ }))
         await user.type(
             screen.getByPlaceholderText(/add evaluation remarks/i),
             "Clean install, receipt attached",
         )
-        await user.click(screen.getByRole("button", { name: /approve task/i }))
+        await user.click(screen.getByRole("button", { name: /^approve$/i }))
 
         await waitFor(() => expect(rowOf(task.id).status).toBe(TASK_STATUS.COMPLETE))
         const row = rowOf(task.id)
@@ -135,15 +131,13 @@ describe("approval journeys", () => {
 
         await renderPage(TaskApprovals, reviewer)
 
-        await waitFor(() => {
-            expect(screen.getAllByText("Quarterly stock count").length).toBeGreaterThan(0)
-        })
+        await user.click(await screen.findByText("Quarterly stock count"))
 
         await user.type(
-            screen.getByPlaceholderText(/add evaluation remarks/i),
+            await screen.findByPlaceholderText(/add evaluation remarks/i),
             "Counts do not match the ledger",
         )
-        await user.click(screen.getByRole("button", { name: /return task/i }))
+        await user.click(screen.getByRole("button", { name: /^return$/i }))
 
         await waitFor(() =>
             expect(rowOf(task.id).status).toBe(TASK_STATUS.NOT_APPROVED),
@@ -168,7 +162,10 @@ describe("approval journeys", () => {
             expect(screen.getAllByText("Patch the firewall").length).toBeGreaterThan(0)
         })
 
-        // Grade and approve the first, auto-advance lands on the second.
+        // Enter opens the first row; grade and approve it, and the sheet moves
+        // straight on to the second.
+        await user.keyboard("{Enter}")
+        await screen.findByPlaceholderText(/add evaluation remarks/i)
         await user.keyboard("5")
         await user.keyboard("{Enter}")
         await waitFor(() => expect(rowOf(first.id).status).toBe(TASK_STATUS.COMPLETE))
@@ -202,9 +199,9 @@ describe("approval journeys", () => {
             expect(screen.getAllByText("Reconcile the petty cash").length).toBeGreaterThan(0)
         })
 
-        // The quick-filter chips name everyone with work in the queue.
-        const chip = await screen.findByRole("button", { name: /Ana Cruz\s*1/ })
-        await user.click(chip)
+        // The "Logged by" filter names everyone with work in the queue.
+        await user.click(screen.getByRole("button", { name: /^logged by$/i }))
+        await user.click(await screen.findByRole("button", { name: "Ana Cruz (1)" }))
 
         await waitFor(() => {
             expect(screen.queryAllByText("Reconcile the petty cash")).toHaveLength(0)
@@ -252,9 +249,9 @@ describe("approval journeys", () => {
 
         await renderPage(HrVerification, hr)
 
-        await waitFor(() => {
-            expect(screen.getByText(/grade: 4 \/ 5/i)).toBeInTheDocument()
-        })
+        await user.click(await screen.findByText("Replace the office switch"))
+
+        expect(await screen.findByText("Grade 4 of 5")).toBeInTheDocument()
         expect(screen.getByText("Clean install")).toBeInTheDocument()
 
         await user.type(
@@ -283,15 +280,13 @@ describe("approval journeys", () => {
         const HrVerification = await loadHrPage()
 
         await renderPage(HrVerification, hr)
-        await waitFor(() => {
-            expect(screen.getByPlaceholderText(/add hr audit notes/i)).toBeInTheDocument()
-        })
+        await user.click(await screen.findByText("Quarterly stock count"))
 
         await user.type(
-            screen.getByPlaceholderText(/add hr audit notes/i),
+            await screen.findByPlaceholderText(/add hr audit notes/i),
             "Payment voucher is missing",
         )
-        await user.click(screen.getByRole("button", { name: /^return \(x\)$/i }))
+        await user.click(screen.getByRole("button", { name: /^return$/i }))
 
         await waitFor(() =>
             expect(rowOf(task.id).status).toBe(TASK_STATUS.NOT_APPROVED),
@@ -345,6 +340,7 @@ describe("approval journeys", () => {
         await renderPage(TaskApprovals, reviewer)
 
         await user.click(screen.getByRole("tab", { name: /recently approved/i }))
+        await user.click(await screen.findByText("Replace the office switch"))
 
         const edit = await screen.findByRole("button", { name: /edit evaluation/i })
         await user.click(edit)
@@ -401,25 +397,24 @@ describe("approval journeys", () => {
         // Using .* for >= to avoid encoding issues when editing files via shell/API
         expect(screen.getByRole("tab", { name: /Stale Backlog \(.*48h graded\)/i })).toBeInTheDocument()
 
-        // 2. The Quick Filter Chips (queueEmployees) SHOULD show Bruce Admin, since he has a pending task
-        // We use getAllByRole because there is 1 Quick Filter Chip AND 1 Task Card for Bruce Admin!
-        expect(screen.getAllByRole("button", { name: /Bruce Admin/ })).toHaveLength(2)
+        // 2. Bruce Admin has a pending task, so it is in the table and the
+        // "Logged by" filter offers him.
+        expect(screen.getByText("Admin Task")).toBeInTheDocument()
+        await user.click(screen.getByRole("button", { name: /^logged by$/i }))
+        expect(await screen.findByRole("button", { name: "Bruce Admin (1)" })).toBeInTheDocument()
+        await user.keyboard("{Escape}")
 
         // 3. Open Advanced Filters
-        await user.click(screen.getByRole("button", { name: /Filters/i }))
+        await user.click(screen.getByRole("button", { name: /^filters$/i }))
 
-        // 4. Open Employee filter dropdown
+        // 4. Open the employee filter: it lists Ana Cruz but never a super admin.
         const employeeFilterBtn = screen.getByText("Logged By: Everyone").closest("div")
         await user.click(employeeFilterBtn)
-        
-        // 5. The dropdown listbox should render "Ana Cruz" (uniqueEmployees filter).
-        // Since she has 1 Task Card, 1 Quick Filter Chip, and 1 Dropdown Option, it should be 3!
+
         await waitFor(() => {
-            expect(screen.getAllByRole("button", { name: /Ana Cruz/ })).toHaveLength(3)
+            expect(screen.getByRole("button", { name: "Ana Cruz" })).toBeInTheDocument()
         })
-        
-        // Bruce Admin should ONLY be in the Quick Filter Chips (1) and Task Card (1), NOT in the dropdown!
-        expect(screen.getAllByRole("button", { name: /Bruce Admin/ })).toHaveLength(2)
+        expect(screen.queryByRole("button", { name: "Bruce Admin" })).not.toBeInTheDocument()
     })
 })
 

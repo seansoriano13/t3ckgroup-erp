@@ -35,8 +35,8 @@ describe("DocumentCenterTab", () => {
 
     // Wait for initial render
     await waitFor(() => {
-      // The tray should render 1 item from localStorage
-      expect(screen.getByText("Tray (1)")).toBeInTheDocument()
+      // The print order should hold the 1 item from localStorage
+      expect(screen.getByText("1 form queued")).toBeInTheDocument()
     })
     expect(screen.getByText("Testing Employee")).toBeInTheDocument()
 
@@ -51,7 +51,7 @@ describe("DocumentCenterTab", () => {
     )
 
     // The item should STILL be in the tray, unharmed.
-    expect(screen.getByText("Tray (1)")).toBeInTheDocument()
+    expect(screen.getByText("1 form queued")).toBeInTheDocument()
     expect(screen.getAllByText("Testing Employee").length).toBeGreaterThan(0)
     
     // Verify it wasn't cleared from localStorage
@@ -78,7 +78,7 @@ describe("DocumentCenterTab", () => {
 
     // The effect runs and drops the undone record.
     await waitFor(() => {
-      expect(screen.getByText("Tray (0)")).toBeInTheDocument()
+      expect(screen.getByText("0 forms queued")).toBeInTheDocument()
     })
     
     // Verify it was cleared from localStorage

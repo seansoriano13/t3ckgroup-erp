@@ -396,3 +396,92 @@ export function toggleSelectedId(selectedIds = [], id) {
         ? selectedIds.filter((selected) => selected !== id)
         : [...selectedIds, id];
 }
+
+/**
+ * Hours since an ISO timestamp, or `null` when there is none. The general form
+ * of `taskAgeInHours`, for queues whose clock is not `createdAt` — HR's clock
+ * starts when the head's grade lands (`evaluatedAt`), not when the work was
+ * logged, because it measures how long HR has been sitting on it.
+ */
+export function hoursSince(iso, now = Date.now()) {
+    if (!iso) return null;
+    const at = new Date(iso).getTime();
+    if (Number.isNaN(at)) return null;
+    return (Number(now) - at) / MS_PER_HOUR;
+}
+
+/** Same rule as `isStaleTask`, measured from any clock. Undateable is never stale. */
+export function isStaleSince(iso, now = Date.now()) {
+    const hours = hoursSince(iso, now);
+    return hours !== null && hours >= STALE_AFTER_HOURS;
+}
+
+const isOpenTask = (t) =>
+    t?.status === TASK_STATUS.INCOMPLETE || t?.status === TASK_STATUS.AWAITING_APPROVAL;
+
+/** High priority first, then oldest first — the order a reviewer should clear it in. */
+export function byPriorityThenAge(a, b) {
+    if (a.priority === "HIGH" && b.priority !== "HIGH") return -1;
+    if (b.priority === "HIGH" && a.priority !== "HIGH") return 1;
+    return new Date(a.createdAt) - new Date(b.createdAt);
+}
+
+/**
+ * The manager queue: tasks waiting on this reviewer's grade.
+ *
+ * A task that names its head (`reportedTo`) goes to that head. Legacy tasks
+ * without one fall back to department matching, where AWAITING_APPROVAL only
+ * reaches a head when the app settings route it there. `reportedToMeOnly` off
+ * (the "System-wide" scope, heads and super admins only) takes every open task.
+ * Your own tasks never come to you.
+ */
+export function selectManagerPending(tasks = [], ctx = {}) {
+    const { userId, userDept, userSubDept, isHead, isSuperAdmin, appSettings, reportedToMeOnly = true } = ctx;
+    if (!isHead && !isSuperAdmin) return [];
+    const wide = !reportedToMeOnly;
+
+    return tasks
+        .filter((t) => {
+            if (t.loggedById === userId) return false;
+            if (t.reportedTo) return isOpenTask(t) && (wide || t.reportedTo === userId);
+
+            const taskSubDept = t.sub_department || t.subDepartment || t.creator?.sub_department || t.employees?.sub_department || "";
+            const taskDept = t.creator?.department || t.employees?.department || "";
+            const isMyDept = userSubDept ? taskSubDept === userSubDept : taskDept === userDept;
+
+            if (t.status === TASK_STATUS.INCOMPLETE) return wide || isMyDept;
+            if (t.status === TASK_STATUS.AWAITING_APPROVAL) {
+                if (wide) return true;
+                const isMarketing = taskSubDept === "MARKETING" || taskDept === "MARKETING";
+                if (isMarketing) return !!appSettings?.marketing_approval_by_ops_manager && isMyDept;
+                return !!appSettings?.universal_task_submission && isMyDept;
+            }
+            return false;
+        })
+        .sort(byPriorityThenAge);
+}
+
+/** What this reviewer has already graded, newest decision first. System-wide shows every graded task. */
+export function selectManagerDecided(tasks = [], { userId, isSuperAdmin, reportedToMeOnly = true } = {}) {
+    return tasks
+        .filter((t) => {
+            if (t.loggedById === userId || t.status !== TASK_STATUS.COMPLETE) return false;
+            if (isSuperAdmin && !reportedToMeOnly) return t.evaluatedById != null;
+            return t.evaluatedById === userId;
+        })
+        .sort((a, b) => new Date(b.evaluatedAt || b.createdAt) - new Date(a.evaluatedAt || a.createdAt));
+}
+
+/** HR's queue: graded by a head, not yet signed off. Oldest grade first. */
+export function selectHrPending(tasks = [], userId) {
+    return tasks
+        .filter((t) => t.loggedById !== userId && t.status === TASK_STATUS.COMPLETE && !t.hrVerified && t.evaluatedById != null)
+        .sort((a, b) => new Date(a.evaluatedAt || a.createdAt) - new Date(b.evaluatedAt || b.createdAt));
+}
+
+/** Everything HR has signed off, newest sign-off first. */
+export function selectHrVerified(tasks = [], userId) {
+    return tasks
+        .filter((t) => t.loggedById !== userId && t.status === TASK_STATUS.COMPLETE && t.hrVerified)
+        .sort((a, b) => new Date(b.hrVerifiedAt || b.createdAt) - new Date(a.hrVerifiedAt || a.createdAt));
+}

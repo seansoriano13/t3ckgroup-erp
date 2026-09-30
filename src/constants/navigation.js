@@ -109,13 +109,6 @@ export const NAV_MODULES = {
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
         exactMatch: true,
       },
-      {
-        key: "sales.commissionFormula",
-        label: "Commission Formula",
-        link: "/sors/commission-formula",
-        icon: Percent,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasSalesFlow,
-      },
       // Issues #170-#174 put the Retail Queue and Retail totals in the
       // register's tab strip. They live on their own screen now — the strip
       // was the crowded thing, and retail is a sideline that nobody scans the

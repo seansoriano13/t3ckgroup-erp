@@ -169,7 +169,6 @@ describe("navigation registry", () => {
         // employee case.
         "My SORs",
         "Commission Dashboard",
-        "Commission Formula",
         // Retail moved out of the register's tab strip onto its own screen,
         // gated by the Retail access right (on by default for SALES).
         "Retail",
@@ -289,7 +288,6 @@ describe("navigation registry", () => {
         expect(salesGroup.links.map((l) => l.label)).toEqual([
           "SORS",
           "My SORs",
-          "Commission Formula",
           "Retail",
         ]);
       });
@@ -303,7 +301,6 @@ describe("navigation registry", () => {
           "SORS",
           "My SORs",
           "Commission Dashboard",
-          "Commission Formula",
           "Retail",
         ]);
       });
@@ -330,7 +327,6 @@ describe("navigation registry", () => {
           "SORS",
           "My SORs",
           "Commission Dashboard",
-          "Commission Formula",
           "Retail",
         ]);
       });

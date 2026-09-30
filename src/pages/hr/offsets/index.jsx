@@ -1,12 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
@@ -14,38 +6,40 @@ import { employeeService } from '../../../services/employeeService';
 import { companyService, matchesCompanyFilter } from '../../../services/companyService';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Clock, CheckCircle2, XCircle, Search, Filter, LayoutGrid, List, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
 import { Button } from '@/components/ui/button';
-import DocumentCenterTab from './_components/DocumentCenterTab';
-import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
-import TabGroup from '../../../components/ui/TabGroup';
-import Spinner from '@/components/ui/Spinner';
 import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
 import ApproveOvertimeModal from '../../../components/offsets/ApproveOvertimeModal';
 import ApproveOffsetModal from '../../../components/offsets/ApproveOffsetModal';
 import ApproveUndertimeModal from '../../../components/offsets/ApproveUndertimeModal';
 import ApplyLeaveModal from '../../../components/offsets/ApplyLeaveModal';
 import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
-import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
-import { AttachmentList } from '../../../components/ui/Attachments';
 import { getMonthBoundaries } from '../../../utils/dateUtils';
-import { formatWindow, isRequestInPendingPeriod } from '../../../utils/time';
+import { isRequestInPendingPeriod } from '../../../utils/time';
 import { groupLeaveRows } from '../../../utils/leaveGroups';
 import { computeAvailableHours } from '../../../services/leaveRules';
 import VerifiedRecordPreview from '../../../components/verify/VerifiedRecordPreview';
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
-import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { Input } from "@/components/ui/input";
-import { SelectField } from "@/components/ui/SelectField";
+import LeavesSidebar from './_components/LeavesSidebar';
+import PendingList from './_components/PendingList';
+import RecordView from './_components/RecordView';
+import HistoryView from './_components/HistoryView';
+import TeamTimeline from './_components/TeamTimeline';
+import BalancesTable from './_components/BalancesTable';
+import DocumentCenterTab from './_components/DocumentCenterTab';
+import { recordKey } from './_components/leaveDisplay';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('calendar'); // 'calendar', 'pending', 'documents', 'history', 'balances'
+  const [activeTab, setActiveTab] = useState('calendar'); // see LEAVE_VIEWS
+  // The request open as its own page, by key, plus the list it was opened
+  // from so the Decision card's arrows can step through that list.
+  const [openRecord, setOpenRecord] = useState(null); // { key, list }
   
   // Date Range State (for FloatingMonthPicker)
   const currentDate = new Date();
@@ -67,7 +61,6 @@ export default function HrLeavesManagerPage() {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
-  const [balancesLayout, setBalancesLayout] = useState('table'); // 'grid' | 'table'
   const [pendingPeriodFilter, setPendingPeriodFilter] = useState('ALL'); // 'ALL', 'THIS_MONTH', 'NEXT_MONTH', 'OVERDUE'
   const [companyFilter, setCompanyFilter] = useState('ALL'); // company id, 'ALL', or 'NONE'
 
@@ -254,37 +247,6 @@ export default function HrLeavesManagerPage() {
     );
   }, [user?.id, queryClient]);
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'APPROVED_OFFSET':
-        return (
-          <span className="bg-green-2 text-green-11 border border-green-6 px-2 py-1 rounded-md font-bold text-[10px] inline-flex items-center gap-1 uppercase tracking-wider">
-            <CheckCircle2 size={12} /> Approved (Offset)
-          </span>
-        );
-      case 'APPROVED_PAID':
-        return (
-          <span className="bg-blue-2 text-blue-11 border border-blue-6 px-2 py-1 rounded-md font-bold text-[10px] inline-flex items-center gap-1 uppercase tracking-wider">
-            <CheckCircle2 size={12} /> Approved (Paid OT)
-          </span>
-        );
-      case 'APPROVED':
-        return (
-          <span className="bg-green-2 text-green-11 border border-green-6 px-2 py-1 rounded-md font-bold text-[10px] inline-flex items-center gap-1 uppercase tracking-wider">
-            <CheckCircle2 size={12} /> Approved
-          </span>
-        );
-      case 'REJECTED':
-        return (
-          <span className="bg-red-2 text-red-11 border border-red-6 px-2 py-1 rounded-md font-bold text-[10px] inline-flex items-center gap-1 uppercase tracking-wider">
-            <XCircle size={12} /> Rejected
-          </span>
-        );
-      default:
-        return <span className="text-xs text-muted-foreground">{status}</span>;
-    }
-  };
-
   const filteredPending = useMemo(() => {
     return pendingLeaves.filter(req => {
       if (leaveTypeFilter !== 'ALL' && req.type !== leaveTypeFilter) return false;
@@ -322,24 +284,6 @@ export default function HrLeavesManagerPage() {
     return computeAvailableHours(balance, pending);
   }, [pendingHoursByEmployee]);
 
-  // Group filtered pending by month
-  const pendingByMonth = useMemo(() => {
-    const groups = {};
-    filteredPending.forEach(req => {
-      const d = new Date(req.date);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!groups[key]) {
-        groups[key] = {
-          label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-          requests: []
-        };
-      }
-      groups[key].requests.push(req);
-    });
-    // Sort groups by key ascending
-    return Object.keys(groups).sort().map(k => groups[k]);
-  }, [filteredPending]);
-
   const filteredProcessed = useMemo(() => {
     return processedLeaves.filter(req => {
       if (leaveTypeFilter !== 'ALL' && req.type !== leaveTypeFilter) return false;
@@ -366,41 +310,56 @@ export default function HrLeavesManagerPage() {
     [filteredProcessed]
   );
 
-  return (
-    <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
-    <PageContainer className="pt-4 space-y-6 relative">
+  const filters = {
+    searchQuery, setSearchQuery,
+    leaveTypeFilter, setLeaveTypeFilter,
+    companyFilter, setCompanyFilter,
+    pendingPeriodFilter, setPendingPeriodFilter,
+  };
 
-      <ApproveOffsetModal
-        isOpen={!!offsetApproval}
-        onClose={() => setOffsetApproval(null)}
-        request={offsetApproval?.request}
-        hrId={user?.id}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
-      />
+  const overlays = (
+    <>
+        <ApproveOffsetModal
+          isOpen={!!offsetApproval}
+          onClose={() => setOffsetApproval(null)}
+          request={offsetApproval?.request}
+          hrId={user?.id}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
+        />
 
-      <ApproveOvertimeModal
-        isOpen={!!overtimeApproval}
-        onClose={() => setOvertimeApproval(null)}
-        request={overtimeApproval?.request}
-        status={overtimeApproval?.status}
-        hrId={user?.id}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
-      />
+        <ApproveOvertimeModal
+          isOpen={!!overtimeApproval}
+          onClose={() => setOvertimeApproval(null)}
+          request={overtimeApproval?.request}
+          status={overtimeApproval?.status}
+          hrId={user?.id}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
+        />
 
-      <ApproveUndertimeModal
-        isOpen={!!undertimeApproval}
-        onClose={() => setUndertimeApproval(null)}
-        request={undertimeApproval?.request}
-        status={undertimeApproval?.status}
-        hrId={user?.id}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
-      />
+        <ApproveUndertimeModal
+          isOpen={!!undertimeApproval}
+          onClose={() => setUndertimeApproval(null)}
+          request={undertimeApproval?.request}
+          status={undertimeApproval?.status}
+          hrId={user?.id}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
+        />
 
-      <FloatingMonthPicker
-        selectedRange={dateRange}
-        onChange={setDateRange}
-      />
+        <FloatingMonthPicker
+          selectedRange={dateRange}
+          onChange={setDateRange}
+        />
 
+        <ApplyLeaveModal
+          isOpen={isApplyModalOpen}
+          onClose={() => setIsApplyModalOpen(false)}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
+          showEmployeeSelector
+        />
+    </>
+  );
+
+  const header = (
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <PageHeader
           title="Leaves Manager"
@@ -415,525 +374,9 @@ export default function HrLeavesManagerPage() {
           File for Employee
         </Button>
       </div>
+  );
 
-      <ApplyLeaveModal
-        isOpen={isApplyModalOpen}
-        onClose={() => setIsApplyModalOpen(false)}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
-        showEmployeeSelector
-      />
-
-      <div className="space-y-4">
-        <TabGroup
-          variant="pill"
-          tabs={[
-            { value: 'calendar', label: `Calendar` },
-            { value: 'pending', label: `Pending Requests (${pendingLeaves.length})` },
-            { value: 'documents', label: `Document Center` },
-            { value: 'history', label: `Request History` },
-            { value: 'balances', label: `Employee Balances` },
-          ]}
-          activeTab={activeTab}
-          onChange={setActiveTab}
-          size="md"
-        />
-
-        {/* Toolbar (Search & Filter) for list views */}
-        {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history' || activeTab === 'balances') && (
-           <div className="flex flex-col sm:flex-row gap-3">
-             <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                <Input
-                  type="text"
-                  placeholder="Search employees..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  containerClassName="w-full" className="pl-9 pr-4"
-                />
-              </div>
-
-              {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history') && (
-                <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
-                  <Filter size={14} className="text-muted-foreground" />
-                  <SelectField
-                    value={leaveTypeFilter}
-                    onChange={setLeaveTypeFilter}
-                    options={[
-                      { value: "ALL", label: "All Types" },
-                      { value: "OVERTIME", label: "Overtime" },
-                      { value: "OFFSET", label: "Offset Leave" },
-                      { value: "SIL", label: "SIL Leave" },
-                      { value: "UNDERTIME", label: "Undertime" },
-                    ]}
-                    size="sm"
-                  />
-                </div>
-              )}
-              
-              {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history' || activeTab === 'balances') && (
-                <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
-                  <SelectField
-                    value={companyFilter}
-                    onChange={setCompanyFilter}
-                    options={[
-                      { value: "ALL", label: "All companies" },
-                      { value: "NONE", label: "No company set" },
-                      ...companies.map((c) => ({ value: c.id, label: c.name })),
-                    ]}
-                    title="Filter by company"
-                    size="sm"
-                  />
-                </div>
-              )}
-
-              {activeTab === 'pending' && (
-                <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
-                  <Clock size={14} className="text-muted-foreground" />
-                  <SelectField
-                    value={pendingPeriodFilter}
-                    onChange={setPendingPeriodFilter}
-                    options={[
-                      { value: "ALL", label: "All time" },
-                      { value: "THIS_MONTH", label: "This month" },
-                      { value: "NEXT_MONTH", label: "Next month" },
-                      { value: "OVERDUE", label: "Overdue" },
-                    ]}
-                    size="sm"
-                  />
-                </div>
-              )}
-              
-              {activeTab === 'balances' && (
-                <div className="flex items-center bg-card border border-border rounded-xl p-1 shrink-0">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setBalancesLayout('table')}
-                    className={`rounded-lg ${balancesLayout === 'table' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
-                    title="Table View"
-                  >
-                    <List size={16} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setBalancesLayout('grid')}
-                    className={`rounded-lg ${balancesLayout === 'grid' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
-                    title="Grid View"
-                  >
-                    <LayoutGrid size={16} />
-                  </Button>
-                </div>
-              )}
-           </div>
-        )}
-
-        {activeTab === 'pending' && filteredPending.length < pendingLeaves.length && (
-          <p className="text-xs font-semibold text-muted-foreground px-1">
-            Showing {filteredPending.length} of {pendingLeaves.length} pending requests
-          </p>
-        )}
-
-        {/* Content Tabs */}
-        {activeTab === 'calendar' && (
-          <div className="animate-in fade-in duration-300">
-             <NotionLeaveCalendar
-              approvedLeaves={approvedLeaves}
-              targetDate={dateRange.startDate}
-              canViewAllReasons
-            />
-          </div>
-        )}
-
-        {activeTab === 'pending' && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
-            {loading ? (
-            <div className="p-8 flex flex-col items-center gap-3 text-muted-foreground">
-              <Spinner size="md" />
-              <span className="text-sm font-medium">Loading pending requests...</span>
-            </div>
-            ) : filteredPending.length === 0 ? (
-               <div className="p-12 flex flex-col items-center justify-center text-center bg-muted/20">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4 text-muted-foreground/50">
-                  <Clock size={32} />
-                </div>
-                <h3 className="text-lg font-black text-foreground mb-1">No pending requests</h3>
-                <p className="text-sm font-medium text-muted-foreground">All caught up!</p>
-              </div>
-            ) : (
-               <div className="overflow-x-auto">
-                <Table className="whitespace-nowrap">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Hours</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Files</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingByMonth.map(group => (
-                      <React.Fragment key={group.label}>
-                        <TableRow>
-                          <TableCell colSpan="8" className="bg-muted/30 px-4 py-2 text-xs font-bold text-foreground border-y border-border/50">
-                            {group.label}
-                          </TableCell>
-                        </TableRow>
-                        {group.requests.map(req => (
-                           <TableRow key={req.type + '-' + (req.leave_group_id || req.id)}>
-                              <TableCell>
-                                <div className="flex items-center gap-3">
-                                  <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
-                                  <div>
-                                    <p className="text-sm font-bold text-foreground">{req.employee?.name}</p>
-                                    <p className="text-xs text-muted-foreground font-medium">{req.employee?.department}</p>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
-                                  req.type === 'OVERTIME' ? 'bg-muted text-foreground border-border' :
-                                  req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' :
-                                  req.type === 'UNDERTIME' ? 'bg-amber-2 text-amber-11 border-amber-6' : 'bg-green-2 text-green-11 border-green-6'
-                                }`}>
-                                  {req.type}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-xs font-semibold text-foreground">
-                                {req.category?.label || '-'}
-                              </TableCell>
-                              <TableCell className="text-sm font-bold text-foreground">
-                                {req.dayCount > 1 ? (
-                                  <>
-                                    {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                    {' – '}
-                                    {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                    <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                      {req.dayCount} days
-                                    </span>
-                                  </>
-                                ) : (
-                                  new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="font-black text-sm text-foreground">
-                                    {req.hours} hrs
-                                  </span>
-                                  {req.start_time && req.end_time && (
-                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                      {formatWindow(req.start_time, req.end_time)}
-                                    </span>
-                                  )}
-                                  {availableHoursFor(req) !== null && (
-                                    <span className="text-[10px] font-bold text-muted-foreground" title="Balance minus every pending application for this employee">
-                                      {availableHoursFor(req)} hrs available
-                                    </span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
-                                 {req.reason || '-'}
-                              </TableCell>
-                              <TableCell>
-                                 {req.attachments?.length ? (
-                                   <AttachmentList attachments={req.attachments} compact />
-                                 ) : (
-                                   <span className="text-xs text-muted-foreground/50">-</span>
-                                 )}
-                              </TableCell>
-                              <TableCell className="text-right space-x-2">
-                                 {req.type === 'OVERTIME' ? (
-                                    <>
-                                      <Button type="button" variant="outline" onClick={() => handleAction(req, 'approve')} className="h-auto px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border-green-6 text-xs font-bold">
-                                        Approve (Offset)
-                                      </Button>
-                                      <Button type="button" variant="outline" onClick={() => handleAction(req, 'approve_paid')} className="h-auto px-3 py-1.5 bg-blue-2 text-blue-11 hover:bg-blue-3 border-blue-6 text-xs font-bold">
-                                        Approve (Paid)
-                                      </Button>
-                                    </>
-                                 ) : (
-                                    <Button type="button" variant="outline" onClick={() => handleAction(req, 'approve')} className="h-auto px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border-green-6 text-xs font-bold">
-                                        Approve
-                                    </Button>
-                                 )}
-                                 <Button type="button" variant="outline" onClick={() => handleAction(req, 'reject')} className="h-auto px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border-transparent text-xs font-bold">
-                                    Reject
-                                 </Button>
-                              </TableCell>
-                           </TableRow>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </TableBody>
-                </Table>
-               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'documents' && (
-          <DocumentCenterTab
-            approvedRecords={approvedForDocuments}
-            allLoadedRecords={[...pendingLeaves, ...processedLeaves]}
-            hrId={user?.id}
-            onPrinted={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
-          />
-        )}
-
-        {activeTab === 'history' && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
-             {loading ? (
-              <div className="p-8 flex flex-col items-center gap-3 text-muted-foreground">
-                <Spinner size="md" />
-                <span className="text-sm font-medium">Loading history...</span>
-              </div>
-            ) : filteredProcessed.length === 0 ? (
-               <div className="p-12 text-center text-muted-foreground font-medium bg-muted/20">No history found for the selected period.</div>
-            ) : (
-               <div className="flex flex-col">
-                 <div className="p-4 border-b border-border flex justify-between items-center bg-muted/10">
-                   <span className="text-sm font-bold text-foreground">{filteredProcessed.length} Records</span>
-                 </div>
-                 <div className="overflow-x-auto">
-                  <Table className="whitespace-nowrap">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Hours</TableHead>
-                      <TableHead>Files</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Processed Date</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                      {filteredProcessed.map(req => {
-                        const key = req.type + '-' + (req.leave_group_id || req.id);
-                        return (
-                          <TableRow key={key}>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
-                                <span className="text-sm font-bold text-foreground">{req.employee?.name}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
-                                req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
-                                req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' :
-                                req.type === 'UNDERTIME' ? 'bg-amber-2 text-amber-11 border-amber-6' : 'bg-green-2 text-green-11 border-green-6'
-                              }`}>
-                                {req.type}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-xs font-semibold text-foreground">
-                              {req.category?.label || '-'}
-                            </TableCell>
-                            <TableCell className="text-sm font-bold text-foreground">
-                              {req.dayCount > 1 ? (
-                                <>
-                                  {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                  {' – '}
-                                  {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                  <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                    {req.dayCount} days
-                                  </span>
-                                </>
-                              ) : (
-                                new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-black text-sm text-foreground">
-                                  {(req.type === 'OVERTIME' || req.type === 'OFFSET') && req.approved_hours != null && req.approved_hours !== req.hours ? (
-                                    <>
-                                      <span className="line-through text-muted-foreground mr-1.5">{req.hours}</span>
-                                      {req.approved_hours} hrs
-                                    </>
-                                  ) : (
-                                    `${req.hours} hrs`
-                                  )}
-                                </span>
-                                {req.start_time && req.end_time && (
-                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                    {formatWindow(req.start_time, req.end_time)}
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {req.attachments?.length ? (
-                                <AttachmentList attachments={req.attachments} compact />
-                              ) : (
-                                <span className="text-xs text-muted-foreground/50">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {getStatusBadge(req.status)}
-                            </TableCell>
-                            <TableCell className="text-xs font-semibold text-muted-foreground">
-                              {new Date(req.updated_at).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell className="text-right flex items-center justify-end">
-                              {req.verification_token && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => setPreviewToken(req.verification_token)}
-                                  className="h-auto text-xs font-bold text-blue-11 bg-blue-2 hover:bg-blue-3 border-blue-6 px-3 py-1.5 mr-2"
-                                >
-                                  Preview
-                                </Button>
-                              )}
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleUndo(req)}
-                                className="h-auto text-xs font-bold text-amber-11 bg-amber-2 hover:bg-amber-3 border-amber-6 px-3 py-1.5"
-                              >
-                                Undo
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                 </div>
-               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'balances' && (
-           <>
-             {balancesLayout === 'grid' ? (
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in fade-in duration-300">
-                 {filteredBalances.map(emp => (
-                    <div key={emp.id} className="bg-card border border-border rounded-xl p-5 hover:border-mauve-8 transition-colors shadow-sm flex flex-col gap-4">
-                      <div className="flex items-center gap-3 border-b border-border pb-4">
-                        <Avatar name={emp.name} src={emp.avatar_path} size="md" />
-                        <div>
-                          <p className="text-[15px] font-bold text-foreground">{emp.name}</p>
-                          <p className="text-[13px] text-muted-foreground font-medium">{emp.department || 'No Department'}</p>
-                          <p className="text-[11px] text-muted-foreground/80 font-medium">{emp.company?.name || 'No company'}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-muted rounded-lg p-3 border border-border flex flex-col justify-center">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Offset</p>
-                          <div className="flex items-baseline gap-1">
-                            <span className={`text-2xl font-black ${emp.offset_hours_balance > 0 ? 'text-green-11' : 'text-foreground'}`}>
-                              {emp.offset_hours_balance}
-                            </span>
-                            <span className="text-xs text-muted-foreground font-bold tracking-tight">hrs</span>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-muted rounded-lg p-3 border border-border flex flex-col justify-center">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">SIL</p>
-                          <div className="flex items-baseline gap-1">
-                            <span className={`text-2xl font-black ${emp.sil_hours_balance > 0 ? 'text-green-11' : 'text-foreground'}`}>
-                              {emp.sil_hours_balance}
-                            </span>
-                            <span className="text-xs text-muted-foreground font-bold tracking-tight">hrs</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                 ))}
-                 {filteredBalances.length === 0 && (
-                   <div className="col-span-full py-16 text-center text-muted-foreground bg-muted border border-border rounded-xl border-dashed flex flex-col items-center justify-center gap-2">
-                     <span className="text-sm font-medium">No employee balances found</span>
-                   </div>
-                 )}
-               </div>
-             ) : (
-               <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden animate-in fade-in duration-300">
-                  <div className="overflow-x-auto">
-                    <Table className="whitespace-nowrap">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Company</TableHead>
-                          <TableHead>Offset Balance</TableHead>
-                          <TableHead>SIL Balance</TableHead>
-                          <TableHead>Undertime (this month)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredBalances.map(emp => (
-                           <TableRow key={emp.id}>
-                              <TableCell>
-                                <div className="flex items-center gap-3">
-                                  <Avatar name={emp.name} src={emp.avatar_path} size="sm" />
-                                  <div>
-                                    <p className="text-[14px] font-bold text-foreground">{emp.name}</p>
-                                    <p className="text-[12px] text-muted-foreground font-medium">{emp.department || 'No Department'}</p>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-sm">
-                                {emp.company?.name ? (
-                                  <span className="text-muted-foreground">{emp.company.name}</span>
-                                ) : (
-                                  <span className="text-amber-11 bg-amber-2 border border-amber-6 px-2 py-1 rounded text-xs font-bold">
-                                    No company
-                                  </span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                 <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${
-                                   emp.offset_hours_balance > 0 ? 'bg-green-2 text-green-11 border-green-6' : 'bg-muted text-muted-foreground border-border'
-                                 }`}>
-                                   {emp.offset_hours_balance} hrs
-                                 </span>
-                              </TableCell>
-                               <TableCell>
-                                 <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${
-                                   emp.sil_hours_balance > 0 ? 'bg-green-2 text-green-11 border-green-6' : 'bg-muted text-muted-foreground border-border'
-                                 }`}>
-                                   {emp.sil_hours_balance} hrs
-                                 </span>
-                              </TableCell>
-                              <TableCell>
-                                 {/* Derived from APPROVED undertime rows this calendar month — never a
-                                     stored balance, so it is styled plainly rather than as a credit. */}
-                                 <span className="font-bold text-sm px-3 py-1.5 rounded-lg border bg-muted text-muted-foreground border-border">
-                                   {emp.undertime_this_month} hrs
-                                 </span>
-                              </TableCell>
-                           </TableRow>
-                        ))}
-                        {filteredBalances.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={3} className="py-16 text-center text-muted-foreground bg-muted">
-                              No employee balances found
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-               </div>
-             )}
-           </>
-        )}
-      </div>
-
+  const previewDialog = (
       <Dialog open={!!previewToken} onOpenChange={(open) => !open && setPreviewToken(null)}>
         <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-0 shadow-none">
           <VisuallyHidden>
@@ -944,7 +387,98 @@ export default function HrLeavesManagerPage() {
           )}
         </DialogContent>
       </Dialog>
-    </PageContainer>
+  );
+
+  const openFrom = (record, list) => setOpenRecord({ key: recordKey(record), list });
+  const changeView = (view) => {
+    setOpenRecord(null);
+    setActiveTab(view);
+  };
+
+  // Resolve the open request from live data, so it reflects a decision the
+  // moment the queries refetch (a pending request reappears as decided).
+  const openList = openRecord?.list.map((r) => [...pendingLeaves, ...processedLeaves].find((x) => recordKey(x) === recordKey(r)) || r);
+  const record = openRecord && [...pendingLeaves, ...processedLeaves].find((r) => recordKey(r) === openRecord.key);
+
+  let view;
+  if (record) {
+    view = (
+      <RecordView
+        record={record}
+        list={openList}
+        onStep={(r) => openFrom(r, openRecord.list)}
+        onBack={() => setOpenRecord(null)}
+        handleAction={handleAction}
+        handleUndo={handleUndo}
+        setPreviewToken={setPreviewToken}
+        availableHoursFor={availableHoursFor}
+      />
+    );
+  } else if (activeTab === 'pending') {
+    view = (
+      <PendingList
+        rows={filteredPending}
+        total={pendingLeaves.length}
+        loading={loading}
+        availableHoursFor={availableHoursFor}
+        filters={filters}
+        companies={companies}
+        onOpen={openFrom}
+      />
+    );
+  } else if (activeTab === 'calendar') {
+    view = <NotionLeaveCalendar approvedLeaves={approvedLeaves} targetDate={dateRange.startDate} canViewAllReasons />;
+  } else if (activeTab === 'timeline') {
+    view = <TeamTimeline approvedLeaves={approvedLeaves} pendingLeaves={pendingLeaves} monthStart={dateRange.startDate} />;
+  } else if (activeTab === 'history') {
+    view = <HistoryView rows={filteredProcessed} loading={loading} filters={filters} companies={companies} onOpen={openFrom} />;
+  } else if (activeTab === 'documents') {
+    view = (
+      <DocumentCenterTab
+        approvedRecords={approvedForDocuments}
+        allLoadedRecords={[...pendingLeaves, ...processedLeaves]}
+        hrId={user?.id}
+        onPrinted={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
+      />
+    );
+  } else {
+    view = (
+      <BalancesTable
+        employees={filteredBalances}
+        pendingLeaves={pendingLeaves}
+        processedLeaves={processedLeaves}
+        filters={filters}
+        companies={companies}
+        onReview={(r, list) => { setActiveTab('pending'); openFrom(r, list); }}
+      />
+    );
+  }
+
+  // Full-bleed page (see _app.jsx): the view sidebar sits flush on the panel
+  // edge and the content column carries the normal page padding itself.
+  return (
+    <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
+      {overlays}
+      <div className="flex h-full min-h-0 flex-col lg:flex-row">
+        <LeavesSidebar
+          activeTab={activeTab}
+          onChange={changeView}
+          pendingLeaves={pendingLeaves}
+          processedLeaves={processedLeaves}
+          approvedLeaves={approvedLeaves}
+          filters={filters}
+          companies={companies}
+        />
+        <div className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-10 sm:px-10">
+            {header}
+            <div key={record ? `record-${openRecord.key}` : activeTab} className="animate-in fade-in duration-200">
+              {view}
+            </div>
+          </div>
+        </div>
+      </div>
+      {previewDialog}
     </ProtectedRoute>
   );
 }

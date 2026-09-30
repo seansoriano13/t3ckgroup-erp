@@ -79,11 +79,11 @@ describe("useAppSettings", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Replace the office switch").length).toBeGreaterThan(0),
     );
-    expect(screen.queryByRole("button", { name: "Select for bulk action", hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /select replace the office switch/i, hidden: true })).not.toBeInTheDocument();
 
     await clickBulkSwitch(user);
 
-    expect(await screen.findByRole("button", { name: "Select for bulk action", hidden: true })).toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", { name: /select replace the office switch/i, hidden: true })).toBeInTheDocument();
     await waitForNetworkIdle();
     expect(db.rows("system_audit_logs")[0].content).toBe("App settings updated: enable_bulk_approval.");
   });

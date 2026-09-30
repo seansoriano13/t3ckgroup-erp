@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import HrLeavesManagerPage from '@/pages/hr/offsets/index';
@@ -51,15 +51,14 @@ describe('HrLeavesManagerPage', () => {
       </MemoryRouter>
     );
 
-    // Wait for the Pending Requests tab to be available
-    const pendingTab = await screen.findByRole('tab', { name: /Pending Requests/i });
+    const pendingTab = await screen.findByRole('tab', { name: /^Pending/i });
     await user.click(pendingTab);
 
-    // Verify the future request is visible in the pending list
-    await waitFor(() => {
-      expect(screen.getByText('Future Requester')).toBeInTheDocument();
-      expect(screen.getByText('Future trip')).toBeInTheDocument();
-    });
+    // The future request is in the pending list, and opens as its own page.
+    const row = await screen.findByRole('button', { name: /Open Future Requester's Offset request/i });
+    await user.click(row);
+    expect(await screen.findByText('Future trip')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Approve/i })).toBeInTheDocument();
   });
 
   // Issue #106 (HR-03): HR used to see only the raw balance, so two
@@ -90,7 +89,7 @@ describe('HrLeavesManagerPage', () => {
       </MemoryRouter>
     );
 
-    const pendingTab = await screen.findByRole('tab', { name: /Pending Requests/i });
+    const pendingTab = await screen.findByRole('tab', { name: /^Pending/i });
     await user.click(pendingTab);
 
     // Both requests together commit 8 of the 16 hrs, so each row should read
@@ -98,6 +97,28 @@ describe('HrLeavesManagerPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText('8 hrs available')).toHaveLength(2);
     });
+  });
+
+  // The record page's Decision card makes Offset-vs-Paid a choice with one
+  // Approve button; picking Paid must still route to the Paid OT approval.
+  it('approves overtime as Paid when Paid overtime is picked in the Decision card', async () => {
+    const user = setupUser();
+    const applicant = makeEmployee({ name: 'Overtime Worker' });
+    makeOvertimeRequest({ employee_id: applicant.id, status: 'PENDING', hours: 3, date: midCurrentMonth() });
+
+    renderWithProviders(
+      <MemoryRouter>
+        <HrLeavesManagerPage />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole('tab', { name: /^Pending/i }));
+    await user.click(await screen.findByRole('button', { name: /Open Overtime Worker's Overtime request/i }));
+
+    await user.click(await screen.findByRole('radio', { name: /Paid overtime/i }));
+    await user.click(screen.getByRole('button', { name: /Approve as Paid/i }));
+
+    expect(await screen.findByText('Approve as Paid OT')).toBeInTheDocument();
   });
 
   it('hides deactivated employees from the Employee Balances register', async () => {
@@ -154,7 +175,7 @@ describe('HrLeavesManagerPage', () => {
       const checkbox = await screen.findByRole('checkbox', { name: /Add Printable Employee's OFFSET record to the tray/i });
       await user.click(checkbox);
 
-      await screen.findByText('Tray (1)');
+      await screen.findByText('1 form queued');
 
       const printButton = await screen.findByRole('button', { name: /^Print$/i });
       await waitFor(() => expect(printButton).not.toBeDisabled());
@@ -197,7 +218,7 @@ describe('HrLeavesManagerPage', () => {
       const alphaCheckbox = await screen.findByRole('checkbox', { name: /Add Alpha Employee's OFFSET record to the tray/i });
       await user.click(alphaCheckbox);
 
-      await screen.findByText('Tray (2)');
+      await screen.findByText('2 forms queued');
 
       await waitFor(() => {
         const srcDoc = container.querySelector('iframe[title="Document preview"]').getAttribute('srcdoc');
@@ -251,12 +272,12 @@ describe('HrLeavesManagerPage', () => {
 
       const checkbox = await screen.findByRole('checkbox', { name: /Add Removable Employee's OVERTIME record to the tray/i });
       await user.click(checkbox);
-      await screen.findByText('Tray (1)');
+      await screen.findByText('1 form queued');
 
       const removeButton = await screen.findByRole('button', { name: /Remove Removable Employee's OVERTIME record from the tray/i });
       await user.click(removeButton);
 
-      await screen.findByText('Check records below to add them here, then drag to set print order.');
+      await screen.findByText('0 forms queued');
     });
   });
 
@@ -275,9 +296,8 @@ describe('HrLeavesManagerPage', () => {
       const historyTab = await screen.findByRole('tab', { name: /Request History/i });
       await user.click(historyTab);
 
-      const row = await screen.findByText('History Employee');
-      const table = row.closest('table');
-      expect(within(table).queryAllByRole('checkbox')).toHaveLength(0);
+      await screen.findByRole('button', { name: /Open History Employee's Offset decision/i });
+      expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
       expect(screen.queryByRole('button', { name: /print/i })).not.toBeInTheDocument();
     });
   });
