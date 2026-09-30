@@ -69,6 +69,24 @@ describe("the header", () => {
   })
 })
 
+describe("the container", () => {
+  it("is a right slide-over with View Full Details in its header, and no position arrows", async () => {
+    renderQuickView()
+
+    const button = await screen.findByRole("button", { name: "View Full Details" })
+    const panel = button.closest('[data-slot="drawer-content"]')
+    expect(panel).not.toBeNull()
+    expect(panel).toContainElement(screen.getByText("Fit-out"))
+    expect(screen.queryByLabelText(/next record/i)).not.toBeInTheDocument()
+  })
+
+  it("renders nothing when closed", () => {
+    renderQuickView({ isOpen: false })
+
+    expect(screen.queryByText("Fit-out")).not.toBeInTheDocument()
+  })
+})
+
 describe("your open tasks", () => {
   it("says nothing is open when there are no tasks", async () => {
     taskService.getMyOpenTasksForOpportunity.mockResolvedValue([])

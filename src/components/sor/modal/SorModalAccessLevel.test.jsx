@@ -54,6 +54,9 @@ describe("SorModal — access level", () => {
     await waitForNetworkIdle()
 
     expect(screen.getByText("Your visits")).toBeInTheDocument()
+    // A preview, not a working surface: a slide-over with no way to the full record.
+    expect(screen.getByText("Your visits").closest('[data-slot="drawer-content"]')).not.toBeNull()
+    expect(screen.queryByRole("button", { name: "View Full Details" })).not.toBeInTheDocument()
     expect(screen.getAllByText(stage.name).length).toBeGreaterThan(0)
     // Nothing else — no tabs, no chat, no edit affordance.
     expect(screen.queryByRole("tab", { name: "Now" })).not.toBeInTheDocument()

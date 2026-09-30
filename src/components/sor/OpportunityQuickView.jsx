@@ -5,12 +5,7 @@ import { taskService } from "../../services/taskService";
 import { CONDITION_STATUS } from "../../constants/stageGate";
 import { TASK_STATUS } from "../../constants/status";
 import { cn } from "../../lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "../ui/dialog";
+import SlideOver, { SlideOverBody } from "../ui/SlideOver";
 import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import Spinner from "../ui/Spinner";
@@ -65,11 +60,18 @@ function TaskRow({ task, onOpen }) {
   );
 }
 
+const identity = (opportunity) => ({
+  ref: opportunity.sales_reference || "SOR",
+  title: opportunity.project_title || opportunity.client_name || "This deal",
+  subtitle: opportunity.project_title ? opportunity.client_name : null,
+});
+
 /**
  * Quick View — the landing spot for every entry point into an SOR
  * from a task (My SORs, a TaskCard's SOR chip, a task's SorLink field): what
- * this viewer is actually on the hook for, not the whole record. "View Full
- * Details" is the deliberate escalation to `SorModal` for whoever needs it.
+ * this viewer is actually on the hook for, not the whole record. It is a right
+ * slide-over, so the list behind it stays put; "View Full Details" in its
+ * header is the deliberate escalation to `SorModal` (a RecordModal).
  *
  * Conditions have no per-employee assignee in the data model (`stage_conditions`
  * carries no role/assignee column) — "Open on this stage" is deliberately not
@@ -99,80 +101,72 @@ export default function OpportunityQuickView({
 
   const openConditions = checklist.filter(({ status }) => status === CONDITION_STATUS.UNSATISFIED);
 
-  const label = opportunity?.sales_reference || opportunity?.client_name || "This deal";
-
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="grid-cols-[minmax(0,1fr)] gap-6 p-6 sm:max-w-2xl">
-        <DialogHeader className="pr-8">
-          <DialogTitle className="flex items-start gap-2 text-base">
-            <Briefcase size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1 break-words">{label}</span>
-          </DialogTitle>
-          {opportunity?.project_title && (
-            <p className="text-sm text-muted-foreground">{opportunity.project_title}</p>
-          )}
-        </DialogHeader>
+    <SlideOver
+      record={isOpen ? opportunity : null}
+      icon={Briefcase}
+      crumb="SORs"
+      identity={identity}
+      onClose={onClose}
+      onOpenFull={onViewFullDetails}
+      openFullLabel="View Full Details"
+    >
+      {() => (
+        <SlideOverBody>
+          <section className="space-y-3">
+            <h3 className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+              <ClipboardList size={12} /> Your open tasks
+            </h3>
+            {isLoadingTasks ? (
+              <div className="flex justify-center py-6">
+                <Spinner size="sm" />
+              </div>
+            ) : tasks.length === 0 ? (
+              <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground">
+                Nothing open for you here.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {tasks.map((task) => (
+                  <TaskRow
+                    key={`${task.kind}-${task.id}`}
+                    task={task}
+                    onOpen={() => (task.kind === "group" ? onOpenGroupTask(task.id) : onOpenTask(task.id))}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
 
-        <section className="space-y-3">
-          <h3 className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-            <ClipboardList size={12} /> Your open tasks
-          </h3>
-          {isLoadingTasks ? (
-            <div className="flex justify-center py-6">
-              <Spinner size="sm" />
-            </div>
-          ) : tasks.length === 0 ? (
-            <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground">
-              Nothing open for you here.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {tasks.map((task) => (
-                <TaskRow
-                  key={`${task.kind}-${task.id}`}
-                  task={task}
-                  onOpen={() => (task.kind === "group" ? onOpenGroupTask(task.id) : onOpenTask(task.id))}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-            <ListChecks size={12} /> Open on this stage
-          </h3>
-          {isLoadingChecklist ? (
-            <div className="flex justify-center py-6">
-              <Spinner size="sm" />
-            </div>
-          ) : openConditions.length === 0 ? (
-            <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground">
-              Nothing blocks this stage.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {openConditions.map(({ condition }) => (
-                <li
-                  key={condition.id}
-                  className={cn(
-                    "rounded-xl border border-amber-9/30 bg-amber-a2 px-4 py-3 text-sm font-semibold text-foreground",
-                  )}
-                >
-                  {condition.label}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <div className="flex justify-end border-t border-border pt-4">
-          <Button type="button" variant="outline" onClick={onViewFullDetails}>
-            View Full Details
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+          <section className="space-y-3">
+            <h3 className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+              <ListChecks size={12} /> Open on this stage
+            </h3>
+            {isLoadingChecklist ? (
+              <div className="flex justify-center py-6">
+                <Spinner size="sm" />
+              </div>
+            ) : openConditions.length === 0 ? (
+              <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground">
+                Nothing blocks this stage.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {openConditions.map(({ condition }) => (
+                  <li
+                    key={condition.id}
+                    className={cn(
+                      "rounded-xl border border-amber-9/30 bg-amber-a2 px-4 py-3 text-sm font-semibold text-foreground",
+                    )}
+                  >
+                    {condition.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </SlideOverBody>
+      )}
+    </SlideOver>
   );
 }

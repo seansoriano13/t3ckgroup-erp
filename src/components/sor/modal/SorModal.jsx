@@ -1,10 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { X } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { RecordModalContent } from "@/components/ui/record-modal";
-import { Button } from "@/components/ui/button";
 import { opportunityService } from "../../../services/opportunityService";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../context/AuthContext";
@@ -32,6 +30,7 @@ import {
 import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
+import LockedSorSlideOver from "../LockedSorSlideOver";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
@@ -727,67 +726,7 @@ export default function SorModal({
   // this component's hook order.
   if (!id) return null;
   if (accessLevel === "locked") {
-    return (
-      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent
-          showCloseButton={false}
-          className="flex w-full max-w-[95vw] flex-col gap-0 overflow-hidden rounded-2xl p-0 md:max-w-[560px]"
-        >
-          <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-4">
-            <div className="min-w-0">
-              {lockedSummary?.sales_reference && (
-                <p className="truncate font-mono text-xs font-bold text-primary">{lockedSummary.sales_reference}</p>
-              )}
-              <h2 className="truncate text-lg font-black text-foreground">{lockedSummary?.project_title || "This SOR"}</h2>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onClose}
-              className="shrink-0 text-muted-foreground"
-            >
-              <X size={15} />
-            </Button>
-          </div>
-
-          <div className="space-y-5 overflow-y-auto p-6">
-            {isRestricted && (
-              <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-3 py-2.5 text-[13px] font-semibold text-amber-11">
-                This stage is restricted.
-              </div>
-            )}
-
-            <div>
-              <p className="mb-1 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Current Stage</p>
-              <p className="text-sm font-semibold text-foreground">{lockedSummary?.current_stage_name || "—"}</p>
-            </div>
-
-            <div>
-              <p className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Your visits</p>
-              {myVisits.length === 0 ? (
-                <p className="text-sm text-muted-foreground/70">No visits recorded.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {myVisits.map((v) => (
-                    <li
-                      key={v.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm"
-                    >
-                      <span className="font-medium text-foreground">{v.flow_stages?.name || "Stage"}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {v.entered_at ? new Date(v.entered_at).toLocaleDateString() : ""}
-                        {v.left_at ? ` – ${new Date(v.left_at).toLocaleDateString()}` : " – present"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
+    return <LockedSorSlideOver isOpen={isOpen} onClose={onClose} lockedSummary={lockedSummary} myVisits={myVisits} />;
   }
 
   if (!opportunity) return null;
