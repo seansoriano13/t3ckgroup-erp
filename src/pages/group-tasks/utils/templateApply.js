@@ -1,4 +1,4 @@
-import { cleanChecklistForSave } from "@/utils/checklist";
+import { cleanChecklistForSave, parseChecklist } from "@/utils/checklist";
 
 /**
  * Group task template helpers — pure transforms with no Supabase call, same
