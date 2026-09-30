@@ -10,11 +10,50 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Lint, build and the four test shards run as parallel jobs. This repo is
+# private, so each job gets a 2-vCPU runner, where Vitest's default worker
+# count (CPUs - 1) is 1: run as one job, the ~10 minute suite ran serially.
 jobs:
-  verify:
-    name: Lint, test, build
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint tests
+        run: pnpm lint:tests
+
+      # ADR 0025: raw covered HTML outside src/components/ui/ blocks the merge.
+      # ADR 0029: so does a routed Page that bypasses PageShell. Only these
+      # rules are a gate; they have no baseline, so any violation fails.
+      - name: Lint Primitives
+        run: pnpm lint:primitives
+
+      # The application has a pre-existing lint backlog (~38 errors) that
+      # predates this workflow. Reported so it stays visible, but not yet a
+      # merge blocker — flip this to a hard gate once the backlog is cleared.
+      - name: Lint application
+        run: pnpm lint
+        continue-on-error: true
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -37,26 +76,37 @@ jobs:
       - name: No prototypes in the prod bundle
         run: node scripts/check-no-prototypes.mjs ${{ (github.ref == 'refs/heads/staging' || github.base_ref == 'staging') && '--staging' || '' }}
 
-      - name: Lint tests
-        run: pnpm lint:tests
-
-      # ADR 0025: raw covered HTML outside src/components/ui/ blocks the merge.
-      # ADR 0029: so does a routed Page that bypasses PageShell. Only these
-      # rules are a gate; they have no baseline, so any violation fails.
-      - name: Lint Primitives
-        run: pnpm lint:primitives
-
-      # The application has a pre-existing lint backlog (~38 errors) that
-      # predates this workflow. Reported so it stays visible, but not yet a
-      # merge blocker — flip this to a hard gate once the backlog is cleared.
-      - name: Lint application
-        run: pnpm lint
-        continue-on-error: true
-
-      - name: Test
-        run: pnpm test
-
       # The suite talks to a fake Supabase, so no secrets are needed here —
       # .env.test supplies the placeholder values Vite expects.
       - name: Build
         run: pnpm build
+
+  test:
+    name: Test (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      # One failing shard should not hide failures in the others.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Two workers on two vCPUs: the main process mostly idles, and pinned to
+      # two cores locally this ran a shard 1.5x faster than one worker.
+      - name: Test
+        run: pnpm exec vitest run --shard=${{ matrix.shard }}/4 --maxWorkers=2
