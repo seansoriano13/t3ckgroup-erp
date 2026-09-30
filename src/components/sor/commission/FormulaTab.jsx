@@ -6,10 +6,12 @@ import { commissionService } from "../../../services/commissionService";
 import { useSalesDirectorAccess } from "../../../hooks/useSalesDirectorAccess";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
-import { SPLIT_PROJECT_TYPES, TONE, compactPHP, shareRoleLabel, splitRows } from "./commissionView";
+import { SPLIT_PROJECT_TYPES, TONE, shareRoleLabel, splitRows } from "./commissionView";
 import { useCommissionSplits } from "./useCommissionDashboard";
-import { Meter, SplitBar, Swatch, UsageRow, UsageSection } from "./parts";
+import { SplitBar, Swatch, UsageRow, UsageSection } from "./parts";
 import CommissionCalculator from "./CommissionCalculator";
+import RatesSection from "./RatesSection";
+import DepartmentsSection from "./DepartmentsSection";
 
 /**
  * The expanded body of a Split rule. Read-only by default; a Sales Director or
@@ -104,35 +106,30 @@ function SplitDetail({ projectType, splits, canEdit, actorId }) {
  * Split per Project Type (editable by a Sales Director), and a calculator to
  * try them on any contract value.
  */
+/**
+ * The rules behind the pool, as label · meter · number rows, and the only place
+ * they are edited: the dated Commission Rates and Department Allocations (with
+ * their positions) by a Super Admin, the Commission Split per Project Type by a
+ * Sales Director or Super Admin. Everyone else reads. A calculator tries the
+ * rules on any contract value.
+ */
 export default function FormulaTab({ access, departments }) {
-  const { rates, salesPercent, canViewAllFinancials, canViewSalesAmounts } = access;
+  const { rates, rateHistory, salesPercent, canViewAllFinancials, canViewSalesAmounts } = access;
   const { splits } = useCommissionSplits();
-  const { user, hasAccess: canEditSplits } = useSalesDirectorAccess();
+  const { user, isSuperAdmin, hasAccess: canEditSplits } = useSalesDirectorAccess();
   const [open, setOpen] = useState({});
 
   return (
     <div className="space-y-10">
       <div className="grid gap-8 xl:grid-cols-2">
-        <UsageSection title="Formula" description="Live rates, applied top to bottom. A SOR keeps the rates in force on its Contract Date.">
-          <UsageRow lead={<Swatch tone="tax" />} label="VAT" sub="Divided out of the contract value" meter={<Meter value={rates.vat} max={25} color={TONE.tax.solid} />} value={`${rates.vat}%`} valueSub={`÷ ${(1 + rates.vat / 100).toFixed(2)}`} />
-          <UsageRow lead={<Swatch tone="tax" />} label="Withholding" sub="Of the VAT-free amount" meter={<Meter value={rates.withholding} max={25} color={TONE.tax.solid} />} value={`${rates.withholding}%`} valueSub="subtracted" />
-          <UsageRow lead={<Swatch tone="pool" />} label="Pool rate" sub="Of Commissionable Revenue" meter={<Meter value={rates.pool} max={25} color={TONE.pool.solid} />} value={`${rates.pool}%`} valueSub="into the pool" />
-          <UsageRow lead={<Swatch tone="sales" />} label="Sales share" sub="Of the pool, to the people on the SOR" meter={<Meter value={salesPercent} color={TONE.sales.solid} />} value={`${salesPercent}%`} valueSub="to Sales" />
-        </UsageSection>
-
-        <UsageSection title="Departments" description="Fixed split of the pool across Commission Departments.">
-          {departments.map((d) => (
-            <UsageRow
-              key={d.name}
-              lead={<Swatch color={d.color} />}
-              label={d.name}
-              sub={d.isSales ? "Paid out by role on each SOR" : "Company reserve"}
-              meter={<Meter value={d.allocationPercent} color={d.color} />}
-              value={`${d.allocationPercent}%`}
-              valueSub={canViewAllFinancials || (d.isSales && canViewSalesAmounts) ? compactPHP(d.amount) : "Restricted"}
-            />
-          ))}
-        </UsageSection>
+        <RatesSection rates={rates} rateHistory={rateHistory} salesPercent={salesPercent} canEdit={isSuperAdmin} actorId={user?.id} />
+        <DepartmentsSection
+          departments={departments}
+          canViewAllFinancials={canViewAllFinancials}
+          canViewSalesAmounts={canViewSalesAmounts}
+          canEdit={isSuperAdmin}
+          actorId={user?.id}
+        />
       </div>
 
       <UsageSection

@@ -244,13 +244,6 @@ export const NAV_MODULES = {
         icon: Workflow,
         isPermitted: () => true,
       },
-      {
-        key: "admin.commissionPool",
-        label: "Commission Pool",
-        link: "/super-admin/commission",
-        icon: Percent,
-        isPermitted: (ctx) => ctx.isSuperAdmin,
-      },
       // The deck for walking someone through what shipped in a date window.
       // It is a nav entry rather than a remembered URL because it is opened
       // from whatever screen the conversation is already on; the role gate is

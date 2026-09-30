@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { commissionService } from "../../../services/commissionService";
 import { useAuth } from "../../../context/AuthContext";
-import { getPresetDateRange, SPLIT_PROJECT_TYPES } from "./commissionView";
+import { getPresetDateRange, rateTimeline, SPLIT_PROJECT_TYPES } from "./commissionView";
 
 /**
  * Everything the Commission Dashboard's two tabs read: the ledger for the
@@ -29,11 +29,13 @@ export function useCommissionDashboard() {
   const department = user?.department?.toLowerCase() ?? "";
   const canViewAllFinancials = isSuperAdmin || department.includes("accounting") || department.includes("finance");
 
-  // listRateHistory is newest first, so the first row per type is the live one.
+  // The rate in force today per type; a rate dated in the future is Scheduled, not live.
   const rates = useMemo(() => {
-    const live = {};
-    for (const r of ratesQuery.data || []) if (!(r.rate_type in live)) live[r.rate_type] = Number(r.percent);
-    return { vat: live.VAT ?? 12, withholding: live.WITHHOLDING ?? 8, pool: live.POOL ?? 1 };
+    const live = (type) => {
+      const current = rateTimeline(ratesQuery.data, type).find((r) => r.status === "current");
+      return current ? Number(current.percent) : undefined;
+    };
+    return { vat: live("VAT") ?? 12, withholding: live("WITHHOLDING") ?? 8, pool: live("POOL") ?? 1, retention: live("RETENTION") };
   }, [ratesQuery.data]);
 
   const dashboard = dashboardQuery.data;
@@ -49,6 +51,7 @@ export function useCommissionDashboard() {
     error: dashboardQuery.error,
     dashboard,
     rates,
+    rateHistory: ratesQuery.data ?? [],
     salesPercent,
     isHead,
     /** Company-level amounts: the pool, revenue, the other departments. */

@@ -225,8 +225,8 @@ describe("navigation registry", () => {
         // Activity Log lives in Human Resources now (#105) — Super Admin uses that entry.
         // Flow Plans / the Sandbox mode were removed by #186.
         // System Admin and Lead Sources moved into Settings (#177).
+        // Commission Pool moved onto the Commission Dashboard's Formula tab (#441).
         "Flow Canvas",
-        "Commission Pool",
         // Super-Admin-only deck for presenting what shipped (ADR 0022).
         "Release Notes",
       ]);
@@ -308,12 +308,12 @@ describe("navigation registry", () => {
       it("is subtractive only: naming a flag-denied entry in the override changes nothing", () => {
         // Flow Canvas is visible to everyone, so a standard employee still
         // sees the Administration group — the assertion is that naming the
-        // flag-denied "Commission Pool" entry in the override doesn't reveal it.
-        const standardUser = { id: "std-2", hidden_nav_keys: ["admin.commissionPool"] };
+        // Super-Admin-only "Release Notes" entry in the override doesn't reveal it.
+        const standardUser = { id: "std-2", hidden_nav_keys: ["admin.releaseNotes"] };
 
         const groups = getFilteredNavigationGroups(standardUser);
         const adminGroup = groups.find((g) => g.key === "administration");
-        expect(adminGroup.links.map((l) => l.label)).not.toContain("Commission Pool");
+        expect(adminGroup.links.map((l) => l.label)).not.toContain("Release Notes");
         expect(adminGroup.links.map((l) => l.label)).toEqual(["Flow Canvas"]);
       });
 

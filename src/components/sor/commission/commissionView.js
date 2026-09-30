@@ -3,6 +3,7 @@
 // React here, so every screen file only exports components.
 
 import { calculateCommissionableRevenue, calculateCommissionPool } from "../../../utils/commission";
+import { getCurrentLocalDate } from "../../../utils/formatDate";
 
 /** What Privacy Masking shows in place of an amount the viewer may not see. */
 export const MASK = "••••••";
@@ -27,6 +28,25 @@ export function getPresetDateRange(preset, now = new Date()) {
   if (preset === "LAST_MONTH") return { startDate: iso(new Date(y, now.getMonth() - 1, 1)), endDate: iso(new Date(y, now.getMonth(), 0)) };
   if (preset === "YTD") return { startDate: `${y}-01-01`, endDate: iso(now) };
   return null;
+}
+
+/**
+ * One Commission Rate type's dated history, newest first, each row marked
+ * `current` (the rate in force today: the newest one that has taken effect),
+ * `scheduled` (takes effect later) or `past`. A row with no date counts as
+ * already in force.
+ */
+export function rateTimeline(history = [], rateType, today = getCurrentLocalDate()) {
+  const rows = history
+    .filter((r) => r.rate_type === rateType)
+    .sort((a, b) => String(b.effective_from ?? "").localeCompare(String(a.effective_from ?? "")));
+  let currentFound = false;
+  return rows.map((r) => {
+    if (r.effective_from && r.effective_from > today) return { ...r, status: "scheduled" };
+    if (currentFound) return { ...r, status: "past" };
+    currentFound = true;
+    return { ...r, status: "current" };
+  });
 }
 
 /** One colour = one meaning on every Commission screen. Radix steps 9 (solid) / 3 (wash) / 11 (ink). */

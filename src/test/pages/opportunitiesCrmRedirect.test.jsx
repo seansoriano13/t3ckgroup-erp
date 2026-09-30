@@ -7,6 +7,7 @@ import OpportunitiesCommissionFormulaRedirect from "../../pages/opportunities/co
 import CrmRedirect from "../../pages/crm/index";
 import CrmCommissionRedirect from "../../pages/crm/commission/index";
 import CrmCommissionFormulaRedirect from "../../pages/crm/commission-formula/index";
+import SuperAdminCommissionRedirect from "../../pages/super-admin/commission/index";
 import SorsCommissionFormulaRedirect from "../../pages/sors/commission-formula/index";
 
 // The module has had three names: /opportunities, then /crm (#206), now /sors
@@ -88,6 +89,13 @@ describe("legacy register routes", () => {
   describe("/sors/commission-formula", () => {
     it("redirects to the dashboard's Formula tab", () => {
       renderAt("/sors/commission-formula", <Route path="/sors/commission-formula" element={<SorsCommissionFormulaRedirect />} />);
+      expect(screen.getByText("Commission Dashboard Page?tab=formula")).toBeInTheDocument();
+    });
+  });
+
+  describe("/super-admin/commission", () => {
+    it("redirects the old Commission Pool admin page to the dashboard's Formula tab", () => {
+      renderAt("/super-admin/commission", <Route path="/super-admin/commission" element={<SuperAdminCommissionRedirect />} />);
       expect(screen.getByText("Commission Dashboard Page?tab=formula")).toBeInTheDocument();
     });
   });

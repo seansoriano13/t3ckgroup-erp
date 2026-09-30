@@ -106,7 +106,7 @@ The Pool Rate applied to an Opportunity's Commissionable Revenue — everything 
 _Avoid_: Payout, Bonus Pool
 
 **Department Allocation**:
-A Commission Department's fixed percentage of the Commission Pool (starting values: Sales 50, Operations 25, Administration 15, Human Resources 5, Finance & Accounting 5). Editable via the Commission Pool admin screen; the set must always sum to 100.
+A Commission Department's fixed percentage of the Commission Pool (starting values: Sales 50, Operations 25, Administration 15, Human Resources 5, Finance & Accounting 5). Edited in place by a Super Admin on the Commission Dashboard's Formula tab (Commission Rates and position splits too; a Sales Director edits Commission Splits); the set must always sum to 100.
 _Avoid_: Department Share
 
 **Commission Department** / **Commission Position**:

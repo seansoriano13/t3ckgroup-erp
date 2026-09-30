@@ -19,6 +19,11 @@ vi.mock("../../services/commissionService", () => ({
     getSplitsForProjectType: vi.fn(),
     isSalesDirector: vi.fn(),
     saveSplitsForProjectType: vi.fn(),
+    getDepartments: vi.fn(),
+    getPositions: vi.fn(),
+    createRate: vi.fn(),
+    saveDepartmentAllocations: vi.fn(),
+    savePositionAllocations: vi.fn(),
   },
 }));
 
@@ -104,14 +109,29 @@ const SPLITS = {
   STRATEGIC: [{ shareRole: "deal_owner", percent: 40 }, { shareRole: "closing_salesperson", percent: 20 }, { shareRole: "supporting_salesperson", percent: 20 }, { shareRole: "sales_director", percent: 20 }],
 };
 
+const DEPARTMENTS = [
+  { id: "d-sales", key: "sales", name: "Sales", allocationPercent: 50 },
+  { id: "d-ops", key: "operations", name: "Operations", allocationPercent: 25 },
+  { id: "d-admin", key: "administration", name: "Administration", allocationPercent: 15 },
+  { id: "d-hr", key: "human_resources", name: "Human Resources", allocationPercent: 5 },
+  { id: "d-fin", key: "finance", name: "Finance & Accounting", allocationPercent: 5 },
+];
+const OPS_POSITIONS = [
+  { id: "p-1", name: "Operations Manager", allocationPercent: 60 },
+  { id: "p-2", name: "Department Reserve Fund", allocationPercent: 40 },
+];
+
 describe("CommissionDashboardView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    commissionService.getDepartments.mockResolvedValue(DEPARTMENTS);
+    commissionService.getPositions.mockImplementation((id) => Promise.resolve(id === "d-ops" ? OPS_POSITIONS : []));
     commissionService.getCommissionDashboardData.mockResolvedValue(dashboardData());
     commissionService.listRateHistory.mockResolvedValue([
-      { rate_type: "VAT", percent: 12 },
-      { rate_type: "WITHHOLDING", percent: 8 },
-      { rate_type: "POOL", percent: 1 },
+      { id: "r-pool-new", rate_type: "POOL", percent: 2, effective_from: "2999-01-01" },
+      { id: "r-vat", rate_type: "VAT", percent: 12, effective_from: "2020-01-01" },
+      { id: "r-wht", rate_type: "WITHHOLDING", percent: 8, effective_from: "2020-01-01" },
+      { id: "r-pool", rate_type: "POOL", percent: 1, effective_from: "2020-01-01" },
     ]);
     commissionService.getSplitsForProjectType.mockImplementation((pt) => Promise.resolve(SPLITS[pt]));
     commissionService.isSalesDirector.mockResolvedValue(false);
@@ -291,6 +311,122 @@ describe("CommissionDashboardView", () => {
         );
       });
       await waitFor(() => expect(screen.queryByLabelText("Deal Owner percent")).not.toBeInTheDocument());
+    });
+
+    describe("who can edit what", () => {
+      const openFormula = () => renderView({ path: "/sors/commission?tab=formula" });
+
+      it("gives a Super Admin every editor: rates, department allocations, positions and splits", async () => {
+        asUser(superAdmin);
+        openFormula();
+
+        expect(await screen.findByRole("button", { name: "Add rate" })).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: "Edit allocations" })).toBeInTheDocument();
+        fireEvent.click(await screen.findByRole("button", { name: /Operations/ }));
+        expect(await screen.findByRole("button", { name: "Edit Operations positions" })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: /Single Salesperson Project/ }));
+        expect(await screen.findByRole("button", { name: "Edit Single Salesperson Project split" })).toBeInTheDocument();
+      });
+
+      it("lets a Sales Director edit splits, and nothing else", async () => {
+        commissionService.isSalesDirector.mockResolvedValue(true);
+        asUser(aliceUser);
+        openFormula();
+
+        fireEvent.click(await screen.findByRole("button", { name: /Single Salesperson Project/ }));
+        expect(await screen.findByRole("button", { name: "Edit Single Salesperson Project split" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Add rate" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Edit allocations" })).not.toBeInTheDocument();
+        fireEvent.click(await screen.findByRole("button", { name: /Operations/ }));
+        expect(await screen.findByText("Operations Manager")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /positions$/ })).not.toBeInTheDocument();
+      });
+
+      it("shows everyone else the rules read-only, positions included", async () => {
+        asUser(aliceUser);
+        openFormula();
+
+        expect((await screen.findAllByText("Pool rate")).length).toBeGreaterThan(0);
+        fireEvent.click(await screen.findByRole("button", { name: /Operations/ }));
+        expect((await screen.findByText("Operations Manager")).parentElement).toHaveTextContent("60%");
+        fireEvent.click(screen.getByRole("button", { name: /Single Salesperson Project/ }));
+        await screen.findByText("80%");
+        expect(screen.queryByRole("button", { name: /^Add rate/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /^Edit/ })).not.toBeInTheDocument();
+      });
+    });
+
+    describe("Commission Rates", () => {
+      it("shows the live rate on the row and the dated history behind it, future rates as Scheduled", async () => {
+        asUser(aliceUser);
+        renderView({ path: "/sors/commission?tab=formula" });
+
+        await screen.findAllByText("Pool rate");
+        // The 2999 rate is not in force yet, so the row still reads 1%.
+        expect(screen.getByText("into the pool").previousElementSibling).toHaveTextContent("1%");
+        fireEvent.click(screen.getByRole("button", { name: /Pool rate/ }));
+        expect(screen.getByText("Scheduled")).toBeInTheDocument();
+        expect(screen.getByText("In force")).toBeInTheDocument();
+        expect(screen.getByText("from 2999-01-01")).toBeInTheDocument();
+      });
+
+      it("lets a Super Admin add an effective-dated rate", async () => {
+        commissionService.createRate.mockResolvedValue({});
+        asUser(superAdmin);
+        renderView({ path: "/sors/commission?tab=formula" });
+
+        fireEvent.click(await screen.findByRole("button", { name: "Add rate" }));
+        fireEvent.change(screen.getByLabelText("Rate percent"), { target: { value: "2.5" } });
+        fireEvent.change(screen.getByLabelText("Effective from"), { target: { value: "2026-11-01" } });
+        fireEvent.click(screen.getByRole("button", { name: "Save rate" }));
+
+        await waitFor(() => {
+          expect(commissionService.createRate).toHaveBeenCalledWith({ rateType: "POOL", percent: 2.5, effectiveFrom: "2026-11-01" }, "user-admin");
+        });
+        await waitFor(() => expect(screen.queryByLabelText("Rate percent")).not.toBeInTheDocument());
+      });
+    });
+
+    describe("Department Allocations", () => {
+      it("lets a Super Admin change the allocations, and holds Save until they add to 100", async () => {
+        commissionService.saveDepartmentAllocations.mockResolvedValue(DEPARTMENTS);
+        asUser(superAdmin);
+        renderView({ path: "/sors/commission?tab=formula" });
+
+        fireEvent.click(await screen.findByRole("button", { name: "Edit allocations" }));
+        fireEvent.change(await screen.findByLabelText("Sales allocation percent"), { target: { value: "45" } });
+        expect(screen.getByRole("button", { name: "Save allocations" })).toBeDisabled();
+        fireEvent.change(screen.getByLabelText("Operations allocation percent"), { target: { value: "30" } });
+        fireEvent.click(screen.getByRole("button", { name: "Save allocations" }));
+
+        await waitFor(() => {
+          expect(commissionService.saveDepartmentAllocations).toHaveBeenCalledWith(
+            DEPARTMENTS.map((d) => (d.name === "Sales" ? { ...d, allocationPercent: 45 } : d.name === "Operations" ? { ...d, allocationPercent: 30 } : d)),
+            "user-admin",
+          );
+        });
+        await waitFor(() => expect(screen.queryByLabelText("Sales allocation percent")).not.toBeInTheDocument());
+      });
+
+      it("lets a Super Admin edit a department's position splits", async () => {
+        commissionService.savePositionAllocations.mockResolvedValue(OPS_POSITIONS);
+        asUser(superAdmin);
+        renderView({ path: "/sors/commission?tab=formula" });
+
+        fireEvent.click(await screen.findByRole("button", { name: /Operations/ }));
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Operations positions" }));
+        fireEvent.change(screen.getByLabelText("Position 1 percent"), { target: { value: "70" } });
+        fireEvent.change(screen.getByLabelText("Position 2 percent"), { target: { value: "30" } });
+        fireEvent.click(screen.getByRole("button", { name: "Save positions" }));
+
+        await waitFor(() => {
+          expect(commissionService.savePositionAllocations).toHaveBeenCalledWith(
+            "d-ops",
+            [{ ...OPS_POSITIONS[0], allocationPercent: 70 }, { ...OPS_POSITIONS[1], allocationPercent: 30 }],
+            "user-admin",
+          );
+        });
+      });
     });
 
     it("works the formula through for a typed contract value", async () => {

@@ -109,12 +109,15 @@ export function SplitBar({ parts, className }) {
 }
 
 /** A titled, bordered list of UsageRows. */
-export function UsageSection({ title, description, children }) {
+export function UsageSection({ title, description, action, children }) {
   return (
     <section className="min-w-0">
-      <div className="mb-3">
-        <h3 className="text-base font-semibold text-foreground">{title}</h3>
-        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+      <div className="mb-3 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+        </div>
+        {action}
       </div>
       <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">{children}</div>
     </section>
