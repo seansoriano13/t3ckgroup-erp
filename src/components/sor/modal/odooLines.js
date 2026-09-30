@@ -31,8 +31,13 @@ export async function pullOdooLines(ref) {
   return { problem: null, rows: result.items.map(toRow), stock: result.stock || null, quotation };
 }
 
-/** Writes pulled lines, and the stock Odoo returned alongside them (#202), straight to the SOR. */
-export async function saveOdooLines({ opportunity, rows, stock, actorId }) {
-  await opportunityService.updateOpportunity(opportunity.id, { ...opportunity, items: rows }, actorId);
+/**
+ * Writes pulled lines, and the stock Odoo returned alongside them (#202), straight to the SOR.
+ * `automatic` is the sync on open: nobody asked for it, so what it logs is the System's, not theirs.
+ */
+export async function saveOdooLines({ opportunity, rows, stock, actorId, automatic = false }) {
+  await opportunityService.updateOpportunity(opportunity.id, { ...opportunity, items: rows }, actorId, {
+    bySystem: automatic,
+  });
   if (stock) await opportunityService.saveStockSnapshot(opportunity.id, stock, actorId);
 }

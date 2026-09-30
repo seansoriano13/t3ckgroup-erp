@@ -1762,7 +1762,14 @@ export const opportunityService = {
     return final;
   },
 
-  async updateOpportunity(id, payload, actorId) {
+  /**
+   * `bySystem` marks a save nobody chose to make — the Odoo auto-sync on open.
+   * The write still runs as the signed-in caller (RLS), but the timeline and
+   * audit entries it produces carry no author, so they read "System" instead
+   * of blaming whoever happened to open the SOR first.
+   */
+  async updateOpportunity(id, payload, actorId, { bySystem = false } = {}) {
+    const noteActorId = bySystem ? null : actorId;
     const existing = await opportunityService.getOpportunityById(id);
     const existingItems = await opportunityService.getItems(id);
 
@@ -1875,8 +1882,23 @@ export const opportunityService = {
     const oldProducts = previousItems.map((i) => i.product_name?.trim()).filter(Boolean);
     const newProducts = newItems.map((i) => i.product_name?.trim()).filter(Boolean);
 
-    const addedProducts = newProducts.filter((p) => !oldProducts.includes(p));
-    const removedProducts = oldProducts.filter((p) => !newProducts.includes(p));
+    // A product Odoo renamed keeps its odoo_product_id, so it pairs a
+    // "removed" old name with an "added" new one — that is one rename, not
+    // two changes. Only a non-null id can vouch for it.
+    const idOf = (rows, name) => rows.find((i) => i.product_name?.trim() === name)?.odoo_product_id ?? null;
+    const renamedProducts = [];
+    const addedProducts = [];
+    for (const name of newProducts.filter((p) => !oldProducts.includes(p))) {
+      const productId = idOf(newItems, name);
+      const from = productId == null ? undefined : oldProducts.find(
+        (o) => !newProducts.includes(o) && idOf(previousItems, o) === productId && !renamedProducts.some((r) => r.from === o),
+      );
+      if (from) renamedProducts.push({ from, to: name });
+      else addedProducts.push(name);
+    }
+    const removedProducts = oldProducts.filter(
+      (p) => !newProducts.includes(p) && !renamedProducts.some((r) => r.from === p),
+    );
     const modifiedProducts = [];
 
     newProducts.forEach((p) => {
@@ -1896,7 +1918,11 @@ export const opportunityService = {
     const addedNames = addedProducts.map(stripProductCode);
     const removedNames = removedProducts.map(stripProductCode);
     const modifiedNames = modifiedProducts.map(stripProductCode);
+    const renames = renamedProducts.map((r) => ({ from: stripProductCode(r.from), to: stripProductCode(r.to) }));
 
+    if (renames.length > 0) {
+      changes.push(`Odoo renamed product(s): ${renames.map((r) => `${r.from} → ${r.to}`).join(", ")}`);
+    }
     if (addedNames.length > 0) changes.push(`Added product(s): ${addedNames.join(', ')}`);
     if (removedNames.length > 0) changes.push(`Removed product(s): ${removedNames.join(', ')}`);
     if (modifiedNames.length > 0) changes.push(`Modified product(s): ${modifiedNames.join(', ')}`);
@@ -1911,21 +1937,22 @@ export const opportunityService = {
         ...addedNames.map((name) => ({ type: "added", name })),
         ...removedNames.map((name) => ({ type: "removed", name })),
         ...modifiedNames.map((name) => ({ type: "modified", name })),
+        ...renames.map(({ from, to }) => ({ type: "renamed", name: to, from })),
       ];
 
       await opportunityService.addSystemNote(
         id,
         `Details updated: ${diffString}`,
-        { event: "OPPORTUNITY_UPDATED", employeeId: actorId, changes, productChanges },
-        actorId,
+        { event: "OPPORTUNITY_UPDATED", employeeId: noteActorId, changes, productChanges },
+        noteActorId,
       );
 
       systemAuditLogService.addSystemEvent(
         "OPPORTUNITY",
         id,
         `${auditLabel(data)} details updated: ${diffString}`,
-        { event: "OPPORTUNITY_UPDATED", employeeId: actorId, changes },
-        actorId,
+        { event: "OPPORTUNITY_UPDATED", employeeId: noteActorId, changes },
+        noteActorId,
       ).catch(console.error);
     }
 

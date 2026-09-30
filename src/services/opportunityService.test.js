@@ -2801,6 +2801,80 @@ describe("opportunityService", () => {
       expect(content).toContain("Modified product(s): Pumper")
     })
 
+    it("reports an Odoo rename as one rename, not an added plus a removed product", async () => {
+      const created = await opportunityService.createOpportunity(
+        payload({
+          items: [
+            { product_name: "Recipro Saw", odoo_product_id: 7, quantity: 1, unit_price: 100 },
+            { product_name: "Ladder", odoo_product_id: 8, quantity: 1, unit_price: 200 },
+          ],
+        }),
+        registrar.id,
+      )
+
+      await opportunityService.updateOpportunity(
+        created.id,
+        payload({
+          items: [
+            { product_name: "Recipro Saw Kit 1", odoo_product_id: 7, quantity: 1, unit_price: 100 },
+            { product_name: "Ladder", odoo_product_id: 8, quantity: 1, unit_price: 200 },
+          ],
+        }),
+        registrar.id,
+      )
+
+      const content = (await opportunityService.getNotes(created.id)).at(-1).content
+      expect(content).toContain("Odoo renamed product(s): Recipro Saw → Recipro Saw Kit 1")
+      expect(content).not.toContain("Added product(s)")
+      expect(content).not.toContain("Removed product(s)")
+    })
+
+    it("still reports a different product as added and removed", async () => {
+      const created = await opportunityService.createOpportunity(
+        payload({ items: [{ product_name: "Saw", odoo_product_id: 7, quantity: 1, unit_price: 100 }] }),
+        registrar.id,
+      )
+
+      await opportunityService.updateOpportunity(
+        created.id,
+        payload({ items: [{ product_name: "Drill", odoo_product_id: 9, quantity: 1, unit_price: 100 }] }),
+        registrar.id,
+      )
+
+      const content = (await opportunityService.getNotes(created.id)).at(-1).content
+      expect(content).toContain("Added product(s): Drill")
+      expect(content).toContain("Removed product(s): Saw")
+      expect(content).not.toContain("renamed")
+    })
+
+    it("writes the change note as the System when the save is automatic", async () => {
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+      await opportunityService.updateOpportunity(
+        created.id,
+        payload({ items: [{ product_name: "Hose", quantity: 1, unit_price: 50 }] }),
+        registrar.id,
+        { bySystem: true },
+      )
+
+      const note = (await opportunityService.getNotes(created.id)).at(-1)
+      expect(note.content).toContain("Added product(s): Hose")
+      expect(note.author_id).toBeNull()
+      expect(note.metadata.employeeId).toBeNull()
+    })
+
+    it("attributes the change note to the caller when the save is deliberate", async () => {
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+      await opportunityService.updateOpportunity(
+        created.id,
+        payload({ items: [{ product_name: "Hose", quantity: 1, unit_price: 50 }] }),
+        registrar.id,
+      )
+
+      expect((await opportunityService.getNotes(created.id)).at(-1).author_id).toBe(registrar.id)
+    })
+
     it("revalues the opportunity when the product list changes", async () => {
       const created = await opportunityService.createOpportunity(payload(), registrar.id)
 

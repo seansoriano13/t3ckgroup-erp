@@ -486,7 +486,7 @@ export default function SorModal({
       try {
         const { problem, rows, stock } = await pullOdooLines(ref);
         if (!problem && isMounted) {
-          await saveOdooLines({ opportunity, rows, stock, actorId: user?.id });
+          await saveOdooLines({ opportunity, rows, stock, actorId: user?.id, automatic: true });
           invalidate();
         }
       } catch (err) {
