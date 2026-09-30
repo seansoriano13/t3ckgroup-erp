@@ -171,7 +171,7 @@ Green, amber, blue, violet, orange, and red Radix scales are imported for **Stat
 **Character:** A single geometric-humanist sans used across a very wide weight range. Black-weight titles give the desk its confidence, and medium body text keeps long queues readable.
 
 ### Hierarchy
-- **Display** (900, 1.875rem → 2.25rem at `md`, tight tracking): page titles in **PageHeader** only. The last word may take Signal Red.
+- **Display** (900, 1.875rem → 2.25rem at `md`, tight tracking): legacy large page title. Being removed; compact is the only page title size (see Pages).
 - **Headline** (900, 1.25rem → 1.5rem): section headers inside a page.
 - **Title** (500–600, 1rem): card titles, modal titles.
 - **Body** (500, 0.875rem; 13px in dense lists): record content, descriptions (max width ~42rem in headers).
@@ -375,6 +375,83 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 
 #### ExternalLink
 `ui/external-link.jsx`. Anchor for outside URLs; always `target="_blank"` with `rel="noopener noreferrer"` (caller `rel` is merged). Internal links use the router `Link`.
+
+## Pages
+
+Every routed screen is built from one skeleton (ADR 0029). This section is the rulebook; the Primitive catalog above lists the parts.
+
+### Vocabulary
+- **Page**: one sidebar entry; one routed screen.
+- **Page type**: one of six presets a Page declares.
+  - **Queue**: work to clear. Table + slide-over + decision footer.
+  - **Register**: browse and search records.
+  - **Report**: read-only figures.
+  - **Sidebar module**: many views plus filter facets in a left sidebar.
+  - **Config**: settings rows and forms in a narrow centred column.
+  - **Tool**: custom full-width surface.
+
+These are UI terms. They do not belong in CONTEXT.md.
+
+### Route → page type
+- **Queue**: Task Approvals, HR Verifications, Leave Approvals (the three Approval Center routes), Procurement Queue.
+- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log.
+- **Report**: Commission Dashboard, Retail, Dashboard, SOR Register → Overview view.
+- **Sidebar module**: Leaves Manager.
+- **Config**: Settings, Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
+- **Tool**: Flow Canvas, Document Center (a view in the Leaves Manager), Release Notes.
+- Redirect-only routes (legacy CRM/opportunities paths, Approval Center index, HR index, Super Admin index, Lead Sources) have no type.
+
+### PageShell
+PageShell owns the Page skeleton. A Page fills fixed slots and cannot reorder them:
+1. **Header**: compact title, optional description, the one main action.
+2. **Level-1 tabs**.
+3. **Toolbar**: level-2 pill tabs, filter bar, display toggle.
+4. **Body**.
+
+PageShell also owns phone behaviour (header stacks, level-1 tabs scroll sideways, filters fold into the Filters popover, tables scroll sideways) and dark-mode tokens.
+
+### Frames
+- **Centred** (default): the `wrapper`, max 80rem.
+- **Full-width**: SOR Register, Leaves Manager, Flow Canvas and flow version pages. Full-width stays an explicit per-route list in the app layout, so a new Page never becomes full-width by accident.
+- The Dashboard's greeting banner sits above the standard layout.
+
+### Title
+Compact is the only title size, last word in Signal Red. The large variant is removed from PageHeader. The description sits directly under the title on every Page.
+
+### Tab levels
+- **Level 1** switches what the Page is about: TabGroup `underline`, optional icon and count.
+- **Level 2** switches slices of the same list: TabGroup `pill`.
+- **Display toggle** (List / Board / Grid / Table): a small segmented control in the header's action slot, never a tab.
+- More than five views, or views plus filter facets: use the Sidebar module type, not tabs.
+
+### Container rule
+Pick by what the person is doing.
+- **Slide-over** (from the right): looking at or deciding on a record picked from a list. Has previous/next with a position count, "Open full" when a RecordModal exists, a scrolling body, and a pinned decision footer. The open record lives in the URL query. Never holds a long form; longer edits open a modal from it.
+- **Modal**: a short make or confirm step ending in Save/Cancel (Register SOR, New Template, Apply Leave / OT, Add Employee, confirmations).
+- **RecordModal**: SOR, Individual Task, Group Task, the records that carry a Chat. One size (16px inset, 1400px max width, rounded, dimmed backdrop), no size switcher. Reached from a slide-over's "Open full" or directly where that is the existing entry.
+
+Slide-over covers the Approval Center review, Leaves Manager pending review, SOR Quick View and the locked SOR summary, employee profile / leave balances, Purchase Request review. Slide-overs open full-screen on phones.
+
+### Filter bar
+FilterBar is the only filter surface, on one line: search, up to three inline dropdown chips, a Filters popover with an active count, Save as default. No large filter cards.
+
+### Main action
+One red Button in the header action slot, standard 32px size, top right. No oversized, uppercase, black or floating variants. Decision footers may also use green (approve / verify) and pale red (return / reject), nowhere else (ADR 0009 amendment).
+
+### List display
+Queue and Register bodies are tables (Table Primitive) by default. A card grid exists only as a display toggle, and only where cards carry something a row cannot (All Tasks, Group Tasks).
+
+### Report layout
+One headline figure with its supporting stats beside the chart, then the breakdown. The time range control sits in the header's action slot. No gradient summary cards.
+
+### Empty state
+One form: muted icon, title, one line. No box, no dashed border.
+
+### Status badge
+StatusBadge (coloured outline, uppercase) is the only status pill. No dot-pills.
+
+### Section headings
+Sentence-case title with an optional one-line description. Uppercase tracked labels are only for field names and table column heads (Label-Is-A-Key Rule).
 
 ## Do's and Don'ts
 

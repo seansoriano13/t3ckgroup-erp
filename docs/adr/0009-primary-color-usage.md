@@ -30,3 +30,14 @@ This rule will be enforced via a custom ESLint rule (`no-primary-decoration`), w
 -   **Immediate Feedback**: Developers will be warned in their editor when they accidentally apply a primary-tinted utility to an ordinary component.
 -   **No Blockers**: Legitimate exceptions can be made by adding them to the allowlist or ignoring the warning, without breaking the build pipeline.
 -   **Follow-up Work**: The twenty components from the reverted sweep will need to be manually updated to use neutral utilities in a separate, focused effort.
+
+## Amendment (2026-09-30): decision footers
+
+Status: accepted. See ADR 0029.
+
+The pinned decision footer of a slide-over may use green (approve, verify) and
+pale red (return, reject) buttons, so the outcome of each button is clear from
+its colour. Nowhere else. Every other main action stays the single Signal Red
+Button in the page header at the standard 32px size. Oversized, uppercase, black
+and floating main-button variants are removed. The `no-primary-decoration` rule
+is unchanged: green and pale red are not primary-color utilities.
