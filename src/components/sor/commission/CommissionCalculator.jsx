@@ -89,7 +89,7 @@ export default function CommissionCalculator({ access, splits }) {
                   setDealId("");
                 }}
                 onBlur={() => setRaw(contractValue ? contractValue.toLocaleString("en-PH") : "")}
-                className="h-14 border-0 bg-transparent px-2 text-2xl font-semibold tabular-nums text-foreground outline-none"
+                className="h-14 border-0 bg-transparent px-2 text-2xl font-semibold tabular-nums text-foreground outline-none focus-visible:border-transparent focus-visible:ring-0"
               />
               <span className="shrink-0 text-xs font-medium text-muted-foreground">VAT incl.</span>
             </div>
