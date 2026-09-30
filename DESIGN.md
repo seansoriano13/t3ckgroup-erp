@@ -397,21 +397,19 @@ Every routed screen is built from one skeleton (ADR 0029). This section is the r
 
 ### Vocabulary
 - **Page**: one sidebar entry; one routed screen.
-- **Page type**: one of six presets a Page declares.
+- **Page type**: one of five presets a Page declares.
   - **Queue**: work to clear. Table + slide-over + decision footer.
   - **Register**: browse and search records.
   - **Report**: read-only figures.
-  - **Sidebar module**: many views plus filter facets in a left sidebar.
   - **Config**: settings rows and forms in a narrow centred column.
   - **Tool**: custom full-width surface.
 
 These are UI terms. They do not belong in CONTEXT.md.
 
 ### Route → page type
-- **Queue**: Task Approvals, HR Verifications, Leave Approvals (the three Approval Center routes), Procurement Queue.
+- **Queue**: Task Approvals, HR Verifications, Leave Approvals (the three Approval Center routes), Procurement Queue, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
 - **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log.
 - **Report**: Commission Dashboard, Retail, Dashboard, SOR Register → Overview view.
-- **Sidebar module**: Leaves Manager.
 - **Config**: Settings, Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
 - **Tool**: Flow Canvas, Document Center (a view in the Leaves Manager), Release Notes.
 - Redirect-only routes (legacy CRM/opportunities paths, Approval Center index, HR index, Super Admin index, Lead Sources) have no type.
@@ -428,7 +426,7 @@ PageShell also owns phone behaviour (header stacks, level-1 tabs scroll sideways
 ### Frames
 - **Centred** (default): the `wrapper`, max 80rem.
 - **Narrow**: the Config type's column, max 56rem, centred; header, tabs and body all sit in it.
-- **Full-width**: SOR Register, Leaves Manager, Flow Canvas and flow version pages. Full-width stays an explicit per-route list in the app layout, so a new Page never becomes full-width by accident.
+- **Full-width**: SOR Register, Flow Canvas and flow version pages. Full-width stays an explicit per-route list in the app layout, so a new Page never becomes full-width by accident.
 - The Dashboard's greeting banner sits above the standard layout.
 
 ### Title
@@ -438,7 +436,7 @@ Compact is the only title size, last word in Signal Red. The large variant is re
 - **Level 1** switches what the Page is about: TabGroup `underline`, optional icon and count.
 - **Level 2** switches slices of the same list: TabGroup `pill`.
 - **Display toggle** (List / Board / Grid / Table): a small segmented control in the header's action slot, never a tab.
-- More than five views, or views plus filter facets: use the Sidebar module type, not tabs.
+- No page has a left sidebar of its own. Many views stay level-1 tabs (the strip scrolls sideways on phones); facets with counts (Leaves Manager's Type) become level-2 pills.
 
 ### Container rule
 Pick by what the person is doing.

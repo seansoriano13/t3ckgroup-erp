@@ -3,8 +3,8 @@
 **Status:** accepted (2026-09-30)
 
 Every Page (one sidebar entry) is built from one shared layout module,
-**PageShell**, and belongs to one of six **page types** (Queue, Register,
-Report, Sidebar module, Config, Tool). A lint rule stops pages bypassing
+**PageShell**, and belongs to one of five **page types** (Queue, Register,
+Report, Config, Tool). A lint rule stops pages bypassing
 PageShell. The rules themselves live in DESIGN.md, "Pages".
 
 ## Why
@@ -69,3 +69,10 @@ per-step browser review is the mitigation.
   the Super Admin Commission Pool page goes away.
 - ADR 0009 is amended to allow green and pale red in decision footers.
 - CONTEXT.md is unchanged: Page and page type are UI terms, not domain terms.
+
+## Amendment (2026-09-30): no Sidebar module
+
+The Leaves Manager was the only Page with a left sidebar, so the type was a
+sixth preset with one user. Its views became level-1 tabs and its Type facet
+level-2 pills, and "Who's out" moved to a header popover. The type is removed;
+no Page has a sidebar of its own.
