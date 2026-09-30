@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import HighlightText from "../../../components/HighlightText";
 import { shortAge, shortDate } from "../../../utils/approvalItems.js";
 import { neighbourTaskId, resolveNavigationKey } from "../../../utils/approvalQueue.js";
-import { Person, StageMeter, StatusPill } from "./ApprovalParts";
+import { StageMeter, StatusPill } from "./ApprovalParts";
+import { PersonChip } from "@/components/ui/DetailParts";
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
 
@@ -142,7 +143,7 @@ export function ApprovalTable({
                   </div>
                 </TableCell>
                 <TableCell className="max-w-[180px]">
-                  <Person person={item.person} />
+                  <PersonChip person={item.person} />
                 </TableCell>
                 <TableCell className="hidden whitespace-nowrap font-mono text-xs text-muted-foreground lg:table-cell">{shortDate(item.submittedAt)}</TableCell>
                 <TableCell className={`hidden font-mono text-xs tabular-nums md:table-cell ${item.isStale ? "font-bold text-amber-11" : "text-muted-foreground"}`}>

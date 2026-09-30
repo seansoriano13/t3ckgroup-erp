@@ -47,7 +47,7 @@ export function ApprovalToolbar({
 }) {
   const personOptions = [{ value: "ALL", label: "Anyone" }, ...people.map((p) => ({ value: p.id, label: `${p.name} (${p.count})` }))];
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       <TabGroup className="max-w-full" size="sm" tabs={views} activeTab={view} onChange={onViewChange} />
       <div className="flex flex-wrap items-center gap-2 md:ml-auto">
         {onPersonChange && people.length > 0 && (
@@ -69,7 +69,7 @@ export function ApprovalToolbar({
           </Button>
         )}
       </div>
-    </div>
+    </>
   );
 }
 

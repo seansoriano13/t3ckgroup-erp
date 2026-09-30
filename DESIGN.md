@@ -262,6 +262,12 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### Drawer
 `ui/drawer.jsx` (base-ui dialog). Side panel: notification drawer, mobile sidebar. Same focus trap, Escape and backdrop click as Dialog. Parts: `Drawer` (`open`, `onOpenChange`), `DrawerTrigger`, `DrawerContent` (`side`: `right` | `left`, `className`), `DrawerTitle`, `DrawerDescription`, `DrawerClose`. No built-in close button; add `DrawerClose`.
 
+#### SlideOver
+`ui/SlideOver.jsx`, on Drawer. The record slide-over (DESIGN.md "Pages → Container rule"). Props: `record` (null = closed), `icon`, `crumb` (closes back to the list), `identity(record)` → `{ ref, title, badge, subtitle }`, `index`, `total` (position count), `onStep(±1)` (buttons and J / K), `onClose`, `onOpenFull(record)` (button shown only when given), `children(record)`. Parts: `SlideOverBody` (scrolls), `SlideOverFooter` (pinned decision). Pair with `hooks/useRecordParam` so the open record lives in `?record=`.
+
+#### DetailParts
+`ui/DetailParts.jsx`. Record detail parts for slide-over bodies: `DetailSection` (`title`, `aside`), `DetailRow` (`label`), `NotePresets` (`presets`, `onPick`), `ApprovalChain` (`chain` of `{ label, who, note, at, state }`), `PersonChip` (`person`, `size`, `detail`).
+
 #### ConfirmDialog
 `ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `className`, `footerClassName`, `children`.
 

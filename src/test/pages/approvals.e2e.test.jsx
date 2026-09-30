@@ -1,5 +1,5 @@
 import { screen, waitFor } from "@testing-library/react"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TASK_STATUS } from "@/constants/status.js"
@@ -418,3 +418,41 @@ describe("approval journeys", () => {
     })
 })
 
+
+describe("approval slide-over and the URL", () => {
+    const Where = () => <output data-testid="where">{useLocation().search}</output>
+
+    async function renderAt(entry) {
+        mockUser.current = reviewer
+        const TaskApprovals = await loadTasksPage()
+        renderWithProviders(
+            <MemoryRouter initialEntries={[entry]}>
+                <TaskApprovals />
+                <Where />
+            </MemoryRouter>,
+        )
+        await waitForQueue()
+    }
+
+    it("opening a row writes ?record= and closing clears it", { timeout: 20000 }, async () => {
+        const user = setupUser()
+        const task = pendingTask({ task_description: "Replace the office switch" })
+
+        await renderAt("/approvals/tasks")
+        await user.click(await screen.findByText("Replace the office switch"))
+
+        await waitFor(() =>
+            expect(screen.getByTestId("where")).toHaveTextContent(`record=${task.id}`),
+        )
+        await user.click(screen.getByRole("button", { name: "Close" }))
+        await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^$/))
+    })
+
+    it("mounting with ?record= reopens that record", { timeout: 20000 }, async () => {
+        const task = pendingTask({ task_description: "Replace the office switch" })
+
+        await renderAt(`/approvals/tasks?record=${task.id}`)
+
+        expect(await screen.findByPlaceholderText(/add evaluation remarks/i)).toBeInTheDocument()
+    })
+})

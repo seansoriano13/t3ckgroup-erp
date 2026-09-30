@@ -16,6 +16,7 @@ import TaskFilters from "../../../components/TaskFilters.jsx";
 import { filterAndSortTasks, summariseQueueEmployees } from "../../../utils/approvalQueue.js";
 import { taskToItem } from "../../../utils/approvalItems.js";
 import { sameDepartment } from "../../../utils/compareDepartment.js";
+import { useRecordParam } from "../../../hooks/useRecordParam";
 import { APPROVAL_QUEUES, useApprovalQueues } from "../_components/useApprovalQueues";
 import { ApprovalCenterLayout } from "../_components/ApprovalCenterLayout";
 import { ApprovalToolbar, SelectionBar } from "../_components/ApprovalToolbar";
@@ -49,7 +50,7 @@ function HrVerificationQueue() {
   const { user, isHr, isSuperAdmin } = q.roles;
 
   const [view, setView] = useState("ALL");
-  const [openId, setOpenId] = useState(null);
+  const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
   const [viewTask, setViewTask] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBulkVerifyOpen, setIsBulkVerifyOpen] = useState(false);
@@ -111,7 +112,7 @@ function HrVerificationQueue() {
     [source, searchQuery, priorityFilter, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
   );
 
-  const index = items.findIndex((i) => i.id === openId);
+  const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
 
   useEffect(() => {
@@ -120,7 +121,7 @@ function HrVerificationQueue() {
     navigate(location.pathname, { replace: true, state: {} });
     queueMicrotask(() => {
       if (pending.some((t) => t.id === openTaskId) || verified.some((t) => t.id === openTaskId)) {
-        setOpenId(openTaskId);
+        openRecord(openTaskId);
         return;
       }
       const known = q.rawTasks.find((t) => t.id === openTaskId);
@@ -133,7 +134,7 @@ function HrVerificationQueue() {
             .catch((err) => toast.error(err.message || "Could not open that task.")),
         );
     });
-  }, [location.state, location.pathname, q.rawTasks, pending, verified, navigate]);
+  }, [location.state, location.pathname, q.rawTasks, pending, verified, navigate, openRecord]);
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
@@ -180,7 +181,8 @@ function HrVerificationQueue() {
 
   return (
     <>
-      <ApprovalCenterLayout queue="hr" counts={q.counts}>
+      <ApprovalCenterLayout queue="hr" counts={q.counts}
+        toolbar={
         <ApprovalToolbar
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: pending.length || undefined },
@@ -201,7 +203,8 @@ function HrVerificationQueue() {
           onSearchChange={narrowing(setSearchQuery)}
           advancedOpen={showAdvanced}
           onAdvancedToggle={view === "GROUP" ? undefined : () => setShowAdvanced((s) => !s)}
-        />
+        />}
+      >
 
         {view === "GROUP" ? (
           <GroupTaskApprovalSection />
@@ -244,7 +247,7 @@ function HrVerificationQueue() {
             <ApprovalTable
               items={items}
               queueIcon={QUEUE.icon}
-              onOpen={(item) => setOpenId(item.id)}
+              onOpen={(item) => openRecord(item.id)}
               selectable={bulkEnabled}
               selectedIds={selectedIds}
               onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
@@ -296,8 +299,8 @@ function HrVerificationQueue() {
         queueIcon={QUEUE.icon}
         index={index}
         total={items.length}
-        onStep={(d) => setOpenId(items[index + d]?.id ?? openId)}
-        onClose={() => setOpenId(null)}
+        onStep={(d) => { const to = items[index + d]; if (to) stepRecord(to.id); }}
+        onClose={closeRecord}
         onOpenDetails={(item) => setViewTask(item.source)}
       >
         {(item) => (
@@ -310,7 +313,8 @@ function HrVerificationQueue() {
             searchTerm={searchQuery}
             onDecided={() => {
               const next = items[index + 1] || items[index - 1];
-              setOpenId(next ? next.id : null);
+              if (next) stepRecord(next.id);
+              else closeRecord();
             }}
           />
         )}

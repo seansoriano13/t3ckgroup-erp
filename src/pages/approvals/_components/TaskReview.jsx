@@ -11,8 +11,8 @@ import { TASK_STATUS } from "../../../constants/status.js";
 import { formatDate } from "../../../utils/formatDate.js";
 import { relativeAge } from "../../../utils/approvalItems.js";
 import { checklistProgressLabel, isChecklistDescription, resolveApprovalShortcut } from "../../../utils/approvalQueue.js";
-import { ApprovalChain, DetailRow, NotePresets, Person, SheetSection } from "./ApprovalParts";
-import { SheetBody, SheetFooter } from "./ApprovalSheet";
+import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
+import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import { APPROVE_CLASS, NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
 
 /**
@@ -140,10 +140,10 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
 
   return (
     <>
-      <SheetBody>
-        <Person person={item.person} size="lg" />
+      <SlideOverBody>
+        <PersonChip person={item.person} size="lg" />
 
-        <SheetSection title="Details">
+        <DetailSection title="Details">
           <dl className="divide-y divide-border/70">
             <DetailRow label="Category">{task.categoryId}</DetailRow>
             <DetailRow label="Priority">
@@ -177,9 +177,9 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
               </>
             )}
           </dl>
-        </SheetSection>
+        </DetailSection>
 
-        <SheetSection title="Work logged" aside={checklistLabel && <span className="font-mono normal-case tracking-normal">· {checklistLabel}</span>}>
+        <DetailSection title="Work logged" aside={checklistLabel && <span className="font-mono normal-case tracking-normal">· {checklistLabel}</span>}>
           {task.projectTitle && (
             <p className="mb-1.5 text-[13px] font-bold text-foreground">
               <HighlightText text={task.projectTitle} search={searchTerm} />
@@ -192,25 +192,25 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
               <HighlightText text={task.taskDescription || "No description provided."} search={searchTerm} />
             </p>
           )}
-        </SheetSection>
+        </DetailSection>
 
         {task.attachments?.length > 0 && (
-          <SheetSection title={`Attachments · ${task.attachments.length}`}>
+          <DetailSection title={`Attachments · ${task.attachments.length}`}>
             <ImageAttachment taskId={task.id} userId={currentUserId} attachments={task.attachments} readOnly onChange={() => {}} />
-          </SheetSection>
+          </DetailSection>
         )}
 
-        <SheetSection title="Approval chain">
+        <DetailSection title="Approval chain">
           <ApprovalChain chain={item.chain} />
-        </SheetSection>
+        </DetailSection>
 
         <p className="rounded-xl bg-muted/60 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
           <span className="font-semibold text-foreground">Why you’re seeing this. </span>
           {whyYouSeeThis(item)}
         </p>
-      </SheetBody>
+      </SlideOverBody>
 
-      <SheetFooter>
+      <SlideOverFooter>
         {isReadOnly ? (
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 text-[13px]">
@@ -257,7 +257,7 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
             </div>
           </>
         )}
-      </SheetFooter>
+      </SlideOverFooter>
     </>
   );
 }

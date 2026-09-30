@@ -17,6 +17,7 @@ import GradeSelector from "../../../components/GradeSelector.jsx";
 import { filterAndSortTasks, partitionByStaleness, summariseQueueEmployees } from "../../../utils/approvalQueue.js";
 import { taskToItem } from "../../../utils/approvalItems.js";
 import { sameDepartment } from "../../../utils/compareDepartment.js";
+import { useRecordParam } from "../../../hooks/useRecordParam";
 import { APPROVAL_QUEUES, useApprovalQueues } from "../_components/useApprovalQueues";
 import { ApprovalCenterLayout } from "../_components/ApprovalCenterLayout";
 import { ApprovalToolbar, SelectionBar } from "../_components/ApprovalToolbar";
@@ -51,7 +52,7 @@ function TaskApprovalsQueue() {
   const { user, isSuperAdmin, isHead, isHr } = q.roles;
 
   const [view, setView] = useState("ALL");
-  const [openId, setOpenId] = useState(null);
+  const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
   const [viewTask, setViewTask] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkGrade, setBulkGrade] = useState(null);
@@ -128,7 +129,7 @@ function TaskApprovalsQueue() {
     [source, searchQuery, priorityFilter, statusFilter, view, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
   );
 
-  const index = items.findIndex((i) => i.id === openId);
+  const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
 
   // A notification deep link opens its task: in the sheet when it is in this
@@ -139,7 +140,7 @@ function TaskApprovalsQueue() {
     navigate(location.pathname, { replace: true, state: {} });
     queueMicrotask(() => {
       if (pending.some((t) => t.id === openTaskId) || decided.some((t) => t.id === openTaskId)) {
-        setOpenId(openTaskId);
+        openRecord(openTaskId);
         return;
       }
       const known = q.rawTasks.find((t) => t.id === openTaskId);
@@ -150,7 +151,7 @@ function TaskApprovalsQueue() {
           .then((task) => task && setViewTask(task))
           .catch((err) => toast.error(err.message || "Could not open that task."));
     });
-  }, [location.state, location.pathname, q.rawTasks, pending, decided, navigate]);
+  }, [location.state, location.pathname, q.rawTasks, pending, decided, navigate, openRecord]);
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
@@ -250,7 +251,7 @@ function TaskApprovalsQueue() {
             />
           )
         }
-      >
+      toolbar={
         <ApprovalToolbar
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: pending.length || undefined },
@@ -271,7 +272,8 @@ function TaskApprovalsQueue() {
           onSearchChange={narrowing(setSearchQuery)}
           advancedOpen={showAdvanced}
           onAdvancedToggle={() => setShowAdvanced((s) => !s)}
-        />
+        />}
+      >
 
         {showAdvanced && (
           <div className="rounded-xl border border-border bg-card p-3">
@@ -310,7 +312,7 @@ function TaskApprovalsQueue() {
         <ApprovalTable
           items={items}
           queueIcon={QUEUE.icon}
-          onOpen={(item) => setOpenId(item.id)}
+          onOpen={(item) => openRecord(item.id)}
           selectable={bulkEnabled}
           selectedIds={selectedIds}
           onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
@@ -320,7 +322,7 @@ function TaskApprovalsQueue() {
           keyboard={!open && !viewTask}
           renderRowAction={(item) =>
             !item.done && (
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOpenId(item.id)}>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openRecord(item.id)}>
                 Grade
               </Button>
             )
@@ -361,8 +363,8 @@ function TaskApprovalsQueue() {
         queueIcon={QUEUE.icon}
         index={index}
         total={items.length}
-        onStep={(d) => setOpenId(items[index + d]?.id ?? openId)}
-        onClose={() => setOpenId(null)}
+        onStep={(d) => { const to = items[index + d]; if (to) stepRecord(to.id); }}
+        onClose={closeRecord}
         onOpenDetails={(item) => setViewTask(item.source)}
       >
         {(item) => (
@@ -375,7 +377,8 @@ function TaskApprovalsQueue() {
             searchTerm={searchQuery}
             onDecided={() => {
               const next = items[index + 1] || items[index - 1];
-              setOpenId(next ? next.id : null);
+              if (next) stepRecord(next.id);
+              else closeRecord();
             }}
           />
         )}

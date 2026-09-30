@@ -8,6 +8,7 @@ import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { leaveToItem } from "../../../utils/approvalItems.js";
+import { useRecordParam } from "../../../hooks/useRecordParam";
 import { APPROVAL_QUEUES, useApprovalQueues } from "../_components/useApprovalQueues";
 import { ApprovalCenterLayout } from "../_components/ApprovalCenterLayout";
 import { ApprovalToolbar, PillFilter } from "../_components/ApprovalToolbar";
@@ -36,7 +37,7 @@ function LeaveApprovalsQueue() {
   const { user } = q.roles;
 
   const [view, setView] = useState("ALL");
-  const [openId, setOpenId] = useState(null);
+  const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
   const [search, setSearch] = useState("");
   const [person, setPerson] = useState("ALL");
   const [type, setType] = useState("ALL");
@@ -61,7 +62,7 @@ function LeaveApprovalsQueue() {
       (!needle || [i.person.name, i.typeLabel, i.source.reason, i.ref].some((f) => (f || "").toLowerCase().includes(needle))),
   );
 
-  const index = items.findIndex((i) => i.id === openId);
+  const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
 
   const decide = useMutation({
@@ -85,7 +86,7 @@ function LeaveApprovalsQueue() {
   const onDecide = (item, status, note) => {
     const at = items.findIndex((i) => i.id === item.id);
     const next = items[at + 1] || items[at - 1];
-    decide.mutate({ item, status, note }, { onSuccess: () => setOpenId((cur) => (cur === item.id ? (next ? next.id : null) : cur)) });
+    decide.mutate({ item, status, note }, { onSuccess: () => { if (String(item.id) !== recordId) return; if (next) stepRecord(next.id); else closeRecord(); } });
   };
 
   if (q.isLoadingLeaves) {
@@ -98,7 +99,8 @@ function LeaveApprovalsQueue() {
 
   return (
     <>
-      <ApprovalCenterLayout queue="leaves" counts={q.counts}>
+      <ApprovalCenterLayout queue="leaves" counts={q.counts}
+        toolbar={
         <ApprovalToolbar
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: all.length || undefined },
@@ -127,13 +129,14 @@ function LeaveApprovalsQueue() {
           }
           search={search}
           onSearchChange={setSearch}
-        />
+        />}
+      >
 
         <ApprovalTable
           items={items}
           queueIcon={QUEUE.icon}
           personLabel="Requested by"
-          onOpen={(item) => setOpenId(item.id)}
+          onOpen={(item) => openRecord(item.id)}
           searchTerm={search}
           keyboard={!open}
           renderRowAction={(item) => (
@@ -167,8 +170,8 @@ function LeaveApprovalsQueue() {
         queueIcon={QUEUE.icon}
         index={index}
         total={items.length}
-        onStep={(d) => setOpenId(items[index + d]?.id ?? openId)}
-        onClose={() => setOpenId(null)}
+        onStep={(d) => { const to = items[index + d]; if (to) stepRecord(to.id); }}
+        onClose={closeRecord}
       >
         {(item) => <LeaveReview key={item.id} item={item} onDecide={onDecide} isSubmitting={decide.isPending} />}
       </ApprovalSheet>

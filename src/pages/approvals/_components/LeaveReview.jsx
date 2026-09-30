@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { leaveWhen, relativeAge } from "../../../utils/approvalItems.js";
-import { ApprovalChain, DetailRow, NotePresets, Person, SheetSection } from "./ApprovalParts";
-import { SheetBody, SheetFooter } from "./ApprovalSheet";
+import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
+import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import { APPROVE_CLASS, NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
 
 /**
@@ -17,10 +17,10 @@ export function LeaveReview({ item, onDecide, isSubmitting }) {
 
   return (
     <>
-      <SheetBody>
-        <Person person={item.person} size="lg" />
+      <SlideOverBody>
+        <PersonChip person={item.person} size="lg" />
 
-        <SheetSection title="Details">
+        <DetailSection title="Details">
           <dl className="divide-y divide-border/70">
             <DetailRow label="Type">{item.typeLabel}</DetailRow>
             <DetailRow label="When">{leaveWhen(req)}</DetailRow>
@@ -29,19 +29,19 @@ export function LeaveReview({ item, onDecide, isSubmitting }) {
               <span className={item.isStale ? "font-semibold text-amber-11" : ""}>{relativeAge(item.clockAt).replace(" ago", "")}</span>
             </DetailRow>
           </dl>
-        </SheetSection>
+        </DetailSection>
 
-        <SheetSection title="Approval chain">
+        <DetailSection title="Approval chain">
           <ApprovalChain chain={item.chain} />
-        </SheetSection>
+        </DetailSection>
 
         <p className="rounded-xl bg-muted/60 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
           <span className="font-semibold text-foreground">Why you’re seeing this. </span>
           {whyYouSeeThis(item)}
         </p>
-      </SheetBody>
+      </SlideOverBody>
 
-      <SheetFooter>
+      <SlideOverFooter>
         <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Note to employee (optional)" className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]" />
         <NotePresets presets={NOTE_PRESETS.leaves} onPick={(q) => setNote((n) => (n ? `${n} ${q}` : q))} />
         <div className="flex gap-2">
@@ -52,7 +52,7 @@ export function LeaveReview({ item, onDecide, isSubmitting }) {
             Approve
           </Button>
         </div>
-      </SheetFooter>
+      </SlideOverFooter>
     </>
   );
 }
