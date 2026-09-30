@@ -644,8 +644,8 @@ export default function OpportunitiesPage() {
           Its header is two rows, not the old page header + filter bar: the tabs
           pick which records, the row beneath narrows within them. */}
       <div className="flex h-full min-h-0 flex-col">
-        {/* The standard PageHeader, in its compact form: the register keeps the
-            title every other screen has, and gives back only the padding. The
+        {/* The standard PageHeader: the register keeps the title every other
+            screen has. The
             view strip rides in its action slot. Left padding clears the
             SideNav's mobile trigger. The primary action lives in the floating
             button below — the top-right corner belongs to the environment

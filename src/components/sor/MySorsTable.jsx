@@ -45,7 +45,10 @@ export default function MySorsTable({ rows, onOpen }) {
               tabIndex={0}
               onClick={() => onOpen(row.opportunityId)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") onOpen(row.opportunityId);
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onOpen(row.opportunityId);
+                }
               }}
               className="cursor-pointer"
             >
