@@ -1555,6 +1555,7 @@ async function shapeAccessWindows(windows) {
       untilStageName: w.until_stage_id ? stageNameById[w.until_stage_id] ?? null : null,
       reachLabel: summary.reachLabel,
       closedAt: w.closed_at ?? null,
+      createdAt: w.created_at ?? null,
     };
   };
 }

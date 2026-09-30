@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import MySorsPage from "@/pages/my-sors/index";
@@ -84,8 +84,10 @@ describe("My SORs", () => {
     expect(await screen.findByText("S01234")).toBeInTheDocument();
     expect(screen.getByText("Supply of Equipment")).toBeInTheDocument();
     // The Stage that pulled them in, not the Stage the SOR is on now.
-    expect(screen.getByText(/Called in at/)).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Called in at" })).toBeInTheDocument();
     expect(screen.getByText("Technical Review")).toBeInTheDocument();
+    expect(screen.getByText("Bid Submitted")).toBeInTheDocument();
+    expect(screen.getByText("Task")).toBeInTheDocument();
     // The reach, in the Flow Canvas's own words.
     expect(screen.getByText(/this Stage only/)).toBeInTheDocument();
   });
@@ -105,7 +107,7 @@ describe("My SORs", () => {
     expect(await screen.findByText(/through Bid Submitted/)).toBeInTheDocument();
   });
 
-  it("keeps a closed window listed, under its own heading", async () => {
+  it("keeps a closed window listed, under the Closed pill", async () => {
     const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
     makeStageParticipant({
       opportunity_id: deal.id,
@@ -118,8 +120,8 @@ describe("My SORs", () => {
 
     // The SOR someone worked last month is what they come here looking for.
     expect(await screen.findByText("S01234")).toBeInTheDocument();
-    expect(screen.getByText(/^Closed —/)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText(/^Open — 0/)).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: /Closed 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Open 0/ })).toBeInTheDocument();
   });
 
   it("opens a row through the one shared entry path, not a modal of its own", async () => {
@@ -144,7 +146,7 @@ describe("My SORs", () => {
     dispatch.mockRestore();
   });
 
-  it("shows one row for an SOR that called the same person in twice", async () => {
+  it("shows one row for an SOR that called the same person in twice, with a +N chip", async () => {
     const first = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
     const second = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: bid.id, sequence: 2 });
     makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: first.id, source: "action" });
@@ -153,7 +155,50 @@ describe("My SORs", () => {
     renderPage();
 
     expect(await screen.findAllByText("S01234")).toHaveLength(1);
-    // Two call-ins stay two lines: "why can I see this" has two answers.
-    expect(screen.getAllByText(/Called in at/)).toHaveLength(2);
+    expect(screen.getAllByRole("row")).toHaveLength(2); // header + one SOR
+    // Two call-ins stay two answers: one on the row, the other behind the chip.
+    expect(screen.getByLabelText("1 more windows")).toHaveTextContent("+1");
+  });
+
+  it("splits Open and Closed with counts, and shows — when there is no Sales Reference", async () => {
+    stubRpc("sor_locked_summary", () => [
+      { sales_reference: null, project_title: "Unreferenced job", current_stage_name: "Bid Submitted", is_restricted: false },
+    ]);
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id });
+
+    renderPage();
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("Unreferenced job")).toBeInTheDocument();
+    const cell = screen.getByText("Unreferenced job").closest("td");
+    expect(cell).toHaveTextContent("—");
+    expect(screen.getByRole("tab", { name: /Open 1/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /Closed 0/ }));
+    expect(screen.queryByText("Unreferenced job")).toBeNull();
+    expect(screen.getByText("Nothing closed")).toBeInTheDocument();
+  });
+
+  it("searches Sales Reference and project", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id });
+
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByText("S01234");
+    const box = screen.getByRole("searchbox", { name: "Search SORs" });
+
+    await user.type(box, "equipment");
+    expect(screen.getByText("S01234")).toBeInTheDocument();
+
+    await user.clear(box);
+    await user.type(box, "s0123");
+    expect(screen.getByText("S01234")).toBeInTheDocument();
+
+    await user.clear(box);
+    await user.type(box, "zzz");
+    expect(screen.queryByText("S01234")).toBeNull();
+    expect(screen.getByText(/No SOR matches your search/)).toBeInTheDocument();
   });
 });

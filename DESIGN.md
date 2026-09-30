@@ -331,6 +331,12 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### Tooltip
 `ui/Tooltip.jsx`. Props: `content`, `side`, `align`, `delay`, `className`, `children`.
 
+#### PageShell
+`ui/PageShell.jsx`. The Page skeleton (ADR 0029). Props: `title`, `description`, `action`, `tabs`, `toolbar`, `body` (or `children`), `frame` (`centred` | `full`), `className`. Slots render in fixed order; wraps `ui/PageContainer.jsx` and `ui/PageHeader.jsx` (compact-only title, last word red).
+
+#### EmptyState
+`ui/EmptyState.jsx`. The one empty state: muted icon, title, one line. Props: `icon`, `title`, `description`, `className`.
+
 #### Spinner
 `ui/Spinner.jsx`. Props: `size`, `text`, `fullScreen`, `className`.
 

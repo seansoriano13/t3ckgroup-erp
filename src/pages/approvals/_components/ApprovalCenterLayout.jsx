@@ -20,7 +20,7 @@ export function ApprovalCenterLayout({
   return (
     <PageContainer maxWidth="full" spaceY="4" className="pt-3 pb-28">
       <div>
-        <PageHeader compact title="Approval Center" className="border-b-0 pb-0">
+        <PageHeader title="Approval Center" className="border-b-0 pb-0">
           {headerActions}
         </PageHeader>
 

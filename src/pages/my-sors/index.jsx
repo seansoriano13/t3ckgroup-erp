@@ -1,12 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Handshake } from "lucide-react";
+import { Handshake, Search } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
-import PageContainer from "../../components/ui/PageContainer";
-import PageHeader from "../../components/ui/PageHeader";
+import PageShell from "../../components/ui/PageShell";
+import EmptyState from "../../components/ui/EmptyState";
+import TabGroup from "../../components/ui/TabGroup";
+import { Input } from "../../components/ui/input";
 import Spinner from "../../components/ui/Spinner";
-import MySorRow from "../../components/sor/MySorRow";
+import MySorsTable from "../../components/sor/MySorsTable";
 import { useAuth } from "../../context/AuthContext";
 import { opportunityService } from "../../services/opportunityService";
 
@@ -54,6 +56,8 @@ function openSor(opportunityId) {
 
 function MySorsScreen() {
   const { user } = useAuth();
+  const [pill, setPill] = useState(null);
+  const [search, setSearch] = useState("");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["mySors", user?.id],
@@ -69,74 +73,83 @@ function MySorsScreen() {
     [rows],
   );
 
+  // Open first; land on Closed only when nothing is open, so a person whose
+  // windows all closed still sees their deals.
+  const active = pill ?? (open.length === 0 && closed.length > 0 ? "closed" : "open");
+  const needle = search.trim().toLowerCase();
+  const shown = (active === "open" ? open : closed).filter(
+    (r) =>
+      !needle ||
+      (r.salesReference || "").toLowerCase().includes(needle) ||
+      (r.projectTitle || "").toLowerCase().includes(needle),
+  );
+
+  let body;
   if (isLoading) {
-    return (
+    body = (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Spinner size="sm" />
         <span className="text-sm font-bold uppercase tracking-widest">Loading…</span>
       </div>
     );
-  }
-
-  if (rows.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-2 py-24 text-center text-muted-foreground">
-        <Handshake size={28} className="opacity-40" />
-        <p className="text-sm font-semibold text-foreground">Nobody has called you into an SOR yet</p>
-        <p className="max-w-sm text-xs leading-relaxed">
-          When a task, an assignment, or a purchase request pulls you into an SOR,
-          it appears here for as long as your access lasts — and stays listed after
-          it closes.
-        </p>
-      </div>
+  } else if (rows.length === 0) {
+    body = (
+      <EmptyState
+        icon={Handshake}
+        title="Nobody has called you into an SOR yet"
+        description="When a task, an assignment, or a purchase request pulls you into an SOR, it appears here for as long as your access lasts."
+      />
     );
+  } else if (shown.length === 0) {
+    body = (
+      <EmptyState
+        title={needle ? "No SOR matches your search" : `Nothing ${active}`}
+        description={needle ? "Try a Sales Reference or project name." : undefined}
+      />
+    );
+  } else {
+    body = <MySorsTable rows={shown} onOpen={openSor} />;
   }
 
   return (
-    <div className="space-y-8">
-        <section className="space-y-3">
-          <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-            Open — {open.length}
-          </h2>
-          {open.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Nothing open. Everything below has closed behind you.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {open.map((row) => (
-                <MySorRow key={row.opportunityId} row={row} onOpen={openSor} />
-              ))}
+    <PageShell
+      title="My SORs"
+      description="SORs you were called into, and how far your access reaches"
+      toolbar={
+        rows.length > 0 && (
+          <>
+            <TabGroup
+              variant="pill"
+              activeTab={active}
+              onChange={setPill}
+              tabs={[
+                { value: "open", label: `Open ${open.length}` },
+                { value: "closed", label: `Closed ${closed.length}` },
+              ]}
+            />
+            <div className="w-full max-w-xs">
+              <Input
+                icon={Search}
+                type="search"
+                aria-label="Search SORs"
+                placeholder="Search reference or project"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
-          )}
-        </section>
-
-        {closed.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-              Closed — {closed.length}
-            </h2>
-            <div className="space-y-2">
-              {closed.map((row) => (
-                <MySorRow key={row.opportunityId} row={row} onOpen={openSor} />
-              ))}
-            </div>
-          </section>
-        )}
-    </div>
+          </>
+        )
+      }
+    >
+      {body}
+    </PageShell>
   );
 }
 
 export default function MySorsPage() {
   return (
     <ProtectedRoute>
-      <PageContainer>
-        <PageHeader
-          title="My SORs"
-          description="SORs you were called into, and how far your access reaches"
-        />
-        <MySorsScreen />
-      </PageContainer>
+      <MySorsScreen />
     </ProtectedRoute>
   );
 }

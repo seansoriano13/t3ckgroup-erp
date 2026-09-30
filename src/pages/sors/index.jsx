@@ -651,7 +651,6 @@ export default function OpportunitiesPage() {
             button below — the top-right corner belongs to the environment
             ribbon, which was cutting straight through it. */}
         <PageHeader
-          compact
           title="SOR Register"
           className="shrink-0 bg-card pl-14 pr-3 pt-3 sm:pr-4 md:pl-6 md:pr-6"
         >

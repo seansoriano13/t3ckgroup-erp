@@ -1,14 +1,9 @@
 import React from "react";
 
 /**
- * Standard Page Header component to ensure visual consistency across all tabs.
- * Supports a title with an optional gradient on the last word, a description,
- * and optional children (actions/buttons) on the right side.
- *
- * `compact` is the same header for full-bleed working screens (the SOR
- * Register), where height is the scarce thing: one row, a smaller title, no
- * bottom air. Same red last word, same rule beneath, same slot for actions —
- * only the density changes, so the screen still reads as part of the family.
+ * The Page header: title, description, and the Page's actions on the right.
+ * There is one (compact) size — DESIGN.md "Pages → Title". The last word of
+ * the title is Signal Red. Rendered by PageShell; a Page does not place it.
  */
 const PageHeader = ({
   title,
@@ -17,9 +12,8 @@ const PageHeader = ({
   showGradient = true,
   className = "",
   lastWordColor = "text-primary",
-  compact = false,
 }) => {
-  // Split title to apply gradient to the last part
+  // Split title to colour the last word
   const titleWords = title.split(" ");
   const lastWord =
     titleWords.length > 1 ? titleWords[titleWords.length - 1] : "";
@@ -28,18 +22,10 @@ const PageHeader = ({
 
   return (
     <div
-      className={`flex justify-between border-b border-border ${
-        compact
-          ? "items-center gap-3 pb-3"
-          : "flex-col md:flex-row md:items-end gap-4 pb-6"
-      } ${className}`}
+      className={`flex flex-col gap-3 border-b border-border pb-3 md:flex-row md:items-center md:justify-between ${className}`}
     >
-      <div className={compact ? "min-w-0" : "space-y-1"}>
-        <h1
-          className={`font-black text-foreground tracking-tight flex flex-wrap items-center gap-x-2 ${
-            compact ? "text-xl md:text-2xl" : "text-3xl md:text-4xl"
-          }`}
-        >
+      <div className="min-w-0">
+        <h1 className="flex flex-wrap items-center gap-x-2 text-xl font-black tracking-tight text-foreground md:text-2xl">
           <span>{firstPart}</span>
           {lastWord && showGradient ? (
             <span className="text-primary pr-1">{lastWord}</span>
@@ -48,21 +34,13 @@ const PageHeader = ({
           ) : null}
         </h1>
         {description && (
-          <p
-            className={`text-muted-foreground font-medium max-w-2xl ${
-              compact ? "text-xs" : "text-sm md:text-base"
-            }`}
-          >
+          <p className="max-w-2xl text-xs font-medium text-muted-foreground">
             {description}
           </p>
         )}
       </div>
       {children && (
-        <div
-          className={`flex items-center gap-3 ${
-            compact ? "min-w-0" : "shrink-0 flex-wrap"
-          }`}
-        >
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           {children}
         </div>
       )}
