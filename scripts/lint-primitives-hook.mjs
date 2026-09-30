@@ -1,8 +1,10 @@
-// Claude Code PostToolUse hook (ADR 0025). After an agent edits a .jsx file,
-// lint it and hand any Primitive violation back in the same turn.
+// Claude Code PostToolUse hook (ADR 0025, ADR 0029). After an agent edits a
+// .jsx file, lint it and hand any Primitive or PageShell violation back in the
+// same turn.
 //
 // Runs the real CLI. The unrelated lint backlog stays silent; only
-// local/no-raw-html findings are reported. Exit 2 feeds stderr back to the agent.
+// local/no-raw-html and local/require-page-shell findings are reported. Exit 2
+// feeds stderr back to the agent.
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
@@ -29,12 +31,13 @@ try {
   process.exit(0) // never block an edit on a tooling hiccup
 }
 
+const RULES = ['local/no-raw-html', 'local/require-page-shell']
 const found = results.flatMap(({ messages }) =>
-  messages.filter((m) => m.ruleId === 'local/no-raw-html' || m.message.startsWith('eslint-disable of local/no-raw-html')),
+  messages.filter((m) => RULES.some((rule) => m.ruleId === rule || m.message.startsWith(`eslint-disable of ${rule}`))),
 )
 if (found.length === 0) process.exit(0)
 
 const rel = path.relative(process.cwd(), file)
-console.error(`Primitive lint (ADR 0025) failed in ${rel}. Fix before continuing:`)
+console.error(`Primitive / PageShell lint (ADR 0025, ADR 0029) failed in ${rel}. Fix before continuing:`)
 for (const m of found) console.error(`  ${rel}:${m.line}:${m.column}  ${m.message}`)
 process.exit(2)

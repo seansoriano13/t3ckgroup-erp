@@ -30,7 +30,6 @@ export type Path =
   | `/retail`
   | `/settings`
   | `/settings/FAQEditor`
-  | `/settings/FAQModal`
   | `/sors`
   | `/sors/commission`
   | `/sors/commission-formula`

@@ -268,6 +268,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### DetailParts
 `ui/DetailParts.jsx`. Record detail parts for slide-over bodies: `DetailSection` (`title`, `aside`), `DetailRow` (`label`), `NotePresets` (`presets`, `onPick`), `ApprovalChain` (`chain` of `{ label, who, note, at, state }`), `PersonChip` (`person`, `size`, `detail`).
 
+#### RecordModal
+`ui/record-modal.jsx`, on Dialog. The one-size modal for the records that carry a Chat (SOR, Individual Task, Group Task; DESIGN.md "Pages → Container rule"). `RecordModalContent` replaces `DialogContent` (`className`, plus DialogContent props); `RECORD_MODAL_CLASS` is its size. No size switcher.
+
 #### ConfirmDialog
 `ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `className`, `footerClassName`, `children`.
 
@@ -338,7 +341,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/Tooltip.jsx`. Props: `content`, `side`, `align`, `delay`, `className`, `children`.
 
 #### PageShell
-`ui/PageShell.jsx`. The Page skeleton (ADR 0029). Props: `title`, `description`, `action`, `banner` (above the header; only the Dashboard's greeting), `tabs`, `toolbar`, `body` (or `children`), `frame` (`centred` | `narrow` | `full`), `className`. Slots render in fixed order; wraps `ui/PageContainer.jsx` and `ui/PageHeader.jsx` (compact-only title, last word red).
+`ui/PageShell.jsx`. The Page skeleton (ADR 0029). Props: `title`, `description`, `action`, `banner` (above the header; only the Dashboard's greeting), `tabs`, `toolbar`, `body` (or `children`), `frame` (`centred` | `narrow` | `full`), `className`. Slots render in fixed order; wraps `ui/PageContainer.jsx` and `ui/PageHeader.jsx` (compact-only title, last word red). Every routed Page renders it, and PageHeader renders nowhere else (`local/require-page-shell`, see "Pages → PageShell").
 
 #### ReportFigure
 `ui/ReportFigure.jsx`. The Report layout's headline figure: big figure with its note, supporting stats, chart beside them. Props: `label`, `figure`, `note`, `stats` (`{ label, value, sub, tone, onClick }`; `onClick` makes the stat a button with an arrow; a zero dims; `tone: "attention"` turns a non-zero value amber-11), `chart`, `className`. Every part is optional, so a row of counts is `stats` alone; that row gets 2xl numerals, hairline dividers from `lg`, and a bottom hairline (the Page header's rule is its top). Replaces gradient summary cards.
@@ -422,6 +425,8 @@ PageShell owns the Page skeleton. A Page fills fixed slots and cannot reorder th
 4. **Body**.
 
 PageShell also owns phone behaviour (header stacks, level-1 tabs scroll sideways, filters fold into the Filters popover, tables scroll sideways) and dark-mode tokens.
+
+**Enforced by lint** (`local/require-page-shell`, ADR 0029). A routed file (under `src/pages/`, no `_` path segment) must render PageShell, render a layout imported from a file that renders it (the Approval Center's `ApprovalCenterLayout`, `CommissionDashboardView`), or render only `<Navigate>` (a redirect route). Rendering PageHeader anywhere outside PageShell fails. The screens outside the app frame (login, password reset, verify) are not Pages. The rule can't be disabled inline, and `pnpm lint:primitives` (CI) fails on it. A component that is not a Page does not belong in a routed file: put it in a `_components/` folder.
 
 ### Frames
 - **Centred** (default): the `wrapper`, max 80rem.

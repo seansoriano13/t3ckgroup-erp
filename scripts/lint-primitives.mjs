@@ -1,13 +1,14 @@
-// The Primitive gate (ADR 0025).
+// The Primitive gate (ADR 0025) and the PageShell gate (ADR 0029).
 //
-//   node scripts/lint-primitives.mjs    fail on any raw covered HTML
+//   node scripts/lint-primitives.mjs    fail on any raw covered HTML, or any
+//                                       Page that bypasses PageShell
 //
-// It looks at this rule alone: the unrelated lint backlog stays non-blocking.
+// It looks at these rules alone: the unrelated lint backlog stays non-blocking.
 // There is no baseline; every violation fails.
 import { spawnSync } from 'node:child_process'
 
-const RULE = 'local/no-raw-html'
-const isOurs = (m) => m.ruleId === RULE || m.message.startsWith('eslint-disable of local/no-raw-html')
+const RULES = ['local/no-raw-html', 'local/require-page-shell']
+const isOurs = (m) => RULES.some((rule) => m.ruleId === rule || m.message.startsWith(`eslint-disable of ${rule}`))
 
 const run = spawnSync('pnpm', ['exec', 'eslint', '.', '--format', 'json'], {
   encoding: 'utf8',
@@ -29,7 +30,7 @@ for (const { filePath, messages } of results) {
   }
 }
 if (failed) {
-  console.error(`\n${failed} Primitive violation(s). Use the Primitive, or stop and ask the maintainer. Never eslint-disable.`)
+  console.error(`\n${failed} violation(s). Use the Primitive or PageShell, or stop and ask the maintainer. Never eslint-disable.`)
   process.exit(1)
 }
-console.log('No raw covered HTML.')
+console.log('No raw covered HTML; every Page renders through PageShell.')

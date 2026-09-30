@@ -4,7 +4,18 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import noPrimaryDecoration from './src/lib/linting/no-primary-decoration.js'
-import noRawHtml, { refuseDisableProcessor } from './src/lib/linting/no-raw-html.js'
+import noRawHtml, { DISABLE_MESSAGE as NO_RAW_HTML_DISABLE, isExempt as isSharedUi } from './src/lib/linting/no-raw-html.js'
+import requirePageShell, { DISABLE_MESSAGE as PAGE_SHELL_DISABLE } from './src/lib/linting/require-page-shell.js'
+import { createRefuseDisableProcessor } from './src/lib/linting/refuse-disable.js'
+
+// Neither guard rule can be switched off inline in feature code.
+const refuseDisableProcessor = createRefuseDisableProcessor(
+  {
+    'no-raw-html': NO_RAW_HTML_DISABLE,
+    'require-page-shell': PAGE_SHELL_DISABLE,
+  },
+  isSharedUi,
+)
 
 export default defineConfig([
   globalIgnores(['dist/**', '.claude/**', '.gemini/**', '.github/**']),
@@ -34,6 +45,7 @@ export default defineConfig([
         rules: {
           'no-primary-decoration': noPrimaryDecoration,
           'no-raw-html': noRawHtml,
+          'require-page-shell': requirePageShell,
         },
       },
     },
@@ -43,13 +55,15 @@ export default defineConfig([
     },
   },
   {
-    // ADR 0025: raw covered HTML is banned in feature code. The shared UI folder
-    // is exempt inside the rule itself, by path. There is no baseline.
+    // ADR 0025: raw covered HTML is banned in feature code. ADR 0029: every
+    // routed Page renders through PageShell. The shared UI folder is exempt
+    // inside each rule, by path. There is no baseline.
     files: ['src/**/*.{js,jsx}'],
     ignores: ['src/test/**', 'src/**/*.test.{js,jsx}'],
     processor: refuseDisableProcessor,
     rules: {
       'local/no-raw-html': 'error',
+      'local/require-page-shell': 'error',
     },
   },
   {

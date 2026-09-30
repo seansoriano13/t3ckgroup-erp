@@ -54,7 +54,7 @@ describe("FlowVersionPage", () => {
 
     renderPage("snap-123")
 
-    expect(await screen.findByText("Sales Flow — v1.0")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { level: 1, name: /Sales Flow —\s*v1\.0/ })).toBeInTheDocument()
     expect(screen.getByText("“Baseline locked version”")).toBeInTheDocument()
     expect(screen.getByText("Read-only")).toBeInTheDocument()
 
@@ -104,7 +104,7 @@ describe("FlowVersionPage", () => {
 
     renderPage("snap-123")
 
-    await screen.findByText("Sales Flow — v2.1")
+    await screen.findByRole("heading", { level: 1, name: /Sales Flow —\s*v2\.1/ })
 
     // Click the Stage node
     const stageElements = screen.getAllByText("Bidding Stage")
@@ -154,7 +154,7 @@ describe("FlowVersionPage", () => {
 
     renderPage("snap-legacy")
 
-    await screen.findByText("Sales Flow — v1.0")
+    await screen.findByRole("heading", { level: 1, name: /Sales Flow —\s*v1\.0/ })
 
     // Node counts should correctly show 1 condition and 1 action
     expect(screen.getByText(/Gate.*1/)).toBeInTheDocument()
@@ -188,7 +188,7 @@ describe("FlowVersionPage", () => {
 
     renderPage("snap-empty-rules")
 
-    await screen.findByText("Sales Flow — v1.0")
+    await screen.findByRole("heading", { level: 1, name: /Sales Flow —\s*v1\.0/ })
 
     const stageElements = screen.getAllByText("Government Stage")
     fireEvent.click(stageElements[stageElements.length - 1].closest(".react-flow__node"))

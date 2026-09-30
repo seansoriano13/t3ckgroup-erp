@@ -4,7 +4,8 @@
  * Covered: button, input, textarea, select, label, table, img, a, and
  * hand-rolled full-screen modals (`fixed inset-0`). `form`, layout tags,
  * paragraphs and headings are not covered. The only exemption is the shared UI
- * folder, matched by path. The rule also refuses eslint-disable for itself.
+ * folder, matched by path. eslint-disable for it is refused by the processor in
+ * refuse-disable.js.
  */
 
 export const CATALOG = 'DESIGN.md#primitive-catalog'
@@ -30,9 +31,6 @@ const INPUT_REPLACEMENTS = {
 
 const MODAL = ['modal', 'Dialog (ui/dialog.jsx)', 'dialog']
 
-const RULE_NAME = 'no-raw-html'
-const RULE_IDS = new Set([RULE_NAME, `local/${RULE_NAME}`])
-
 const messages = {}
 for (const [id, primitive, anchor] of [
   ...Object.values(REPLACEMENTS),
@@ -44,7 +42,7 @@ for (const [id, primitive, anchor] of [
     `${what} is not allowed outside src/components/ui/. Use ${primitive}. ` +
     `See ${CATALOG_URL(anchor)}. If no Primitive fits, stop and ask the maintainer.`
 }
-const DISABLE_MESSAGE =
+export const DISABLE_MESSAGE =
   'eslint-disable of local/no-raw-html is not allowed in feature code. ' +
   `If no Primitive fits, stop and ask the maintainer. See ${CATALOG}.`
 
@@ -84,40 +82,6 @@ function attr(node, name) {
 function isFullScreenModal(node) {
   const tokens = classText(attr(node, 'className')?.value).split(/\s+/)
   return tokens.includes('fixed') && tokens.includes('inset-0')
-}
-
-const DIRECTIVE = /(?:\/\/|\/\*)\s*eslint-disable(?:-next-line|-line)?\b([^\n]*)/g
-
-function refusedDirectiveLine(text) {
-  for (const m of text.matchAll(DIRECTIVE)) {
-    const list = m[1].replace(/\*\/.*$/, '').split('--')[0].trim()
-    const names = list ? list.split(',').map((r) => r.trim()) : []
-    if (names.length === 0 || names.some((r) => RULE_IDS.has(r))) {
-      return text.slice(0, m.index).split('\n').length
-    }
-  }
-  return null
-}
-
-// A disable directive filters the rule's own report, so the refusal cannot be a
-// rule report. A processor's postprocess runs after directives are applied.
-const sourceByFile = new Map()
-export const refuseDisableProcessor = {
-  meta: { name: 'no-raw-html-refuse-disable' },
-  preprocess(text, filename) {
-    sourceByFile.set(filename, text)
-    return [text]
-  },
-  postprocess(messageLists, filename) {
-    const text = sourceByFile.get(filename) ?? ''
-    sourceByFile.delete(filename)
-    const messages = messageLists.flat()
-    const line = isExempt(filename) ? null : refusedDirectiveLine(text)
-    if (line !== null) {
-      messages.push({ ruleId: null, severity: 2, message: DISABLE_MESSAGE, line, column: 1 })
-    }
-    return messages
-  },
 }
 
 export default {

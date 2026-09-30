@@ -41,7 +41,8 @@ jobs:
         run: pnpm lint:tests
 
       # ADR 0025: raw covered HTML outside src/components/ui/ blocks the merge.
-      # Only this rule is a gate; it has no baseline, so any violation fails.
+      # ADR 0029: so does a routed Page that bypasses PageShell. Only these
+      # rules are a gate; they have no baseline, so any violation fails.
       - name: Lint Primitives
         run: pnpm lint:primitives
 

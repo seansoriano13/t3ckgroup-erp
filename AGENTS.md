@@ -18,6 +18,11 @@ modal outside that folder — use the Primitive. The catalog is DESIGN.md → Co
 (`eslint-disable`) for this. There is no baseline: `pnpm lint:primitives` fails on any raw
 covered HTML (CI blocks on it). See `docs/adr/0025-one-primitive-system-enforced-by-lint.md`.
 
+Every routed Page renders through **PageShell** (`ui/PageShell.jsx`), directly or through a
+layout that does; PageHeader renders only inside it. `local/require-page-shell` enforces
+this in the same gate and can't be disabled inline either. See DESIGN.md → "Pages" and
+`docs/adr/0029-pages-share-one-skeleton-pageshell-and-page-types.md`.
+
 ### Branch topology
 
 `staging` is the permanent integration branch — everything accepted but not yet

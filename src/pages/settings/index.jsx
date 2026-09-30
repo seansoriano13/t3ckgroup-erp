@@ -1,7 +1,7 @@
 import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import FAQModal from "./FAQModal";
+import FAQModal from "./_components/FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";

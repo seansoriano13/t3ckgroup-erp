@@ -9,13 +9,13 @@ import {
   Maximize2,
   BookOpen,
 } from "lucide-react";
-import { ICON_MAP } from "./faqData";
-import { loadFAQFromDB } from "../../services/faqService";
+import { ICON_MAP } from "../faqData";
+import { loadFAQFromDB } from "../../../services/faqService";
 import { useNavigate } from "react-router";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../../context/AuthContext";
 import { Button } from "@/components/ui/button";
-import HighlightText from "../../components/HighlightText";
-import { canEditFAQ as canEditFAQPredicate } from "../../utils/faqAccess";
+import HighlightText from "../../../components/HighlightText";
+import { canEditFAQ as canEditFAQPredicate } from "../../../utils/faqAccess";
 import { Input } from "@/components/ui/input";
 
 // ─── Role helpers ──────────────────────────────────────────────────────────────

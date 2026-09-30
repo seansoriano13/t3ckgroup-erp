@@ -10,7 +10,7 @@ vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: { role: "employee" } }),
 }))
 
-import FAQModal from "@/pages/settings/FAQModal"
+import FAQModal from "@/pages/settings/_components/FAQModal"
 
 const renderModal = (props) =>
   render(

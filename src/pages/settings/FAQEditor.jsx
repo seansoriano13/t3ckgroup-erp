@@ -23,8 +23,7 @@ const ROLES = [
   { key: "super_admin", label: "Super Admin",         short: "Super Admin",color: "#d9730d" },
 ];
 import { loadFAQFromDB, saveFAQToDB } from "../../services/faqService";
-import PageContainer from "../../components/ui/PageContainer";
-import PageHeader from "../../components/ui/PageHeader";
+import PageShell from "../../components/ui/PageShell";
 import { Navigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import { canEditFAQ } from "../../utils/faqAccess";
@@ -519,53 +518,47 @@ export default function FAQEditorPage() {
   }
 
   return (
-    <PageContainer maxWidth="7xl" className="pt-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div className="w-full gap-3">
-          <PageHeader
-            title="FAQ Editor"
-            description={`${categories.length} categories · ${totalItems} questions`}
+    <PageShell
+      title="FAQ Editor"
+      description={`${categories.length} categories · ${totalItems} questions`}
+      action={
+        <>
+          {/* Reset */}
+          <Button
+            variant="outline"
+            onClick={handleReset}
+            className={`h-auto gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
+              confirmReset
+                ? "border-red-300 bg-red-50 text-red-600 hover:bg-red-50"
+                : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
           >
-            <div className="flex items-center gap-2 shrink-0 w-full">
-              {/* Reset */}
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                className={`h-auto gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
-                  confirmReset
-                    ? "border-red-300 bg-red-50 text-red-600 hover:bg-red-50"
-                    : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <RotateCcw size={12} />
-                {confirmReset ? "Confirm Reset?" : "Clear all"}
-              </Button>
+            <RotateCcw size={12} />
+            {confirmReset ? "Confirm Reset?" : "Clear all"}
+          </Button>
 
-              {/* Save */}
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                className={`h-auto gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-60 ${
-                  saved
-                    ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-100"
-                    : "hover:opacity-90"
-                }`}
-              >
-                {saved ? (
-                  <Check size={12} />
-                ) : saving ? (
-                  <div className="w-3 h-3 border border-primary-foreground/50 border-t-primary-foreground rounded-full animate-spin" />
-                ) : (
-                  <Save size={12} />
-                )}
-                {saved ? "Saved!" : saving ? "Saving…" : "Save changes"}
-              </Button>
-            </div>
-          </PageHeader>
-        </div>
-      </div>
-
+          {/* Save */}
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className={`h-auto gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-60 ${
+              saved
+                ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-100"
+                : "hover:opacity-90"
+            }`}
+          >
+            {saved ? (
+              <Check size={12} />
+            ) : saving ? (
+              <div className="w-3 h-3 border border-primary-foreground/50 border-t-primary-foreground rounded-full animate-spin" />
+            ) : (
+              <Save size={12} />
+            )}
+            {saved ? "Saved!" : saving ? "Saving…" : "Save changes"}
+          </Button>
+        </>
+      }
+    >
       {/* Loading */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
@@ -691,6 +684,6 @@ export default function FAQEditorPage() {
           </div>
         </div>
       )}
-    </PageContainer>
+    </PageShell>
   );
 }

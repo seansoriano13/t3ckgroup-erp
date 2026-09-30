@@ -39,11 +39,12 @@ the records that carry a Chat.
 **One form per small part.** Status badge, section heading, filter bar, empty
 state, decision buttons and report figure each have exactly one look.
 
-**Enforcement is mechanical.** A local ESLint rule, next to `no-raw-html` and
+**Enforcement is mechanical.** A local ESLint rule, `local/require-page-shell`
+(`src/lib/linting/require-page-shell.js`), next to `no-raw-html` and
 `no-primary-decoration`, errors when a routed page renders the page-header
 Primitive outside PageShell or renders no PageShell. It uses the same
-refuse-disable processor. It is switched on in the last step of the delivery
-branch, once no page breaks it.
+refuse-disable processor, and the CI gate `pnpm lint:primitives` runs it. It is
+switched on in the last step of the delivery branch, once no page breaks it.
 
 **Delivery is one push.** Built step by step on one branch, each step checked in
 a browser by the maintainer, then one merge to staging and prod. A bulk UI
