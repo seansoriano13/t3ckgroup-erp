@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckCircle2, ChevronRight, Paperclip } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Spinner from '@/components/ui/Spinner';
 import Avatar from '../../../../components/Avatar';
-import { EmptyState, LeaveFilters, StatusPill } from './LeaveParts';
+import { EmptyState, StatusPill } from './LeaveParts';
 import { LABEL, TYPE_META, fmtRange, hoursOf, recordKey, relTime, windowOf } from './leaveDisplay';
 
 const COLS = 'grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1fr)_80px]';
@@ -13,9 +13,8 @@ const PAGE_SIZES = [20, 100, 500];
  * The pending queue as one roomy table. A row opens the request's own page;
  * decisions are made there, never from the row.
  */
-export default function PendingList({ rows, total, loading, availableHoursFor, filters, companies, onOpen }) {
+export default function PendingList({ rows, total, loading, availableHoursFor, asc, onOpen }) {
   const [pageSize, setPageSize] = useState(20);
-  const [asc, setAsc] = useState(true);
   const sorted = useMemo(
     () => [...rows].sort((a, b) => (asc ? 1 : -1) * (new Date(a.date) - new Date(b.date))),
     [rows, asc],
@@ -24,18 +23,6 @@ export default function PendingList({ rows, total, loading, availableHoursFor, f
 
   return (
     <div className="flex flex-col gap-5">
-      <LeaveFilters
-        filters={filters}
-        companies={companies}
-        mode="pending"
-        right={
-          <Button type="button" variant="outline" onClick={() => setAsc((v) => !v)} className="h-10 gap-2 px-4 font-semibold">
-            {asc ? <ArrowUpNarrowWide /> : <ArrowDownWideNarrow />}
-            {asc ? 'Soonest first' : 'Latest first'}
-          </Button>
-        }
-      />
-
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="overflow-x-auto">
           <div className="min-w-[720px]">
@@ -56,7 +43,7 @@ export default function PendingList({ rows, total, loading, availableHoursFor, f
             ) : shown.length === 0 ? (
               <EmptyState icon={CheckCircle2} title="Nothing waiting on HR">
                 {total > 0
-                  ? 'Filters hide every request. Clear one in the sidebar or the chips above.'
+                  ? 'Filters hide every request. Clear one above.'
                   : 'Requests land here once a department head approves them.'}
               </EmptyState>
             ) : (

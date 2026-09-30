@@ -2,11 +2,11 @@ import { useMemo } from 'react';
 import { CheckCircle2, ChevronRight, History, XCircle } from 'lucide-react';
 import Spinner from '@/components/ui/Spinner';
 import Avatar from '../../../../components/Avatar';
-import { EmptyState, LeaveFilters, StatusPill } from './LeaveParts';
+import { EmptyState, StatusPill } from './LeaveParts';
 import { TYPE_META, fmtDay, fmtRange, hoursOf, recordKey } from './leaveDisplay';
 
 /** Decisions this period, grouped by the day they were made. Read-only; a row opens the record. */
-export default function HistoryView({ rows, loading, filters, companies, onOpen }) {
+export default function HistoryView({ rows, loading, onOpen }) {
   const sorted = useMemo(() => [...rows].sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || '')), [rows]);
   const days = useMemo(() => {
     const m = new Map();
@@ -20,7 +20,6 @@ export default function HistoryView({ rows, loading, filters, companies, onOpen 
 
   return (
     <div className="flex flex-col gap-8">
-      <LeaveFilters filters={filters} companies={companies} mode="history" />
       {loading ? (
         <div className="flex justify-center py-20"><Spinner size="md" /></div>
       ) : days.length === 0 ? (

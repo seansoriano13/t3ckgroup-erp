@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { CalendarDays, CalendarRange, History, Inbox, Printer, Scale } from 'lucide-react';
+import { CalendarDays, History, Inbox, Printer, Scale } from 'lucide-react';
 import { formatWindow } from '../../../../utils/time';
+import { STATUS_THEME } from '../../../../constants/statusTheme';
 import { recordKey } from './useDocumentCenter';
 
 /** Formatting and small derived views shared by the Leaves Manager's views. */
@@ -11,7 +12,6 @@ export { recordKey };
 export const LEAVE_VIEWS = [
   { value: 'pending', label: 'Pending', icon: Inbox },
   { value: 'calendar', label: 'Calendar', icon: CalendarDays },
-  { value: 'timeline', label: 'Timeline', icon: CalendarRange },
   { value: 'history', label: 'Request History', icon: History },
   { value: 'documents', label: 'Document Center', icon: Printer },
   { value: 'balances', label: 'Employee Balances', icon: Scale },
@@ -26,11 +26,21 @@ export const TYPE_META = {
   UNDERTIME: { label: 'Undertime', chip: 'bg-amber-2 text-amber-11 border-amber-6', dot: 'bg-amber-9', solid: 'bg-amber-9', bar: 'bg-amber-5' },
 };
 
+// A status badge's theme, and the matching dot on the request's activity timeline.
+const THEME_DOT = {
+  [STATUS_THEME.GREEN]: 'bg-green-9',
+  [STATUS_THEME.BLUE]: 'bg-blue-9',
+  [STATUS_THEME.RED]: 'bg-red-9',
+  [STATUS_THEME.AMBER]: 'bg-amber-9',
+  [STATUS_THEME.MAUVE]: 'bg-mauve-9',
+};
+const status = (label, theme) => ({ label, theme, dot: THEME_DOT[theme] });
+
 const STATUS_META = {
-  APPROVED: { label: 'Approved', dot: 'bg-green-9' },
-  APPROVED_OFFSET: { label: 'Approved · Offset', dot: 'bg-green-9' },
-  APPROVED_PAID: { label: 'Approved · Paid OT', dot: 'bg-blue-9' },
-  REJECTED: { label: 'Rejected', dot: 'bg-red-9' },
+  APPROVED: status('Approved', STATUS_THEME.GREEN),
+  APPROVED_OFFSET: status('Approved · Offset', STATUS_THEME.GREEN),
+  APPROVED_PAID: status('Approved · Paid OT', STATUS_THEME.BLUE),
+  REJECTED: status('Rejected', STATUS_THEME.RED),
 };
 
 export const todayIso = () => {
@@ -40,11 +50,14 @@ export const todayIso = () => {
 
 export const isOverdue = (r) => (r.date || '').slice(0, 10) < todayIso();
 
-/** Label + dot color for a record's current state, pending included. */
+/** Label, StatusBadge theme and timeline dot color for a record's current state, pending included. */
 export function statusOf(r) {
-  if (r.status === 'PENDING') return isOverdue(r) ? { label: 'Overdue', dot: 'bg-red-9' } : { label: 'Pending', dot: 'bg-amber-9' };
-  return STATUS_META[r.status] || { label: r.status, dot: 'bg-mauve-9' };
+  if (r.status === 'PENDING') return isOverdue(r) ? status('Overdue', STATUS_THEME.RED) : status('Pending', STATUS_THEME.AMBER);
+  return STATUS_META[r.status] || status(r.status, STATUS_THEME.MAUVE);
 }
+
+/** A balance column as a number; blank or missing counts as zero. */
+export const num = (v) => Number(v) || 0;
 
 export const fmtDay = (v, o = { month: 'short', day: 'numeric' }) => new Date(v).toLocaleDateString('en-US', o);
 

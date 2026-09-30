@@ -24,7 +24,9 @@ const PageHeader = ({
     <div
       className={`flex flex-col gap-3 border-b border-border pb-3 md:flex-row md:items-center md:justify-between ${className}`}
     >
-      <div className="min-w-0">
+      {/* The title column takes what the actions leave, so the description
+          wraps before the actions do. */}
+      <div className="min-w-0 md:min-w-64 md:flex-1">
         <h1 className="flex flex-wrap items-center gap-x-2 text-xl font-black tracking-tight text-foreground md:text-2xl">
           <span>{firstPart}</span>
           {lastWord && showGradient ? (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
@@ -6,11 +6,14 @@ import { employeeService } from '../../../services/employeeService';
 import { companyService, matchesCompanyFilter } from '../../../services/companyService';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Plus } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Building2, CalendarDays, Plus } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
 import { Button } from '@/components/ui/button';
-import PageHeader from '../../../components/ui/PageHeader';
-import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
+import PageShell from '../../../components/ui/PageShell';
+import TabGroup from '../../../components/ui/TabGroup';
+import FilterBar from '../../../components/ui/FilterBar';
+import { FilterSelect } from '../../../components/ui/FilterDropdown';
+import Dot from '../../../components/ui/Dot';
 import ApproveOvertimeModal from '../../../components/offsets/ApproveOvertimeModal';
 import ApproveOffsetModal from '../../../components/offsets/ApproveOffsetModal';
 import ApproveUndertimeModal from '../../../components/offsets/ApproveUndertimeModal';
@@ -24,23 +27,22 @@ import { computeAvailableHours } from '../../../services/leaveRules';
 import VerifiedRecordPreview from '../../../components/verify/VerifiedRecordPreview';
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import LeavesSidebar from './_components/LeavesSidebar';
+import WhoIsOut from './_components/WhoIsOut';
 import PendingList from './_components/PendingList';
-import RecordView from './_components/RecordView';
+import LeaveSheet from './_components/LeaveSheet';
+import ProfileSheet from './_components/ProfileSheet';
 import HistoryView from './_components/HistoryView';
-import TeamTimeline from './_components/TeamTimeline';
+import CalendarTab from './_components/CalendarTab';
 import BalancesTable from './_components/BalancesTable';
 import DocumentCenterTab from './_components/DocumentCenterTab';
-import { recordKey } from './_components/leaveDisplay';
+import { LEAVE_TYPES, LEAVE_VIEWS, TYPE_META } from './_components/leaveDisplay';
+import { useLeaveSheet } from './_components/useLeaveSheet';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('calendar'); // see LEAVE_VIEWS
-  // The request open as its own page, by key, plus the list it was opened
-  // from so the Decision card's arrows can step through that list.
-  const [openRecord, setOpenRecord] = useState(null); // { key, list }
-  
+
   // Date Range State (for FloatingMonthPicker)
   const currentDate = new Date();
   const currentMonthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
@@ -63,23 +65,12 @@ export default function HrLeavesManagerPage() {
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
   const [pendingPeriodFilter, setPendingPeriodFilter] = useState('ALL'); // 'ALL', 'THIS_MONTH', 'NEXT_MONTH', 'OVERDUE'
   const [companyFilter, setCompanyFilter] = useState('ALL'); // company id, 'ALL', or 'NONE'
+  const [pendingAsc, setPendingAsc] = useState(true); // Pending sorts soonest-first
 
   const { data: companies = [] } = useQuery({
     queryKey: ['companies'],
     queryFn: () => companyService.getCompanies(),
   });
-
-  // Manage FloatingMonthPicker visibility
-  useEffect(() => {
-    if (activeTab === 'pending') {
-      window.dispatchEvent(new Event('FLOATING_PICKER_HIDE'));
-    } else {
-      window.dispatchEvent(new Event('FLOATING_PICKER_SHOW'));
-    }
-    return () => {
-      window.dispatchEvent(new Event('FLOATING_PICKER_SHOW'));
-    };
-  }, [activeTab]);
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['hrLeaves', dateRange.startDate, dateRange.endDate],
@@ -247,21 +238,23 @@ export default function HrLeavesManagerPage() {
     );
   }, [user?.id, queryClient]);
 
-  const filteredPending = useMemo(() => {
-    return pendingLeaves.filter(req => {
-      if (leaveTypeFilter !== 'ALL' && req.type !== leaveTypeFilter) return false;
-      if (searchQuery) {
-        const empName = (req.employee?.name || '').toLowerCase();
-        if (!empName.includes(searchQuery.toLowerCase())) return false;
-      }
+  // Search, company and (for Pending) period narrow a list first; the type
+  // pills then slice what is left, so their counts always add up to "All".
+  const matchesSearch = useCallback(
+    (req) => !searchQuery || (req.employee?.name || '').toLowerCase().includes(searchQuery.toLowerCase()),
+    [searchQuery],
+  );
+  const byType = useCallback(
+    (list) => (leaveTypeFilter === 'ALL' ? list : list.filter(req => req.type === leaveTypeFilter)),
+    [leaveTypeFilter],
+  );
 
-      if (pendingPeriodFilter !== 'ALL') {
-        if (!isRequestInPendingPeriod(req.date, pendingPeriodFilter)) return false;
-      }
-      if (!matchesCompanyFilter(req.company_id, companyFilter)) return false;
-      return true;
-    });
-  }, [pendingLeaves, leaveTypeFilter, searchQuery, pendingPeriodFilter, companyFilter]);
+  const pendingScoped = useMemo(() => pendingLeaves.filter(req => {
+    if (!matchesSearch(req)) return false;
+    if (pendingPeriodFilter !== 'ALL' && !isRequestInPendingPeriod(req.date, pendingPeriodFilter)) return false;
+    return matchesCompanyFilter(req.company_id, companyFilter);
+  }), [pendingLeaves, matchesSearch, pendingPeriodFilter, companyFilter]);
+  const filteredPending = useMemo(() => byType(pendingScoped), [byType, pendingScoped]);
 
   // Every employee's total hours already committed to pending applications,
   // by leave type — computed from the full pending queue (not the filtered
@@ -284,17 +277,11 @@ export default function HrLeavesManagerPage() {
     return computeAvailableHours(balance, pending);
   }, [pendingHoursByEmployee]);
 
-  const filteredProcessed = useMemo(() => {
-    return processedLeaves.filter(req => {
-      if (leaveTypeFilter !== 'ALL' && req.type !== leaveTypeFilter) return false;
-      if (searchQuery) {
-        const empName = (req.employee?.name || '').toLowerCase();
-        if (!empName.includes(searchQuery.toLowerCase())) return false;
-      }
-      if (!matchesCompanyFilter(req.company_id, companyFilter)) return false;
-      return true;
-    });
-  }, [processedLeaves, leaveTypeFilter, searchQuery, companyFilter]);
+  const processedScoped = useMemo(
+    () => processedLeaves.filter(req => matchesSearch(req) && matchesCompanyFilter(req.company_id, companyFilter)),
+    [processedLeaves, matchesSearch, companyFilter],
+  );
+  const filteredProcessed = useMemo(() => byType(processedScoped), [byType, processedScoped]);
 
   const filteredBalances = useMemo(() => {
     let list = employeeBalances;
@@ -309,13 +296,6 @@ export default function HrLeavesManagerPage() {
     () => filteredProcessed.filter(r => r.status.startsWith('APPROVED')),
     [filteredProcessed]
   );
-
-  const filters = {
-    searchQuery, setSearchQuery,
-    leaveTypeFilter, setLeaveTypeFilter,
-    companyFilter, setCompanyFilter,
-    pendingPeriodFilter, setPendingPeriodFilter,
-  };
 
   const overlays = (
     <>
@@ -345,11 +325,6 @@ export default function HrLeavesManagerPage() {
           onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
         />
 
-        <FloatingMonthPicker
-          selectedRange={dateRange}
-          onChange={setDateRange}
-        />
-
         <ApplyLeaveModal
           isOpen={isApplyModalOpen}
           onClose={() => setIsApplyModalOpen(false)}
@@ -359,21 +334,18 @@ export default function HrLeavesManagerPage() {
     </>
   );
 
-  const header = (
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <PageHeader
-          title="Leaves Manager"
-          description="Review leave applications, approve overtime, and manage employee balances."
-        />
-        <Button
-          type="button"
-          onClick={() => setIsApplyModalOpen(true)}
-          className="flex-none h-auto bg-foreground text-background font-black px-5 py-2.5 rounded-xl shadow-sm border border-border/10 hover:bg-foreground/90 uppercase tracking-widest text-xs"
-        >
-          <Plus size={16} />
-          File for Employee
-        </Button>
-      </div>
+  // Pending is every open request whatever its date, and balances are as of
+  // today, so only the period views take the month.
+  const usesPeriod = activeTab !== 'pending' && activeTab !== 'balances';
+  const action = (
+    <>
+      {usesPeriod && <FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} />}
+      <WhoIsOut approvedLeaves={approvedLeaves} />
+      <Button type="button" onClick={() => setIsApplyModalOpen(true)}>
+        <Plus size={16} />
+        File for Employee
+      </Button>
+    </>
   );
 
   const previewDialog = (
@@ -389,49 +361,47 @@ export default function HrLeavesManagerPage() {
       </Dialog>
   );
 
-  const openFrom = (record, list) => setOpenRecord({ key: recordKey(record), list });
+  const requests = useMemo(() => [...pendingLeaves, ...processedLeaves], [pendingLeaves, processedLeaves]);
+  const sheet = useLeaveSheet({
+    requests,
+    employeeBalances,
+    pendingView: filteredPending,
+    historyView: filteredProcessed,
+  });
+  const openFrom = (request, list) => sheet.openRequest(request, list);
+
+  // A shared link lands on the view its record belongs to (the first time one opens).
+  const [landed, setLanded] = useState(false);
+  if (!landed && sheet.view) {
+    setLanded(true);
+    if (sheet.view !== activeTab) setActiveTab(sheet.view);
+  }
+  // Switching view closes the open slide-over, so `?record=` never outlives its list.
   const changeView = (view) => {
-    setOpenRecord(null);
+    sheet.close();
     setActiveTab(view);
   };
 
-  // Resolve the open request from live data, so it reflects a decision the
-  // moment the queries refetch (a pending request reappears as decided).
-  const openList = openRecord?.list.map((r) => [...pendingLeaves, ...processedLeaves].find((x) => recordKey(x) === recordKey(r)) || r);
-  const record = openRecord && [...pendingLeaves, ...processedLeaves].find((r) => recordKey(r) === openRecord.key);
+  // A modal (hours, preview) opens over a hidden slide-over instead of a second
+  // focus trap; the slide-over comes back if the modal is cancelled.
+  const modalOpen = !!(offsetApproval || overtimeApproval || undertimeApproval || previewToken);
 
   let view;
-  if (record) {
-    view = (
-      <RecordView
-        record={record}
-        list={openList}
-        onStep={(r) => openFrom(r, openRecord.list)}
-        onBack={() => setOpenRecord(null)}
-        handleAction={handleAction}
-        handleUndo={handleUndo}
-        setPreviewToken={setPreviewToken}
-        availableHoursFor={availableHoursFor}
-      />
-    );
-  } else if (activeTab === 'pending') {
+  if (activeTab === 'pending') {
     view = (
       <PendingList
         rows={filteredPending}
         total={pendingLeaves.length}
         loading={loading}
         availableHoursFor={availableHoursFor}
-        filters={filters}
-        companies={companies}
+        asc={pendingAsc}
         onOpen={openFrom}
       />
     );
   } else if (activeTab === 'calendar') {
-    view = <NotionLeaveCalendar approvedLeaves={approvedLeaves} targetDate={dateRange.startDate} canViewAllReasons />;
-  } else if (activeTab === 'timeline') {
-    view = <TeamTimeline approvedLeaves={approvedLeaves} pendingLeaves={pendingLeaves} monthStart={dateRange.startDate} />;
+    view = <CalendarTab approvedLeaves={approvedLeaves} pendingLeaves={pendingLeaves} monthStart={dateRange.startDate} />;
   } else if (activeTab === 'history') {
-    view = <HistoryView rows={filteredProcessed} loading={loading} filters={filters} companies={companies} onOpen={openFrom} />;
+    view = <HistoryView rows={filteredProcessed} loading={loading} onOpen={openFrom} />;
   } else if (activeTab === 'documents') {
     view = (
       <DocumentCenterTab
@@ -446,38 +416,140 @@ export default function HrLeavesManagerPage() {
       <BalancesTable
         employees={filteredBalances}
         pendingLeaves={pendingLeaves}
-        processedLeaves={processedLeaves}
-        filters={filters}
-        companies={companies}
-        onReview={(r, list) => { setActiveTab('pending'); openFrom(r, list); }}
+        onOpenPerson={sheet.openPerson}
       />
     );
   }
 
-  // Full-bleed page (see _app.jsx): the view sidebar sits flush on the panel
-  // edge and the content column carries the normal page padding itself.
+  // Level 1 switches the view; level 2 slices the list by type. Search and
+  // company narrow the lists (and the level-2 counts), Pending adds a period
+  // and a sort. Calendar (Month | People) and Documents bring their own controls.
+  const isList = activeTab === 'pending' || activeTab === 'history';
+  const typeScope = activeTab === 'history' ? processedScoped : pendingScoped;
+  const typeCounts = LEAVE_TYPES.reduce((m, t) => ({ ...m, [t]: typeScope.filter(r => r.type === t).length }), {});
+  const filtersActive = !!searchQuery || companyFilter !== 'ALL' || (activeTab === 'pending' && pendingPeriodFilter !== 'ALL') || (isList && leaveTypeFilter !== 'ALL');
+  const clearFilters = () => {
+    setSearchQuery('');
+    setCompanyFilter('ALL');
+    setPendingPeriodFilter('ALL');
+    setLeaveTypeFilter('ALL');
+  };
+  const chipClass = 'h-9 w-auto gap-2 px-2.5';
+
+  const typeTabs = isList && (
+    <TabGroup
+      variant="pill"
+      size="sm"
+      activeTab={leaveTypeFilter}
+      onChange={setLeaveTypeFilter}
+      tabs={[
+        { value: 'ALL', label: 'All', badge: typeScope.length },
+        ...LEAVE_TYPES.map((t) => ({
+          value: t,
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              <Dot color={TYPE_META[t].dot} />
+              {TYPE_META[t].label}
+            </span>
+          ),
+          badge: typeCounts[t],
+        })),
+      ]}
+    />
+  );
+
+  const hasToolbar = (activeTab === 'pending' || activeTab === 'history' || activeTab === 'balances');
+  const toolbar = hasToolbar && (
+    <>
+      {typeTabs}
+      <FilterBar
+        search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search employees' }}
+        chips={
+          <>
+            <FilterSelect
+              icon={Building2}
+              label="Company"
+              value={companyFilter}
+              onChange={setCompanyFilter}
+              options={[
+                { value: 'ALL', label: 'All companies' },
+                { value: 'NONE', label: 'No company set' },
+                ...companies.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              className={chipClass}
+              wrapperClassName="w-auto shrink-0"
+            />
+            {activeTab === 'pending' && (
+              <FilterSelect
+                icon={CalendarDays}
+                label="Date"
+                value={pendingPeriodFilter}
+                onChange={setPendingPeriodFilter}
+                options={[
+                  { value: 'ALL', label: 'Any date' },
+                  { value: 'THIS_MONTH', label: 'This month' },
+                  { value: 'NEXT_MONTH', label: 'Next month' },
+                  { value: 'OVERDUE', label: 'Overdue' },
+                ]}
+                className={chipClass}
+                wrapperClassName="w-auto shrink-0"
+              />
+            )}
+          </>
+        }
+        hasActiveFilters={filtersActive}
+        onClearAll={clearFilters}
+        actions={activeTab === 'pending' && (
+          <Button type="button" variant="outline" size="lg" onClick={() => setPendingAsc((v) => !v)} className="gap-2 sm:ml-auto">
+            {pendingAsc ? <ArrowUpNarrowWide /> : <ArrowDownWideNarrow />}
+            {pendingAsc ? 'Soonest first' : 'Latest first'}
+          </Button>
+        )}
+      />
+    </>
+  );
+
   return (
     <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
       {overlays}
-      <div className="flex h-full min-h-0 flex-col lg:flex-row">
-        <LeavesSidebar
-          activeTab={activeTab}
-          onChange={changeView}
-          pendingLeaves={pendingLeaves}
-          processedLeaves={processedLeaves}
-          approvedLeaves={approvedLeaves}
-          filters={filters}
-          companies={companies}
-        />
-        <div className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-10 sm:px-10">
-            {header}
-            <div key={record ? `record-${openRecord.key}` : activeTab} className="animate-in fade-in duration-200">
-              {view}
-            </div>
-          </div>
+      <PageShell
+        title="Leaves Manager"
+        description="Review leave applications, approve overtime, and manage employee balances."
+        action={action}
+        tabs={
+          <TabGroup
+            variant="underline"
+            size="md"
+            activeTab={activeTab}
+            onChange={changeView}
+            tabs={LEAVE_VIEWS.map((v) => (v.value === 'pending' ? { ...v, badge: pendingLeaves.length } : v))}
+          />
+        }
+        toolbar={toolbar}
+      >
+        <div key={activeTab} className="animate-in fade-in duration-200">
+          {view}
         </div>
-      </div>
+      </PageShell>
+
+      <LeaveSheet
+        record={modalOpen ? null : sheet.request}
+        crumb={sheet.crumb}
+        index={sheet.stepIndex}
+        total={sheet.stepList.length}
+        onStep={sheet.stepBy}
+        onClose={sheet.closeRequest}
+        actions={{ decide: handleAction, undo: handleUndo, preview: setPreviewToken }}
+        availableHoursFor={availableHoursFor}
+      />
+      <ProfileSheet
+        person={modalOpen ? null : sheet.person}
+        held={(type) => (sheet.person ? pendingHoursByEmployee.get(`${sheet.person.id}_${type}`) || 0 : 0)}
+        pending={sheet.person ? pendingLeaves.filter((r) => r.employee_id === sheet.person.id) : []}
+        decided={sheet.person ? processedLeaves.filter((r) => r.employee_id === sheet.person.id) : []}
+        onClose={sheet.close}
+        onReview={(request, list) => sheet.openRequest(request, list, { fromPersonId: sheet.person.id })}
+      />
       {previewDialog}
     </ProtectedRoute>
   );
