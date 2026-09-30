@@ -30,7 +30,7 @@ export function Segmented({ options, value, onChange, label }) {
 }
 
 export function PeriodField({ value, onChange }) {
-  return <SelectField aria-label="Period" value={value} onChange={onChange} options={DATE_PRESETS} className="h-8 min-w-[150px] text-xs font-semibold" />;
+  return <SelectField aria-label="Period" value={value} onChange={onChange} options={DATE_PRESETS} className="data-[size=default]:h-8 min-w-[150px] text-xs font-semibold" />;
 }
 
 export function ProjectTypeSwitch({ value, onChange }) {
