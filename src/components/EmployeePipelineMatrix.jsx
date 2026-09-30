@@ -168,11 +168,8 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
     <div className="bg-card border border-border rounded-2xl shadow-sm p-5 overflow-x-auto">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 tracking-tight">
-            <div className="w-10 h-10 rounded-xl bg-mauve-2 flex items-center justify-center text-mauve-11 shadow-sm border border-mauve-4">
-              <Activity size={18} />
-            </div>
-            Team Pipeline Radar
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            Team pipeline radar
           </h2>
           <p className="text-sm text-mauve-10  mt-0.5">
             {isHr ? "Performance metrics" : "Performance metrics"} •{" "}

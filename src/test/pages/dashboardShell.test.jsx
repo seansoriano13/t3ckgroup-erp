@@ -20,7 +20,7 @@ vi.mock("@/context/AuthContext", () => ({
 
 const headerOf = (heading) => heading.closest("div.border-b");
 const noGradient = (container) =>
-  expect(container.innerHTML).not.toMatch(/bg-linear|bg-gradient|from-[a-z]+-a4/);
+  expect(container.innerHTML).not.toMatch(/bg-linear|bg-gradient|\bfrom-|blur-/);
 
 describe("Dashboard on PageShell", () => {
   beforeEach(() => {

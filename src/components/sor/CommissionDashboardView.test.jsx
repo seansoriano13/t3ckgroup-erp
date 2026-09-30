@@ -132,7 +132,7 @@ describe("CommissionDashboardView", () => {
       const { container } = renderView();
 
       await screen.findByText("₱24,642.86");
-      expect(container.innerHTML).not.toMatch(/bg-linear|bg-gradient/);
+      expect(container.innerHTML).not.toMatch(/bg-linear|bg-gradient|from-|blur-/);
     });
   });
 

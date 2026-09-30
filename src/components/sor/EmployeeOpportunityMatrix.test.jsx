@@ -84,7 +84,7 @@ describe("EmployeeOpportunityMatrix", () => {
       <EmployeeOpportunityMatrix opportunities={mockOpportunities} />,
     );
 
-    expect(screen.getByText("Team Opportunity Radar")).toBeInTheDocument();
+    expect(screen.getByText("Team opportunity radar")).toBeInTheDocument();
     expect(screen.getByText("2 salespeople")).toBeInTheDocument();
     expect(screen.getByText("Juan Dela Cruz")).toBeInTheDocument();
     expect(screen.getByText("Maria Santos")).toBeInTheDocument();

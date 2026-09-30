@@ -61,7 +61,7 @@ describe("Retail page", () => {
     // Total sales and This month both read 4,000; the average order is 2,000.
     expect((await screen.findAllByText(formatPHP(4000))).length).toBeGreaterThan(0);
     expect(screen.getByText(formatPHP(2000))).toBeInTheDocument();
-        expect(screen.getByText("Orders")).toBeInTheDocument();
+    expect(screen.getByText("Orders")).toBeInTheDocument();
   });
 
   it("leaves out a quotation, a cancelled order and one dismissed in the old queue", async () => {

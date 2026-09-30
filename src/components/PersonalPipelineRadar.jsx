@@ -6,6 +6,7 @@ import { Activity, TrendingUp, Star } from "lucide-react";
 import { TASK_STATUS } from "../constants/status";
 import Avatar from "./Avatar";
 import ReportFigure from "./ui/ReportFigure";
+import EmptyState from "./ui/EmptyState";
 import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router";
 
@@ -74,17 +75,12 @@ export default function PersonalPipelineRadar({ selectedRange }) {
 
   if (!stats || stats.total === 0) {
     return (
-      <div className="bg-card border border-border rounded-3xl p-8 text-center">
-        <Activity className="mx-auto text-mauve-5 mb-3" size={32} />
-        <p className="text-sm font-semibold text-foreground">
-          No tasks recorded for this period
-        </p>
-      </div>
+      <EmptyState icon={Activity} title="No tasks recorded for this period" />
     );
   }
 
   return (
-    <div className="bg-card border border-mauve-6 rounded-3xl shadow-xl overflow-hidden relative">
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden relative">
       <div className="p-6 sm:p-8 relative z-10">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
           <div>
@@ -136,8 +132,8 @@ export default function PersonalPipelineRadar({ selectedRange }) {
 
         <div className="space-y-3 mb-6">
           <div className="flex justify-between items-end">
-            <span className="text-xs font-black text-mauve-10 uppercase tracking-widest">
-              Task Distribution
+            <span className="text-sm font-semibold text-foreground">
+              Task distribution
             </span>
             <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
               {stats.total} Total Tasks

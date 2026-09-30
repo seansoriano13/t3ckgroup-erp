@@ -2,7 +2,9 @@ import { useMemo } from "react";
 import { useLocation, useSearchParams } from "react-router";
 import PageShell from "../ui/PageShell";
 import TabGroup from "../ui/TabGroup";
+import { AlertCircle } from "lucide-react";
 import Spinner from "../ui/Spinner";
+import EmptyState from "../ui/EmptyState";
 import { colourDepartments } from "./commission/commissionView";
 import { useCommissionDashboard } from "./commission/useCommissionDashboard";
 import { PeriodField, Segmented } from "./commission/parts";
@@ -41,10 +43,7 @@ export default function CommissionDashboardView() {
       <p className="text-sm text-muted-foreground">Adding up the Commission Pool…</p>
     </div>
   ) : access.error ? (
-    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
-      <p className="font-semibold text-destructive">Couldn&apos;t load the Commission Pool</p>
-      <p className="mt-1 text-sm text-muted-foreground">{access.error.message}</p>
-    </div>
+    <EmptyState icon={AlertCircle} title="Couldn't load the Commission Pool" description={access.error.message} />
   ) : tab === "pool" ? (
     <PoolTab key={linkedDealId ?? "pool"} access={{ ...access, dashboard: access.dashboard ?? {} }} departments={departments} initialDealId={linkedDealId} />
   ) : (
