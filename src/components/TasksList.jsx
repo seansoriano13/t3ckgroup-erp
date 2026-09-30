@@ -208,14 +208,14 @@ export default function TasksList({ selectedRange }) {
       {/* SECTION 1: MY PERSONAL TASKS (Visible to Everyone) */}
       <section className="space-y-6">
         <SectionHeader
-          icon={User}
-          title="Personal Pipeline"
-          description="Your Private Task Queue"
+          title="Personal pipeline"
+          description="Your private task queue"
           rangeLabel={selectedRange?.label}
         >
           <Button
             variant="ghost"
-            className="text-muted-foreground font-bold uppercase tracking-widest text-[10px]"
+            className="text-muted-foreground"
+            size="sm"
             asChild
           >
             <Link to="/tasks">View All</Link>
@@ -264,7 +264,7 @@ export default function TasksList({ selectedRange }) {
                               : getStatusColorAlpha(getStatusTheme(TASK_STATUS.INCOMPLETE))
                       }
                     />
-                    <h3 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                    <h3 className="text-sm font-semibold text-foreground">
                       {statusKey === "COMPLETE_VERIFIED"
                         ? "HR Verified"
                         : statusKey === "COMPLETE_UNVERIFIED"
@@ -319,17 +319,17 @@ export default function TasksList({ selectedRange }) {
       {isManagement && (
         <section className="mt-8 border-t border-border pt-8">
           <SectionHeader
-            icon={Activity}
-            title={isHr ? "Organization Hub" : "Team Performance"}
+            title={isHr ? "Organization hub" : "Team performance"}
             description={
-              isHr ? "Full Spectrum Oversight" : `${userSubDept} Radar`
+              isHr ? "Full spectrum oversight" : `${userSubDept} radar`
             }
             rangeLabel={selectedRange?.label}
             className="mb-8"
           >
             <Button
               variant="ghost"
-              className="text-muted-foreground font-bold uppercase tracking-widest text-[10px]"
+              className="text-muted-foreground"
+              size="sm"
               asChild
             >
               <Link to="/tasks">Task Directory</Link>
@@ -340,9 +340,9 @@ export default function TasksList({ selectedRange }) {
             {/* LEFT: LIVE ACTIVITY TICKER (Takes up 2/3 of the space) */}
             <div className="lg:col-span-2 bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
               <div className="bg-muted/30 border-b border-border p-5">
-                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2">
-                  <Clock size={14} className="text-mauve-9" />
-                  <p className="text-mauve-9">Executive Feed</p>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Clock size={14} className="text-muted-foreground" />
+                  Executive feed
                 </h3>
               </div>
               <div className="divide-y divide-border/50">
@@ -413,9 +413,9 @@ export default function TasksList({ selectedRange }) {
             {/* RIGHT: MINI ANALYTICS / QUICK INSIGHTS */}
             <div className="bg-card border border-border rounded-2xl shadow-sm p-6 flex flex-col gap-8">
               <div>
-                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2 mb-6">
-                  <TrendingUp size={14} className="text-mauve-8" />
-                  <p>Pipeline Analytics</p>
+                <h3 className="mb-6 flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <TrendingUp size={14} className="text-muted-foreground" />
+                  Pipeline analytics
                 </h3>
 
                 {/* Pre-calculate the buckets so the JSX stays perfectly clean */}

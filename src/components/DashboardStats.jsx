@@ -1,23 +1,10 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  CheckCircle2,
-  Clock,
-  Activity,
-  AlertCircle,
-  ShieldAlert,
-  XCircle,
-  Database,
-  UserCheck,
-  TriangleAlert,
-  Briefcase,
-} from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { taskService } from "../services/taskService.js";
 import { TASK_STATUS } from "../constants/status.js";
-import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router";
-import StatCard from "./StatCard.jsx";
+import ReportFigure from "./ui/ReportFigure.jsx";
 
 export default function DashboardStats({ selectedRange }) {
   const { user } = useAuth();
@@ -199,214 +186,36 @@ export default function DashboardStats({ selectedRange }) {
     );
   }
 
-  return (
-    <div
-      className={`grid gap-4 md:gap-6 ${isHr || isHead ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-4"}`}
-    >
-      {/* --- EMPLOYEE VIEW --- */}
-      {!isManagement && (
-        <>
-          <StatCard
-            title="Incomplete"
-            value={stats.myPending}
-            subtitle="In Progress"
-            icon={<Clock size={20} className="text-orange-6" />}
-            color="orange"
-          />
-          <StatCard
-            title="Awaiting Approval"
-            value={stats.myPendingApproval}
-            subtitle="Needs Approval"
-            icon={<Clock size={20} className="text-violet-8" />}
-            color="violet"
-            onClick={() =>
-              navigate("/tasks", {
-                state: {
-                  presetFilter: { status: TASK_STATUS.AWAITING_APPROVAL },
-                },
-              })
-            }
-          />
-          <StatCard
-            title="Completed"
-            value={stats.myPendingHr}
-            subtitle="Pending HR"
-            icon={<ShieldAlert size={20} className="text-blue-8" />}
-            color="blue"
-            onClick={() =>
-              navigate("/tasks", {
-                state: { presetFilter: { status: TASK_STATUS.COMPLETE } },
-              })
-            }
-          />
-          <StatCard
-            title="HR Verified"
-            value={stats.myCompleted}
-            subtitle="HR Approved"
-            icon={<CheckCircle2 size={20} className="text-green-8" />}
-            color="emerald"
-            onClick={() =>
-              navigate("/tasks", {
-                state: { presetFilter: { status: TASK_STATUS.COMPLETE } },
-              })
-            }
-          />
-        </>
-      )}
+  const toTasks = (status) => () =>
+    navigate("/tasks", { state: { presetFilter: { status } } });
 
-      {/* --- HEAD VIEW --- */}
-      {isHead && !isHr && (
-        <>
-            <>
-              <StatCard
-                title="Incomplete"
-                value={stats.teamInProgress}
-                subtitle="In Progress"
-                icon={<Activity size={20} className="text-orange-8" />}
-                color="orange"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: { presetFilter: { status: TASK_STATUS.INCOMPLETE } },
-                  })
-                }
-              />
-              <StatCard
-                title="Awaiting Approval"
-                value={stats.teamAwaitingApproval}
-                subtitle="Needs Your Review"
-                icon={<UserCheck size={20} className="text-violet-8" />}
-                color="violet"
-                onClick={() => navigate("/approvals/tasks")}
-              />
-              <StatCard
-                title="Returned"
-                value={stats.teamRejected}
-                subtitle="Needs Fixing"
-                icon={<XCircle size={20} className="text-red-8" />}
-                color="destructive"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: {
-                      presetFilter: { status: TASK_STATUS.NOT_APPROVED },
-                    },
-                  })
-                }
-              />
-              <StatCard
-                title="Completed"
-                value={stats.teamPendingHr}
-                subtitle="Pending HR"
-                icon={<Clock size={20} className="text-blue-8" />}
-                color="blue"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: { presetFilter: { status: TASK_STATUS.COMPLETE } },
-                  })
-                }
-              />
-              <StatCard
-                title="HR Verified"
-                value={stats.teamCompleted}
-                subtitle="HR Approved"
-                icon={<CheckCircle2 size={20} className="text-green-8" />}
-                color="emerald"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: { presetFilter: { status: TASK_STATUS.COMPLETE } },
-                  })
-                }
-              />
-              <StatCard
-                title="All Tasks"
-                value={stats.teamAllTasks}
-                subtitle="Dept Output this Month"
-                icon={<Database size={20} className="text-foreground" />}
-                color="mauve"
-                onClick={() => navigate("/tasks")}
-              />
-            </>
-        </>
-      )}
+  let items;
+  if (isHr) {
+    items = [
+      { label: "Incomplete", value: stats.hrInProgress, sub: "In progress", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
+      { label: "Overdue — not submitted", value: stats.hrOverdueUnsubmitted, sub: "Employee action needed", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
+      { label: "Awaiting approval", value: stats.hrAwaitingHead, sub: "Needs approval", onClick: toTasks(TASK_STATUS.AWAITING_APPROVAL) },
+      { label: "Completed", value: stats.hrPendingVerification, sub: "Pending HR", onClick: toTasks(TASK_STATUS.COMPLETE) },
+      { label: "Returned", value: stats.hrRejected, sub: "Needs fixing", onClick: toTasks(TASK_STATUS.NOT_APPROVED) },
+      { label: "All tasks", value: stats.hrAllTasks, sub: "Org output this month", onClick: () => navigate("/tasks") },
+    ];
+  } else if (isHead) {
+    items = [
+      { label: "Incomplete", value: stats.teamInProgress, sub: "In progress", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
+      { label: "Awaiting approval", value: stats.teamAwaitingApproval, sub: "Needs your review", onClick: () => navigate("/approvals/tasks") },
+      { label: "Returned", value: stats.teamRejected, sub: "Needs fixing", onClick: toTasks(TASK_STATUS.NOT_APPROVED) },
+      { label: "Completed", value: stats.teamPendingHr, sub: "Pending HR", onClick: toTasks(TASK_STATUS.COMPLETE) },
+      { label: "HR verified", value: stats.teamCompleted, sub: "HR approved", onClick: toTasks(TASK_STATUS.COMPLETE) },
+      { label: "All tasks", value: stats.teamAllTasks, sub: "Dept output this month", onClick: () => navigate("/tasks") },
+    ];
+  } else {
+    items = [
+      { label: "Incomplete", value: stats.myPending, sub: "In progress" },
+      { label: "Awaiting approval", value: stats.myPendingApproval, sub: "Needs approval", onClick: toTasks(TASK_STATUS.AWAITING_APPROVAL) },
+      { label: "Completed", value: stats.myPendingHr, sub: "Pending HR", onClick: toTasks(TASK_STATUS.COMPLETE) },
+      { label: "HR verified", value: stats.myCompleted, sub: "HR approved", onClick: toTasks(TASK_STATUS.COMPLETE) },
+    ];
+  }
 
-      {/* --- HR VIEW --- */}
-      {isHr && (
-        <>
-            <>
-              <StatCard
-                title="Incomplete"
-                value={stats.hrInProgress}
-                subtitle="In Progress"
-                icon={<Activity size={20} className="text-orange-8" />}
-                color="orange"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: { presetFilter: { status: TASK_STATUS.INCOMPLETE } },
-                  })
-                }
-              />
-              <StatCard
-                title="Overdue — Not Submitted"
-                value={stats.hrOverdueUnsubmitted}
-                subtitle="Employee action needed"
-                icon={<TriangleAlert size={20} className="text-amber-8" />}
-                color="amber"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: { presetFilter: { status: TASK_STATUS.INCOMPLETE } },
-                  })
-                }
-              />
-              <StatCard
-                title="Awaiting Approval"
-                value={stats.hrAwaitingHead}
-                subtitle="Needs Approval"
-                icon={<UserCheck size={20} className="text-violet-8" />}
-                color="violet"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: {
-                      presetFilter: { status: TASK_STATUS.AWAITING_APPROVAL },
-                    },
-                  })
-                }
-              />
-              <StatCard
-                title="Completed"
-                value={stats.hrPendingVerification}
-                subtitle="Pending HR"
-                icon={<ShieldAlert size={20} className="text-blue-8" />}
-                color="blue"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: { presetFilter: { status: TASK_STATUS.COMPLETE } },
-                  })
-                }
-              />
-              <StatCard
-                title="Returned"
-                value={stats.hrRejected}
-                subtitle="Needs Fixing"
-                icon={<XCircle size={20} className="text-red-8" />}
-                color="destructive"
-                onClick={() =>
-                  navigate("/tasks", {
-                    state: {
-                      presetFilter: { status: TASK_STATUS.NOT_APPROVED },
-                    },
-                  })
-                }
-              />
-              <StatCard
-                title="All Tasks"
-                value={stats.hrAllTasks}
-                subtitle="Org Output this Month"
-                icon={<Database size={20} className="text-foreground" />}
-                color="mauve"
-                onClick={() => navigate("/tasks")}
-              />
-            </>
-        </>
-      )}
-    </div>
-  );
+  return <ReportFigure stats={items} />;
 }

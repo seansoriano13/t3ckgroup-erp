@@ -2,50 +2,23 @@ import React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Standard Section Header component following the "Personal Pipeline" style.
- * Includes an icon box, title with optional range label, and subtitle.
+ * A section heading inside a Page (DESIGN.md "Pages → Section headings"): a
+ * Sentence-case title, an optional one-line description, the section's actions
+ * on the right. `rangeLabel` trails the title when the section follows the
+ * Page's time range.
  */
-const SectionHeader = ({
-  icon: Icon,
-  title,
-  description,
-  rangeLabel,
-  children,
-  className,
-  bgIcon: BgIcon,
-}) => {
+const SectionHeader = ({ title, description, rangeLabel, children, className }) => {
   return (
-    <div className={cn("flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border pb-6 relative overflow-hidden", className)}>
-      {BgIcon && (
-        <div className="absolute top-0 right-0 opacity-5 pointer-events-none">
-          <BgIcon size={80} />
-        </div>
-      )}
-      
-      <div className="relative z-10 flex items-center gap-3">
-        {Icon && (
-          <div className="w-10 h-10 rounded-xl bg-mauve-2 flex items-center justify-center text-mauve-11 shadow-sm border border-mauve-4">
-            <Icon size={20} />
-          </div>
-        )}
-        <div className="flex flex-col space-y-0.5">
-          <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
-            {title}
-            {rangeLabel && (
-              <span className="text-muted-foreground font-medium text-lg">— {rangeLabel}</span>
-            )}
-          </h2>
-          <p className="text-sm font-medium text-muted-foreground">
-            {description}
-          </p>
-        </div>
+    <div className={cn("flex flex-col justify-between gap-3 border-b border-border pb-3 md:flex-row md:items-end", className)}>
+      <div className="min-w-0">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+          {title}
+          {rangeLabel && <span className="font-normal text-muted-foreground">— {rangeLabel}</span>}
+        </h2>
+        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
       </div>
-      
-      {children && (
-        <div className="relative z-10 flex items-center gap-3 shrink-0 flex-wrap">
-          {children}
-        </div>
-      )}
+
+      {children && <div className="flex shrink-0 flex-wrap items-center gap-3">{children}</div>}
     </div>
   );
 };

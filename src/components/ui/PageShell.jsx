@@ -4,7 +4,8 @@ import PageHeader from "./PageHeader";
 /**
  * The Page skeleton (ADR 0029, DESIGN.md "Pages → PageShell").
  *
- * Slots render in one fixed order — header (title, description, `action`),
+ * Slots render in one fixed order — `banner` (only the Dashboard's greeting),
+ * header (title, description, `action`),
  * `tabs` (level 1), `toolbar` (level 2 pills, filter bar, display toggle),
  * body — whatever order a Page passes them in. A Page cannot reorder them.
  *
@@ -20,6 +21,7 @@ import PageHeader from "./PageHeader";
 export default function PageShell({
   title,
   description,
+  banner,
   action,
   tabs,
   toolbar,
@@ -38,6 +40,7 @@ export default function PageShell({
       spaceY="4"
       className={className}
     >
+      {banner && <div className={pinned}>{banner}</div>}
       <PageHeader title={title} description={description}>
         {action}
       </PageHeader>

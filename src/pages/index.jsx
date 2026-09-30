@@ -14,8 +14,7 @@ import FloatingMonthPicker from "../components/FloatingMonthPicker.jsx";
 import SystemUpdateBanner from "../components/SystemUpdateBanner.jsx";
 import PersonalizedHeroBanner from "../components/PersonalizedHeroBanner.jsx";
 import GroupTasksList from "../components/GroupTasksList.jsx";
-import PageHeader from "../components/ui/PageHeader";
-import PageContainer from "../components/ui/PageContainer";
+import PageShell from "../components/ui/PageShell";
 import { useTableRealtime } from "../hooks/useTableRealtime.js";
 
 export default function Dashboard() {
@@ -48,56 +47,47 @@ export default function Dashboard() {
     }),
   });
 
+  const isHead = user?.is_head || user?.isHead;
+
   return (
     <ProtectedRoute>
-      <PageContainer spaceY="10" className="pt-4">
-        <SystemUpdateBanner />
-        <PersonalizedHeroBanner />
-
-        {/* PIPELINE SECTION */}
-        <div className="relative">
-          <PageHeader
-            title={
-              user?.is_head || user?.isHead
-                ? "Accomplishment Report"
-                : "Private Workflow"
-            }
-            description={
-              user?.is_head || user?.isHead
-                ? "Executive Performance Governance"
-                : "Personal Execution Roadmap"
-            }
-          >
-            {globalRange?.label && (
-              <span className="text-mauve-11 font-bold px-3 py-1 bg-mauve-2 border border-mauve-4 rounded-xl text-lg md:text-xl shrink-0 shadow-sm">
-                — {globalRange.label}
-              </span>
-            )}
-            <FloatingMonthPicker
-              selectedRange={globalRange}
-              onChange={setGlobalRange}
-            />
-          </PageHeader>
-
-          <div className="grid gap-14 relative mt-10">
-            {isPrivileged ? (
-              <>
-                <DashboardStats selectedRange={globalRange} />
-                <EmployeePipelineMatrix selectedRange={globalRange} />
-                <EmployeeOpportunityMatrix opportunities={opportunities} />
-              </>
-            ) : (
-              <>
-                <PersonalPipelineRadar selectedRange={globalRange} />
-                <PersonalOpportunityOverview opportunities={opportunities} />
-              </>
-            )}
-
-            <TasksList selectedRange={globalRange} />
-            <GroupTasksList selectedRange={globalRange} />
+      <PageShell
+        banner={
+          <div className="space-y-4">
+            <SystemUpdateBanner />
+            <PersonalizedHeroBanner />
           </div>
+        }
+        title={isHead ? "Accomplishment Report" : "Private Workflow"}
+        description={
+          isHead ? "Executive performance governance" : "Personal execution roadmap"
+        }
+        action={
+          <FloatingMonthPicker
+            inline
+            selectedRange={globalRange}
+            onChange={setGlobalRange}
+          />
+        }
+      >
+        <div className="grid gap-10">
+          {isPrivileged ? (
+            <>
+              <DashboardStats selectedRange={globalRange} />
+              <EmployeePipelineMatrix selectedRange={globalRange} />
+              <EmployeeOpportunityMatrix opportunities={opportunities} />
+            </>
+          ) : (
+            <>
+              <PersonalPipelineRadar selectedRange={globalRange} />
+              <PersonalOpportunityOverview opportunities={opportunities} />
+            </>
+          )}
+
+          <TasksList selectedRange={globalRange} />
+          <GroupTasksList selectedRange={globalRange} />
         </div>
-      </PageContainer>
+      </PageShell>
     </ProtectedRoute>
   );
 }

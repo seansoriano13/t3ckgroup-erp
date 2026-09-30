@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts";
-import { Download, Search } from "lucide-react";
+import { Download, Search, TrendingUp } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,7 +10,10 @@ import StatusBadge from "../../StatusBadge";
 import HighlightText from "../../HighlightText";
 import { formatPHP } from "../../../constants/sor";
 import { MASK, TONE, compactPHP, downloadLedgerCsv, monthlyPool, projectTypeInfo } from "./commissionView";
-import { Pager, Swatch, UnderlineTabs } from "./parts";
+import { Pager, Swatch } from "./parts";
+import ReportFigure from "../../ui/ReportFigure";
+import TabGroup from "../../ui/TabGroup";
+import EmptyState from "../../ui/EmptyState";
 import DealCommissionModal from "./DealCommissionModal";
 
 const PAGE_SIZE = 10;
@@ -57,50 +60,43 @@ export default function PoolTab({ access, departments, initialDealId }) {
 
   return (
     <div className="space-y-8">
-      <section className="grid gap-8 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-6">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Commission Pool</p>
-            <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-foreground">
-              {canViewAllFinancials ? formatPHP(dashboard.totalCommissionPool) : MASK}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              An estimate · {rates.pool}% of {canViewAllFinancials ? compactPHP(dashboard.totalCommissionableRevenue) : "Commissionable Revenue"}
-            </p>
+      <ReportFigure
+        label="Commission Pool"
+        figure={canViewAllFinancials ? formatPHP(dashboard.totalCommissionPool) : MASK}
+        note={`An estimate · ${rates.pool}% of ${canViewAllFinancials ? compactPHP(dashboard.totalCommissionableRevenue) : "Commissionable Revenue"}`}
+        stats={[
+          { label: "Sales fund", value: canViewSalesAmounts ? formatPHP(dashboard.salesDeptTotal) : MASK },
+          {
+            label: "Won SORs",
+            value: (
+              <>
+                {dashboard.wonDealsCount ?? 0} <span className="text-sm font-normal text-muted-foreground">of {dashboard.totalDealsCount ?? 0}</span>
+              </>
+            ),
+          },
+        ]}
+        chart={
+          <div className="h-[200px] min-w-0">
+            {months.length === 0 ? (
+              <EmptyState icon={TrendingUp} title="No SORs in this period" className="h-full" />
+            ) : (
+              <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 200 }}>
+                <AreaChart data={months} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="commission-pool-area" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--blue-9)" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="var(--blue-9)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} interval="preserveStartEnd" tick={{ fontSize: 11, fill: "var(--mauve-10)" }} />
+                  <Tooltip content={<ChartTooltip canSee={canViewAllFinancials} />} cursor={{ stroke: "var(--mauve-7)" }} />
+                  <Area type="monotone" dataKey="pool" stroke="var(--blue-9)" strokeWidth={2} fill="url(#commission-pool-area)" activeDot={{ r: 4, strokeWidth: 0 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
-            <div>
-              <dt className="text-xs text-muted-foreground">Sales fund</dt>
-              <dd className="mt-0.5 font-semibold tabular-nums text-foreground">{canViewSalesAmounts ? formatPHP(dashboard.salesDeptTotal) : MASK}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Won SORs</dt>
-              <dd className="mt-0.5 font-semibold tabular-nums text-foreground">
-                {dashboard.wonDealsCount ?? 0} <span className="font-normal text-muted-foreground">of {dashboard.totalDealsCount ?? 0}</span>
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <div className="h-[200px] min-w-0">
-          {months.length === 0 ? (
-            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">No SORs in this period.</div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 200 }}>
-              <AreaChart data={months} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="commission-pool-area" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--blue-9)" stopOpacity={0.22} />
-                    <stop offset="100%" stopColor="var(--blue-9)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="label" tickLine={false} axisLine={false} interval="preserveStartEnd" tick={{ fontSize: 11, fill: "var(--mauve-10)" }} />
-                <Tooltip content={<ChartTooltip canSee={canViewAllFinancials} />} cursor={{ stroke: "var(--mauve-7)" }} />
-                <Area type="monotone" dataKey="pool" stroke="var(--blue-9)" strokeWidth={2} fill="url(#commission-pool-area)" activeDot={{ r: 4, strokeWidth: 0 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </section>
+        }
+      />
 
       <section>
         <h3 className="text-sm font-semibold text-foreground">Where the pool goes</h3>
@@ -126,19 +122,20 @@ export default function PoolTab({ access, departments, initialDealId }) {
       </section>
 
       <section>
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border">
-          <UnderlineTabs
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <TabGroup
+            variant="pill"
             tabs={[
-              { value: "deals", label: "SORs", count: deals.length },
-              { value: "people", label: "People", count: people.length },
+              { value: "deals", label: `SORs ${deals.length}` },
+              { value: "people", label: `People ${people.length}` },
             ]}
-            value={list}
+            activeTab={list}
             onChange={(v) => {
               setList(v);
               setPage(0);
             }}
           />
-          <div className="mb-2 flex w-full items-center gap-2 sm:w-auto">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <div className="relative flex-1 sm:w-64">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input

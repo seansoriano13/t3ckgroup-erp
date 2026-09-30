@@ -10,18 +10,11 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
-import {
-  ChevronDown,
-  ChevronRight,
-  Package,
-  Receipt,
-  ShoppingBag,
-  TrendingUp,
-  Wallet,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Package, ShoppingBag } from "lucide-react";
 import Spinner from "../ui/Spinner";
 import TabGroup from "../ui/TabGroup";
-import StatCard from "../StatCard";
+import ReportFigure from "../ui/ReportFigure";
+import EmptyState from "../ui/EmptyState";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
@@ -68,14 +61,48 @@ function monthOverMonthSubtitle({ lastMonth, deltaPct }) {
   return `${arrow} ${Math.abs(deltaPct).toFixed(0)}% vs last month (${formatPHP(lastMonth)})`;
 }
 
+/** Retail's time range: the header's action slot on the Retail page. */
+export function RetailRangeControl({ range, onRangeChange, custom, onCustomChange }) {
+  return (
+    <>
+      {range === "custom" && (
+        <>
+          <Input
+            type="date"
+            aria-label="From date"
+            value={custom.from}
+            max={custom.to || undefined}
+            onChange={(e) => onCustomChange((c) => ({ ...c, from: e.target.value }))}
+            containerClassName="w-40"
+          />
+          <Input
+            type="date"
+            aria-label="To date"
+            value={custom.to}
+            min={custom.from || undefined}
+            onChange={(e) => onCustomChange((c) => ({ ...c, to: e.target.value }))}
+            containerClassName="w-40"
+          />
+        </>
+      )}
+      <TabGroup
+        tabs={RETAIL_RANGES}
+        activeTab={range}
+        onChange={onRangeChange}
+        size="sm"
+        className="max-w-full"
+      />
+    </>
+  );
+}
+
 /**
  * The Retail report — sales from Shopee/Lazada, read from `retail_orders`
  * (synced from Odoo). Read-only: retail orders are entered in Odoo, have no
- * stages, and stay out of the SOR pipeline and commission.
+ * stages, and stay out of the SOR pipeline and commission. The time range is
+ * the Page's: `RetailRangeControl` sits in the header, this takes its value.
  */
-export default function RetailReport() {
-  const [range, setRange] = useState("3m");
-  const [custom, setCustom] = useState({ from: "", to: "" });
+export default function RetailReport({ range, custom }) {
   const [expanded, setExpanded] = useState(() => new Set());
 
   const {
@@ -109,161 +136,100 @@ export default function RetailReport() {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Spinner size="sm" />
-        <span className="text-sm font-bold uppercase tracking-widest">Loading retail orders…</span>
+        <span className="text-sm">Loading retail orders…</span>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-24 text-muted-foreground">
-        <ShoppingBag size={28} className="opacity-40" />
-        <p className="text-sm font-semibold text-foreground">Couldn&apos;t load retail orders</p>
-        <p className="text-xs">Refresh the page to try again.</p>
-      </div>
+      <EmptyState
+        icon={ShoppingBag}
+        title="Couldn't load retail orders"
+        description="Refresh the page to try again."
+        className="py-24"
+      />
     );
   }
 
   return (
-    <div className="mt-4 space-y-6">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <ShoppingBag size={15} className="text-muted-foreground" />
-            Retail overview
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Marketplace orders synced from Odoo — kept out of the pipeline and commission.
-          </p>
-        </div>
-        <div className="flex min-w-0 max-w-full flex-wrap items-end gap-3">
-          {range === "custom" && (
-            <>
-              <Input
-                type="date"
-                aria-label="From date"
-                value={custom.from}
-                max={custom.to || undefined}
-                onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
-                containerClassName="w-40"
+    <div className="space-y-8">
+      <ReportFigure
+        label="Total sales"
+        figure={formatPHP(summary.total)}
+        note="In the selected range"
+        stats={[
+          { label: "Orders", value: summary.count.toLocaleString("en-PH"), sub: "In the selected range" },
+          { label: "Average order", value: formatPHP(summary.average), sub: "Total ÷ orders" },
+          { label: "This month", value: formatPHP(mom.thisMonth), sub: monthOverMonthSubtitle(mom) },
+        ]}
+        chart={
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Monthly sales</h3>
+            <p className="mb-4 mt-0.5 text-sm text-muted-foreground">By storefront, for the selected range.</p>
+            {series.rows.length === 0 ? (
+              <EmptyState
+                icon={ShoppingBag}
+                title="No retail orders in this range"
+                className="min-h-[180px] py-8"
               />
-              <Input
-                type="date"
-                aria-label="To date"
-                value={custom.to}
-                min={custom.from || undefined}
-                onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
-                containerClassName="w-40"
-              />
-            </>
-          )}
-          <TabGroup
-            tabs={RETAIL_RANGES}
-            activeTab={range}
-            onChange={setRange}
-            size="sm"
-            className="max-w-full"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Total sales"
-          value={formatPHP(summary.total)}
-          subtitle="In the selected range"
-          icon={<Wallet size={18} className="text-muted-foreground" />}
-          color="emerald"
-        />
-        <StatCard
-          title="Orders"
-          value={summary.count.toLocaleString("en-PH")}
-          subtitle="In the selected range"
-          icon={<ShoppingBag size={18} className="text-muted-foreground" />}
-          color="blue"
-        />
-        <StatCard
-          title="Average order"
-          value={formatPHP(summary.average)}
-          subtitle="Total ÷ orders"
-          icon={<Receipt size={18} className="text-muted-foreground" />}
-          color="violet"
-        />
-        <StatCard
-          title="This month"
-          value={formatPHP(mom.thisMonth)}
-          subtitle={monthOverMonthSubtitle(mom)}
-          icon={<TrendingUp size={18} className="text-muted-foreground" />}
-          color="amber"
-        />
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-foreground">Monthly sales</h3>
-        <p className="mb-4 mt-1 text-[11px] text-muted-foreground">By storefront, for the selected range.</p>
-        {series.rows.length === 0 ? (
-          <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 text-muted-foreground">
-            <ShoppingBag size={28} className="opacity-40" />
-            <p className="text-sm font-semibold">No retail orders in this range</p>
+            ) : (
+              <div className="h-[260px] w-full">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={100}
+                  minHeight={200}
+                  initialDimension={{ width: 600, height: 260 }}
+                >
+                  <BarChart data={series.rows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fill: "var(--color-muted-foreground, #888)" }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={formatAxisPeso}
+                      width={56}
+                      tick={{ fontSize: 10, fill: "var(--color-muted-foreground, #888)" }}
+                    />
+                    <RechartsTooltip
+                      formatter={(value) => formatPHP(value)}
+                      cursor={{ fill: "var(--color-muted, #eee)", opacity: 0.4 }}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "1px solid var(--color-border, #ddd)",
+                        background: "var(--color-card, #fff)",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                    {series.storefronts.map((storefront, index) => (
+                      <Bar
+                        key={storefront}
+                        dataKey={storefront}
+                        stackId="sales"
+                        maxBarSize={44}
+                        fill={SERIES_FILLS[index % SERIES_FILLS.length]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer
-              width="100%"
-              height="100%"
-              minWidth={100}
-              minHeight={200}
-              initialDimension={{ width: 600, height: 260 }}
-            >
-              <BarChart data={series.rows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: "var(--color-muted-foreground, #888)" }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={formatAxisPeso}
-                  width={56}
-                  tick={{ fontSize: 10, fill: "var(--color-muted-foreground, #888)" }}
-                />
-                <RechartsTooltip
-                  formatter={(value) => formatPHP(value)}
-                  cursor={{ fill: "var(--color-muted, #eee)", opacity: 0.4 }}
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: "1px solid var(--color-border, #ddd)",
-                    background: "var(--color-card, #fff)",
-                    fontSize: 12,
-                  }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                {series.storefronts.map((storefront, index) => (
-                  <Bar
-                    key={storefront}
-                    dataKey={storefront}
-                    stackId="sales"
-                    maxBarSize={44}
-                    fill={SERIES_FILLS[index % SERIES_FILLS.length]}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
+        }
+      />
 
       <div>
-        <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-foreground">Orders by month</h3>
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Orders by month</h3>
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
           {groups.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-              <ShoppingBag size={28} className="opacity-40" />
-              <p className="text-sm font-semibold">No retail orders in this range</p>
-            </div>
+            <EmptyState icon={ShoppingBag} title="No retail orders in this range" />
           ) : (
             <div className="divide-y divide-border">
               {groups.map((group) => {

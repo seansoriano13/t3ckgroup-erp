@@ -36,8 +36,11 @@ const MODE_LABELS = {
  * GlobalRangePicker (formerly FloatingMonthPicker)
  * Now supports Monthly, Quarterly, Yearly, and Custom ranges.
  * Used globally to sync all dashboard modules.
+ *
+ * `inline` renders it in place instead of floating: a compact trigger that sits
+ * in a Page's header action slot, its panel dropping down from the trigger.
  */
-export default function FloatingMonthPicker({ selectedRange, onChange }) {
+export default function FloatingMonthPicker({ selectedRange, onChange, inline = false }) {
   const [open, setOpen] = useState(false)
   const [dropUp, setDropUp] = useState(false)
   const [globalHidden, setGlobalHidden] = useState(false)
@@ -238,34 +241,22 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
     )
   }
 
-  const content = (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-100000 pointer-events-none">
-      <Draggable
-        handle=".drag-handle"
-        nodeRef={panelRef}
-        onDrag={() => {
-          if (panelRef.current) {
-            const rect = panelRef.current.getBoundingClientRect()
-            setDropUp(rect.top > window.innerHeight / 2)
-          }
-        }}
-        onStop={() => {
-          if (panelRef.current) {
-            const rect = panelRef.current.getBoundingClientRect()
-            setDropUp(rect.top > window.innerHeight / 2)
-          }
-        }}
-      >
-        <div ref={panelRef} className="relative pointer-events-auto">
+  const panel = (
+        <div ref={panelRef} className={inline ? "relative" : "relative pointer-events-auto"}>
           {/* FAB TRIGGER CONTAINER — separates drag handle from click trigger */}
           <div
-            className={`pointer-events-auto flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-2xl shadow-lg transition-all duration-300 border text-sm ${
+            className={`pointer-events-auto flex items-center transition-all duration-300 border text-sm ${
+              inline
+                ? "h-8 gap-1 rounded-lg pl-1 pr-2 shadow-sm"
+                : "gap-1.5 pl-1.5 pr-3 py-1.5 rounded-2xl shadow-lg"
+            } ${
               open
                 ? "bg-card text-foreground border-border ring-2 ring-primary/10 shadow-xl"
                 : "bg-card text-foreground border-border hover:border-border/80 hover:bg-accent/50"
             }`}
           >
-            {/* DRAG HANDLE */}
+            {/* DRAG HANDLE (floating only) */}
+            {!inline && (
             <div
               title="Drag to reposition"
               className="drag-handle cursor-grab active:cursor-grabbing p-1.5 rounded-xl hover:bg-muted/80 transition-colors flex items-center justify-center -ml-0.5 group"
@@ -275,6 +266,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                 className="text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors"
               />
             </div>
+            )}
 
             {/* CLICKABLE TRIGGER */}
             <Button
@@ -315,10 +307,14 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
           {/* EXPANDED PANEL — Absolutely positioned relative to the button */}
           {open && (
             <div
-              className={`absolute left-1/2 -translate-x-1/2 pointer-events-auto modal-enter ${
-                dropUp
-                  ? "bottom-full mb-3 origin-bottom"
-                  : "top-full mt-3 origin-top"
+              className={`absolute pointer-events-auto modal-enter ${
+                inline
+                  ? "right-0 top-full z-50 mt-2 origin-top-right"
+                  : `left-1/2 -translate-x-1/2 ${
+                      dropUp
+                        ? "bottom-full mb-3 origin-bottom"
+                        : "top-full mt-3 origin-top"
+                    }`
               } bg-popover/95 backdrop-blur-md border border-border rounded-2xl shadow-2xl p-4 w-[340px] flex flex-col gap-4`}
             >
               {/* Header */}
@@ -511,6 +507,29 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
             </div>
           )}
         </div>
+  )
+
+  if (inline) return panel
+
+  const content = (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-100000 pointer-events-none">
+      <Draggable
+        handle=".drag-handle"
+        nodeRef={panelRef}
+        onDrag={() => {
+          if (panelRef.current) {
+            const rect = panelRef.current.getBoundingClientRect()
+            setDropUp(rect.top > window.innerHeight / 2)
+          }
+        }}
+        onStop={() => {
+          if (panelRef.current) {
+            const rect = panelRef.current.getBoundingClientRect()
+            setDropUp(rect.top > window.innerHeight / 2)
+          }
+        }}
+      >
+        {panel}
       </Draggable>
     </div>
   )

@@ -30,6 +30,13 @@ describe("PageShell", () => {
     order.slice(1).forEach((el, i) => expect(before(order[i], el)).toBe(true));
   });
 
+  it("puts the banner above the header", () => {
+    render(<PageShell title="Some Page" banner={<div>banner-slot</div>} />);
+    expect(
+      before(screen.getByText("banner-slot"), screen.getByRole("heading", { name: /Some\s*Page/ })),
+    ).toBe(true);
+  });
+
   it("takes the body as children too", () => {
     render(<PageShell title="Some Page">child-body</PageShell>);
     expect(screen.getByText("child-body")).toBeInTheDocument();

@@ -117,6 +117,25 @@ describe("CommissionDashboardView", () => {
     commissionService.isSalesDirector.mockResolvedValue(false);
   });
 
+  describe("on PageShell (Report page)", () => {
+    it("puts the time range in the header and the tabs in the tabs slot", async () => {
+      asUser(superAdmin);
+      renderView();
+
+      const header = (await screen.findByRole("heading", { name: /Commission\s*Pool/ })).closest("div.border-b");
+      expect(within(header).getByRole("combobox", { name: /period/i })).toBeInTheDocument();
+      expect(within(screen.getByTestId("page-tabs")).getByRole("tab", { name: "Formula" })).toBeInTheDocument();
+    });
+
+    it("shows the headline figure without a gradient card", async () => {
+      asUser(superAdmin);
+      const { container } = renderView();
+
+      await screen.findByText("₱24,642.86");
+      expect(container.innerHTML).not.toMatch(/bg-linear|bg-gradient/);
+    });
+  });
+
   describe("Pool tab", () => {
     it("shows the pool, the Sales fund and the CSV export to Finance & Accounting / Super Admin", async () => {
       asUser(superAdmin);

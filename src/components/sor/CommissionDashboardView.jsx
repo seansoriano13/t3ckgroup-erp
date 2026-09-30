@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { useLocation, useSearchParams } from "react-router";
-import PageHeader from "../ui/PageHeader";
+import PageShell from "../ui/PageShell";
+import TabGroup from "../ui/TabGroup";
 import Spinner from "../ui/Spinner";
 import { colourDepartments } from "./commission/commissionView";
 import { useCommissionDashboard } from "./commission/useCommissionDashboard";
-import { PeriodField, Segmented, UnderlineTabs } from "./commission/parts";
+import { PeriodField, Segmented } from "./commission/parts";
 import PoolTab from "./commission/PoolTab";
 import FormulaTab from "./commission/FormulaTab";
 
@@ -34,10 +35,28 @@ export default function CommissionDashboardView() {
     setParams(next, { replace: true, state: null });
   };
 
+  const body = access.isLoading ? (
+    <div className="flex h-64 flex-col items-center justify-center gap-3">
+      <Spinner size="lg" />
+      <p className="text-sm text-muted-foreground">Adding up the Commission Pool…</p>
+    </div>
+  ) : access.error ? (
+    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+      <p className="font-semibold text-destructive">Couldn&apos;t load the Commission Pool</p>
+      <p className="mt-1 text-sm text-muted-foreground">{access.error.message}</p>
+    </div>
+  ) : tab === "pool" ? (
+    <PoolTab key={linkedDealId ?? "pool"} access={{ ...access, dashboard: access.dashboard ?? {} }} departments={departments} initialDealId={linkedDealId} />
+  ) : (
+    <FormulaTab access={{ ...access, dashboard: access.dashboard ?? {} }} departments={departments} />
+  );
+
   return (
-    <div className="space-y-6">
-      <PageHeader title="Commission Pool" description="How a signed contract becomes commission, and who it reaches. Always an estimate.">
-        <div className="flex flex-wrap items-center gap-2">
+    <PageShell
+      title="Commission Pool"
+      description="How a signed contract becomes commission, and who it reaches. Always an estimate."
+      action={
+        <>
           <Segmented
             label="Scope"
             options={[
@@ -48,26 +67,11 @@ export default function CommissionDashboardView() {
             onChange={access.setScope}
           />
           <PeriodField value={access.datePreset} onChange={access.setDatePreset} />
-        </div>
-      </PageHeader>
-
-      <UnderlineTabs tabs={TABS} value={tab} onChange={setTab} className="border-b border-border" />
-
-      {access.isLoading ? (
-        <div className="flex h-64 flex-col items-center justify-center gap-3">
-          <Spinner size="lg" />
-          <p className="text-sm text-muted-foreground">Adding up the Commission Pool…</p>
-        </div>
-      ) : access.error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
-          <p className="font-semibold text-destructive">Couldn&apos;t load the Commission Pool</p>
-          <p className="mt-1 text-sm text-muted-foreground">{access.error.message}</p>
-        </div>
-      ) : tab === "pool" ? (
-        <PoolTab key={linkedDealId ?? "pool"} access={{ ...access, dashboard: access.dashboard ?? {} }} departments={departments} initialDealId={linkedDealId} />
-      ) : (
-        <FormulaTab access={{ ...access, dashboard: access.dashboard ?? {} }} departments={departments} />
-      )}
-    </div>
+        </>
+      }
+      tabs={<TabGroup variant="underline" tabs={TABS} activeTab={tab} onChange={setTab} />}
+    >
+      {body}
+    </PageShell>
   );
 }

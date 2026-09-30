@@ -57,12 +57,11 @@ describe("Retail page", () => {
     renderPage();
 
     // The first render pays for loading the chart library, which is slow on a busy machine.
-    expect(await screen.findByRole("heading", { name: /retail overview/i }, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("Total sales", {}, { timeout: 5000 })).toBeInTheDocument();
     // Total sales and This month both read 4,000; the average order is 2,000.
     expect((await screen.findAllByText(formatPHP(4000))).length).toBeGreaterThan(0);
     expect(screen.getByText(formatPHP(2000))).toBeInTheDocument();
-    expect(screen.getByText("Total sales")).toBeInTheDocument();
-    expect(screen.getByText("Orders")).toBeInTheDocument();
+        expect(screen.getByText("Orders")).toBeInTheDocument();
   });
 
   it("leaves out a quotation, a cancelled order and one dismissed in the old queue", async () => {
@@ -98,7 +97,7 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: /retail overview/i })).toBeInTheDocument();
+    expect(await screen.findByText("Total sales")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /retail orders queue/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
   });
@@ -112,7 +111,7 @@ describe("Retail page", () => {
 
     expect(await screen.findByText(/don't have access to retail/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.queryByRole("heading", { name: /retail overview/i })).not.toBeInTheDocument();
+      expect(screen.queryByText("Total sales")).not.toBeInTheDocument();
     });
   });
 
@@ -121,7 +120,7 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: /retail overview/i })).toBeInTheDocument();
+    expect(await screen.findByText("Total sales")).toBeInTheDocument();
   });
 
   // Being named as a Sales Director no longer opens the screen by itself —

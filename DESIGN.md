@@ -338,7 +338,10 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/Tooltip.jsx`. Props: `content`, `side`, `align`, `delay`, `className`, `children`.
 
 #### PageShell
-`ui/PageShell.jsx`. The Page skeleton (ADR 0029). Props: `title`, `description`, `action`, `tabs`, `toolbar`, `body` (or `children`), `frame` (`centred` | `full`), `className`. Slots render in fixed order; wraps `ui/PageContainer.jsx` and `ui/PageHeader.jsx` (compact-only title, last word red).
+`ui/PageShell.jsx`. The Page skeleton (ADR 0029). Props: `title`, `description`, `action`, `banner` (above the header; only the Dashboard's greeting), `tabs`, `toolbar`, `body` (or `children`), `frame` (`centred` | `full`), `className`. Slots render in fixed order; wraps `ui/PageContainer.jsx` and `ui/PageHeader.jsx` (compact-only title, last word red).
+
+#### ReportFigure
+`ui/ReportFigure.jsx`. The Report layout's headline figure: big figure with its note, supporting stats, chart beside them. Props: `label`, `figure`, `note`, `stats` (`{ label, value, sub, onClick }`; `onClick` makes the stat a button), `chart`, `className`. Every part is optional, so a row of counts is `stats` alone. Replaces gradient summary cards.
 
 #### EmptyState
 `ui/EmptyState.jsx`. The one empty state: muted icon, title, one line. Props: `icon`, `title`, `description`, `className`.
@@ -380,7 +383,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/SaveDefaultButton.jsx`. "Save filters as default" control for a filter bar: Save / Default saved (with clear) / Update default (with clear) once the filters drift. Pair with `useSavedFilters`. Props: `hasSavedDefault`, `isDirty`, `onSave`, `onClear`, `className`.
 
 #### Page structure
-`ui/PageContainer.jsx` (`maxWidth`, `spaceY`, `className`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `showGradient`, `lastWordColor`, `className`), `ui/SectionHeader.jsx` (`icon`, `bgIcon`, `title`, `description`, `rangeLabel`, `children`, `className`), `ui/FilterBar.jsx` (one line: `search` `{value, onChange, placeholder}`, `chips` (up to three `FilterSelect`s), `filters` (the Filters popover body, a node or `({close}) =>`), `activeCount` (badge on Filters), `saveDefault` (SaveDefaultButton props), `actions`, `hasActiveFilters` + `onClearAll` (Clear all), `className`). Companions: `FilterSelect` and `FilterTriggerButton` in `ui/FilterDropdown.jsx` (a whole single-choice filter: `options`, `value`, `onChange`, `icon`, `label`, `allValue`, `disabled`), and `ui/PeriodFilter.jsx` (`timeframe`, `onTimeframeChange`, `value`, `onChange`; a Daily/Weekly/Monthly/Yearly chip with its date).
+`ui/PageContainer.jsx` (`maxWidth`, `spaceY`, `className`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `showGradient`, `lastWordColor`, `className`), `ui/SectionHeader.jsx` (Sentence-case `title`, `description`, `rangeLabel`, `children`, `className`), `ui/FilterBar.jsx` (one line: `search` `{value, onChange, placeholder}`, `chips` (up to three `FilterSelect`s), `filters` (the Filters popover body, a node or `({close}) =>`), `activeCount` (badge on Filters), `saveDefault` (SaveDefaultButton props), `actions`, `hasActiveFilters` + `onClearAll` (Clear all), `className`). Companions: `FilterSelect` and `FilterTriggerButton` in `ui/FilterDropdown.jsx` (a whole single-choice filter: `options`, `value`, `onChange`, `icon`, `label`, `allValue`, `disabled`), and `ui/PeriodFilter.jsx` (`timeframe`, `onTimeframeChange`, `value`, `onChange`; a Daily/Weekly/Monthly/Yearly chip with its date).
 
 #### Image
 `ui/image.jsx`. Thin `<img>` wrapper, no transforms. Props pass through (`src`, `alt`, `className`). Use for non-person, non-upload images; people use Avatar, uploads use ImageAttachment.
@@ -454,7 +457,7 @@ One red Button in the header action slot, standard 32px size, top right. No over
 Queue and Register bodies are tables (Table Primitive) by default. A card grid exists only as a display toggle, and only where cards carry something a row cannot (All Tasks, Group Tasks).
 
 ### Report layout
-One headline figure with its supporting stats beside the chart, then the breakdown. The time range control sits in the header's action slot. No gradient summary cards.
+One headline figure with its supporting stats beside the chart, then the breakdown. The time range control sits in the header's action slot (the Dashboard's uses `FloatingMonthPicker` `inline`). Built from `ReportFigure`. No gradient summary cards.
 
 ### Empty state
 One form: muted icon, title, one line. No box, no dashed border.

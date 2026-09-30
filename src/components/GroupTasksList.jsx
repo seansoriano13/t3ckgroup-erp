@@ -55,8 +55,7 @@ export default function GroupTasksList({ selectedRange }) {
   return (
     <section className="space-y-6 mt-8 w-full min-w-0">
       <SectionHeader
-        icon={Users}
-        title="Group Tasks"
+        title="Group tasks"
         description="Active group assignments"
         rangeLabel={selectedRange?.label || "This Range"}
       >
@@ -118,7 +117,7 @@ export default function GroupTasksList({ selectedRange }) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-muted-foreground font-bold uppercase tracking-widest text-[10px] h-9"
+            className="text-muted-foreground"
             asChild
           >
             <Link to="/group-tasks">View All</Link>

@@ -9,32 +9,6 @@ export function Swatch({ tone, color, className }) {
   return <span aria-hidden className={cn("inline-block h-2 w-2 shrink-0 rounded-full", className)} style={{ background: color ?? TONE[tone]?.solid }} />;
 }
 
-/** Underline tabs. The selected tab is marked in ink, never in the brand red. */
-export function UnderlineTabs({ tabs, value, onChange, className }) {
-  return (
-    <div role="tablist" className={cn("flex gap-6", className)}>
-      {tabs.map((t) => (
-        <Button
-          key={t.value}
-          type="button"
-          role="tab"
-          variant="ghost"
-          aria-selected={value === t.value}
-          onClick={() => onChange(t.value)}
-          className={cn(
-            "relative h-auto rounded-none border-0 px-0 pb-3 text-sm font-semibold hover:bg-transparent focus-visible:ring-0",
-            "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent after:transition-colors focus-visible:after:bg-mauve-8",
-            value === t.value ? "text-foreground after:bg-foreground" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {t.label}
-          {t.count != null && <span className="ml-1 font-medium text-muted-foreground">{t.count}</span>}
-        </Button>
-      ))}
-    </div>
-  );
-}
-
 /** Two-way switch (e.g. Realized / Projected). */
 export function Segmented({ options, value, onChange, label }) {
   return (

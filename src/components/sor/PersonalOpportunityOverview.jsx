@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router";
 import { Target } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import StatCard from "../StatCard";
+import ReportFigure from "../ui/ReportFigure";
 import { getStatusTheme } from "../../constants/status";
 import { formatPHP, isLostCode, isWonCode } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
@@ -70,12 +70,9 @@ export default function PersonalOpportunityOverview({ opportunities }) {
   return (
     <div className="bg-card border border-border rounded-2xl shadow-sm p-5">
       <div className="flex items-center gap-2 mb-5">
-        <div className="w-10 h-10 rounded-xl bg-mauve-2 flex items-center justify-center text-mauve-11 shadow-sm border border-mauve-4">
-          <Target size={18} />
-        </div>
         <div>
-          <h2 className="text-lg font-semibold text-foreground tracking-tight">
-            My Pipeline
+          <h2 className="text-base font-semibold text-foreground">
+            My pipeline
           </h2>
           <p className="text-sm text-mauve-10 mt-0.5">
             {stats.total} opportunit{stats.total === 1 ? "y" : "ies"} as deal owner
@@ -83,12 +80,15 @@ export default function PersonalOpportunityOverview({ opportunities }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <StatCard title="Open" value={stats.open} subtitle="In progress" icon={<Target size={18} />} color="blue" onClick={() => navigate("/sors", { state: { filterEmployeeId: user?.id } })} />
-        <StatCard title="Value" value={formatPHP(stats.value)} subtitle="Total pipeline" icon={<Target size={18} />} color="mauve" />
-        <StatCard title="Won" value={stats.won} subtitle="Closed Won" icon={<Target size={18} />} color="emerald" onClick={() => goToStage(wonCode)} />
-        <StatCard title="Lost" value={stats.lost} subtitle="Closed Lost" icon={<Target size={18} />} color="destructive" onClick={() => goToStage(lostCode)} />
-      </div>
+      <ReportFigure
+        className="mb-5"
+        stats={[
+          { label: "Open", value: stats.open, sub: "In progress", onClick: () => navigate("/sors", { state: { filterEmployeeId: user?.id } }) },
+          { label: "Value", value: formatPHP(stats.value), sub: "Total pipeline" },
+          { label: "Won", value: stats.won, sub: "Closed won", onClick: () => goToStage(wonCode) },
+          { label: "Lost", value: stats.lost, sub: "Closed lost", onClick: () => goToStage(lostCode) },
+        ]}
+      />
 
       <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex mb-2">
         {pipelineStages.map((stage) => {
