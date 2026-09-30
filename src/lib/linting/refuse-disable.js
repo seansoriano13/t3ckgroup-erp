@@ -6,17 +6,31 @@
  * rule report. A processor's postprocess runs after directives are applied.
  */
 
-const DIRECTIVE = /(?:\/\/|\/\*)\s*eslint-disable(?:-next-line|-line)?\b([^\n]*)/g
+/** The guard rules. Their findings, and refusals of their disables, fail the gate. */
+export const GUARDED_RULES = ['local/no-raw-html', 'local/require-page-shell']
 
-/** Line of the first directive that disables `rule` (by name or blanket), or null. */
+/** True for a lint message the Primitive / PageShell gate reports. */
+export const isGuardFinding = (m) =>
+  GUARDED_RULES.some((rule) => m.ruleId === rule || m.message.startsWith(`eslint-disable of ${rule}`))
+
+const DIRECTIVE = /(?:\/\/|\/\*)\s*eslint-disable(?:-next-line|-line)?\b([^\n]*)/g
+// `/* eslint local/x: "off" */` reconfigures a rule inline, which switches it off
+// just as well as a disable does.
+const INLINE_CONFIG = /\/\*\s*eslint\s+([\s\S]*?)\*\//g
+
+const lineOf = (text, index) => text.slice(0, index).split('\n').length
+
+/** Line of the first directive that disables or reconfigures `rule`, or null. */
 function refusedDirectiveLine(text, rule) {
   const ids = new Set([rule, `local/${rule}`])
   for (const m of text.matchAll(DIRECTIVE)) {
     const list = m[1].replace(/\*\/.*$/, '').split('--')[0].trim()
     const names = list ? list.split(',').map((r) => r.trim()) : []
-    if (names.length === 0 || names.some((r) => ids.has(r))) {
-      return text.slice(0, m.index).split('\n').length
-    }
+    if (names.length === 0 || names.some((r) => ids.has(r))) return lineOf(text, m.index)
+  }
+  for (const m of text.matchAll(INLINE_CONFIG)) {
+    const names = [...m[1].matchAll(/["']?([\w@/-]+)["']?\s*:/g)].map(([, name]) => name)
+    if (names.some((r) => ids.has(r))) return lineOf(text, m.index)
   }
   return null
 }

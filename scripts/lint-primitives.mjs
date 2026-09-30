@@ -6,9 +6,7 @@
 // It looks at these rules alone: the unrelated lint backlog stays non-blocking.
 // There is no baseline; every violation fails.
 import { spawnSync } from 'node:child_process'
-
-const RULES = ['local/no-raw-html', 'local/require-page-shell']
-const isOurs = (m) => RULES.some((rule) => m.ruleId === rule || m.message.startsWith(`eslint-disable of ${rule}`))
+import { isGuardFinding } from '../src/lib/linting/refuse-disable.js'
 
 const run = spawnSync('pnpm', ['exec', 'eslint', '.', '--format', 'json'], {
   encoding: 'utf8',
@@ -24,7 +22,7 @@ try {
 }
 let failed = 0
 for (const { filePath, messages } of results) {
-  for (const m of messages.filter(isOurs)) {
+  for (const m of messages.filter(isGuardFinding)) {
     failed++
     console.error(`${filePath}:${m.line}:${m.column}  ${m.message}`)
   }

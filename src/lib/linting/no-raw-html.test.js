@@ -60,6 +60,7 @@ describe('local/no-raw-html', () => {
     ['next-line', '// eslint-disable-next-line local/no-raw-html\nexport default function X() { return <button /> }'],
     ['block', '/* eslint-disable local/no-raw-html */\nexport default function X() { return <button /> }'],
     ['blanket', '/* eslint-disable */\nexport default function X() { return <button /> }'],
+    ['inline config', '/* eslint local/no-raw-html: "off" */\nexport default function X() { return <button /> }'],
   ])('refuses %s eslint-disable for itself in feature code', async (_name, code) => {
     const messages = await lint(code)
     expect(messages.some((m) => /eslint-disable.*not allowed/.test(m.message))).toBe(true)

@@ -7,6 +7,7 @@
 // feeds stderr back to the agent.
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
+import { isGuardFinding } from '../src/lib/linting/refuse-disable.js'
 
 let input = ''
 for await (const chunk of process.stdin) input += chunk
@@ -31,10 +32,7 @@ try {
   process.exit(0) // never block an edit on a tooling hiccup
 }
 
-const RULES = ['local/no-raw-html', 'local/require-page-shell']
-const found = results.flatMap(({ messages }) =>
-  messages.filter((m) => RULES.some((rule) => m.ruleId === rule || m.message.startsWith(`eslint-disable of ${rule}`))),
-)
+const found = results.flatMap(({ messages }) => messages.filter(isGuardFinding))
 if (found.length === 0) process.exit(0)
 
 const rel = path.relative(process.cwd(), file)

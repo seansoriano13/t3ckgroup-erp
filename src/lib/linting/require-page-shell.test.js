@@ -40,6 +40,17 @@ describe('local/require-page-shell', () => {
     expect(messages[0].message).toMatch(/PageHeader.*PageShell/)
   })
 
+  it('fails a page header rendered beside PageShell', async () => {
+    const messages = await lint(page('<><PageHeader title="B" /><PageShell title="A" /></>', `${SHELL}\n${HEADER}`))
+    expect(messages).toHaveLength(1)
+    expect(messages[0].message).toMatch(/PageHeader/)
+  })
+
+  it('fails a PageShell that is not the shared Primitive', async () => {
+    expect(await lint(page('<PageShell title="A" />'))).toHaveLength(1)
+    expect(await lint(page('<PageShell title="A" />', 'import PageShell from "./MyShell"'))).toHaveLength(1)
+  })
+
   it('fails a page header rendered by a non-page component', async () => {
     const messages = await lint(page('<PageHeader title="B" />', HEADER), 'src/components/Thing.jsx')
     expect(messages).toHaveLength(1)
@@ -90,6 +101,7 @@ describe('local/require-page-shell', () => {
     ['next-line', '// eslint-disable-next-line local/require-page-shell\nexport default function X() { return <div /> }'],
     ['block', '/* eslint-disable local/require-page-shell */\nexport default function X() { return <div /> }'],
     ['blanket', '/* eslint-disable */\nexport default function X() { return <div /> }'],
+    ['inline config', '/* eslint local/require-page-shell: "off" */\nexport default function X() { return <div /> }'],
   ])('refuses %s eslint-disable for itself', async (_name, code) => {
     const messages = await lint(code)
     expect(messages.some((m) => /eslint-disable of local\/require-page-shell is not allowed/.test(m.message))).toBe(true)
