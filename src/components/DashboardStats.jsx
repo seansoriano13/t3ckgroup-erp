@@ -192,17 +192,17 @@ export default function DashboardStats({ selectedRange }) {
   let items;
   if (isHr) {
     items = [
-      { label: "Incomplete", value: stats.hrInProgress, sub: "In progress", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
-      { label: "Overdue — not submitted", value: stats.hrOverdueUnsubmitted, sub: "Employee action needed", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
-      { label: "Awaiting approval", value: stats.hrAwaitingHead, sub: "Needs approval", onClick: toTasks(TASK_STATUS.AWAITING_APPROVAL) },
+      { label: "Incomplete", value: stats.hrInProgress, sub: "Still being logged", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
+      { label: "Overdue", value: stats.hrOverdueUnsubmitted, sub: "Not submitted", tone: "attention", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
+      { label: "Awaiting approval", value: stats.hrAwaitingHead, sub: "Waiting on Heads", onClick: toTasks(TASK_STATUS.AWAITING_APPROVAL) },
       { label: "Completed", value: stats.hrPendingVerification, sub: "Pending HR", onClick: toTasks(TASK_STATUS.COMPLETE) },
       { label: "Returned", value: stats.hrRejected, sub: "Needs fixing", onClick: toTasks(TASK_STATUS.NOT_APPROVED) },
       { label: "All tasks", value: stats.hrAllTasks, sub: "Org output this month", onClick: () => navigate("/tasks") },
     ];
   } else if (isHead) {
     items = [
-      { label: "Incomplete", value: stats.teamInProgress, sub: "In progress", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
-      { label: "Awaiting approval", value: stats.teamAwaitingApproval, sub: "Needs your review", onClick: () => navigate("/approvals/tasks") },
+      { label: "Incomplete", value: stats.teamInProgress, sub: "Still being logged", onClick: toTasks(TASK_STATUS.INCOMPLETE) },
+      { label: "Awaiting approval", value: stats.teamAwaitingApproval, sub: "Needs your review", tone: "attention", onClick: () => navigate("/approvals/tasks") },
       { label: "Returned", value: stats.teamRejected, sub: "Needs fixing", onClick: toTasks(TASK_STATUS.NOT_APPROVED) },
       { label: "Completed", value: stats.teamPendingHr, sub: "Pending HR", onClick: toTasks(TASK_STATUS.COMPLETE) },
       { label: "HR verified", value: stats.teamCompleted, sub: "HR approved", onClick: toTasks(TASK_STATUS.COMPLETE) },
@@ -210,8 +210,8 @@ export default function DashboardStats({ selectedRange }) {
     ];
   } else {
     items = [
-      { label: "Incomplete", value: stats.myPending, sub: "In progress" },
-      { label: "Awaiting approval", value: stats.myPendingApproval, sub: "Needs approval", onClick: toTasks(TASK_STATUS.AWAITING_APPROVAL) },
+      { label: "Incomplete", value: stats.myPending, sub: "Still being logged" },
+      { label: "Awaiting approval", value: stats.myPendingApproval, sub: "Waiting on review", onClick: toTasks(TASK_STATUS.AWAITING_APPROVAL) },
       { label: "Completed", value: stats.myPendingHr, sub: "Pending HR", onClick: toTasks(TASK_STATUS.COMPLETE) },
       { label: "HR verified", value: stats.myCompleted, sub: "HR approved", onClick: toTasks(TASK_STATUS.COMPLETE) },
     ];

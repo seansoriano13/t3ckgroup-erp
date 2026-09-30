@@ -1,22 +1,37 @@
+import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
-function Stat({ label, value, sub, onClick }) {
+function Stat({ label, value, sub, tone, onClick, large, divided }) {
+  const isZero = value === 0 || value === "0";
+  const valueTone = isZero ? "text-muted-foreground" : tone === "attention" ? "text-amber-11" : "text-foreground";
   const body = (
     <>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{value}</dd>
+      <dt className="text-xs text-muted-foreground">
+        {label}
+        {onClick && (
+          <ArrowUpRight
+            aria-hidden
+            data-testid="stat-arrow"
+            className="ml-1 inline size-3 align-[-1px] opacity-40 transition-opacity group-hover/stat:opacity-100 group-focus-visible/stat:opacity-100"
+          />
+        )}
+      </dt>
+      <dd className={cn("mt-0.5 font-semibold tabular-nums", large ? "text-2xl tracking-tight" : "text-lg", valueTone)}>
+        {value}
+      </dd>
       {sub && <dd className="text-xs text-muted-foreground">{sub}</dd>}
     </>
   );
-  if (!onClick) return <div className="min-w-0">{body}</div>;
+  const wrap = cn("min-w-0", divided && "lg:border-l lg:border-border lg:pl-5 lg:first:border-l-0 lg:first:pl-0");
+  if (!onClick) return <div className={wrap}>{body}</div>;
   return (
-    <div className="min-w-0">
+    <div className={wrap}>
       <Button
         type="button"
         variant="ghost"
         onClick={onClick}
-        className="-mx-2 -my-1 h-auto w-full flex-col items-start justify-start gap-0 whitespace-normal px-2 py-1 text-left font-normal"
+        className="group/stat -mx-2 -my-1 h-auto w-full flex-col items-start justify-start gap-0 whitespace-normal px-2 py-1 text-left font-normal"
       >
         {body}
       </Button>
@@ -28,7 +43,9 @@ function Stat({ label, value, sub, onClick }) {
  * The Report layout's headline figure (DESIGN.md "Pages → Report layout"): one
  * big figure with its note, the supporting stats beside the chart. Every part
  * is optional, so a row of counts is `stats` alone. `stats` items are
- * `{ label, value, sub, onClick }`; one with `onClick` is a button. `chart` is
+ * `{ label, value, sub, tone, onClick }`; one with `onClick` is a button (with
+ * an arrow), a zero dims, and `tone: "attention"` turns a non-zero value amber.
+ * A row of counts gets larger numerals and hairline dividers. `chart` is
  * whatever the Report draws beside the figure.
  *
  * It is the only figure form on a Report. No gradient card, no icon tile.
@@ -43,12 +60,15 @@ export default function ReportFigure({ label, figure, note, stats = [], chart, c
       )}
     >
       {stats.map((s) => (
-        <Stat key={s.label} {...s} />
+        <Stat key={s.label} large={!hasHeadline} divided={!hasHeadline} {...s} />
       ))}
     </dl>
   );
 
-  if (!hasHeadline && !chart) return <section className={className}>{list}</section>;
+  if (!hasHeadline && !chart) {
+    // A row of counts closes on a hairline; the Page header's rule above it opens the row.
+    return <section className={cn("border-b border-border pb-4", className)}>{list}</section>;
+  }
 
   return (
     <section className={cn("grid gap-8", chart && "lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)]", className)}>
