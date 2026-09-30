@@ -101,12 +101,6 @@ function SplitDetail({ projectType, splits, canEdit, actorId }) {
 }
 
 /**
- * The rules behind the pool, as label · meter · number rows: the live
- * Commission Rates, each Commission Department's allocation, the Commission
- * Split per Project Type (editable by a Sales Director), and a calculator to
- * try them on any contract value.
- */
-/**
  * The rules behind the pool, as label · meter · number rows, and the only place
  * they are edited: the dated Commission Rates and Department Allocations (with
  * their positions) by a Super Admin, the Commission Split per Project Type by a

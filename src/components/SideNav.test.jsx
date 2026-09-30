@@ -105,7 +105,7 @@ describe("SideNav Component", () => {
     expect(screen.getByText("Approvals")).toBeInTheDocument();
     expect(screen.getByText("Human Resources")).toBeInTheDocument();
     expect(screen.getByText("Administration")).toBeInTheDocument();
-    expect(screen.getByText("Commission Pool")).toBeInTheDocument();
+    expect(screen.queryByText("Commission Pool")).not.toBeInTheDocument();
     expect(screen.getByText("Activity Log")).toBeInTheDocument();
   });
 

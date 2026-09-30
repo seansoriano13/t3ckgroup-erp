@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { commissionService } from "../../../services/commissionService";
 import { useAuth } from "../../../context/AuthContext";
+import { RATE_TYPES } from "../../../utils/commission";
 import { getPresetDateRange, rateTimeline, SPLIT_PROJECT_TYPES } from "./commissionView";
 
 /**
@@ -35,7 +36,12 @@ export function useCommissionDashboard() {
       const current = rateTimeline(ratesQuery.data, type).find((r) => r.status === "current");
       return current ? Number(current.percent) : undefined;
     };
-    return { vat: live("VAT") ?? 12, withholding: live("WITHHOLDING") ?? 8, pool: live("POOL") ?? 1, retention: live("RETENTION") };
+    return {
+      vat: live(RATE_TYPES.VAT) ?? 12,
+      withholding: live(RATE_TYPES.WITHHOLDING) ?? 8,
+      pool: live(RATE_TYPES.POOL) ?? 1,
+      retention: live(RATE_TYPES.RETENTION),
+    };
   }, [ratesQuery.data]);
 
   const dashboard = dashboardQuery.data;
