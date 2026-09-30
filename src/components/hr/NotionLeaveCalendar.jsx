@@ -3,7 +3,14 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } 
 import Avatar from '@/components/Avatar';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import SlideOver, { SlideOverBody, SlideOverFooter } from '@/components/ui/SlideOver';
+import { DetailRow, DetailSection } from '@/components/ui/DetailParts';
 import { compareByStartTime, formatWindow, formatWindowCompact } from '../../utils/time';
+
+const leaveIdentity = (leave) => ({
+  ref: leave.type,
+  title: 'Leave details',
+});
 
 export default function NotionLeaveCalendar({
   approvedLeaves = [], // Should be an array of objects with a 'type' property ('SIL' or 'OFFSET')
@@ -286,83 +293,72 @@ export default function NotionLeaveCalendar({
         </Dialog>
       )}
 
-      {/* Individual Leave Detail Modal */}
-      {selectedLeave && (
-        <Dialog open onOpenChange={(open) => !open && setSelectedLeave(null)}>
-          <DialogContent showCloseButton={false} className="max-w-sm sm:max-w-sm overflow-hidden p-0 gap-0">
-            <div className="px-5 py-4 border-b border-border flex justify-between items-center bg-muted/30">
-              <h3 className="font-black text-sm uppercase text-foreground">Leave Details</h3>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setSelectedLeave(null)}
-                className="h-auto w-auto text-muted-foreground hover:text-foreground hover:bg-transparent transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </Button>
-            </div>
+      {/* Individual leave detail: a slide-over (DESIGN.md "Container rule") */}
+      <SlideOver
+        record={selectedLeave}
+        icon={CalendarIcon}
+        crumb="Leave calendar"
+        identity={leaveIdentity}
+        onClose={() => setSelectedLeave(null)}
+      >
+        {(leave) => {
+          const canWithdraw =
+            currentUserId === leave.employee_id && !hasAlreadyBeenTaken(leave) && onWithdrawLeave;
+          return (
+            <>
+              <SlideOverBody>
+                <div className="flex items-center gap-3">
+                  <Avatar src={leave.employee?.avatar_path} name={leave.employee?.name} size="lg" />
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-foreground">{leave.employee?.name}</p>
+                    <p className="truncate text-xs font-medium text-muted-foreground">{leave.employee?.department}</p>
+                  </div>
+                </div>
 
-            <div className="p-5 space-y-5">
-              <div className="flex items-center space-x-4">
-                <Avatar src={selectedLeave.employee?.avatar_path} name={selectedLeave.employee?.name} size="lg" />
-                <div>
-                  <h4 className="font-bold text-foreground">{selectedLeave.employee?.name}</h4>
-                  <p className="text-xs text-muted-foreground font-medium">{selectedLeave.employee?.department}</p>
-                </div>
-              </div>
+                <DetailSection title="Details">
+                  <dl className="divide-y divide-border">
+                    <DetailRow label="Date">
+                      {new Date(leave.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                    </DetailRow>
+                    <DetailRow label="Duration">
+                      {leave.hours} hours
+                      {leave.start_time && leave.end_time && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {formatWindow(leave.start_time, leave.end_time)}
+                        </span>
+                      )}
+                    </DetailRow>
+                    <DetailRow label="Type">{leave.type} Leave</DetailRow>
+                  </dl>
+                </DetailSection>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-muted/50 p-3 rounded-xl border border-border">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Date</p>
-                  <p className="text-sm font-bold text-foreground">
-                    {new Date(selectedLeave.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-                  </p>
-                </div>
-                <div className="bg-muted/50 p-3 rounded-xl border border-border">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Duration</p>
-                  <p className="text-sm font-bold text-foreground">
-                    {selectedLeave.hours} Hours
-                    {selectedLeave.start_time && selectedLeave.end_time && (
-                      <span className="block text-xs font-medium text-muted-foreground mt-0.5">
-                        {formatWindow(selectedLeave.start_time, selectedLeave.end_time)}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="col-span-2 bg-muted/50 p-3 rounded-xl border border-border">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Type</p>
-                  <p className="text-sm font-bold text-foreground">
-                    {selectedLeave.type} Leave
-                  </p>
-                </div>
-              </div>
-
-              {selectedLeave.reason && (canViewAllReasons || currentUserId === selectedLeave.employee_id) && (
-                <div className="bg-muted/30 p-3 rounded-xl border border-border">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
-                  <p className="text-sm font-medium text-foreground">{selectedLeave.reason}</p>
-                </div>
-              )}
+                {leave.reason && (canViewAllReasons || currentUserId === leave.employee_id) && (
+                  <DetailSection title="Reason">
+                    <p className="text-[13px] text-foreground">{leave.reason}</p>
+                  </DetailSection>
+                )}
+              </SlideOverBody>
 
               {/* Action for Employee to Withdraw their own future leave */}
-              {currentUserId === selectedLeave.employee_id &&
-                !hasAlreadyBeenTaken(selectedLeave) &&
-                onWithdrawLeave && (
+              {canWithdraw && (
+                <SlideOverFooter>
                   <Button
-                    variant="outline"
+                    variant="destructive"
+                    className="w-full"
                     onClick={() => {
-                      onWithdrawLeave(selectedLeave.id, selectedLeave.status, selectedLeave.type);
+                      onWithdrawLeave(leave.id, leave.status, leave.type);
                       setSelectedLeave(null);
                     }}
-                    className="w-full h-auto py-2.5 mt-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border-destructive/20 rounded-xl text-sm font-bold transition-colors cursor-pointer"
                   >
                     Withdraw Leave
                   </Button>
-                )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+                </SlideOverFooter>
+              )}
+            </>
+          );
+        }}
+      </SlideOver>
+
     </div>
   );
 }

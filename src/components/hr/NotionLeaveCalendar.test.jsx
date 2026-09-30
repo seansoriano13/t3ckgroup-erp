@@ -8,8 +8,8 @@
  * read the way they always did.
  */
 
-import { describe, expect, it } from 'vitest';
-import { screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders, setupUser } from '@/test/support';
 import { upcomingWeekdays } from '@/test/dates';
 import NotionLeaveCalendar from './NotionLeaveCalendar';
@@ -71,6 +71,125 @@ describe('NotionLeaveCalendar', () => {
 
     // The afternoon leave was the one the cell had no room for.
     expect(await screen.findByText('2:00 PM - 5:00 PM')).toBeInTheDocument();
+  });
+
+  describe('the leave detail drawer', () => {
+    const renderDetail = (l, props = {}) =>
+      renderWithProviders(
+        <NotionLeaveCalendar approvedLeaves={[l]} targetDate="2026-03-01" {...props} />,
+      );
+
+    it('slides in with the employee, date, duration and type when a card is clicked', async () => {
+      const user = setupUser();
+      renderDetail(leave({ employee: { name: 'Ana Reyes', department: 'IT' } }));
+
+      await user.click(screen.getByText('8h · 9AM–5PM'));
+
+      const drawer = await screen.findByRole('dialog');
+      expect(within(drawer).getByText('Leave details')).toBeInTheDocument();
+      expect(within(drawer).getByText('Ana Reyes')).toBeInTheDocument();
+      expect(within(drawer).getByText('IT')).toBeInTheDocument();
+      expect(within(drawer).getByText('Mar 10, 2026')).toBeInTheDocument();
+      expect(within(drawer).getByText(/8 hours/i)).toBeInTheDocument();
+      expect(within(drawer).getByText('OFFSET Leave')).toBeInTheDocument();
+    });
+
+    it('closes from its Close button', async () => {
+      const user = setupUser();
+      renderDetail(leave());
+
+      await user.click(screen.getByText('8h · 9AM–5PM'));
+      await user.click(await screen.findByRole('button', { name: 'Close' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('opens the drawer from a leave picked out of the day list', async () => {
+      const user = setupUser();
+      renderWithProviders(
+        <NotionLeaveCalendar
+          targetDate="2026-03-01"
+          approvedLeaves={[
+            leave({ id: 'a', employee: { name: 'Ana Reyes', department: 'IT' }, start_time: '08:00', end_time: '10:00', hours: 2 }),
+            leave({ id: 'b', employee: { name: 'Ben Cruz', department: 'HR' }, start_time: '11:00', end_time: '13:00', hours: 2 }),
+            leave({ id: 'c', employee: { name: 'Cy Diaz', department: 'Ops' }, start_time: '14:00', end_time: '17:00', hours: 3 }),
+          ]}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /\+1 more/i }));
+      await user.click(await screen.findByText('Cy Diaz'));
+
+      const drawer = await screen.findByRole('dialog');
+      expect(within(drawer).getByText('Leave details')).toBeInTheDocument();
+      expect(within(drawer).getByText('Ops')).toBeInTheDocument();
+      expect(screen.queryByText(/Approved Leaves on/)).not.toBeInTheDocument();
+    });
+
+    describe('the reason', () => {
+      it('is hidden from someone else without permission to see all reasons', async () => {
+        const user = setupUser();
+        renderDetail(leave({ employee_id: 'ana', reason: 'Family matter' }), { currentUserId: 'ben' });
+
+        await user.click(screen.getByText('8h · 9AM–5PM'));
+        await screen.findByRole('dialog');
+
+        expect(screen.queryByText('Family matter')).not.toBeInTheDocument();
+      });
+
+      it('is shown to the employee who filed it', async () => {
+        const user = setupUser();
+        renderDetail(leave({ employee_id: 'ana', reason: 'Family matter' }), { currentUserId: 'ana' });
+
+        await user.click(screen.getByText('8h · 9AM–5PM'));
+
+        expect(await screen.findByText('Family matter')).toBeInTheDocument();
+      });
+
+      it('is shown to anyone allowed to view all reasons', async () => {
+        const user = setupUser();
+        renderDetail(leave({ employee_id: 'ana', reason: 'Family matter' }), {
+          currentUserId: 'hr',
+          canViewAllReasons: true,
+        });
+
+        await user.click(screen.getByText('8h · 9AM–5PM'));
+
+        expect(await screen.findByText('Family matter')).toBeInTheDocument();
+      });
+    });
+
+    it('withdraws from the drawer footer and closes', async () => {
+      const user = setupUser();
+      const onWithdrawLeave = vi.fn();
+      const [date] = upcomingWeekdays(1);
+      renderDetail(leave({ id: 'L1', employee_id: 'ana', date, status: 'APPROVED' }), {
+        currentUserId: 'ana',
+        onWithdrawLeave,
+        targetDate: date,
+      });
+
+      await user.click(screen.getByText('8h · 9AM–5PM'));
+      await user.click(await screen.findByRole('button', { name: /Withdraw Leave/i }));
+
+      expect(onWithdrawLeave).toHaveBeenCalledWith('L1', 'APPROVED', 'OFFSET');
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it("offers no withdraw on someone else's leave", async () => {
+      const user = setupUser();
+      const [date] = upcomingWeekdays(1);
+      renderDetail(leave({ employee_id: 'ana', date }), {
+        currentUserId: 'ben',
+        onWithdrawLeave: () => {},
+        targetDate: date,
+      });
+
+      await user.click(screen.getByText('8h · 9AM–5PM'));
+      await screen.findByRole('dialog');
+
+      expect(screen.queryByRole('button', { name: /Withdraw Leave/i })).not.toBeInTheDocument();
+    });
   });
 
   /**
