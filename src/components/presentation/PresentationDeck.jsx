@@ -424,7 +424,6 @@ export default function PresentationDeck({ data }) {
     <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-5">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[22px] font-bold text-foreground">{data.title}</h1>
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-[13px] font-semibold text-amber-800 dark:text-amber-200">
             Built and testable on staging — it goes live when we release
           </span>

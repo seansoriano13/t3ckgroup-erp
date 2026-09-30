@@ -1,6 +1,7 @@
 import ProtectedRoute from "@/components/ProtectedRoute.jsx";
 import FlowCanvas from "@/components/flow-canvas/FlowCanvas.jsx";
 import { FlowDataProvider } from "@/components/flow-canvas/FlowDataContext.jsx";
+import PageShell from "@/components/ui/PageShell";
 
 /**
  * The Flow Canvas (issue #36) — one screen, one nav entry, for what was always
@@ -13,9 +14,11 @@ import { FlowDataProvider } from "@/components/flow-canvas/FlowDataContext.jsx";
  * rail replaces it, open to everyone who can already publish from here, not
  * just Super Admins.
  *
- * Full-bleed: this screen is an editor, not a report. `_app.jsx` drops its
- * wrapper for this route; every control floats over the canvas rather than
- * sitting in a page header.
+ * A Tool page (ADR 0029): the shared PageShell header (compact title) over a
+ * full-width frame, with the canvas as the body. `_app.jsx` drops its wrapper
+ * for this route. The canvas is a custom surface, so its own controls (Sale
+ * Type menu, Publish, version rail) still float over it rather than sitting in
+ * the header's action slot.
  *
  * Staging and production both. Until the 2026-09-29 cutover this was
  * staging-only ("production is never the drafting surface"); the operator
@@ -26,11 +29,17 @@ import { FlowDataProvider } from "@/components/flow-canvas/FlowDataContext.jsx";
 export default function FlowCanvasAdminPage() {
   return (
     <ProtectedRoute>
-      <div className="relative flex h-full flex-col">
-        <FlowDataProvider>
-          <FlowCanvas />
-        </FlowDataProvider>
-      </div>
+      <PageShell
+        title="Flow Canvas"
+        description="Build and refine the SORS process: Sale Types, Stages and their rules."
+        frame="full"
+      >
+        <div className="relative flex h-full flex-col">
+          <FlowDataProvider>
+            <FlowCanvas />
+          </FlowDataProvider>
+        </div>
+      </PageShell>
     </ProtectedRoute>
   );
 }
