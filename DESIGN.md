@@ -341,7 +341,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/PageShell.jsx`. The Page skeleton (ADR 0029). Props: `title`, `description`, `action`, `banner` (above the header; only the Dashboard's greeting), `tabs`, `toolbar`, `body` (or `children`), `frame` (`centred` | `narrow` | `full`), `className`. Slots render in fixed order; wraps `ui/PageContainer.jsx` and `ui/PageHeader.jsx` (compact-only title, last word red).
 
 #### ReportFigure
-`ui/ReportFigure.jsx`. The Report layout's headline figure: big figure with its note, supporting stats, chart beside them. Props: `label`, `figure`, `note`, `stats` (`{ label, value, sub, onClick }`; `onClick` makes the stat a button), `chart`, `className`. Every part is optional, so a row of counts is `stats` alone. Replaces gradient summary cards.
+`ui/ReportFigure.jsx`. The Report layout's headline figure: big figure with its note, supporting stats, chart beside them. Props: `label`, `figure`, `note`, `stats` (`{ label, value, sub, tone, onClick }`; `onClick` makes the stat a button with an arrow; a zero dims; `tone: "attention"` turns a non-zero value amber-11), `chart`, `className`. Every part is optional, so a row of counts is `stats` alone; that row gets 2xl numerals, hairline dividers from `lg`, and a bottom hairline (the Page header's rule is its top). Replaces gradient summary cards.
 
 #### EmptyState
 `ui/EmptyState.jsx`. The one empty state: muted icon, title, one line. Props: `icon`, `title`, `description`, `className`.
