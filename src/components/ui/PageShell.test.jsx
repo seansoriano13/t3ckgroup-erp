@@ -56,3 +56,23 @@ describe("EmptyState", () => {
     expect(screen.getByText("Come back later")).toBeInTheDocument();
   });
 });
+
+describe("PageShell full-width frame", () => {
+  it("fills the frame: the body is the scroll region, the header and toolbar stay put", () => {
+    const { container } = render(
+      <PageShell title="A" frame="full" toolbar={<div>t</div>}>
+        rows
+      </PageShell>,
+    );
+    expect(container.firstChild.className).toContain("h-full");
+    expect(container.firstChild.className).toContain("flex-col");
+    expect(screen.getByTestId("page-body").className).toContain("overflow-y-auto");
+    expect(screen.getByTestId("page-toolbar").className).toContain("shrink-0");
+  });
+
+  it("leaves the centred body to the page's own scroll", () => {
+    const { container } = render(<PageShell title="A">rows</PageShell>);
+    expect(container.firstChild.className).not.toContain("h-full");
+    expect(screen.getByTestId("page-body").className).not.toContain("overflow-y-auto");
+  });
+});
