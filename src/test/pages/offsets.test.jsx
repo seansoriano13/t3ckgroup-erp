@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EmployeeLeavesPage from '@/pages/offsets/index';
-import { chooseOption, renderWithProviders, setupUser } from '@/test/support';
+import { renderWithProviders, setupUser } from '@/test/support';
 import { within } from '@testing-library/react';
 import { makeEmployee, makeOffsetLeave, makeOvertimeRequest, makeUndertimeRequest } from '@/test/factories';
 import { stubCalendarOffsetLeavesRpc, stubCalendarSilLeavesRpc } from '@/test/stubs/calendarLeavesRpc';
@@ -40,8 +40,8 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
   it('renders the My Requests header and both balances', () => {
     renderWithProviders(<EmployeeLeavesPage />);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/My\s*Requests/i);
-    expect(screen.getByText(/Available Offset Hours/i)).toBeInTheDocument();
-    expect(screen.getByText(/Available SIL Hours/i)).toBeInTheDocument();
+    expect(screen.getByText(/Offset balance/i)).toBeInTheDocument();
+    expect(screen.getByText(/SIL balance/i)).toBeInTheDocument();
   });
 
   it('shows every request type in one list, newest first', async () => {
@@ -89,8 +89,10 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     expect(within(table).getByText('Offset')).toBeInTheDocument();
     expect(within(table).getByText('Overtime')).toBeInTheDocument();
 
-    const filterSelect = screen.getByRole('combobox');
-    await chooseOption(setupUser(), filterSelect, 'Offset');
+    const filterSelect = screen.getByRole('button', { name: /all types/i });
+    const user = setupUser();
+    await user.click(filterSelect);
+    await user.click(await screen.findByRole('button', { name: 'Offset' }));
 
     expect(within(table).getByText('Offset')).toBeInTheDocument();
     expect(within(table).queryByText('Overtime')).not.toBeInTheDocument();
@@ -132,5 +134,16 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     const calendarTab = await screen.findByRole('tab', { name: /^Calendar$/i });
     await setupUser().click(calendarTab);
     expect(screen.queryByText('No requests found')).not.toBeInTheDocument();
+  });
+
+  it('sits on PageShell: Apply Leave / OT in the header, underlined tabs', async () => {
+    renderWithProviders(<EmployeeLeavesPage />);
+
+    const header = screen.getByRole('heading', { level: 1 }).closest('div').parentElement;
+    expect(header).toContainElement(screen.getByRole('button', { name: /apply leave/i }));
+
+    const requestsTab = await screen.findByRole('tab', { name: /^My Requests/ });
+    expect(requestsTab).toHaveAttribute('aria-selected', 'true');
+    expect(requestsTab.className).toContain('border-b-2');
   });
 });

@@ -44,7 +44,7 @@ describe("EmployeeManagement", () => {
     });
 
     // Open the filter dropdown for Role Flag
-    const addFilterBtn = await screen.findByRole("button", { name: /Add Filter/i });
+    const addFilterBtn = await screen.findByRole("button", { name: /^Filters/ });
     await user.click(addFilterBtn);
 
     const flagsDropdown = await screen.findByText("All Flags");
@@ -169,5 +169,24 @@ describe("EmployeeManagement", () => {
     await user.click(await screen.findByRole("button", { name: /Open in Settings/i }));
 
     expect(screen.getByTestId("loc")).toHaveTextContent("/settings?tab=hr");
+  });
+
+  it("sits on PageShell: Add Employee in the header, underlined tabs, a one-line filter bar", async () => {
+    makeEmployee({ name: "Standard Worker" });
+    renderWithProviders(
+      <MemoryRouter>
+        <EmployeeManagement />
+      </MemoryRouter>
+    );
+
+    const header = (await screen.findByRole("heading", { name: /hr\s*management/i })).closest("div").parentElement;
+    expect(header).toContainElement(screen.getByRole("button", { name: /add employee/i }));
+
+    const employeesTab = screen.getByRole("tab", { name: "Employees" });
+    expect(employeesTab).toHaveAttribute("aria-selected", "true");
+    expect(employeesTab.className).toContain("border-b-2");
+
+    expect(await screen.findByRole("button", { name: /^Filters/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add filter/i })).not.toBeInTheDocument();
   });
 });

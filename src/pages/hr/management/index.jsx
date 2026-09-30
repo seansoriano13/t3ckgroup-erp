@@ -7,12 +7,13 @@ import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
-import { UserPlus, Edit, Trash2, Shield, KeyRound } from "lucide-react";
+import { UserPlus, Edit, Trash2, Shield, KeyRound, Users } from "lucide-react";
 import { passwordService } from "../../../services/passwordService";
 import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
-import PageHeader from "../../../components/ui/PageHeader";
-import PageContainer from "../../../components/ui/PageContainer";
+import PageShell from "../../../components/ui/PageShell";
+import EmptyState from "../../../components/ui/EmptyState";
+import StatusBadge from "../../../components/StatusBadge";
 import TabGroup from "../../../components/ui/TabGroup";
 import HighlightText from "../../../components/HighlightText";
 import Avatar from "@/components/Avatar";
@@ -20,11 +21,10 @@ import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import { Button } from "@/components/ui/button";
 import HRFormModal from "../../../components/hr/HRFormModal";
 import EmployeeForm from "../../../components/hr/EmployeeForm";
-import HRFilters from "../../../components/HRFilters";
+import EmployeeFilterBar from "../../../components/hr/EmployeeFilterBar";
 import { confirmActionToast } from "../../../components/ui/CustomToast";
 import { silService } from "../../../services/silService";
 import { offsetService } from "../../../services/offsetService";
-import { SelectField } from "@/components/ui/SelectField";
 import {
   Table,
   TableBody,
@@ -142,6 +142,33 @@ export default function EmployeeManagement() {
     sortBy,
   ]);
 
+  const filterSetters = {
+    searchTerm: setSearchTerm,
+    deptFilter: setDeptFilter,
+    subDeptFilter: setSubDeptFilter,
+    roleFilter: setRoleFilter,
+    roleFlagFilter: setRoleFlagFilter,
+    statusFilter: setStatusFilter,
+    companyFilter: setCompanyFilter,
+    sortBy: setSortBy,
+  };
+  const setFilter = (key, value) => filterSetters[key](value);
+  const clearFilters = () => {
+    setSearchTerm("");
+    setDeptFilter("ALL");
+    setSubDeptFilter("ALL");
+    setRoleFilter("ALL");
+    setRoleFlagFilter("ALL");
+    setStatusFilter("ALL");
+    setCompanyFilter("ALL");
+    setSortBy("NAME_ASC");
+  };
+  const companyOptions = [
+    { value: "ALL", label: "All companies" },
+    { value: "NONE", label: "No company set" },
+    ...companies.map((c) => ({ value: c.id, label: c.name })),
+  ];
+
   const deleteMutation = useMutation({
     mutationFn: (id) => employeeService.deleteEmployee(id, user?.id || null),
     onSuccess: () => {
@@ -195,16 +222,18 @@ export default function EmployeeManagement() {
 
   return (
     <ProtectedRoute requireHr={true}>
-      <PageContainer className="pt-4">
-        <PageHeader
-          title="HR Management"
-          description="Manage system access, roles, departments, and task categories."
-        />
-
-        <div className="flex-between">
-          {/* Tabs */}
+      <PageShell
+        title="HR Management"
+        description="Manage system access, roles, departments, and task categories."
+        action={
+          <Button onClick={handleAddNew}>
+            <UserPlus size={16} />
+            Add Employee
+          </Button>
+        }
+        tabs={
           <TabGroup
-            variant="pill"
+            variant="underline"
             tabs={[
               { value: "employees", label: "Employees" },
               { value: "categories", label: "Categories Config" },
@@ -214,57 +243,34 @@ export default function EmployeeManagement() {
             onChange={setActiveTab}
             size="md"
           />
-
-          <Button
-            className="h-[46px] px-6 rounded-xl shrink-0"
-            onClick={handleAddNew}
-          >
-            <UserPlus size={16} />
-            Add Employee
-          </Button>
-        </div>
-
+        }
+        toolbar={
+          activeTab === "employees" && (
+            <EmployeeFilterBar
+              filters={{
+                searchTerm,
+                deptFilter,
+                subDeptFilter,
+                roleFilter,
+                roleFlagFilter,
+                statusFilter,
+                companyFilter,
+                sortBy,
+              }}
+              onChange={setFilter}
+              onClearAll={clearFilters}
+              departments={uniqueDepts}
+              subDepartments={uniqueSubDepts}
+              roles={uniqueRoles}
+              statuses={uniqueStatuses}
+              companyOptions={companyOptions}
+            />
+          )
+        }
+      >
         {activeTab === "employees" ? (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            {/* Filter Bar + Add Button */}
-            <div>
-              <div className="w-full">
-                <HRFilters
-                  extraFilters={
-                    <SelectField
-                      value={companyFilter}
-                      onChange={setCompanyFilter}
-                      options={[
-                        { value: "ALL", label: "All companies" },
-                        { value: "NONE", label: "No company set" },
-                        ...companies.map((c) => ({ value: c.id, label: c.name })),
-                      ]}
-                      title="Filter by company"
-                    />
-                  }
-                  searchTerm={searchTerm}
-                  setSearchTerm={setSearchTerm}
-                  deptFilter={deptFilter}
-                  setDeptFilter={setDeptFilter}
-                  subDeptFilter={subDeptFilter}
-                  setSubDeptFilter={setSubDeptFilter}
-                  roleFilter={roleFilter}
-                  setRoleFilter={setRoleFilter}
-                  roleFlagFilter={roleFlagFilter}
-                  setRoleFlagFilter={setRoleFlagFilter}
-                  statusFilter={statusFilter}
-                  setStatusFilter={setStatusFilter}
-                  sortBy={sortBy}
-                  setSortBy={setSortBy}
-                  uniqueDepts={uniqueDepts}
-                  uniqueSubDepts={uniqueSubDepts}
-                  uniqueRoles={uniqueRoles}
-                  uniqueStatuses={uniqueStatuses}
-                />
-              </div>
-            </div>
-
-            <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
               <Table className="whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
@@ -284,7 +290,7 @@ export default function EmployeeManagement() {
                   {isLoading ? (
                     <TableRow>
                       <TableCell
-                        colSpan="7"
+                        colSpan={10}
                         className="p-10 text-center text-muted-foreground font-bold"
                       >
                         <Spinner size="md" />
@@ -340,12 +346,16 @@ export default function EmployeeManagement() {
                         </TableCell>
                         <TableCell className="text-sm">
                           {emp.employment_status ? (
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
-                                emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
-                                  'bg-blue-100 text-blue-700'
-                              }`}>
-                              {emp.employment_status}
-                            </span>
+                            <StatusBadge
+                              label={emp.employment_status}
+                              theme={
+                                emp.employment_status === "Regular"
+                                  ? "green"
+                                  : emp.employment_status === "Probationary"
+                                    ? "amber"
+                                    : "blue"
+                              }
+                            />
                           ) : (
                             <span className="text-muted-foreground text-xs italic">-</span>
                           )}
@@ -442,11 +452,12 @@ export default function EmployeeManagement() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell
-                        colSpan="7"
-                        className="p-10 text-center text-muted-foreground font-bold italic text-sm"
-                      >
-                        No employees found.
+                      <TableCell colSpan={10}>
+                        <EmptyState
+                          icon={Users}
+                          title="No employees found"
+                          description="Try a different search or clear the filters."
+                        />
                       </TableCell>
                     </TableRow>
                   )}
@@ -477,7 +488,7 @@ export default function EmployeeManagement() {
           employee={editingEmployee}
           onClose={() => setIsModalOpen(false)}
         />
-      </PageContainer>
+      </PageShell>
     </ProtectedRoute>
   );
 }

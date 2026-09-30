@@ -115,7 +115,7 @@ describe("SuperAdminActivityLogPage Clickable SOR Logs", () => {
     renderWithProviders(<SuperAdminActivityLogPage />);
 
     // Switch to SOR Logs tab
-    const sorTab = await screen.findByRole("button", { name: "SOR Logs" });
+    const sorTab = await screen.findByRole("tab", { name: "SOR Logs" });
     fireEvent.click(sorTab);
 
     // Wait for the SOR log item to appear
@@ -142,7 +142,7 @@ describe("SuperAdminActivityLogPage Clickable SOR Logs", () => {
     renderWithProviders(<SuperAdminActivityLogPage />);
 
     // Switch to System Logs tab
-    const systemTab = await screen.findByRole("button", { name: "System Logs" });
+    const systemTab = await screen.findByRole("tab", { name: "System Logs" });
     fireEvent.click(systemTab);
 
     // Wait for the System log item with entityType OPPORTUNITY
@@ -166,7 +166,7 @@ describe("SuperAdminActivityLogPage Clickable SOR Logs", () => {
   it("renders a JSON-encoded checklist title as checklist items, not raw JSON", async () => {
     renderWithProviders(<SuperAdminActivityLogPage />);
 
-    const tasksTab = await screen.findByRole("button", { name: "Task Logs" });
+    const tasksTab = await screen.findByRole("tab", { name: "Task Logs" });
     fireEvent.click(tasksTab);
 
     await waitFor(() => {
