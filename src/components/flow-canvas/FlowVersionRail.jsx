@@ -138,7 +138,7 @@ export default function FlowVersionRail({
           </Button>
         </div>
 
-        <div className="flex-1 space-y-2.5 overflow-y-auto p-3.5">
+        <div className="scrollbar-thin flex-1 space-y-2.5 overflow-y-auto p-3.5">
           {!isLocked ? (
             <VersionRow
               label={`Draft${versionPreview?.label ? ` · ${versionPreview.label}` : ""}`}

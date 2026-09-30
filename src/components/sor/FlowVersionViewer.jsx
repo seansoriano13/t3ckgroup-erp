@@ -316,7 +316,13 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
                 proOptions={{ hideAttribution: true }}
             >
                 <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-                <Controls showInteractive={false} />
+                {/* Bottom right, as on the Flow Canvas: its Versions rail
+                    covers the bottom-left corner. */}
+                <Controls
+                    showInteractive={false}
+                    position="bottom-right"
+                    className="!bottom-4 !right-4 !shadow-none"
+                />
             </ReactFlow>
 
             {selectedStage && (

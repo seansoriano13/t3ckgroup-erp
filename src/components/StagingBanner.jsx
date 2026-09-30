@@ -16,35 +16,18 @@ export function StagingBanner() {
   const bannerText = isStaging ? "STAGING - TEST DATA ONLY" : "LOCAL - DEVELOPMENT"
   const bannerColor = isStaging ? "#f97316" : "#22c55e" // orange-500 vs green-500
 
+  // A strip along the top edge with a small centred tab, not a corner ribbon:
+  // every Page's main action sits top right (DESIGN.md "Main action"), and a
+  // ribbon there covered it. The strip fits in the app frame's top margin.
   return (
-    <div
-      className="fixed top-0 right-0 z-[9999999] pointer-events-none"
-      style={{
-        width: "250px",
-        height: "250px",
-        overflow: "hidden",
-      }}
-    >
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[9999999] flex flex-col items-center">
+      <div className="h-[3px] w-full" style={{ backgroundColor: bannerColor }} />
       <div
-        className="absolute flex items-center justify-center gap-2 shadow-xl shadow-black/20"
-        style={{
-          top: "60px",
-          right: "-80px",
-          width: "340px",
-          transform: "rotate(45deg)",
-          backgroundColor: bannerColor,
-          backgroundImage:
-            "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.15) 10px, rgba(0,0,0,0.15) 20px)",
-          color: "white",
-          padding: "6px 0",
-          fontWeight: "900",
-          fontSize: "11px",
-          letterSpacing: "0.5px",
-        }}
+        className="flex items-center gap-1.5 rounded-b-md px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-sm"
+        style={{ backgroundColor: bannerColor }}
       >
-        <AlertTriangle size={14} strokeWidth={3} />
+        <AlertTriangle size={11} strokeWidth={3} />
         {bannerText}
-        <AlertTriangle size={14} strokeWidth={3} />
       </div>
     </div>
   )
