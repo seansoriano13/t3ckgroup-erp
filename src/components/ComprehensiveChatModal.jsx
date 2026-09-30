@@ -1295,7 +1295,7 @@ export default function ComprehensiveChatModal({
               {/* Input Area */}
               <form
                 onSubmit={handleSend}
-                className="p-4 border-t border-border bg-muted/10 min-w-0 w-full max-w-full overflow-hidden flex flex-col"
+                className="p-4 border-t border-border bg-muted/10 min-w-0 w-full max-w-full flex flex-col"
               >
                 <FileInput
                   ref={fileInputRef}
@@ -1309,7 +1309,7 @@ export default function ComprehensiveChatModal({
                     Input disabled. The associated record has been deleted.
                   </div>
                 ) : (
-                  <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow min-w-0 w-full max-w-full overflow-hidden flex flex-col">
+                  <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow min-w-0 w-full max-w-full flex flex-col">
                     <ReplyPreviewBar
                       replyingTo={replyingTo}
                       onCancel={() => setReplyingTo(null)}
