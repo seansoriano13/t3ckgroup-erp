@@ -13,7 +13,7 @@ function Stat({ label, value, sub, tone, onClick, large, divided }) {
           <ArrowUpRight
             aria-hidden
             data-testid="stat-arrow"
-            className="ml-1 inline size-3 align-[-1px] opacity-40 transition-opacity group-hover/stat:opacity-100 group-focus-visible/stat:opacity-100"
+            className="ml-1 inline size-3 align-[-1px] opacity-40 transition-[opacity,translate] group-hover/stat:-translate-y-px group-hover/stat:translate-x-px group-hover/stat:opacity-100 group-focus-visible/stat:-translate-y-px group-focus-visible/stat:translate-x-px group-focus-visible/stat:opacity-100 motion-reduce:transition-none"
           />
         )}
       </dt>

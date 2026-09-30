@@ -103,7 +103,8 @@ describe("ReportFigure", () => {
     const { container } = render(
       <ReportFigure stats={[{ label: "Won", value: 4, onClick: () => {} }, { label: "Value", value: 1 }]} />,
     );
-    expect(within(screen.getByRole("button", { name: /won/i })).getByTestId("stat-arrow")).toBeInTheDocument();
+    const arrow = within(screen.getByRole("button", { name: /won/i })).getByTestId("stat-arrow");
+    expect(arrow.getAttribute("class")).toContain("group-hover/stat:translate-x-px");
     expect(container.querySelectorAll('[data-testid="stat-arrow"]')).toHaveLength(1);
   });
 });
