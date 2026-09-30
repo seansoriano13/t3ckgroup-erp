@@ -29,4 +29,17 @@ describe("hasDraftContent", () => {
         expect(hasDraftContent([{ checklist: filled }], {})).toBe(true)
         expect(hasDraftContent([{ checklist: blank }], {})).toBe(false)
     })
+
+    // A draft's checklist is whatever cleanChecklistForSave produced, which is
+    // the grouped shape as soon as there is more than one group or a titled
+    // one — flat is only the single-untitled-group case. parseChecklist
+    // flattens groups, so both shapes have to answer the same way.
+    it("reads the grouped checklist shape a draft actually carries", () => {
+        const filled = [{ id: "g-0", title: "Site survey", items: [{ id: "1", text: "Measure the riser", checked: false }] }]
+        const blank = [{ id: "g-0", title: "Site survey", items: [{ id: "1", text: "  ", checked: false }] }]
+
+        expect(hasDraftContent([{ checklist: filled }], {})).toBe(true)
+        expect(hasDraftContent([{ checklist: JSON.stringify(filled) }], {})).toBe(true)
+        expect(hasDraftContent([{ checklist: blank }], {})).toBe(false)
+    })
 })
