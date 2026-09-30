@@ -181,7 +181,7 @@ function HrVerificationQueue() {
 
   return (
     <>
-      <ApprovalCenterLayout queue="hr" counts={q.counts}
+      <ApprovalCenterLayout
         toolbar={
         <ApprovalToolbar
           views={[

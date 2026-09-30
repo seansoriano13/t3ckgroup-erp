@@ -99,7 +99,7 @@ function LeaveApprovalsQueue() {
 
   return (
     <>
-      <ApprovalCenterLayout queue="leaves" counts={q.counts}
+      <ApprovalCenterLayout
         toolbar={
         <ApprovalToolbar
           views={[

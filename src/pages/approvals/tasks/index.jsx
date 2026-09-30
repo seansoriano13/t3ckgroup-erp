@@ -236,8 +236,6 @@ function TaskApprovalsQueue() {
   return (
     <>
       <ApprovalCenterLayout
-        queue="tasks"
-        counts={q.counts}
         headerActions={
           (isSuperAdmin || isHead) && (
             <TabGroup
