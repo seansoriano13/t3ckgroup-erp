@@ -2714,6 +2714,20 @@ export const opportunityService = {
         : null;
       const notifiable = audienceIds ? new Set(audienceIds) : null;
 
+      // An old SOR has no visit, so nothing scopes it: the mention itself is
+      // the read-only grant, otherwise the person is notified about a deal
+      // they cannot open. A failed grant must not lose the note.
+      if (!currentVisit?.id) {
+        const toGrant = live.map((m) => m.id).filter((id) => id !== authorId);
+        if (toGrant.length > 0) {
+          const { error: grantError } = await supabase.rpc("sor_grant_mention_view", {
+            p_opportunity_id: opportunityId,
+            p_employee_ids: toGrant,
+          });
+          if (grantError) console.error("Failed to grant mention view:", grantError);
+        }
+      }
+
       await Promise.all(
         live
           // Mentioning yourself is a way of writing, not a request for a
