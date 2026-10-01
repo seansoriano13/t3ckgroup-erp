@@ -20,8 +20,10 @@ const TOUCHED = `
   or (tablename = 'sales_opportunity_logs' and policyname = 'sor_log_read')
   or (tablename = 'sales_opportunity_members' and policyname = 'sales_opportunity_members_read')
 `
+// hr_read_system_audit_logs is no longer prod-only: 20261001100000 re-creates it
+// (scoped to HR entity types) after this migration drops the old one.
 const PROD_ONLY = `
-  (tablename = 'system_audit_logs' and policyname in ('Allow all read','hr_read_system_audit_logs'))
+  (tablename = 'system_audit_logs' and policyname = 'Allow all read')
   or (tablename = 'task_activity' and policyname in ('Authenticated users can insert task activity','Authenticated users can read task activity'))
 `
 
@@ -79,7 +81,6 @@ describe("re-assert SOR policies migration", () => {
               drop policy "sales_opportunity_members_read" on public.sales_opportunity_members;
               create policy "sales_opportunity_members_read" on public.sales_opportunity_members for select to authenticated using (true);
               create policy "Allow all read" on public.system_audit_logs for select to public using (true);
-              create policy "hr_read_system_audit_logs" on public.system_audit_logs for select to public using (true);
               create policy "Authenticated users can insert task activity" on public.task_activity for insert to authenticated with check (true);
               create policy "Authenticated users can read task activity" on public.task_activity for select to authenticated using (true);
             `)
