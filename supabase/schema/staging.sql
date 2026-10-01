@@ -26,6 +26,30 @@ create table if not exists public."app_settings" (
   "retail_storefronts" text[] not null default '{Shopee,Lazada}'::text[]
 );
 
+create table if not exists public."bug_report_notes" (
+  "id" uuid not null default gen_random_uuid(),
+  "report_id" uuid not null,
+  "author_id" uuid not null,
+  "kind" text not null default 'note'::text,
+  "body" text,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."bug_reports" (
+  "id" uuid not null default gen_random_uuid(),
+  "reporter_id" uuid not null,
+  "description" text not null,
+  "attachments" jsonb not null default '[]'::jsonb,
+  "page_url" text,
+  "user_agent" text,
+  "app_version" text,
+  "environment" text,
+  "created_at" timestamp with time zone not null default now(),
+  "resolved_at" timestamp with time zone,
+  "resolved_by" uuid,
+  "attachments_purged_at" timestamp with time zone
+);
+
 create table if not exists public."categories" (
   "id" bigint not null generated always as identity,
   "created_at" timestamp with time zone not null default now(),
@@ -251,7 +275,8 @@ create table if not exists public."employees" (
   "company_id" uuid,
   "is_issued_password" boolean not null default false,
   "can_edit_sales_flows" boolean not null default false,
-  "has_retail_access" boolean not null default false
+  "has_retail_access" boolean not null default false,
+  "has_bug_report_access" boolean not null default false
 );
 
 create table if not exists public."faq_data" (
@@ -773,6 +798,13 @@ create table if not exists public."sor_inclusions" (
   "cost_established_at" timestamp with time zone
 );
 
+create table if not exists public."sor_mention_viewers" (
+  "opportunity_id" uuid not null,
+  "employee_id" uuid not null,
+  "granted_by" uuid,
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."sor_procurement_requests" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
@@ -1000,6 +1032,8 @@ create table if not exists public."verification_rate_limits" (
 -- ============================================================
 
 alter table app_settings add constraint "app_settings_pkey" PRIMARY KEY (id);
+alter table bug_report_notes add constraint "bug_report_notes_pkey" PRIMARY KEY (id);
+alter table bug_reports add constraint "bug_reports_pkey" PRIMARY KEY (id);
 alter table categories add constraint "categories_pkey" PRIMARY KEY (id);
 alter table chat_read_receipts add constraint "chat_read_receipts_pkey" PRIMARY KEY (user_id, entity_type, entity_id);
 alter table chat_user_archives add constraint "chat_user_archives_pkey" PRIMARY KEY (user_id, entity_type, entity_id);
@@ -1055,6 +1089,7 @@ alter table sor_canvasses add constraint "sor_canvasses_pkey" PRIMARY KEY (id);
 alter table sor_condition_status add constraint "sor_requirement_status_pkey" PRIMARY KEY (id);
 alter table sor_form_values add constraint "sor_form_values_pkey" PRIMARY KEY (id);
 alter table sor_inclusions add constraint "sor_inclusions_pkey" PRIMARY KEY (id);
+alter table sor_mention_viewers add constraint "sor_mention_viewers_pkey" PRIMARY KEY (opportunity_id, employee_id);
 alter table sor_procurement_requests add constraint "sor_procurement_requests_pkey" PRIMARY KEY (id);
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_pkey" PRIMARY KEY (id);
 alter table sor_stage_field_values add constraint "sor_stage_field_values_pkey" PRIMARY KEY (id);
@@ -1100,6 +1135,8 @@ alter table sor_stage_field_values add constraint "sor_stage_field_values_unique
 alter table sor_stage_visits add constraint "sor_stage_visits_unique_sequence" UNIQUE (opportunity_id, sequence);
 alter table undertime_requests add constraint "undertime_requests_verification_token_key" UNIQUE (verification_token);
 alter table app_settings add constraint "app_settings_id_check" CHECK ((id = true));
+alter table bug_report_notes add constraint "bug_report_notes_kind_check" CHECK ((kind = ANY (ARRAY['note'::text, 'resolved'::text, 'reopened'::text])));
+alter table bug_reports add constraint "bug_reports_description_check" CHECK ((length(btrim(description)) > 0));
 alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_check" CHECK ((entity_type = ANY (ARRAY['TASK'::text, 'SALES'::text, 'COMMITTEE_TASK'::text, 'GROUP_TASK'::text])));
 alter table commission_rates add constraint "commission_rates_rate_type_chk" CHECK ((rate_type = ANY (ARRAY['VAT'::text, 'WITHHOLDING'::text, 'POOL'::text, 'RETENTION'::text])));
 alter table commission_splits add constraint "commission_splits_project_type_chk" CHECK ((project_type = ANY (ARRAY['SSP'::text, 'CP'::text, 'STRATEGIC'::text])));
@@ -1152,6 +1189,10 @@ alter table task_activity add constraint "task_activity_type_check" CHECK (((typ
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table undertime_requests add constraint "undertime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table undertime_requests add constraint "undertime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
+alter table bug_report_notes add constraint "bug_report_notes_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
+alter table bug_report_notes add constraint "bug_report_notes_report_id_fkey" FOREIGN KEY (report_id) REFERENCES bug_reports(id) ON DELETE CASCADE;
+alter table bug_reports add constraint "bug_reports_reporter_id_fkey" FOREIGN KEY (reporter_id) REFERENCES employees(id);
+alter table bug_reports add constraint "bug_reports_resolved_by_fkey" FOREIGN KEY (resolved_by) REFERENCES employees(id);
 alter table categories add constraint "categories_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
 alter table chat_read_receipts add constraint "chat_read_receipts_user_id_fkey" FOREIGN KEY (user_id) REFERENCES employees(id);
 alter table chat_user_archives add constraint "chat_user_archives_user_id_fkey" FOREIGN KEY (user_id) REFERENCES employees(id);
@@ -1270,6 +1311,9 @@ alter table sor_form_values add constraint "sor_form_values_opportunity_id_fkey"
 alter table sor_form_values add constraint "sor_form_values_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
 alter table sor_inclusions add constraint "sor_inclusions_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table sor_inclusions add constraint "sor_inclusions_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sor_mention_viewers add constraint "sor_mention_viewers_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
+alter table sor_mention_viewers add constraint "sor_mention_viewers_granted_by_fkey" FOREIGN KEY (granted_by) REFERENCES employees(id);
+alter table sor_mention_viewers add constraint "sor_mention_viewers_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table sor_procurement_requests add constraint "sor_procurement_requests_assigned_to_fkey" FOREIGN KEY (assigned_to) REFERENCES employees(id);
 alter table sor_procurement_requests add constraint "sor_procurement_requests_inclusion_id_fkey" FOREIGN KEY (inclusion_id) REFERENCES sor_inclusions(id) ON DELETE SET NULL;
 alter table sor_procurement_requests add constraint "sor_procurement_requests_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
@@ -1326,6 +1370,8 @@ alter table undertime_requests add constraint "undertime_requests_printed_by_fke
 -- Indexes (excluding those backing constraints)
 -- ============================================================
 
+CREATE INDEX bug_report_notes_report_idx ON public.bug_report_notes USING btree (report_id, created_at);
+CREATE INDEX bug_reports_created_at_idx ON public.bug_reports USING btree (created_at DESC);
 CREATE INDEX commission_positions_department_id_idx ON public.commission_positions USING btree (department_id);
 CREATE INDEX commission_rates_rate_type_idx ON public.commission_rates USING btree (rate_type);
 CREATE INDEX commission_splits_project_type_idx ON public.commission_splits USING btree (project_type);
@@ -1412,6 +1458,8 @@ CREATE INDEX undertime_requests_head_id_idx ON public.undertime_requests USING b
 -- ============================================================
 
 alter table public."app_settings" enable row level security;
+alter table public."bug_report_notes" enable row level security;
+alter table public."bug_reports" enable row level security;
 alter table public."categories" enable row level security;
 alter table public."chat_read_receipts" enable row level security;
 alter table public."chat_user_archives" enable row level security;
@@ -1465,6 +1513,7 @@ alter table public."sor_canvass_offers" enable row level security;
 alter table public."sor_canvasses" enable row level security;
 alter table public."sor_form_values" enable row level security;
 alter table public."sor_inclusions" enable row level security;
+alter table public."sor_mention_viewers" enable row level security;
 alter table public."sor_procurement_requests" enable row level security;
 alter table public."sor_purchase_order_links" enable row level security;
 alter table public."sor_stage_field_values" enable row level security;
@@ -1498,6 +1547,18 @@ create policy "Allow public read of app_settings" on public."app_settings"
   for select
   to public
   using (true);
+create policy "Bug report notes follow their report" on public."bug_report_notes"
+  as permissive
+  for select
+  to authenticated
+  using ((EXISTS ( SELECT 1
+   FROM bug_reports r
+  WHERE (r.id = bug_report_notes.report_id))));
+create policy "Bug report readers and the sender can view" on public."bug_reports"
+  as permissive
+  for select
+  to authenticated
+  using ((can_read_bug_reports() OR (reporter_id = get_employee_id())));
 create policy "Allow HR to manage categories" on public."categories"
   as permissive
   for all
@@ -1701,9 +1762,9 @@ create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using ((((opportunity_id IS NULL) OR is_super_admin() OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))) AND ((created_by = get_employee_id()) OR is_super_admin() OR (EXISTS ( SELECT 1
+  using ((is_super_admin() OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))))));
+  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "companies_read" on public."companies"
   as permissive
   for select
@@ -2413,6 +2474,11 @@ create policy "sor_inclusions_update" on public."sor_inclusions"
   with check ((sor_can_edit_opportunity(opportunity_id) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.has_purchasing_flow)))));
+create policy "sor_mention_viewers_read" on public."sor_mention_viewers"
+  as permissive
+  for select
+  to authenticated
+  using (((employee_id = get_employee_id()) OR is_super_admin()));
 create policy "sor_procurement_delete" on public."sor_procurement_requests"
   as permissive
   for delete
@@ -2526,16 +2592,17 @@ create policy "authenticated_insert_system_audit_logs" on public."system_audit_l
   for insert
   to public
   with check ((auth.uid() IS NOT NULL));
+create policy "hr_read_system_audit_logs" on public."system_audit_logs"
+  as permissive
+  for select
+  to authenticated
+  using ((COALESCE(is_hr(), false) AND (entity_type = ANY (ARRAY['EMPLOYEE'::text, 'CATEGORY'::text, 'OVERTIME'::text, 'OFFSET_LEAVE'::text, 'SIL_LEAVE'::text, 'HR_SETTINGS'::text]))));
 create policy "super_admin_all_system_audit_logs" on public."system_audit_logs"
   as permissive
   for all
-  to public
-  using ((EXISTS ( SELECT 1
-   FROM employees
-  WHERE ((employees.id = auth.uid()) AND (employees.is_super_admin = true)))))
-  with check ((EXISTS ( SELECT 1
-   FROM employees
-  WHERE ((employees.id = auth.uid()) AND (employees.is_super_admin = true)))));
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
 create policy "Authenticated users can update task activity" on public."task_activity"
   as permissive
   for update
@@ -2619,6 +2686,62 @@ create policy "undertime_requests_update" on public."undertime_requests"
 -- Functions
 -- ============================================================
 
+CREATE OR REPLACE FUNCTION public.add_bug_report_note(p_report_id uuid, p_body text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_me uuid := get_employee_id();
+  v_reporter uuid;
+  v_body text := btrim(coalesce(p_body, ''));
+  v_id uuid;
+begin
+  if v_me is null then
+    raise exception 'Not signed in as a recognized employee.';
+  end if;
+
+  select reporter_id into v_reporter from bug_reports where id = p_report_id;
+  if not found then
+    raise exception 'Bug report not found.';
+  end if;
+  if v_reporter <> v_me and not can_read_bug_reports() then
+    raise exception 'You cannot write on this bug report.';
+  end if;
+
+  if length(v_body) = 0 then
+    raise exception 'Write something before sending.';
+  end if;
+  if length(v_body) > 4000 then
+    raise exception 'Keep a note under 4000 characters.';
+  end if;
+
+  insert into bug_report_notes (report_id, author_id, kind, body)
+  values (p_report_id, v_me, 'note', v_body)
+  returning id into v_id;
+
+  if v_me = v_reporter then
+    insert into notifications (recipient_id, sender_id, type, title, message, reference_id)
+    select e.id, v_me, 'BUG_REPORT_NOTE', 'Reply on a bug report',
+           left(split_part(v_body, E'\n', 1), 140), p_report_id::text
+    from employees e
+    where (e.is_super_admin or e.has_bug_report_access)
+      and not coalesce(e.is_deleted, false)
+      and e.id <> v_me;
+  else
+    insert into notifications (recipient_id, sender_id, type, title, message, reference_id)
+    select e.id, v_me, 'BUG_REPORT_NOTE', 'Note on your bug report',
+           left(split_part(v_body, E'\n', 1), 140), p_report_id::text
+    from employees e
+    where e.id = v_reporter
+      and not coalesce(e.is_deleted, false);
+  end if;
+
+  return v_id;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.add_leave_category(p_label text)
  RETURNS hr_leave_categories
  LANGUAGE plpgsql
@@ -2726,6 +2849,19 @@ CREATE OR REPLACE FUNCTION public.can_manage_leaves()
  SECURITY DEFINER
 AS $function$
   SELECT can_manage_leaves FROM public.employees WHERE email = auth.jwt() ->> 'email';
+$function$
+;
+CREATE OR REPLACE FUNCTION public.can_read_bug_reports()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from employees e
+    where e.id = get_employee_id()
+      and (e.is_super_admin or e.has_bug_report_access)
+  );
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.cancel_sil_leave(p_leave_id uuid, p_employee_id uuid)
@@ -3614,6 +3750,29 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.mark_bug_report_files_purged(p_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not can_read_bug_reports() then
+    raise exception 'You do not have Bug Reports access.';
+  end if;
+
+  update bug_reports set
+    attachments = '[]'::jsonb,
+    attachments_purged_at = now()
+  where id = p_id
+    and created_at < now() - interval '1 year';
+
+  if not found then
+    raise exception 'Bug report not found, or not a year old yet.';
+  end if;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4286,6 +4445,36 @@ begin
   return new;
 end $function$
 ;
+CREATE OR REPLACE FUNCTION public.set_bug_report_resolved(p_id uuid, p_resolved boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_was_resolved boolean;
+begin
+  if not can_read_bug_reports() then
+    raise exception 'You do not have Bug Reports access.';
+  end if;
+
+  select resolved_at is not null into v_was_resolved from bug_reports where id = p_id for update;
+  if not found then
+    raise exception 'Bug report not found.';
+  end if;
+
+  update bug_reports set
+    resolved_at = case when p_resolved then coalesce(resolved_at, now()) end,
+    resolved_by = case when p_resolved then coalesce(resolved_by, get_employee_id()) end
+  where id = p_id;
+
+  if p_resolved <> v_was_resolved then
+    insert into bug_report_notes (report_id, author_id, kind)
+    values (p_id, get_employee_id(), case when p_resolved then 'resolved' else 'reopened' end);
+  end if;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.set_odoo_retail_queue_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4328,6 +4517,11 @@ AS $function$
       where p.opportunity_id = p_opportunity_id
         and p.employee_id = public.get_employee_id()
         and p.closed_at is null
+    ) then 'participant'
+    when exists (
+      select 1 from public.sor_mention_viewers m
+      where m.opportunity_id = p_opportunity_id
+        and m.employee_id = public.get_employee_id()
     ) then 'participant'
     when exists (
       select 1 from public.sor_stage_participants p
@@ -4848,6 +5042,36 @@ begin
 
   return v_row;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_grant_mention_view(p_opportunity_id uuid, p_employee_ids uuid[])
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_count integer;
+begin
+  -- Whoever can post a note on the SOR can mention someone into it.
+  if public.sor_access_level(p_opportunity_id) not in ('full', 'participant') then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  insert into public.sor_mention_viewers (opportunity_id, employee_id, granted_by)
+  select p_opportunity_id, e.id, public.get_employee_id()
+  from public.employees e
+  join public.sales_opportunities o on o.id = p_opportunity_id
+  where e.id = any (p_employee_ids)
+    and coalesce(e.is_deleted, false) = false
+    -- Already reaches the SOR some other way: no grant row to clutter My SORs.
+    and not coalesce(e.is_super_admin, false)
+    -- sor_is_deal_team is NULL, not false, when some Deal Team columns are empty.
+    and not coalesce(public.sor_is_deal_team(o, e.id), false)
+    and not coalesce(public.sor_always_sees(o, e.id), false)
+  on conflict do nothing;
+  get diagnostics v_count = row_count;
+  return v_count;
+end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_guard_non_editor_update()
@@ -6297,6 +6521,55 @@ AS $function$
     where s.id = p_snapshot_id and a.value->>'id' = p_action_id::text
     limit 1
   ), false);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.submit_bug_report(p_description text, p_attachments jsonb DEFAULT '[]'::jsonb, p_page_url text DEFAULT NULL::text, p_user_agent text DEFAULT NULL::text, p_app_version text DEFAULT NULL::text, p_environment text DEFAULT NULL::text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_reporter uuid;
+  v_attachments jsonb := coalesce(p_attachments, '[]'::jsonb);
+  v_id uuid;
+begin
+  v_reporter := get_employee_id();
+  if v_reporter is null then
+    raise exception 'Not signed in as a recognized employee.';
+  end if;
+
+  if length(btrim(coalesce(p_description, ''))) = 0 then
+    raise exception 'Describe the bug before sending.';
+  end if;
+
+  if jsonb_typeof(v_attachments) <> 'array' then
+    raise exception 'Attachments must be a list.';
+  end if;
+  if jsonb_array_length(v_attachments) > 5 then
+    raise exception 'At most 5 attachments.';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(v_attachments) a
+    where coalesce(a->>'path', '') not like v_reporter::text || '/%'
+  ) then
+    raise exception 'Attachment is not one of your uploads.';
+  end if;
+
+  insert into bug_reports (reporter_id, description, attachments, page_url, user_agent, app_version, environment)
+  values (v_reporter, btrim(p_description), v_attachments, p_page_url, p_user_agent, p_app_version, p_environment)
+  returning id into v_id;
+
+  insert into notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select e.id, v_reporter, 'BUG_REPORT_SUBMITTED', 'New bug report',
+         left(split_part(btrim(p_description), E'\n', 1), 140), v_id::text
+  from employees e
+  where (e.is_super_admin or e.has_bug_report_access)
+    and not coalesce(e.is_deleted, false)
+    and e.id <> v_reporter;
+
+  return v_id;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.tasks_broadcast_change()
