@@ -124,6 +124,16 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
         detail: { id: notif.reference_id, type: "OPPORTUNITY" },
       }),
     );
+  } else if (notif.type === "OPPORTUNITY_MENTION") {
+    // Same reason as SOR_* above: the register's deep-link fetch is a plain
+    // `.single()` that RLS empties for anyone outside the deal team (an old
+    // pipeline SOR notifies every live mention), so the click did nothing.
+    // The global modal branches on access level instead.
+    window.dispatchEvent(
+      new CustomEvent("OPEN_ENTITY_DETAILS", {
+        detail: { id: notif.reference_id, type: "OPPORTUNITY" },
+      }),
+    );
   } else if (notif.type.startsWith("OPPORTUNITY_")) {
     navigate("/sors", {
       state: { openOpportunityId: notif.reference_id },

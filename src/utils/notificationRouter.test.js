@@ -179,6 +179,20 @@ describe("handleNotificationRoute", () => {
       ])
     })
 
+    it("opens the SOR through the global modal for an SOR mention, not the register", () => {
+      handleNotificationRoute(
+        { type: "OPPORTUNITY_MENTION", reference_id: "opp-7" },
+        employee,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "opp-7", type: "OPPORTUNITY" } },
+      ])
+    })
+
     it("opens the task's chat for a task mention, regardless of the reader's role", () => {
       // A mention can land on anyone named in the comment, not just the task
       // owner or their head — routing by role (like the generic TASK branch
