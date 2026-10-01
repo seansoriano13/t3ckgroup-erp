@@ -62,6 +62,9 @@ export const SEED_TABLES = [
   "sales_opportunity_logs",
   "sales_opportunity_items",
   "sales_opportunity_members",
+  // Read-only grants from a note Mention (ADR 0021 amendment). After
+  // sales_opportunities and employees, which it points at.
+  "sor_mention_viewers",
   "sor_condition_status",
   "sor_stage_field_values",
   // Answers to the flow's custom registration fields. After both tables it
