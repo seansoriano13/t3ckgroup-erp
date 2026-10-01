@@ -6,6 +6,7 @@
  *   { type: "employee", id }
  *   { type: "group", id }        an Employee Group
  *   { type: "team", team }       everyone whose Sub-department matches
+ *   { type: "department", department }  everyone whose Department matches
  *   { type: "role", role }       a Deal Team role, only meaningful per SOR
  *   { type: "everyone" }         every non-deleted employee, including later hires
  *
@@ -19,6 +20,7 @@ export const SELECTOR_TYPES = Object.freeze({
   EMPLOYEE: "employee",
   GROUP: "group",
   TEAM: "team",
+  DEPARTMENT: "department",
   ROLE: "role",
   EVERYONE: "everyone",
 });
@@ -50,6 +52,20 @@ export function teamOptions(employees = []) {
     if (team && team !== "ALL") teams.add(team);
   }
   return [...teams].sort();
+}
+
+/**
+ * The Department options a picker offers: the distinct non-blank Department
+ * values of live employees, excluding "ALL".
+ */
+export function departmentOptions(employees = []) {
+  const departments = new Set();
+  for (const e of employees) {
+    if (e?.is_deleted) continue;
+    const department = normaliseTeam(e?.department);
+    if (department && department !== "ALL") departments.add(department);
+  }
+  return [...departments].sort();
 }
 
 /**
@@ -105,6 +121,14 @@ export function resolvePeople(selectors, { employees = [], groupMembersById = {}
         }
         break;
       }
+      case SELECTOR_TYPES.DEPARTMENT: {
+        const department = normaliseTeam(selector.department);
+        if (!department) break;
+        for (const e of employees) {
+          if (normaliseTeam(e.department) === department) wanted.add(String(e.id));
+        }
+        break;
+      }
       case SELECTOR_TYPES.ROLE: {
         if (!opportunity) break;
         for (const column of DEAL_TEAM_ROLES[selector.role]?.columns || []) {
@@ -126,6 +150,8 @@ export function selectorKey(selector) {
   switch (selector.type) {
     case SELECTOR_TYPES.TEAM:
       return `team:${normaliseTeam(selector.team)}`;
+    case SELECTOR_TYPES.DEPARTMENT:
+      return `department:${normaliseTeam(selector.department)}`;
     case SELECTOR_TYPES.ROLE:
       return `role:${selector.role}`;
     case SELECTOR_TYPES.EVERYONE:

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { resolvePeople, resolveGroupMemberIds, teamOptions } from "./resolvePeople"
+import { resolvePeople, resolveGroupMemberIds, teamOptions, departmentOptions } from "./resolvePeople"
 
 const employees = [
   { id: "ana", sub_department: "PURCHASING" },
@@ -89,5 +89,43 @@ describe("teamOptions", () => {
       "MARKETING",
       "PURCHASING",
     ])
+  })
+})
+
+describe("resolvePeople department", () => {
+  const staff = [
+    { id: "sam", department: "SALES", sub_department: "" },
+    { id: "gus", department: " sales ", sub_department: "GOV" },
+    { id: "val", department: "SALES", sub_department: "SALES" },
+    { id: "ops", department: "OPERATIONS", sub_department: "SALES" },
+    { id: "gone", department: "SALES", is_deleted: true },
+    { id: "nul", department: null },
+  ]
+
+  it("covers the whole Department whatever the Sub-department, ignoring case and spacing", () => {
+    expect(resolvePeople([{ type: "department", department: "Sales" }], { employees: staff })).toEqual([
+      "sam",
+      "gus",
+      "val",
+    ])
+  })
+
+  it("resolves a blank Department to nobody", () => {
+    expect(resolvePeople([{ type: "department", department: "  " }], { employees: staff })).toEqual([])
+  })
+})
+
+describe("departmentOptions", () => {
+  it("lists distinct live non-blank Departments, upper-cased, without ALL", () => {
+    expect(
+      departmentOptions([
+        { department: "sales" },
+        { department: "SALES " },
+        { department: "OPERATIONS" },
+        { department: "ALL" },
+        { department: null },
+        { department: "ADMIN", is_deleted: true },
+      ]),
+    ).toEqual(["OPERATIONS", "SALES"])
   })
 })

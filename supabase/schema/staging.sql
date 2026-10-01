@@ -6082,6 +6082,13 @@ AS $function$
       where e.id = p_employee_id
         and upper(trim(e.sub_department)) = upper(trim(p_selector->>'team'))
     )
+    when 'department' then exists (
+      select 1 from public.employees e
+      where e.id = p_employee_id
+        and coalesce(e.is_deleted, false) = false
+        and nullif(upper(trim(p_selector->>'department')), '') is not null
+        and upper(trim(e.department)) = upper(trim(p_selector->>'department'))
+    )
     when 'role' then (
       (p_selector->>'role' = 'deal_owner' and p_opp.deal_owner_id = p_employee_id)
       or (p_selector->>'role' = 'closing_sales' and p_opp.closing_sales_id = p_employee_id)

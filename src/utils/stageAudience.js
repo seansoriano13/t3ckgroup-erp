@@ -133,6 +133,8 @@ export function describeSelector(selector, { employees = [], groupsById = {} } =
       return groupsById[selector.id]?.name || "Unknown group";
     case SELECTOR_TYPES.TEAM:
       return `Everyone in ${normaliseTeam(selector.team)}`;
+    case SELECTOR_TYPES.DEPARTMENT:
+      return `Everyone in ${normaliseTeam(selector.department)} department`;
     case SELECTOR_TYPES.ROLE:
       return DEAL_TEAM_ROLES[selector.role]?.label || selector.role;
     case SELECTOR_TYPES.EVERYONE:

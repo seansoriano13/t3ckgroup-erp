@@ -35,7 +35,7 @@
  *                                        // actions are turned into this list
  *     }],
  *     groupMembersById?: Record<string, { employeeIds?: string[], teams?: string[] }>,
- *     employees?: Array<{ id, sub_department?, is_deleted? }>,
+ *     employees?: Array<{ id, department?, sub_department?, is_deleted? }>,
  *     alwaysSees?: Array<selector>,     // flow_access_settings.always_sees
  *     alwaysEdits?: Array<selector>,    // flow_access_settings.always_edits
  *   }
@@ -52,6 +52,9 @@ function selectorMatchesViewer(other, selector, { employees, groupMembersById })
   if (other.type === selector.type) {
     if (other.type === SELECTOR_TYPES.ROLE) return other.role === selector.role;
     if (other.type === SELECTOR_TYPES.TEAM) return normaliseTeam(other.team) === normaliseTeam(selector.team);
+    if (other.type === SELECTOR_TYPES.DEPARTMENT) {
+      return normaliseTeam(other.department) === normaliseTeam(selector.department);
+    }
     return String(other.id) === String(selector.id);
   }
 
@@ -67,6 +70,9 @@ function selectorMatchesViewer(other, selector, { employees, groupMembersById })
     }
     if (other.type === SELECTOR_TYPES.TEAM) {
       return normaliseTeam(employee.sub_department) === normaliseTeam(other.team);
+    }
+    if (other.type === SELECTOR_TYPES.DEPARTMENT) {
+      return normaliseTeam(employee.department) === normaliseTeam(other.department);
     }
   }
 

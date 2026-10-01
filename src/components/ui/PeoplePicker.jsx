@@ -6,7 +6,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import { cn } from "@/lib/utils";
 import { employeeService } from "@/services/employeeService";
 import { employeeGroupService } from "@/services/employeeGroupService";
-import { DEAL_TEAM_ROLES, SELECTOR_TYPES, selectorKey, teamOptions } from "@/utils/resolvePeople";
+import { DEAL_TEAM_ROLES, SELECTOR_TYPES, departmentOptions, selectorKey, teamOptions } from "@/utils/resolvePeople";
 
 /**
  * Issue #201 — the one people picker for every setting that asks "who".
@@ -14,7 +14,7 @@ import { DEAL_TEAM_ROLES, SELECTOR_TYPES, selectorKey, teamOptions } from "@/uti
  * Its value is a list of selectors (see `src/utils/resolvePeople.js`): a
  * specific employee, an Employee Group, everyone in a Team, and — where the
  * setting is per SOR — a Deal Team role. Call sites turn the role option on
- * with `allowRoles`, "Everyone" with `allowEveryone` (Flow Canvas access pickers only); `types` narrows the offer further (the group editor
+ * with `allowRoles`, "Everyone" with `allowEveryone` and "Everyone in a Department" with `allowDepartments` (Flow Canvas access pickers only); `types` narrows the offer further (the group editor
  * picks only employees, or only Teams).
  *
  * Archived groups are never offered, but one already in the value still shows
@@ -25,6 +25,7 @@ export default function PeoplePicker({
   onChange,
   allowRoles = false,
   allowEveryone = false,
+  allowDepartments = false,
   types = [SELECTOR_TYPES.GROUP, SELECTOR_TYPES.TEAM, SELECTOR_TYPES.EMPLOYEE],
   disabled = false,
   placeholder = "Add people",
@@ -45,6 +46,7 @@ export default function PeoplePicker({
     () => teamOptions(employees.map((e) => ({ ...e, sub_department: e.subDepartment }))),
     [employees],
   );
+  const departments = useMemo(() => departmentOptions(employees), [employees]);
 
   const chosen = new Set(value.map(selectorKey));
   const needle = search.trim().toLowerCase();
@@ -60,6 +62,16 @@ export default function PeoplePicker({
             icon: Globe,
           },
         ]
+      : []),
+    ...(allowDepartments
+      ? departments
+          .filter(matches)
+          .map((department) => ({
+            selector: { type: SELECTOR_TYPES.DEPARTMENT, department },
+            label: `Everyone in ${department} department`,
+            section: "Departments",
+            icon: Building2,
+          }))
       : []),
     ...groups
       .filter((g) => !g.archived_at && matches(g.name))
@@ -100,7 +112,8 @@ export default function PeoplePicker({
     (option) =>
       (types.includes(option.selector.type) ||
         option.selector.type === SELECTOR_TYPES.ROLE ||
-        option.selector.type === SELECTOR_TYPES.EVERYONE) &&
+        option.selector.type === SELECTOR_TYPES.EVERYONE ||
+        option.selector.type === SELECTOR_TYPES.DEPARTMENT) &&
       !chosen.has(selectorKey(option.selector)),
   );
 
@@ -113,6 +126,8 @@ export default function PeoplePicker({
       }
       case SELECTOR_TYPES.TEAM:
         return `Everyone in ${selector.team}`;
+      case SELECTOR_TYPES.DEPARTMENT:
+        return `Everyone in ${selector.department} department`;
       case SELECTOR_TYPES.EVERYONE:
         return "Everyone";
       case SELECTOR_TYPES.ROLE:
@@ -175,7 +190,7 @@ export default function PeoplePicker({
                   autoFocus
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search people, groups, teams"
+                  placeholder="Search people, groups, teams, departments"
                   className="h-8 w-full bg-transparent text-sm focus:outline-none"
                 />
               </div>
