@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bug } from "lucide-react";
 import toast from "react-hot-toast";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
+import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
 import SlideOver, { SlideOverBody, SlideOverFooter } from "../../components/ui/SlideOver";
 import { DetailRow, DetailSection } from "../../components/ui/DetailParts";
@@ -15,6 +16,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useRecordParam } from "../../hooks/useRecordParam";
 import { bugReportService } from "../../services/bugReportService";
 import { getPermissionContext } from "../../utils/permissions";
+import { APPROVE_CLASS } from "../approvals/_components/approvalUi";
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
 
@@ -57,7 +59,7 @@ function ReportRow({ report, onOpen }) {
   );
 }
 
-function Attachments({ report }) {
+function ReportFiles({ report }) {
   const { data: files = [], isLoading } = useQuery({
     queryKey: ["bugReportFiles", report.id, report.attachments?.length],
     queryFn: () => bugReportService.withUrls(report.attachments || []),
@@ -109,7 +111,7 @@ function ReportSheet({ report, index, total, onStep, onClose }) {
               <p className="whitespace-pre-wrap break-words text-[13px] text-foreground">{r.description}</p>
             </DetailSection>
             <DetailSection title="Attachments">
-              <Attachments report={r} />
+              <ReportFiles report={r} />
             </DetailSection>
             <DetailSection title="Details">
               <dl className="divide-y divide-border">
@@ -125,8 +127,8 @@ function ReportSheet({ report, index, total, onStep, onClose }) {
           </SlideOverBody>
           <SlideOverFooter>
             <Button
-              className="w-full"
               variant={r.resolved_at ? "outline" : "default"}
+              className={r.resolved_at ? "w-full" : `w-full ${APPROVE_CLASS}`}
               disabled={saving}
               onClick={() => toggleResolved(r)}
             >
@@ -148,17 +150,22 @@ function BugReportsList() {
   const { recordId, open, step, close } = useRecordParam();
   const [showResolved, setShowResolved] = useState(false);
 
+  const queryClient = useQueryClient();
   const { data: reports = [], isLoading, isError, error } = useQuery({
     queryKey: ["bugReports"],
-    queryFn: async () => {
-      const rows = await bugReportService.list();
-      const purged = await bugReportService.purgeExpiredFiles(rows).catch((err) => {
-        console.error("Bug report file purge failed", err);
-        return 0;
-      });
-      return purged ? bugReportService.list() : rows;
-    },
+    queryFn: () => bugReportService.list(),
   });
+
+  // Once per page open, not on every refetch: delete the files of reports
+  // over a year old, then reload the list if any went.
+  const purgeRan = useRef(false);
+  useEffect(() => {
+    if (purgeRan.current || isLoading || isError) return;
+    purgeRan.current = true;
+    bugReportService.purgeExpiredFiles(reports).then((purged) => {
+      if (purged) queryClient.invalidateQueries({ queryKey: ["bugReports"] });
+    });
+  }, [isLoading, isError, reports, queryClient]);
 
   const shown = useMemo(
     () => (showResolved ? reports : reports.filter((r) => !r.resolved_at)),
@@ -180,7 +187,11 @@ function BugReportsList() {
           </div>
         }
       >
-        {isLoading && <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>}
+        {isLoading && (
+          <div className="flex justify-center py-12">
+            <Spinner />
+          </div>
+        )}
 
         {isError && (
           <div className="rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center">

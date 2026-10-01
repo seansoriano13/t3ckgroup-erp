@@ -867,12 +867,12 @@ No audio is retained. A Dictation's audio exists only for the duration of the Di
 **Bug Report**:
 Something broken in the ERP, sent in by any employee from whichever page they
 are on: a plain-text description plus optional attachments (image, video or any
-file). Read only by Super Admins and whoever holds the Bug Reports System Access
-Right (the IT Team by default). It is for broken things, not feature requests or
-access requests. Open or Resolved, nothing in between.
+file). Read only by Super Admins and the IT Team (and anyone else given the
+same access). It is for broken things, not feature requests or access
+requests. Open or Resolved, nothing in between. Never deleted; its attachments
+are, a year after it was sent.
 _Avoid_: Ticket, Feedback, Issue
 
 **Resolved** (of a Bug Report):
-Ticked off by any reader once it is dealt with. Hidden from the list by default,
-never deleted. Can be unticked.
+Dealt with, as judged by anyone who reads Bug Reports. Can go back to Open.
 _Avoid_: Closed, Done, Fixed

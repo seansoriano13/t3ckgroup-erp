@@ -3,12 +3,17 @@ import { isLocal, isStaging } from "../lib/appEnv";
 import { formatBuildFingerprint } from "../utils/buildFingerprint";
 
 const BUCKET = "bug-reports";
-const RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
 export const BUG_REPORT_MAX_BYTES = 50 * 1024 * 1024;
 
-/** Whether a report is old enough (a full year) for its files to be deleted. */
+/**
+ * Whether a report is old enough (a full calendar year) for its files to be
+ * deleted. Calendar year, not 365 days, to agree with the database's
+ * `now() - interval '1 year'` across a leap day.
+ */
 export function isPastRetention(report, now = Date.now()) {
-  return now - new Date(report.created_at).getTime() > RETENTION_MS;
+  const cutoff = new Date(now);
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 1);
+  return new Date(report.created_at) < cutoff;
 }
 
 function environment() {
@@ -85,16 +90,21 @@ export const bugReportService = {
 
   /**
    * Deletes the files of reports over a year old and empties their attachment
-   * list. Run when the Bug Reports page opens; returns how many were purged.
+   * list. Run once when the Bug Reports page opens; returns how many were
+   * purged. One report failing does not stop the rest: it is retried on the
+   * next open (removing an already-removed file is a no-op).
    */
   async purgeExpiredFiles(reports, now = Date.now()) {
     const expired = reports.filter((r) => r.attachments?.length && isPastRetention(r, now));
+    let purged = 0;
     for (const report of expired) {
       const { error } = await supabase.storage.from(BUCKET).remove(report.attachments.map((a) => a.path));
-      if (error) throw new Error(error.message);
-      const { error: rpcError } = await supabase.rpc("mark_bug_report_files_purged", { p_id: report.id });
-      if (rpcError) throw new Error(rpcError.message);
+      const { error: rpcError } = error
+        ? { error }
+        : await supabase.rpc("mark_bug_report_files_purged", { p_id: report.id });
+      if (rpcError) console.error(`Purging files of bug report ${report.id} failed`, rpcError);
+      else purged += 1;
     }
-    return expired.length;
+    return purged;
   },
 };

@@ -66,7 +66,7 @@ export function AttachmentField({
   disabled,
 }) {
   const inputRef = useRef(null);
-  const { files, addFiles, removeFile, max, maxBytes = 10 * 1024 * 1024, anyType } = attachments;
+  const { files, addFiles, removeFile, max, maxBytes, anyType } = attachments;
   const isFull = files.length >= max;
 
   return (

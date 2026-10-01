@@ -15,6 +15,7 @@ import { AttachmentField } from "@/components/ui/Attachments";
 import { useAuth } from "@/context/AuthContext";
 import { useFileAttachments } from "@/hooks/useFileAttachments";
 import { bugReportService, BUG_REPORT_MAX_BYTES } from "@/services/bugReportService";
+import { formatBytes } from "@/utils/attachments";
 
 /**
  * The floating "Report a bug" button on every signed-in page (CONTEXT.md →
@@ -58,12 +59,16 @@ export default function BugReportButton() {
 
   return (
     <>
+      {/* Neutral, not the red main-action colour: it sits on every page and
+          is never that page's main action. z-30 so a page's own bottom
+          toolbar (Approvals, z-40) covers it rather than the other way round. */}
       <Button
+        variant="outline"
         size="icon"
         aria-label="Report a bug"
         title="Report a bug"
         onClick={() => setOpen(true)}
-        className="fixed right-4 bottom-4 z-40 size-11 rounded-full shadow-lg"
+        className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 size-11 rounded-full bg-card text-muted-foreground shadow-lg hover:text-foreground"
       >
         <Bug size={18} />
       </Button>
@@ -90,7 +95,7 @@ export default function BugReportButton() {
           <AttachmentField
             attachments={attachments}
             disabled={busy}
-            hint={`Optional — up to ${attachments.max} files, 50 MB each. Any file type.`}
+            hint={`Optional — up to ${attachments.max} files, ${formatBytes(BUG_REPORT_MAX_BYTES)} each. Any file type.`}
           />
 
           <DialogFooter>

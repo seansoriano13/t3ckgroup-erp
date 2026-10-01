@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { bugReportService, isPastRetention } from "./bugReportService"
 import { db } from "@/test/db/store"
 import { stubRpc } from "@/test/msw/server"
@@ -115,10 +115,32 @@ describe("bugReportService", () => {
   })
 
   describe("the one-year file purge", () => {
-    it("counts a report as past retention only after a full year", () => {
+    it("counts a report as past retention only after a full calendar year", () => {
       const now = new Date("2027-10-02T00:00:00Z").getTime()
-      expect(isPastRetention({ created_at: new Date(now - YEAR - 1000).toISOString() }, now)).toBe(true)
-      expect(isPastRetention({ created_at: new Date(now - YEAR + 60_000).toISOString() }, now)).toBe(false)
+      expect(isPastRetention({ created_at: "2026-10-01T23:59:59Z" }, now)).toBe(true)
+      expect(isPastRetention({ created_at: "2026-10-02T00:01:00Z" }, now)).toBe(false)
+      // Across a leap day 365 days is not yet a year, as Postgres' interval '1 year' agrees.
+      const leap = new Date("2028-03-01T00:00:00Z").getTime()
+      expect(isPastRetention({ created_at: "2027-03-01T12:00:00Z" }, leap)).toBe(false)
+    })
+
+    it("keeps purging the rest when one report fails", async () => {
+      seedStorageObject("bug-reports", "emp-1/b.png", { bytes: new Uint8Array([1]).buffer })
+      const purged = []
+      stubRpc("mark_bug_report_files_purged", ({ p_id }) => {
+        if (p_id === "a") throw new Error("not a year old yet")
+        purged.push(p_id)
+        return null
+      })
+      const old = new Date(Date.now() - 2 * YEAR).toISOString()
+      const reports = [
+        { id: "a", created_at: old, attachments: [{ path: "emp-1/a.png" }] },
+        { id: "b", created_at: old, attachments: [{ path: "emp-1/b.png" }] },
+      ]
+      vi.spyOn(console, "error").mockImplementation(() => {})
+
+      expect(await bugReportService.purgeExpiredFiles(reports)).toBe(1)
+      expect(purged).toEqual(["b"])
     })
 
     it("deletes the files of year-old reports and marks them purged, leaving newer ones alone", async () => {

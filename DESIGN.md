@@ -410,7 +410,7 @@ Every routed screen is built from one skeleton (ADR 0029). This section is the r
 These are UI terms. They do not belong in CONTEXT.md.
 
 ### Route → page type
-- **Queue**: Task Approvals, HR Verifications, Leave Approvals (the three Approval Center routes), Procurement Queue, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
+- **Queue**: Task Approvals, HR Verifications, Leave Approvals (the three Approval Center routes), Procurement Queue, Bug Reports, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
 - **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log.
 - **Report**: Commission Dashboard, Retail, Dashboard, SOR Register → Overview view.
 - **Config**: Settings, Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
