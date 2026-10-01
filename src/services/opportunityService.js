@@ -2702,30 +2702,17 @@ export const opportunityService = {
         opportunity?.sales_reference || opportunity?.client_name || "an opportunity";
       const snippet = trimmed.length > 90 ? `${trimmed.slice(0, 90)}…` : trimmed;
 
-      // ADR 0021 / #295: a mention grants nothing — notifying someone
-      // outside this visit's audience would be telling them about a Stage
-      // Visit they cannot open. `currentVisit` is the same open visit the
-      // rest of this file reads the SOR through; `null` audience means
-      // there is no visit to scope by (a legacy pipeline deal), in which
-      // case every live mention still gets notified as before.
-      const currentVisit = await currentVisitFor(opportunityId).catch(() => null);
-      const audienceIds = currentVisit?.id
-        ? await this.getVisitAudienceIds(opportunityId, currentVisit.id).catch(() => null)
-        : null;
-      const notifiable = audienceIds ? new Set(audienceIds) : null;
-
-      // An old SOR has no visit, so nothing scopes it: the mention itself is
-      // the read-only grant, otherwise the person is notified about a deal
-      // they cannot open. A failed grant must not lose the note.
-      if (!currentVisit?.id) {
-        const toGrant = live.map((m) => m.id).filter((id) => id !== authorId);
-        if (toGrant.length > 0) {
-          const { error: grantError } = await supabase.rpc("sor_grant_mention_view", {
-            p_opportunity_id: opportunityId,
-            p_employee_ids: toGrant,
-          });
-          if (grantError) console.error("Failed to grant mention view:", grantError);
-        }
+      // A mention is an invitation on any SOR: it records a read-only grant
+      // (sor_grant_mention_view, a no-op for anyone who already has access)
+      // and then notifies, so the click lands somewhere the person can open.
+      // A failed grant must not lose the note.
+      const toGrant = live.map((m) => m.id).filter((id) => id !== authorId);
+      if (toGrant.length > 0) {
+        const { error: grantError } = await supabase.rpc("sor_grant_mention_view", {
+          p_opportunity_id: opportunityId,
+          p_employee_ids: toGrant,
+        });
+        if (grantError) console.error("Failed to grant mention view:", grantError);
       }
 
       await Promise.all(
@@ -2733,7 +2720,6 @@ export const opportunityService = {
           // Mentioning yourself is a way of writing, not a request for a
           // notification.
           .filter((m) => m.id !== authorId)
-          .filter((m) => !notifiable || notifiable.has(m.id))
           .map((m) =>
             notificationService.createNotification({
               recipient_id: m.id,

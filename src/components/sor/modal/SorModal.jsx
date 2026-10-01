@@ -261,29 +261,22 @@ export default function SorModal({
     };
   }, [rawOpportunity, accessLevel, employees]);
 
-  // ADR 0021 / #295: the SOR chat's mention roster offers only people who
-  // can see the current Stage Visit — `sor_visit_audience`, not every
-  // employee. A legacy pipeline deal has no Stage Visit to scope by
-  // (`currentVisitId` stays null), so its roster is left as the full
-  // employee list rather than restricted to nobody.
+  // A mention is an invitation (it grants read-only access to the record), so
+  // the SOR chat's roster offers every employee, on any SOR.
   const { data: currentVisitId = null } = useQuery({
     queryKey: ["sorCurrentVisitId", id],
     queryFn: () => opportunityService.getCurrentStageVisitId(id),
     enabled: !!id && isOpen,
   });
 
+  // Still needed to refuse assigning a task to someone outside the audience.
   const { data: visitAudienceIds = null } = useQuery({
     queryKey: ["sorVisitAudience", id, currentVisitId],
     queryFn: () => opportunityService.getVisitAudienceIds(id, currentVisitId),
     enabled: !!id && !!currentVisitId && isOpen,
   });
 
-  const mentionableEmployees = useMemo(() => {
-    if (!currentVisitId) return employees;
-    if (!visitAudienceIds) return [];
-    const allowed = new Set(visitAudienceIds);
-    return employees.filter((e) => allowed.has(e.id));
-  }, [employees, currentVisitId, visitAudienceIds]);
+  const mentionableEmployees = employees;
 
   // A Legacy Pipeline deal with no version on record (#414) moves by stage
   // code, as SORs always did: its live flow Stage's gate never applies to it.

@@ -3774,25 +3774,22 @@ describe("opportunityService", () => {
         expect(pushed[0]).toMatchObject({ recipient_id: buyer.id, type: "OPPORTUNITY_MENTION" })
       })
 
-      it("does not notify a mentioned employee who sor_visit_audience excludes — a mention grants nothing", async () => {
+      it("notifies a mentioned employee outside sor_visit_audience too, and records the grant — a mention is an invitation", async () => {
         const flowSaleType = makeSaleType({ name: "Flow for mentions 2" })
         const flowStage = makeFlowStage({ name: "Lead" })
         const opportunity = makeOpportunity({ registered_by: registrar.id, sale_type_id: flowSaleType.id })
-        const visit = makeStageVisit({ opportunity_id: opportunity.id, flow_stage_id: flowStage.id })
-        // Picked from the composer's roster before their access window closed,
-        // or added to the note text by hand — either way, sor_visit_audience
-        // no longer names them for this visit.
-        const outOfWindow = makeEmployee({ name: "Cjay Espina" })
+        makeStageVisit({ opportunity_id: opportunity.id, flow_stage_id: flowStage.id })
+        const outsider = makeEmployee({ name: "Cjay Espina" })
 
         const pushed = []
         stubEdgeFunction("send-push", (body) => {
           pushed.push(body)
           return { success: true }
         })
-
-        stubRpc("sor_visit_audience", (args) => {
-          expect(args).toMatchObject({ p_opportunity_id: opportunity.id, p_visit_id: visit.id })
-          return []
+        const granted = []
+        stubRpc("sor_grant_mention_view", (args) => {
+          granted.push(args)
+          return 1
         })
 
         await opportunityService.addNote(
@@ -3800,12 +3797,13 @@ describe("opportunityService", () => {
           registrar.id,
           "@Cjay Espina can you check stock on this",
           [],
-          [{ id: outOfWindow.id, name: "Cjay Espina" }],
+          [{ id: outsider.id, name: "Cjay Espina" }],
         )
         await waitForNetworkIdle()
 
-        expect(pushed).toHaveLength(0)
-        expect(db.rows("notifications")).toHaveLength(0)
+        expect(granted).toEqual([{ p_opportunity_id: opportunity.id, p_employee_ids: [outsider.id] }])
+        expect(pushed).toHaveLength(1)
+        expect(pushed[0]).toMatchObject({ recipient_id: outsider.id, type: "OPPORTUNITY_MENTION" })
       })
     })
 

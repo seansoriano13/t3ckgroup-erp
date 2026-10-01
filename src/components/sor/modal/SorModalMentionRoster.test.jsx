@@ -36,15 +36,15 @@ async function openChatAndType(text) {
   fireEvent.select(textarea, { target: { selectionStart: text.length } })
 }
 
-describe("SorModal — mention roster is visit-scoped", () => {
-  it("offers only the employees sor_visit_audience names for the current Stage Visit", async () => {
+describe("SorModal — mention roster offers everyone", () => {
+  it("offers every employee on a Stage-scoped SOR too, because a mention is an invitation", async () => {
     const saleType = makeSaleType({ name: "Flow for mention roster" })
     const stage = makeFlowStage({ name: "Lead" })
     const deal = makeOpportunity({ status: "LEAD", sale_type_id: saleType.id })
     const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stage.id })
 
     const inAudience = makeEmployee({ name: "Cjay Espina" })
-    makeEmployee({ name: "Ana Reyes" }) // exists company-wide, but not in this visit's audience
+    makeEmployee({ name: "Ana Reyes" }) // not in this visit's audience, still mentionable
 
     stubRpc("sor_visit_audience", (args) => {
       expect(args).toMatchObject({ p_opportunity_id: deal.id, p_visit_id: visit.id })
@@ -59,7 +59,7 @@ describe("SorModal — mention roster is visit-scoped", () => {
 
     await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument())
     expect(screen.getByRole("option", { name: /Cjay Espina/ })).toBeInTheDocument()
-    expect(screen.queryByRole("option", { name: /Ana Reyes/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("option", { name: /Ana Reyes/ })).toBeInTheDocument()
   })
 
   it("leaves the roster as every employee for a legacy deal with no Stage Visit", async () => {

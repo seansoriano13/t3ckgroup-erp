@@ -1,29 +1,41 @@
 /**
- * A mention on an old SOR (no Stage Visit) lets the mentioned person open it
- * read-only; a Stage-scoped SOR still grants nothing.
+ * A mention on any SOR lets the mentioned person open it read-only.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
-import { makeSor } from "./support/rows.js"
+import { makeSor, MARKER } from "./support/rows.js"
 
-let oldSor, scopedSor, scopedVisit
+let oldSor, scopedSor, saleTypeId, flowId, stageId
 
 beforeAll(async () => {
     await ensureCastLoaded()
-    oldSor = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
-    scopedSor = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
-    // A visit on the second SOR makes it Stage-scoped.
     const svc = serviceClient()
-    await svc.from("sor_stage_visits").delete().eq("opportunity_id", oldSor)
-    const { data: v } = await svc.from("sor_stage_visits").select("id").eq("opportunity_id", scopedSor).limit(1)
-    scopedVisit = v?.length || 0
+    oldSor = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+
+    // A real flow stage, so inserting the SOR on it records a Stage Visit
+    // (the second SOR is Stage-scoped).
+    const st = await svc.from("sale_types").insert({ name: `${MARKER} Mention Grant Sale Type` }).select("id").single()
+    if (st.error) throw new Error(st.error.message)
+    saleTypeId = st.data.id
+    const flow = await svc.from("sales_flows").insert({ sale_type_id: saleTypeId }).select("id").single()
+    if (flow.error) throw new Error(flow.error.message)
+    flowId = flow.data.id
+    const stage = await svc.from("flow_stages").insert({ flow_id: flowId, name: `${MARKER} Stage`, sort_order: 10 }).select("id").single()
+    if (stage.error) throw new Error(stage.error.message)
+    stageId = stage.data.id
+    scopedSor = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageId })
+    const { data: visits } = await svc.from("sor_stage_visits").select("id").eq("opportunity_id", scopedSor)
+    if (!visits?.length) throw new Error("fixture: the Stage-scoped SOR recorded no Stage Visit")
 })
 
 afterAll(async () => {
     const svc = serviceClient()
     await svc.from("sor_mention_viewers").delete().in("opportunity_id", [oldSor, scopedSor])
     await svc.from("sales_opportunities").delete().in("id", [oldSor, scopedSor])
+    await svc.from("flow_stages").delete().eq("id", stageId)
+    await svc.from("sales_flows").delete().eq("id", flowId)
+    await svc.from("sale_types").delete().eq("id", saleTypeId)
 })
 
 const access = async (client, id) => (await client.rpc("sor_access_level", { p_opportunity_id: id })).data
@@ -53,10 +65,22 @@ describe("old SOR mention grant", () => {
         expect(direct.data?.length ?? 0).toBe(0)
     })
 
-    it("a Stage-scoped SOR grants nothing", async () => {
-        if (!scopedVisit) return // fixture SOR opened no visit; covered by the guard in the function
+    it("a Stage-scoped SOR grants the same read-only access, never Stage Visit data", async () => {
         const owner = await clientFor("dealOwner")
-        await owner.rpc("sor_grant_mention_view", { p_opportunity_id: scopedSor, p_employee_ids: [ids.ordinary] })
-        expect(await access(await clientFor("ordinary"), scopedSor)).toBe("none")
+        const { error } = await owner.rpc("sor_grant_mention_view", { p_opportunity_id: scopedSor, p_employee_ids: [ids.ordinary] })
+        expect(error).toBeNull()
+        const c = await clientFor("ordinary")
+        expect(await access(c, scopedSor)).toBe("participant")
+        const direct = await c.from("sales_opportunities").select("id").eq("id", scopedSor)
+        expect(direct.data?.length ?? 0).toBe(0)
+    })
+
+    it("someone who already reaches the SOR gets no grant row", async () => {
+        const owner = await clientFor("dealOwner")
+        await owner.rpc("sor_grant_mention_view", { p_opportunity_id: oldSor, p_employee_ids: [ids.dealOwner, ids.superAdmin] })
+        const { data } = await serviceClient().from("sor_mention_viewers").select("employee_id").eq("opportunity_id", oldSor)
+        const got = (data || []).map((r) => r.employee_id)
+        expect(got).not.toContain(ids.dealOwner)
+        expect(got).not.toContain(ids.superAdmin)
     })
 })
