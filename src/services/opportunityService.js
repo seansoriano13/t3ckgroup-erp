@@ -3296,26 +3296,50 @@ export const opportunityService = {
       .eq("employee_id", employeeId)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    if (!windows || windows.length === 0) return [];
 
-    const shape = await shapeAccessWindows(windows);
+    // An old SOR's mention grant (`sor_mention_viewers`) is the same kind of
+    // "you were called in", with no Stage window behind it. RLS lets a person
+    // read only their own rows.
+    const mentionRows = await opportunityService.getMyMentionGrants(employeeId);
+    if ((!windows || windows.length === 0) && mentionRows.length === 0) return [];
+
+    const shape = windows?.length ? await shapeAccessWindows(windows) : () => null;
 
     const byOpportunity = new Map();
-    for (const w of windows) {
+    for (const w of windows || []) {
       if (!byOpportunity.has(w.opportunity_id)) byOpportunity.set(w.opportunity_id, []);
       byOpportunity.get(w.opportunity_id).push(w);
+    }
+
+    const mentionByOpportunity = new Map(mentionRows.map((m) => [m.opportunity_id, m]));
+    for (const id of mentionByOpportunity.keys()) {
+      if (!byOpportunity.has(id)) byOpportunity.set(id, []);
     }
 
     const rows = await Promise.all(
       [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
         const summary = await opportunityService.getLockedSummary(opportunityId).catch(() => null);
+        const mention = mentionByOpportunity.get(opportunityId);
         return {
           opportunityId,
           salesReference: summary?.sales_reference ?? null,
           projectTitle: summary?.project_title ?? null,
           currentStageName: summary?.current_stage_name ?? null,
-          isOpen: ownWindows.some((w) => !w.closed_at),
-          windows: ownWindows.map(shape),
+          isOpen: Boolean(mention) || ownWindows.some((w) => !w.closed_at),
+          windows: [
+            ...ownWindows.map(shape),
+            ...(mention
+              ? [
+                  {
+                    id: `mention-${opportunityId}`,
+                    source: "mention",
+                    mentionedBy: mention.granted_by_name ?? null,
+                    closedAt: null,
+                    reachLabel: "this deal, read-only",
+                  },
+                ]
+              : []),
+          ],
         };
       }),
     );
@@ -3353,6 +3377,20 @@ export const opportunityService = {
     return data.map(shape);
   },
 
+  /**
+   * Old-SOR mention grants held by this person, with who mentioned them.
+   * Never throws: My SORs must still list the windows if this read fails.
+   */
+  async getMyMentionGrants(employeeId) {
+    if (!employeeId) return [];
+    const { data, error } = await supabase
+      .from("sor_mention_viewers")
+      .select("opportunity_id, granted_by, created_at, granter:employees!sor_mention_viewers_granted_by_fkey(name)")
+      .eq("employee_id", employeeId);
+    if (error) return [];
+    return (data || []).map((r) => ({ ...r, granted_by_name: r.granter?.name ?? null }));
+  },
+
   async countMyOpenSors(employeeId) {
     if (!employeeId) return 0;
     const { data, error } = await supabase
@@ -3361,7 +3399,11 @@ export const opportunityService = {
       .eq("employee_id", employeeId)
       .is("closed_at", null);
     if (error) throw error;
-    return new Set((data || []).map((r) => r.opportunity_id)).size;
+    const mentions = await opportunityService.getMyMentionGrants(employeeId);
+    return new Set([
+      ...(data || []).map((r) => r.opportunity_id),
+      ...mentions.map((m) => m.opportunity_id),
+    ]).size;
   },
 
   async getLockedSummary(opportunityId) {

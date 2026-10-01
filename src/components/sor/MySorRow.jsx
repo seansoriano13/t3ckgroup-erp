@@ -42,10 +42,18 @@ export default function MySorRow({ row, onOpen }) {
       <ul className="space-y-1">
         {row.windows.map((w) => (
           <li key={w.id} className="text-xs leading-relaxed text-muted-foreground">
+            {w.source === "mention" ? (
+              <>
+                Mentioned{w.mentionedBy ? <> by <span className="font-bold text-foreground">{w.mentionedBy}</span></> : ""} — sees {w.reachLabel}
+              </>
+            ) : (
+              <>
             Called in at{" "}
             <span className="font-bold text-foreground">{w.calledInAtStageName || "this deal"}</span>
             {SOURCE_LABEL[w.source] ? ` by ${SOURCE_LABEL[w.source]}` : ""} â€” sees {w.reachLabel}
             {w.closedAt ? " (window closed)" : ""}
+              </>
+            )}
           </li>
         ))}
       </ul>

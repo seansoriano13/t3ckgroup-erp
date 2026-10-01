@@ -4176,6 +4176,23 @@ describe("getMySors", () => {
     })
   })
 
+  it("lists an old SOR the person was mentioned on, with who mentioned them", async () => {
+    const owner = makeEmployee({ name: "Deal Owner Dan" })
+    db.seed("sor_mention_viewers", {
+      opportunity_id: deal.id,
+      employee_id: me.id,
+      granted_by: owner.id,
+      created_at: new Date().toISOString(),
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ opportunityId: deal.id, isOpen: true })
+    expect(rows[0].windows[0]).toMatchObject({ source: "mention", mentionedBy: "Deal Owner Dan" })
+    expect(await opportunityService.countMyOpenSors(me.id)).toBe(1)
+  })
+
   it("names the later Stage a window reaches through", async () => {
     const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
     makeStageParticipant({
