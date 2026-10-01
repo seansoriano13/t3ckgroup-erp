@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, ChevronDown, Clock, EyeOff, X } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, ChevronDown, Clock, EyeOff, X } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ export default function EmployeeForm({
     has_task_flow: true,
     has_purchasing_flow: false,
     has_retail_access: false,
+    has_bug_report_access: false,
     employment_status: "",
     sil_hours_balance: 0,
     offset_hours_balance: 0,
@@ -59,6 +60,7 @@ export default function EmployeeForm({
       has_task_flow: true,
       has_purchasing_flow: false,
       has_retail_access: false,
+      has_bug_report_access: false,
       hiddenNavKeys: [],
       employment_status: "",
       sil_hours_balance: 0,
@@ -191,7 +193,16 @@ export default function EmployeeForm({
           }))
         }
         onSubDepartmentChange={(val) =>
-          setFormData((prev) => ({ ...prev, subDepartment: val }))
+          setFormData((prev) => ({
+            ...prev,
+            subDepartment: val,
+            // Bug Reports is open to the IT Team by default, the same way
+            // Retail follows SALES above. Still a plain switch below.
+            ...(String(val ?? "").trim().toUpperCase() === "IT" &&
+            String(prev.subDepartment ?? "").trim().toUpperCase() !== "IT"
+              ? { has_bug_report_access: true }
+              : {}),
+          }))
         }
         uniqueDepts={uniqueDepts}
         uniqueSubDepts={uniqueSubDepts}
@@ -428,6 +439,19 @@ export default function EmployeeForm({
             }
             activeColor="bg-green-3 text-green-10"
             hoverColor="group-hover:bg-green-2"
+          />
+
+          {/* Bug Reports — on by default for the IT Team */}
+          <AccessSwitch
+            label="Bug Reports"
+            description="Read every Bug Report and tick it Resolved"
+            icon={Bug}
+            checked={formData.has_bug_report_access}
+            onChange={(val) =>
+              setFormData((prev) => ({ ...prev, has_bug_report_access: val }))
+            }
+            activeColor="bg-red-3 text-red-10"
+            hoverColor="group-hover:bg-red-2"
           />
 
           {/* Purchasing — issue #39 */}

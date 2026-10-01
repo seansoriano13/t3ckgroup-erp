@@ -205,6 +205,17 @@ describe("navigation registry", () => {
       ).toBe(true);
     });
 
+    it("shows Bug Reports only to a Super Admin or a holder of the Bug Reports access right", () => {
+      const entry = NAV_MODULES.administration.links.find((l) => l.key === "admin.bugReports");
+      expect(entry).toBeDefined();
+      expect(entry.link).toBe("/bug-reports");
+      const permitted = (user) => entry.isPermitted(buildUserPermissionContext(user));
+      expect(permitted({ id: "e" })).toBe(false);
+      expect(permitted({ id: "h", is_hr: true, is_head: true })).toBe(false);
+      expect(permitted({ id: "it", has_bug_report_access: true })).toBe(true);
+      expect(permitted({ id: "a", isSuperAdmin: true })).toBe(true);
+    });
+
     it("returns all 7 modules for Super Admin", () => {
       const superAdminUser = {
         id: "admin-1",
@@ -231,6 +242,7 @@ describe("navigation registry", () => {
         // Commission Pool moved onto the Commission Dashboard's Formula tab (#441).
         "Flow Canvas",
         // Release Notes moved to Workspace, open to everyone (ADR 0030).
+        "Bug Reports",
       ]);
 
       const hrGroup = groups.find((g) => g.key === "human_resources");
@@ -407,6 +419,7 @@ describe("navigation registry", () => {
       "hasTaskFlow",
       "hasPurchasingFlow",
       "hasRetailAccess",
+      "hasBugReportAccess",
     ];
 
     function* flagCombinations() {

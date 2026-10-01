@@ -9,6 +9,7 @@ export type Path =
   | `/approvals/hr-verification`
   | `/approvals/leaves`
   | `/approvals/tasks`
+  | `/bug-reports`
   | `/crm`
   | `/crm/commission`
   | `/crm/commission-formula`

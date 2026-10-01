@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-10-01",
+        "title": "Report a Bug from Any Page",
+        "version": "1.9.1",
+        "changes": [
+            "Bug reports: press the bug button at the bottom right of any page, describe what went wrong and add screenshots, videos or any file (paste a screenshot straight in). The IT Team gets it with the page you were on.",
+            "Bug reports: IT Team members and Super Admins see every report under Administration → Bug Reports, and tick each one Resolved. Files are deleted a year after a report is sent.",
+            "HR: Bug Reports is a new switch under System Access Rights in the employee form. It is on by default for the IT Team."
+        ]
+    },
+    {
         "date": "2026-09-30",
         "title": "A Big Update: See Everything in Release Notes",
         "version": "1.9.0",

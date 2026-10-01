@@ -861,3 +861,18 @@ The verbatim text a Dictation produces, appended to the task description as ordi
 _Avoid_: Transcription, Speech Result, Voice Text
 
 No audio is retained. A Dictation's audio exists only for the duration of the Dictation itself; there is no stored recording to play back, attach, review, or delete, and consequently no audio retention policy.
+
+### Bug Reports
+
+**Bug Report**:
+Something broken in the ERP, sent in by any employee from whichever page they
+are on: a plain-text description plus optional attachments (image, video or any
+file). Read only by Super Admins and whoever holds the Bug Reports System Access
+Right (the IT Team by default). It is for broken things, not feature requests or
+access requests. Open or Resolved, nothing in between.
+_Avoid_: Ticket, Feedback, Issue
+
+**Resolved** (of a Bug Report):
+Ticked off by any reader once it is dealt with. Hidden from the list by default,
+never deleted. Can be unticked.
+_Avoid_: Closed, Done, Fixed

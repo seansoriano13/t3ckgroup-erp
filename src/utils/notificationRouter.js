@@ -40,7 +40,9 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
   const type = LEGACY_TYPE_ALIASES[notif.type] ?? notif.type;
   notif = notif.type === type ? notif : { ...notif, type };
 
-  if (notif.type === "GROUP_TASK_COMMENT") {
+  if (notif.type === "BUG_REPORT_SUBMITTED") {
+    navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
+  } else if (notif.type === "GROUP_TASK_COMMENT") {
     navigate("/group-tasks");
     window.dispatchEvent(
       new CustomEvent("OPEN_CHAT_MODAL", {

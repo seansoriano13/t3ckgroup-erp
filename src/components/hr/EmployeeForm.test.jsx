@@ -80,3 +80,14 @@ describe("EmployeeForm hidden-from-navigation editor", () => {
     expect(submitted[0].hiddenNavKeys).toEqual([])
   })
 })
+
+describe("EmployeeForm Bug Reports access right", () => {
+  it("saves the Bug Reports switch", async () => {
+    const { submitted, user } = await renderForm({ initialData: { has_bug_report_access: false } })
+
+    await user.click(screen.getByText("Bug Reports", { selector: "p" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_bug_report_access).toBe(true)
+  })
+})

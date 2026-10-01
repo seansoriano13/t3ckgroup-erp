@@ -66,7 +66,7 @@ export function AttachmentField({
   disabled,
 }) {
   const inputRef = useRef(null);
-  const { files, addFiles, removeFile, max } = attachments;
+  const { files, addFiles, removeFile, max, maxBytes = 10 * 1024 * 1024, anyType } = attachments;
   const isFull = files.length >= max;
 
   return (
@@ -78,7 +78,7 @@ export function AttachmentField({
       <FileInput
         ref={inputRef}
         multiple
-        accept={ALLOWED_EXTENSIONS_STRING}
+        accept={anyType ? undefined : ALLOWED_EXTENSIONS_STRING}
         onFiles={addFiles}
       />
 
@@ -104,7 +104,7 @@ export function AttachmentField({
 
       <p className="text-[10px] text-muted-foreground/70 mt-1.5">
         {hint ||
-          `Optional — up to ${max} files, ${formatBytes(10 * 1024 * 1024)} each. Images, documents, and short videos.`}
+          `Optional — up to ${max} files, ${formatBytes(maxBytes)} each. Images, documents, and short videos.`}
       </p>
     </div>
   );

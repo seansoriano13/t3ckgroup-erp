@@ -78,6 +78,7 @@ export const employeeService = {
       // and the flag grants nothing until a Super Admin turns it on anyway.
       has_purchasing_flow: !!data.has_purchasing_flow,
       has_retail_access: !!data.has_retail_access,
+      has_bug_report_access: !!data.has_bug_report_access,
       offset_hours_balance: data.offset_hours_balance || 0,
       employment_status: data.employment_status || null,
       sil_hours_balance: data.sil_hours_balance || 0,
@@ -115,6 +116,7 @@ export const employeeService = {
       has_task_flow: employee.has_task_flow,
       has_purchasing_flow: !!employee.has_purchasing_flow,
       has_retail_access: !!employee.has_retail_access,
+      has_bug_report_access: !!employee.has_bug_report_access,
       offset_hours_balance: employee.offset_hours_balance || 0,
       employment_status: employee.employment_status || null,
       sil_hours_balance: employee.sil_hours_balance || 0,
@@ -235,6 +237,10 @@ export const employeeService = {
           has_retail_access:
             employeeData.has_retail_access ??
             String(employeeData.department ?? "").trim().toUpperCase() === "SALES",
+          // Open for the IT Team by default; an explicit choice from the form wins.
+          has_bug_report_access:
+            employeeData.has_bug_report_access ??
+            String(employeeData.subDepartment ?? "").trim().toUpperCase() === "IT",
           hidden_nav_keys: employeeData.hiddenNavKeys || [],
           employment_status: employeeData.employment_status || null,
           sil_hours_balance: employeeData.sil_hours_balance || 0,
@@ -284,6 +290,7 @@ export const employeeService = {
         has_task_flow: employeeData.has_task_flow,
         has_purchasing_flow: employeeData.has_purchasing_flow,
         has_retail_access: employeeData.has_retail_access,
+        has_bug_report_access: employeeData.has_bug_report_access,
         hidden_nav_keys: employeeData.hiddenNavKeys !== undefined ? employeeData.hiddenNavKeys : undefined,
         employment_status: employeeData.employment_status || null,
         sil_hours_balance: employeeData.sil_hours_balance !== undefined ? employeeData.sil_hours_balance : undefined,

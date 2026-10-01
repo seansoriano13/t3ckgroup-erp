@@ -323,6 +323,12 @@ export const SECTIONS = [
         who: ["Everyone"],
       },
       {
+        id: "report-a-bug",
+        title: "Report a bug from any page",
+        body: "Press the round bug button at the bottom right of any page, say what went wrong, and add screenshots, a screen recording or any file. Paste a screenshot straight into the box. The IT Team gets it with the page you were on, and you get a Sent message. IT Team members and Super Admins see every report under Administration → Bug Reports.",
+        who: ["Everyone", "IT Team"],
+      },
+      {
         id: "update-notice",
         title: "A new version asks before it reloads",
         body: "When a new version is out, a small notice offers Later or Reload, so nothing you are typing is lost.",

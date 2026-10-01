@@ -271,6 +271,57 @@ describe("useFileAttachments", () => {
   })
 })
 
+describe("useFileAttachments with its own limits and uploader", () => {
+  beforeEach(() => {
+    vi.spyOn(toast, "error").mockImplementation(() => "toast-id")
+    globalThis.URL.createObjectURL = vi.fn(() => "blob:preview")
+    globalThis.URL.revokeObjectURL = vi.fn()
+  })
+
+  // A file that claims a size without allocating it.
+  const sized = (name, type, size) => {
+    const f = file(name, type, 1)
+    Object.defineProperty(f, "size", { value: size })
+    return f
+  }
+
+  it("takes any file type when anyType is set", () => {
+    const { result } = renderHook(() => useFileAttachments({ anyType: true }))
+
+    act(() => result.current.addFiles([file("dump.har", "application/json"), file("app.exe", "application/x-msdownload")]))
+
+    expect(result.current.files.map((f) => f.file.name)).toEqual(["dump.har", "app.exe"])
+  })
+
+  it("uses maxBytes in place of the 10 MB default", () => {
+    const { result } = renderHook(() => useFileAttachments({ maxBytes: 50 * 1024 * 1024 }))
+
+    act(() =>
+      result.current.addFiles([
+        sized("clip.mp4", "video/mp4", 30 * 1024 * 1024),
+        sized("long.mp4", "video/mp4", 51 * 1024 * 1024),
+      ]),
+    )
+
+    expect(result.current.files.map((f) => f.file.name)).toEqual(["clip.mp4"])
+    expect(toast.error).toHaveBeenCalledWith("long.mp4 is too large (max 50.0 MB).")
+  })
+
+  it("uploads through the given uploader instead of Cloudinary", async () => {
+    const uploadFile = vi.fn(async (f) => ({ path: `me/${f.name}`, name: f.name }))
+    const { result } = renderHook(() => useFileAttachments({ uploadFile }))
+    act(() => result.current.addFiles([file("a.png")]))
+
+    let descriptors
+    await act(async () => {
+      descriptors = await result.current.upload()
+    })
+
+    expect(uploadFile).toHaveBeenCalledTimes(1)
+    expect(descriptors).toEqual([{ path: "me/a.png", name: "a.png" }])
+  })
+})
+
 function pasteEventWith(files) {
   return {
     clipboardData: {

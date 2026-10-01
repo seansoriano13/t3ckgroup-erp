@@ -16,6 +16,7 @@ import {
   ShoppingBag,
   Sparkles,
   Handshake,
+  Bug,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -252,6 +253,17 @@ export const NAV_MODULES = {
         link: "/super-admin/flow-canvas",
         icon: Workflow,
         isPermitted: () => true,
+      },
+      // Bug Reports sent from the floating button on every page. Gated by the
+      // Bug Reports access right (`has_bug_report_access`, on by default for
+      // the IT Team), the same right behind the table's RLS policy.
+      {
+        key: "admin.bugReports",
+        label: "Bug Reports",
+        link: "/bug-reports",
+        icon: Bug,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasBugReportAccess,
+        exactMatch: true,
       },
     ],
   },

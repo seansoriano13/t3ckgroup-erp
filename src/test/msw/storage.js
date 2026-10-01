@@ -15,6 +15,8 @@ const BASE_URL = import.meta.env.VITE_SUPABASE_URL
 /** Constraints of the buckets this app actually uses in Supabase Storage. */
 const BUCKETS = {
   signatures: { maxBytes: 204800, allowedMimeTypes: ["image/png"] },
+  // Bug Reports: any type (`allowedMimeTypes: null`, as in the real bucket).
+  "bug-reports": { maxBytes: 52428800, allowedMimeTypes: null },
 }
 
 export const storageObjects = new Map() // `${bucket}/${path}` -> { bytes: ArrayBuffer, contentType }
@@ -37,6 +39,27 @@ function storageError(message, status) {
 }
 
 export const storageHandlers = [
+  // Batch signed URLs (`createSignedUrls`): one call, a list of paths.
+  http.post(`${BASE_URL}/storage/v1/object/sign/:bucket`, async ({ request, params }) => {
+    const { bucket } = params
+    const { paths = [] } = await request.json()
+    return HttpResponse.json(
+      paths.map((path) =>
+        storageObjects.has(`${bucket}/${path}`)
+          ? { path, error: null, signedURL: `/object/sign/${bucket}/${path}?token=fake-token-${Date.now()}` }
+          : { path, error: "Object not found", signedURL: null },
+      ),
+    )
+  }),
+
+  // Remove (`remove([paths])`): answers with the objects actually deleted.
+  http.delete(`${BASE_URL}/storage/v1/object/:bucket`, async ({ request, params }) => {
+    const { bucket } = params
+    const { prefixes = [] } = await request.json()
+    const removed = prefixes.filter((path) => storageObjects.delete(`${bucket}/${path}`))
+    return HttpResponse.json(removed.map((name) => ({ name, bucket_id: bucket })))
+  }),
+
   // The `/sign/...` routes are registered FIRST and must stay that way: MSW
   // matches in registration order, and the generic `:bucket/*` upload/download
   // routes below would otherwise swallow "sign" as the bucket name.
@@ -94,7 +117,7 @@ export const storageHandlers = [
         413,
       )
     }
-    if (!config.allowedMimeTypes.includes(contentType)) {
+    if (config.allowedMimeTypes && !config.allowedMimeTypes.includes(contentType)) {
       return storageError(`mime type ${contentType} is not supported`, 415)
     }
 

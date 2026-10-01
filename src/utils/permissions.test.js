@@ -12,6 +12,7 @@ describe("getPermissionContext", () => {
     expect(ctx.hasTaskFlow).toBe(false);
     expect(ctx.hasPurchasingFlow).toBe(false);
     expect(ctx.hasRetailAccess).toBe(false);
+    expect(ctx.hasBugReportAccess).toBe(false);
     expect(ctx.isRoleSimulator).toBe(false);
     expect(ctx.canManage).toBe(false);
   });
@@ -30,6 +31,7 @@ describe("getPermissionContext", () => {
     ["has_task_flow", "hasTaskFlow", "hasTaskFlow"],
     ["has_purchasing_flow", "hasPurchasingFlow", "hasPurchasingFlow"],
     ["has_retail_access", "hasRetailAccess", "hasRetailAccess"],
+    ["has_bug_report_access", "hasBugReportAccess", "hasBugReportAccess"],
     ["is_role_simulator", "isRoleSimulator", "isRoleSimulator"],
   ])("reconciles the snake_case spelling of %s", (snakeKey, _camelKey, ctxKey) => {
     const ctx = getPermissionContext({ [snakeKey]: true });
@@ -45,6 +47,7 @@ describe("getPermissionContext", () => {
     ["has_task_flow", "hasTaskFlow", "hasTaskFlow"],
     ["has_purchasing_flow", "hasPurchasingFlow", "hasPurchasingFlow"],
     ["has_retail_access", "hasRetailAccess", "hasRetailAccess"],
+    ["has_bug_report_access", "hasBugReportAccess", "hasBugReportAccess"],
     ["is_role_simulator", "isRoleSimulator", "isRoleSimulator"],
   ])("reconciles the camelCase spelling of %s", (_snakeKey, camelKey, ctxKey) => {
     const ctx = getPermissionContext({ [camelKey]: true });

@@ -297,6 +297,18 @@ describe("handleNotificationRoute", () => {
     })
   })
 
+  it("opens a new bug report on the Bug Reports page", () => {
+    handleNotificationRoute(
+      { type: "BUG_REPORT_SUBMITTED", reference_id: "bug-1" },
+      superAdmin,
+      navigate,
+      onClose,
+    )
+
+    expect(navigate).toHaveBeenCalledWith("/bug-reports?record=bug-1")
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it("closes the drawer after every successful route", () => {
     handleNotificationRoute(
       { type: "TASK_SUBMITTED", reference_id: "task-9" },

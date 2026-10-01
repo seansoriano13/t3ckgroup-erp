@@ -49,6 +49,14 @@ describe("employeeService", () => {
       expect(found.canManageLeaves).toBe(true)
     })
 
+    it("maps the Bug Reports access right", async () => {
+      makeEmployee({ email: "it@t3ckgroup.test", has_bug_report_access: true })
+
+      const found = await employeeService.getEmployeeByEmail("it@t3ckgroup.test")
+
+      expect(found.has_bug_report_access).toBe(true)
+    })
+
     it("maps hidden_nav_keys onto hiddenNavKeys, defaulting to empty", async () => {
       makeEmployee({ email: "hidden@t3ckgroup.test", hidden_nav_keys: ["sales.commissionDashboard"] })
       makeEmployee({ email: "unhidden@t3ckgroup.test" })
@@ -130,6 +138,20 @@ describe("employeeService", () => {
         name: "Ana Reyes",
         department: "IT",
       })
+    })
+
+    it("opens Bug Reports by default for the IT Team, and an explicit choice wins", async () => {
+      const base = { department: "OPERATIONS", role: "EMPLOYEE", updatedBy: actor.id }
+      await employeeService.createEmployee({ ...base, name: "IT", email: "it@t3ckgroup.test", subDepartment: " it " })
+      await employeeService.createEmployee({ ...base, name: "Log", email: "log@t3ckgroup.test", subDepartment: "LOGISTICS" })
+      await employeeService.createEmployee({
+        ...base, name: "IT2", email: "it2@t3ckgroup.test", subDepartment: "IT", has_bug_report_access: false,
+      })
+
+      const flag = (email) => db.rows("employees").find((e) => e.email === email).has_bug_report_access
+      expect(flag("it@t3ckgroup.test")).toBe(true)
+      expect(flag("log@t3ckgroup.test")).toBe(false)
+      expect(flag("it2@t3ckgroup.test")).toBe(false)
     })
 
     it("refuses an email an active employee already uses", async () => {
@@ -285,6 +307,18 @@ describe("employeeService", () => {
       )
 
       expect(db.rows("employees").find((e) => e.id === employee.id).sil_hours_balance).toBe(40)
+    })
+
+    it("saves a grant of the Bug Reports access right", async () => {
+      const employee = makeEmployee({ name: "Ian", has_bug_report_access: false })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ian", email: null, has_bug_report_access: true },
+        actor.id,
+      )
+
+      expect(db.rows("employees").find((e) => e.id === employee.id).has_bug_report_access).toBe(true)
     })
 
     it("saves a grant of the leave-management capability", async () => {
