@@ -6,6 +6,7 @@ import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { storageService } from "../services/storageService";
+import { cloudinaryThumb } from "../lib/cloudinaryThumb";
 import toast from "react-hot-toast";
 
 export default function ImageAttachment({ 
@@ -142,7 +143,7 @@ export default function ImageAttachment({
                  ) : (
                    <>
                      <Image 
-                       src={item.signedUrl} 
+                       src={cloudinaryThumb(item.signedUrl, { width: 400 })} 
                        alt={`Attachment ${index + 1}`} 
                        className="object-cover w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
                        onClick={() => setFullscreenImage(item.signedUrl)}

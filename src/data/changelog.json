@@ -1,6 +1,14 @@
 [
     {
         "date": "2026-10-01",
+        "title": "Faster Pictures",
+        "version": "1.9.2",
+        "changes": [
+            "Everywhere: profile pictures and image previews now load a small copy instead of the full photo, so lists, chats and tasks open faster. Clicking a picture still opens it in full."
+        ]
+    },
+    {
+        "date": "2026-10-01",
         "title": "Report a Bug from Any Page",
         "version": "1.9.1",
         "changes": [

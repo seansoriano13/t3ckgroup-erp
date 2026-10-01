@@ -1,6 +1,7 @@
 import React from "react";
 import { Image } from "@/components/ui/image";
 import { CheckCircle2 } from "lucide-react";
+import { cloudinaryThumb } from "@/lib/cloudinaryThumb";
 
 export default function Avatar({
   name,
@@ -55,7 +56,8 @@ export default function Avatar({
     >
       {src && !isSelected && !imgError ? (
         <Image
-          src={src}
+          // 96px covers the largest size (48px) at 2x; the upload is up to 1920px.
+          src={cloudinaryThumb(src, { width: 96, height: 96 })}
           alt={name || "Avatar"}
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"

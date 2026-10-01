@@ -14,6 +14,7 @@ import {
   toDescriptor,
   ALLOWED_EXTENSIONS_STRING,
 } from "../../utils/attachments";
+import { cloudinaryThumb } from "../../lib/cloudinaryThumb";
 
 /** Files chosen but not yet uploaded. */
 export function AttachmentPreviews({ files, onRemove, disabled }) {
@@ -154,7 +155,7 @@ export function AttachmentList({ attachments, className = "", compact = false })
             className="block rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity"
           >
             <img
-              src={f.url}
+              src={cloudinaryThumb(f.url, { width: 320 })}
               alt={f.name}
               loading="lazy"
               className="max-w-[160px] max-h-[160px] object-cover"

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, FileText, X, ZoomIn } from "lucide-react";
 import { formatBytes, isImageAttachment, toDescriptor } from "../../utils/attachments";
+import { cloudinaryThumb } from "../../lib/cloudinaryThumb";
 
 /**
  * Reference photos on a procurement request — usually a screenshot of what
@@ -36,7 +37,7 @@ export function AttachmentEvidence({ attachments, className = "" }) {
             className="group relative size-11 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/40 transition-transform hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mauve-8"
           >
             <img
-              src={f.url}
+              src={cloudinaryThumb(f.url, { width: 96, height: 96 })}
               alt={f.name}
               loading="lazy"
               className="size-full object-cover"
