@@ -42,7 +42,7 @@ policy, not hidden by the screen.
   they worked on.
 - **Heads and HR lose automatic access.** A Sales Flow names who always sees
   its SORs.
-- **A Mention grants nothing.**
+- **A Mention grants nothing.** *(Reversed for note mentions on 2026-10-01; see Amendments.)*
 - **Expected Value and commission stay Deal Team only**, even inside a Stage
   Participant's window.
 
@@ -138,3 +138,30 @@ Always sees on the Flow Canvas, set to Everyone, so staff keep editing the
 projects they are mid-way through. Government and Outright leave it empty.
 It is a flow setting rather than a Legacy-only exception in the policy, so
 flows built later can use it too.
+
+### 2026-10-01 — a note Mention is an invitation and grants read-only access
+
+Decided by the product owner while fixing mentions on old SORs, where a person
+was notified about a deal they could not open.
+
+"A Mention grants nothing" no longer holds for a Mention in an SOR's notes, on
+any SOR (Stage-scoped or old). The mention roster offers every employee, every
+live Mention is notified, and it records a row in `sor_mention_viewers`
+(`sor_grant_mention_view`, callable by anyone with full or participant access
+to that SOR). `sor_access_level` reads that row as `participant`, so the person
+opens the money-free `sor_participant_record`, and the SOR appears under My SORs
+as "Mentioned by ...". Someone who already reaches the SOR (Deal Team, Always
+sees, Super Admin) gets no row.
+
+Why: being named in a note is the sender's choice to pull that person in, and a
+notification that opens nothing is worse than either outcome. Allowing the
+click was cheaper than gating who can be mentioned.
+
+What does not change: a Mention opens **no Stage Visit data**. Tasks, logs and
+Stage Fields stay behind `sor_visible_visit_ids`, so Restricted Stages stay shut
+and a mentioned person sees the record header, not the Stage's work. Expected
+Value and commission stay Deal Team only. A Mention in a group task or task chat
+is unrelated and still grants nothing beyond that task.
+
+The grant is permanent; there is no revoke. If that proves too loose, the
+natural next step is closing it with the Stage like a Stage Participant window.
