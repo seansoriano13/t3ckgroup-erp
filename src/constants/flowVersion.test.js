@@ -74,16 +74,15 @@ describe("describeFlowVersion", () => {
         expect(result.snapshotId).toBeNull()
     })
 
-    it("flags a deal that runs a flow but was never pinned to a version", () => {
-        // Not a valid state — moving such a deal already refuses. Saying so is
-        // more useful than rendering a blank where a version should be.
+    it("says a deal on a flow with no version on record is on the legacy pipeline", () => {
+        // Legacy Pipeline after the cutover backfill (#414): it moves by stage
+        // code, as SORs always did, so there is no version to report.
         const result = describeFlowVersion({
             opportunity: { sale_type_id: "st-1", flow_snapshot_id: null },
-            saleTypeName: "Government",
+            saleTypeName: "Legacy Pipeline",
         })
 
-        expect(result.kind).toBe("unpinned")
-        expect(result.label).toBe("Government · no version on record")
+        expect(result.kind).toBe("legacy")
         expect(result.snapshotId).toBeNull()
     })
 

@@ -10,7 +10,7 @@ import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
 import { Button } from "../../ui/button";
 import { stageFieldService } from "../../../services/stageFieldService";
-import { normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
+import { isJudgedByStageCode, normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 
@@ -72,11 +72,15 @@ export default function NowTab({ ctx }) {
   // `StageChecklist` uses, so react-query dedupes rather than double-fetches.
   const stageCode = opportunity?.flow_stage_id || opportunity?.status;
 
-  const { data: stageFields = [] } = useQuery({
+  // A Legacy Pipeline deal with no version on record (#414) moves by stage
+  // code, as SORs always did, so its live flow Stage asks for no fields.
+  const runsFlow = !isJudgedByStageCode(opportunity);
+  const { data: liveStageFields = [] } = useQuery({
     queryKey: ["stageFields", stageCode],
     queryFn: () => stageFieldService.getForStage(opportunity.flow_stage_id),
-    enabled: !!opportunity?.flow_stage_id,
+    enabled: runsFlow && !!opportunity?.flow_stage_id,
   });
+  const stageFields = runsFlow ? liveStageFields : [];
 
   const { data: currentVisit = null, isPending: visitPending } = useQuery({
     queryKey: ["currentStageVisit", id, stageCode],

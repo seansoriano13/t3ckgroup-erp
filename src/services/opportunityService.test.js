@@ -290,6 +290,55 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("QUALIFIED")
     })
 
+    // Cutover (#414): the backfill attaches every old SOR to Legacy Pipeline
+    // with no version on record. Those SORs keep moving the way they always
+    // did — by stage code, any Stage to any Stage — and their Legacy Pipeline
+    // Stage follows along so the two never disagree.
+    describe("an SOR on Legacy Pipeline with no version on record", () => {
+      let legacyLead, legacyAwarded
+      const versionlessDeal = (overrides = {}) => {
+        const saleType = makeSaleType({ name: "Legacy Pipeline" })
+        const flow = makeSalesFlow({ sale_type_id: saleType.id })
+        legacyLead = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })
+        legacyAwarded = makeFlowStage({ flow_id: flow.id, name: "Awarded", sort_order: 1 })
+        return makeOpportunity({
+          registered_by: registrar.id,
+          status: "LEAD",
+          sale_type_id: saleType.id,
+          flow_stage_id: legacyLead.id,
+          flow_snapshot_id: null,
+          ...overrides,
+        })
+      }
+
+      it("jumps straight to any stage, with its Legacy Pipeline Stage following", async () => {
+        const deal = versionlessDeal({ sales_reference: "S00999" })
+
+        const moved = await opportunityService.updateStatus(deal.id, "AWARDED", registrar.id)
+
+        expect(moved.status).toBe("AWARDED")
+        expect(moved.flow_stage_id).toBe(legacyAwarded.id)
+        expect(moved.contract_date).toBeTruthy()
+      })
+
+      it("keeps the old pipeline's Sales Reference rule", async () => {
+        const deal = versionlessDeal()
+
+        await expect(
+          opportunityService.updateStatus(deal.id, "AWARDED", registrar.id),
+        ).rejects.toThrow(/Sales Reference is required/i)
+      })
+
+      it("is not shown as blocked by a condition on its live flow Stage, which never gates its move", async () => {
+        const deal = versionlessDeal({ sales_reference: "S00999" })
+        makeStageCondition({ stage_id: legacyLead.id, kind: "assignment", label: "TEST" })
+
+        expect(await opportunityService.getStageChecklist(deal.id)).toHaveLength(0)
+        const moved = await opportunityService.updateStatus(deal.id, "AWARDED", registrar.id)
+        expect(moved.status).toBe("AWARDED")
+      })
+    })
+
     // The ITB gate at For Bidding was removed (issue #206, ADR 0004 D12) —
     // Sales Flows replaced it. These replace the old gate tests to assert it
     // no longer blocks, while the Sales Reference rule keeps working.

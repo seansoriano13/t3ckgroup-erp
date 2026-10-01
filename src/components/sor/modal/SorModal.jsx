@@ -20,6 +20,7 @@ import { flowStageTone } from "../../../constants/salesFlow";
 import { openRequests } from "../../../constants/procurement";
 import { usePipelineStages } from "../../../hooks/usePipelineStages";
 import {
+  isJudgedByStageCode,
   isLostCode,
   formatPHP,
   isValidSalesReference,
@@ -284,6 +285,10 @@ export default function SorModal({
     return employees.filter((e) => allowed.has(e.id));
   }, [employees, currentVisitId, visitAudienceIds]);
 
+  // A Legacy Pipeline deal with no version on record (#414) moves by stage
+  // code, as SORs always did: its live flow Stage's gate never applies to it.
+  const runsFlow = Boolean(rawOpportunity) && !isJudgedByStageCode(rawOpportunity);
+
   // Issue #407 — the header's "Clear to move"/"Blocked" badge (and the
   // "Can't move on yet" message under the ribbon) used to be judged on
   // `checklist` alone, i.e. Stage Conditions. A Stage Field is also part of
@@ -294,7 +299,7 @@ export default function SorModal({
   const { data: stageFields = [] } = useQuery({
     queryKey: ["stageFields", rawOpportunity?.flow_stage_id],
     queryFn: () => stageFieldService.getForStage(rawOpportunity.flow_stage_id),
-    enabled: !!rawOpportunity?.flow_stage_id && isOpen,
+    enabled: runsFlow && !!rawOpportunity?.flow_stage_id && isOpen,
   });
 
   const { data: currentVisitFieldValues = {} } = useQuery({
@@ -305,11 +310,11 @@ export default function SorModal({
 
   const missingRequiredStageFields = useMemo(
     () =>
-      missingStageFields(stageFields, {
+      missingStageFields(runsFlow ? stageFields : [], {
         opportunity: rawOpportunity || {},
         visitValues: currentVisitFieldValues,
       }),
-    [stageFields, rawOpportunity, currentVisitFieldValues],
+    [runsFlow, stageFields, rawOpportunity, currentVisitFieldValues],
   );
 
   // Only Details shows or edits a Lead Source (#302), so it waits for Details.
@@ -451,13 +456,13 @@ export default function SorModal({
   const returnPrompt = useReturnPrompt({
     opportunity: rawOpportunity,
     stages: flowCanvas?.stages,
-    enabled: Boolean(rawOpportunity?.sale_type_id),
+    enabled: runsFlow,
     move: stageMutation.mutate,
   });
   const stageMover = { ...stageMutation, mutate: returnPrompt.request };
   // A Return is never blocked by the Stage being left, so a stage control
   // leaves these destinations open even while the current Stage is blocked.
-  const returnStageIds = useReturnStageIds(rawOpportunity, Boolean(rawOpportunity?.sale_type_id) && isOpen);
+  const returnStageIds = useReturnStageIds(rawOpportunity, runsFlow && isOpen);
 
   const deleteMutation = useMutation({
     mutationFn: () => opportunityService.deleteOpportunity(id, user?.id),
@@ -783,7 +788,8 @@ export default function SorModal({
   };
 
   const isPosting = isUploading || addNoteMutation.isPending;
-  const isFlowDeal = Boolean(opportunity.sale_type_id);
+  // So it gets the pipeline ribbon, not the flow's.
+  const isFlowDeal = runsFlow;
 
   const siblingIndex = siblingIds?.indexOf(id) ?? -1;
   const hasPrev = siblingIndex > 0;

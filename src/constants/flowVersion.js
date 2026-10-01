@@ -8,20 +8,14 @@
  * future deals, never deals already in flight.
  *
  * The consequence is that "which version is this deal on?" is a real question,
- * and the answer is not always a number. There are four states worth telling
- * apart, and rendering a blank for three of them tells the reader nothing:
+ * and the answer is not always a number. There are three states worth telling
+ * apart:
  *
- *   legacy    the deal runs no flow at all — registered before Sales Flows,
- *             or against a Sale Type that has none. Every SOR in production
- *             is currently this.
+ *   legacy    the deal runs on pipeline stage codes — no Sale Type, or a flow
+ *             with no version on record (Legacy Pipeline after the cutover
+ *             backfill, #414). It moves the way SORs always did.
  *   pinned    the ordinary case: a version, on record, openable.
- *   unpinned  runs a flow but carries no snapshot. Not a valid state —
- *             `snapshotContextFor` already refuses to move such a deal — so
- *             this says so rather than pretending.
- *   loading   pinned, but the snapshot has not come back yet. Distinct from
- *             `unpinned`, because accusing a healthy deal of being malformed
- *             for the first few hundred milliseconds of every modal is worse
- *             than saying nothing.
+ *   loading   pinned, but the snapshot has not come back yet.
  */
 
 /**
@@ -55,19 +49,11 @@ export function describeFlowVersion({ opportunity, snapshot = null, saleTypeName
         canOpen: false,
     }
 
-    if (!opportunity?.sale_type_id) {
+    if (!opportunity?.sale_type_id || !opportunity.flow_snapshot_id) {
         return {
             ...base,
             kind: "legacy",
             label: "Pipeline stages",
-        }
-    }
-
-    if (!opportunity.flow_snapshot_id) {
-        return {
-            ...base,
-            kind: "unpinned",
-            label: withSaleType(saleTypeName, "no version on record"),
         }
     }
 

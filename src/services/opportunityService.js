@@ -11,6 +11,7 @@ import {
   STAGE_LABELS,
   formatPHP,
   isAnchorCode,
+  isJudgedByStageCode,
   isLostCode,
   isValidSalesReference,
   normalizeSalesReference,
@@ -598,6 +599,36 @@ async function entryStageFor(saleTypeId) {
     throw new Error("That Sale Type's flow has no Stages yet, so a deal cannot be placed on it.");
   }
   return { snapshot, entry };
+}
+
+/**
+ * The Legacy Pipeline Stage a versionless SOR sits on for a pipeline stage
+ * code: the one named after that code's label, the same pairing the cutover
+ * backfill (#330) made. Lets a stage-code move keep `flow_stage_id` in step
+ * with `status`, so the board and Stage Visits never disagree with the deal.
+ */
+async function legacyFlowStageFor(saleTypeId, statusCode) {
+  const stages = await pipelineStageService.getAllStages();
+  const label = stages.find((s) => s.code === statusCode)?.label;
+
+  const { data: flow, error: flowError } = await supabase
+    .from("sales_flows")
+    .select("id")
+    .eq("sale_type_id", saleTypeId)
+    .single();
+  if (flowError) throw flowError;
+
+  const { data: flowStage, error } = await supabase
+    .from("flow_stages")
+    .select("id")
+    .eq("flow_id", flow.id)
+    .eq("name", label ?? statusCode)
+    .maybeSingle();
+  if (error) throw error;
+  if (!flowStage) {
+    throw new Error(`This deal's flow has no Stage named ${label ?? statusCode}, so it cannot be moved there.`);
+  }
+  return flowStage.id;
 }
 
 /**
@@ -2028,7 +2059,11 @@ export const opportunityService = {
     //
     // Branching here rather than adding a second public method is deliberate:
     // two ways to move an SOR is the defect that reusing this funnel prevents.
-    if (existing.sale_type_id) {
+    //
+    // A deal on a flow with no version on record (Legacy Pipeline after the
+    // cutover backfill, #414) is judged by its stage code everywhere else, so
+    // it moves by stage code here too, as it always did.
+    if (!isJudgedByStageCode(existing)) {
       return moveAlongFlow(existing, nextStatus, actorId, { returnChoice });
     }
 
@@ -2051,6 +2086,7 @@ export const opportunityService = {
     };
     const recordsRef = providedRef && providedRef !== existing.sales_reference;
     if (recordsRef) patch.sales_reference = providedRef;
+    if (existing.sale_type_id) patch.flow_stage_id = await legacyFlowStageFor(existing.sale_type_id, nextStatus);
 
     // Contract Date anchors which dated Commission Rate applies to this
     // opportunity (see commissionService.getCommissionBreakdownForOpportunity).
@@ -3561,7 +3597,9 @@ export const opportunityService = {
   async getStageChecklist(opportunityId, opportunity = null) {
     const target = opportunity || (await opportunityService.getOpportunityById(opportunityId));
     if (!target) return [];
-    const stageCode = target.flow_stage_id || target.status;
+    // A versionless Legacy Pipeline deal is gated by its stage code (#414), as
+    // the move itself is, not by whatever its live flow Stage carries.
+    const stageCode = isJudgedByStageCode(target) ? target.status : target.flow_stage_id;
 
     let conditions = [];
     if (target.flow_snapshot_id) {

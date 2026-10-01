@@ -58,14 +58,12 @@ export default function FlowVersionBadge({ opportunity, onOpenVersion = null, cl
                     ? `This deal follows version ${version.versionLabel} of its Sales Flow, pinned when it was registered.${
                           openable ? " Open it to see the flow as it stood." : ""
                       }`
-                    : "This deal runs a Sales Flow but carries no version on record."
+                    : undefined
             }
             className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5",
                 "text-[11px] font-medium tracking-wide",
-                version.kind === "unpinned"
-                    ? "border-red-6 bg-red-3 text-red-11"
-                    : "border-mauve-6 bg-mauve-3 text-mauve-11",
+                "border-mauve-6 bg-mauve-3 text-mauve-11",
                 openable &&
                     "cursor-pointer transition-colors hover:border-mauve-8 hover:bg-mauve-4 hover:text-mauve-12 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mauve-8",
                 className,

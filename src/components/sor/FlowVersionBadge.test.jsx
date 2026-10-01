@@ -65,14 +65,13 @@ describe("FlowVersionBadge", () => {
         expect(salesFlowService.getSnapshot).not.toHaveBeenCalled()
     })
 
-    it("flags a deal that runs a flow but carries no version", async () => {
-        // Not a valid state — moving such a deal already refuses — so the badge
-        // says so rather than rendering a blank where a version belongs.
-        renderBadge({
+    it("says nothing for a Legacy Pipeline deal with no version on record", () => {
+        // It moves by stage code, as SORs always did (#414): no version to report.
+        const { container } = renderBadge({
             opportunity: { id: "opp-3", sale_type_id: "st-1", flow_snapshot_id: null },
         })
 
-        expect(await screen.findByText("Government · no version on record")).toBeInTheDocument()
+        expect(container).toBeEmptyDOMElement()
     })
 
     it("opens the pinned version when the badge is clicked", async () => {
