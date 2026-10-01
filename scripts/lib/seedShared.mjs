@@ -97,6 +97,8 @@ export const SEED_EXCLUDED_TABLES = {
     "Marketplace orders synced from Odoo by odoo-sor-sync, carrying individual buyers' names. A local stack has no Odoo credentials to re-sync it, and unlike odoo_retail_queue no sanitizer covers it yet.",
   bug_reports:
     "Reports point at files in the remote environment's private bug-reports bucket, which a local stack cannot read, and carry each sender's browser details. Send a fresh one locally with the bug button.",
+  bug_report_notes:
+    "The thread on a Bug Report, and bug_reports itself is not seeded, so there is nothing for a note to hang on.",
   sor_action_runs:
     "A fire-once ledger derived from Stage Actions actually firing (issue #204), not a fact to seed — a local stack regenerates it the first time a seeded deal moves through a Flow Stage.",
 }

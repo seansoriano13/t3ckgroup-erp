@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import toast from "react-hot-toast"
+import { MemoryRouter } from "react-router"
 import { setupUser } from "@/test/support"
 import { stubRpc } from "@/test/msw/server"
 import { storageObjects } from "@/test/msw/storage"
@@ -13,7 +14,7 @@ vi.mock("browser-image-compression", () => ({ default: async (file) => file }))
 /**
  * The floating "Report a bug" button on every page: one text box plus files,
  * sent straight to the Bug Reports list. The sender gets a "Sent" toast and
- * nothing more.
+ * follows any notes from IT under "My reports".
  */
 describe("BugReportButton", () => {
   let sent
@@ -33,7 +34,11 @@ describe("BugReportButton", () => {
 
   async function open() {
     const user = setupUser()
-    render(<BugReportButton />)
+    render(
+      <MemoryRouter>
+        <BugReportButton />
+      </MemoryRouter>,
+    )
     await user.click(screen.getByRole("button", { name: "Report a bug" }))
     return user
   }

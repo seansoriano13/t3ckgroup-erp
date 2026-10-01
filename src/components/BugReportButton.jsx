@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { Bug } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -21,11 +22,13 @@ import { formatBytes } from "@/utils/attachments";
  * The floating "Report a bug" button on every signed-in page (CONTEXT.md →
  * Bug Report). One text box plus up to 5 files of any type, 50 MB each; a
  * screenshot pasted into the text box is attached. The page it was sent from
- * is recorded automatically. The sender gets a toast and nothing more: only
- * the IT Team and Super Admins read the list.
+ * is recorded automatically. The sender gets a toast; IT may then write back
+ * in the report's Notes, which the sender follows under "My reports"
+ * (/bug-reports shows a non-reader only their own).
  */
 export default function BugReportButton() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -99,6 +102,17 @@ export default function BugReportButton() {
           />
 
           <DialogFooter>
+            <Button
+              variant="link"
+              className="mr-auto px-0 text-muted-foreground"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                navigate("/bug-reports");
+              }}
+            >
+              My reports
+            </Button>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>
               Cancel
             </Button>

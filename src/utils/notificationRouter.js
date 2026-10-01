@@ -40,7 +40,7 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
   const type = LEGACY_TYPE_ALIASES[notif.type] ?? notif.type;
   notif = notif.type === type ? notif : { ...notif, type };
 
-  if (notif.type === "BUG_REPORT_SUBMITTED") {
+  if (notif.type === "BUG_REPORT_SUBMITTED" || notif.type === "BUG_REPORT_NOTE") {
     navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
   } else if (notif.type === "GROUP_TASK_COMMENT") {
     navigate("/group-tasks");

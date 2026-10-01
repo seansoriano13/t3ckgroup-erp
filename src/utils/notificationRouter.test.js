@@ -323,6 +323,17 @@ describe("handleNotificationRoute", () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it("opens the report a bug report note was written on", () => {
+    handleNotificationRoute(
+      { type: "BUG_REPORT_NOTE", reference_id: "bug-1" },
+      head,
+      navigate,
+      onClose,
+    )
+
+    expect(navigate).toHaveBeenCalledWith("/bug-reports?record=bug-1")
+  })
+
   it("closes the drawer after every successful route", () => {
     handleNotificationRoute(
       { type: "TASK_SUBMITTED", reference_id: "task-9" },

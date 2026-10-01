@@ -22,8 +22,9 @@ function renderPage(entry = "/bug-reports") {
   );
 }
 
-// Bug Reports: the list the IT Team and Super Admins read. Open reports by
-// default; Resolved ones behind "Show resolved".
+// Bug Reports: the list the IT Team and Super Admins read (anyone else sees
+// their own, as My Bug Reports). Open reports by default; Resolved ones behind
+// "Show resolved". Each report carries a thread of Notes.
 describe("Bug Reports page", () => {
   let reader;
   let reporter;
@@ -81,11 +82,37 @@ describe("Bug Reports page", () => {
     await waitFor(() => expect(calls).toEqual([{ p_id: r.id, p_resolved: true }]));
   });
 
-  it("turns away someone without the access right", async () => {
+  it("shows the thread on a report and sends a note", async () => {
+    const r = report();
+    db.seed("bug_report_notes", { report_id: r.id, author_id: reader.id, kind: "note", body: "Fixed, can you check?" });
+    db.seed("bug_report_notes", { report_id: r.id, author_id: reporter.id, kind: "note", body: "Yes, works now" });
+    const calls = [];
+    stubRpc("add_bug_report_note", (args) => {
+      calls.push(args);
+      return "note-1";
+    });
+    const user = setupUser();
+
+    renderPage(`/bug-reports?record=${r.id}`);
+
+    const sheet = await screen.findByRole("dialog");
+    expect(await within(sheet).findByText("Fixed, can you check?")).toBeInTheDocument();
+    expect(within(sheet).getByText("Yes, works now")).toBeInTheDocument();
+
+    await user.type(within(sheet).getByRole("textbox", { name: "Note" }), "  Thanks!  ");
+    await user.click(within(sheet).getByRole("button", { name: "Send note" }));
+    await waitFor(() => expect(calls).toEqual([{ p_report_id: r.id, p_body: "Thanks!" }]));
+  });
+
+  it("shows someone without the access right their own reports, to reply, but not Mark resolved", async () => {
     mockUser.current = reporter;
+    const r = report();
 
-    renderPage();
+    renderPage(`/bug-reports?record=${r.id}`);
 
-    expect(await screen.findByText("You don't have access to Bug Reports")).toBeInTheDocument();
+    expect(await screen.findByText(/Bugs you reported with the bug button/)).toBeInTheDocument();
+    const sheet = await screen.findByRole("dialog");
+    expect(await within(sheet).findByRole("textbox", { name: "Note" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: "Mark resolved" })).not.toBeInTheDocument();
   });
 });

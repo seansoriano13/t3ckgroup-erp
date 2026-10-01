@@ -867,8 +867,8 @@ No audio is retained. A Dictation's audio exists only for the duration of the Di
 **Bug Report**:
 Something broken in the ERP, sent in by any employee from whichever page they
 are on: a plain-text description plus optional attachments (image, video or any
-file). Read only by Super Admins and the IT Team (and anyone else given the
-same access). It is for broken things, not feature requests or access
+file). Read by Super Admins and the IT Team (and anyone else given the same
+access), and by its sender. It is for broken things, not feature requests or access
 requests. Open or Resolved, nothing in between. Never deleted; its attachments
 are, a year after it was sent.
 _Avoid_: Ticket, Feedback, Issue
@@ -876,3 +876,11 @@ _Avoid_: Ticket, Feedback, Issue
 **Resolved** (of a Bug Report):
 Dealt with, as judged by anyone who reads Bug Reports. Can go back to Open.
 _Avoid_: Closed, Done, Fixed
+
+**Note** (on a Bug Report):
+A short message on a Bug Report's thread, written by a reader or by the sender
+(e.g. "Fixed, can you check?" / "Yes, works now"). Each one notifies the other
+side; not real time. The thread also shows when the report was ticked Resolved
+or Reopened. The sender sees their own reports, and only those, under My Bug
+Reports so they can reply.
+_Avoid_: Comment, Chat, Message

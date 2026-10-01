@@ -1,6 +1,8 @@
 /**
- * Bug Reports. Any employee sends one; only Super Admins and holders of the
- * Bug Reports access right read them. Sending goes through
+ * Bug Reports. Any employee sends one; Super Admins and holders of the Bug
+ * Reports access right read them all, the sender reads their own. Readers and
+ * the sender write Notes on a report through `add_bug_report_note`, each
+ * notifying the other side. Sending goes through
  * `submit_bug_report`, which also notifies every reader. Resolved is flipped
  * through `set_bug_report_resolved`. Attachments live in the private
  * `bug-reports` bucket and a reader may delete them only once they are a year
@@ -53,7 +55,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await svc().from("employees").update({ has_bug_report_access: false }).eq("id", ids.outsider)
-    await svc().from("notifications").delete().eq("type", "BUG_REPORT_SUBMITTED").in("reference_id", reportIds)
+    await svc().from("notifications").delete().in("type", ["BUG_REPORT_SUBMITTED", "BUG_REPORT_NOTE"]).in("reference_id", reportIds)
     await svc().from("bug_reports").delete().in("id", reportIds)
     if (uploaded.length) await svc().storage.from(BUCKET).remove(uploaded)
 })
@@ -110,7 +112,11 @@ describe("reading bug reports", () => {
         expect(await canRead(await clientFor(key), "bug_reports", id)).toBe(true)
     })
 
-    it.each([["ordinary"], ["head"], ["hr"]])("anyone else cannot, even the sender: %s", async (key) => {
+    it("the sender can read their own", async () => {
+        expect(await canRead(await clientFor("ordinary"), "bug_reports", id)).toBe(true)
+    })
+
+    it.each([["head"], ["hr"]])("anyone else cannot: %s", async (key) => {
         expect(await canRead(await clientFor(key), "bug_reports", id)).toBe(false)
     })
 
@@ -162,16 +168,92 @@ describe("resolving", () => {
     })
 })
 
+describe("notes", () => {
+    let id
+    beforeAll(async () => {
+        id = (await submit("ordinary")).id
+    })
+
+    async function note(key, body = `${MARKER} Fixed, can you check?`) {
+        const client = await clientFor(key)
+        return client.rpc("add_bug_report_note", { p_report_id: id, p_body: body })
+    }
+
+    async function notified(noteBody) {
+        const { data } = await svc()
+            .from("notifications")
+            .select("recipient_id, message")
+            .eq("type", "BUG_REPORT_NOTE")
+            .eq("reference_id", id)
+        return data.filter((n) => n.message === noteBody).map((n) => n.recipient_id)
+    }
+
+    it("a reader's note notifies the sender only", async () => {
+        const body = `${MARKER} reader note`
+        expect((await note("outsider", body)).error).toBeNull()
+        expect(await notified(body)).toEqual([ids.ordinary])
+    })
+
+    it("the sender's reply notifies every reader, not the sender", async () => {
+        const body = `${MARKER} sender reply`
+        expect((await note("ordinary", body)).error).toBeNull()
+        const recipients = await notified(body)
+        expect(recipients).toContain(ids.outsider)
+        expect(recipients).toContain(ids.superAdmin)
+        expect(recipients).not.toContain(ids.ordinary)
+    })
+
+    it("anyone else cannot write one", async () => {
+        expect((await note("head")).error).not.toBeNull()
+    })
+
+    it("refuses an empty note", async () => {
+        expect((await note("ordinary", "   ")).error).not.toBeNull()
+    })
+
+    it("cannot be inserted directly", async () => {
+        const client = await clientFor("ordinary")
+        const { error } = await client.from("bug_report_notes").insert({ report_id: id, author_id: ids.ordinary, body: "x" })
+        expect(error).not.toBeNull()
+    })
+
+    it("the thread is read by readers and the sender, no one else", async () => {
+        const read = async (key) => (await (await clientFor(key)).from("bug_report_notes").select("id").eq("report_id", id)).data
+        expect((await read("ordinary")).length).toBeGreaterThan(0)
+        expect((await read("outsider")).length).toBeGreaterThan(0)
+        expect(await read("head")).toEqual([])
+    })
+
+    it("Resolved and Reopened land in the thread once per change", async () => {
+        const reader = await clientFor("outsider")
+        await reader.rpc("set_bug_report_resolved", { p_id: id, p_resolved: true })
+        await reader.rpc("set_bug_report_resolved", { p_id: id, p_resolved: true })
+        await reader.rpc("set_bug_report_resolved", { p_id: id, p_resolved: false })
+        const { data } = await svc()
+            .from("bug_report_notes")
+            .select("kind, author_id")
+            .eq("report_id", id)
+            .neq("kind", "note")
+            .order("created_at")
+        expect(data).toEqual([
+            { kind: "resolved", author_id: ids.outsider },
+            { kind: "reopened", author_id: ids.outsider },
+        ])
+    })
+})
+
 describe("attachments", () => {
     it("an employee can upload into their own folder only", async () => {
         expect((await upload("ordinary", ids.ordinary)).error).toBeNull()
         expect((await upload("ordinary", ids.head)).error).not.toBeNull()
     })
 
-    it("a reader can open an attachment, a non-reader cannot", async () => {
+    it("a reader and the sender can open an attachment, anyone else cannot", async () => {
         const { path } = await upload("ordinary", ids.ordinary)
         const reader = await clientFor("outsider")
         expect((await reader.storage.from(BUCKET).createSignedUrl(path, 60)).error).toBeNull()
+        const sender = await clientFor("ordinary")
+        expect((await sender.storage.from(BUCKET).createSignedUrl(path, 60)).error).toBeNull()
         const other = await clientFor("head")
         expect((await other.storage.from(BUCKET).createSignedUrl(path, 60)).error).not.toBeNull()
     })

@@ -28,10 +28,11 @@ function appVersion() {
 }
 
 /**
- * Bug Reports (CONTEXT.md). Sending and Resolved go through RPCs; the table
- * itself is readable only by Super Admins and holders of the Bug Reports
- * access right. Files sit in the private `bug-reports` bucket under the
- * sender's employee id, so the page opens them through signed URLs.
+ * Bug Reports (CONTEXT.md). Sending, Notes and Resolved go through RPCs; the
+ * table is readable by Super Admins and holders of the Bug Reports access
+ * right, and by each sender for their own reports. Files sit in the private
+ * `bug-reports` bucket under the sender's employee id, so the page opens them
+ * through signed URLs.
  */
 export const bugReportService = {
   /** Uploads one file and returns the descriptor stored on the report. */
@@ -63,7 +64,7 @@ export const bugReportService = {
     return data;
   },
 
-  /** Every report, newest first. */
+  /** Every report the caller can see (all for a reader, their own otherwise), newest first. */
   async list() {
     const { data, error } = await supabase
       .from("bug_reports")
@@ -76,6 +77,27 @@ export const bugReportService = {
   async setResolved(id, resolved) {
     const { error } = await supabase.rpc("set_bug_report_resolved", { p_id: id, p_resolved: resolved });
     if (error) throw new Error(error.message);
+  },
+
+  /** A report's thread (notes plus Resolved / Reopened events), oldest first. */
+  async listNotes(reportId) {
+    const { data, error } = await supabase
+      .from("bug_report_notes")
+      .select("*, author:employees!bug_report_notes_author_id_fkey(id, name)")
+      .eq("report_id", reportId)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /** Adds a note to a report's thread; notifies the other side. */
+  async addNote(reportId, body) {
+    const { data, error } = await supabase.rpc("add_bug_report_note", {
+      p_report_id: reportId,
+      p_body: (body || "").trim(),
+    });
+    if (error) throw new Error(error.message);
+    return data;
   },
 
   /** The report's attachment descriptors with a signed `url` added to each. */

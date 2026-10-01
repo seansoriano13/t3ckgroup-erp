@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-01",
+        "title": "Talk Back and Forth on a Bug Report",
+        "version": "1.9.3",
+        "changes": [
+            "Bug reports: IT can now write notes on a report, like 'Fixed, can you check?', and you can reply. Each note notifies the other side.",
+            "Bug reports: press the bug button and choose My reports to see the bugs you reported and IT's notes on them.",
+            "Bug reports: IT ticks a report Resolved once you confirm the fix, and you see when it was resolved."
+        ]
+    },
+    {
+        "date": "2026-10-01",
         "title": "Faster Pictures",
         "version": "1.9.2",
         "changes": [
