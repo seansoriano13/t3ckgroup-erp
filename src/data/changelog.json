@@ -1,5 +1,14 @@
 [
     {
+        "date": "2026-10-02",
+        "title": "Clearer Change Notes on SORs",
+        "version": "1.9.4",
+        "changes": [
+            "SORs: in Activity & Log Notes, changes to a SOR now show as neat labels (old value → new value). Added, removed, changed and renamed products are grouped, and you can open each group to see the details.",
+            "SORs: long status labels in the register no longer spill past the table edge. Hover to see the full status."
+        ]
+    },
+    {
         "date": "2026-10-01",
         "title": "Talk Back and Forth on a Bug Report",
         "version": "1.9.3",
