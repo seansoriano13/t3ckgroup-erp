@@ -94,9 +94,13 @@ docs/*.pdf
 .vercel
 
 .agents/*
+!.agents/skills
+!.agents/skills/**
 
 .claude/*
 !.claude/settings.json
+!.claude/skills
+!.claude/skills/**
 
 # Generated lint report — regenerate with `npx eslint . -f json -o eslint.json`
 eslint.json
