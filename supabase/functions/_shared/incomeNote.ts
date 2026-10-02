@@ -14,6 +14,7 @@ export interface IncomeNote {
  */
 export function toPlainText(raw: string): string {
   return raw
+    .replace(/<img\b[^>]*>/gi, " ") // a pasted screenshot's base64 can be megabytes; drop it before the passes below copy it
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li|tr|pre|h[1-6]|blockquote)>/gi, "\n")
     .replace(/<[^>]*>?/gm, " ")

@@ -143,6 +143,12 @@ describe("parseIncomeNote", () => {
       amount: 100,
       want: NONE,
     },
+    {
+      name: "a pasted screenshot beside the typed figures is ignored",
+      note: `<p>ORDER ID: ABC123</p><p><img src="data:image/png;base64,${"iVBORw0KGgo".repeat(5000)}" style="width: 100%;"></p><p>FEE: 50</p><p>OI: 450</p>`,
+      amount: 500,
+      want: { marketplaceOrderId: "ABC123", marketplaceFee: 50, orderIncome: 450 },
+    },
     { name: "empty note", note: "", amount: 100, want: NONE },
   ];
 

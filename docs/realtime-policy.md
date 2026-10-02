@@ -60,6 +60,14 @@ row id, exactly as `tasks` does, and the register subscribes with
 `useTableRealtime("sales_opportunities", { invalidateKeys: [["opportunities"]], debounceMs: 800 })`.
 Its qualifying reason is concurrency: two people can move the same SOR.
 
+`retail_orders` is the same shape for a different reason: push-urgency. The sync
+writes it every 5 minutes, and `20261002120000_retail_sync_cron_and_realtime.sql`
+broadcasts the row id of each row that actually changed (an update that wrote the
+stored values announces nothing). The Retail screen subscribes through
+`useRetailArrivals`, which wraps `useTableRealtime("retail_orders", { invalidateKeys:
+[["retailOrders"]], debounceMs: 800 })` and also names the orders that arrived
+after the first load so the screen can highlight them.
+
 ## Consumers use the shared hook
 
 New consumers subscribe via `useTableRealtime` (`src/hooks/useTableRealtime.js`)

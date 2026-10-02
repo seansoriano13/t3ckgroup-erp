@@ -3671,6 +3671,40 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.invoke_retail_sync(p_mode text DEFAULT NULL::text)
+ RETURNS bigint
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_url text;
+  v_key text;
+begin
+  if p_mode is not null and p_mode <> 'full' then
+    raise exception 'invoke_retail_sync: mode must be null or ''full'', got %', p_mode;
+  end if;
+
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'project_url';
+  select decrypted_secret into v_key from vault.decrypted_secrets where name = 'anon_key';
+  if v_url is null or v_key is null then
+    raise exception 'invoke_retail_sync: Vault secrets project_url and anon_key must both exist';
+  end if;
+
+  return net.http_post(
+    url := rtrim(v_url, '/') || '/functions/v1/odoo-sor-sync'
+      || case when p_mode is null then '' else '?mode=' || p_mode end,
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || v_key
+    ),
+    body := '{}'::jsonb,
+    -- the nightly run re-reads more orders' notes than a 5-minute run; give it room
+    timeout_milliseconds := case when p_mode = 'full' then 300000 else 120000 end
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.is_head()
  RETURNS boolean
  LANGUAGE sql
@@ -4361,6 +4395,32 @@ begin
   returning * into v_flow;
 
   return json_build_object('flow', row_to_json(v_flow), 'version', v_snapshot.version);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.retail_orders_broadcast_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  -- The sync upserts a whole window every run; only a row that actually
+  -- changed is news. updated_at is bumped by trg_retail_orders_updated_at.
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'updated_at') = (to_jsonb(old) - 'updated_at') then
+    return null;
+  end if;
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', coalesce(new.id, old.id)),
+      tg_op,
+      'retail_orders-changes',
+      true -- private: gated by the realtime.messages policy, not public
+    );
+  exception when others then
+    null;
+  end;
+  return null;
 end;
 $function$
 ;
@@ -7163,6 +7223,7 @@ CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER overtime_requests_guard_head_status BEFORE UPDATE ON public.overtime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
+CREATE TRIGGER retail_orders_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION retail_orders_broadcast_change();
 CREATE TRIGGER trg_retail_orders_updated_at BEFORE UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION set_retail_orders_updated_at();
 CREATE TRIGGER sales_opportunities_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_broadcast_change();
 CREATE TRIGGER sor_guard_non_editor_update BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_non_editor_update();

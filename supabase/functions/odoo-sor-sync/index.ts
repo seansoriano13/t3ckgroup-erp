@@ -5,6 +5,7 @@ import {
   jsonResponse
 } from "../_shared/odoo.ts";
 import { parseIncomeNote, toPlainText } from "../_shared/incomeNote.ts";
+import { changedColumns, keepKnownValues, selectRereadOrders } from "../_shared/noteReread.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -26,7 +27,45 @@ const ORDER_FIELDS = [
 // historical load goes through in slices rather than one giant call.
 const BATCH_SIZE = 200;
 
+// Orders whose notes are read from Odoo per round trip, and written per batch.
+// An Income Note often carries a pasted screenshot: on staging 10 orders' To-Dos
+// came to 42 MB, and a run that read them 25 at a time was killed by the runtime
+// (WORKER_RESOURCE_LIMIT, reason "Memory"). Small slices keep the peak low, and
+// each is written before the next is read so a failure part-way keeps what was
+// already read.
+const NOTE_BATCH_SIZE = 10;
+
+// `?mode=full` (the nightly run) also re-reads every order whose notes Odoo says
+// were touched this recently: two nights, so one missed run is still caught.
+const FULL_RUN_NOTES_LOOKBACK_HOURS = 48;
+
+// Order ids per "which notes changed" query.
+const TOUCHED_ID_BATCH_SIZE = 500;
+
+/** `pending`: window plus Missing/Suspect orders (every 5 minutes). `full`: that plus recently touched notes (nightly). */
+type SyncMode = "pending" | "full";
+
 const ROLLING_WINDOW_DAYS = 30;
+
+// PostgREST caps a response at 1000 rows, so stored orders are read in pages.
+const STORED_PAGE_SIZE = 1000;
+
+// Every column this function writes, so a stored order can be compared with
+// what a read would write, and rebuilt whole when only its notes changed.
+const SYNCED_COLUMNS = [
+  "odoo_so_number",
+  "odoo_so_id",
+  "marketplace",
+  "partner_name",
+  "buyer_name",
+  "marketplace_order_id",
+  "marketplace_fee",
+  "order_income",
+  "odoo_salesperson_name",
+  "amount",
+  "ordered_at",
+  "odoo_state",
+].join(", ");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -107,8 +146,8 @@ async function fetchNoteFacts(
   };
 
   const ids = orders.map((o) => o.id);
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    const slice = ids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ids.length; i += NOTE_BATCH_SIZE) {
+    const slice = ids.slice(i, i + NOTE_BATCH_SIZE);
     const [activities, messages] = await Promise.all([
       executeKw(uid, "mail.activity", "search_read", [
         [["res_model", "=", "sale.order"], ["res_id", "in", slice]],
@@ -172,11 +211,79 @@ async function resolveWindow(since: string | null, until: string | null = null):
   return { leaves, label };
 }
 
+/**
+ * The Odoo ids of orders with a To-Do or chatter message written since `since`.
+ * Only ids come back (no note bodies), so this is cheap however large the notes
+ * are: Odoo stamps every edit, so an edited or newly added note shows up here
+ * even though the order's own change date never moves.
+ */
+async function fetchOrdersWithTouchedNotes(uid: number, odooIds: number[], since: Date): Promise<Set<number>> {
+  const touched = new Set<number>();
+  const from = odooDate(since);
+  for (let i = 0; i < odooIds.length; i += TOUCHED_ID_BATCH_SIZE) {
+    const slice = odooIds.slice(i, i + TOUCHED_ID_BATCH_SIZE);
+    const [activities, messages] = await Promise.all([
+      executeKw(uid, "mail.activity", "search_read", [
+        [["res_model", "=", "sale.order"], ["res_id", "in", slice], ["write_date", ">=", from]],
+        ["res_id"],
+      ]),
+      executeKw(uid, "mail.message", "search_read", [
+        [
+          ["model", "=", "sale.order"],
+          ["res_id", "in", slice],
+          ["message_type", "in", ["comment", "notification"]],
+          ["write_date", ">=", from],
+        ],
+        ["res_id"],
+      ]),
+    ]);
+    for (const row of [...activities, ...messages]) touched.add(row.res_id);
+  }
+  return touched;
+}
+
+/** Every order already in `retail_orders`, with the columns this function writes. */
+async function loadStoredOrders(): Promise<any[]> {
+  const stored: any[] = [];
+  for (let from = 0; ; from += STORED_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("retail_orders")
+      .select(SYNCED_COLUMNS)
+      .order("odoo_so_number", { ascending: true })
+      .range(from, from + STORED_PAGE_SIZE - 1);
+    if (error) throw error;
+    stored.push(...data);
+    if (data.length < STORED_PAGE_SIZE) break;
+  }
+  return stored;
+}
+
 // ---------------------------------------------------------------------------
 // Main sync
 // ---------------------------------------------------------------------------
 
-async function runSync(since: string | null = null, until: string | null = null) {
+/**
+ * One sync run.
+ *
+ * 1. Orders in the window (rolling 30 days changed, or `?since=`) are read from
+ *    Odoo with their notes.
+ * 2. Stored orders outside that window get their notes re-read too: Adding an
+ *    Income Note (an Odoo To-Do) does not change the order's change date, so the
+ *    window alone never sees a late note. Every run re-reads the orders still
+ *    lacking a trustworthy income (Missing or Suspect). `full` mode, the nightly
+ *    run, also re-reads every order whose notes Odoo reports touched in the last
+ *    two days, so an edit to an old note is caught. It does not download every
+ *    order's notes: the screenshots in them make that more than a run can hold.
+ *
+ * Only rows that actually differ are written. Both reads follow the keep-known
+ * rule: a newly read value overwrites the stored one, a read that finds nothing
+ * keeps it.
+ */
+async function runSync(
+  since: string | null = null,
+  until: string | null = null,
+  mode: SyncMode = "pending",
+) {
   const uid = await authenticate();
 
   // Issue #172: configurable storefront list, not a hardcoded lead source or
@@ -206,60 +313,92 @@ async function runSync(since: string | null = null, until: string | null = null)
     if (page.length < BATCH_SIZE) break;
   }
 
-  if (orders.length === 0) {
-    return { window: label, ordersRead: 0, upserted: 0 };
+  const stored = await loadStoredOrders();
+  const known = new Map<string, any>(stored.map((row) => [row.odoo_so_number, row]));
+  const touched =
+    mode === "full"
+      ? await fetchOrdersWithTouchedNotes(
+          uid,
+          stored.map((row) => row.odoo_so_id).filter((id) => id != null),
+          new Date(Date.now() - FULL_RUN_NOTES_LOOKBACK_HOURS * 3600 * 1000),
+        )
+      : new Set<number>();
+  const rereads = selectRereadOrders(stored, touched, new Set(orders.map((o) => o.id)));
+
+  if (orders.length === 0 && rereads.length === 0) {
+    return { mode, window: label, ordersRead: 0, notesRereadOutsideWindow: 0, notesTouchedRecently: touched.size, upserted: 0 };
   }
 
-  const noteFacts = await fetchNoteFacts(uid, orders);
-
-  // Keep what we already know: a value found once is not erased by a later
-  // read whose chatter has since changed. A new non-null value overwrites.
-  const soNumbers = orders.map((o) => o.name);
-  const known = new Map<string, any>();
-  for (let i = 0; i < soNumbers.length; i += BATCH_SIZE) {
-    const { data, error } = await supabase
-      .from("retail_orders")
-      .select("odoo_so_number, buyer_name, marketplace_order_id, marketplace_fee, order_income")
-      .in("odoo_so_number", soNumbers.slice(i, i + BATCH_SIZE));
-    if (error) throw error;
-    for (const row of data || []) {
-      known.set(row.odoo_so_number, row);
-    }
-  }
-
-  // `is_excluded`, `excluded_reason` and `source` are deliberately absent: a new
-  // row takes their defaults, and an existing row keeps what it has — the sync
-  // never un-excludes an order somebody dismissed.
-  const rows = orders.map((so) => {
-    const partnerName: string = so.partner_id ? so.partner_id[1] : "";
-    const fact = noteFacts.get(so.id);
-    const prior = known.get(so.name);
-    return {
-      odoo_so_number: so.name,
-      odoo_so_id: so.id,
-      marketplace: storefrontFor(partnerName, storefronts) ?? partnerName,
-      partner_name: partnerName,
-      buyer_name: fact?.buyer ?? prior?.buyer_name ?? null,
-      // Numeric columns come back from PostgREST as numbers; null stays null.
-      marketplace_order_id: fact?.marketplaceOrderId ?? prior?.marketplace_order_id ?? null,
-      marketplace_fee: fact?.marketplaceFee ?? prior?.marketplace_fee ?? null,
-      order_income: fact?.orderIncome ?? prior?.order_income ?? null,
-      odoo_salesperson_name: so.user_id ? so.user_id[1] : null,
-      amount: typeof so.amount_total === "number" ? so.amount_total : 0,
-      // The order date, not the record's creation date: the two can land on
-      // either side of a month boundary.
-      ordered_at: toTimestamptz(so.date_order) ?? toTimestamptz(so.create_date),
-      odoo_state: so.state ?? null,
-    };
-  });
+  // One entry per order whose notes get read: what to look up, and what to write
+  // once they have been (null when the stored row already says the same, so it
+  // is left alone).
+  //
+  // `is_excluded`, `excluded_reason` and `source` are deliberately absent from
+  // every write: a new row takes their defaults, and an existing row keeps what
+  // it has — the sync never un-excludes an order somebody dismissed.
+  type Write =
+    | { upsert: Record<string, unknown> }
+    | { update: Record<string, unknown>; odoo_so_number: string };
+  const reads: { odooId: number; amount: number; planWrite: (fact: NoteFacts | undefined) => Write | null }[] = [
+    ...orders.map((so) => {
+      const amount = typeof so.amount_total === "number" ? so.amount_total : 0;
+      return {
+        odooId: so.id as number,
+        amount,
+        planWrite: (fact: NoteFacts | undefined): Write | null => {
+          const partnerName: string = so.partner_id ? so.partner_id[1] : "";
+          const prior = known.get(so.name);
+          const next = {
+            odoo_so_number: so.name,
+            odoo_so_id: so.id,
+            marketplace: storefrontFor(partnerName, storefronts) ?? partnerName,
+            partner_name: partnerName,
+            // buyer, Marketplace Order ID, fee, income: the read value, else the stored one.
+            ...keepKnownValues(prior, fact),
+            odoo_salesperson_name: so.user_id ? so.user_id[1] : null,
+            amount,
+            // The order date, not the record's creation date: the two can land on
+            // either side of a month boundary.
+            ordered_at: toTimestamptz(so.date_order) ?? toTimestamptz(so.create_date),
+            odoo_state: so.state ?? null,
+          };
+          return changedColumns(prior, next) ? { upsert: next } : null;
+        },
+      };
+    }),
+    // Orders outside the window: nothing but their notes can have changed, so only
+    // the note columns that differ are written, by update. Writing the whole
+    // stored row back could undo a concurrent run's fresher amount or state.
+    ...rereads.map((row) => ({
+      odooId: row.odoo_so_id as number,
+      amount: Number(row.amount) || 0,
+      planWrite: (fact: NoteFacts | undefined): Write | null => {
+        const changes = changedColumns(row, { ...row, ...keepKnownValues(row, fact) });
+        return changes ? { update: changes, odoo_so_number: row.odoo_so_number } : null;
+      },
+    })),
+  ];
 
   let upserted = 0;
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const { error } = await supabase
-      .from("retail_orders")
-      .upsert(rows.slice(i, i + BATCH_SIZE), { onConflict: "odoo_so_number" });
-    if (error) throw error;
-    upserted += Math.min(BATCH_SIZE, rows.length - i);
+  for (let i = 0; i < reads.length; i += NOTE_BATCH_SIZE) {
+    const batch = reads.slice(i, i + NOTE_BATCH_SIZE);
+    const facts = await fetchNoteFacts(
+      uid,
+      batch.map((r) => ({ id: r.odooId, amount_total: r.amount })),
+    );
+    const writes = batch.map((r) => r.planWrite(facts.get(r.odooId))).filter((w) => w !== null);
+
+    const rows = writes.flatMap((w) => ("upsert" in w ? [w.upsert] : []));
+    if (rows.length > 0) {
+      const { error } = await supabase.from("retail_orders").upsert(rows, { onConflict: "odoo_so_number" });
+      if (error) throw error;
+    }
+    for (const w of writes) {
+      if (!("update" in w)) continue;
+      const { error } = await supabase.from("retail_orders").update(w.update).eq("odoo_so_number", w.odoo_so_number);
+      if (error) throw error;
+    }
+    upserted += writes.length;
   }
 
   // The other half of this function used to close a matching SOR as Won when a
@@ -272,24 +411,19 @@ async function runSync(since: string | null = null, until: string | null = null)
   // sales_reference match and no fuzzy fallback.
   // This function syncs retail, and nothing else.
 
-  return { window: label, ordersRead: orders.length, upserted };
+  return {
+    mode,
+    window: label,
+    ordersRead: orders.length,
+    notesRereadOutsideWindow: rereads.length,
+    notesTouchedRecently: touched.size,
+    upserted,
+  };
 }
 
-// ---------------------------------------------------------------------------
-// Cron (native Supabase edge function scheduling, degrades safely locally)
-// ---------------------------------------------------------------------------
-
-if (typeof Deno.cron === "function") {
-  Deno.cron("odoo-sor-sync-job", "0 * * * *", async () => {
-    console.log("[odoo-sor-sync] Starting cron run...");
-    try {
-      const stats = await runSync();
-      console.log("[odoo-sor-sync] Cron complete:", stats);
-    } catch (err) {
-      console.error("[odoo-sor-sync] Cron failed:", err);
-    }
-  });
-}
+// Scheduling lives in the database: pg_cron calls this function every 5 minutes
+// and nightly with ?mode=full (migration 20261002120000_retail_sync_cron_and_realtime).
+// An in-function Deno.cron used to run here hourly; it stopped firing on staging.
 
 // ---------------------------------------------------------------------------
 // HTTP handler (manual trigger / local testing / one-time historical load)
@@ -307,9 +441,16 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const since = new URL(req.url).searchParams.get("since");
-    const until = new URL(req.url).searchParams.get("until");
-    const stats = await runSync(since, until);
+    const params = new URL(req.url).searchParams;
+    const since = params.get("since");
+    const until = params.get("until");
+    // `?mode=full` is the nightly run: also re-read orders whose notes were touched recently.
+    const modeParam = params.get("mode");
+    if (modeParam !== null && modeParam !== "full") {
+      return jsonResponse({ success: false, error: "mode must be 'full' or left out." }, 400);
+    }
+    const stats = await runSync(since, until, modeParam === "full" ? "full" : "pending");
+    console.log("[odoo-sor-sync] Sync complete:", stats);
     return jsonResponse({ success: true, message: "Sync complete", stats });
   } catch (err: any) {
     console.error("[odoo-sor-sync] Error:", err);

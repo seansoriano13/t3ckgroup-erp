@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getRetailOrders } from "../../services/retailOrderService";
+import { useRetailArrivals } from "../../hooks/useRetailArrivals";
 import { formatPHP } from "../../constants/sor";
 import {
   RETAIL_RANGES,
@@ -128,6 +129,10 @@ export default function RetailReport({ range, custom }) {
     queryKey: ["retailOrders"],
     queryFn: getRetailOrders,
   });
+
+  // The sync writes new orders on its own; this refetches when it does and
+  // names the ones that just landed so the rows below can flash.
+  const arrivals = useRetailArrivals(orders, !isLoading && !isError);
 
   const inRange = useMemo(
     () => ordersInRange(orders, rangeBounds(range, new Date(), custom)),
@@ -275,7 +280,8 @@ export default function RetailReport({ range, custom }) {
                       type="button"
                       variant="ghost"
                       onClick={() => toggle(group.id)}
-                      className="h-auto w-full justify-between rounded-none px-4 py-3 text-left"
+                      data-arrived={group.orders.some((order) => arrivals.has(order.id)) || undefined}
+                      className="h-auto w-full justify-between rounded-none px-4 py-3 text-left duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] data-[arrived]:bg-green-a4"
                     >
                       <div className="flex items-center gap-2">
                         {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -308,7 +314,7 @@ export default function RetailReport({ range, custom }) {
                           </TableHeader>
                           <TableBody>
                             {group.orders.map((order) => (
-                              <TableRow key={order.id} className="border-t border-border/50">
+                              <TableRow key={order.id} data-arrived={arrivals.has(order.id) || undefined} className="border-t border-border/50 duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] data-[arrived]:bg-green-a4">
                                 <TableCell className="flex items-center gap-1.5 py-1.5 font-mono font-bold text-foreground">
                                   <Package size={11} className="shrink-0 text-muted-foreground" />
                                   {order.odoo_so_number}
