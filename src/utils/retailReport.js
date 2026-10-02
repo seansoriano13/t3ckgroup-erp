@@ -98,11 +98,57 @@ export function ordersInRange(orders, { from, to } = {}) {
 
 const amountOf = (order) => Number(order.amount) || 0
 
-/** Total sales, order count and average order value. */
+/**
+ * Whether an order's Order Income can be trusted, derived and never stored.
+ * Missing: no Order Income. Suspect: income above the Order Amount, or a
+ * Marketplace Fee that eats the whole Order Amount. Fee + income differing from
+ * the Order Amount alone is normal (shipping, vouchers) and stays OK.
+ */
+export function incomeStatus(order) {
+  if (order.order_income == null) return "missing"
+  const amount = amountOf(order)
+  if (Number(order.order_income) > amount) return "suspect"
+  if (order.marketplace_fee != null && Number(order.marketplace_fee) >= amount) return "suspect"
+  return "ok"
+}
+
+/** The Order Income an order contributes to a total: only OK orders carry any. */
+export const incomeOf = (order) => (incomeStatus(order) === "ok" ? Number(order.order_income) || 0 : 0)
+
+/**
+ * Headline figures. `total`/`average` are Order Income over OK orders only;
+ * `count` is every order given; Missing and Suspect orders are counted with the
+ * Order Amount they put at stake.
+ */
 export function summarize(orders) {
-  const total = orders.reduce((sum, o) => sum + amountOf(o), 0)
-  const count = orders.length
-  return { total, count, average: count === 0 ? 0 : total / count }
+  let total = 0
+  let okCount = 0
+  let missingCount = 0
+  let missingAmount = 0
+  let suspectCount = 0
+  let suspectAmount = 0
+  for (const order of orders) {
+    const status = incomeStatus(order)
+    if (status === "ok") {
+      total += Number(order.order_income) || 0
+      okCount += 1
+    } else if (status === "missing") {
+      missingCount += 1
+      missingAmount += amountOf(order)
+    } else {
+      suspectCount += 1
+      suspectAmount += amountOf(order)
+    }
+  }
+  return {
+    total,
+    count: orders.length,
+    average: okCount === 0 ? 0 : total / okCount,
+    missingCount,
+    missingAmount,
+    suspectCount,
+    suspectAmount,
+  }
 }
 
 /**
@@ -118,8 +164,8 @@ export function monthOverMonth(orders, now = new Date()) {
   for (const order of orders) {
     if (!isCountedOrder(order) || !order.ordered_at) continue
     const key = monthKey(order.ordered_at)
-    if (key === thisKey) thisMonth += amountOf(order)
-    else if (key === lastKey) lastMonth += amountOf(order)
+    if (key === thisKey) thisMonth += incomeOf(order)
+    else if (key === lastKey) lastMonth += incomeOf(order)
   }
   return {
     thisMonth,
@@ -129,7 +175,7 @@ export function monthOverMonth(orders, now = new Date()) {
 }
 
 /**
- * Per-month sales, one column per marketplace, oldest month first, for the
+ * Per-month Order Income, one column per marketplace, oldest month first, for the
  * stacked chart. Months with no orders between the first and last are filled
  * with zeros so a quiet month shows as a gap, not a skipped label.
  */
@@ -142,8 +188,8 @@ export function monthlySeries(orders) {
     if (!byMonth.has(key)) byMonth.set(key, { key, total: 0 })
     const row = byMonth.get(key)
     const marketplace = order.marketplace || "Other"
-    row[marketplace] = (row[marketplace] || 0) + amountOf(order)
-    row.total += amountOf(order)
+    row[marketplace] = (row[marketplace] || 0) + incomeOf(order)
+    row.total += incomeOf(order)
   }
   if (byMonth.size === 0) return { rows: [], marketplaces }
 
@@ -176,7 +222,7 @@ export function monthMarketplaceGroups(orders) {
     const id = `${key ?? "unknown"}::${marketplace}`
     if (!groups.has(id)) groups.set(id, { id, monthKey: key, month: monthLabel(key), marketplace, total: 0, orders: [] })
     const group = groups.get(id)
-    group.total += amountOf(order)
+    group.total += incomeOf(order)
     group.orders.push(order)
   }
   const list = [...groups.values()]

@@ -32,6 +32,7 @@ function retailOrder(overrides = {}) {
     partner_name: "Shopee T3ck Outdoor",
     buyer_name: "Juan Dela Cruz",
     amount: 1500,
+    order_income: overrides.amount ?? 1500,
     ordered_at: new Date().toISOString(),
     odoo_state: "sale",
     is_excluded: false,
@@ -58,11 +59,40 @@ describe("Retail page", () => {
     renderPage();
 
     // The first render pays for loading the chart library, which is slow on a busy machine.
-    expect(await screen.findByText("Total sales", {}, { timeout: 5000 })).toBeInTheDocument();
-    // Total sales and This month both read 4,000; the average order is 2,000.
+    expect(await screen.findByText("Order Income", {}, { timeout: 5000 })).toBeInTheDocument();
+    // Order Income and This month both read 4,000; the average is 2,000.
     expect((await screen.findAllByText(formatPHP(4000))).length).toBeGreaterThan(0);
     expect(screen.getByText(formatPHP(2000))).toBeInTheDocument();
     expect(screen.getByText("Orders")).toBeInTheDocument();
+  });
+
+  it("headlines Order Income from OK orders and reports the Missing line", async () => {
+    retailOrder({ amount: 1000, order_income: 800 });
+    retailOrder({ amount: 2000, order_income: null });
+    retailOrder({ amount: 500, order_income: null });
+
+    renderPage();
+
+    expect(await screen.findByText("Order Income", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect((await screen.findAllByText(formatPHP(800))).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Missing income: 2 orders · .*2,500.* Order Amount/)).toBeInTheDocument();
+    expect(screen.queryByText("Total sales")).not.toBeInTheDocument();
+  });
+
+  it("badges Suspect differently from Missing", async () => {
+    retailOrder({ amount: 1000, order_income: 1200 });
+    retailOrder({ amount: 700, order_income: null });
+    retailOrder({ amount: 600, order_income: 500 });
+
+    renderPage();
+
+    const toggles = await screen.findAllByRole("button", { name: /order/i }, { timeout: 5000 });
+    await userEvent.click(toggles[0]);
+    const suspect = screen.getByText("Suspect");
+    const missing = screen.getByText("Missing");
+    const ok = screen.getByText("OK");
+    expect(suspect.className).not.toBe(missing.className);
+    expect(ok.className).not.toBe(missing.className);
   });
 
   it("leaves out a quotation, a cancelled order and one dismissed in the old queue", async () => {
@@ -99,7 +129,7 @@ describe("Retail page", () => {
     expect(screen.getByText("2609020BTB5E8F")).toBeInTheDocument();
     expect(screen.getByText("Rita Reyes")).toBeInTheDocument();
     expect(screen.getByText(formatPHP(123.45))).toBeInTheDocument();
-    expect(screen.getByText(formatPHP(1376.55))).toBeInTheDocument();
+    expect(screen.getAllByText(formatPHP(1376.55)).length).toBeGreaterThan(0);
   });
 
   it("shows an empty state when nothing has been synced", async () => {
@@ -120,7 +150,7 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Total sales")).toBeInTheDocument();
+    expect(await screen.findByText("Order Income")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /retail orders queue/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
   });
@@ -134,7 +164,7 @@ describe("Retail page", () => {
 
     expect(await screen.findByText(/don't have access to retail/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.queryByText("Total sales")).not.toBeInTheDocument();
+      expect(screen.queryByText("Order Income")).not.toBeInTheDocument();
     });
   });
 
@@ -143,7 +173,7 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Total sales")).toBeInTheDocument();
+    expect(await screen.findByText("Order Income")).toBeInTheDocument();
   });
 
   // Being named as a Sales Director no longer opens the screen by itself —

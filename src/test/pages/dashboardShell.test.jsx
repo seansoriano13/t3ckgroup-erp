@@ -69,7 +69,7 @@ describe("Retail on PageShell", () => {
 
     const header = headerOf(await screen.findByRole("heading", { name: /Retail/ }));
     expect(within(header).getByRole("tab", { name: "3 months" })).toBeInTheDocument();
-    expect(await screen.findByText("Total sales", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("Order Income", {}, { timeout: 5000 })).toBeInTheDocument();
     noGradient(container);
   });
 });

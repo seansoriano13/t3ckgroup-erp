@@ -5,6 +5,7 @@ import {
   rangeBounds,
   ordersInRange,
   summarize,
+  incomeStatus,
   monthOverMonth,
   monthlySeries,
   monthMarketplaceGroups,
@@ -16,6 +17,8 @@ const at = (y, m, d) => new Date(y, m - 1, d, 12).toISOString()
 const order = (overrides = {}) => ({
   marketplace: "Shopee",
   amount: 100,
+  order_income: 100,
+  marketplace_fee: null,
   ordered_at: at(2026, 9, 10),
   odoo_state: "sale",
   is_excluded: false,
@@ -76,27 +79,80 @@ describe("rangeBounds + ordersInRange", () => {
   })
 })
 
+describe("incomeStatus", () => {
+  it("is OK when income equals the Order Amount", () => {
+    expect(incomeStatus(order({ amount: 100, order_income: 100 }))).toBe("ok")
+  })
+
+  it("is Suspect when income exceeds the Order Amount", () => {
+    expect(incomeStatus(order({ amount: 100, order_income: 101 }))).toBe("suspect")
+  })
+
+  it("is Suspect when the fee reaches the Order Amount", () => {
+    expect(incomeStatus(order({ amount: 100, marketplace_fee: 100, order_income: 50 }))).toBe("suspect")
+  })
+
+  it("does not flag fee + income differing from the Order Amount alone", () => {
+    expect(incomeStatus(order({ amount: 100, marketplace_fee: 10, order_income: 70 }))).toBe("ok")
+  })
+
+  it("is Missing without an Order Income", () => {
+    expect(incomeStatus(order({ order_income: null }))).toBe("missing")
+    expect(incomeStatus(order({ order_income: undefined }))).toBe("missing")
+  })
+
+  it("reads numeric strings, as Postgres numeric arrives", () => {
+    expect(incomeStatus(order({ amount: "100.00", order_income: "99.50" }))).toBe("ok")
+  })
+})
+
 describe("summarize", () => {
-  it("totals, counts and averages", () => {
-    expect(summarize([order({ amount: 100 }), order({ amount: 300 })])).toEqual({ total: 400, count: 2, average: 200 })
+  it("totals Order Income over OK orders only, but counts every order", () => {
+    const s = summarize([
+      order({ amount: 100, order_income: 90 }),
+      order({ amount: 300, order_income: 210 }),
+      order({ amount: 500, order_income: null }),
+      order({ amount: 400, order_income: 450 }),
+    ])
+    expect(s).toMatchObject({ total: 300, count: 4, average: 150 })
+  })
+
+  it("totals the Order Amount of Missing and Suspect orders", () => {
+    const s = summarize([
+      order({ amount: 500, order_income: null }),
+      order({ amount: 250, order_income: null }),
+      order({ amount: 400, order_income: 450 }),
+      order({ amount: 100, marketplace_fee: 100, order_income: 10 }),
+    ])
+    expect(s).toMatchObject({ missingCount: 2, missingAmount: 750, suspectCount: 2, suspectAmount: 500 })
   })
 
   it("has no average for no orders", () => {
-    expect(summarize([])).toEqual({ total: 0, count: 0, average: 0 })
+    expect(summarize([])).toEqual({
+      total: 0,
+      count: 0,
+      average: 0,
+      missingCount: 0,
+      missingAmount: 0,
+      suspectCount: 0,
+      suspectAmount: 0,
+    })
   })
 
-  it("reads a numeric string amount, as Postgres numeric arrives", () => {
-    expect(summarize([order({ amount: "250.50" })]).total).toBe(250.5)
+  it("leaves a cancelled order out once ordersInRange has filtered it", () => {
+    const counted = ordersInRange([order({ odoo_state: "cancel", order_income: null }), order()], {})
+    expect(summarize(counted).count).toBe(1)
   })
 })
 
 describe("monthOverMonth", () => {
   it("compares this calendar month with the last, whatever else is on screen", () => {
     const orders = [
-      order({ amount: 600, ordered_at: at(2026, 9, 3) }),
-      order({ amount: 400, ordered_at: at(2026, 8, 20) }),
-      order({ amount: 999, ordered_at: at(2026, 7, 20) }),
-      order({ amount: 999, ordered_at: at(2026, 9, 3), odoo_state: "cancel" }),
+      order({ order_income: 600, amount: 700, ordered_at: at(2026, 9, 3) }),
+      order({ order_income: 400, amount: 700, ordered_at: at(2026, 8, 20) }),
+      order({ order_income: 999, amount: 999, ordered_at: at(2026, 7, 20) }),
+      order({ order_income: null, amount: 5000, ordered_at: at(2026, 9, 4) }),
+      order({ order_income: 999, amount: 999, ordered_at: at(2026, 9, 3), odoo_state: "cancel" }),
     ]
     const { thisMonth, lastMonth, deltaPct } = monthOverMonth(orders, NOW)
     expect(thisMonth).toBe(600)
@@ -112,9 +168,9 @@ describe("monthOverMonth", () => {
 describe("monthlySeries", () => {
   it("stacks marketplaces per month, oldest first, and fills a quiet month with zero", () => {
     const { rows, marketplaces } = monthlySeries([
-      order({ marketplace: "Shopee", amount: 100, ordered_at: at(2026, 7, 5) }),
-      order({ marketplace: "Lazada", amount: 50, ordered_at: at(2026, 7, 6) }),
-      order({ marketplace: "Shopee", amount: 300, ordered_at: at(2026, 9, 5) }),
+      order({ marketplace: "Shopee", amount: 100, order_income: 100, ordered_at: at(2026, 7, 5) }),
+      order({ marketplace: "Lazada", amount: 50, order_income: 50, ordered_at: at(2026, 7, 6) }),
+      order({ marketplace: "Shopee", amount: 300, order_income: 300, ordered_at: at(2026, 9, 5) }),
     ])
     expect(marketplaces).toEqual(["Lazada", "Shopee"])
     expect(rows.map((r) => r.key)).toEqual(["2026-07", "2026-08", "2026-09"])

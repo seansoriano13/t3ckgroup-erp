@@ -32,6 +32,7 @@ import {
   monthOverMonth,
   monthMarketplaceGroups,
   monthlySeries,
+  incomeStatus,
   ordersInRange,
   rangeBounds,
   summarize,
@@ -53,6 +54,19 @@ function formatAxisPeso(value) {
   if (n >= 1e6) return `₱${+(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `₱${+(n / 1e3).toFixed(0)}K`;
   return `₱${n}`;
+}
+
+const INCOME_BADGES = {
+  ok: { label: "OK", className: "border-border bg-muted/40 text-muted-foreground" },
+  missing: { label: "Missing", className: "border-border bg-muted text-foreground" },
+  suspect: { label: "Suspect", className: "border-destructive/40 bg-destructive/10 text-destructive" },
+};
+
+function IncomeBadge({ order }) {
+  const { label, className } = INCOME_BADGES[incomeStatus(order)];
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${className}`}>{label}</span>
+  );
 }
 
 function monthOverMonthSubtitle({ lastMonth, deltaPct }) {
@@ -155,17 +169,35 @@ export default function RetailReport({ range, custom }) {
   return (
     <div className="space-y-8">
       <ReportFigure
-        label="Total sales"
+        label="Order Income"
         figure={formatPHP(summary.total)}
-        note="In the selected range"
+        note={
+          <>
+            <span>In the selected range · OK orders only</span>
+            <br />
+            <span>
+              Missing income: {summary.missingCount.toLocaleString("en-PH")} order
+              {summary.missingCount === 1 ? "" : "s"} · {formatPHP(summary.missingAmount)} Order Amount
+            </span>
+            {summary.suspectCount > 0 && (
+              <>
+                <br />
+                <span>
+                  Suspect income: {summary.suspectCount.toLocaleString("en-PH")} order
+                  {summary.suspectCount === 1 ? "" : "s"} · {formatPHP(summary.suspectAmount)} Order Amount
+                </span>
+              </>
+            )}
+          </>
+        }
         stats={[
           { label: "Orders", value: summary.count.toLocaleString("en-PH"), sub: "In the selected range" },
-          { label: "Average order", value: formatPHP(summary.average), sub: "Total ÷ orders" },
+          { label: "Average order income", value: formatPHP(summary.average), sub: "Order Income ÷ OK orders" },
           { label: "This month", value: formatPHP(mom.thisMonth), sub: monthOverMonthSubtitle(mom) },
         ]}
         chart={
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Monthly sales</h3>
+            <h3 className="text-sm font-semibold text-foreground">Monthly Order Income</h3>
             <p className="mb-4 mt-0.5 text-sm text-muted-foreground">By storefront, for the selected range.</p>
             {series.rows.length === 0 ? (
               <EmptyState
@@ -268,6 +300,7 @@ export default function RetailReport({ range, custom }) {
                               <TableHead className="py-1.5 text-right">Order Amount</TableHead>
                               <TableHead className="py-1.5 text-right">Marketplace Fee</TableHead>
                               <TableHead className="py-1.5 text-right">Order Income</TableHead>
+                              <TableHead className="py-1.5">Income</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -297,6 +330,9 @@ export default function RetailReport({ range, custom }) {
                                 </TableCell>
                                 <TableCell className="py-1.5 text-right font-semibold text-foreground">
                                   {order.order_income == null ? "—" : formatPHP(order.order_income)}
+                                </TableCell>
+                                <TableCell className="py-1.5">
+                                  <IncomeBadge order={order} />
                                 </TableCell>
                               </TableRow>
                             ))}
