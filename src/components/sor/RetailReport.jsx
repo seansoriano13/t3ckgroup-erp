@@ -261,9 +261,13 @@ export default function RetailReport({ range, custom }) {
                           <TableHeader>
                             <TableRow>
                               <TableHead className="py-1.5">Reference</TableHead>
+                              <TableHead className="py-1.5">Marketplace Order ID</TableHead>
                               <TableHead className="py-1.5">Buyer</TableHead>
+                              <TableHead className="py-1.5">Salesperson</TableHead>
                               <TableHead className="py-1.5">Date</TableHead>
-                              <TableHead className="py-1.5 text-right">Amount</TableHead>
+                              <TableHead className="py-1.5 text-right">Order Amount</TableHead>
+                              <TableHead className="py-1.5 text-right">Marketplace Fee</TableHead>
+                              <TableHead className="py-1.5 text-right">Order Income</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -273,7 +277,13 @@ export default function RetailReport({ range, custom }) {
                                   <Package size={11} className="shrink-0 text-muted-foreground" />
                                   {order.odoo_so_number}
                                 </TableCell>
+                                <TableCell className="py-1.5 font-mono text-foreground">
+                                  {order.marketplace_order_id || "—"}
+                                </TableCell>
                                 <TableCell className="py-1.5 text-foreground">{order.buyer_name || "—"}</TableCell>
+                                <TableCell className="py-1.5 text-foreground">
+                                  {order.odoo_salesperson_name || "—"}
+                                </TableCell>
                                 <TableCell className="py-1.5 text-muted-foreground">
                                   {order.ordered_at
                                     ? new Date(order.ordered_at).toLocaleDateString("en-PH")
@@ -281,6 +291,12 @@ export default function RetailReport({ range, custom }) {
                                 </TableCell>
                                 <TableCell className="py-1.5 text-right font-semibold text-foreground">
                                   {formatPHP(order.amount)}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-right text-foreground">
+                                  {order.marketplace_fee == null ? "—" : formatPHP(order.marketplace_fee)}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-right font-semibold text-foreground">
+                                  {order.order_income == null ? "—" : formatPHP(order.order_income)}
                                 </TableCell>
                               </TableRow>
                             ))}

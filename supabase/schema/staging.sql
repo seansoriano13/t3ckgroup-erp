@@ -562,7 +562,10 @@ create table if not exists public."retail_orders" (
   "odoo_state" text,
   "is_excluded" boolean not null default false,
   "excluded_reason" text,
-  "source" text not null default 'sync'::text
+  "source" text not null default 'sync'::text,
+  "marketplace_order_id" text,
+  "marketplace_fee" numeric,
+  "order_income" numeric
 );
 
 create table if not exists public."revenue_activity_logs" (

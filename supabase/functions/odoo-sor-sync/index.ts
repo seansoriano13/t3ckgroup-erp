@@ -4,6 +4,7 @@ import {
   isConfigured,
   jsonResponse
 } from "../_shared/odoo.ts";
+import { parseIncomeNote, toPlainText } from "../_shared/incomeNote.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -32,23 +33,6 @@ const ROLLING_WINDOW_DAYS = 30;
 // ---------------------------------------------------------------------------
 
 /**
- * Strip Odoo's message HTML down to plain text, preserving line breaks.
- *
- * Bug (issue #172): stripping tags to a space instead of a newline let the
- * `NAME:` capture — which stops at `[^\n]+` — swallow everything after it on
- * the same "line" of rendered HTML, because there was no `\n` left to stop
- * at. Block-level closes and <br> become a newline first, so a real line
- * break in the rendered note survives into the plain-text version.
- */
-function toPlainText(rawText: string): string {
-  return rawText
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|tr)>/gi, "\n")
-    .replace(/<[^>]*>?/gm, " ")
-    .replace(/&nbsp;/g, " ");
-}
-
-/**
  * The configured storefront (e.g. "Shopee") an Odoo customer belongs to, or
  * null when it is not a marketplace customer.
  *
@@ -68,10 +52,10 @@ function storefrontFor(partnerName: string | null | undefined, storefronts: stri
  * Odoo domain: customer matches any storefront, AND the extra leaf.
  * Prefix notation — n storefronts need n-1 leading "|".
  */
-function storefrontDomain(storefronts: string[], extraLeaf: unknown[]): unknown[] {
+function storefrontDomain(storefronts: string[], extraLeaves: unknown[][]): unknown[] {
   const ors = storefronts.slice(1).map(() => "|");
   const leaves = storefronts.map((s) => ["partner_id", "ilike", s]);
-  return [...ors, ...leaves, extraLeaf];
+  return [...ors, ...leaves, ...extraLeaves];
 }
 
 /** Odoo wants "YYYY-MM-DD HH:MM:SS" in UTC. */
@@ -84,29 +68,56 @@ function toTimestamptz(odooValue: string | false | null | undefined): string | n
   return odooValue ? `${odooValue.replace(" ", "T")}Z` : null;
 }
 
+interface NoteFacts {
+  buyer: string | null;
+  marketplaceOrderId: string | null;
+  marketplaceFee: number | null;
+  orderIncome: number | null;
+}
+
 /**
- * Best-effort buyer name from a sale order's chatter ("NAME: ..."). It only
- * enriches the report — an order with no note is still recorded.
+ * Best-effort facts from each sale order's notes: buyer name ("NAME: ...") and
+ * the Income Note's Marketplace Order ID / Fee / Order Income. Open To-Do
+ * activities are read before chatter messages. The buyer is the first NAME
+ * found; the first note that yields an Order Income supplies all three income
+ * fields. It only enriches the report — an order with no note is still recorded.
  */
-async function fetchBuyerNames(uid: number, orderIds: number[]): Promise<Map<number, string>> {
-  const buyers = new Map<number, string>();
+async function fetchNoteFacts(
+  uid: number,
+  orders: { id: number; amount_total?: number }[],
+): Promise<Map<number, NoteFacts>> {
+  const facts = new Map<number, NoteFacts>();
+  const amounts = new Map(orders.map((o) => [o.id, typeof o.amount_total === "number" ? o.amount_total : 0]));
   const remember = (resId: number, content: unknown) => {
-    if (buyers.has(resId) || typeof content !== "string") return;
-    const match = toPlainText(content).match(/NAME:?\s*([^\n]+)/i);
-    if (match) buyers.set(resId, match[1].trim());
+    if (typeof content !== "string") return;
+    const entry = facts.get(resId) ?? { buyer: null, marketplaceOrderId: null, marketplaceFee: null, orderIncome: null };
+    facts.set(resId, entry);
+    if (entry.buyer === null) {
+      const match = toPlainText(content).match(/NAME:?\s*([^\n]+)/i);
+      if (match) entry.buyer = match[1].trim();
+    }
+    if (entry.orderIncome === null) {
+      const parsed = parseIncomeNote(content, amounts.get(resId) ?? 0);
+      if (parsed.orderIncome !== null) {
+        entry.marketplaceOrderId = parsed.marketplaceOrderId;
+        entry.marketplaceFee = parsed.marketplaceFee;
+        entry.orderIncome = parsed.orderIncome;
+      }
+    }
   };
 
-  for (let i = 0; i < orderIds.length; i += BATCH_SIZE) {
-    const ids = orderIds.slice(i, i + BATCH_SIZE);
+  const ids = orders.map((o) => o.id);
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const slice = ids.slice(i, i + BATCH_SIZE);
     const [activities, messages] = await Promise.all([
       executeKw(uid, "mail.activity", "search_read", [
-        [["res_model", "=", "sale.order"], ["res_id", "in", ids]],
+        [["res_model", "=", "sale.order"], ["res_id", "in", slice]],
         ["res_id", "note"],
       ]),
       executeKw(uid, "mail.message", "search_read", [
         [
           ["model", "=", "sale.order"],
-          ["res_id", "in", ids],
+          ["res_id", "in", slice],
           ["message_type", "in", ["comment", "notification"]],
         ],
         ["res_id", "body"],
@@ -115,7 +126,7 @@ async function fetchBuyerNames(uid: number, orderIds: number[]): Promise<Map<num
     for (const a of activities) remember(a.res_id, a.note);
     for (const m of messages) remember(m.res_id, m.body);
   }
-  return buyers;
+  return facts;
 }
 
 /**
@@ -125,11 +136,11 @@ async function fetchBuyerNames(uid: number, orderIds: number[]): Promise<Map<num
  * (one-time historical load); `?since=earliest` starts from the oldest order
  * already in `retail_orders`.
  */
-async function resolveWindow(since: string | null): Promise<{ leaf: unknown[]; label: string }> {
+async function resolveWindow(since: string | null, until: string | null = null): Promise<{ leaves: unknown[][]; label: string }> {
   if (!since) {
     const from = new Date();
     from.setDate(from.getDate() - ROLLING_WINDOW_DAYS);
-    return { leaf: ["write_date", ">=", odooDate(from)], label: `changed in the last ${ROLLING_WINDOW_DAYS} days` };
+    return { leaves: [["write_date", ">=", odooDate(from)]], label: `changed in the last ${ROLLING_WINDOW_DAYS} days` };
   }
 
   let day = since;
@@ -149,14 +160,23 @@ async function resolveWindow(since: string | null): Promise<{ leaf: unknown[]; l
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
     throw new Error("since must be YYYY-MM-DD or 'earliest'.");
   }
-  return { leaf: ["date_order", ">=", `${day} 00:00:00`], label: `dated on or after ${day}` };
+  const leaves: unknown[][] = [["date_order", ">=", `${day} 00:00:00`]];
+  let label = `dated on or after ${day}`;
+  // `until` (exclusive) splits a long historical load into chunks small
+  // enough for the function's compute limit.
+  if (until) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new Error("until must be YYYY-MM-DD.");
+    leaves.push(["date_order", "<", `${until} 00:00:00`]);
+    label += ` and before ${until}`;
+  }
+  return { leaves, label };
 }
 
 // ---------------------------------------------------------------------------
 // Main sync
 // ---------------------------------------------------------------------------
 
-async function runSync(since: string | null = null) {
+async function runSync(since: string | null = null, until: string | null = null) {
   const uid = await authenticate();
 
   // Issue #172: configurable storefront list, not a hardcoded lead source or
@@ -169,8 +189,8 @@ async function runSync(since: string | null = null) {
     ? appSettings.retail_storefronts
     : ["Shopee", "Lazada"];
 
-  const { leaf, label } = await resolveWindow(since);
-  const domain = storefrontDomain(storefronts, leaf);
+  const { leaves, label } = await resolveWindow(since, until);
+  const domain = storefrontDomain(storefronts, leaves);
 
   // Read the orders straight from Odoo by customer. This used to discover
   // orders through chatter activity on them, which silently missed any order
@@ -190,20 +210,20 @@ async function runSync(since: string | null = null) {
     return { window: label, ordersRead: 0, upserted: 0 };
   }
 
-  const buyers = await fetchBuyerNames(uid, orders.map((o) => o.id));
+  const noteFacts = await fetchNoteFacts(uid, orders);
 
-  // Keep what we already know: a buyer name found once is not erased by a
-  // later read whose chatter has since changed.
+  // Keep what we already know: a value found once is not erased by a later
+  // read whose chatter has since changed. A new non-null value overwrites.
   const soNumbers = orders.map((o) => o.name);
-  const knownBuyers = new Map<string, string>();
+  const known = new Map<string, any>();
   for (let i = 0; i < soNumbers.length; i += BATCH_SIZE) {
     const { data, error } = await supabase
       .from("retail_orders")
-      .select("odoo_so_number, buyer_name")
+      .select("odoo_so_number, buyer_name, marketplace_order_id, marketplace_fee, order_income")
       .in("odoo_so_number", soNumbers.slice(i, i + BATCH_SIZE));
     if (error) throw error;
     for (const row of data || []) {
-      if (row.buyer_name) knownBuyers.set(row.odoo_so_number, row.buyer_name);
+      known.set(row.odoo_so_number, row);
     }
   }
 
@@ -212,12 +232,18 @@ async function runSync(since: string | null = null) {
   // never un-excludes an order somebody dismissed.
   const rows = orders.map((so) => {
     const partnerName: string = so.partner_id ? so.partner_id[1] : "";
+    const fact = noteFacts.get(so.id);
+    const prior = known.get(so.name);
     return {
       odoo_so_number: so.name,
       odoo_so_id: so.id,
       marketplace: storefrontFor(partnerName, storefronts) ?? partnerName,
       partner_name: partnerName,
-      buyer_name: buyers.get(so.id) ?? knownBuyers.get(so.name) ?? null,
+      buyer_name: fact?.buyer ?? prior?.buyer_name ?? null,
+      // Numeric columns come back from PostgREST as numbers; null stays null.
+      marketplace_order_id: fact?.marketplaceOrderId ?? prior?.marketplace_order_id ?? null,
+      marketplace_fee: fact?.marketplaceFee ?? prior?.marketplace_fee ?? null,
+      order_income: fact?.orderIncome ?? prior?.order_income ?? null,
       odoo_salesperson_name: so.user_id ? so.user_id[1] : null,
       amount: typeof so.amount_total === "number" ? so.amount_total : 0,
       // The order date, not the record's creation date: the two can land on
@@ -282,7 +308,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     const since = new URL(req.url).searchParams.get("since");
-    const stats = await runSync(since);
+    const until = new URL(req.url).searchParams.get("until");
+    const stats = await runSync(since, until);
     return jsonResponse({ success: true, message: "Sync complete", stats });
   } catch (err: any) {
     console.error("[odoo-sor-sync] Error:", err);

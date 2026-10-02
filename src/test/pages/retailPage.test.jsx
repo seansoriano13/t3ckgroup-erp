@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import RetailPage from "@/pages/retail/index";
 import { renderWithProviders } from "@/test/support";
@@ -77,6 +78,28 @@ describe("Retail page", () => {
     expect(screen.queryByText(formatPHP(9000))).not.toBeInTheDocument();
     expect(screen.queryByText(formatPHP(5000))).not.toBeInTheDocument();
     expect(screen.queryByText(formatPHP(22000))).not.toBeInTheDocument();
+  });
+
+  it("shows Marketplace Order ID, Salesperson, Fee and Order Income in an order table", async () => {
+    retailOrder({
+      amount: 1500,
+      odoo_salesperson_name: "Rita Reyes",
+      marketplace_order_id: "2609020BTB5E8F",
+      marketplace_fee: 123.45,
+      order_income: 1376.55,
+    });
+    retailOrder({ amount: 900, marketplace_order_id: null, marketplace_fee: null, order_income: null });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /order/i }, { timeout: 5000 }));
+    for (const heading of ["Marketplace Order ID", "Salesperson", "Marketplace Fee", "Order Income", "Order Amount"]) {
+      expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();
+    }
+    expect(screen.getByText("2609020BTB5E8F")).toBeInTheDocument();
+    expect(screen.getByText("Rita Reyes")).toBeInTheDocument();
+    expect(screen.getByText(formatPHP(123.45))).toBeInTheDocument();
+    expect(screen.getByText(formatPHP(1376.55))).toBeInTheDocument();
   });
 
   it("shows an empty state when nothing has been synced", async () => {
