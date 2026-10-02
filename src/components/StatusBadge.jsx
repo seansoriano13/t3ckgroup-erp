@@ -6,6 +6,7 @@ export default function StatusBadge({
   theme: themeOverride,
   children,
   className = "",
+  title,
 }) {
   // `theme` bypasses the status→theme lookup entirely — for a caller that
   // already knows the theme it wants (a flow Stage's own color or role, which
@@ -26,7 +27,8 @@ export default function StatusBadge({
 
   return (
     <span
-      className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap ${appliedStyle} ${className}`}
+      title={title}
+      className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap ${appliedStyle} ${className}`}
     >
       {children || label || (status ? String(status).replace(/_/g, " ") : "UNKNOWN")}
     </span>

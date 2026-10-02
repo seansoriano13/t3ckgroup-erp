@@ -1026,11 +1026,11 @@ export default function OpportunitiesPage() {
                     <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
                     <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Lead Source</SortableTh>
                     <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[18%]">Company</SortableTh>
-                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[22%]">Project</SortableTh>
+                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[20%]">Project</SortableTh>
                     <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[114px]">Expected Value</SortableTh>
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
-                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[14%]">Deal Owner</SortableTh>
-                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[96px]">Status</SortableTh>
+                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Deal Owner</SortableTh>
+                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[150px]">Status</SortableTh>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1116,12 +1116,18 @@ export default function OpportunitiesPage() {
                             <span className="text-muted-foreground/60">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="px-2.5 py-2.5 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
+                        <TableCell className="px-2.5 py-2.5 whitespace-nowrap overflow-hidden">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             {(() => {
                               const display = stageDisplay(o);
                               return display.label ? (
-                                <StatusBadge label={display.label} status={display.code} theme={display.tone} />
+                                <StatusBadge
+                                  label={display.label}
+                                  status={display.code}
+                                  theme={display.tone}
+                                  className="min-w-0 max-w-full truncate"
+                                  title={display.label}
+                                />
                               ) : (
                                 <span className="text-muted-foreground/50 text-xs">—</span>
                               );
