@@ -177,6 +177,132 @@ describe("Retail page", () => {
     expect(screen.queryByRole("table", { name: /marketplace breakdown/i })).not.toBeInTheDocument();
   });
 
+  describe("Missing / Suspect income chase list", () => {
+    const findChase = async () =>
+      within(await screen.findByRole("region", { name: "Missing / Suspect income" }, { timeout: 5000 }));
+
+    it("groups the flagged orders by salesperson, with a count and total per group and a grand total", async () => {
+      retailOrder({ amount: 1000, order_income: null, odoo_salesperson_name: "Rita Reyes" });
+      retailOrder({ amount: 500, order_income: 600, odoo_salesperson_name: "Rita Reyes" });
+      retailOrder({ amount: 250, order_income: null, odoo_salesperson_name: "Ben Cruz" });
+      // Not chased: income is in, and a cancelled order is not a sale.
+      retailOrder({ amount: 4000, order_income: 3000, odoo_salesperson_name: "Rita Reyes" });
+      retailOrder({ amount: 777, order_income: null, odoo_salesperson_name: "Ben Cruz", odoo_state: "cancel" });
+
+      renderPage();
+
+      const chase = await findChase();
+      expect(chase.getByText(`3 to chase · ${formatPHP(1750)} Order Amount`)).toBeInTheDocument();
+      const [first, second] = chase.getAllByRole("button");
+      expect(first).toHaveTextContent("Rita Reyes");
+      expect(first).toHaveTextContent("2 to chase");
+      expect(first).toHaveTextContent(formatPHP(1500));
+      expect(second).toHaveTextContent("Ben Cruz");
+      expect(second).toHaveTextContent("1 to chase");
+      expect(second).toHaveTextContent(formatPHP(250));
+    });
+
+    it("shows each flagged order with its details, its status and a link to that order in Odoo", async () => {
+      retailOrder({
+        odoo_so_number: "S08501",
+        odoo_so_id: 501,
+        odoo_salesperson_name: "Rita Reyes",
+        buyer_name: "Juan Dela Cruz",
+        marketplace_order_id: "2609020BTB5E8F",
+        amount: 1000,
+        order_income: null,
+      });
+      retailOrder({
+        odoo_so_number: "S08502",
+        odoo_so_id: 502,
+        odoo_salesperson_name: "Rita Reyes",
+        buyer_name: "Maria Santos",
+        amount: 500,
+        marketplace_fee: 40,
+        order_income: 600,
+      });
+
+      renderPage();
+
+      const chase = await findChase();
+      await userEvent.click(chase.getByRole("button", { name: /Rita Reyes/ }));
+
+      const missingRow = chase.getByRole("row", { name: /S08501/ });
+      expect(within(missingRow).getByText("2609020BTB5E8F")).toBeInTheDocument();
+      expect(within(missingRow).getByText("Juan Dela Cruz")).toBeInTheDocument();
+      expect(within(missingRow).getByText(formatPHP(1000))).toBeInTheDocument();
+      const missingBadge = within(missingRow).getByText("Missing");
+
+      const suspectRow = chase.getByRole("row", { name: /S08502/ });
+      expect(within(suspectRow).getByText("Maria Santos")).toBeInTheDocument();
+      expect(within(suspectRow).getByText(formatPHP(500))).toBeInTheDocument();
+      expect(within(suspectRow).getByText(formatPHP(40))).toBeInTheDocument();
+      expect(within(suspectRow).getByText(formatPHP(600))).toBeInTheDocument();
+      const suspectBadge = within(suspectRow).getByText("Suspect");
+      expect(suspectBadge.className).not.toBe(missingBadge.className);
+
+      // Each order opens its own sale order, in a new tab.
+      const missingLink = within(missingRow).getByRole("link", { name: /open in odoo/i });
+      expect(missingLink).toHaveAttribute(
+        "href",
+        "https://t3ckgrouponline.odoo.com/web#id=501&model=sale.order&view_type=form",
+      );
+      expect(missingLink).toHaveAttribute("target", "_blank");
+      expect(within(suspectRow).getByRole("link", { name: /open in odoo/i })).toHaveAttribute(
+        "href",
+        "https://t3ckgrouponline.odoo.com/web#id=502&model=sale.order&view_type=form",
+      );
+    });
+
+    it("offers no link for an order the sync has not given an Odoo id", async () => {
+      retailOrder({
+        odoo_so_number: "S08503",
+        odoo_so_id: null,
+        odoo_salesperson_name: "Rita Reyes",
+        order_income: null,
+      });
+
+      renderPage();
+
+      const chase = await findChase();
+      await userEvent.click(chase.getByRole("button", { name: /Rita Reyes/ }));
+      expect(within(chase.getByRole("row", { name: /S08503/ })).queryByRole("link")).not.toBeInTheDocument();
+    });
+
+    it("gathers orders with no salesperson into their own group", async () => {
+      retailOrder({ amount: 300, order_income: null, odoo_salesperson_name: null });
+
+      renderPage();
+
+      const chase = await findChase();
+      expect(chase.getByRole("button", { name: /No salesperson/ })).toHaveTextContent(formatPHP(300));
+    });
+
+    it("follows the time range", async () => {
+      const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+      retailOrder({ amount: 100, order_income: null, odoo_salesperson_name: "Rita Reyes" });
+      retailOrder({ amount: 900, order_income: null, odoo_salesperson_name: "Rita Reyes", ordered_at: daysAgo(40) });
+
+      renderPage();
+
+      const chase = await findChase();
+      expect(chase.getByText(`2 to chase · ${formatPHP(1000)} Order Amount`)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("tab", { name: "30 days" }));
+      expect(chase.getByText(`1 to chase · ${formatPHP(100)} Order Amount`)).toBeInTheDocument();
+    });
+
+    it("says so when every order has its income", async () => {
+      retailOrder({ amount: 1000, order_income: 900 });
+
+      renderPage();
+
+      const chase = await findChase();
+      expect(chase.getByText(/nothing to chase/i)).toBeInTheDocument();
+      expect(chase.queryByRole("button")).not.toBeInTheDocument();
+    });
+  });
+
   it("shows an empty state when nothing has been synced", async () => {
     renderPage();
 

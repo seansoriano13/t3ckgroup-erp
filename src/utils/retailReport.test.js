@@ -10,6 +10,7 @@ import {
   monthOverMonth,
   monthlySeries,
   monthMarketplaceGroups,
+  chaseList,
 } from "./retailReport"
 
 // Local-time dates, so the assertions hold in any timezone the suite runs in.
@@ -267,6 +268,93 @@ describe("marketplaceBreakdown", () => {
     ]
     const inSep = ordersInRange(orders, rangeBounds("30d", NOW))
     expect(marketplaceBreakdown(inSep)[0]).toMatchObject({ orderIncome: 40, orderCount: 1 })
+  })
+})
+
+describe("chaseList", () => {
+  const missing = (overrides = {}) => order({ order_income: null, ...overrides })
+  const suspect = (overrides = {}) => order({ amount: 100, order_income: 150, ...overrides })
+
+  it("lists only Missing and Suspect orders, never an OK one", () => {
+    const list = chaseList([
+      order({ id: "ok", odoo_salesperson_name: "Rita" }),
+      missing({ id: "missing", odoo_salesperson_name: "Rita" }),
+      suspect({ id: "suspect", odoo_salesperson_name: "Rita" }),
+    ])
+    expect(list.groups).toHaveLength(1)
+    expect(list.groups[0].orders.map((o) => o.id).sort()).toEqual(["missing", "suspect"])
+  })
+
+  it("groups by salesperson with a count and an Order Amount total per group", () => {
+    const list = chaseList([
+      missing({ odoo_salesperson_name: "Rita", amount: 1000 }),
+      suspect({ odoo_salesperson_name: "Rita", amount: 200, order_income: 250 }),
+      missing({ odoo_salesperson_name: "Ben", amount: 500 }),
+    ])
+    expect(list.groups.map(({ salesperson, count, orderAmount }) => ({ salesperson, count, orderAmount }))).toEqual([
+      { salesperson: "Rita", count: 2, orderAmount: 1200 },
+      { salesperson: "Ben", count: 1, orderAmount: 500 },
+    ])
+  })
+
+  it("totals the whole list: every flagged order and every group's Order Amount", () => {
+    const list = chaseList([
+      missing({ odoo_salesperson_name: "Rita", amount: 1000 }),
+      suspect({ odoo_salesperson_name: "Rita", amount: 200, order_income: 250 }),
+      missing({ odoo_salesperson_name: "Ben", amount: 500 }),
+      order({ odoo_salesperson_name: "Ben", amount: 9999, order_income: 9999 }),
+    ])
+    expect(list).toMatchObject({ count: 3, orderAmount: 1700 })
+  })
+
+  it("puts the biggest Order Amount first, ties A-Z", () => {
+    const list = chaseList([
+      missing({ odoo_salesperson_name: "Zed", amount: 300 }),
+      missing({ odoo_salesperson_name: "Amy", amount: 300 }),
+      missing({ odoo_salesperson_name: "Mia", amount: 900 }),
+    ])
+    expect(list.groups.map((g) => g.salesperson)).toEqual(["Mia", "Amy", "Zed"])
+  })
+
+  it("keeps orders with no salesperson in one group, always last", () => {
+    const list = chaseList([
+      missing({ odoo_salesperson_name: null, amount: 5000 }),
+      missing({ odoo_salesperson_name: "", amount: 100 }),
+      missing({ odoo_salesperson_name: "   ", amount: 100 }),
+      missing({ odoo_salesperson_name: "Rita", amount: 50 }),
+    ])
+    expect(list.groups.map((g) => g.salesperson)).toEqual(["Rita", null])
+    expect(list.groups[1]).toMatchObject({ count: 3, orderAmount: 5200 })
+  })
+
+  it("lists a group's orders newest first, undated last", () => {
+    const list = chaseList([
+      missing({ id: "undated", odoo_salesperson_name: "Rita", ordered_at: null }),
+      missing({ id: "old", odoo_salesperson_name: "Rita", ordered_at: at(2026, 9, 1) }),
+      missing({ id: "new", odoo_salesperson_name: "Rita", ordered_at: at(2026, 9, 20) }),
+    ])
+    expect(list.groups[0].orders.map((o) => o.id)).toEqual(["new", "old", "undated"])
+  })
+
+  it("reads numeric strings, as Postgres numeric arrives", () => {
+    const list = chaseList([missing({ odoo_salesperson_name: "Rita", amount: "1200.50" })])
+    expect(list.orderAmount).toBe(1200.5)
+  })
+
+  it("is empty when nothing needs chasing", () => {
+    expect(chaseList([])).toEqual({ groups: [], count: 0, orderAmount: 0 })
+    expect(chaseList([order()])).toEqual({ groups: [], count: 0, orderAmount: 0 })
+  })
+
+  it("follows the orders it is given, so a range or filter narrows it", () => {
+    const orders = [
+      missing({ id: "aug", odoo_salesperson_name: "Rita", ordered_at: at(2026, 8, 5) }),
+      missing({ id: "sep", odoo_salesperson_name: "Rita", ordered_at: at(2026, 9, 25) }),
+      missing({ id: "cancelled", odoo_salesperson_name: "Rita", ordered_at: at(2026, 9, 25), odoo_state: "cancel" }),
+    ]
+    const inRange = ordersInRange(orders, rangeBounds("30d", NOW))
+    expect(chaseList(inRange).groups[0].orders.map((o) => o.id)).toEqual(["sep"])
+    expect(chaseList(orders.filter((o) => o.marketplace === "Lazada"))).toEqual({ groups: [], count: 0, orderAmount: 0 })
   })
 })
 

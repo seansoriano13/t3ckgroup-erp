@@ -211,6 +211,51 @@ export function marketplaceBreakdown(orders) {
 }
 
 /**
+ * Who to chase for Order Income: every Missing and Suspect order, grouped by
+ * Odoo salesperson. Takes the orders already narrowed to what is on screen
+ * (`ordersInRange`, and any filter on top), like `summarize`, so it follows the
+ * range and filters rather than deciding them. Each group has a count and the
+ * `orderAmount` its orders put at stake (Order Amount, never Order Income, which
+ * these orders lack or cannot be trusted for); the list has a grand count and
+ * `orderAmount`. Biggest Order Amount first, ties A–Z; orders with no
+ * salesperson sit in one `salesperson: null` group, always last. A group's
+ * orders run newest first.
+ */
+export function chaseList(orders) {
+  const bySalesperson = new Map()
+  let count = 0
+  let orderAmount = 0
+  for (const order of orders) {
+    if (incomeStatus(order) === "ok") continue
+    const salesperson = order.odoo_salesperson_name?.trim() || null
+    if (!bySalesperson.has(salesperson)) {
+      bySalesperson.set(salesperson, {
+        id: salesperson === null ? "unassigned" : `salesperson::${salesperson}`,
+        salesperson,
+        count: 0,
+        orderAmount: 0,
+        orders: [],
+      })
+    }
+    const group = bySalesperson.get(salesperson)
+    group.count += 1
+    group.orderAmount += amountOf(order)
+    group.orders.push(order)
+    count += 1
+    orderAmount += amountOf(order)
+  }
+  const groups = [...bySalesperson.values()]
+  for (const group of groups) {
+    group.orders.sort((a, b) => new Date(b.ordered_at || 0) - new Date(a.ordered_at || 0))
+  }
+  groups.sort((a, b) => {
+    if (a.salesperson === null || b.salesperson === null) return (a.salesperson === null) - (b.salesperson === null)
+    return b.orderAmount - a.orderAmount || a.salesperson.localeCompare(b.salesperson)
+  })
+  return { groups, count, orderAmount }
+}
+
+/**
  * This calendar month against the last one, whatever range is on screen — the
  * question "are we up or down" does not change with a filter. `deltaPct` is
  * null when last month had nothing to compare against.

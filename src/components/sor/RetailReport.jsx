@@ -26,6 +26,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import IncomeBadge from "./IncomeBadge";
+import IncomeChaseList from "./IncomeChaseList";
 import { getRetailOrders } from "../../services/retailOrderService";
 import { useRetailArrivals } from "../../hooks/useRetailArrivals";
 import { formatPHP } from "../../constants/sor";
@@ -34,7 +36,6 @@ import {
   monthOverMonth,
   monthMarketplaceGroups,
   monthlySeries,
-  incomeStatus,
   ordersInRange,
   rangeBounds,
   summarize,
@@ -56,19 +57,6 @@ function formatAxisPeso(value) {
   if (n >= 1e6) return `₱${+(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `₱${+(n / 1e3).toFixed(0)}K`;
   return `₱${n}`;
-}
-
-const INCOME_BADGES = {
-  ok: { label: "OK", className: "border-border bg-muted/40 text-muted-foreground" },
-  missing: { label: "Missing", className: "border-border bg-muted text-foreground" },
-  suspect: { label: "Suspect", className: "border-destructive/40 bg-destructive/10 text-destructive" },
-};
-
-function IncomeBadge({ order }) {
-  const { label, className } = INCOME_BADGES[incomeStatus(order)];
-  return (
-    <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${className}`}>{label}</span>
-  );
 }
 
 function monthOverMonthSubtitle({ lastMonth, deltaPct }) {
@@ -356,6 +344,8 @@ export default function RetailReport({ range, custom }) {
           )}
         </div>
       </div>
+
+      <IncomeChaseList orders={inRange} />
     </div>
   );
 }
