@@ -15,6 +15,7 @@ import Spinner from "../ui/Spinner";
 import TabGroup from "../ui/TabGroup";
 import ReportFigure from "../ui/ReportFigure";
 import EmptyState from "../ui/EmptyState";
+import MarketplaceBreakdown from "./MarketplaceBreakdown";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
@@ -256,6 +257,8 @@ export default function RetailReport({ range, custom }) {
           </div>
         }
       />
+
+      <MarketplaceBreakdown orders={inRange} />
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-foreground">Orders by month</h3>

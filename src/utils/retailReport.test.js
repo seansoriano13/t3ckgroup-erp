@@ -5,6 +5,7 @@ import {
   rangeBounds,
   ordersInRange,
   summarize,
+  marketplaceBreakdown,
   incomeStatus,
   monthOverMonth,
   monthlySeries,
@@ -142,6 +143,130 @@ describe("summarize", () => {
   it("leaves a cancelled order out once ordersInRange has filtered it", () => {
     const counted = ordersInRange([order({ odoo_state: "cancel", order_income: null }), order()], {})
     expect(summarize(counted).count).toBe(1)
+  })
+})
+
+describe("marketplaceBreakdown", () => {
+  const row = (rows, marketplace) => rows.find((r) => r.marketplace === marketplace)
+
+  it("gives one row per Marketplace, A-Z, with income, count, average, fees, fee rate and Missing", () => {
+    const rows = marketplaceBreakdown([
+      order({ marketplace: "Shopee", amount: 1000, marketplace_fee: 100, order_income: 900 }),
+      order({ marketplace: "Shopee", amount: 1000, marketplace_fee: 50, order_income: 950 }),
+      order({ marketplace: "Shopee", amount: 800, marketplace_fee: null, order_income: null }),
+      order({ marketplace: "Lazada", amount: 500, marketplace_fee: 25, order_income: 475 }),
+    ])
+    expect(rows.map((r) => r.marketplace)).toEqual(["Lazada", "Shopee"])
+    expect(row(rows, "Shopee")).toEqual({
+      marketplace: "Shopee",
+      orderIncome: 1850,
+      orderCount: 3,
+      averageIncome: 925,
+      totalFees: 150,
+      feeRate: 150 / 2000,
+      missingCount: 1,
+    })
+    expect(row(rows, "Lazada")).toMatchObject({ orderIncome: 475, orderCount: 1, totalFees: 25, feeRate: 25 / 500, missingCount: 0 })
+  })
+
+  it("rolls two Shopee Storefronts into one Shopee row", () => {
+    const rows = marketplaceBreakdown([
+      order({ marketplace: "Shopee", partner_name: "Shopee T3ck Outdoor", amount: 1000, order_income: 900, marketplace_fee: 100 }),
+      order({ marketplace: "Shopee", partner_name: "Shopee Koveaprestige", amount: 2000, order_income: 1700, marketplace_fee: 300 }),
+      order({ marketplace: "Lazada", partner_name: "Lazada T3ck Outdoor", amount: 400, order_income: 380, marketplace_fee: 20 }),
+    ])
+    expect(rows).toHaveLength(2)
+    expect(row(rows, "Shopee")).toMatchObject({ orderIncome: 2600, orderCount: 2, totalFees: 400, feeRate: 400 / 3000 })
+  })
+
+  it("rates fees over only the OK orders that have both a fee and an income", () => {
+    const [shopee] = marketplaceBreakdown([
+      order({ amount: 1000, marketplace_fee: 100, order_income: 900 }),
+      // OK, but no fee: its income counts toward Order Income, not toward the rate.
+      order({ amount: 5000, marketplace_fee: null, order_income: 4000 }),
+      // A fee with no income is Missing, so its fee counts nowhere.
+      order({ amount: 700, marketplace_fee: 70, order_income: null }),
+    ])
+    expect(shopee.orderIncome).toBe(4900)
+    expect(shopee.totalFees).toBe(100)
+    expect(shopee.feeRate).toBe(100 / 1000)
+  })
+
+  it("has no fee rate when no order has both a fee and an income", () => {
+    const rows = marketplaceBreakdown([
+      order({ marketplace: "Lazada", amount: 500, marketplace_fee: null, order_income: 450 }),
+      order({ marketplace: "Shopee", amount: 500, marketplace_fee: 50, order_income: null }),
+    ])
+    expect(row(rows, "Lazada")).toMatchObject({ orderIncome: 450, totalFees: 0, feeRate: null })
+    expect(row(rows, "Shopee")).toMatchObject({ orderIncome: 0, totalFees: 0, feeRate: null })
+  })
+
+  it("has no fee rate when fee and income are both zero, rather than NaN", () => {
+    const [shopee] = marketplaceBreakdown([order({ amount: 100, marketplace_fee: 0, order_income: 0 })])
+    expect(shopee.feeRate).toBeNull()
+  })
+
+  it("counts income, average and fees over OK orders only, not Missing or Suspect ones", () => {
+    const [shopee] = marketplaceBreakdown([
+      order({ amount: 1000, marketplace_fee: 100, order_income: 900 }),
+      order({ amount: 300, marketplace_fee: 30, order_income: 270 }),
+      // Suspect: income above the Order Amount.
+      order({ amount: 400, marketplace_fee: 40, order_income: 450 }),
+      // Suspect: the fee eats the whole Order Amount.
+      order({ amount: 100, marketplace_fee: 100, order_income: 10 }),
+      // Missing.
+      order({ amount: 500, marketplace_fee: null, order_income: null }),
+    ])
+    expect(shopee).toMatchObject({
+      orderIncome: 1170,
+      orderCount: 5,
+      averageIncome: 585,
+      totalFees: 130,
+      feeRate: 130 / 1300,
+      missingCount: 1,
+    })
+  })
+
+  it("counts Missing orders per Marketplace", () => {
+    const rows = marketplaceBreakdown([
+      order({ marketplace: "Shopee", order_income: null }),
+      order({ marketplace: "Shopee", order_income: null }),
+      order({ marketplace: "Shopee" }),
+      order({ marketplace: "Lazada", order_income: null }),
+      order({ marketplace: "Lazada" }),
+    ])
+    expect(row(rows, "Shopee").missingCount).toBe(2)
+    expect(row(rows, "Lazada").missingCount).toBe(1)
+  })
+
+  it("keeps a Marketplace whose orders are all Missing, with no average to show", () => {
+    const [lazada] = marketplaceBreakdown([order({ marketplace: "Lazada", amount: 500, order_income: null })])
+    expect(lazada).toMatchObject({ orderIncome: 0, orderCount: 1, averageIncome: null, missingCount: 1 })
+  })
+
+  it("files an order with no Marketplace under Other", () => {
+    const rows = marketplaceBreakdown([order({ marketplace: null })])
+    expect(rows.map((r) => r.marketplace)).toEqual(["Other"])
+  })
+
+  it("reads numeric strings, as Postgres numeric arrives", () => {
+    const [shopee] = marketplaceBreakdown([
+      order({ amount: "1000.00", marketplace_fee: "100.00", order_income: "900.00" }),
+    ])
+    expect(shopee).toMatchObject({ orderIncome: 900, totalFees: 100, feeRate: 0.1 })
+  })
+
+  it("is empty for no orders", () => {
+    expect(marketplaceBreakdown([])).toEqual([])
+  })
+
+  it("follows the orders it is handed, so the date range and filters compose ahead of it", () => {
+    const orders = [
+      order({ id: "aug", ordered_at: at(2026, 8, 5), order_income: 100 }),
+      order({ id: "sep", ordered_at: at(2026, 9, 25), order_income: 40 }),
+    ]
+    const inSep = ordersInRange(orders, rangeBounds("30d", NOW))
+    expect(marketplaceBreakdown(inSep)[0]).toMatchObject({ orderIncome: 40, orderCount: 1 })
   })
 })
 

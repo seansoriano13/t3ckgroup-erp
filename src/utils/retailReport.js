@@ -152,6 +152,65 @@ export function summarize(orders) {
 }
 
 /**
+ * The Shopee-vs-Lazada breakdown: one row per Marketplace, A–Z, over the orders
+ * given (so the date range, and any filter, is applied before it gets here). A
+ * Marketplace is the platform, so a Marketplace's several Storefronts roll into
+ * one row.
+ *
+ * `orderCount` is every order given, Missing and Suspect included, so the rows
+ * add up to the headline order count. Everything money-shaped — `orderIncome`,
+ * `averageIncome` (Order Income ÷ OK orders, null with no OK order),
+ * `totalFees` — counts OK orders only.
+ *
+ * `feeRate` is a fraction, Σfee ÷ (Σfee + Σincome), over the OK orders that have
+ * both a Marketplace Fee and an Order Income. It is null when there are none (or
+ * when both sums are zero) rather than a rate made up from nothing. An OK order
+ * with an income but no fee still counts toward `orderIncome`; it is left out of
+ * the rate so a missing fee cannot read as a cheap one.
+ */
+export function marketplaceBreakdown(orders) {
+  const byMarketplace = new Map()
+  for (const order of orders) {
+    const marketplace = order.marketplace || "Other"
+    if (!byMarketplace.has(marketplace)) {
+      byMarketplace.set(marketplace, {
+        marketplace,
+        orderIncome: 0,
+        orderCount: 0,
+        totalFees: 0,
+        missingCount: 0,
+        okCount: 0,
+        ratedIncome: 0, // income of the OK orders that also carry a fee
+      })
+    }
+    const row = byMarketplace.get(marketplace)
+    row.orderCount += 1
+    const status = incomeStatus(order)
+    if (status === "missing") row.missingCount += 1
+    if (status !== "ok") continue
+
+    const income = incomeOf(order)
+    row.okCount += 1
+    row.orderIncome += income
+    if (order.marketplace_fee != null) {
+      row.totalFees += Number(order.marketplace_fee) || 0
+      row.ratedIncome += income
+    }
+  }
+
+  return [...byMarketplace.values()]
+    .sort((a, b) => a.marketplace.localeCompare(b.marketplace))
+    .map(({ okCount, ratedIncome, ...row }) => {
+      const ratedTotal = row.totalFees + ratedIncome
+      return {
+        ...row,
+        averageIncome: okCount === 0 ? null : row.orderIncome / okCount,
+        feeRate: ratedTotal === 0 ? null : row.totalFees / ratedTotal,
+      }
+    })
+}
+
+/**
  * This calendar month against the last one, whatever range is on screen — the
  * question "are we up or down" does not change with a filter. `deltaPct` is
  * null when last month had nothing to compare against.

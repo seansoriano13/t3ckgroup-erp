@@ -64,6 +64,10 @@ _Avoid_: Actual income, Net, Payout, Revenue
 What the Marketplace deducts from a Retail Order, as typed beside its Order Income. Marketplace Fee plus Order Income routinely differs from Order Amount, because Order Amount is not what the buyer paid.
 _Avoid_: Commission, Charges
 
+**Fee rate**:
+A Marketplace's cut of what its Retail Orders brought in: Marketplace Fee ÷ (Marketplace Fee + Order Income), over the orders that have both. Not a share of Order Amount, which is not what the buyer paid. Blank when no order has both.
+_Avoid_: Commission rate, Take rate
+
 **Income Note**:
 The To-Do a salesperson logs on the Odoo order carrying its Marketplace Order ID, Marketplace Fee and Order Income. Usually left open, never marked done.
 _Avoid_: Log note, Activity, Remarks

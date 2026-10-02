@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import RetailPage from "@/pages/retail/index";
@@ -59,11 +59,11 @@ describe("Retail page", () => {
     renderPage();
 
     // The first render pays for loading the chart library, which is slow on a busy machine.
-    expect(await screen.findByText("Order Income", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("Order Income", { selector: "p" }, { timeout: 5000 })).toBeInTheDocument();
     // Order Income and This month both read 4,000; the average is 2,000.
     expect((await screen.findAllByText(formatPHP(4000))).length).toBeGreaterThan(0);
     expect(screen.getByText(formatPHP(2000))).toBeInTheDocument();
-    expect(screen.getByText("Orders")).toBeInTheDocument();
+    expect(screen.getByText("Orders", { selector: "dt" })).toBeInTheDocument();
   });
 
   it("headlines Order Income from OK orders and reports the Missing line", async () => {
@@ -73,7 +73,7 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Order Income", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("Order Income", { selector: "p" }, { timeout: 5000 })).toBeInTheDocument();
     expect((await screen.findAllByText(formatPHP(800))).length).toBeGreaterThan(0);
     expect(screen.getByText(/Missing income: 2 orders · .*2,500.* Order Amount/)).toBeInTheDocument();
     expect(screen.queryByText("Total sales")).not.toBeInTheDocument();
@@ -123,13 +123,58 @@ describe("Retail page", () => {
     renderPage();
 
     await userEvent.click(await screen.findByRole("button", { name: /order/i }, { timeout: 5000 }));
+    // The Marketplace breakdown has its own Order Income / Marketplace Fees, so read the order table alone.
+    const orderTable = within(screen.getByRole("columnheader", { name: "Marketplace Order ID" }).closest("table"));
     for (const heading of ["Marketplace Order ID", "Salesperson", "Marketplace Fee", "Order Income", "Order Amount"]) {
-      expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();
+      expect(orderTable.getByRole("columnheader", { name: heading })).toBeInTheDocument();
     }
-    expect(screen.getByText("2609020BTB5E8F")).toBeInTheDocument();
-    expect(screen.getByText("Rita Reyes")).toBeInTheDocument();
-    expect(screen.getByText(formatPHP(123.45))).toBeInTheDocument();
-    expect(screen.getAllByText(formatPHP(1376.55)).length).toBeGreaterThan(0);
+    expect(orderTable.getByText("2609020BTB5E8F")).toBeInTheDocument();
+    expect(orderTable.getByText("Rita Reyes")).toBeInTheDocument();
+    expect(orderTable.getByText(formatPHP(123.45))).toBeInTheDocument();
+    expect(orderTable.getAllByText(formatPHP(1376.55)).length).toBeGreaterThan(0);
+  });
+
+  it("breaks Order Income down by Marketplace, rolling a Marketplace's Storefronts into one row", async () => {
+    retailOrder({ partner_name: "Shopee T3ck Outdoor", amount: 1000, marketplace_fee: 100, order_income: 900 });
+    retailOrder({ partner_name: "Shopee Koveaprestige", amount: 2000, marketplace_fee: 300, order_income: 1700 });
+    retailOrder({ marketplace: "Lazada", partner_name: "Lazada Store", amount: 500, marketplace_fee: null, order_income: 450 });
+    retailOrder({ marketplace: "Lazada", partner_name: "Lazada Store", amount: 800, order_income: null });
+
+    renderPage();
+
+    const table = await screen.findByRole("table", { name: /marketplace breakdown/i }, { timeout: 5000 });
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Marketplace",
+      "Order Income",
+      "Orders",
+      "Average order income",
+      "Marketplace Fees",
+      "Fee rate",
+      "Missing Income",
+    ]);
+    const cells = (name) =>
+      within(within(table).getByRole("row", { name }))
+        .getAllByRole("cell")
+        .map((c) => c.textContent);
+    // Two Shopee Storefronts, one Shopee row; 400 ÷ (400 + 2,600) is 13.3%.
+    expect(cells(/^Shopee/)).toEqual([
+      "Shopee",
+      formatPHP(2600),
+      "2",
+      formatPHP(1300),
+      formatPHP(400),
+      "13.3%",
+      "0",
+    ]);
+    // No Lazada order has both a fee and an income, so no rate; one is Missing.
+    expect(cells(/^Lazada/)).toEqual(["Lazada", formatPHP(450), "2", formatPHP(450), formatPHP(0), "—", "1"]);
+  });
+
+  it("shows no Marketplace breakdown rows when nothing is in range", async () => {
+    renderPage();
+
+    expect(await screen.findByText("No orders to break down in this range")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: /marketplace breakdown/i })).not.toBeInTheDocument();
   });
 
   it("shows an empty state when nothing has been synced", async () => {
@@ -150,7 +195,7 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Order Income")).toBeInTheDocument();
+    expect(await screen.findByText("Order Income", { selector: "p" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /retail orders queue/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
   });
@@ -173,7 +218,7 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Order Income")).toBeInTheDocument();
+    expect(await screen.findByText("Order Income", { selector: "p" })).toBeInTheDocument();
   });
 
   // Being named as a Sales Director no longer opens the screen by itself —
