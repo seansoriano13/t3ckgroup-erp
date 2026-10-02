@@ -4,8 +4,10 @@ import ProtectedRoute from "../../components/ProtectedRoute";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
 import RetailReport, { RetailRangeControl } from "../../components/sor/RetailReport";
+import RetailFilterBar from "../../components/sor/RetailFilterBar";
 import { useAuth } from "../../context/AuthContext";
 import { getPermissionContext } from "../../utils/permissions";
+import { DEFAULT_RETAIL_FILTERS } from "../../utils/retailReport";
 
 /**
  * Retail — marketplace orders (Shopee, Lazada), as a report.
@@ -32,6 +34,10 @@ function RetailScreen() {
   // The time range is the Page's, so it can sit in the header (Report type).
   const [range, setRange] = useState("3m");
   const [custom, setCustom] = useState({ from: "", to: "" });
+  // The filters are the Page's too: one set of controls (the toolbar) drives the
+  // whole report, applied with the range by `applyFilters`.
+  const [filters, setFilters] = useState(DEFAULT_RETAIL_FILTERS);
+  const setFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
 
   return (
     <PageShell
@@ -47,9 +53,18 @@ function RetailScreen() {
           />
         )
       }
+      toolbar={
+        hasAccess && (
+          <RetailFilterBar
+            filters={filters}
+            onChange={setFilter}
+            onClearAll={() => setFilters(DEFAULT_RETAIL_FILTERS)}
+          />
+        )
+      }
     >
       {hasAccess ? (
-        <RetailReport range={range} custom={custom} />
+        <RetailReport range={range} custom={custom} filters={filters} />
       ) : (
         <EmptyState
           icon={ShoppingBag}

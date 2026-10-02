@@ -12,6 +12,8 @@ import {
   monthMarketplaceGroups,
   chaseList,
 } from "./retailReport"
+// The filter step (#454).
+import { DEFAULT_RETAIL_FILTERS, applyFilters, filterOptions, hasActiveFilters, isSearching } from "./retailReport"
 
 // Local-time dates, so the assertions hold in any timezone the suite runs in.
 const at = (y, m, d) => new Date(y, m - 1, d, 12).toISOString()
@@ -435,5 +437,199 @@ describe("monthKey", () => {
   it("is null for a missing or bad date", () => {
     expect(monthKey(null)).toBeNull()
     expect(monthKey("nope")).toBeNull()
+  })
+})
+
+describe("applyFilters", () => {
+  const orders = [
+    order({
+      id: "shopee-ok",
+      marketplace: "Shopee",
+      partner_name: "Shopee T3ck Outdoor",
+      odoo_salesperson_name: "Kyla Millan",
+      marketplace_order_id: "2609020BTB5E8F",
+      amount: 100,
+      order_income: 90,
+      ordered_at: at(2026, 9, 10),
+    }),
+    order({
+      id: "shopee-missing",
+      marketplace: "Shopee",
+      partner_name: "Shopee Koveaprestige",
+      odoo_salesperson_name: "Shara Cadiz",
+      marketplace_order_id: "2609020ZZ1Q9XA",
+      amount: 200,
+      order_income: null,
+      ordered_at: at(2026, 9, 12),
+    }),
+    order({
+      id: "lazada-suspect",
+      marketplace: "Lazada",
+      partner_name: "Lazada T3ck Outdoor",
+      odoo_salesperson_name: "Kyla Millan",
+      marketplace_order_id: "7700123456",
+      amount: 100,
+      order_income: 150,
+      ordered_at: at(2026, 8, 5),
+    }),
+    order({
+      id: "lazada-old",
+      marketplace: "Lazada",
+      partner_name: "Lazada T3ck Outdoor",
+      odoo_salesperson_name: null,
+      marketplace_order_id: null,
+      amount: 300,
+      order_income: 280,
+      ordered_at: at(2025, 3, 3),
+    }),
+    order({
+      id: "cancelled",
+      marketplace: "Shopee",
+      partner_name: "Shopee T3ck Outdoor",
+      odoo_salesperson_name: "Kyla Millan",
+      marketplace_order_id: "2609020CCC0000",
+      odoo_state: "cancel",
+      ordered_at: at(2026, 9, 10),
+    }),
+  ]
+  const ids = (list) => list.map((o) => o.id).sort()
+  const everyCountedId = ["lazada-old", "lazada-suspect", "shopee-missing", "shopee-ok"]
+  const withFilters = (filters, bounds, list = orders) =>
+    applyFilters(list, { ...DEFAULT_RETAIL_FILTERS, ...filters }, bounds)
+
+  it("with no filter set keeps every counted order, and still drops a cancelled one", () => {
+    expect(ids(applyFilters(orders))).toEqual(everyCountedId)
+    expect(ids(withFilters({}))).toEqual(everyCountedId)
+  })
+
+  it("filters on Marketplace alone", () => {
+    expect(ids(withFilters({ marketplace: "Lazada" }))).toEqual(["lazada-old", "lazada-suspect"])
+  })
+
+  it("filters on Storefront alone, so two Shopee shops can be told apart", () => {
+    expect(ids(withFilters({ storefront: "Shopee Koveaprestige" }))).toEqual(["shopee-missing"])
+    expect(ids(withFilters({ storefront: "Shopee T3ck Outdoor" }))).toEqual(["shopee-ok"])
+  })
+
+  it("filters on salesperson alone", () => {
+    expect(ids(withFilters({ salesperson: "Kyla Millan" }))).toEqual(["lazada-suspect", "shopee-ok"])
+  })
+
+  it("filters on an order with no salesperson, Marketplace or Storefront through the label the options give it", () => {
+    const bare = [order({ id: "bare", marketplace: null, partner_name: null, odoo_salesperson_name: null })]
+    const { marketplace, storefront, salesperson } = filterOptions(bare)
+    expect(ids(withFilters({ marketplace: marketplace[0] }, {}, bare))).toEqual(["bare"])
+    expect(ids(withFilters({ storefront: storefront[0] }, {}, bare))).toEqual(["bare"])
+    expect(ids(withFilters({ salesperson: salesperson[0] }, {}, bare))).toEqual(["bare"])
+  })
+
+  it("filters on income status alone", () => {
+    expect(ids(withFilters({ status: "ok" }))).toEqual(["lazada-old", "shopee-ok"])
+    expect(ids(withFilters({ status: "missing" }))).toEqual(["shopee-missing"])
+    expect(ids(withFilters({ status: "suspect" }))).toEqual(["lazada-suspect"])
+  })
+
+  it("finds an order by its Marketplace Order ID, whole or in part, in any case", () => {
+    expect(ids(withFilters({ search: "2609020BTB5E8F" }))).toEqual(["shopee-ok"])
+    expect(ids(withFilters({ search: "  2609020btb5e8f " }))).toEqual(["shopee-ok"])
+    expect(ids(withFilters({ search: "770012" }))).toEqual(["lazada-suspect"])
+    expect(ids(withFilters({ search: "2609020" }))).toEqual(["shopee-missing", "shopee-ok"])
+    expect(withFilters({ search: "no such id" })).toEqual([])
+  })
+
+  it("does not find a cancelled order, or match an order that has no Marketplace Order ID", () => {
+    expect(withFilters({ search: "2609020CCC0000" })).toEqual([])
+    expect(withFilters({ search: "null" })).toEqual([])
+  })
+
+  it("combines every filter: an order must pass all of them", () => {
+    expect(ids(withFilters({ marketplace: "Lazada", salesperson: "Kyla Millan" }))).toEqual(["lazada-suspect"])
+    expect(ids(withFilters({ marketplace: "Lazada", salesperson: "Kyla Millan", status: "ok" }))).toEqual([])
+    expect(ids(withFilters({ marketplace: "Shopee", status: "missing", search: "ZZ1Q9X" }))).toEqual([
+      "shopee-missing",
+    ])
+    expect(withFilters({ marketplace: "Lazada", search: "2609020BTB5E8F" })).toEqual([])
+  })
+
+  it("applies the date range together with a filter", () => {
+    expect(ids(withFilters({}, rangeBounds("30d", NOW)))).toEqual(["shopee-missing", "shopee-ok"])
+    expect(ids(withFilters({ marketplace: "Lazada" }, rangeBounds("30d", NOW)))).toEqual([])
+    expect(ids(withFilters({ marketplace: "Lazada" }, rangeBounds("year", NOW)))).toEqual(["lazada-suspect"])
+    expect(ids(withFilters({ marketplace: "Lazada" }, rangeBounds("all", NOW)))).toEqual([
+      "lazada-old",
+      "lazada-suspect",
+    ])
+    expect(ids(withFilters({ salesperson: "Kyla Millan", status: "ok" }, rangeBounds("3m", NOW)))).toEqual([
+      "shopee-ok",
+    ])
+    const sep12 = rangeBounds("custom", NOW, { from: "2026-09-12", to: "2026-09-12" })
+    expect(ids(withFilters({ status: "missing" }, sep12))).toEqual(["shopee-missing"])
+    expect(withFilters({ status: "ok" }, sep12)).toEqual([])
+  })
+
+  it("lets a search see past the date range, so an ID pasted from Shopee finds the order however old it is", () => {
+    const thisMonth = rangeBounds("30d", NOW)
+    const ancient = order({ id: "ancient", marketplace_order_id: "2301010OLDONE", ordered_at: at(2023, 1, 1) })
+    expect(ids(withFilters({ search: "2301010OLDONE" }, thisMonth, [...orders, ancient]))).toEqual(["ancient"])
+    // Every other filter still holds while searching.
+    expect(withFilters({ search: "2609020BTB5E8F", status: "missing" }, thisMonth)).toEqual([])
+    expect(withFilters({ search: "2609020BTB5E8F", marketplace: "Lazada" }, thisMonth)).toEqual([])
+  })
+
+  it("is the one step every figure reads from", () => {
+    const lazada = withFilters({ marketplace: "Lazada" }, rangeBounds("all", NOW))
+    expect(summarize(lazada)).toMatchObject({ total: 280, count: 2, suspectCount: 1, suspectAmount: 100 })
+    expect(monthlySeries(lazada).marketplaces).toEqual(["Lazada"])
+    expect(monthMarketplaceGroups(lazada).map((g) => g.marketplace)).toEqual(["Lazada", "Lazada"])
+    expect(monthOverMonth(withFilters({ status: "ok" }), NOW).thisMonth).toBe(90)
+  })
+})
+
+describe("hasActiveFilters", () => {
+  it("knows when a search is on, so the report can set its date range aside", () => {
+    expect(isSearching(DEFAULT_RETAIL_FILTERS)).toBe(false)
+    expect(isSearching()).toBe(false)
+    expect(isSearching({ search: "  " })).toBe(false)
+    expect(isSearching({ search: " 2609 " })).toBe(true)
+  })
+
+  it("is false at rest, and true as soon as any filter or the search narrows the report", () => {
+    expect(hasActiveFilters(DEFAULT_RETAIL_FILTERS)).toBe(false)
+    expect(hasActiveFilters()).toBe(false)
+    expect(hasActiveFilters({ ...DEFAULT_RETAIL_FILTERS, search: "   " })).toBe(false)
+    for (const key of ["marketplace", "storefront", "salesperson", "status"]) {
+      expect(hasActiveFilters({ ...DEFAULT_RETAIL_FILTERS, [key]: "x" })).toBe(true)
+    }
+    expect(hasActiveFilters({ ...DEFAULT_RETAIL_FILTERS, search: "2609" })).toBe(true)
+  })
+})
+
+describe("filterOptions", () => {
+  const orders = [
+    order({ marketplace: "Shopee", partner_name: "Shopee T3ck Outdoor", odoo_salesperson_name: "Kyla Millan" }),
+    order({ marketplace: "Shopee", partner_name: "Shopee Koveaprestige", odoo_salesperson_name: "Shara Cadiz" }),
+    order({ marketplace: "Lazada", partner_name: "Lazada T3ck Outdoor", odoo_salesperson_name: "Kyla Millan" }),
+    order({
+      marketplace: "TikTok",
+      partner_name: "TikTok Shop",
+      odoo_salesperson_name: "Cancelled Only",
+      odoo_state: "cancel",
+    }),
+  ]
+
+  it("lists each Marketplace, Storefront and salesperson once, A-Z, from the orders that count", () => {
+    expect(filterOptions(orders)).toEqual({
+      marketplace: ["Lazada", "Shopee"],
+      storefront: ["Lazada T3ck Outdoor", "Shopee Koveaprestige", "Shopee T3ck Outdoor"],
+      salesperson: ["Kyla Millan", "Shara Cadiz"],
+    })
+  })
+
+  it("offers only the Storefronts of the chosen Marketplace", () => {
+    expect(filterOptions(orders, { marketplace: "Shopee" }).storefront).toEqual([
+      "Shopee Koveaprestige",
+      "Shopee T3ck Outdoor",
+    ])
+    expect(filterOptions(orders, { marketplace: "ALL" }).storefront).toHaveLength(3)
   })
 })

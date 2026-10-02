@@ -29,3 +29,12 @@ export async function getRetailOrders() {
   }
   return orders;
 }
+
+/**
+ * The React Query options for every Retail order, so the report and its filter
+ * bar read one cache entry (and one refetch) instead of each keeping its own key.
+ */
+export const retailOrdersQuery = {
+  queryKey: ["retailOrders"],
+  queryFn: getRetailOrders,
+};

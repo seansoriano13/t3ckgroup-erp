@@ -96,6 +96,78 @@ export function ordersInRange(orders, { from, to } = {}) {
   })
 }
 
+/** What a filter holds when it is not narrowing anything: the word the app's other filter chips use. */
+export const RETAIL_FILTER_ALL = "ALL"
+
+/** The Retail filters at rest. `status` is an `incomeStatus`; `search` is a Marketplace Order ID. */
+export const DEFAULT_RETAIL_FILTERS = {
+  marketplace: RETAIL_FILTER_ALL,
+  storefront: RETAIL_FILTER_ALL,
+  salesperson: RETAIL_FILTER_ALL,
+  status: RETAIL_FILTER_ALL,
+  search: "",
+}
+
+// The label an order with a blank facet is filtered under, so it can be picked
+// (and told apart) like any other value.
+const marketplaceOf = (order) => order.marketplace || "Other"
+const storefrontOf = (order) => order.partner_name || "Unknown"
+const salespersonOf = (order) => order.odoo_salesperson_name || "Unassigned"
+
+const isSet = (value) => value != null && value !== "" && value !== RETAIL_FILTER_ALL
+
+const searchTerm = (filters) => String(filters.search ?? "").trim().toLowerCase()
+
+/** Whether a Marketplace Order ID search is on: the report then sets its date range aside. */
+export const isSearching = (filters = {}) => searchTerm(filters) !== ""
+
+/**
+ * The one step every Retail figure reads from: the counted orders that fall in
+ * the date range `bounds` AND pass every filter. Headline, Missing line,
+ * monthly chart, month groups, breakdown and chase list all take this result,
+ * so one set of controls drives the whole screen.
+ *
+ * `filters` is a `DEFAULT_RETAIL_FILTERS` shape (a missing key narrows nothing).
+ * `search` matches part of a Marketplace Order ID, any case, and sets the date
+ * range aside: an ID copied from Shopee or Lazada should find its order
+ * however old it is. The other filters still apply.
+ */
+export function applyFilters(orders, filters = {}, bounds = {}) {
+  const { marketplace, storefront, salesperson, status } = filters
+  const needle = searchTerm(filters)
+  const matching = orders.filter((order) => {
+    if (isSet(marketplace) && marketplaceOf(order) !== marketplace) return false
+    if (isSet(storefront) && storefrontOf(order) !== storefront) return false
+    if (isSet(salesperson) && salespersonOf(order) !== salesperson) return false
+    if (isSet(status) && incomeStatus(order) !== status) return false
+    if (needle && !String(order.marketplace_order_id ?? "").toLowerCase().includes(needle)) return false
+    return true
+  })
+  return ordersInRange(matching, needle ? {} : bounds)
+}
+
+/** Whether any filter, the search included, is narrowing the report. */
+export function hasActiveFilters(filters = {}) {
+  return ["marketplace", "storefront", "salesperson", "status"].some((key) => isSet(filters[key])) || isSearching(filters)
+}
+
+/**
+ * What each filter can be set to, A-Z, from the counted orders (whatever the
+ * range or the other filters say, so a choice never vanishes from its own
+ * list). Storefronts are those of the chosen Marketplace: a Lazada Storefront
+ * is no use beside Shopee.
+ */
+export function filterOptions(orders, { marketplace } = {}) {
+  const counted = orders.filter(isCountedOrder)
+  const distinct = (list, pick) => [...new Set(list.map(pick))].sort((a, b) => a.localeCompare(b))
+  const ofMarketplace = isSet(marketplace) ? counted.filter((o) => marketplaceOf(o) === marketplace) : counted
+  return {
+    marketplace: distinct(counted, marketplaceOf),
+    storefront: distinct(ofMarketplace, storefrontOf),
+    salesperson: distinct(counted, salespersonOf),
+  }
+}
+
 const amountOf = (order) => Number(order.amount) || 0
 
 /**
@@ -171,7 +243,7 @@ export function summarize(orders) {
 export function marketplaceBreakdown(orders) {
   const byMarketplace = new Map()
   for (const order of orders) {
-    const marketplace = order.marketplace || "Other"
+    const marketplace = marketplaceOf(order)
     if (!byMarketplace.has(marketplace)) {
       byMarketplace.set(marketplace, {
         marketplace,
@@ -213,7 +285,7 @@ export function marketplaceBreakdown(orders) {
 /**
  * Who to chase for Order Income: every Missing and Suspect order, grouped by
  * Odoo salesperson. Takes the orders already narrowed to what is on screen
- * (`ordersInRange`, and any filter on top), like `summarize`, so it follows the
+ * (`applyFilters`: range plus filters), like `summarize`, so it follows the
  * range and filters rather than deciding them. Each group has a count and the
  * `orderAmount` its orders put at stake (Order Amount, never Order Income, which
  * these orders lack or cannot be trusted for); the list has a grand count and
@@ -256,9 +328,10 @@ export function chaseList(orders) {
 }
 
 /**
- * This calendar month against the last one, whatever range is on screen — the
- * question "are we up or down" does not change with a filter. `deltaPct` is
- * null when last month had nothing to compare against.
+ * This calendar month against the last one, whatever date range is on screen —
+ * the question "are we up or down" does not change with the range. The caller
+ * passes the orders that pass the other filters (`applyFilters` without a
+ * range). `deltaPct` is null when last month had nothing to compare against.
  */
 export function monthOverMonth(orders, now = new Date()) {
   const thisKey = monthKey(now)
@@ -284,14 +357,14 @@ export function monthOverMonth(orders, now = new Date()) {
  * with zeros so a quiet month shows as a gap, not a skipped label.
  */
 export function monthlySeries(orders) {
-  const marketplaces = [...new Set(orders.map((o) => o.marketplace || "Other"))].sort()
+  const marketplaces = [...new Set(orders.map(marketplaceOf))].sort()
   const byMonth = new Map()
   for (const order of orders) {
     const key = monthKey(order.ordered_at)
     if (!key) continue
     if (!byMonth.has(key)) byMonth.set(key, { key, total: 0 })
     const row = byMonth.get(key)
-    const marketplace = order.marketplace || "Other"
+    const marketplace = marketplaceOf(order)
     row[marketplace] = (row[marketplace] || 0) + incomeOf(order)
     row.total += incomeOf(order)
   }
@@ -322,7 +395,7 @@ export function monthMarketplaceGroups(orders) {
   const groups = new Map()
   for (const order of orders) {
     const key = monthKey(order.ordered_at)
-    const marketplace = order.marketplace || "Other"
+    const marketplace = marketplaceOf(order)
     const id = `${key ?? "unknown"}::${marketplace}`
     if (!groups.has(id)) groups.set(id, { id, monthKey: key, month: monthLabel(key), marketplace, total: 0, orders: [] })
     const group = groups.get(id)

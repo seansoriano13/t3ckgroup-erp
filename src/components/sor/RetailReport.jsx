@@ -28,15 +28,18 @@ import {
 } from "@/components/ui/table";
 import IncomeBadge from "./IncomeBadge";
 import IncomeChaseList from "./IncomeChaseList";
-import { getRetailOrders } from "../../services/retailOrderService";
+import { retailOrdersQuery } from "../../services/retailOrderService";
 import { useRetailArrivals } from "../../hooks/useRetailArrivals";
 import { formatPHP } from "../../constants/sor";
 import {
+  DEFAULT_RETAIL_FILTERS,
   RETAIL_RANGES,
   monthOverMonth,
   monthMarketplaceGroups,
   monthlySeries,
-  ordersInRange,
+  applyFilters,
+  hasActiveFilters,
+  isSearching,
   rangeBounds,
   summarize,
 } from "../../utils/retailReport";
@@ -63,6 +66,24 @@ function monthOverMonthSubtitle({ lastMonth, deltaPct }) {
   if (deltaPct === null) return lastMonth === 0 ? "Nothing to compare with last month" : "vs last month";
   const arrow = deltaPct >= 0 ? "▲" : "▼";
   return `${arrow} ${Math.abs(deltaPct).toFixed(0)}% vs last month (${formatPHP(lastMonth)})`;
+}
+
+/** What the headline's figures cover, under the filters on screen. */
+function scopeNote(filters) {
+  if (isSearching(filters)) return "Matching the search, any date";
+  if (hasActiveFilters(filters)) return "In the selected range, filtered";
+  return "In the selected range";
+}
+
+/** The empty state's words: the range alone is blamed only when no filter is set. */
+function emptyCopy(filters) {
+  if (!hasActiveFilters(filters)) return { title: "No retail orders in this range" };
+  return {
+    title: "No retail orders match",
+    description: isSearching(filters)
+      ? "Try a different Marketplace Order ID, or clear a filter."
+      : "Try a wider range or clear a filter.",
+  };
 }
 
 /** Retail's time range: the header's action slot on the Retail page. */
@@ -105,31 +126,40 @@ export function RetailRangeControl({ range, onRangeChange, custom, onCustomChang
  * (synced from Odoo). Read-only: retail orders are entered in Odoo, have no
  * stages, and stay out of the SOR pipeline and commission. The time range is
  * the Page's: `RetailRangeControl` sits in the header, this takes its value.
+ * So are the filters (`RetailFilterBar`, in the toolbar).
  */
-export default function RetailReport({ range, custom }) {
+export default function RetailReport({ range, custom, filters = DEFAULT_RETAIL_FILTERS }) {
   const [expanded, setExpanded] = useState(() => new Set());
 
   const {
     data: orders = [],
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ["retailOrders"],
-    queryFn: getRetailOrders,
-  });
+  } = useQuery(retailOrdersQuery);
 
   // The sync writes new orders on its own; this refetches when it does and
   // names the ones that just landed so the rows below can flash.
   const arrivals = useRetailArrivals(orders, !isLoading && !isError);
 
+  // The counted orders in the range that pass every filter: the one list every
+  // figure and block below reads (headline, Missing line, chart, month groups,
+  // breakdown and chase list), so they all follow the same controls.
   const inRange = useMemo(
-    () => ordersInRange(orders, rangeBounds(range, new Date(), custom)),
-    [orders, range, custom],
+    () => applyFilters(orders, filters, rangeBounds(range, new Date(), custom)),
+    [orders, filters, range, custom],
   );
   const summary = useMemo(() => summarize(inRange), [inRange]);
   const series = useMemo(() => monthlySeries(inRange), [inRange]);
   const groups = useMemo(() => monthMarketplaceGroups(inRange), [inRange]);
-  const mom = useMemo(() => monthOverMonth(orders), [orders]);
+  // "This month" ignores the date range (are we up or down is not a range
+  // question) but follows the filters like everything else.
+  const mom = useMemo(() => monthOverMonth(applyFilters(orders, filters)), [orders, filters]);
+
+  // A Marketplace Order ID search sets the range aside (see `applyFilters`) and
+  // finds few orders: say so, and open the months holding them.
+  const searching = isSearching(filters);
+  const scope = scopeNote(filters);
+  const empty = emptyCopy(filters);
 
   const toggle = (id) => {
     setExpanded((prev) => {
@@ -167,7 +197,7 @@ export default function RetailReport({ range, custom }) {
         figure={formatPHP(summary.total)}
         note={
           <>
-            <span>In the selected range · OK orders only</span>
+            <span>{scope} · OK orders only</span>
             <br />
             <span>
               Missing income: {summary.missingCount.toLocaleString("en-PH")} order
@@ -185,7 +215,7 @@ export default function RetailReport({ range, custom }) {
           </>
         }
         stats={[
-          { label: "Orders", value: summary.count.toLocaleString("en-PH"), sub: "In the selected range" },
+          { label: "Orders", value: summary.count.toLocaleString("en-PH"), sub: scope },
           { label: "Average order income", value: formatPHP(summary.average), sub: "Order Income ÷ OK orders" },
           { label: "This month", value: formatPHP(mom.thisMonth), sub: monthOverMonthSubtitle(mom) },
         ]}
@@ -196,7 +226,8 @@ export default function RetailReport({ range, custom }) {
             {series.rows.length === 0 ? (
               <EmptyState
                 icon={ShoppingBag}
-                title="No retail orders in this range"
+                title={empty.title}
+                description={empty.description}
                 className="min-h-[180px] py-8"
               />
             ) : (
@@ -257,19 +288,21 @@ export default function RetailReport({ range, custom }) {
         <h3 className="mb-3 text-sm font-semibold text-foreground">Orders by month</h3>
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
           {groups.length === 0 ? (
-            <EmptyState icon={ShoppingBag} title="No retail orders in this range" />
+            <EmptyState icon={ShoppingBag} title={empty.title} description={empty.description} />
           ) : (
             <div className="divide-y divide-border">
               {groups.map((group) => {
-                const isOpen = expanded.has(group.id);
+                // A search shows its orders without a click; the months stay open meanwhile.
+                const isOpen = searching || expanded.has(group.id);
                 return (
                   <div key={group.id}>
                     <Button
                       type="button"
                       variant="ghost"
                       onClick={() => toggle(group.id)}
+                      disabled={searching}
                       data-arrived={group.orders.some((order) => arrivals.has(order.id)) || undefined}
-                      className="h-auto w-full justify-between rounded-none px-4 py-3 text-left duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] data-[arrived]:bg-green-a4"
+                      className="h-auto w-full justify-between rounded-none px-4 py-3 text-left duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] disabled:opacity-100 data-[arrived]:bg-green-a4"
                     >
                       <div className="flex items-center gap-2">
                         {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
