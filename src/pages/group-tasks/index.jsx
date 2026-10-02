@@ -516,7 +516,7 @@ export default function GroupTasksPage() {
       />
 
 
-      {selectedTaskId && canManage && (
+      {selectedTaskId && (canManage || selectedTask?.created_by === user?.id) && (
         <RateEmployeesModal
           isOpen={isRateOpen}
           onClose={() => setIsRateOpen(false)}
