@@ -215,7 +215,7 @@ async function runSync(since: string | null = null) {
     return {
       odoo_so_number: so.name,
       odoo_so_id: so.id,
-      storefront: storefrontFor(partnerName, storefronts) ?? partnerName,
+      marketplace: storefrontFor(partnerName, storefronts) ?? partnerName,
       partner_name: partnerName,
       buyer_name: buyers.get(so.id) ?? knownBuyers.get(so.name) ?? null,
       odoo_salesperson_name: so.user_id ? so.user_id[1] : null,

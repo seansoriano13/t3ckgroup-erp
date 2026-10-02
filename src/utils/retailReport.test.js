@@ -7,14 +7,14 @@ import {
   summarize,
   monthOverMonth,
   monthlySeries,
-  monthStorefrontGroups,
+  monthMarketplaceGroups,
 } from "./retailReport"
 
 // Local-time dates, so the assertions hold in any timezone the suite runs in.
 const at = (y, m, d) => new Date(y, m - 1, d, 12).toISOString()
 
 const order = (overrides = {}) => ({
-  storefront: "Shopee",
+  marketplace: "Shopee",
   amount: 100,
   ordered_at: at(2026, 9, 10),
   odoo_state: "sale",
@@ -110,13 +110,13 @@ describe("monthOverMonth", () => {
 })
 
 describe("monthlySeries", () => {
-  it("stacks storefronts per month, oldest first, and fills a quiet month with zero", () => {
-    const { rows, storefronts } = monthlySeries([
-      order({ storefront: "Shopee", amount: 100, ordered_at: at(2026, 7, 5) }),
-      order({ storefront: "Lazada", amount: 50, ordered_at: at(2026, 7, 6) }),
-      order({ storefront: "Shopee", amount: 300, ordered_at: at(2026, 9, 5) }),
+  it("stacks marketplaces per month, oldest first, and fills a quiet month with zero", () => {
+    const { rows, marketplaces } = monthlySeries([
+      order({ marketplace: "Shopee", amount: 100, ordered_at: at(2026, 7, 5) }),
+      order({ marketplace: "Lazada", amount: 50, ordered_at: at(2026, 7, 6) }),
+      order({ marketplace: "Shopee", amount: 300, ordered_at: at(2026, 9, 5) }),
     ])
-    expect(storefronts).toEqual(["Lazada", "Shopee"])
+    expect(marketplaces).toEqual(["Lazada", "Shopee"])
     expect(rows.map((r) => r.key)).toEqual(["2026-07", "2026-08", "2026-09"])
     expect(rows[0]).toMatchObject({ Shopee: 100, Lazada: 50, total: 150 })
     expect(rows[1].total).toBe(0)
@@ -132,18 +132,18 @@ describe("monthlySeries", () => {
   })
 
   it("is empty for no orders", () => {
-    expect(monthlySeries([])).toEqual({ rows: [], storefronts: [] })
+    expect(monthlySeries([])).toEqual({ rows: [], marketplaces: [] })
   })
 })
 
-describe("monthStorefrontGroups", () => {
-  it("orders months newest first (not alphabetically) and storefronts A–Z", () => {
-    const groups = monthStorefrontGroups([
-      order({ storefront: "Shopee", ordered_at: at(2026, 8, 5) }),
-      order({ storefront: "Shopee", ordered_at: at(2026, 12, 5) }),
-      order({ storefront: "Lazada", ordered_at: at(2026, 12, 6) }),
+describe("monthMarketplaceGroups", () => {
+  it("orders months newest first (not alphabetically) and marketplaces A–Z", () => {
+    const groups = monthMarketplaceGroups([
+      order({ marketplace: "Shopee", ordered_at: at(2026, 8, 5) }),
+      order({ marketplace: "Shopee", ordered_at: at(2026, 12, 5) }),
+      order({ marketplace: "Lazada", ordered_at: at(2026, 12, 6) }),
     ])
-    expect(groups.map((g) => `${g.monthKey}/${g.storefront}`)).toEqual([
+    expect(groups.map((g) => `${g.monthKey}/${g.marketplace}`)).toEqual([
       "2026-12/Lazada",
       "2026-12/Shopee",
       "2026-08/Shopee",
@@ -151,7 +151,7 @@ describe("monthStorefrontGroups", () => {
   })
 
   it("puts undated orders in a trailing Unknown group and sorts orders newest first", () => {
-    const groups = monthStorefrontGroups([
+    const groups = monthMarketplaceGroups([
       order({ id: "a", ordered_at: null }),
       order({ id: "b", ordered_at: at(2026, 9, 1) }),
       order({ id: "c", ordered_at: at(2026, 9, 20) }),

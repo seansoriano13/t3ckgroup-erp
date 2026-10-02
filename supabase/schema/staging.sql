@@ -553,7 +553,7 @@ create table if not exists public."retail_orders" (
   "updated_at" timestamp with time zone not null default now(),
   "odoo_so_number" text not null,
   "odoo_so_id" integer,
-  "storefront" text not null,
+  "marketplace" text not null,
   "partner_name" text not null,
   "buyer_name" text,
   "odoo_salesperson_name" text,

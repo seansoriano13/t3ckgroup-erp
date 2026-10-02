@@ -27,7 +27,7 @@ function retailOrder(overrides = {}) {
   return db.seed("retail_orders", {
     odoo_so_number: `S0${soSerial}`,
     odoo_so_id: soSerial,
-    storefront: "Shopee",
+    marketplace: "Shopee",
     partner_name: "Shopee T3ck Outdoor",
     buyer_name: "Juan Dela Cruz",
     amount: 1500,
@@ -52,7 +52,7 @@ describe("Retail page", () => {
 
   it("totals the orders in range", async () => {
     retailOrder({ amount: 1000 });
-    retailOrder({ amount: 3000, storefront: "Lazada", partner_name: "Lazada Store" });
+    retailOrder({ amount: 3000, marketplace: "Lazada", partner_name: "Lazada Store" });
 
     renderPage();
 

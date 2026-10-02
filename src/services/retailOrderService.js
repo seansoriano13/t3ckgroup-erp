@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 const PAGE_SIZE = 1000;
 
 const COLUMNS =
-  "id, odoo_so_number, storefront, partner_name, buyer_name, odoo_salesperson_name, amount, ordered_at, odoo_state, is_excluded";
+  "id, odoo_so_number, marketplace, partner_name, buyer_name, odoo_salesperson_name, amount, ordered_at, odoo_state, is_excluded";
 
 /**
  * Every order the Retail report can count: synced from Odoo into

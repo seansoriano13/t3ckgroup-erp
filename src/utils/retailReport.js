@@ -129,23 +129,23 @@ export function monthOverMonth(orders, now = new Date()) {
 }
 
 /**
- * Per-month sales, one column per storefront, oldest month first, for the
+ * Per-month sales, one column per marketplace, oldest month first, for the
  * stacked chart. Months with no orders between the first and last are filled
  * with zeros so a quiet month shows as a gap, not a skipped label.
  */
 export function monthlySeries(orders) {
-  const storefronts = [...new Set(orders.map((o) => o.storefront || "Other"))].sort()
+  const marketplaces = [...new Set(orders.map((o) => o.marketplace || "Other"))].sort()
   const byMonth = new Map()
   for (const order of orders) {
     const key = monthKey(order.ordered_at)
     if (!key) continue
     if (!byMonth.has(key)) byMonth.set(key, { key, total: 0 })
     const row = byMonth.get(key)
-    const storefront = order.storefront || "Other"
-    row[storefront] = (row[storefront] || 0) + amountOf(order)
+    const marketplace = order.marketplace || "Other"
+    row[marketplace] = (row[marketplace] || 0) + amountOf(order)
     row.total += amountOf(order)
   }
-  if (byMonth.size === 0) return { rows: [], storefronts }
+  if (byMonth.size === 0) return { rows: [], marketplaces }
 
   const keys = [...byMonth.keys()].sort()
   const rows = []
@@ -161,20 +161,20 @@ export function monthlySeries(orders) {
       year += 1
     }
   }
-  return { rows, storefronts }
+  return { rows, marketplaces }
 }
 
 /**
- * The month × storefront breakdown under the chart: newest month first, then
- * storefront A–Z. Orders with no date sit in a trailing "Unknown" group.
+ * The month × marketplace breakdown under the chart: newest month first, then
+ * marketplace A–Z. Orders with no date sit in a trailing "Unknown" group.
  */
-export function monthStorefrontGroups(orders) {
+export function monthMarketplaceGroups(orders) {
   const groups = new Map()
   for (const order of orders) {
     const key = monthKey(order.ordered_at)
-    const storefront = order.storefront || "Other"
-    const id = `${key ?? "unknown"}::${storefront}`
-    if (!groups.has(id)) groups.set(id, { id, monthKey: key, month: monthLabel(key), storefront, total: 0, orders: [] })
+    const marketplace = order.marketplace || "Other"
+    const id = `${key ?? "unknown"}::${marketplace}`
+    if (!groups.has(id)) groups.set(id, { id, monthKey: key, month: monthLabel(key), marketplace, total: 0, orders: [] })
     const group = groups.get(id)
     group.total += amountOf(order)
     group.orders.push(order)
@@ -189,6 +189,6 @@ export function monthStorefrontGroups(orders) {
       if (b.monthKey === null) return -1
       return b.monthKey.localeCompare(a.monthKey)
     }
-    return a.storefront.localeCompare(b.storefront)
+    return a.marketplace.localeCompare(b.marketplace)
   })
 }

@@ -30,7 +30,7 @@ import { formatPHP } from "../../constants/sor";
 import {
   RETAIL_RANGES,
   monthOverMonth,
-  monthStorefrontGroups,
+  monthMarketplaceGroups,
   monthlySeries,
   ordersInRange,
   rangeBounds,
@@ -120,7 +120,7 @@ export default function RetailReport({ range, custom }) {
   );
   const summary = useMemo(() => summarize(inRange), [inRange]);
   const series = useMemo(() => monthlySeries(inRange), [inRange]);
-  const groups = useMemo(() => monthStorefrontGroups(inRange), [inRange]);
+  const groups = useMemo(() => monthMarketplaceGroups(inRange), [inRange]);
   const mom = useMemo(() => monthOverMonth(orders), [orders]);
 
   const toggle = (id) => {
@@ -208,10 +208,10 @@ export default function RetailReport({ range, custom }) {
                       }}
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                    {series.storefronts.map((storefront, index) => (
+                    {series.marketplaces.map((marketplace, index) => (
                       <Bar
-                        key={storefront}
-                        dataKey={storefront}
+                        key={marketplace}
+                        dataKey={marketplace}
                         stackId="sales"
                         maxBarSize={44}
                         fill={SERIES_FILLS[index % SERIES_FILLS.length]}
@@ -246,7 +246,7 @@ export default function RetailReport({ range, custom }) {
                         {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         <span className="text-sm font-bold text-foreground">{group.month}</span>
                         <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs font-bold text-muted-foreground">
-                          {group.storefront}
+                          {group.marketplace}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {group.orders.length} order{group.orders.length === 1 ? "" : "s"}
