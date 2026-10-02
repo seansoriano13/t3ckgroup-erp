@@ -36,9 +36,45 @@ _Avoid_: Opportunities Page, Opportunity Registration
 Where the whole commercial process runs — the SOR Register, its board, and every SOR's journey through its Sales Flow. The SOR is the entry point; SORS is the process it enters. The company's own name for this system, from Policy CCPR-2026-001, Annex C, and the name the first migration was written under. It was briefly renamed "CRM" (issue #206) and renamed back; see ADR 0024 for why an imported industry word was the wrong one for a thing the board had already named.
 _Avoid_: CRM, SOR / CRM, SOR system
 
-**Retail SOR**:
-A marketplace order — Shopee, Lazada, any storefront — registered as an ordinary SOR because the Odoo sync writes to the same table a salesperson does. Real and never deleted: it carries a true Sales Reference and a true amount. Excluded from the pipeline, the commission engine and every aggregate read, because it describes a sale with no proposal, no bidding, no negotiation and no award, and so runs no Sales Flow. Seen on its own screen, not in the Register.
-_Avoid_: Retail deal, Shopee deal, Online order
+**Retail Order**:
+One Odoo sale order placed through a Marketplace Storefront. Not an SOR: it has no proposal, bidding, negotiation or award, so it runs no Sales Flow and stays out of the SOR Register, the pipeline and the commission engine. Seen only on the Retail screen.
+_Avoid_: Retail SOR, Retail deal, Shopee deal, Online order
+
+**Marketplace**:
+The platform a Retail Order was placed on — Shopee or Lazada.
+_Avoid_: Channel, Platform, Storefront
+
+**Storefront**:
+One shop on a Marketplace, held in Odoo as the order's customer (e.g. Shopee T3ck Outdoor). A Marketplace can have several.
+_Avoid_: Marketplace, Shop, Partner
+
+**Marketplace Order ID**:
+The Marketplace's own number for a Retail Order (e.g. 2609020BTB5E8F) — the key the Marketplace's own income reports use.
+_Avoid_: Order ID, Sales Reference, SO number
+
+**Order Amount**:
+A Retail Order's Odoo total — list price, sometimes typed lower. Never what the buyer paid on the Marketplace.
+_Avoid_: SRP, Sales, Gross, Total sales
+
+**Order Income**:
+What the Marketplace pays out for a Retail Order after its fees, as typed by the salesperson from the Marketplace's own breakdown. The figure the Retail screen totals.
+_Avoid_: Actual income, Net, Payout, Revenue
+
+**Marketplace Fee**:
+What the Marketplace deducts from a Retail Order, as typed beside its Order Income. Marketplace Fee plus Order Income routinely differs from Order Amount, because Order Amount is not what the buyer paid.
+_Avoid_: Commission, Charges
+
+**Income Note**:
+The To-Do a salesperson logs on the Odoo order carrying its Marketplace Order ID, Marketplace Fee and Order Income. Usually left open, never marked done.
+_Avoid_: Log note, Activity, Remarks
+
+**Missing Income**:
+A Retail Order whose Income Note gives no Order Income.
+_Avoid_: Unverified, Incomplete
+
+**Suspect Income**:
+A Retail Order whose Order Income exceeds its Order Amount, or whose Marketplace Fee is at least its Order Amount — a sign the Income Note belongs to another order.
+_Avoid_: Mismatch, Unreconciled
 
 **Company**:
 The organization an SOR is being sold to — the account, not a human. Verified against Odoo's commercial partner whenever the SOR carries a Sales Reference.
