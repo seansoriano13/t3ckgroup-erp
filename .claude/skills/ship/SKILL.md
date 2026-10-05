@@ -16,7 +16,7 @@ Be on `staging`, ahead of `origin/staging`, not behind. Ignore dirty files whose
 
 ## Local gate
 
-Run `pnpm preflight --strict`. Then fail if any existing migration was modified (`git diff --diff-filter=MR origin/staging -- supabase/migrations`): a direct push skips the PR-only migration gates, so this check stands in for them.
+Local runs cost nothing; Actions minutes are capped. Never open a PR or push a branch just to get CI. Run `pnpm preflight --strict`. Then fail if any existing migration was modified (`git diff --diff-filter=MR origin/staging -- supabase/migrations`): a direct push skips the PR-only migration gates, so this check stands in for them.
 
 ## Pick the order
 
@@ -34,7 +34,7 @@ If there are migrations, run `supabase migration up` (never reset). Start previe
 
 ## Staging
 
-Push with `git push origin staging`. Watch every Actions run on the SHA (`gh run list --commit <sha>`) and the Vercel staging deploy; time out at 30 min. CI runs the full test suite here.
+Push with `git push origin staging`. Watch every Actions run on the SHA (`gh run list --commit <sha>`) and the Vercel staging deploy; time out at 30 min. CI runs the full test suite here, and this is the only full run the SHA gets: CI no longer triggers on pushes to main (Actions minutes are capped), so main's safety is this run. A docs-only push (`**.md`, `docs/**`) skips CI; no run for the SHA is then expected, not a failure.
 
 Then smoke the changed screens on `t3ckgroup-erp-staging.vercel.app` using the browser pane's existing session. **Never type a password**; if signed out, ask the user to sign in.
 
@@ -44,7 +44,7 @@ If migrations-first: ask the user to dispatch **Apply migrations — production*
 
 Tell the user what users will see, and **wait for an explicit yes**. Then `git push origin <sha>:main`, fast-forward only.
 
-Watch CI on main and the Vercel prod deploy. Smoke the changed screens read-only: never create or edit prod records.
+Do not wait for CI on main: it doesn't run there (path-filtered workflows like policy-tests may; watch those if listed). Watch the Vercel prod deploy. Smoke the changed screens read-only: never create or edit prod records.
 
 ## Hand back
 

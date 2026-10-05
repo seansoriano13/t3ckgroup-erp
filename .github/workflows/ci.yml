@@ -1,21 +1,28 @@
 name: CI
 
 on:
+  # Direct commits to staging are tested here. main is only ever fed from
+  # staging, which already passed, so it is not re-run (saves Actions minutes).
   push:
-    branches: [main, staging]
+    branches: [staging]
+    paths-ignore: ["**.md", "docs/**"]
+  # Drafts are skipped; marking ready for review triggers the run.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ["**.md", "docs/**"]
 
 # A newer push to the same branch makes the in-flight run redundant.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Lint, build and the four test shards run as parallel jobs. This repo is
+# Lint, build and the two test shards run as parallel jobs. This repo is
 # private, so each job gets a 2-vCPU runner, where Vitest's default worker
 # count (CPUs - 1) is 1: run as one job, the ~10 minute suite ran serially.
 jobs:
   lint:
     name: Lint
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -52,6 +59,7 @@ jobs:
 
   build:
     name: Build
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -82,14 +90,15 @@ jobs:
         run: pnpm build
 
   test:
-    name: Test (shard ${{ matrix.shard }}/4)
+    name: Test (shard ${{ matrix.shard }}/2)
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       # One failing shard should not hide failures in the others.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2]
 
     steps:
       - uses: actions/checkout@v4
@@ -109,4 +118,4 @@ jobs:
       # Two workers on two vCPUs: the main process mostly idles, and pinned to
       # two cores locally this ran a shard 1.5x faster than one worker.
       - name: Test
-        run: pnpm exec vitest run --shard=${{ matrix.shard }}/4 --maxWorkers=2
+        run: pnpm exec vitest run --shard=${{ matrix.shard }}/2 --maxWorkers=2
