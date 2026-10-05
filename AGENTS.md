@@ -34,6 +34,28 @@ When `main` is ahead of `staging` — legitimate for a hotfix, but a state someo
 decide about rather than let sit — `scripts/hooks/pre-push` warns on push and lists the
 commits. It only warns; it never blocks.
 
+**Purchasing is built on `integrate/purchasing`, not `staging`.** The
+purchasing module (#209's tickets onward) lives on one long-lived branch,
+checked out in its own worktree (`../t3ckgroup-erp-purchasing`), so `staging`
+stays releasable for bug fixes. Commit each ticket straight onto
+`integrate/purchasing` (`feat(purchasing): … (#NNN)`), with its tests green and,
+for a schema ticket, the policy tier too. Never commit purchasing work to
+`staging` or branch a purchasing ticket off it.
+
+- **Keep it current:** after every push to `staging`, merge `staging` into
+  `integrate/purchasing`. Merge, never rebase: the branch is pushed.
+- **It lands once, as a complete slice** (first slice: the #209 block, #303–#314
+  and #318). Re-stamp its migrations to sort after staging's newest one: they
+  have never been on `staging` or `main`, so this is not the rename the
+  migration rules forbid. Then open a PR `integrate/purchasing → staging`, so
+  the migration gate and policy tests run before anything reaches the staging
+  database.
+- **Short soak:** merge to `staging` only when it can ship to `main` within 2–3
+  days. A bug found in that window is fixed on `staging` and ships with it; a
+  `hotfix/*` off `main` is for a production outage only.
+- **One local Supabase stack** serves both worktrees: `pnpm db:reset` when you
+  switch between them, or the other branch's migrations are in the way.
+
 ### Local-first development
 
 Default to the local Supabase stack (see "Local development" below) for
