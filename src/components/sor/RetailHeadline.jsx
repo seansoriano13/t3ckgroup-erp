@@ -25,6 +25,12 @@ export default function RetailHeadline({ summary, mom, series, scope, empty, sea
       note={
         <>
           <span>{scope} · OK orders only</span>
+          {searching && (
+            <>
+              <br />
+              <span>Search ignores date range</span>
+            </>
+          )}
           <br />
           <span>
             Missing income: {formatCount(summary.missingCount)} order{plural(summary.missingCount)} ·{" "}
