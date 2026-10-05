@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-10-05",
+        "title": "Retail Shows Your Real Income, Kept Current",
+        "version": "1.9.5",
+        "changes": [
+            "Retail: orders now show the Marketplace Order ID, the marketplace fee and the Order Income typed in the order's Income Note in Odoo.",
+            "Retail: the Shopee-versus-Lazada breakdown shows income, orders, average, fees and fee rate for each marketplace.",
+            "Retail: the screen now refreshes itself. Orders sync from Odoo every 5 minutes, a nightly run re-reads late notes, and a new order appears on an open Retail screen highlighted."
+        ],
+        "link": "/retail"
+    },
+    {
         "date": "2026-10-02",
         "title": "Clearer Change Notes on SORs",
         "version": "1.9.4",
