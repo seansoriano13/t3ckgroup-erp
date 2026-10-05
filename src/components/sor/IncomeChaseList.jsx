@@ -1,20 +1,12 @@
-import { useId, useMemo, useState } from "react";
-import { ArrowUpRight, CheckCircle2, ChevronDown, ChevronRight, Package } from "lucide-react";
+import { useId, useMemo } from "react";
+import { CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
 import EmptyState from "../ui/EmptyState";
 import { Button } from "../ui/button";
-import { ExternalLink } from "../ui/external-link";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import IncomeBadge from "./IncomeBadge";
+import { RetailOrderTable } from "./RetailOrderRow";
+import { useToggleSet } from "../../hooks/useToggleSet";
 import { formatPHP } from "../../constants/sor";
 import { chaseList } from "../../utils/retailReport";
-import { odooSaleOrderUrl } from "../../utils/odooLinks";
+import { formatCount } from "../../utils/retailFormat";
 
 /**
  * Who to chase for Order Income, and for how much: the Missing and Suspect
@@ -25,17 +17,8 @@ import { odooSaleOrderUrl } from "../../utils/odooLinks";
  */
 export default function IncomeChaseList({ orders }) {
   const headingId = useId();
-  const [expanded, setExpanded] = useState(() => new Set());
+  const [expanded, toggle] = useToggleSet();
   const list = useMemo(() => chaseList(orders), [orders]);
-
-  const toggle = (id) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   return (
     <section aria-labelledby={headingId}>
@@ -48,7 +31,7 @@ export default function IncomeChaseList({ orders }) {
       </p>
       {list.count > 0 && (
         <p className="mt-1 text-sm font-semibold text-foreground">
-          {`${list.count.toLocaleString("en-PH")} to chase · ${formatPHP(list.orderAmount)} Order Amount`}
+          {`${formatCount(list.count)} to chase · ${formatPHP(list.orderAmount)} Order Amount`}
         </p>
       )}
 
@@ -80,69 +63,7 @@ export default function IncomeChaseList({ orders }) {
 
                   {isOpen && (
                     <div className="bg-muted/10 px-4 pb-3">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="py-1.5">Reference</TableHead>
-                            <TableHead className="py-1.5">Marketplace Order ID</TableHead>
-                            <TableHead className="py-1.5">Buyer</TableHead>
-                            <TableHead className="py-1.5">Date</TableHead>
-                            <TableHead className="py-1.5 text-right">Order Amount</TableHead>
-                            <TableHead className="py-1.5 text-right">Marketplace Fee</TableHead>
-                            <TableHead className="py-1.5 text-right">Order Income</TableHead>
-                            <TableHead className="py-1.5">Income</TableHead>
-                            <TableHead className="py-1.5">Odoo</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {group.orders.map((order) => {
-                            const odooUrl = odooSaleOrderUrl(order.odoo_so_id);
-                            return (
-                              <TableRow key={order.id} className="border-t border-border/50">
-                                <TableCell className="flex items-center gap-1.5 py-1.5 font-mono font-bold text-foreground">
-                                  <Package size={11} className="shrink-0 text-muted-foreground" />
-                                  {order.odoo_so_number}
-                                </TableCell>
-                                <TableCell className="py-1.5 font-mono text-foreground">
-                                  {order.marketplace_order_id || "—"}
-                                </TableCell>
-                                <TableCell className="py-1.5 text-foreground">{order.buyer_name || "—"}</TableCell>
-                                <TableCell className="py-1.5 text-muted-foreground">
-                                  {order.ordered_at
-                                    ? new Date(order.ordered_at).toLocaleDateString("en-PH")
-                                    : "—"}
-                                </TableCell>
-                                <TableCell className="py-1.5 text-right font-semibold text-foreground">
-                                  {formatPHP(order.amount)}
-                                </TableCell>
-                                <TableCell className="py-1.5 text-right text-foreground">
-                                  {order.marketplace_fee == null ? "—" : formatPHP(order.marketplace_fee)}
-                                </TableCell>
-                                <TableCell className="py-1.5 text-right font-semibold text-foreground">
-                                  {order.order_income == null ? "—" : formatPHP(order.order_income)}
-                                </TableCell>
-                                <TableCell className="py-1.5">
-                                  <IncomeBadge order={order} />
-                                </TableCell>
-                                <TableCell className="py-1.5">
-                                  {odooUrl ? (
-                                    <ExternalLink
-                                      href={odooUrl}
-                                      className="inline-flex items-center gap-0.5 whitespace-nowrap font-semibold text-foreground underline-offset-2 hover:underline"
-                                    >
-                                      Open in Odoo
-                                      <span className="sr-only"> {order.odoo_so_number}</span>
-                                      <ArrowUpRight aria-hidden size={12} />
-                                    </ExternalLink>
-                                  ) : (
-                                    "—"
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
+                      <RetailOrderTable orders={group.orders} odoo />
                     </div>
                   )}
                 </div>

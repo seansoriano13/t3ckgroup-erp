@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
 import RetailReport, { RetailRangeControl } from "../../components/sor/RetailReport";
 import RetailFilterBar from "../../components/sor/RetailFilterBar";
+import { retailOrdersQuery } from "../../services/retailOrderService";
 import { useAuth } from "../../context/AuthContext";
 import { getPermissionContext } from "../../utils/permissions";
 import { DEFAULT_RETAIL_FILTERS } from "../../utils/retailReport";
@@ -31,6 +33,10 @@ function RetailScreen() {
   const { isSuperAdmin, hasRetailAccess } = getPermissionContext(user);
   const hasAccess = isSuperAdmin || hasRetailAccess;
 
+  // One read of the orders, shared with the report (same query key): the filter
+  // bar offers only what exists. Not fetched for someone without access.
+  const { data: orders = [] } = useQuery({ ...retailOrdersQuery, enabled: hasAccess });
+
   // The time range is the Page's, so it can sit in the header (Report type).
   const [range, setRange] = useState("3m");
   const [custom, setCustom] = useState({ from: "", to: "" });
@@ -56,6 +62,7 @@ function RetailScreen() {
       toolbar={
         hasAccess && (
           <RetailFilterBar
+            orders={orders}
             filters={filters}
             onChange={setFilter}
             onClearAll={() => setFilters(DEFAULT_RETAIL_FILTERS)}

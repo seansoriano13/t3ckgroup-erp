@@ -1,10 +1,10 @@
 import StatusBadge from "../StatusBadge";
-import { incomeStatus } from "../../utils/retailReport";
+import { INCOME_STATUS, incomeStatus } from "../../utils/retailReport";
 
 const INCOME_BADGES = {
-  ok: { label: "OK", theme: "mauve" },
-  missing: { label: "Missing", theme: "amber" },
-  suspect: { label: "Suspect", theme: "red" },
+  [INCOME_STATUS.OK]: { label: "OK", theme: "mauve" },
+  [INCOME_STATUS.MISSING]: { label: "Missing", theme: "amber" },
+  [INCOME_STATUS.SUSPECT]: { label: "Suspect", theme: "red" },
 };
 
 /** An order's income status on the Retail screen: Suspect reads apart from Missing. */

@@ -5,6 +5,13 @@ import { useTableRealtime } from "./useTableRealtime";
 export const ARRIVAL_HIGHLIGHT_MS = 6000;
 
 /**
+ * Classes for an element that flashes while its order is in the arrived set:
+ * pair with `data-arrived={arrivals.has(id) || undefined}`.
+ */
+export const ARRIVAL_HIGHLIGHT_CLASS =
+  "duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] data-[arrived]:bg-green-a4";
+
+/**
  * Keeps the Retail screen current without anyone touching it (#455).
  *
  * `retail_orders` broadcasts a change signal whenever the sync writes a row, and

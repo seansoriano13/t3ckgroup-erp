@@ -4,10 +4,11 @@ import EmptyState from "../ui/EmptyState";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatPHP } from "../../constants/sor";
 import { marketplaceBreakdown } from "../../utils/retailReport";
+import { BLANK, formatCount, formatPHPOrDash } from "../../utils/retailFormat";
 
 /** "13.3%" for a fee rate (a fraction), "—" when there is no rate to show. */
 function formatFeeRate(rate) {
-  return rate == null ? "—" : `${(rate * 100).toFixed(1)}%`;
+  return rate == null ? BLANK : `${(rate * 100).toFixed(1)}%`;
 }
 
 /**
@@ -48,10 +49,10 @@ export default function MarketplaceBreakdown({ orders }) {
                     {formatPHP(row.orderIncome)}
                   </TableCell>
                   <TableCell className="py-1.5 text-right tabular-nums text-foreground">
-                    {row.orderCount.toLocaleString("en-PH")}
+                    {formatCount(row.orderCount)}
                   </TableCell>
                   <TableCell className="py-1.5 text-right tabular-nums text-foreground">
-                    {row.averageIncome == null ? "—" : formatPHP(row.averageIncome)}
+                    {formatPHPOrDash(row.averageIncome)}
                   </TableCell>
                   <TableCell className="py-1.5 text-right tabular-nums text-foreground">
                     {formatPHP(row.totalFees)}
@@ -64,7 +65,7 @@ export default function MarketplaceBreakdown({ orders }) {
                       row.missingCount === 0 ? "text-muted-foreground" : "text-foreground"
                     }`}
                   >
-                    {row.missingCount.toLocaleString("en-PH")}
+                    {formatCount(row.missingCount)}
                   </TableCell>
                 </TableRow>
               ))}
