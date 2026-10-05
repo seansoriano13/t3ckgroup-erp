@@ -118,6 +118,19 @@ const timeAgo = (dateString) => {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
+// get_user_active_chats still names a group task's thread by the table's old
+// name, COMMITTEE_TASK, and its read/archive rows are keyed on it — so
+// `selectedChat` keeps the raw value for those writes. Anything that leaves
+// this modal (the Details event, the entity lookup) or is shown to the user
+// goes through here, since GlobalDetailManager and the rest of the app only
+// know GROUP_TASK.
+const canonicalEntityType = (type) =>
+  type === "COMMITTEE_TASK" ? "GROUP_TASK" : type;
+
+const ENTITY_LABELS = { GROUP_TASK: "Group Task" };
+const entityLabel = (type) =>
+  ENTITY_LABELS[canonicalEntityType(type)] ?? type;
+
 // -------------------------------------------------------------
 //  SUB-COMPONENTS
 // -------------------------------------------------------------
@@ -412,7 +425,9 @@ export default function ComprehensiveChatModal({
       if (entityId && entityType) {
         // Find existing chat or prepare to select it
         const chat = activeChats.find(
-          (c) => c.entity_id === entityId && c.entity_type === entityType,
+          (c) =>
+            c.entity_id === entityId &&
+            canonicalEntityType(c.entity_type) === entityType,
         );
         if (chat) {
           setSelectedChat(entityTitle ? { ...chat, title: entityTitle } : chat);
@@ -534,7 +549,7 @@ export default function ComprehensiveChatModal({
     queryFn: async () => {
       if (selectedChat?.entity_type === "TASK") {
         return await taskService.getTaskById(selectedChat.entity_id);
-      } else if (selectedChat?.entity_type === "GROUP_TASK") {
+      } else if (canonicalEntityType(selectedChat?.entity_type) === "GROUP_TASK") {
         return await groupTaskService.getGroupTaskById(
           selectedChat.entity_id,
         );
@@ -687,7 +702,7 @@ export default function ComprehensiveChatModal({
       const match = activeChats.find(
         (c) =>
           c.entity_id === initialEntityId &&
-          c.entity_type === initialEntityType,
+          canonicalEntityType(c.entity_type) === initialEntityType,
       );
       if (match) {
         setSelectedChat(match);
@@ -1088,7 +1103,7 @@ export default function ComprehensiveChatModal({
                     >
                       {chat.entity_type === "TASK" ? (
                         <ListCheck size={16} />
-                      ) : chat.entity_type === "GROUP_TASK" ? (
+                      ) : canonicalEntityType(chat.entity_type) === "GROUP_TASK" ? (
                         <Users size={16} />
                       ) : (
                         <Target size={16} />
@@ -1102,17 +1117,15 @@ export default function ComprehensiveChatModal({
                               "text-[10px] font-black uppercase tracking-tighter opacity-70",
                               chat.entity_type === "TASK"
                                 ? "text-foreground"
-                                : chat.entity_type === "GROUP_TASK"
+                                : canonicalEntityType(chat.entity_type) === "GROUP_TASK"
                                   ? "text-violet-9"
                                   : "text-green-10",
                             )}
                           >
-                            {chat.entity_type === "GROUP_TASK"
-                              ? "GROUP"
-                              : chat.entity_type}
+                            {entityLabel(chat.entity_type)}
                           </span>
                           {chat.is_deleted &&
-                            chat.entity_type !== "GROUP_TASK" && (
+                            canonicalEntityType(chat.entity_type) !== "GROUP_TASK" && (
                               <span className="flex items-center gap-1 text-[9px] font-bold text-red-11 bg-red-3/50 px-1.5 py-0.5 rounded uppercase">
                                 <Dot color="bg-destructive" className="block" />{" "}
                                 Deleted
@@ -1182,8 +1195,12 @@ export default function ComprehensiveChatModal({
                       {selectedChat.title}
                     </h3>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                      {selectedChat.entity_type} •{" "}
-                      {selectedChat.subtitle || "Overview"}
+                      {entityLabel(selectedChat.entity_type)} •{" "}
+                      {/* The RPC's group-task subtitle is the constant
+                          "Committee Task" — the old name again. */}
+                      {(canonicalEntityType(selectedChat.entity_type) !== "GROUP_TASK" &&
+                        selectedChat.subtitle) ||
+                        "Overview"}
                     </div>
                   </div>
                 </div>
@@ -1199,7 +1216,7 @@ export default function ComprehensiveChatModal({
                         new CustomEvent("OPEN_ENTITY_DETAILS", {
                           detail: {
                             id: selectedChat.entity_id,
-                            type: selectedChat.entity_type,
+                            type: canonicalEntityType(selectedChat.entity_type),
                           },
                         }),
                       );
@@ -1240,7 +1257,7 @@ export default function ComprehensiveChatModal({
                     </span>
                     <span className="font-medium opacity-90">
                       This{" "}
-                      {selectedChat?.entity_type?.toLowerCase() || "record"} has
+                      {entityLabel(selectedChat?.entity_type)?.toLowerCase() || "record"} has
                       been deleted. Chat history is preserved for auditing.
                     </span>
                   </div>
@@ -1257,7 +1274,7 @@ export default function ComprehensiveChatModal({
                     </span>
                     <span className="font-medium opacity-90">
                       A deletion request has been submitted for this{" "}
-                      {selectedChat?.entity_type?.toLowerCase() || "record"}.
+                      {entityLabel(selectedChat?.entity_type)?.toLowerCase() || "record"}.
                     </span>
                   </div>
                 </div>
