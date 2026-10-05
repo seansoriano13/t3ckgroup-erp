@@ -1,6 +1,6 @@
 # The Retail sync re-reads Missing orders every run and touched notes nightly, not every note
 
-A Retail Order's Income Note is added after the order, often weeks later, and Odoo does not move the order's change date when a To-Do is added or edited. So the rolling "changed in the last 30 days" window alone never sees a late or corrected note. Every 5-minute run therefore also re-reads the notes of each stored order that is Missing or Suspect, which is how a late note fills in within about 5 minutes. The nightly run (`?mode=full`) additionally re-reads every order whose To-Do or chatter Odoo reports written in the last two days, which is how an edit to an old note is caught.
+A Retail Order's Income Note is added after the order, often weeks later, and Odoo does not move the order's change date when a To-Do is added or edited. So the rolling "changed in the last 30 days" window alone never sees a late or corrected note. Every 5-minute run therefore also re-reads the notes of each stored order that is Missing or Suspect, which is how a late note fills in within about 5 minutes. The nightly run (`?mode=full`) is not a full re-read of every order: it re-reads the Missing/Suspect orders plus every order whose To-Do or chatter Odoo reports written in the last 48 hours, which is how an edit to an old note is caught.
 
 ## Considered Options
 

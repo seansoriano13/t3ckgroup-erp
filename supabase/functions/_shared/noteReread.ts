@@ -6,7 +6,7 @@
 // order's change date, so the rolling "changed in the last 30 days" window
 // alone never sees a late note (#455).
 
-import { parseIncomeNote, toPlainText } from "./incomeNote.ts";
+import { parseBuyerName, parseIncomeNote } from "./incomeNote.ts";
 
 export interface StoredOrder {
   odoo_so_number: string;
