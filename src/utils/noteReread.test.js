@@ -86,6 +86,24 @@ describe("selectRereadOrders", () => {
     const rows = [order({ odoo_so_number: "S9", odoo_so_id: null, order_income: null }), ...stored];
     expect(numbers(selectRereadOrders(rows))).toEqual(["S2", "S3", "S4"]);
   });
+
+  // #457: ~530 Missing/Suspect orders were re-read every 5 minutes, dead ones included.
+  it("leaves out cancelled and draft orders: the report never counts them", () => {
+    const rows = [
+      order({ odoo_so_number: "C1", odoo_so_id: 11, order_income: null, odoo_state: "cancel" }),
+      order({ odoo_so_number: "D1", odoo_so_id: 12, order_income: 5000, odoo_state: "draft" }),
+      order({ odoo_so_number: "X1", odoo_so_id: 13, order_income: null, odoo_state: "sale" }),
+      order({ odoo_so_number: "X2", odoo_so_id: 14, order_income: null, odoo_state: "done" }),
+      order({ odoo_so_number: "X3", odoo_so_id: 15, order_income: null, odoo_state: "sent" }),
+      order({ odoo_so_number: "X4", odoo_so_id: 16, order_income: null, odoo_state: null }),
+    ];
+    expect(numbers(selectRereadOrders(rows))).toEqual(["X1", "X2", "X3", "X4"]);
+  });
+
+  it("leaves out a touched cancelled order too", () => {
+    const rows = [order({ odoo_so_number: "C1", odoo_so_id: 11, odoo_state: "cancel" })];
+    expect(selectRereadOrders(rows, new Set([11]))).toEqual([]);
+  });
 });
 
 describe("keepKnownValues", () => {

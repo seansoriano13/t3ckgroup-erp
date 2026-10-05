@@ -12,6 +12,18 @@ export interface StoredOrder {
   amount: number | string | null;
   order_income: number | string | null;
   marketplace_fee: number | string | null;
+  /** Odoo's `sale.order.state`; absent or null on an order stored before it was recorded. */
+  odoo_state?: string | null;
+}
+
+// Orders Odoo has abandoned. The Retail report counts only `sale` and `done`,
+// and a quotation that is later confirmed changes the order's change date, so
+// the rolling window reads it again then; nothing is gained re-reading their
+// notes every run (#457).
+const DEAD_STATES: ReadonlySet<string> = new Set(["cancel", "draft"]);
+
+export function isDeadOrder(order: Pick<StoredOrder, "odoo_state">): boolean {
+  return order.odoo_state != null && DEAD_STATES.has(order.odoo_state);
 }
 
 /**
@@ -32,7 +44,7 @@ export function needsNoteReread(order: Pick<StoredOrder, "amount" | "order_incom
  * income (Missing or Suspect), and any whose notes Odoo says were touched
  * (`touchedOdooIds`), so an edited note on an otherwise OK order is caught. An
  * order with no Odoo id cannot be looked up, and `skipOdooIds` are the ones the
- * caller is already reading.
+ * caller is already reading. Cancelled and draft orders are never re-read.
  */
 export function selectRereadOrders<T extends StoredOrder>(
   stored: T[],
@@ -43,6 +55,7 @@ export function selectRereadOrders<T extends StoredOrder>(
     (order) =>
       order.odoo_so_id != null &&
       !skipOdooIds.has(order.odoo_so_id) &&
+      !isDeadOrder(order) &&
       (touchedOdooIds.has(order.odoo_so_id) || needsNoteReread(order)),
   );
 }

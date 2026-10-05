@@ -1,6 +1,6 @@
 // Issue #204 Part 3 — hourly reminder sweep for Follow-up Cadence.
 //
-// Called by pg_cron (see migration 20260917010000_sor_follow_up_reminder_cron.sql)
+// Scheduled by pg_cron (migration 20260917010000_sor_follow_up_reminder_cron.sql, moved to Vault by 20261005120000_cron_jobs_authenticate_with_cron_secret.sql)
 // through pg_net's net.http_post, guarded by the same CRON_SECRET/Bearer
 // convention odoo-sor-sync/index.ts already uses for its own cron trigger —
 // mirrored here rather than inventing a second mechanism.
@@ -29,6 +29,7 @@
 // end-to-end behavior against `sor_due_follow_ups` has been exercised.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import { isAuthorizedCaller } from "../_shared/cronAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -101,9 +102,15 @@ async function resolveRecipients(
 }
 
 Deno.serve(async (req: Request) => {
-  const authHeader = req.headers.get("Authorization");
-  const CRON_SECRET = Deno.env.get("CRON_SECRET");
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  // verify_jwt is off for this function (supabase/config.toml): pg_cron sends
+  // Bearer CRON_SECRET from Vault, an operator may send the service-role key.
+  // Fails closed when CRON_SECRET is unset (#457).
+  if (
+    !isAuthorizedCaller(req.headers.get("Authorization"), {
+      cronSecret: Deno.env.get("CRON_SECRET"),
+      serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+    })
+  ) {
     return new Response("Unauthorized", { status: 401 });
   }
 
