@@ -17,6 +17,8 @@ import {
 import { supabase } from "@/lib/supabase"
 import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
 import { stubRestoreFlowSnapshotRpc } from "@/test/stubs/restoreFlowSnapshotRpc"
+import { moveOpportunitiesToFlowSnapshot } from "@/test/stubs/moveOpportunitiesToSnapshotRpc"
+import { stubRpc } from "@/test/msw/server"
 import toast from "react-hot-toast"
 
 // Mock ResizeObserver for React Flow
@@ -214,6 +216,57 @@ describe("FlowCanvas", () => {
     expect(screen.getByText("1 moved successfully.")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Done" }))
     expect(screen.queryByText("Deals moved")).not.toBeInTheDocument()
+  })
+
+  it("shows how far the move has got, and cannot be dismissed until it finishes", async () => {
+    const user = setupUser()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+    const [v1] = await salesFlowService.listSnapshots(flow.id)
+    for (let i = 0; i < 2; i += 1) {
+      makeOpportunity({
+        registered_by: mockUser.current.id,
+        sale_type_id: saleType.id,
+        flow_snapshot_id: v1.id,
+        flow_stage_id: lead.id,
+      })
+    }
+    await salesFlowService.unlockFlow(flow.id, "One more pass", mockUser.current.id)
+    await salesFlowService.renameStage(awarded.id, "Won", mockUser.current.id)
+
+    // Hold the database call open so the dialog can be read mid-move.
+    let release
+    const gate = new Promise((resolve) => {
+      release = resolve
+    })
+    stubRpc("move_opportunities_to_flow_snapshot", async (args) => {
+      await gate
+      return moveOpportunitiesToFlowSnapshot(args)
+    })
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await waitFor(() => expect(screen.getAllByText("Won").length).toBeGreaterThan(0))
+    await user.click(await screen.findByRole("button", { name: /Publish v1\.1/ }))
+    await screen.findByText("Changes since the latest version")
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    await user.click(await screen.findByRole("button", { name: "Move deals" }))
+
+    expect(await screen.findByText("Moving 2 SORs to v1.1")).toBeInTheDocument()
+    expect(screen.getByText("Moved 0 of 2")).toBeInTheDocument()
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0")
+    expect(screen.getByText(/Keep this page open/)).toBeInTheDocument()
+
+    // Escape must not dismiss it — closing would hide the only sign the move is running.
+    await user.keyboard("{Escape}")
+    expect(screen.getByText("Moving 2 SORs to v1.1")).toBeInTheDocument()
+
+    release()
+    expect(await screen.findByText("Deals moved")).toBeInTheDocument()
+    expect(screen.getByText("2 moved successfully.")).toBeInTheDocument()
+    expect(screen.queryByText("Moving 2 SORs to v1.1")).not.toBeInTheDocument()
   })
 
   it("does not offer to move deals after a major publish", async () => {

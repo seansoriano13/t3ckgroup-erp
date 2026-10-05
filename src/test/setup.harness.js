@@ -6,6 +6,7 @@ import { resetFactories } from "./factories"
 import { waitForNetworkIdle } from "./network"
 import { stubActionRunRpcs } from "./stubs/actionRunRpc"
 import { stubCertifyConditionRpc } from "./stubs/certifyConditionRpc"
+import { stubMoveOpportunitiesToSnapshotRpc } from "./stubs/moveOpportunitiesToSnapshotRpc"
 import { stubReplaceItemsRpc } from "./stubs/replaceItemsRpc"
 import { stubResumeStageWorkRpc } from "./stubs/resumeStageWorkRpc"
 import { stubStartFreshStageWorkRpc } from "./stubs/startFreshStageWorkRpc"
@@ -78,6 +79,7 @@ beforeEach(() => {
   stubActionRunRpcs()
   stubCertifyConditionRpc()
   stubReplaceItemsRpc()
+  stubMoveOpportunitiesToSnapshotRpc()
   stubResumeStageWorkRpc()
   stubStartFreshStageWorkRpc()
 })
