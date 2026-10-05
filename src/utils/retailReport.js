@@ -4,6 +4,10 @@
  * caught here rather than by looking at a chart.
  */
 
+import { INCOME_STATUS, incomeStatus } from "../../supabase/functions/_shared/incomeStatus.ts"
+
+export { INCOME_STATUS, incomeStatus }
+
 /** Preset ranges the Retail report offers, in display order. */
 export const RETAIL_RANGES = [
   { value: "30d", label: "30 days" },
@@ -99,22 +103,30 @@ export function ordersInRange(orders, { from, to } = {}) {
 /** What a filter holds when it is not narrowing anything: the word the app's other filter chips use. */
 export const RETAIL_FILTER_ALL = "ALL"
 
-/** The Retail filters at rest. `status` is an `incomeStatus`; `search` is a Marketplace Order ID. */
-export const DEFAULT_RETAIL_FILTERS = {
-  marketplace: RETAIL_FILTER_ALL,
-  storefront: RETAIL_FILTER_ALL,
-  salesperson: RETAIL_FILTER_ALL,
-  status: RETAIL_FILTER_ALL,
-  search: "",
-}
-
 // The label an order with a blank facet is filtered under, so it can be picked
 // (and told apart) like any other value.
 const marketplaceOf = (order) => order.marketplace || "Other"
 const storefrontOf = (order) => order.partner_name || "Unknown"
 const salespersonOf = (order) => order.odoo_salesperson_name || "Unassigned"
 
-const isSet = (value) => value != null && value !== "" && value !== RETAIL_FILTER_ALL
+// The filters that match an order facet, and how an order reads under each.
+// The one place the filter keys are named: the defaults, `applyFilters`,
+// `hasActiveFilters` and `filterOptions` all follow this table.
+const FACETS = {
+  marketplace: marketplaceOf,
+  storefront: storefrontOf,
+  salesperson: salespersonOf,
+  status: incomeStatus,
+}
+const FACET_KEYS = Object.keys(FACETS)
+
+/** The Retail filters at rest. `status` is an `incomeStatus`; `search` is a Marketplace Order ID. */
+export const DEFAULT_RETAIL_FILTERS = {
+  ...Object.fromEntries(FACET_KEYS.map((key) => [key, RETAIL_FILTER_ALL])),
+  search: "",
+}
+
+const isNarrowing = (value) => value != null && value !== "" && value !== RETAIL_FILTER_ALL
 
 const searchTerm = (filters) => String(filters.search ?? "").trim().toLowerCase()
 
@@ -133,13 +145,10 @@ export const isSearching = (filters = {}) => searchTerm(filters) !== ""
  * however old it is. The other filters still apply.
  */
 export function applyFilters(orders, filters = {}, bounds = {}) {
-  const { marketplace, storefront, salesperson, status } = filters
   const needle = searchTerm(filters)
+  const narrowing = FACET_KEYS.filter((key) => isNarrowing(filters[key]))
   const matching = orders.filter((order) => {
-    if (isSet(marketplace) && marketplaceOf(order) !== marketplace) return false
-    if (isSet(storefront) && storefrontOf(order) !== storefront) return false
-    if (isSet(salesperson) && salespersonOf(order) !== salesperson) return false
-    if (isSet(status) && incomeStatus(order) !== status) return false
+    if (narrowing.some((key) => FACETS[key](order) !== filters[key])) return false
     if (needle && !String(order.marketplace_order_id ?? "").toLowerCase().includes(needle)) return false
     return true
   })
@@ -148,44 +157,31 @@ export function applyFilters(orders, filters = {}, bounds = {}) {
 
 /** Whether any filter, the search included, is narrowing the report. */
 export function hasActiveFilters(filters = {}) {
-  return ["marketplace", "storefront", "salesperson", "status"].some((key) => isSet(filters[key])) || isSearching(filters)
+  return FACET_KEYS.some((key) => isNarrowing(filters[key])) || isSearching(filters)
 }
 
 /**
  * What each filter can be set to, A-Z, from the counted orders (whatever the
  * range or the other filters say, so a choice never vanishes from its own
  * list). Storefronts are those of the chosen Marketplace: a Lazada Storefront
- * is no use beside Shopee.
+ * is no use beside Shopee. Income status has a fixed list, so no options here.
  */
 export function filterOptions(orders, { marketplace } = {}) {
   const counted = orders.filter(isCountedOrder)
   const distinct = (list, pick) => [...new Set(list.map(pick))].sort((a, b) => a.localeCompare(b))
-  const ofMarketplace = isSet(marketplace) ? counted.filter((o) => marketplaceOf(o) === marketplace) : counted
-  return {
-    marketplace: distinct(counted, marketplaceOf),
-    storefront: distinct(ofMarketplace, storefrontOf),
-    salesperson: distinct(counted, salespersonOf),
-  }
+  const ofMarketplace = isNarrowing(marketplace) ? counted.filter((o) => marketplaceOf(o) === marketplace) : counted
+  return Object.fromEntries(
+    FACET_KEYS.filter((key) => key !== "status").map((key) => [
+      key,
+      distinct(key === "storefront" ? ofMarketplace : counted, FACETS[key]),
+    ]),
+  )
 }
 
 const amountOf = (order) => Number(order.amount) || 0
 
-/**
- * Whether an order's Order Income can be trusted, derived and never stored.
- * Missing: no Order Income. Suspect: income above the Order Amount, or a
- * Marketplace Fee that eats the whole Order Amount. Fee + income differing from
- * the Order Amount alone is normal (shipping, vouchers) and stays OK.
- */
-export function incomeStatus(order) {
-  if (order.order_income == null) return "missing"
-  const amount = amountOf(order)
-  if (Number(order.order_income) > amount) return "suspect"
-  if (order.marketplace_fee != null && Number(order.marketplace_fee) >= amount) return "suspect"
-  return "ok"
-}
-
 /** The Order Income an order contributes to a total: only OK orders carry any. */
-export const incomeOf = (order) => (incomeStatus(order) === "ok" ? Number(order.order_income) || 0 : 0)
+export const incomeOf = (order) => (incomeStatus(order) === INCOME_STATUS.OK ? Number(order.order_income) || 0 : 0)
 
 /**
  * Headline figures. `total`/`average` are Order Income over OK orders only;
@@ -194,17 +190,17 @@ export const incomeOf = (order) => (incomeStatus(order) === "ok" ? Number(order.
  */
 export function summarize(orders) {
   let total = 0
-  let okCount = 0
+  let okOrderCount = 0
   let missingCount = 0
   let missingAmount = 0
   let suspectCount = 0
   let suspectAmount = 0
   for (const order of orders) {
     const status = incomeStatus(order)
-    if (status === "ok") {
+    if (status === INCOME_STATUS.OK) {
       total += Number(order.order_income) || 0
-      okCount += 1
-    } else if (status === "missing") {
+      okOrderCount += 1
+    } else if (status === INCOME_STATUS.MISSING) {
       missingCount += 1
       missingAmount += amountOf(order)
     } else {
@@ -215,7 +211,7 @@ export function summarize(orders) {
   return {
     total,
     count: orders.length,
-    average: okCount === 0 ? 0 : total / okCount,
+    average: okOrderCount === 0 ? 0 : total / okOrderCount,
     missingCount,
     missingAmount,
     suspectCount,
@@ -251,32 +247,32 @@ export function marketplaceBreakdown(orders) {
         orderCount: 0,
         totalFees: 0,
         missingCount: 0,
-        okCount: 0,
-        ratedIncome: 0, // income of the OK orders that also carry a fee
+        okOrderCount: 0,
+        incomeWithFee: 0, // income of the OK orders that also carry a fee
       })
     }
     const row = byMarketplace.get(marketplace)
     row.orderCount += 1
     const status = incomeStatus(order)
-    if (status === "missing") row.missingCount += 1
-    if (status !== "ok") continue
+    if (status === INCOME_STATUS.MISSING) row.missingCount += 1
+    if (status !== INCOME_STATUS.OK) continue
 
     const income = incomeOf(order)
-    row.okCount += 1
+    row.okOrderCount += 1
     row.orderIncome += income
     if (order.marketplace_fee != null) {
       row.totalFees += Number(order.marketplace_fee) || 0
-      row.ratedIncome += income
+      row.incomeWithFee += income
     }
   }
 
   return [...byMarketplace.values()]
     .sort((a, b) => a.marketplace.localeCompare(b.marketplace))
-    .map(({ okCount, ratedIncome, ...row }) => {
-      const ratedTotal = row.totalFees + ratedIncome
+    .map(({ okOrderCount, incomeWithFee, ...row }) => {
+      const ratedTotal = row.totalFees + incomeWithFee
       return {
         ...row,
-        averageIncome: okCount === 0 ? null : row.orderIncome / okCount,
+        averageIncome: okOrderCount === 0 ? null : row.orderIncome / okOrderCount,
         feeRate: ratedTotal === 0 ? null : row.totalFees / ratedTotal,
       }
     })
@@ -298,7 +294,7 @@ export function chaseList(orders) {
   let count = 0
   let orderAmount = 0
   for (const order of orders) {
-    if (incomeStatus(order) === "ok") continue
+    if (incomeStatus(order) === INCOME_STATUS.OK) continue
     const salesperson = order.odoo_salesperson_name?.trim() || null
     if (!bySalesperson.has(salesperson)) {
       bySalesperson.set(salesperson, {
@@ -309,12 +305,13 @@ export function chaseList(orders) {
         orders: [],
       })
     }
+    const amount = amountOf(order)
     const group = bySalesperson.get(salesperson)
     group.count += 1
-    group.orderAmount += amountOf(order)
+    group.orderAmount += amount
     group.orders.push(order)
     count += 1
-    orderAmount += amountOf(order)
+    orderAmount += amount
   }
   const groups = [...bySalesperson.values()]
   for (const group of groups) {

@@ -6,25 +6,35 @@
 // order's change date, so the rolling "changed in the last 30 days" window
 // alone never sees a late note (#455).
 
+import { INCOME_STATUS, incomeStatus } from "./incomeStatus.ts";
+import { parseBuyerName, parseIncomeNote } from "./incomeNote.ts";
+
 export interface StoredOrder {
   odoo_so_number: string;
   odoo_so_id: number | null;
   amount: number | string | null;
   order_income: number | string | null;
   marketplace_fee: number | string | null;
+  /** Odoo's `sale.order.state`; absent or null on an order stored before it was recorded. */
+  odoo_state?: string | null;
+}
+
+// Orders Odoo has abandoned. The Retail report counts only `sale` and `done`,
+// and a quotation that is later confirmed changes the order's change date, so
+// the rolling window reads it again then; nothing is gained re-reading their
+// notes every run (#457).
+const DEAD_STATES: ReadonlySet<string> = new Set(["cancel", "draft"]);
+
+export function isDeadOrder(order: Pick<StoredOrder, "odoo_state">): boolean {
+  return order.odoo_state != null && DEAD_STATES.has(order.odoo_state);
 }
 
 /**
- * Missing Income (no Order Income) or Suspect Income (income above the Order
- * Amount, or a Marketplace Fee at least the Order Amount). The same rule as
- * `incomeStatus` in src/utils/retailReport.js, which the sync cannot import;
- * a test holds the two together.
+ * Missing Income or Suspect Income: anything `incomeStatus` (shared with the
+ * Retail screen) does not call OK.
  */
 export function needsNoteReread(order: Pick<StoredOrder, "amount" | "order_income" | "marketplace_fee">): boolean {
-  if (order.order_income == null) return true;
-  const amount = Number(order.amount) || 0;
-  if (Number(order.order_income) > amount) return true;
-  return order.marketplace_fee != null && Number(order.marketplace_fee) >= amount;
+  return incomeStatus(order) !== INCOME_STATUS.OK;
 }
 
 /**
@@ -32,7 +42,7 @@ export function needsNoteReread(order: Pick<StoredOrder, "amount" | "order_incom
  * income (Missing or Suspect), and any whose notes Odoo says were touched
  * (`touchedOdooIds`), so an edited note on an otherwise OK order is caught. An
  * order with no Odoo id cannot be looked up, and `skipOdooIds` are the ones the
- * caller is already reading.
+ * caller is already reading. Cancelled and draft orders are never re-read.
  */
 export function selectRereadOrders<T extends StoredOrder>(
   stored: T[],
@@ -43,6 +53,7 @@ export function selectRereadOrders<T extends StoredOrder>(
     (order) =>
       order.odoo_so_id != null &&
       !skipOdooIds.has(order.odoo_so_id) &&
+      !isDeadOrder(order) &&
       (touchedOdooIds.has(order.odoo_so_id) || needsNoteReread(order)),
   );
 }
@@ -60,6 +71,48 @@ export interface ReadNoteFacts {
   marketplaceOrderId: string | null;
   marketplaceFee: number | null;
   orderIncome: number | null;
+}
+
+/**
+ * Fold one note's text into an order's note facts, returning the new facts
+ * (`facts` is `undefined` before any note was read; non-text content is skipped).
+ *
+ * The buyer is the first NAME found. Marketplace Order ID and fee are kept
+ * whenever a note has them, with or without an Order Income, so a Missing order
+ * can still be searched by ID and chased with its fee (#456). The first note that
+ * yields an Order Income is authoritative for the fee: it supplies the income and
+ * the fee it states (null if it states none), never one borrowed from another
+ * note, so an OK order's figures are what they were. Its ID wins too, unless it
+ * has none, in which case an earlier note's ID stands. Once an income is read,
+ * later notes change nothing.
+ */
+export function foldNoteFacts(
+  facts: ReadNoteFacts | undefined,
+  content: unknown,
+  orderAmount: number,
+): ReadNoteFacts | undefined {
+  if (typeof content !== "string") return facts;
+  const next: ReadNoteFacts = {
+    buyer: null,
+    marketplaceOrderId: null,
+    marketplaceFee: null,
+    orderIncome: null,
+    ...facts,
+  };
+  if (next.buyer === null) {
+    next.buyer = parseBuyerName(content);
+  }
+  if (next.orderIncome !== null) return next;
+  const parsed = parseIncomeNote(content, orderAmount);
+  if (parsed.orderIncome !== null) {
+    next.orderIncome = parsed.orderIncome;
+    next.marketplaceOrderId = parsed.marketplaceOrderId ?? next.marketplaceOrderId;
+    next.marketplaceFee = parsed.marketplaceFee;
+  } else {
+    next.marketplaceOrderId ??= parsed.marketplaceOrderId;
+    next.marketplaceFee ??= parsed.marketplaceFee;
+  }
+  return next;
 }
 
 /**
@@ -89,8 +142,7 @@ function sameValue(a: unknown, b: unknown): boolean {
     if (TIMESTAMP.test(a) && TIMESTAMP.test(b)) return new Date(a).getTime() === new Date(b).getTime();
     return a === b;
   }
-  if (typeof a === "object" || typeof b === "object") return JSON.stringify(a) === JSON.stringify(b);
-  // numeric columns can arrive as numbers or as numeric strings
+  // Every synced column is a scalar; numeric ones can arrive as numbers or as numeric strings.
   return Number(a) === Number(b);
 }
 

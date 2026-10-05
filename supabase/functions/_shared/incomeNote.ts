@@ -23,6 +23,15 @@ export function toPlainText(raw: string): string {
 }
 
 /**
+ * The buyer's name from a note's "NAME: ..." line, or null. Runs on the same
+ * plain text as the income fields, so a block close ends the name's line.
+ */
+export function parseBuyerName(note: string | null | undefined): string | null {
+  const match = toPlainText(note ?? "").match(/NAME:?\s*([^\n]+)/i);
+  return match ? match[1].trim() : null;
+}
+
+/**
  * "₱1,234.50" / "PHP 12" -> number; anything else -> null (no partial parses).
  * Commas must be thousands separators, so "20,00" is not twenty thousand.
  */

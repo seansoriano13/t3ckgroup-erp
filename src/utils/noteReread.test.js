@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   changedColumns,
+  foldNoteFacts,
   keepKnownValues,
   needsNoteReread,
   selectRereadOrders,
@@ -40,8 +41,9 @@ describe("needsNoteReread", () => {
     expect(needsNoteReread(order({ amount: "1000", order_income: "1200" }))).toBe(true);
   });
 
-  // The screen derives Missing/Suspect in src/utils/retailReport.js; the sync
-  // cannot import that file, so this keeps the two rules from drifting apart.
+  // The screen (src/utils/retailReport.js) and the sync both read the one rule in
+  // supabase/functions/_shared/incomeStatus.ts; this pins that the sync re-reads
+  // exactly the orders the screen shows as Missing or Suspect.
   it("agrees with the report's income status on every boundary", () => {
     const amounts = [0, 500, 1000];
     const incomes = [null, 0, 499.99, 500, 500.01, 999.99, 1000, 1000.01, 2000];
@@ -85,6 +87,24 @@ describe("selectRereadOrders", () => {
   it("leaves out an order with no Odoo id: there is nothing to look it up by", () => {
     const rows = [order({ odoo_so_number: "S9", odoo_so_id: null, order_income: null }), ...stored];
     expect(numbers(selectRereadOrders(rows))).toEqual(["S2", "S3", "S4"]);
+  });
+
+  // #457: ~530 Missing/Suspect orders were re-read every 5 minutes, dead ones included.
+  it("leaves out cancelled and draft orders: the report never counts them", () => {
+    const rows = [
+      order({ odoo_so_number: "C1", odoo_so_id: 11, order_income: null, odoo_state: "cancel" }),
+      order({ odoo_so_number: "D1", odoo_so_id: 12, order_income: 5000, odoo_state: "draft" }),
+      order({ odoo_so_number: "X1", odoo_so_id: 13, order_income: null, odoo_state: "sale" }),
+      order({ odoo_so_number: "X2", odoo_so_id: 14, order_income: null, odoo_state: "done" }),
+      order({ odoo_so_number: "X3", odoo_so_id: 15, order_income: null, odoo_state: "sent" }),
+      order({ odoo_so_number: "X4", odoo_so_id: 16, order_income: null, odoo_state: null }),
+    ];
+    expect(numbers(selectRereadOrders(rows))).toEqual(["X1", "X2", "X3", "X4"]);
+  });
+
+  it("leaves out a touched cancelled order too", () => {
+    const rows = [order({ odoo_so_number: "C1", odoo_so_id: 11, odoo_state: "cancel" })];
+    expect(selectRereadOrders(rows, new Set([11]))).toEqual([]);
   });
 });
 
@@ -167,5 +187,117 @@ describe("changedColumns", () => {
 
   it("returns the whole row for an order not stored yet", () => {
     expect(changedColumns(undefined, stored)).toEqual(stored);
+  });
+});
+
+// The seam the sync reads each note through (#456): an order's Marketplace Order
+// ID and fee are kept whenever a note yields them, with or without an Order Income.
+describe("foldNoteFacts", () => {
+  const AMOUNT = 1000;
+  const fold = (...notes) => notes.reduce((facts, note) => foldNoteFacts(facts, note, AMOUNT), undefined);
+
+  it("keeps the Marketplace Order ID and fee from a note that has no Order Income", () => {
+    expect(fold("ORDER ID: 2410ABC\nFEE: 120.50")).toEqual({
+      buyer: null,
+      marketplaceOrderId: "2410ABC",
+      marketplaceFee: 120.5,
+      orderIncome: null,
+    });
+  });
+
+  it("keeps a lone Marketplace Order ID, with the fee and income left null", () => {
+    expect(fold("ORDER ID: 2410ABC")).toMatchObject({
+      marketplaceOrderId: "2410ABC",
+      marketplaceFee: null,
+      orderIncome: null,
+    });
+  });
+
+  it("still reads all three from a full Income Note", () => {
+    expect(fold("ORDER ID: 2410ABC\nFEE: 100\nORDER INCOME: 900")).toMatchObject({
+      marketplaceOrderId: "2410ABC",
+      marketplaceFee: 100,
+      orderIncome: 900,
+    });
+  });
+
+  it("reads the buyer from the first NAME found, and ignores a note with nothing in it", () => {
+    expect(fold("NAME: Ana Cruz", "NAME: Someone Else")).toMatchObject({ buyer: "Ana Cruz" });
+    expect(fold("just chatter")).toMatchObject({
+      buyer: null,
+      marketplaceOrderId: null,
+      marketplaceFee: null,
+      orderIncome: null,
+    });
+  });
+
+  it("fills the ID from one note and the fee from another when neither has income", () => {
+    expect(fold("ORDER ID: A1", "FEE: 30")).toMatchObject({ marketplaceOrderId: "A1", marketplaceFee: 30 });
+  });
+
+  it("keeps the first ID and the first fee across notes without income", () => {
+    expect(fold("ORDER ID: A1\nFEE: 30", "ORDER ID: B2\nFEE: 99")).toMatchObject({
+      marketplaceOrderId: "A1",
+      marketplaceFee: 30,
+    });
+  });
+
+  it("lets the first note that yields an Order Income supply the fee, over an earlier partial note", () => {
+    expect(fold("ORDER ID: A1\nFEE: 30", "ORDER ID: B2\nFEE: 100\nORDER INCOME: 900")).toMatchObject({
+      marketplaceOrderId: "B2",
+      marketplaceFee: 100,
+      orderIncome: 900,
+    });
+  });
+
+  it("does not let an income note without a fee inherit another note's fee, so totals stay as before", () => {
+    expect(fold("FEE: 30", "ORDER ID: B2\nORDER INCOME: 900")).toMatchObject({
+      marketplaceOrderId: "B2",
+      marketplaceFee: null,
+      orderIncome: 900,
+    });
+  });
+
+  it("keeps an earlier ID when the income note has none", () => {
+    expect(fold("ORDER ID: A1", "FEE: 100\nORDER INCOME: 900")).toMatchObject({
+      marketplaceOrderId: "A1",
+      marketplaceFee: 100,
+    });
+  });
+
+  it("ignores a later note once an income has been read", () => {
+    expect(
+      fold("ORDER ID: A1\nFEE: 100\nORDER INCOME: 900", "ORDER ID: B2\nFEE: 5\nORDER INCOME: 10"),
+    ).toMatchObject({ marketplaceOrderId: "A1", marketplaceFee: 100, orderIncome: 900 });
+  });
+
+  it("ignores non-string note content", () => {
+    expect(foldNoteFacts(undefined, false, AMOUNT)).toBeUndefined();
+    expect(fold("ORDER ID: A1")).toMatchObject({ marketplaceOrderId: "A1" });
+  });
+});
+
+describe("a re-read of a Missing order (#456)", () => {
+  const missing = order({
+    odoo_so_number: "S7",
+    amount: 1000,
+    order_income: null,
+    marketplace_fee: null,
+    marketplace_order_id: null,
+    buyer_name: null,
+  });
+  const reread = (note) => {
+    const fact = foldNoteFacts(undefined, note, 1000);
+    return changedColumns(missing, { ...missing, ...keepKnownValues(missing, fact) });
+  };
+
+  it("backfills the ID and fee, and leaves income null, so the order stays Missing", () => {
+    const changes = reread("ORDER ID: 2410ABC\nFEE: 120.50");
+    expect(changes).toEqual({ marketplace_order_id: "2410ABC", marketplace_fee: 120.5 });
+    expect(incomeStatus({ ...missing, ...changes })).toBe("missing");
+  });
+
+  it("writes nothing when the notes still hold no ID or fee", () => {
+    expect(reread("no income note yet")).toBeNull();
   });
 });

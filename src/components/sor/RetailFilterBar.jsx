@@ -1,11 +1,10 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag, Store, CircleDot, UserRound } from "lucide-react";
 import FilterBar from "../ui/FilterBar";
 import { FilterSelect } from "../ui/FilterDropdown";
-import { retailOrdersQuery } from "../../services/retailOrderService";
 import {
   DEFAULT_RETAIL_FILTERS,
+  INCOME_STATUS,
   RETAIL_FILTER_ALL,
   filterOptions,
   hasActiveFilters,
@@ -13,9 +12,9 @@ import {
 
 const STATUS_OPTIONS = [
   { value: RETAIL_FILTER_ALL, label: "All Statuses" },
-  { value: "ok", label: "OK" },
-  { value: "missing", label: "Missing" },
-  { value: "suspect", label: "Suspect" },
+  { value: INCOME_STATUS.OK, label: "OK" },
+  { value: INCOME_STATUS.MISSING, label: "Missing" },
+  { value: INCOME_STATUS.SUSPECT, label: "Suspect" },
 ];
 
 const withAll = (label, values) => [
@@ -23,7 +22,12 @@ const withAll = (label, values) => [
   ...values.map((value) => ({ value, label: value })),
 ];
 
-const chip = "h-9 w-auto gap-2 px-2.5";
+const chipProps = { className: "h-9 w-auto gap-2 px-2.5", wrapperClassName: "w-auto shrink-0" };
+
+/** A Retail filter's select: the "All" choice and its value are the same everywhere. */
+function RetailFilterSelect({ chip = false, ...props }) {
+  return <FilterSelect allValue={RETAIL_FILTER_ALL} {...(chip ? chipProps : {})} {...props} />;
+}
 
 /**
  * The Retail screen's filter line (FilterBar): a Marketplace Order ID search,
@@ -32,11 +36,10 @@ const chip = "h-9 w-auto gap-2 px-2.5";
  * shape) and `onChange(key, value)` sets one of them; the pure report module
  * applies them (`applyFilters`), so every figure follows.
  *
- * Choices come from the same Retail orders the report reads (one cache entry),
- * so a filter only offers what exists.
+ * `orders` are the Retail orders the report reads (the page fetches them once
+ * and hands them to both), so a filter only offers what exists.
  */
-export default function RetailFilterBar({ filters, onChange, onClearAll }) {
-  const { data: orders = [] } = useQuery(retailOrdersQuery);
+export default function RetailFilterBar({ orders, filters, onChange, onClearAll }) {
   const { marketplace } = filters;
   const options = useMemo(() => filterOptions(orders, { marketplace }), [orders, marketplace]);
 
@@ -51,7 +54,8 @@ export default function RetailFilterBar({ filters, onChange, onClearAll }) {
       }}
       chips={
         <>
-          <FilterSelect
+          <RetailFilterSelect
+            chip
             icon={ShoppingBag}
             label="Marketplace"
             options={withAll("All Marketplaces", options.marketplace)}
@@ -61,41 +65,33 @@ export default function RetailFilterBar({ filters, onChange, onClearAll }) {
               // Another Marketplace has other Storefronts: the old pick no longer applies.
               onChange("storefront", DEFAULT_RETAIL_FILTERS.storefront);
             }}
-            allValue={RETAIL_FILTER_ALL}
-            className={chip}
-            wrapperClassName="w-auto shrink-0"
           />
-          <FilterSelect
+          <RetailFilterSelect
+            chip
             icon={UserRound}
             label="Salesperson"
             options={withAll("All Salespeople", options.salesperson)}
             value={filters.salesperson}
             onChange={(value) => onChange("salesperson", value)}
-            allValue={RETAIL_FILTER_ALL}
-            className={chip}
-            wrapperClassName="w-auto shrink-0"
           />
-          <FilterSelect
+          <RetailFilterSelect
+            chip
             icon={CircleDot}
             label="Income status"
             options={STATUS_OPTIONS}
             value={filters.status}
             onChange={(value) => onChange("status", value)}
-            allValue={RETAIL_FILTER_ALL}
-            className={chip}
-            wrapperClassName="w-auto shrink-0"
           />
         </>
       }
       filters={
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-          <FilterSelect
+          <RetailFilterSelect
             icon={Store}
             label="Storefront"
             options={withAll("All Storefronts", options.storefront)}
             value={filters.storefront}
             onChange={(value) => onChange("storefront", value)}
-            allValue={RETAIL_FILTER_ALL}
           />
         </div>
       }

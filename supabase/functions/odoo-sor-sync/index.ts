@@ -4,8 +4,14 @@ import {
   isConfigured,
   jsonResponse
 } from "../_shared/odoo.ts";
-import { parseIncomeNote, toPlainText } from "../_shared/incomeNote.ts";
-import { changedColumns, keepKnownValues, selectRereadOrders } from "../_shared/noteReread.ts";
+import {
+  changedColumns,
+  foldNoteFacts,
+  keepKnownValues,
+  selectRereadOrders,
+  type ReadNoteFacts,
+} from "../_shared/noteReread.ts";
+import { isAuthorizedCaller } from "../_shared/cronAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -107,19 +113,15 @@ function toTimestamptz(odooValue: string | false | null | undefined): string | n
   return odooValue ? `${odooValue.replace(" ", "T")}Z` : null;
 }
 
-interface NoteFacts {
-  buyer: string | null;
-  marketplaceOrderId: string | null;
-  marketplaceFee: number | null;
-  orderIncome: number | null;
-}
+type NoteFacts = ReadNoteFacts;
 
 /**
  * Best-effort facts from each sale order's notes: buyer name ("NAME: ...") and
  * the Income Note's Marketplace Order ID / Fee / Order Income. Open To-Do
  * activities are read before chatter messages. The buyer is the first NAME
- * found; the first note that yields an Order Income supplies all three income
- * fields. It only enriches the report — an order with no note is still recorded.
+ * found; Marketplace Order ID and fee are kept whenever a note has them, income
+ * or not (#456), and the first note that yields an Order Income is authoritative
+ * for the fee. It only enriches the report — an order with no note is still recorded.
  */
 async function fetchNoteFacts(
   uid: number,
@@ -128,21 +130,8 @@ async function fetchNoteFacts(
   const facts = new Map<number, NoteFacts>();
   const amounts = new Map(orders.map((o) => [o.id, typeof o.amount_total === "number" ? o.amount_total : 0]));
   const remember = (resId: number, content: unknown) => {
-    if (typeof content !== "string") return;
-    const entry = facts.get(resId) ?? { buyer: null, marketplaceOrderId: null, marketplaceFee: null, orderIncome: null };
-    facts.set(resId, entry);
-    if (entry.buyer === null) {
-      const match = toPlainText(content).match(/NAME:?\s*([^\n]+)/i);
-      if (match) entry.buyer = match[1].trim();
-    }
-    if (entry.orderIncome === null) {
-      const parsed = parseIncomeNote(content, amounts.get(resId) ?? 0);
-      if (parsed.orderIncome !== null) {
-        entry.marketplaceOrderId = parsed.marketplaceOrderId;
-        entry.marketplaceFee = parsed.marketplaceFee;
-        entry.orderIncome = parsed.orderIncome;
-      }
-    }
+    const next = foldNoteFacts(facts.get(resId), content, amounts.get(resId) ?? 0);
+    if (next) facts.set(resId, next);
   };
 
   const ids = orders.map((o) => o.id);
@@ -434,9 +423,16 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: false, message: "Odoo unconfigured" });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  const CRON_SECRET = Deno.env.get("CRON_SECRET");
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  // verify_jwt is off for this function (supabase/config.toml), so the public
+  // anon key gets no further than here. Callers: pg_cron with Bearer CRON_SECRET,
+  // or an operator with the service-role key. Fails closed when CRON_SECRET is
+  // unset (#457).
+  if (
+    !isAuthorizedCaller(req.headers.get("Authorization"), {
+      cronSecret: Deno.env.get("CRON_SECRET"),
+      serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+    })
+  ) {
     return new Response("Unauthorized", { status: 401 });
   }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseIncomeNote } from "../../supabase/functions/_shared/incomeNote.ts";
+import { parseBuyerName, parseIncomeNote } from "../../supabase/functions/_shared/incomeNote.ts";
 
 const NONE = { marketplaceOrderId: null, marketplaceFee: null, orderIncome: null };
 
@@ -154,5 +154,45 @@ describe("parseIncomeNote", () => {
 
   it.each(cases)("$name", ({ note, amount, want }) => {
     expect(parseIncomeNote(note, amount)).toEqual(want);
+  });
+});
+
+// The buyer name rides on the same plain-text clean-up as the income fields
+// (`toPlainText`), so the shapes that clean-up changed must still end the name
+// at the right place (issue #172, #459).
+describe("parseBuyerName", () => {
+  const cases = [
+    { name: "plain NAME line", note: "NAME: Juan Dela Cruz\nORDER ID: 123", want: "Juan Dela Cruz" },
+    { name: "name ends at the paragraph close", note: "<p>NAME: Ana Reyes</p><p>ORDER ID: 123</p>", want: "Ana Reyes" },
+    { name: "name ends at a <br>", note: "NAME: Ana Reyes<br>ORDER ID: 123", want: "Ana Reyes" },
+    {
+      name: "name ends at a <pre> block close",
+      note: "<pre><span>NAME: Ben Santos</span></pre><pre><span>ORDER ID: 2606252JTF8JDP</span></pre>",
+      want: "Ben Santos",
+    },
+    {
+      name: "name ends at a heading or blockquote close",
+      note: "<h3>NAME: Cara Lim</h3><blockquote>ORDER ID: 9</blockquote>",
+      want: "Cara Lim",
+    },
+    {
+      name: "double-escaped &amp;nbsp; after the label",
+      note: "<p>NAME:&amp;nbsp;Ana</p><p>FEE:&amp;nbsp;50</p>",
+      want: "Ana",
+    },
+    { name: "&nbsp; after the label", note: "<p>NAME:&nbsp;Ana</p><p>FEE: 50</p>", want: "Ana" },
+    { name: "&amp; in the name decodes", note: "<p>NAME: Ana &amp; Ben</p>", want: "Ana & Ben" },
+    { name: "no colon, lowercase", note: "name Ana Reyes\nfee 10", want: "Ana Reyes" },
+    {
+      name: "a pasted screenshot before the name is ignored",
+      note: `<p><img src="data:image/png;base64,${"iVBORw0KGgo".repeat(5000)}"></p><p>NAME: Dan</p><p>OI: 5</p>`,
+      want: "Dan",
+    },
+    { name: "a note with no NAME", note: "<p>ORDER ID: 1</p><p>OI: 5</p>", want: null },
+    { name: "empty note", note: "", want: null },
+  ];
+
+  it.each(cases)("$name", ({ note, want }) => {
+    expect(parseBuyerName(note)).toBe(want);
   });
 });
