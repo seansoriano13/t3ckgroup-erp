@@ -235,6 +235,8 @@ export async function teardownCast() {
         ["overtime_requests", "employee_id"],
         ["offset_leaves", "employee_id"],
         ["sil_leaves", "employee_id"],
+        // Members, items and messages go with their request.
+        ["purchase_requests", "created_by"],
         ["sales_opportunities", "registered_by"],
         ["sales_opportunities", "deal_owner_id"],
     ]

@@ -85,6 +85,12 @@ export const SEED_TABLES = [
   "sor_canvasses",
   "sor_canvass_offers",
   "sor_purchase_order_links",
+  // Purchase Requests (#303). After sales_opportunities, flow_stage_actions
+  // and sor_stage_visits, which the request points at; the rest point at it.
+  "purchase_requests",
+  "purchase_request_members",
+  "purchase_request_items",
+  "purchase_request_messages",
   "odoo_retail_queue",
 ]
 
