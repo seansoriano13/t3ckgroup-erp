@@ -109,7 +109,15 @@ enabled = true
 
 [functions.send-push]
 
+# The two cron-driven functions authenticate themselves (Bearer CRON_SECRET or the
+# service-role key, _shared/cronAuth.ts). With the gateway's JWT check on, a
+# CRON_SECRET bearer is refused before the function runs, and the public anon key
+# is let through to it (#457).
 [functions.sor-follow-up-reminders]
+verify_jwt = false
+
+[functions.odoo-sor-sync]
+verify_jwt = false
 
 [functions.odoo-document-admin]
 [functions.odoo-po-rollup]

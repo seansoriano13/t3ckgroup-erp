@@ -11,6 +11,7 @@ import {
   selectRereadOrders,
   type ReadNoteFacts,
 } from "../_shared/noteReread.ts";
+import { isAuthorizedCaller } from "../_shared/cronAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -422,9 +423,16 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: false, message: "Odoo unconfigured" });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  const CRON_SECRET = Deno.env.get("CRON_SECRET");
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  // verify_jwt is off for this function (supabase/config.toml), so the public
+  // anon key gets no further than here. Callers: pg_cron with Bearer CRON_SECRET,
+  // or an operator with the service-role key. Fails closed when CRON_SECRET is
+  // unset (#457).
+  if (
+    !isAuthorizedCaller(req.headers.get("Authorization"), {
+      cronSecret: Deno.env.get("CRON_SECRET"),
+      serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+    })
+  ) {
     return new Response("Unauthorized", { status: 401 });
   }
 
