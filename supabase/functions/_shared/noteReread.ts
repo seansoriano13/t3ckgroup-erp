@@ -6,6 +6,8 @@
 // order's change date, so the rolling "changed in the last 30 days" window
 // alone never sees a late note (#455).
 
+import { parseIncomeNote, toPlainText } from "./incomeNote.ts";
+
 export interface StoredOrder {
   odoo_so_number: string;
   odoo_so_id: number | null;
@@ -60,6 +62,49 @@ export interface ReadNoteFacts {
   marketplaceOrderId: string | null;
   marketplaceFee: number | null;
   orderIncome: number | null;
+}
+
+/**
+ * Fold one note's text into an order's note facts, returning the new facts
+ * (`facts` is `undefined` before any note was read; non-text content is skipped).
+ *
+ * The buyer is the first NAME found. Marketplace Order ID and fee are kept
+ * whenever a note has them, with or without an Order Income, so a Missing order
+ * can still be searched by ID and chased with its fee (#456). The first note that
+ * yields an Order Income is authoritative for the fee: it supplies the income and
+ * the fee it states (null if it states none), never one borrowed from another
+ * note, so an OK order's figures are what they were. Its ID wins too, unless it
+ * has none, in which case an earlier note's ID stands. Once an income is read,
+ * later notes change nothing.
+ */
+export function foldNoteFacts(
+  facts: ReadNoteFacts | undefined,
+  content: unknown,
+  orderAmount: number,
+): ReadNoteFacts | undefined {
+  if (typeof content !== "string") return facts;
+  const next: ReadNoteFacts = {
+    buyer: null,
+    marketplaceOrderId: null,
+    marketplaceFee: null,
+    orderIncome: null,
+    ...facts,
+  };
+  if (next.buyer === null) {
+    const match = toPlainText(content).match(/NAME:?\s*([^\n]+)/i);
+    if (match) next.buyer = match[1].trim();
+  }
+  if (next.orderIncome !== null) return next;
+  const parsed = parseIncomeNote(content, orderAmount);
+  if (parsed.orderIncome !== null) {
+    next.orderIncome = parsed.orderIncome;
+    next.marketplaceOrderId = parsed.marketplaceOrderId ?? next.marketplaceOrderId;
+    next.marketplaceFee = parsed.marketplaceFee;
+  } else {
+    next.marketplaceOrderId ??= parsed.marketplaceOrderId;
+    next.marketplaceFee ??= parsed.marketplaceFee;
+  }
+  return next;
 }
 
 /**
