@@ -11,5 +11,5 @@ The Retail screen totals Order Income: what Shopee or Lazada actually pays out p
 
 ## Consequences
 
-- Order Income covers about 80% of orders. The rest are Missing Income, shown on screen so they can be chased with the salesperson, not hidden.
-- One known template period (Shopee, Oct 2025–Mar 2026) typed the income under "TOTAL BUYER AMOUNT". That value counts as Order Income only where Fee + it equals Order Amount exactly.
+- Order Income coverage is measured, not targeted: 65.5% of Shopee and 59.3% of Lazada orders on staging (the audit's ~80% was an estimate that the parser, as built, does not reach). The parser is deliberately not loosened to close the gap, since a looser read risks taking a wrong number. The rest are Missing Income, shown on screen so they can be chased with the salesperson, not hidden.
+- One known template period (Shopee, Oct 2025–Mar 2026) typed the income under "TOTAL BUYER AMOUNT". That value counts as Order Income only where Fee + it equals Order Amount within ±0.05, not exactly.

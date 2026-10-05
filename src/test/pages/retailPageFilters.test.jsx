@@ -184,6 +184,31 @@ describe("Retail page filters", () => {
     expect(screen.queryByText("Ana Reyes")).not.toBeInTheDocument();
   });
 
+  it("says the search ignores the date range, only while searching", async () => {
+    retailOrder({ marketplace_order_id: "2609020BTB5E8F" });
+
+    renderPage();
+    await ready();
+    expect(screen.queryByText("Search ignores date range")).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByRole("textbox", { name: /marketplace order id/i }), "2609");
+    expect(await screen.findByText("Search ignores date range")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /clear all/i }));
+    await waitFor(() => expect(screen.queryByText("Search ignores date range")).not.toBeInTheDocument());
+  });
+
+  it("titles the monthly chart by Marketplace, not storefront", async () => {
+    retailOrder({ amount: 1000 });
+
+    renderPage();
+    await ready();
+
+    const subtitle = screen.getByText("Monthly Order Income").nextElementSibling;
+    expect(subtitle).toHaveTextContent("By Marketplace, for the selected range.");
+    expect(screen.queryByText(/by storefront/i)).not.toBeInTheDocument();
+  });
+
   it("says so when nothing matches, and Clear all brings every order back", async () => {
     retailOrder({ amount: 1000, marketplace_order_id: "2609020BTB5E8F" });
 

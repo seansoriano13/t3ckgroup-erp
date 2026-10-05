@@ -4,7 +4,7 @@ import {
   isConfigured,
   jsonResponse
 } from "../_shared/odoo.ts";
-import { parseIncomeNote, toPlainText } from "../_shared/incomeNote.ts";
+import { parseBuyerName, parseIncomeNote } from "../_shared/incomeNote.ts";
 import { changedColumns, keepKnownValues, selectRereadOrders } from "../_shared/noteReread.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
@@ -131,10 +131,7 @@ async function fetchNoteFacts(
     if (typeof content !== "string") return;
     const entry = facts.get(resId) ?? { buyer: null, marketplaceOrderId: null, marketplaceFee: null, orderIncome: null };
     facts.set(resId, entry);
-    if (entry.buyer === null) {
-      const match = toPlainText(content).match(/NAME:?\s*([^\n]+)/i);
-      if (match) entry.buyer = match[1].trim();
-    }
+    if (entry.buyer === null) entry.buyer = parseBuyerName(content);
     if (entry.orderIncome === null) {
       const parsed = parseIncomeNote(content, amounts.get(resId) ?? 0);
       if (parsed.orderIncome !== null) {

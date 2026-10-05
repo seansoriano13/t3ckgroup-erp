@@ -198,6 +198,12 @@ export default function RetailReport({ range, custom, filters = DEFAULT_RETAIL_F
         note={
           <>
             <span>{scope} · OK orders only</span>
+            {searching && (
+              <>
+                <br />
+                <span>Search ignores date range</span>
+              </>
+            )}
             <br />
             <span>
               Missing income: {summary.missingCount.toLocaleString("en-PH")} order
@@ -222,7 +228,7 @@ export default function RetailReport({ range, custom, filters = DEFAULT_RETAIL_F
         chart={
           <div>
             <h3 className="text-sm font-semibold text-foreground">Monthly Order Income</h3>
-            <p className="mb-4 mt-0.5 text-sm text-muted-foreground">By storefront, for the selected range.</p>
+            <p className="mb-4 mt-0.5 text-sm text-muted-foreground">By Marketplace, for the selected range.</p>
             {series.rows.length === 0 ? (
               <EmptyState
                 icon={ShoppingBag}
