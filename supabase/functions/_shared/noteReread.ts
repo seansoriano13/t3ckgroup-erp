@@ -6,6 +6,7 @@
 // order's change date, so the rolling "changed in the last 30 days" window
 // alone never sees a late note (#455).
 
+import { INCOME_STATUS, incomeStatus } from "./incomeStatus.ts";
 import { parseBuyerName, parseIncomeNote } from "./incomeNote.ts";
 
 export interface StoredOrder {
@@ -17,16 +18,11 @@ export interface StoredOrder {
 }
 
 /**
- * Missing Income (no Order Income) or Suspect Income (income above the Order
- * Amount, or a Marketplace Fee at least the Order Amount). The same rule as
- * `incomeStatus` in src/utils/retailReport.js, which the sync cannot import;
- * a test holds the two together.
+ * Missing Income or Suspect Income: anything `incomeStatus` (shared with the
+ * Retail screen) does not call OK.
  */
 export function needsNoteReread(order: Pick<StoredOrder, "amount" | "order_income" | "marketplace_fee">): boolean {
-  if (order.order_income == null) return true;
-  const amount = Number(order.amount) || 0;
-  if (Number(order.order_income) > amount) return true;
-  return order.marketplace_fee != null && Number(order.marketplace_fee) >= amount;
+  return incomeStatus(order) !== INCOME_STATUS.OK;
 }
 
 /**
@@ -91,8 +87,7 @@ export function foldNoteFacts(
     ...facts,
   };
   if (next.buyer === null) {
-    const match = toPlainText(content).match(/NAME:?\s*([^\n]+)/i);
-    if (match) next.buyer = match[1].trim();
+    next.buyer = parseBuyerName(content);
   }
   if (next.orderIncome !== null) return next;
   const parsed = parseIncomeNote(content, orderAmount);
@@ -134,8 +129,7 @@ function sameValue(a: unknown, b: unknown): boolean {
     if (TIMESTAMP.test(a) && TIMESTAMP.test(b)) return new Date(a).getTime() === new Date(b).getTime();
     return a === b;
   }
-  if (typeof a === "object" || typeof b === "object") return JSON.stringify(a) === JSON.stringify(b);
-  // numeric columns can arrive as numbers or as numeric strings
+  // Every synced column is a scalar; numeric ones can arrive as numbers or as numeric strings.
   return Number(a) === Number(b);
 }
 

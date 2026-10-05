@@ -41,8 +41,9 @@ describe("needsNoteReread", () => {
     expect(needsNoteReread(order({ amount: "1000", order_income: "1200" }))).toBe(true);
   });
 
-  // The screen derives Missing/Suspect in src/utils/retailReport.js; the sync
-  // cannot import that file, so this keeps the two rules from drifting apart.
+  // The screen (src/utils/retailReport.js) and the sync both read the one rule in
+  // supabase/functions/_shared/incomeStatus.ts; this pins that the sync re-reads
+  // exactly the orders the screen shows as Missing or Suspect.
   it("agrees with the report's income status on every boundary", () => {
     const amounts = [0, 500, 1000];
     const incomes = [null, 0, 499.99, 500, 500.01, 999.99, 1000, 1000.01, 2000];
