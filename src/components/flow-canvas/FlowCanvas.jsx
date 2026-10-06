@@ -56,6 +56,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import Spinner from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
 import PeoplePicker from "@/components/ui/PeoplePicker";
@@ -197,6 +204,9 @@ function FlowCanvasInner() {
   // moves a deal until the Operations Manager accepts it.
   const [moveOffer, setMoveOffer] = useState(null);
   const [moveResult, setMoveResult] = useState(null);
+  // { done, total, targetLabel } while a move is running, else null. Drives
+  // the progress dialog that cannot be dismissed (issue #190 follow-up).
+  const [moveProgress, setMoveProgress] = useState(null);
   const [toolbarMode, setToolbarMode] = useState("select");
   const [inlineValue, setInlineValue] = useState("");
   // The Flow Snapshot currently drawn read-only on the canvas (issue #193),
@@ -566,14 +576,31 @@ function FlowCanvasInner() {
   });
 
   const acceptMoveOffer = useMutation({
-    mutationFn: (targetSnapshotId) =>
-      opportunityService.moveOpportunitiesToVersion(targetSnapshotId, user?.id),
+    mutationFn: ({ targetSnapshotId, targetLabel }) =>
+      opportunityService.moveOpportunitiesToVersion(targetSnapshotId, user?.id, {
+        onProgress: ({ done, total }) => setMoveProgress({ done, total, targetLabel }),
+      }),
     onSuccess: (result) => {
       setMoveResult(result);
       setMoveOffer(null);
     },
     onError: (err) => toast.error(flowErrorMessage(err)),
+    onSettled: () => setMoveProgress(null),
   });
+
+  // A move in flight is lost to a reload or a closed tab — each batch is
+  // safe, but the rest never runs — so ask the browser to confirm before
+  // leaving. Moving to another page inside the app doesn't stop it.
+  const moveRunning = acceptMoveOffer.isPending;
+  useEffect(() => {
+    if (!moveRunning) return undefined;
+    const warn = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [moveRunning]);
 
   /** Opens the one dialog, seeded for whichever question is being asked. */
   const ask = useCallback((config) => {
@@ -1767,8 +1794,50 @@ function FlowCanvasInner() {
         title={`Move ${moveOffer?.count} SOR${moveOffer?.count === 1 ? "" : "s"} on ${moveOffer?.majorLabel} up to ${moveOffer?.targetLabel}?`}
         description="Every earlier version in this major contains every Stage of the new one and shares its Won Stage, so no deal can be stranded and no deal's Realized timing changes. This is opt-in — nothing moves unless you choose to."
         confirmLabel="Move deals"
-        onConfirm={() => acceptMoveOffer.mutate(moveOffer?.targetSnapshotId)}
+        onConfirm={() =>
+          acceptMoveOffer.mutate({
+            targetSnapshotId: moveOffer?.targetSnapshotId,
+            targetLabel: moveOffer?.targetLabel,
+          })
+        }
       />
+
+      {/* ── Move progress ────────────────────────────────────────────────── */}
+      {/* Not dismissable: closing it would hide the only sign a move is still
+          running, and leaving the page mid-move stops it. */}
+      <Dialog open={Boolean(moveProgress)} onOpenChange={() => {}} disablePointerDismissal>
+        <DialogContent className="sm:max-w-md" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>
+              {`Moving ${moveProgress?.total} SOR${moveProgress?.total === 1 ? "" : "s"} to ${moveProgress?.targetLabel}`}
+            </DialogTitle>
+            <DialogDescription>
+              Keep this page open until it finishes. Closing or reloading it stops the move; the
+              SORs not yet moved stay on their current version.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div
+              role="progressbar"
+              aria-label="Move progress"
+              aria-valuemin={0}
+              aria-valuemax={moveProgress?.total ?? 0}
+              aria-valuenow={moveProgress?.done ?? 0}
+              className="h-2 w-full overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className="h-full rounded-full bg-foreground transition-[width] duration-300"
+                style={{
+                  width: `${moveProgress?.total ? (moveProgress.done / moveProgress.total) * 100 : 0}%`,
+                }}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {`Moved ${moveProgress?.done ?? 0} of ${moveProgress?.total ?? 0}`}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Move result summary ──────────────────────────────────────────── */}
       <ConfirmDialog

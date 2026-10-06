@@ -1533,6 +1533,9 @@ function auditLabel({ sales_reference, client_name }) {
     : `Sales opportunity for ${client_name}`;
 }
 
+/** SORs per `move_opportunities_to_flow_snapshot` call — see moveOpportunitiesToVersion. */
+const VERSION_MOVE_BATCH_SIZE = 10;
+
 /**
  * Every non-deleted SOR pinned to an earlier Flow Snapshot of the same
  * major as `targetSnapshotId` — the candidate set for "Move N SORs on 3.x
@@ -2354,25 +2357,6 @@ export const opportunityService = {
   },
 
   /**
-   * `moveOpportunitySnapshot`, for many SORs at once — adopting a revised
-   * process shouldn't mean editing deals one at a time (issue #83). Collects
-   * failures instead of throwing on the first blocked SOR, so one stranded
-   * deal doesn't stop the rest of the batch from moving.
-   */
-  async bulkMoveOpportunitySnapshot(opportunityIds, targetSnapshotId, actorId) {
-    const succeeded = [];
-    const failed = [];
-    for (const id of opportunityIds) {
-      try {
-        succeeded.push(await opportunityService.moveOpportunitySnapshot(id, targetSnapshotId, actorId));
-      } catch (err) {
-        failed.push({ id, reason: err.message });
-      }
-    }
-    return { succeeded, failed };
-  },
-
-  /**
    * How many SORs a "Move up to vX.Y" offer would move, without moving them
    * (issue #190) — the offer states N before anyone accepts it.
    */
@@ -2407,15 +2391,51 @@ export const opportunityService = {
 
   /**
    * Moves every non-deleted SOR (Scratch included) pinned to an earlier
-   * Flow Snapshot of the same major onto `targetSnapshotId`, through the
-   * existing audited single-deal move (issue #190). Opt-in only — this runs
-   * solely when the Operations Manager accepts the post-publish offer, never
-   * as a side effect of publishing itself.
+   * Flow Snapshot of the same major onto `targetSnapshotId` (issue #190).
+   * Opt-in only — this runs solely when the Operations Manager accepts the
+   * post-publish offer, never as a side effect of publishing itself.
+   *
+   * The move itself is `move_opportunities_to_flow_snapshot`, a database
+   * function that works through a batch in one call and writes each SOR's
+   * timeline note and audit entry beside the update. It used to loop here,
+   * one SOR and about eight requests at a time, so leaving or reloading the
+   * page stopped it partway: on prod two publishes in a row moved the first
+   * 8 SORs and stranded 24. Batches keep a page close to losing at most the
+   * batch in flight, and a re-run finds only what is left.
+   *
+   * `onProgress({ done, total })` fires before the first batch and after each,
+   * so the offer dialog can show how far it got. `actorId` is unused: the
+   * function reads the caller from the JWT.
    */
-  async moveOpportunitiesToVersion(targetSnapshotId, actorId) {
+  async moveOpportunitiesToVersion(
+    targetSnapshotId,
+    actorId,
+    { onProgress, chunkSize = VERSION_MOVE_BATCH_SIZE } = {},
+  ) {
     const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
     if (ids.length === 0) return { succeeded: [], failed: [] };
-    return opportunityService.bulkMoveOpportunitySnapshot(ids, targetSnapshotId, actorId);
+
+    const succeeded = [];
+    const failed = [];
+    onProgress?.({ done: 0, total: ids.length });
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const batch = ids.slice(i, i + chunkSize);
+      const { data, error } = await supabase.rpc("move_opportunities_to_flow_snapshot", {
+        p_opportunity_ids: batch,
+        p_target_snapshot_id: targetSnapshotId,
+      });
+      if (error) {
+        // The whole batch is reported rather than thrown, so the rest still run.
+        batch.forEach((id) => failed.push({ id, reason: error.message }));
+      } else {
+        succeeded.push(...(data?.moved || []));
+        failed.push(...(data?.failed || []));
+      }
+      onProgress?.({ done: Math.min(i + chunkSize, ids.length), total: ids.length });
+    }
+
+    return { succeeded, failed };
   },
 
   async deleteOpportunity(id, actorId) {

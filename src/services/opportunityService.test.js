@@ -2646,6 +2646,56 @@ describe("opportunityService", () => {
         ])
       })
 
+      it("moves in batches and reports progress after each, so a long move can show how far it got", async () => {
+        const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
+        const v2 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 1 })
+        for (let i = 0; i < 5; i += 1) {
+          makeOpportunity({
+            registered_by: registrar.id,
+            sale_type_id: saleType.id,
+            flow_snapshot_id: v1.id,
+            flow_stage_id: lead.id,
+          })
+        }
+
+        const progress = []
+        const result = await opportunityService.moveOpportunitiesToVersion(v2.id, registrar.id, {
+          chunkSize: 2,
+          onProgress: (p) => progress.push(p),
+        })
+
+        expect(progress).toEqual([
+          { done: 0, total: 5 },
+          { done: 2, total: 5 },
+          { done: 4, total: 5 },
+          { done: 5, total: 5 },
+        ])
+        expect(result.succeeded).toHaveLength(5)
+        expect(result.failed).toEqual([])
+      })
+
+      it("picks up where an earlier, interrupted move stopped", async () => {
+        const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
+        const v2 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 1 })
+        const deals = [0, 1, 2, 3].map(() =>
+          makeOpportunity({
+            registered_by: registrar.id,
+            sale_type_id: saleType.id,
+            flow_snapshot_id: v1.id,
+            flow_stage_id: lead.id,
+          }),
+        )
+
+        // The page was closed after the first batch of two.
+        await opportunityService.moveOpportunitySnapshot(deals[0].id, v2.id, registrar.id)
+        await opportunityService.moveOpportunitySnapshot(deals[1].id, v2.id, registrar.id)
+
+        expect(await opportunityService.countOpportunitiesEligibleForVersionMove(v2.id)).toBe(2)
+        const result = await opportunityService.moveOpportunitiesToVersion(v2.id, registrar.id)
+        expect(result.succeeded.map((d) => d.id).sort()).toEqual([deals[2].id, deals[3].id].sort())
+        expect(await opportunityService.countOpportunitiesEligibleForVersionMove(v2.id)).toBe(0)
+      })
+
       it("returns nothing to move when there is no earlier minor within the same major", async () => {
         const onlyVersion = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
         makeOpportunity({
