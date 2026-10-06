@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 
-const VALID_KINDS = ["create_group_task", "create_individual_task"];
+const VALID_KINDS = ["create_group_task", "create_individual_task", "open_purchase_request"];
 
 /**
  * Access control check for Stage Actions modifications.

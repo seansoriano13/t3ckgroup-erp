@@ -86,6 +86,11 @@ export const ACTION_KIND_META = {
     icon: User,
     hint: "One assignee.",
   },
+  open_purchase_request: {
+    label: "Open Purchase Request",
+    icon: ShoppingCart,
+    hint: "Starts buying for the deal. One request per deal.",
+  },
 }
 
 /**
@@ -120,6 +125,7 @@ export function conditionDetail(condition) {
 export function actionTitle(action) {
   const config = action?.config ?? {}
   const named = config.title || config.projectTitle
+  if (!named && action?.kind === "open_purchase_request") return "Open Purchase Request"
   return (typeof named === "string" && named.trim()) || "Untitled action"
 }
 

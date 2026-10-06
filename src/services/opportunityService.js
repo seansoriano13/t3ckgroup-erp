@@ -30,6 +30,7 @@ import {
 } from "../constants/stageGate";
 import { normaliseTeam, resolvePeople, DEAL_TEAM_ROLES } from "../utils/resolvePeople";
 import { employeeGroupService } from "./employeeGroupService";
+import { purchaseRequestPayload } from "../utils/purchaseRequestAction";
 import {
   entryStage,
   isLegalMove,
@@ -933,6 +934,12 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
         });
       }
 
+      for (const payload of actionsPayload) {
+        if (payload.confirm || payload.kind !== "open_purchase_request") continue;
+        const action = actions.find((a) => a.id === payload.action_id);
+        payload.purchase_request = await resolvePurchaseRequestPayload(action, existing);
+      }
+
       const { data: runResult, error: runError } = await supabase.rpc("sor_run_stage_actions", {
         p_opportunity_id: existing.id,
         p_stage_id: to.id,
@@ -1000,6 +1007,13 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
                   actorId,
                 );
               }
+            } else if (created.kind === "open_purchase_request" && created.request_id) {
+              await opportunityService.addSystemNote(
+                existing.id,
+                `Purchase Request opened on entering Stage: ${to.name}.`,
+                { event: "STAGE_ACTION_PURCHASE_REQUEST_OPENED", stageId: to.id, actionId: action.id, requestId: created.request_id },
+                actorId,
+              );
             } else if (created.kind === "create_group_task" && created.group_task_id) {
               await opportunityService.addSystemNote(
                 existing.id,
@@ -1391,11 +1405,24 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
   }
 }
 
+/**
+ * Issue #304 — the Open Purchase Request action's config as the database
+ * takes it: extra members resolved from selectors to employee ids. There is no
+ * Costing Matrix yet to name a Purchasing Incharge, so that Buyer option
+ * resolves to nobody and the request waits in the queue for a Take.
+ */
+async function resolvePurchaseRequestPayload(action, opportunity) {
+  const config = action?.config || {};
+  const extraMemberIds = await resolveSelectorIds(config.extras, opportunity);
+  return purchaseRequestPayload(config, { extraMemberIds });
+}
+
 /** How a failed Stage Action is named to the person who moved the SOR. */
 function stageActionName(action) {
   const config = action?.config ?? {};
   const named = config.title || config.projectTitle;
   if (typeof named === "string" && named.trim()) return named.trim();
+  if (action?.kind === "open_purchase_request") return "Purchase Request";
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";
 }
 
@@ -2909,6 +2936,23 @@ export const opportunityService = {
       dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
       saleType: existing.sale_type || null,
     };
+    if (action.kind === "open_purchase_request") {
+      const { data: requestId, error: openError } = await supabase.rpc("sor_open_purchase_request", {
+        p_run_id: runId,
+        p_config: await resolvePurchaseRequestPayload(action, existing),
+      });
+      if (openError) {
+        await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "failed" });
+        throw openError;
+      }
+      await opportunityService.addSystemNote(
+        existing.id,
+        `Purchase Request opened on entering Stage: ${stage.name}.`,
+        { event: "STAGE_ACTION_PURCHASE_REQUEST_OPENED", stageId: stage.id, actionId: action.id, requestId },
+        actorId,
+      ).catch(() => {});
+      return { outcome: "created" };
+    }
     await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
     return { outcome: "created" };
   },
@@ -2978,7 +3022,9 @@ export const opportunityService = {
       // real builder would use, not a placeholder or a bare count.
       // `PendingActionDecisions.jsx` turns this into a sentence.
       const target =
-        action.kind === "create_group_task"
+        action.kind === "open_purchase_request"
+          ? { kind: "purchase_request" }
+          : action.kind === "create_group_task"
           ? {
               kind: "group",
               members: (config.members || []).map((m) => ({

@@ -5,6 +5,7 @@ import AccessWindowConfig from "./AccessWindowConfig";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
 import { Switch } from "../ui/switch";
+import { purchaseRequestSummary } from "../../utils/purchaseRequestAction";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -73,7 +74,9 @@ export default function StageActionDetail({
     .filter(Boolean)
     .map(nameOf);
   const subjectLabel =
-    assigneeNames.length === 0
+    action.kind === "open_purchase_request"
+      ? "Purchasing members"
+      : assigneeNames.length === 0
       ? null
       : assigneeNames.length <= 2
         ? assigneeNames.join(" and ")
@@ -98,7 +101,9 @@ export default function StageActionDetail({
         )}
       </Field>
 
-      {action.kind === "create_group_task" ? (
+      {action.kind === "open_purchase_request" ? (
+        <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
+      ) : action.kind === "create_group_task" ? (
         <>
           {config.description?.trim() && (
             <Field label="Objective">{config.description}</Field>

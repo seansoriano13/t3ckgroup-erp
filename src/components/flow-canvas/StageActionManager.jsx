@@ -15,6 +15,7 @@ import { employeeService } from "../../services/employeeService";
 import { ACTION_KIND_META, actionSummary, actionTitle } from "./flowStageKinds";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import StageActionDetail from "./StageActionDetail";
+import PurchaseRequestActionModal from "./PurchaseRequestActionModal";
 import { useAuth } from "../../context/AuthContext";
 
 import CreateGroupTaskModal from "../../pages/group-tasks/_components/CreateGroupTaskModal";
@@ -306,6 +307,25 @@ export default function StageActionManager({ stageId, disabled = false }) {
           onClose={() => setAddingKind(null)}
           mode="automation"
           onSubmitOverride={(config) => handleAdd("create_individual_task", config)}
+        />
+      )}
+
+      {addingKind === "open_purchase_request" && (
+        <PurchaseRequestActionModal
+          isOpen={true}
+          onClose={() => setAddingKind(null)}
+          onSubmit={(config) => handleAdd("open_purchase_request", config)}
+          isSubmitting={addMutation.isPending}
+        />
+      )}
+
+      {editingAction?.kind === "open_purchase_request" && (
+        <PurchaseRequestActionModal
+          isOpen={true}
+          onClose={() => setEditingAction(null)}
+          initialData={editingAction.config}
+          onSubmit={handleUpdate}
+          isSubmitting={updateMutation.isPending}
         />
       )}
 
