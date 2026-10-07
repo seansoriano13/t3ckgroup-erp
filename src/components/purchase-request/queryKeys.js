@@ -5,6 +5,8 @@ export const purchaseRequestKeys = {
   canAddItems: (requestId) => ["purchase-request", requestId, "can-add-items"],
   pickableLines: (requestId) => ["purchase-request", requestId, "pickable-lines"],
   itemActor: (requestId) => ["purchase-request", requestId, "item-actor"],
+  messages: (requestId) => ["purchase-request", requestId, "messages"],
+  members: (requestId) => ["purchase-request", requestId, "members"],
 };
 
 /** The SOR's stock snapshot (#202), as the request's items read it. */

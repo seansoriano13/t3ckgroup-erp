@@ -3,6 +3,10 @@ import { ITEM_STATUS } from "../constants/purchaseRequest";
 
 const ITEM_SELECT =
   "*, requester:employees!purchase_request_items_requested_by_fkey(id, name, avatar_path)";
+const MESSAGE_SELECT =
+  "*, author:employees!purchase_request_messages_author_id_fkey(id, name, avatar_path)";
+const MEMBER_SELECT =
+  "employee_id, side, employee:employees!purchase_request_members_employee_id_fkey(id, name, avatar_path)";
 
 /**
  * Purchase Requests (issue #209). Every write is an RPC: the database decides
@@ -18,6 +22,12 @@ const ITEM_SELECT =
  * Status (#306): every change goes through `pr_set_item_status`, which checks
  * the transition and the caller's side (purchasing walks the path; the sales
  * side may only cancel) and posts the change in the request.
+ *
+ * Chat and Buyer (#307): members post straight into the request's messages
+ * (the insert policy checks author and membership); anyone with Purchasing
+ * access may Take an unassigned request; a purchasing member or Super Admin
+ * names the Buyer. Who is notified is decided in the database, by a trigger
+ * on every message: see 20261007141000_purchase_request_chat_and_buyer.sql.
  */
 export const purchaseRequestService = {
   async addMember(requestId, employeeId) {
@@ -178,6 +188,94 @@ export const purchaseRequestService = {
       p_unit: unit || null,
       p_description: description || null,
       p_images: images || [],
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Chat (#307) ──────────────────────────────────────────────────────────
+
+  /**
+   * The request's messages, oldest first, each with its `author`
+   * ({ id, name, avatar_path }; null on an automatic event). An event carries
+   * `metadata.event`.
+   */
+  async listMessages(requestId) {
+    if (!requestId) return [];
+    const { data, error } = await supabase
+      .from("purchase_request_messages")
+      .select(MESSAGE_SELECT)
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * The request's members as `{ id, name, avatar_path, side }`, by name — the
+   * roster a mention picks from. Only members can be mentioned: nobody else
+   * could open the request.
+   */
+  async listMembers(requestId) {
+    if (!requestId) return [];
+    const { data, error } = await supabase
+      .from("purchase_request_members")
+      .select(MEMBER_SELECT)
+      .eq("request_id", requestId);
+    if (error) throw error;
+    return (data || [])
+      .filter((m) => m.employee)
+      .map((m) => ({ ...m.employee, side: m.side }))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  },
+
+  /**
+   * Posts in the request's Chat. `attachments` are uploaded descriptors
+   * ({ url, name, type, bytes }); `mentions` are the Mention model's
+   * [{ id, name }], kept only while the name is still in the text. A message
+   * with files needs no text. The database notifies: the people mentioned,
+   * and the Buyer and requesters.
+   */
+  async postMessage(requestId, authorId, content, { attachments = [], mentions = [] } = {}) {
+    const text = (content || "").trim();
+    const files = (attachments || []).filter((a) => a?.url);
+    if (!text && files.length === 0) throw new Error("Write a message or attach a file.");
+
+    const live = (mentions || []).filter((m) => m?.id && m?.name && text.includes(`@${m.name}`));
+    const metadata = {};
+    if (files.length > 0) metadata.attachments = files;
+    if (live.length > 0) metadata.mentions = live.map(({ id, name }) => ({ id, name }));
+
+    const { data, error } = await supabase
+      .from("purchase_request_messages")
+      .insert({ request_id: requestId, author_id: authorId, content: text, metadata })
+      .select(MESSAGE_SELECT)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Buyer (#307) ─────────────────────────────────────────────────────────
+
+  /**
+   * The signed-in purchaser becomes the Buyer of an unassigned request.
+   * Refused (55000) once someone else has it. Returns the request.
+   */
+  async take(requestId) {
+    const { data, error } = await supabase.rpc("pr_take", { p_request_id: requestId });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Names the Buyer (someone with Purchasing access), or `null` to send the
+   * request back to the queue. A purchasing member or Super Admin only.
+   * Returns the request.
+   */
+  async setBuyer(requestId, employeeId) {
+    const { data, error } = await supabase.rpc("pr_set_buyer", {
+      p_request_id: requestId,
+      p_employee_id: employeeId || null,
     });
     if (error) throw error;
     return data;
