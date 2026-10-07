@@ -165,7 +165,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
   if (isLoading || employeeStats.length === 0) return null;
 
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm p-5 overflow-x-auto">
+    <div className="py-5 overflow-x-auto">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
         <div>
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
