@@ -1,6 +1,5 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { purchasingService } from "./purchasingService";
 import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
 import { accessWindowSummary } from "../utils/stageAudience";
@@ -2190,16 +2189,6 @@ export const opportunityService = {
       actorId,
     ).catch(console.error);
 
-    // Purchasing may already have committed to a supplier for this deal. They
-    // are told; nothing of theirs is closed on their behalf, because a task
-    // that silently vanished would take the evidence of that spend with it.
-    // Fire-and-forget: losing the deal must not fail because a notification did.
-    if (isLostCode(nextStatus)) {
-      purchasingService
-        .notifyDealClosed(id, actorId, lostReason)
-        .catch(console.error);
-    }
-
     return data;
   },
 
@@ -2462,10 +2451,6 @@ export const opportunityService = {
 
     if (error) throw error;
 
-    purchasingService
-      .handleOpportunityDeleted(id, actorId, data)
-      .catch(console.error);
-
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
       id,
@@ -2504,10 +2489,8 @@ export const opportunityService = {
 
   /**
    * Restores a deleted SOR — a Super Admin or its own Deal Owner. Clears the
-   * flag and its deletion stamp, and never touches procurement: those
-   * requests were cancelled on delete (purchasingService.handleOpportunityDeleted)
-   * and restoring doesn't reopen them — whoever restores has to re-raise
-   * what's still needed.
+   * flag and its deletion stamp. A Purchase Request is untouched by either
+   * delete or restore.
    */
   async restoreOpportunity(id, actorId) {
     const { data: existing, error: readError } = await supabase

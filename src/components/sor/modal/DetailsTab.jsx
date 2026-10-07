@@ -6,8 +6,6 @@ import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
 import Dropdown from "../../ui/Dropdown";
 import { FilterOptionList } from "../../ui/FilterDropdown";
-import PurchasingPanel from "../PurchasingPanel";
-import InclusionsPanel from "../InclusionsPanel";
 import OpportunityCommissionFooter from "../OpportunityCommissionFooter";
 import {
   PROJECT_TYPE_LABELS,
@@ -125,8 +123,6 @@ export default function DetailsTab({ ctx }) {
     setEditForm,
     employees,
     activeLeadSources,
-    requiresInclusions,
-    requiresPurchasing,
     estimatedValueDisplay,
     estimatedValueSize,
     buildingLink,
@@ -619,8 +615,6 @@ export default function DetailsTab({ ctx }) {
         </div>
       </div>
 
-      {!isEditing && <InclusionsPanel opportunity={opportunity} isRequired={requiresInclusions} />}
-      {!isEditing && <PurchasingPanel opportunity={opportunity} isRequired={requiresPurchasing} />}
 
       {!isEditing && showMoney && <OpportunityCommissionFooter opportunity={opportunity} onClose={onClose} />}
     </div>

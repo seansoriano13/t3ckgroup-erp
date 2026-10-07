@@ -329,9 +329,7 @@ export function actionsForSnapshotStage(snapshotActions, stageId) {
  *
  * A deal with no Sales Reference yet (it has none until it leaves Lead)
  * prints a stated placeholder rather than collapsing to a blank, so the
- * `[ref] [project]` shape stays parseable either way. This is unrelated to
- * `buildRequisitionTitle` (constants/procurement.js) — that prefix is
- * matched by a recogniser and a batch-number pattern and is untouched here.
+ * `[ref] [project]` shape stays parseable either way.
  */
 export function stageActionTaskTitle({ salesReference, projectTitle } = {}) {
   const ref = salesReference || "No Sales Reference"

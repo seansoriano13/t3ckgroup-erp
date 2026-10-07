@@ -2,7 +2,6 @@ import { supabase } from "../../lib/supabase";
 import { notificationService } from "../notificationService";
 import { taskActivityService } from "./taskActivityService";
 import { TASK_STATUS } from "../../constants/status";
-import { procurementDeletionBlock } from "../procurementTaskLinks";
 import { parseChecklist } from "../../utils/checklist";
 
 /**
@@ -1096,9 +1095,6 @@ export const taskMutationService = {
     if (task.hr_verified === true && !userRole?.is_super_admin) {
       throw new Error("Cannot delete tasks that are already verified by HR.");
     }
-
-    const procurementBlock = await procurementDeletionBlock(taskId);
-    if (procurementBlock) throw new Error(procurementBlock);
 
     // NOTE: Attachments are intentionally preserved during soft deletes
     // to maintain audit trail integrity. Physical cleanup should only

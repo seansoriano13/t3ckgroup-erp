@@ -37,10 +37,6 @@ vi.mock("@/services/tasks/taskQueryService", () => ({
   taskQueryService: { getTaskById: vi.fn(async () => null) },
 }))
 
-vi.mock("@/services/purchasingService", () => ({
-  purchasingService: { listForTask: vi.fn(async () => []) },
-}))
-
 vi.mock("../services/tasks/activeChatService", () => ({
   activeChatService: { markAsRead: vi.fn() },
 }))
@@ -63,7 +59,6 @@ vi.mock("./StandardDetailsSection", () => ({ default: () => <div>StandardDetails
 vi.mock("./TaskBodySection", () => ({
   default: ({ canEdit }) => <div>TaskBodySection canEdit:{String(canEdit)}</div>,
 }))
-vi.mock("./ProcurementResolutionPanel", () => ({ default: () => null }))
 vi.mock("./TaskEvaluationSection", () => ({ default: () => <div>TaskEvaluationSection</div> }))
 vi.mock("./TaskActivityTimeline", () => ({
   default: ({ taskId }) => <div>TaskActivityTimeline for {taskId}</div>,

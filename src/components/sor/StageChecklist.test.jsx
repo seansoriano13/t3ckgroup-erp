@@ -3,7 +3,7 @@
  * owner-visibility.md) — what a Stage owes, shown before a move is tried,
  * not discovered one refusal at a time.
  *
- * `opportunityService` is mocked wholesale (prior art: PurchasingPanel.test.jsx)
+ * `opportunityService` is mocked wholesale
  * — per-kind evaluation already has its own coverage in stageGate.test.js and
  * opportunityService.test.js; what this file protects is what the Deal Owner
  * actually sees and can do: which items still block, who satisfied what, and
