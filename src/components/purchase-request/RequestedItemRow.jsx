@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Replace } from "lucide-react";
 
 import StatusBadge from "../StatusBadge";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
@@ -27,9 +27,10 @@ const ITEM_STATUS_THEME = {
  * product, its description and images.
  *
  * `stockSnapshot` is the SOR's `sor_stock_snapshots` row. `actions` is a slot
- * for the status controls a later ticket adds (#306).
+ * for the status controls (#306). `replaces` / `replacedBy` are the items on
+ * either end of a Buyer's substitute, when the request has them.
  */
-export default function RequestedItemRow({ item, stockSnapshot, actions = null }) {
+export default function RequestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   const change = sorLineChange(item);
   const isNew = item.source === ITEM_SOURCE.NEW;
@@ -49,6 +50,13 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null }
         <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
         {actions}
       </div>
+
+      {(replaces || replacedBy) && (
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Replace size={12} className="shrink-0" />
+          {replaces ? `Substitute for ${replaces.name}` : `Replaced by ${replacedBy.name}`}
+        </p>
+      )}
 
       {stock && (
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">

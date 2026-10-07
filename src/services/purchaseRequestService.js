@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { ITEM_STATUS } from "../constants/purchaseRequest";
 
 const ITEM_SELECT =
   "*, requester:employees!purchase_request_items_requested_by_fkey(id, name, avatar_path)";
@@ -13,6 +14,10 @@ const ITEM_SELECT =
  * Requested Items (#305): a sales-side member or the Buyer adds them, picked
  * from an SOR line or described as a new product. Each starts at Requested
  * and posts in the request.
+ *
+ * Status (#306): every change goes through `pr_set_item_status`, which checks
+ * the transition and the caller's side (purchasing walks the path; the sales
+ * side may only cancel) and posts the change in the request.
  */
 export const purchaseRequestService = {
   async addMember(requestId, employeeId) {
@@ -118,5 +123,63 @@ export const purchaseRequestService = {
     return (items.data || []).map((item) =>
       lineByItem.has(item.id) ? { ...item, sorLine: lineByItem.get(item.id) } : item,
     );
+  },
+
+  // ── Status (#306) ────────────────────────────────────────────────────────
+
+  /**
+   * What the signed-in employee may do to this request's items: `side` is
+   * "purchasing", "sales" (may only cancel), "other", or null when not a
+   * member — feed it to `allowedTransitions(status, side)`;
+   * `canSubstitute` is true for the Buyer (or a Super Admin).
+   */
+  async itemActor(requestId) {
+    if (!requestId) return { side: null, canSubstitute: false };
+    const [side, substitute] = await Promise.all([
+      supabase.rpc("pr_actor_side", { p_request_id: requestId }),
+      supabase.rpc("pr_can_add_substitute", { p_request_id: requestId }),
+    ]);
+    if (side.error) throw side.error;
+    if (substitute.error) throw substitute.error;
+    return { side: side.data ?? null, canSubstitute: substitute.data === true };
+  },
+
+  /**
+   * Moves an item to `status`. The database refuses a step off the path, or
+   * one the caller's side may not take, and posts the change in the request.
+   * `details` is reserved for per-status data (#312: PO number and lines on
+   * Ordered). Returns the updated item.
+   */
+  async setItemStatus(itemId, status, details = {}) {
+    const { data, error } = await supabase.rpc("pr_set_item_status", {
+      p_item_id: itemId,
+      p_status: status,
+      p_details: details,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Withdraws an item: the one change the sales side may make. */
+  async cancelItem(itemId) {
+    return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.CANCELLED);
+  },
+
+  /**
+   * The Buyer offers a substitute: a new product linked to the item it
+   * replaces, which moves to Substituted so sales can re-price. Returns the
+   * new item's id.
+   */
+  async addSubstitute(itemId, { name, quantity, unit = null, description = null, images = [] }) {
+    const { data, error } = await supabase.rpc("pr_add_substitute", {
+      p_item_id: itemId,
+      p_name: name,
+      p_quantity: Number(quantity),
+      p_unit: unit || null,
+      p_description: description || null,
+      p_images: images || [],
+    });
+    if (error) throw error;
+    return data;
   },
 };

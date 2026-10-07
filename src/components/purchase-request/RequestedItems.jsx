@@ -5,6 +5,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import Spinner from "@/components/ui/Spinner";
 import AddRequestedItems from "./AddRequestedItems";
 import RequestedItemRow from "./RequestedItemRow";
+import RequestedItemActions from "./RequestedItemActions";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { opportunityService } from "../../services/opportunityService";
 import { isClosedStatus } from "../../constants/purchaseRequest";
@@ -13,8 +14,9 @@ import { purchaseRequestKeys, sorStockKey } from "./queryKeys";
 /**
  * Issue #305 — a Purchase Request's Requested Items, and the way to add more.
  * Self-contained, for the request view (#308) to mount: `request` needs `id`
- * and `opportunity_id`. `renderActions(item)` fills each row's action slot
- * (#306's status controls).
+ * and `opportunity_id`. Each row's action slot holds the status controls
+ * (#306) for whatever the signed-in member may do; `renderActions(item)`
+ * replaces them.
  */
 export default function RequestedItems({ request, renderActions }) {
   const requestId = request?.id;
@@ -30,7 +32,17 @@ export default function RequestedItems({ request, renderActions }) {
     enabled: !!request?.opportunity_id,
   });
 
+  const { data: actor } = useQuery({
+    queryKey: purchaseRequestKeys.itemActor(requestId),
+    queryFn: () => purchaseRequestService.itemActor(requestId),
+    enabled: !!requestId && !renderActions,
+  });
+
   const items = itemsQuery.data || [];
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const substituteOf = new Map(
+    items.filter((i) => i.substitute_for_item_id).map((i) => [i.substitute_for_item_id, i]),
+  );
   const open = items.filter((i) => !isClosedStatus(i.status)).length;
 
   return (
@@ -67,7 +79,15 @@ export default function RequestedItems({ request, renderActions }) {
               key={item.id}
               item={item}
               stockSnapshot={stockSnapshot}
-              actions={renderActions?.(item)}
+              replaces={byId.get(item.substitute_for_item_id)}
+              replacedBy={substituteOf.get(item.id)}
+              actions={
+                renderActions ? (
+                  renderActions(item)
+                ) : (
+                  <RequestedItemActions item={item} request={request} actor={actor} />
+                )
+              }
             />
           ))}
         </ul>
