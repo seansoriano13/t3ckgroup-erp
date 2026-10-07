@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 
-const PARAM = "record";
+const DEFAULT_PARAM = "record";
 
 /**
  * The open record of a slide-over, kept in the URL (`?record=`) so a refresh
  * or a shared link reopens it. Opening adds a history entry; stepping to a
  * neighbour and closing replace it, so Back leaves the slide-over rather than
  * replaying every record visited. Other query params are left alone.
+ * `param` names the query param where a page's links already use another
+ * (the Procurement Queue's `?request=`, which notifications link to).
  *
  * The router commits URL changes as a low-priority transition, so a change
  * is also held locally until the URL catches up: without that, a query
  * refetch landing first (the decided record leaves its queue) would render
  * the slide-over shut for a beat before it moved to the next record.
  */
-export function useRecordParam() {
+export function useRecordParam(param = DEFAULT_PARAM) {
   const [params, setParams] = useSearchParams();
-  const urlId = params.get(PARAM);
+  const urlId = params.get(param);
   const [held, setHeld] = useState(null);
 
   useEffect(() => setHeld(null), [urlId]);
@@ -28,14 +30,14 @@ export function useRecordParam() {
       setParams(
         (prev) => {
           const nextParams = new URLSearchParams(prev);
-          if (next == null) nextParams.delete(PARAM);
-          else nextParams.set(PARAM, next);
+          if (next == null) nextParams.delete(param);
+          else nextParams.set(param, next);
           return nextParams;
         },
         { replace },
       );
     },
-    [setParams, urlId],
+    [setParams, urlId, param],
   );
 
   const open = useCallback((id) => setRecord(id), [setRecord]);

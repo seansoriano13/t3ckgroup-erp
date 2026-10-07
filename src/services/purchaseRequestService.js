@@ -34,8 +34,74 @@ const MEMBER_SELECT =
  * access may Take an unassigned request; a purchasing member or Super Admin
  * names the Buyer. Who is notified is decided in the database, by a trigger
  * on every message: see 20261007141000_purchase_request_chat_and_buyer.sql.
+ *
+ * The queue (#308): `pr_queue` returns every request the caller may read,
+ * with the SOR's locked header, the Buyer and item counts; the slices
+ * (unassigned / mine, open / closed) are `filterQueue` over those rows.
  */
+
+/**
+ * The queue's slices (#308). `buyer`: "unassigned" (no Buyer), "mine" (I'm
+ * the Buyer) or "all"; `state`: "open", "closed" or "all".
+ */
+export const QUEUE_BUYER = { UNASSIGNED: "unassigned", MINE: "mine", ALL: "all" };
+export const QUEUE_STATE = { OPEN: "open", CLOSED: "closed", ALL: "all" };
+
+/**
+ * A request is closed once it has items and every one is in a closed status.
+ * One with nothing asked for yet is still open: someone has to act on it.
+ */
+export const isRequestClosed = (row) => (row?.item_count ?? 0) > 0 && (row?.open_count ?? 0) === 0;
+
+/** The queue rows matching `filter`; "mine" compares the Buyer with `userId`. */
+export function filterQueue(rows, { buyer = QUEUE_BUYER.ALL, state = QUEUE_STATE.ALL } = {}, userId = null) {
+  return (rows || []).filter((row) => {
+    if (buyer === QUEUE_BUYER.UNASSIGNED && row.buyer_id) return false;
+    if (buyer === QUEUE_BUYER.MINE && (!userId || row.buyer_id !== userId)) return false;
+    if (state === QUEUE_STATE.OPEN && isRequestClosed(row)) return false;
+    if (state === QUEUE_STATE.CLOSED && !isRequestClosed(row)) return false;
+    return true;
+  });
+}
+
 export const purchaseRequestService = {
+  // ── The queue and one request (#308) ─────────────────────────────────────
+
+  /**
+   * The Procurement Queue: every request the signed-in employee may read,
+   * most recently active first. Each row: `id`, `opportunity_id`, the SOR's
+   * locked header (`sales_reference`, `project_title`, `stage_name`), the
+   * Buyer (`buyer_id`, `buyer_name`, `buyer_avatar_path`), `item_count`,
+   * `open_count`, `created_at`, `last_activity_at`. `filter` narrows it (see
+   * `filterQueue`); "mine" needs `userId`.
+   */
+  async listQueue({ filter, userId = null } = {}) {
+    const { data, error } = await supabase.rpc("pr_queue");
+    if (error) throw error;
+    const rows = data || [];
+    return filter ? filterQueue(rows, filter, userId) : rows;
+  },
+
+  /** One request, shaped like a `listQueue` row; null when it can't be read. */
+  async get(requestId) {
+    if (!requestId) return null;
+    const { data, error } = await supabase.rpc("pr_queue", { p_request_id: requestId });
+    if (error) throw error;
+    return (data || [])[0] ?? null;
+  },
+
+  /** Whether the signed-in employee may add and remove members and name the Buyer. */
+  async canManageMembers(requestId) {
+    if (!requestId) return false;
+    const { data, error } = await supabase.rpc("purchase_request_can_manage_members", {
+      p_request_id: requestId,
+    });
+    if (error) throw error;
+    return data === true;
+  },
+
+  // ── Members (#304) ───────────────────────────────────────────────────────
+
   async addMember(requestId, employeeId) {
     const { error } = await supabase.rpc("purchase_request_add_member", {
       p_request_id: requestId,

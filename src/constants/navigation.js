@@ -149,7 +149,7 @@ export const NAV_MODULES = {
     links: [
       {
         key: "purchasing.queue",
-        label: "Purchasing Queue",
+        label: "Procurement Queue",
         link: "/purchasing",
         icon: ShoppingCart,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow,
