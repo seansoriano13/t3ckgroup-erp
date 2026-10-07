@@ -211,4 +211,15 @@ describe("Mention Window", () => {
         const { data } = await serviceClient().from("sor_mention_viewers").select("stage_visit_id").eq("opportunity_id", oldSor)
         expect(data).toEqual([{ stage_visit_id: null }])
     })
+
+    it("a header-only grant lapses to locked once the SOR gains a Stage Visit", async () => {
+        expect(await access("outsider", oldSor)).toBe("participant")
+        const moved = await serviceClient().from("sales_opportunities").update({ sale_type_id: saleTypeId, flow_stage_id: stageIds[0] }).eq("id", oldSor)
+        if (moved.error) throw new Error(moved.error.message)
+        const { data: visits } = await serviceClient().from("sor_stage_visits").select("id").eq("opportunity_id", oldSor)
+        if (!visits?.length) throw new Error("fixture: no Stage Visit recorded")
+        expect(await access("outsider", oldSor)).toBe("locked")
+        const { error } = await mention("outsider", [ids.ordinary], oldSor)
+        expect(error?.code).toBe("42501")
+    })
 })

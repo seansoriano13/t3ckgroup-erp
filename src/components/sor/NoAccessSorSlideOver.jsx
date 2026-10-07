@@ -1,5 +1,6 @@
 import { Lock } from "lucide-react";
 import SlideOver, { SlideOverBody } from "../ui/SlideOver";
+import EmptyState from "../ui/EmptyState";
 
 const identity = (contact) => ({
   ref: "SOR",
@@ -20,28 +21,17 @@ export default function NoAccessSorSlideOver({ isOpen, onClose, contact }) {
     <SlideOver record={record} icon={Lock} crumb="SORs" identity={identity} onClose={onClose}>
       {() => (
         <SlideOverBody>
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-border/60 bg-muted/20 px-4 py-8 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Lock className="h-5 w-5" aria-hidden />
-            </div>
-            {contact?.found === false ? (
-              <p className="text-sm text-muted-foreground">This SOR doesn't exist or has been deleted.</p>
-            ) : (
-              <>
-                <p className="text-sm font-semibold text-foreground">You're not on this SOR.</p>
-                <p className="max-w-xs text-sm text-muted-foreground">
-                  {contact?.dealOwnerName ? (
-                    <>
-                      Ask <span className="font-semibold text-foreground">{contact.dealOwnerName}</span>, its Deal Owner,
-                      to mention you in its notes. A mention lets you see the Stage it's on until it moves.
-                    </>
-                  ) : (
-                    "Ask its Deal Owner to mention you in its notes. A mention lets you see the Stage it's on until it moves."
-                  )}
-                </p>
-              </>
-            )}
-          </div>
+          {contact?.found === false ? (
+            <EmptyState icon={Lock} title="SOR not found" description="This SOR doesn't exist or has been deleted." />
+          ) : (
+            <EmptyState
+              icon={Lock}
+              title="You're not on this SOR."
+              description={`Ask ${contact?.dealOwnerName ?? "its Deal Owner"}${
+                contact?.dealOwnerName ? ", its Deal Owner," : ""
+              } to mention you in its notes. A mention lets you see the Stage it's on until it moves.`}
+            />
+          )}
         </SlideOverBody>
       )}
     </SlideOver>

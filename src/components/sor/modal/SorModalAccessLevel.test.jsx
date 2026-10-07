@@ -74,7 +74,7 @@ describe("SorModal — access level", () => {
       <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={null} opportunityId={deal.id} accessLevel="none" />,
     )
 
-    await screen.findByText("Dana Owner")
+    await screen.findByText(/Ask Dana Owner, its Deal Owner/)
     expect(screen.getByText("You're not on this SOR.")).toBeInTheDocument()
     // Nothing about the deal itself.
     expect(screen.queryByText(deal.project_title)).not.toBeInTheDocument()
