@@ -450,7 +450,13 @@ function applyAlterTable(sql, registry) {
     if (!table) continue
 
     if (statement.kind === "addColumn") {
-      parseColumn(table, statement.payload.trim(), registry)
+      // `add column a …, add column b …` is one statement: each clause is its
+      // own column (20261005150000 adds two to purchase_requests this way).
+      splitTopLevel(statement.payload).forEach((clause, i) => {
+        const addColumn = /^add\s+column\s+(?:if\s+not\s+exists\s+)?/i
+        if (i > 0 && !addColumn.test(clause)) return
+        parseColumn(table, clause.replace(addColumn, "").trim(), registry)
+      })
     } else if (statement.kind === "addConstraint") {
       parseConstraint(table, statement.payload.trim(), registry)
     } else if (statement.kind === "dropConstraint") {
