@@ -1,5 +1,7 @@
 import { stubRpc } from "@/test/msw/server"
-import { db, insertRow } from "@/test/db/store"
+import { db, insertRow, updateRow } from "@/test/db/store"
+import { pgrstError } from "@/test/db/schema"
+import { ITEM_STATUS_LABELS, allowedTransitions } from "@/constants/purchaseRequest"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
@@ -15,8 +17,14 @@ const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().t
  * The fake has no signed-in identity, so `actorId` stands in for
  * get_employee_id(). Who may add is proven in the policy tier
  * (39-purchase-request-items.test.js), not here.
+ *
+ * #306's status RPCs (20261007130600_purchase_request_item_status.sql) too:
+ * `side` is the actor's side (default: their stored member side, or null),
+ * and `canSubstitute` stands in for pr_can_add_substitute. The transition
+ * rule is the client's `allowedTransitions`, the one the SQL mirrors; who may
+ * move what is proven in 40-purchase-request-item-status.test.js.
  */
-export function stubPurchaseRequestItemRpcs({ actorId }) {
+export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false }) {
   const postAdded = (item) => {
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
@@ -100,5 +108,76 @@ export function stubPurchaseRequestItemRpcs({ actorId }) {
           line_unit: line ? (line.unit || "").trim() || null : null,
         }
       })
+  })
+
+  const sideOf = (requestId) =>
+    side !== undefined
+      ? side
+      : rowsOf("purchase_request_members").find((m) => m.request_id === requestId && m.employee_id === actorId)?.side ?? null
+
+  const refuse = (message, code) => {
+    throw pgrstError(code, message)
+  }
+
+  const move = (item, to, details, fn) => {
+    const from = item.status
+    if (!allowedTransitions(from, sideOf(item.request_id)).includes(to)) {
+      refuse(`${fn}: can't move from ${ITEM_STATUS_LABELS[from]} to ${ITEM_STATUS_LABELS[to]}`, "42501")
+    }
+    const changedAt = new Date().toISOString()
+    const updated = updateRow("purchase_request_items", item, {
+      status: to,
+      status_changed_by: actorId,
+      status_changed_at: changedAt,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `${item.name}: ${ITEM_STATUS_LABELS[from]} → ${ITEM_STATUS_LABELS[to]}.`,
+      metadata: {
+        event: "item_status_changed",
+        item_id: item.id,
+        from,
+        to,
+        changed_by: actorId,
+        changed_at: changedAt,
+        ...(details && Object.keys(details).length ? { details } : {}),
+      },
+    })
+    return updated
+  }
+
+  stubRpc("pr_actor_side", (args) => sideOf(args.p_request_id))
+  stubRpc("pr_can_add_substitute", () => canSubstitute)
+
+  stubRpc("pr_set_item_status", (args) => {
+    const item = findRow("purchase_request_items", args.p_item_id)
+    if (!item) refuse(`pr_set_item_status: item ${args.p_item_id} not found`, "P0002")
+    return move(item, args.p_status, null, "pr_set_item_status")
+  })
+
+  stubRpc("pr_add_substitute", (args) => {
+    const original = findRow("purchase_request_items", args.p_item_id)
+    if (!original) refuse(`pr_add_substitute: item ${args.p_item_id} not found`, "P0002")
+    if (!canSubstitute) refuse("pr_add_substitute: only the request's Buyer may add a substitute", "42501")
+    const item = insertRow("purchase_request_items", {
+      request_id: original.request_id,
+      source: "new",
+      name: args.p_name.trim(),
+      unit: args.p_unit || null,
+      quantity: args.p_quantity,
+      description: args.p_description || null,
+      images: args.p_images || [],
+      substitute_for_item_id: original.id,
+      requested_by: actorId,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `Offered ${item.name} as a substitute for ${original.name}.`,
+      metadata: { event: "item_added", item_id: item.id, source: "new", substitute_for_item_id: original.id },
+    })
+    move(original, "substituted", { substitute_item_id: item.id }, "pr_add_substitute")
+    return item.id
   })
 }

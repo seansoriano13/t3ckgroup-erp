@@ -161,12 +161,23 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
   );
 }
 
-const blankProduct = () => ({ name: "", quantity: "1", unit: "unit", description: "" });
+const blankProduct = (from = null) => ({
+  name: "",
+  quantity: from ? String(Number(from.quantity)) : "1",
+  unit: from?.unit || "unit",
+  description: "",
+});
 
-/** A product that isn't in Odoo: name, quantity, unit, description and images. */
-function NewProductDialog({ open, onOpenChange, requestId }) {
+/**
+ * A product that isn't in Odoo: name, quantity, unit, description and images.
+ *
+ * With `substituteFor` (an item), the Buyer's substitute for it (#306): the
+ * amount starts at the original's, and saving moves the original to
+ * Substituted.
+ */
+export function NewProductDialog({ open, onOpenChange, requestId, substituteFor = null }) {
   const queryClient = useQueryClient();
-  const [product, setProduct] = useState(blankProduct);
+  const [product, setProduct] = useState(() => blankProduct(substituteFor));
   const attachments = useFileAttachments();
   const fileRef = useRef(null);
   const set = (key) => (value) => setProduct((prev) => ({ ...prev, [key]: value }));
@@ -179,7 +190,7 @@ function NewProductDialog({ open, onOpenChange, requestId }) {
   };
 
   const close = () => {
-    setProduct(blankProduct());
+    setProduct(blankProduct(substituteFor));
     attachments.clear();
     onOpenChange(false);
   };
@@ -188,17 +199,21 @@ function NewProductDialog({ open, onOpenChange, requestId }) {
   const valid = product.name.trim() && quantity > 0;
 
   const addMutation = useMutation({
-    mutationFn: async () =>
-      purchaseRequestService.addNewItem(requestId, {
+    mutationFn: async () => {
+      const fields = {
         name: product.name.trim(),
         quantity,
         unit: product.unit,
         description: product.description.trim(),
         images: await attachments.upload(),
-      }),
+      };
+      return substituteFor
+        ? purchaseRequestService.addSubstitute(substituteFor.id, fields)
+        : purchaseRequestService.addNewItem(requestId, fields);
+    },
     onSuccess: () => {
-      toast.success("New product requested.");
-      queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.items(requestId) });
+      toast.success(substituteFor ? "Substitute offered." : "New product requested.");
+      queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) });
       close();
     },
     onError: (error) => toast.error(refusal(error)),
@@ -210,8 +225,19 @@ function NewProductDialog({ open, onOpenChange, requestId }) {
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Request a new product</DialogTitle>
-          <DialogDescription>For a product that isn&apos;t in Odoo. Describe it so Purchasing can source it.</DialogDescription>
+          {substituteFor ? (
+            <>
+              <DialogTitle>Offer a substitute</DialogTitle>
+              <DialogDescription>
+                For {substituteFor.name}. It moves to Substituted, so sales can re-price.
+              </DialogDescription>
+            </>
+          ) : (
+            <>
+              <DialogTitle>Request a new product</DialogTitle>
+              <DialogDescription>For a product that isn&apos;t in Odoo. Describe it so Purchasing can source it.</DialogDescription>
+            </>
+          )}
         </DialogHeader>
 
         <div
@@ -283,7 +309,7 @@ function NewProductDialog({ open, onOpenChange, requestId }) {
           </Button>
           <Button size="lg" disabled={!valid || busy} onClick={() => addMutation.mutate()}>
             {busy && <Spinner size="sm" />}
-            Request it
+            {substituteFor ? "Offer substitute" : "Request it"}
           </Button>
         </DialogFooter>
       </DialogContent>
