@@ -46,8 +46,8 @@
 -- 'stage_left'`.
 --
 -- SAFE TO RUN AT ANY TIME, against a live frontend of any version: one
--- nullable column, new and replaced functions with unchanged signatures.
--- Idempotent.
+-- nullable column and its backfill, new and replaced functions with
+-- unchanged signatures. Idempotent.
 -- ==============================================================================
 
 alter table public.sor_action_runs
@@ -56,14 +56,16 @@ alter table public.sor_action_runs
 comment on column public.sor_action_runs.purchase_request_id is
   'The Purchase Request an Open Purchase Request run opened or topped up (#304). Set once; a run with one is never run again.';
 
--- Runs that opened a request before this column existed.
+-- Runs that opened or topped up a request before this column existed: any
+-- created Open Purchase Request run on an SOR that has a request.
 update public.sor_action_runs r
 set purchase_request_id = pr.id
-from public.purchase_requests pr
+from public.purchase_requests pr, public.flow_stage_actions fa
 where r.purchase_request_id is null
   and r.outcome = 'created'
-  and pr.opportunity_id = r.opportunity_id
-  and pr.opened_by_action_id = r.action_id;
+  and fa.id = r.action_id
+  and fa.kind = 'open_purchase_request'
+  and pr.opportunity_id = r.opportunity_id;
 
 comment on column public.purchase_requests.access_until_stage_id is
   'The Stage `access_until` is measured against, for stage_entered and later_stage_left; null otherwise.';
@@ -73,7 +75,7 @@ comment on column public.purchase_requests.access_until_stage_id is
 -- ------------------------------------------------------------------------------
 
 -- Whether an employee holds Purchasing access. The one place the rule lives.
-create or replace function public.employee_has_purchasing_access(p_employee_id uuid)
+create or replace function public._employee_has_purchasing_access(p_employee_id uuid)
 returns boolean
 language sql
 stable
@@ -88,21 +90,21 @@ as $$
   );
 $$;
 
-revoke all on function public.employee_has_purchasing_access(uuid) from public, anon, authenticated;
+revoke all on function public._employee_has_purchasing_access(uuid) from public, anon, authenticated;
 
 create or replace function public.has_purchasing_access()
 returns boolean
 language sql
-security definer
 stable
+security definer
 set search_path = public
 as $$
-  select public.employee_has_purchasing_access(get_employee_id());
+  select public._employee_has_purchasing_access(get_employee_id());
 $$;
 
 -- An SOR's Deal Team, one row per role held. Column list mirrors
 -- DEAL_TEAM_ROLES in resolvePeople.js.
-create or replace function public.sor_deal_team_roles(p_opp public.sales_opportunities)
+create or replace function public._sor_deal_team_roles(p_opp public.sales_opportunities)
 returns table (employee_id uuid, role text)
 language sql
 stable
@@ -120,13 +122,13 @@ as $$
   where x.employee_id is not null;
 $$;
 
-revoke all on function public.sor_deal_team_roles(public.sales_opportunities) from public, anon, authenticated;
+revoke all on function public._sor_deal_team_roles(public.sales_opportunities) from public, anon, authenticated;
 
 -- A run's action as saved: { id, kind, config } from the Flow Snapshot its
 -- visit was made under, else the SOR's snapshot, else the live action. Both
 -- snapshot shapes (an array, or arrays keyed by Stage) are read, as in
 -- stage_action_carries_on.
-create or replace function public.sor_action_run_saved_action(p_run_id uuid)
+create or replace function public._sor_action_run_saved_action(p_run_id uuid)
 returns jsonb
 language sql
 stable
@@ -166,7 +168,7 @@ as $$
   join flow_stage_actions fa on fa.id = run.action_id;
 $$;
 
-revoke all on function public.sor_action_run_saved_action(uuid) from public, anon, authenticated;
+revoke all on function public._sor_action_run_saved_action(uuid) from public, anon, authenticated;
 
 -- Whether a request's purchasing window has already closed for everyone:
 -- what close_stage_participant_windows would have closed by now.
@@ -218,9 +220,9 @@ security definer
 set search_path = public
 as $$
   select case
-    when public.employee_has_purchasing_access(p_employee_id) then 'purchasing'
+    when public._employee_has_purchasing_access(p_employee_id) then 'purchasing'
     when exists (
-      select 1 from sales_opportunities o, public.sor_deal_team_roles(o) t
+      select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
       where o.id = p_opportunity_id and t.employee_id = p_employee_id
     ) then 'sales'
     else 'other'
@@ -309,7 +311,7 @@ begin
     raise exception 'sor_open_purchase_request: not signed in' using errcode = '42501';
   end if;
 
-  select * into v_run from public.sor_action_runs where id = p_run_id;
+  select * into v_run from public.sor_action_runs where id = p_run_id for update;
   if v_run.id is null then
     raise exception 'sor_open_purchase_request: run % not found', p_run_id;
   end if;
@@ -329,15 +331,15 @@ begin
       using errcode = '42501';
   end if;
 
-  v_action := public.sor_action_run_saved_action(p_run_id);
+  v_action := public._sor_action_run_saved_action(p_run_id);
   if v_action->>'kind' is distinct from 'open_purchase_request' then
     raise exception 'sor_open_purchase_request: run % is not an Open Purchase Request action', p_run_id
       using errcode = '22023';
   end if;
   v_config := coalesce(v_action->'config', '{}'::jsonb);
 
-  -- The Costing Matrix's Purchasing Incharge (#266) does not exist yet, so
-  -- that Buyer option resolves to nobody and the request waits for a Take.
+  -- TODO(#266): the Costing Matrix's Purchasing Incharge does not exist yet,
+  -- so that Buyer option resolves to nobody and the request waits for a Take.
   if v_config->'buyer'->>'type' = 'employee' then
     v_buyer := nullif(v_config->'buyer'->>'id', '')::uuid;
   end if;
@@ -374,9 +376,9 @@ begin
   -- configured extras, and the Buyer.
   for v_emp in
     select e.id from public.employees e
-    where public.employee_has_purchasing_access(e.id)
+    where public._employee_has_purchasing_access(e.id)
     union
-    select t.employee_id from public.sor_deal_team_roles(v_opp) t
+    select t.employee_id from public._sor_deal_team_roles(v_opp) t
     where not (t.role = any (v_left_out))
       and exists (select 1 from public.employees d where d.id = t.employee_id and not coalesce(d.is_deleted, false))
     union
