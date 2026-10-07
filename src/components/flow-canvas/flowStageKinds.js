@@ -16,6 +16,7 @@ import {
   User,
   ListChecks,
   ShoppingCart,
+  PackageCheck,
   Database,
   Type,
   Hash,
@@ -72,6 +73,11 @@ export const CONDITION_KIND_META = {
     label: "Purchasing",
     icon: ShoppingCart,
     hint: "At least one procurement request must exist.",
+  },
+  [CONDITION_KINDS.PURCHASING_SETTLED]: {
+    label: "Purchasing settled",
+    icon: PackageCheck,
+    hint: "Every Requested Item is closed. Met when there is no Purchase Request.",
   },
 }
 

@@ -112,6 +112,28 @@ describe("isSettled", () => {
       expect(isSettled([{ status: S.RECEIVED }, { status: open }, { status: S.CANCELLED }])).toBe(false);
     }
   });
+
+  describe("as of a past moment", () => {
+    const asOf = "2026-10-05T00:00:00Z";
+    const before = "2026-10-01T00:00:00Z";
+    const after = "2026-10-06T00:00:00Z";
+
+    it("counts an item closed by then as closed", () => {
+      expect(isSettled([{ status: S.RECEIVED, created_at: before, status_changed_at: before }], { asOf })).toBe(true);
+    });
+
+    it("counts an item closed only afterwards as still open then", () => {
+      expect(isSettled([{ status: S.RECEIVED, created_at: before, status_changed_at: after }], { asOf })).toBe(false);
+    });
+
+    it("ignores an item raised afterwards", () => {
+      expect(isSettled([{ status: S.REQUESTED, created_at: after, status_changed_at: null }], { asOf })).toBe(true);
+    });
+
+    it("counts an item open now and raised by then as open", () => {
+      expect(isSettled([{ status: S.ORDERED, created_at: before, status_changed_at: before }], { asOf })).toBe(false);
+    });
+  });
 });
 
 describe("legacyOutcomeToStatus", () => {
