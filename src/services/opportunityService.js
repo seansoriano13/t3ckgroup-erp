@@ -3507,6 +3507,21 @@ export const opportunityService = {
     }));
   },
 
+  /**
+   * #476: which of these people a Mention would open a Mention Window for —
+   * `sor_mention_window_candidates`, the same rule the grant applies, so the
+   * composer's hint never promises access the grant would not give.
+   */
+  async getMentionWindowCandidates(opportunityId, employeeIds) {
+    if (!opportunityId || !employeeIds?.length) return [];
+    const { data, error } = await supabase.rpc("sor_mention_window_candidates", {
+      p_opportunity_id: opportunityId,
+      p_employee_ids: employeeIds,
+    });
+    if (error) throw error;
+    return (data || []).map((row) => (typeof row === "string" ? row : row.sor_mention_window_candidates));
+  },
+
   async getLockedSummary(opportunityId) {
     if (!opportunityId) return null;
     const { data, error } = await supabase.rpc("sor_locked_summary", { p_opportunity_id: opportunityId });

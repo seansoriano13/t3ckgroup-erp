@@ -1,5 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
-import { Lock, Paperclip, Send, Sparkles } from "lucide-react";
+import { KeyRound, Lock, Paperclip, Send, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Spinner from "../../ui/Spinner";
 import Avatar from "../../Avatar";
@@ -68,6 +68,7 @@ export default function SorChatColumn({
   setNote,
   noteMentions,
   setNoteMentions,
+  mentionAccessHint = null,
   employees,
   attachments,
   fileInputRef,
@@ -218,6 +219,12 @@ export default function SorChatColumn({
               {isUploading ? "Uploading" : "Post"}
             </Button>
           </div>
+          {mentionAccessHint && (
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-violet-11" role="status">
+              <KeyRound size={11} className="shrink-0" aria-hidden />
+              {mentionAccessHint}
+            </p>
+          )}
           <p className="mt-1.5 text-[10px] text-muted-foreground/70">
             Type <span className="font-bold">@</span> to mention someone · attach or paste up to{" "}
             {attachments.max} files — {formatBytes(MAX_ATTACHMENT_BYTES)} each.

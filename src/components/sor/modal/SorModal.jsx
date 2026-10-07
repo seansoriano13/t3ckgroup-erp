@@ -153,6 +153,27 @@ export default function SorModal({
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
   const [noteMentions, setNoteMentions] = useState([]);
+  // #476: who the note being written would open a Mention Window for, so the
+  // writer sees the consequence before posting. Only names still in the text.
+  const liveMentionIds = useMemo(
+    () => noteMentions.filter((m) => m?.id && m.id !== user?.id && note.includes(`@${m.name}`)).map((m) => m.id),
+    [noteMentions, note, user?.id],
+  );
+  const { data: mentionWindowIds = [] } = useQuery({
+    queryKey: ["sorMentionWindowCandidates", id, [...liveMentionIds].sort().join(",")],
+    queryFn: () => opportunityService.getMentionWindowCandidates(id, liveMentionIds),
+    enabled: !!id && isOpen && liveMentionIds.length > 0 && (accessLevel === "full" || accessLevel === "participant"),
+    staleTime: 30_000,
+  });
+  const mentionAccessHint = useMemo(() => {
+    const names = noteMentions.filter((m) => mentionWindowIds.includes(m.id)).map((m) => m.name);
+    if (names.length === 0) return null;
+    const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    const verb = names.length === 1 ? "gets" : "get";
+    return visitVisibility?.visits?.length
+      ? `${who} ${verb} access to this Stage until it moves.`
+      : `${who} ${verb} read-only access to this deal.`;
+  }, [noteMentions, mentionWindowIds, visitVisibility]);
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
@@ -880,6 +901,7 @@ export default function SorModal({
       setNote={setNote}
       noteMentions={noteMentions}
       setNoteMentions={setNoteMentions}
+      mentionAccessHint={mentionAccessHint}
       employees={mentionableEmployees}
       attachments={attachments}
       fileInputRef={fileInputRef}
