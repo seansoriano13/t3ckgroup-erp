@@ -47,8 +47,12 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     // Before the generic `includes("TASK")` branch, though no type here may
     // contain "TASK" anyway. The Procurement Queue opens the request named
     // by `?request=`.
-    // TODO(#309): open the request as a modal over the current page instead.
-    navigate(`/purchasing?request=${encodeURIComponent(notif.reference_id)}`);
+    // #309: a modal over the current page, no navigation.
+    window.dispatchEvent(
+      new CustomEvent("OPEN_ENTITY_DETAILS", {
+        detail: { id: notif.reference_id, type: "PURCHASE_REQUEST" },
+      }),
+    );
   } else if (notif.type === "GROUP_TASK_COMMENT") {
     navigate("/group-tasks");
     window.dispatchEvent(
