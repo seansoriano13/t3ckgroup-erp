@@ -3340,9 +3340,9 @@ export const opportunityService = {
       .order("created_at", { ascending: false });
     if (error) throw error;
 
-    // An old SOR's mention grant (`sor_mention_viewers`) is the same kind of
-    // "you were called in", with no Stage window behind it. RLS lets a person
-    // read only their own rows.
+    // A Mention Window (`sor_mention_viewers`) is the same kind of "you were
+    // called in": one per visit the person was mentioned on, closed once the
+    // SOR has left it. RLS lets a person read only their own rows.
     const mentionRows = await opportunityService.getMyMentionGrants(employeeId);
     if ((!windows || windows.length === 0) && mentionRows.length === 0) return [];
 
@@ -3354,35 +3354,41 @@ export const opportunityService = {
       byOpportunity.get(w.opportunity_id).push(w);
     }
 
-    const mentionByOpportunity = new Map(mentionRows.map((m) => [m.opportunity_id, m]));
-    for (const id of mentionByOpportunity.keys()) {
-      if (!byOpportunity.has(id)) byOpportunity.set(id, []);
+    const mentionsByOpportunity = new Map();
+    for (const m of mentionRows) {
+      if (!mentionsByOpportunity.has(m.opportunity_id)) mentionsByOpportunity.set(m.opportunity_id, []);
+      mentionsByOpportunity.get(m.opportunity_id).push(m);
+      if (!byOpportunity.has(m.opportunity_id)) byOpportunity.set(m.opportunity_id, []);
     }
+
+    // #478: the SOR code and Sales Flow the filters need. Never fatal.
+    const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]).catch(() => ({}));
 
     const rows = await Promise.all(
       [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
         const summary = await opportunityService.getLockedSummary(opportunityId).catch(() => null);
-        const mention = mentionByOpportunity.get(opportunityId);
+        const mentions = mentionsByOpportunity.get(opportunityId) || [];
+        const allWindows = [
+          ...ownWindows.map(shape),
+          ...mentions.map((m) => ({
+            id: `mention-${m.id ?? opportunityId}`,
+            source: "mention",
+            mentionedBy: m.granted_by_name ?? null,
+            calledInAtStageName: m.stage_name ?? null,
+            closedAt: m.closed_at ?? null,
+            createdAt: m.created_at ?? null,
+            reachLabel: m.stage_visit_id ? "this Stage until it moves" : "this deal, read-only",
+          })),
+        ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         return {
           opportunityId,
           salesReference: summary?.sales_reference ?? null,
           projectTitle: summary?.project_title ?? null,
           currentStageName: summary?.current_stage_name ?? null,
-          isOpen: Boolean(mention) || ownWindows.some((w) => !w.closed_at),
-          windows: [
-            ...ownWindows.map(shape),
-            ...(mention
-              ? [
-                  {
-                    id: `mention-${opportunityId}`,
-                    source: "mention",
-                    mentionedBy: mention.granted_by_name ?? null,
-                    closedAt: null,
-                    reachLabel: "this deal, read-only",
-                  },
-                ]
-              : []),
-          ],
+          sorCode: facets[opportunityId]?.sorCode ?? null,
+          saleTypeName: facets[opportunityId]?.saleTypeName ?? null,
+          isOpen: allWindows.some((w) => !w.closedAt),
+          windows: allWindows,
         };
       }),
     );
@@ -3421,17 +3427,35 @@ export const opportunityService = {
   },
 
   /**
-   * Old-SOR mention grants held by this person, with who mentioned them.
-   * Never throws: My SORs must still list the windows if this read fails.
+   * This person's Mention Windows, with who mentioned them, on which Stage,
+   * and when the SOR left it (`closed_at`, null while open or on an SOR with
+   * no visit). Never throws: My SORs must still list the windows if this fails.
    */
   async getMyMentionGrants(employeeId) {
     if (!employeeId) return [];
     const { data, error } = await supabase
       .from("sor_mention_viewers")
-      .select("opportunity_id, granted_by, created_at, granter:employees!sor_mention_viewers_granted_by_fkey(name)")
+      .select(
+        "id, opportunity_id, granted_by, created_at, stage_visit_id, granter:employees!sor_mention_viewers_granted_by_fkey(name), visit:sor_stage_visits(left_at, undone_at, flow_stages(name))",
+      )
       .eq("employee_id", employeeId);
     if (error) return [];
-    return (data || []).map((r) => ({ ...r, granted_by_name: r.granter?.name ?? null }));
+    return (data || []).map((r) => ({
+      ...r,
+      granted_by_name: r.granter?.name ?? null,
+      stage_name: r.visit?.flow_stages?.name ?? null,
+      closed_at: r.stage_visit_id ? (r.visit?.left_at ?? r.visit?.undone_at ?? null) : null,
+    }));
+  },
+
+  /** #478: `sor_my_sors_facets` keyed by SOR — the SOR code and Sales Flow. */
+  async getMySorsFacets(opportunityIds) {
+    if (!opportunityIds?.length) return {};
+    const { data, error } = await supabase.rpc("sor_my_sors_facets", { p_opportunity_ids: opportunityIds });
+    if (error) throw error;
+    return Object.fromEntries(
+      (data || []).map((r) => [r.opportunity_id, { sorCode: r.sor_code ?? null, saleTypeName: r.sale_type_name ?? null }]),
+    );
   },
 
   async countMyOpenSors(employeeId) {
@@ -3445,7 +3469,8 @@ export const opportunityService = {
     const mentions = await opportunityService.getMyMentionGrants(employeeId);
     return new Set([
       ...(data || []).map((r) => r.opportunity_id),
-      ...mentions.map((m) => m.opportunity_id),
+      // Only Mention Windows still open: an ended one is listed, not counted.
+      ...mentions.filter((m) => !m.closed_at).map((m) => m.opportunity_id),
     ]).size;
   },
 

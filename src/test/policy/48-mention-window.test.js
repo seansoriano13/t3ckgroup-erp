@@ -196,6 +196,14 @@ describe("Mention Window", () => {
         expect(theirs).toEqual([])
     })
 
+    it("My SORs reads the SOR code and Sales Flow only for SORs the caller reaches (#478)", async () => {
+        const { data, error } = await (await clientFor("outsider")).rpc("sor_my_sors_facets", { p_opportunity_ids: [sorId] })
+        expect(error).toBeNull()
+        expect(data).toEqual([expect.objectContaining({ opportunity_id: sorId, sale_type_name: `${MARKER} Mention Window Sale Type` })])
+        const { data: none } = await (await clientFor("hr")).rpc("sor_my_sors_facets", { p_opportunity_ids: [sorId] })
+        expect(none).toEqual([])
+    })
+
     it("an SOR with no Stage Visit keeps the permanent header grant", async () => {
         const { error } = await mention("dealOwner", [ids.outsider], oldSor)
         expect(error).toBeNull()

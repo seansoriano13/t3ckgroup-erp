@@ -14,6 +14,7 @@ import {
   makeStageVisit,
 } from "@/test/factories";
 import { stubRpc } from "@/test/msw/server";
+import { db } from "@/test/db/store";
 
 /**
  * My SORs — the screen that exists because the SORS register structurally
@@ -107,7 +108,7 @@ describe("My SORs", () => {
     expect(await screen.findByText(/through Bid Submitted/)).toBeInTheDocument();
   });
 
-  it("keeps a closed window listed, under the Closed pill", async () => {
+  it("keeps an ended window listed behind the Access filter, tagged Access ended (#478)", async () => {
     const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
     makeStageParticipant({
       opportunity_id: deal.id,
@@ -117,11 +118,18 @@ describe("My SORs", () => {
     });
 
     renderPage();
+    const user = userEvent.setup();
+
+    // Hidden by default, but never silently: the empty state says how many ended.
+    expect(await screen.findByText("No open access right now")).toBeInTheDocument();
+    expect(screen.getByText(/1 SOR where your access has ended/)).toBeInTheDocument();
+
+    await user.click(screen.getByText("In window"));
+    await user.click(await screen.findByRole("button", { name: "Access ended" }));
 
     // The SOR someone worked last month is what they come here looking for.
     expect(await screen.findByText("S01234")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Closed 1/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Open 0/ })).toBeInTheDocument();
+    expect(screen.getByText("Access ended", { selector: "td span" })).toBeInTheDocument();
   });
 
   it("opens a row through the one shared entry path, not a modal of its own", async () => {
@@ -160,7 +168,7 @@ describe("My SORs", () => {
     expect(screen.getByLabelText("1 more windows")).toHaveTextContent("+1");
   });
 
-  it("splits Open and Closed with counts, and shows — when there is no Sales Reference", async () => {
+  it("shows — when there is no Sales Reference", async () => {
     stubRpc("sor_locked_summary", () => [
       { sales_reference: null, project_title: "Unreferenced job", current_stage_name: "Bid Submitted", is_restricted: false },
     ]);
@@ -168,16 +176,25 @@ describe("My SORs", () => {
     makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id });
 
     renderPage();
-    const user = userEvent.setup();
 
     expect(await screen.findByText("Unreferenced job")).toBeInTheDocument();
     const cell = screen.getByText("Unreferenced job").closest("td");
     expect(cell).toHaveTextContent("—");
-    expect(screen.getByRole("tab", { name: /Open 1/ })).toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole("tab", { name: /Closed 0/ }));
-    expect(screen.queryByText("Unreferenced job")).toBeNull();
-    expect(screen.getByText("Nothing closed")).toBeInTheDocument();
+  it("lists a Mention Window with who mentioned them and on which Stage (#478)", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
+    const sender = makeEmployee({ name: "Sean Sender" });
+    db.seed("sor_mention_viewers", [
+      { opportunity_id: deal.id, employee_id: me.id, granted_by: sender.id, stage_visit_id: visit.id },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("S01234")).toBeInTheDocument();
+    expect(screen.getByText("Mention")).toBeInTheDocument();
+    expect(screen.getByText(/by Sean Sender/)).toBeInTheDocument();
+    expect(screen.getByText("Technical Review")).toBeInTheDocument();
   });
 
   it("searches Sales Reference and project", async () => {
@@ -187,7 +204,7 @@ describe("My SORs", () => {
     renderPage();
     const user = userEvent.setup();
     await screen.findByText("S01234");
-    const box = screen.getByRole("searchbox", { name: "Search SORs" });
+    const box = screen.getByRole("textbox", { name: "Search reference, SOR code or project" });
 
     await user.type(box, "equipment");
     expect(screen.getByText("S01234")).toBeInTheDocument();
@@ -199,6 +216,6 @@ describe("My SORs", () => {
     await user.clear(box);
     await user.type(box, "zzz");
     expect(screen.queryByText("S01234")).toBeNull();
-    expect(screen.getByText(/No SOR matches your search/)).toBeInTheDocument();
+    expect(screen.getByText(/No SOR matches these filters/)).toBeInTheDocument();
   });
 });
