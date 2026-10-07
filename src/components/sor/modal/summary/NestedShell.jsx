@@ -14,8 +14,6 @@ import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import InclusionsPanel from "../../InclusionsPanel";
-import PurchasingPanel from "../../PurchasingPanel";
 import OpportunityCommissionFooter from "../../OpportunityCommissionFooter";
 import SorModalHeader from "../SorModalHeader";
 import NowTab from "../NowTab";
@@ -30,7 +28,6 @@ export function nestedViews(p) {
     { key: "now", label: "This stage", badge: blocked || null, badgeTone: "amber" },
     { key: "items", label: "Products", badge: p.ctx.items.length || null },
     p.canViewJourney && { key: "journey", label: "History" },
-    { key: "buying", label: "Inclusions & purchasing" },
     showMoney(p) && { key: "commission", label: "Commission" },
   ].filter(Boolean);
 }
@@ -166,12 +163,6 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
             {view === "journey" && (
               <div className="h-full overflow-y-auto">
                 <JourneyTab opportunityId={p.id} hasOpened={p.hasOpened} onGoToNow={() => open("now")} />
-              </div>
-            )}
-            {view === "buying" && (
-              <div className="h-full space-y-6 overflow-y-auto p-6">
-                <InclusionsPanel opportunity={opportunity} isRequired={ctx.requiresInclusions} />
-                <PurchasingPanel opportunity={opportunity} isRequired={ctx.requiresPurchasing} />
               </div>
             )}
             {view === "commission" && (

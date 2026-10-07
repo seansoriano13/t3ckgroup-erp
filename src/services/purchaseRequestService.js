@@ -1,7 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { ITEM_STATUS } from "../constants/purchaseRequest";
-import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
-import { purchasingService } from "./purchasingService";
+import { PO_NUMBER_HINT, PO_VERIFICATION, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
 import { shapeSorOverview } from "../utils/sorPurchaseRequest";
 
 const ITEM_SELECT =
@@ -260,13 +259,23 @@ export const purchaseRequestService = {
   // ── PO number and PO lines (#312) ────────────────────────────────────────
 
   /**
-   * Checks a PO number against Odoo (`odoo-po-verify`, through the legacy
-   * panel's wrapper). Never throws: returns the `po_verification` value —
-   * VERIFIED, NOT_FOUND, or PENDING_VERIFICATION when Odoo couldn't be asked.
+   * Checks a PO number against Odoo (`odoo-po-verify`). Never throws: returns
+   * the `po_verification` value — VERIFIED, NOT_FOUND, or PENDING_VERIFICATION
+   * when Odoo couldn't be asked.
    */
   async verifyPo(poNumber) {
-    const { state } = await purchasingService.verifyPoNumber(normalizePoNumber(poNumber));
-    return state;
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
+        body: { poNumber: normalizePoNumber(poNumber) },
+      });
+      if (error) return PO_VERIFICATION.PENDING;
+      if (data?.found) return PO_VERIFICATION.VERIFIED;
+      // Odoo answered and does not have it: a real answer, not an outage.
+      if (data?.success) return PO_VERIFICATION.NOT_FOUND;
+      return PO_VERIFICATION.PENDING;
+    } catch {
+      return PO_VERIFICATION.PENDING;
+    }
   },
 
   /**

@@ -12,12 +12,10 @@ import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { employeeService } from "../../../services/employeeService";
 import { odooService } from "../../../services/odooService";
 import { quotationService } from "../../../services/quotationService";
-import { purchasingService } from "../../../services/purchasingService";
 import { salesFlowService } from "../../../services/salesFlowService";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { missingStageFields } from "../../../constants/stageGate";
 import { flowStageTone } from "../../../constants/salesFlow";
-import { openRequests } from "../../../constants/procurement";
 import { usePipelineStages } from "../../../hooks/usePipelineStages";
 import {
   isJudgedByStageCode,
@@ -224,15 +222,6 @@ export default function SorModal({
   });
   const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === rawOpportunity?.flow_stage_id) || null;
   const currentFlowStageTone = flowCanvas ? flowStageTone(currentFlowStage, flowCanvas.flow, flowCanvas.stages) : "mauve";
-
-  const requiresInclusions = checklist.some((c) => c.condition.kind === "inclusions");
-  const requiresPurchasing = checklist.some((c) => c.condition.kind === "purchasing");
-
-  const { data: procurementRequests = [] } = useQuery({
-    queryKey: ["procurementRequests", id],
-    queryFn: () => purchasingService.listForOpportunity(id),
-    enabled: !!id && isOpen && accessLevel !== "locked",
-  });
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -760,19 +749,6 @@ export default function SorModal({
       handleTabChange("now");
       return;
     }
-    const stillOpen = openRequests(procurementRequests);
-    if (stillOpen.length && !isLostCode(next)) {
-      confirmActionToast(
-        "Purchasing hasn't answered yet",
-        `${stillOpen.length} product${stillOpen.length === 1 ? " is" : "s are"} still with purchasing. Moving to ${stageLabel(next)} means quoting ${
-          stillOpen.length === 1 ? "it" : "them"
-        } before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
-        "Move anyway",
-        "warning",
-        () => stageMutation.mutate({ next, reason: null, salesReference: null }),
-      );
-      return;
-    }
     stageMutation.mutate({ next, reason: null, salesReference: null });
   };
 
@@ -804,8 +780,6 @@ export default function SorModal({
     employees,
     activeLeadSources,
     checklist,
-    requiresInclusions,
-    requiresPurchasing,
     automationTasks,
     invalidate,
     handleSaveField,

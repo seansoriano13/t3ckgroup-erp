@@ -250,51 +250,6 @@ export const REQUEST_UNITS = [
   "lot",
 ];
 
-/**
- * The purchasing task's description.
- *
- * "PR" is Purchase Requisition — the standard term across SAP, Oracle and
- * NetSuite for the internal request to buy, distinct from the PO that follows.
- * Odoo calls a draft purchase.order an RFQ and numbers it P0#### once
- * confirmed, so [PR] reads unambiguously against it.
- *
- * The S-number leads because it is the only key shared with Odoo, and the
- * approvals screen searches tasks by substring over the description
- * (src/pages/approvals/tasks/index.jsx). A deal has no Sales Reference until it
- * leaves Lead, so before then it is named by client, matching how the audit log
- * labels an unquoted opportunity.
- */
-export function buildRequisitionTitle({ salesReference, clientName, itemCount, batchNumber }) {
-  const subject = salesReference || clientName || "Unreferenced opportunity";
-  const count = Number(itemCount) || 0;
-  const items = `${count} item${count === 1 ? "" : "s"} to source`;
-  const prefix = batchNumber && Number(batchNumber) > 1 ? `[PR #${batchNumber}]` : "[PR]";
-  return `${prefix} ${subject} — ${clientName || "Unknown client"} — ${items}`
-    // A missing client would otherwise leave the subject repeated either side
-    // of a dash.
-    .replace(`${subject} — ${subject} — `, `${subject} — `);
-}
-
-/**
- * Matches every prefix buildRequisitionTitle can produce.
- *
- * The batch form is why this exists as a shared pattern rather than a
- * `startsWith("[PR]")` at each call site: "[PR #2]" does not start with
- * "[PR]", so a second requisition read as an ordinary task and lost its
- * resolution panel entirely.
- */
-const REQUISITION_TITLE_PREFIX = /^\[PR(?: #(\d+))?\]/;
-
-/** Whether a task description was minted by buildRequisitionTitle. */
-export const isRequisitionTitle = (description) =>
-  REQUISITION_TITLE_PREFIX.test(String(description ?? ""));
-
-/** The batch a requisition title belongs to. Unnumbered titles are batch 1. */
-export function requisitionBatchNumber(description) {
-  const match = String(description ?? "").match(REQUISITION_TITLE_PREFIX);
-  return match?.[1] ? parseInt(match[1], 10) : 1;
-}
-
 /** A request is answered once purchasing has recorded a definitive outcome (Purchased, Delivered, or Alternative). */
 export const isResolved = (request) => {
   const outcome = normalizeOutcome(request?.outcome);

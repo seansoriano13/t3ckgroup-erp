@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 import {
   PROCUREMENT_OUTCOME,
   REQUEST_UNITS,
-  buildRequisitionTitle,
   countResolved,
   daysWaiting,
   isValidPoNumber,
@@ -10,7 +9,6 @@ import {
   openRequests,
   outcomeRequiresPo,
 } from "./procurement"
-import { stageActionTaskTitle } from "./salesFlow"
 
 describe("PO number", () => {
   it("accepts an Odoo purchase order number", () => {
@@ -54,52 +52,6 @@ describe("outcomes", () => {
     ]
     expect(countResolved(requests)).toEqual({ total: 4, resolved: 2 })
     expect(openRequests(requests)).toHaveLength(2)
-  })
-})
-
-describe("requisition title", () => {
-  it("leads with the Sales Reference, which is the only key shared with Odoo", () => {
-    expect(
-      buildRequisitionTitle({
-        salesReference: "S01237",
-        clientName: "ACME Corp",
-        itemCount: 3,
-      }),
-    ).toBe("[PR] S01237 — ACME Corp — 3 items to source")
-  })
-
-  it("names an unquoted deal by client, since it has no S-number yet", () => {
-    expect(
-      buildRequisitionTitle({ salesReference: null, clientName: "ACME Corp", itemCount: 1 }),
-    ).toBe("[PR] ACME Corp — 1 item to source")
-  })
-
-  it("says 'item' for one and 'items' for the rest", () => {
-    const one = buildRequisitionTitle({ salesReference: "S1", clientName: "C", itemCount: 1 })
-    const two = buildRequisitionTitle({ salesReference: "S1", clientName: "C", itemCount: 2 })
-    expect(one).toContain("1 item to source")
-    expect(two).toContain("2 items to source")
-  })
-
-  // Issue #178 — a Stage Action automation names its task with a different
-  // builder (`stageActionTaskTitle`, constants/salesFlow.js). The risk this
-  // guards against is a well-meaning unification of the two: this prefix is
-  // matched by isRequisitionTitle/requisitionBatchNumber and must stay [PR],
-  // never the automation's [ref] [project] shape.
-  it("keeps its own [PR] prefix, unaffected by the Stage Action title builder", () => {
-    const requisitionTitle = buildRequisitionTitle({
-      salesReference: "S01237",
-      clientName: "ACME Corp",
-      itemCount: 3,
-    })
-    const automationTitle = stageActionTaskTitle({
-      salesReference: "S01237",
-      projectTitle: "ACME Corp",
-    })
-
-    expect(requisitionTitle).toBe("[PR] S01237 — ACME Corp — 3 items to source")
-    expect(requisitionTitle).not.toBe(automationTitle)
-    expect(requisitionTitle.startsWith("[PR]")).toBe(true)
   })
 })
 
