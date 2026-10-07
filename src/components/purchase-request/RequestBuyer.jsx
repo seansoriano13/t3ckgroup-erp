@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Hand } from "lucide-react";
 
@@ -11,35 +11,10 @@ import Spinner from "@/components/ui/Spinner";
 import { getPermissionContext } from "@/utils/permissions";
 import { employeeService } from "@/services/employeeService";
 import { purchaseRequestService } from "@/services/purchaseRequestService";
-import { procurementQueueKey, purchaseRequestKeys } from "./queryKeys";
-
-/** The database's refusal, without the function name it leads with. */
-const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
+import { purchaseRequestKeys } from "./queryKeys";
+import { refusal, useRefreshRequest, useTakeRequest } from "./requestHooks";
 
 const NO_BUYER = "__none__";
-
-/** What refreshes after the Buyer changes: the queue and the request. */
-function useRefreshRequest(requestId) {
-  const queryClient = useQueryClient();
-  return () => {
-    queryClient.invalidateQueries({ queryKey: procurementQueueKey });
-    queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) });
-  };
-}
-
-/**
- * Take: the signed-in purchaser becomes the Buyer of an unassigned request.
- * Shared by the request view and the queue row.
- */
-export function useTakeRequest(requestId) {
-  const refresh = useRefreshRequest(requestId);
-  return useMutation({
-    mutationFn: () => purchaseRequestService.take(requestId),
-    onSuccess: () => toast.success("You're the Buyer."),
-    onError: (err) => toast.error(refusal(err)),
-    onSettled: refresh,
-  });
-}
 
 /**
  * Issue #308 — a Purchase Request's Buyer, and the ways to change it:
@@ -72,16 +47,18 @@ export default function RequestBuyer({ request }) {
     onSettled: refresh,
   });
 
+  const buyerId = request?.buyer_id;
+  const buyerName = request?.buyer_name;
   const buyerOptions = useMemo(() => {
     const purchasers = employees
-      .filter((e) => e.has_purchasing_flow || e.id === request?.buyer_id)
+      .filter((e) => e.has_purchasing_flow || e.id === buyerId)
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
       .map((e) => ({ value: e.id, label: e.name }));
-    if (request?.buyer_id && !purchasers.some((o) => o.value === request.buyer_id)) {
-      purchasers.unshift({ value: request.buyer_id, label: request.buyer_name || "Current Buyer" });
+    if (buyerId && !purchasers.some((o) => o.value === buyerId)) {
+      purchasers.unshift({ value: buyerId, label: buyerName || "Current Buyer" });
     }
     return [{ value: NO_BUYER, label: "No Buyer (back to the queue)" }, ...purchasers];
-  }, [employees, request?.buyer_id, request?.buyer_name]);
+  }, [employees, buyerId, buyerName]);
 
   if (!request) return null;
   const unassigned = !request.buyer_id;

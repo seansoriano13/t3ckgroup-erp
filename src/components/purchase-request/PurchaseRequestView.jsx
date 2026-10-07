@@ -1,24 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
 import { PackageSearch } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import EmptyState from "@/components/ui/EmptyState";
 import Spinner from "@/components/ui/Spinner";
-import { purchaseRequestService } from "@/services/purchaseRequestService";
 import RequestBuyer from "./RequestBuyer";
 import RequestMembers from "./RequestMembers";
 import RequestedItems from "./RequestedItems";
 import RequestChat from "./RequestChat";
-import { purchaseRequestKeys } from "./queryKeys";
-
-/** One request's header (a `listQueue`-shaped row), shared by every part that needs it. */
-export function usePurchaseRequest(requestId) {
-  return useQuery({
-    queryKey: purchaseRequestKeys.header(requestId),
-    queryFn: () => purchaseRequestService.get(requestId),
-    enabled: !!requestId,
-  });
-}
+import { usePurchaseRequest } from "./requestHooks";
 
 /**
  * Issue #308 — one Purchase Request: its Buyer, members, Requested Items with

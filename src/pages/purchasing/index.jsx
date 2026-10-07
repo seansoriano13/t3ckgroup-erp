@@ -15,7 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
 import PurchaseRequestView from "../../components/purchase-request/PurchaseRequestView";
-import RequestBuyer, { useTakeRequest } from "../../components/purchase-request/RequestBuyer";
+import RequestBuyer from "../../components/purchase-request/RequestBuyer";
+import { useTakeRequest } from "../../components/purchase-request/requestHooks";
 import { procurementQueueKey } from "../../components/purchase-request/queryKeys";
 import {
   QUEUE_BUYER,
