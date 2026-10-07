@@ -16,10 +16,10 @@ import { formatPHP } from "../../constants/sor";
 // so the report matches the commission dashboard and each storefront is
 // told apart in the legend.
 const SERIES_FILLS = [
-  "var(--color-foreground, #222)",
-  "var(--color-muted-foreground, #888)",
-  "var(--color-border, #bbb)",
-  "var(--color-muted, #ddd)",
+  "var(--color-foreground)",
+  "var(--color-muted-foreground)",
+  "var(--color-border)",
+  "var(--color-muted)",
 ];
 
 /** "₱120K" / "₱1.2M" for a y-axis tick; full pesos would be wider than the axis. */
@@ -62,22 +62,22 @@ export default function MonthlyIncomeChart({ series, empty }) {
                 dataKey="label"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 11, fill: "var(--color-muted-foreground, #888)" }}
+                tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={formatAxisPeso}
                 width={56}
-                tick={{ fontSize: 10, fill: "var(--color-muted-foreground, #888)" }}
+                tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               />
               <RechartsTooltip
                 formatter={(value) => formatPHP(value)}
-                cursor={{ fill: "var(--color-muted, #eee)", opacity: 0.4 }}
+                cursor={{ fill: "var(--color-muted)", opacity: 0.4 }}
                 contentStyle={{
                   borderRadius: 12,
-                  border: "1px solid var(--color-border, #ddd)",
-                  background: "var(--color-card, #fff)",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-card)",
                   fontSize: 12,
                 }}
               />

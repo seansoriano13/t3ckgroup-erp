@@ -42,8 +42,9 @@ function parseAmount(raw: string): number | null {
 
 // Every label that can start a value. A value runs to the next label, so the
 // older notes that put several labels on one line still split correctly.
+// A fee of another kind ("SHIPPING FEE: 50") is not the Marketplace Fee.
 const LABELS =
-  /\b(ORDER\s+ID|ORDER\s+INCOME|OI|FEE|TOTAL\s+BUYER\s+AMOUNT|BUYER\s+PAYMENT|PROOF\s+OF\s+PAYMENT|DELIVERY\s+DETAILS|DATE\s+OF\s+PAYMENT|DATE|PAID|PENALTY|REMARKS|LOCATION|NAME)\b/gi;
+  /\b(ORDER\s+ID|ORDER\s+INCOME|OI|(?<!(?:SHIPPING|TRANSACTION|SERVICE|COMMISSION|VOUCHER|DELIVERY)\s)FEE|TOTAL\s+BUYER\s+AMOUNT|BUYER\s+PAYMENT|PROOF\s+OF\s+PAYMENT|DELIVERY\s+DETAILS|DATE\s+OF\s+PAYMENT|DATE|PAID|PENALTY|REMARKS|LOCATION|NAME)\b/gi;
 
 const RECONCILE_TOLERANCE = 0.05;
 
