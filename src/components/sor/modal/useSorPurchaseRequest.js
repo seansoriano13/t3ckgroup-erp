@@ -9,11 +9,13 @@ export const sorPurchaseRequestKey = (opportunityId) => ["sor-purchase-request",
  * Requested Items. `data` is null when the SOR has none (or the caller may not
  * read it), and every part of the SOR that shows purchasing then shows nothing.
  */
-export function useSorPurchaseRequest(opportunityId, { enabled = true } = {}) {
+export function useSorPurchaseRequest(opportunityId, { enabled } = {}) {
   return useQuery({
     queryKey: sorPurchaseRequestKey(opportunityId),
     queryFn: () => purchaseRequestService.getSorOverview(opportunityId),
-    enabled: !!opportunityId && enabled,
+    // Leave `enabled` unset when the caller does not say, so the Release Notes
+    // SampleProvider's off-by-default queries keep this off the network.
+    ...(opportunityId ? (enabled === undefined ? {} : { enabled }) : { enabled: false }),
     staleTime: 0,
   });
 }
