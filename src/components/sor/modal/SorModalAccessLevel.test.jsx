@@ -63,6 +63,35 @@ describe("SorModal — access level", () => {
     expect(screen.queryByPlaceholderText("Add a note — type @ to mention someone")).not.toBeInTheDocument()
   })
 
+  it("tells someone with no access, and names the Deal Owner to ask (#474)", async () => {
+    const viewer = makeEmployee()
+    authUser = { id: viewer.id }
+    const deal = makeOpportunity({ status: "LEAD" })
+
+    stubRpc("sor_access_contact", () => [{ deal_owner_name: "Dana Owner" }])
+
+    renderWithProviders(
+      <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={null} opportunityId={deal.id} accessLevel="none" />,
+    )
+
+    await screen.findByText("Dana Owner")
+    expect(screen.getByText("You're not on this SOR.")).toBeInTheDocument()
+    // Nothing about the deal itself.
+    expect(screen.queryByText(deal.project_title)).not.toBeInTheDocument()
+    expect(screen.queryByRole("tab", { name: "Now" })).not.toBeInTheDocument()
+  })
+
+  it("says an SOR that does not exist cannot be found (#474)", async () => {
+    authUser = { id: makeEmployee().id }
+    stubRpc("sor_access_contact", () => [])
+
+    renderWithProviders(
+      <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={null} opportunityId="missing-sor" accessLevel="none" />,
+    )
+
+    await screen.findByText("This SOR doesn't exist or has been deleted.")
+  })
+
   it("disables Move and shows the restricted banner for a full-access viewer shut out of the current stage", async () => {
     const owner = makeEmployee()
     authUser = { id: owner.id, isSuperAdmin: true }

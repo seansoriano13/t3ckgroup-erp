@@ -3449,6 +3449,18 @@ export const opportunityService = {
     ]).size;
   },
 
+  /**
+   * #474: the prohibited screen's one fact — the Deal Owner to ask — from
+   * `sor_access_contact`. `found: false` when the SOR does not exist.
+   */
+  async getAccessContact(opportunityId) {
+    if (!opportunityId) return { found: false, dealOwnerName: null };
+    const { data, error } = await supabase.rpc("sor_access_contact", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    const row = data?.[0];
+    return row ? { found: true, dealOwnerName: row.deal_owner_name ?? null } : { found: false, dealOwnerName: null };
+  },
+
   async getLockedSummary(opportunityId) {
     if (!opportunityId) return null;
     const { data, error } = await supabase.rpc("sor_locked_summary", { p_opportunity_id: opportunityId });

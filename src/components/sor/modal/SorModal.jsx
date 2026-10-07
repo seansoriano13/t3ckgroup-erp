@@ -30,6 +30,7 @@ import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
 import LockedSorSlideOver from "../LockedSorSlideOver";
+import NoAccessSorSlideOver from "../NoAccessSorSlideOver";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
@@ -91,6 +92,12 @@ export default function SorModal({
   });
   const lockedSummary = lockedSummaryProp ?? fetchedLockedSummary ?? null;
   const isRestricted = !!lockedSummary?.is_restricted;
+
+  const { data: accessContact = null } = useQuery({
+    queryKey: ["sorAccessContact", id],
+    queryFn: () => opportunityService.getAccessContact(id),
+    enabled: !!id && isOpen && accessLevel === "none",
+  });
 
   const { data: myVisits = [] } = useQuery({
     queryKey: ["sorMyVisits", id],
@@ -714,6 +721,9 @@ export default function SorModal({
   // every hook above has run unconditionally, so the branch never changes
   // this component's hook order.
   if (!id) return null;
+  if (accessLevel === "none") {
+    return <NoAccessSorSlideOver isOpen={isOpen} onClose={onClose} contact={accessContact} />;
+  }
   if (accessLevel === "locked") {
     return <LockedSorSlideOver isOpen={isOpen} onClose={onClose} lockedSummary={lockedSummary} myVisits={myVisits} />;
   }
