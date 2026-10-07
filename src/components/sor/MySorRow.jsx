@@ -28,7 +28,7 @@ export default function MySorRow({ row, onOpen }) {
         </span>
         {!row.isOpen && (
           <span className="inline-flex items-center gap-1 rounded-md bg-mauve-4 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            <Lock size={10} /> Closed
+            <Lock size={10} /> Access ended
           </span>
         )}
       </div>
@@ -44,14 +44,17 @@ export default function MySorRow({ row, onOpen }) {
           <li key={w.id} className="text-xs leading-relaxed text-muted-foreground">
             {w.source === "mention" ? (
               <>
-                Mentioned{w.mentionedBy ? <> by <span className="font-bold text-foreground">{w.mentionedBy}</span></> : ""} � sees {w.reachLabel}
+                Mentioned
+                {w.calledInAtStageName ? <> at <span className="font-bold text-foreground">{w.calledInAtStageName}</span></> : ""}
+                {w.mentionedBy ? <> by <span className="font-bold text-foreground">{w.mentionedBy}</span></> : ""} — sees{" "}
+                {w.reachLabel}
+                {w.closedAt ? " (window closed)" : ""}
               </>
             ) : (
               <>
-            Called in at{" "}
-            <span className="font-bold text-foreground">{w.calledInAtStageName || "this deal"}</span>
-            {SOURCE_LABEL[w.source] ? ` by ${SOURCE_LABEL[w.source]}` : ""} — sees {w.reachLabel}
-            {w.closedAt ? " (window closed)" : ""}
+                Called in at <span className="font-bold text-foreground">{w.calledInAtStageName || "this deal"}</span>
+                {SOURCE_LABEL[w.source] ? ` by ${SOURCE_LABEL[w.source]}` : ""} — sees {w.reachLabel}
+                {w.closedAt ? " (window closed)" : ""}
               </>
             )}
           </li>

@@ -1,14 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Handshake, Search } from "lucide-react";
+import { Handshake } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
-import TabGroup from "../../components/ui/TabGroup";
-import { Input } from "../../components/ui/input";
 import Spinner from "../../components/ui/Spinner";
 import MySorsTable from "../../components/sor/MySorsTable";
+import MySorsFilterBar from "../../components/sor/MySorsFilterBar";
+import { useSavedFilters } from "../../hooks/useSavedFilters";
+import { DEFAULT_MY_SORS_FILTERS, applyMySorsFilters, hasActiveMySorsFilters } from "../../utils/mySorsFilters";
 import { useAuth } from "../../context/AuthContext";
 import { opportunityService } from "../../services/opportunityService";
 
@@ -28,9 +29,10 @@ import { opportunityService } from "../../services/opportunityService";
  * a Sales module that other departments collaborate into — the deals are the
  * Sales module's, the involvement is personal.
  *
- * Closed windows stay listed, grouped apart. A deal someone worked last month
- * is the thing they are most likely to come here looking for, and dropping it
- * silently is the same disappearing act this screen exists to undo.
+ * Ended windows stay listed, tagged "Access ended" and behind the Access
+ * filter (#478). A deal someone worked last month is the thing they are most
+ * likely to come here looking for, and dropping it silently is the same
+ * disappearing act this screen exists to undo.
  */
 /**
  * The one way into an SOR from anywhere that is not the register.
@@ -56,8 +58,13 @@ function openSor(opportunityId) {
 
 function MySorsScreen() {
   const { user } = useAuth();
-  const [pill, setPill] = useState(null);
-  const [search, setSearch] = useState("");
+  const { initial, hasSavedDefault, saveDefault, clearDefault, isDirty } = useSavedFilters(
+    "my_sors",
+    user?.id,
+    DEFAULT_MY_SORS_FILTERS,
+  );
+  const [filters, setFilters] = useState(initial);
+  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["mySors", user?.id],
@@ -65,24 +72,10 @@ function MySorsScreen() {
     enabled: !!user?.id,
   });
 
-  const { open, closed } = useMemo(
-    () => ({
-      open: rows.filter((r) => r.isOpen),
-      closed: rows.filter((r) => !r.isOpen),
-    }),
-    [rows],
-  );
-
-  // Open first; land on Closed only when nothing is open, so a person whose
-  // windows all closed still sees their deals.
-  const active = pill ?? (open.length === 0 && closed.length > 0 ? "closed" : "open");
-  const needle = search.trim().toLowerCase();
-  const shown = (active === "open" ? open : closed).filter(
-    (r) =>
-      !needle ||
-      (r.salesReference || "").toLowerCase().includes(needle) ||
-      (r.projectTitle || "").toLowerCase().includes(needle),
-  );
+  // #478: ended windows stay listed (a deal worked last month is what people
+  // come here for), but behind the Access filter so the list stays short.
+  const shown = useMemo(() => applyMySorsFilters(rows, filters), [rows, filters]);
+  const endedCount = useMemo(() => rows.filter((r) => !r.isOpen).length, [rows]);
 
   let body;
   if (isLoading) {
@@ -97,14 +90,19 @@ function MySorsScreen() {
       <EmptyState
         icon={Handshake}
         title="Nobody has called you into an SOR yet"
-        description="When a task, an assignment, or a purchase request pulls you into an SOR, it appears here for as long as your access lasts."
+        description="When a task, an assignment, a purchase request or a mention pulls you into an SOR, it appears here."
       />
     );
   } else if (shown.length === 0) {
+    const onlyDefault = !hasActiveMySorsFilters(filters);
     body = (
       <EmptyState
-        title={needle ? "No SOR matches your search" : `Nothing ${active}`}
-        description={needle ? "Try a Sales Reference or project name." : undefined}
+        title={onlyDefault ? "No open access right now" : "No SOR matches these filters"}
+        description={
+          onlyDefault && endedCount > 0
+            ? `${endedCount} SOR${endedCount === 1 ? "" : "s"} where your access has ended. Set Access to "Access ended" to see ${endedCount === 1 ? "it" : "them"}.`
+            : undefined
+        }
       />
     );
   } else {
@@ -114,30 +112,21 @@ function MySorsScreen() {
   return (
     <PageShell
       title="My SORs"
-      description="SORs you were called into, and how far your access reaches"
+      description="SORs you were called or mentioned into, and how far your access reaches"
       toolbar={
         rows.length > 0 && (
-          <>
-            <TabGroup
-              variant="pill"
-              activeTab={active}
-              onChange={setPill}
-              tabs={[
-                { value: "open", label: `Open ${open.length}` },
-                { value: "closed", label: `Closed ${closed.length}` },
-              ]}
-            />
-            <div className="w-full max-w-xs">
-              <Input
-                icon={Search}
-                type="search"
-                aria-label="Search SORs"
-                placeholder="Search reference or project"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </>
+          <MySorsFilterBar
+            rows={rows}
+            filters={filters}
+            onChange={setFilter}
+            onClearAll={() => setFilters(DEFAULT_MY_SORS_FILTERS)}
+            saveDefault={{
+              hasSavedDefault,
+              isDirty: isDirty(filters),
+              onSave: () => saveDefault(filters),
+              onClear: clearDefault,
+            }}
+          />
         )
       }
     >
