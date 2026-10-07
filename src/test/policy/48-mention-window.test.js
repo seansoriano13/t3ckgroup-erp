@@ -184,6 +184,18 @@ describe("Mention Window", () => {
         expect(data.every((r) => r.granter?.name === "Deal Owner")).toBe(true)
     })
 
+    it("the Deal Team sees who the SOR is shared with; a mentioned person does not (#477)", async () => {
+        const { data, error } = await (await clientFor("dealOwner")).rpc("sor_mention_shares", { p_opportunity_id: sorId })
+        expect(error).toBeNull()
+        const ordinary = data.find((r) => r.employee_id === ids.ordinary)
+        expect(ordinary).toMatchObject({ stage_name: `${MARKER} MW Stage 2`, is_open: false })
+        expect(ordinary.granted_by_name).toBeTruthy()
+        expect(data.filter((r) => r.employee_id === ids.outsider)).toHaveLength(2)
+
+        const { data: theirs } = await (await clientFor("outsider")).rpc("sor_mention_shares", { p_opportunity_id: sorId })
+        expect(theirs).toEqual([])
+    })
+
     it("an SOR with no Stage Visit keeps the permanent header grant", async () => {
         const { error } = await mention("dealOwner", [ids.outsider], oldSor)
         expect(error).toBeNull()
