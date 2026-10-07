@@ -81,6 +81,31 @@ describe("SorModal — access level", () => {
     expect(screen.queryByRole("tab", { name: "Now" })).not.toBeInTheDocument()
   })
 
+  it("tells a mentioned viewer which Stage they see, who opened it, and when it ends (#475)", async () => {
+    const viewer = makeEmployee()
+    const sender = makeEmployee({ name: "Sean Sender" })
+    authUser = { id: viewer.id }
+    const saleType = makeSaleType({ name: "Flow for mention banner" })
+    const stage = makeFlowStage({ name: "Costing" })
+    const deal = makeOpportunity({ status: "LEAD", sale_type_id: saleType.id, flow_stage_id: stage.id })
+    const visit = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id)
+    db.seed("sor_mention_viewers", [
+      { opportunity_id: deal.id, employee_id: viewer.id, granted_by: sender.id, stage_visit_id: visit.id },
+    ])
+
+    stubRpc("sor_access_level", () => "participant")
+    stubRpc("sor_participant_record", () => [deal])
+    stubRpc("sor_visible_visit_ids", () => [visit.id])
+
+    renderWithProviders(
+      <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} opportunityId={deal.id} accessLevel="participant" />,
+    )
+
+    const banner = await screen.findByText(/because/)
+    expect(banner.closest("li").textContent).toContain("You're viewing Costing because Sean Sender mentioned you")
+    expect(banner.closest("li").textContent).toContain("this ends when the Stage moves")
+  })
+
   it("says an SOR that does not exist cannot be found (#474)", async () => {
     authUser = { id: makeEmployee().id }
     stubRpc("sor_access_contact", () => [])

@@ -31,6 +31,7 @@ import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
 import LockedSorSlideOver from "../LockedSorSlideOver";
 import NoAccessSorSlideOver from "../NoAccessSorSlideOver";
+import { hiddenVisits } from "../../../utils/sorHiddenVisits";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
@@ -124,6 +125,22 @@ export default function SorModal({
     queryFn: () => opportunityService.getMyWindowsOn(id, user.id),
     enabled: !!id && isOpen && !!user?.id && (accessLevel === "participant" || accessLevel === "locked"),
   });
+  const { data: myMentionWindows = [] } = useQuery({
+    queryKey: ["myMentionWindowsOn", id, user?.id],
+    queryFn: () => opportunityService.getMyMentionWindowsOn(id, user.id),
+    enabled: !!id && isOpen && !!user?.id && accessLevel === "participant",
+  });
+  // #475: the visits this viewer cannot read, marked in the timeline rather
+  // than left as a silent gap.
+  const { data: visitVisibility } = useQuery({
+    queryKey: ["sorVisitVisibility", id],
+    queryFn: () => opportunityService.getVisitVisibility(id),
+    enabled: !!id && isOpen && (accessLevel === "full" || accessLevel === "participant"),
+  });
+  const hiddenStageVisits = useMemo(
+    () => (visitVisibility ? hiddenVisits(visitVisibility.visits, visitVisibility.visibleIds, accessLevel) : []),
+    [visitVisibility, accessLevel],
+  );
   const { stages: allStages } = usePipelineStages({ includeInactive: true });
   const pipelineStages = useMemo(
     () => allStages.filter((s) => s.is_active || s.code === rawOpportunity?.status),
@@ -855,6 +872,7 @@ export default function SorModal({
   const chatColumn = (
     <SorChatColumn
       notes={notes}
+      hiddenVisits={hiddenStageVisits}
       loadingNotes={loadingNotes}
       notesContainerRef={notesContainerRef}
       handleMentionClick={handleMentionClick}
@@ -870,9 +888,30 @@ export default function SorModal({
     />
   );
 
-  const windowsBanner = myWindows.length > 0 && (
+  // #475: a Mention Window says who opened it and when it ends.
+  const windowsBanner = (myWindows.length > 0 || myMentionWindows.length > 0) && (
       <div className="shrink-0 border-b border-border/60 bg-violet-a2 px-6 py-2">
         <ul className="space-y-0.5">
+          {myMentionWindows.map((m) => (
+            <li key={m.id} className="text-xs leading-relaxed text-violet-11">
+              {!m.hasVisit ? (
+                <>
+                  <span className="font-bold">{m.mentionedBy || "Someone"}</span> mentioned you. You see this deal, read-only.
+                </>
+              ) : m.closed ? (
+                <>
+                  <span className="font-bold">{m.mentionedBy || "Someone"}</span> mentioned you at{" "}
+                  <span className="font-bold">{m.stageName || "an earlier Stage"}</span>. That Stage has moved on.
+                </>
+              ) : (
+                <>
+                  You're viewing <span className="font-bold">{m.stageName || "this Stage"}</span> because{" "}
+                  <span className="font-bold">{m.mentionedBy || "someone"}</span> mentioned you. Other Stages are hidden;
+                  this ends when the Stage moves.
+                </>
+              )}
+            </li>
+          ))}
           {myWindows.map((w) => (
             <li key={w.id} className="text-xs leading-relaxed text-violet-11">
               Called in at{" "}

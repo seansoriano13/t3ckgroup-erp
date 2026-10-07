@@ -3461,6 +3461,52 @@ export const opportunityService = {
     return row ? { found: true, dealOwnerName: row.deal_owner_name ?? null } : { found: false, dealOwnerName: null };
   },
 
+  /**
+   * #475: every live Stage Visit on the SOR beside the ones this viewer can
+   * read, so the timeline can mark the hidden ones instead of leaving a gap.
+   */
+  async getVisitVisibility(opportunityId) {
+    if (!opportunityId) return { visits: [], visibleIds: [] };
+    const [{ data: visits, error }, { data: idRows, error: idErr }] = await Promise.all([
+      supabase
+        .from("sor_stage_visits")
+        .select("id, sequence, entered_at, left_at, flow_stages(name)")
+        .eq("opportunity_id", opportunityId)
+        .is("undone_at", null)
+        .order("sequence", { ascending: true }),
+      supabase.rpc("sor_visible_visit_ids", { p_opportunity_id: opportunityId }),
+    ]);
+    if (error) throw error;
+    if (idErr) throw idErr;
+    const visibleIds = (idRows || []).map((row) => (typeof row === "string" ? row : row.sor_visible_visit_ids));
+    return { visits: visits || [], visibleIds };
+  },
+
+  /**
+   * #475: this person's Mention Windows on one SOR — who mentioned them, on
+   * which Stage, and whether the SOR has since left it. RLS returns only the
+   * caller's own rows.
+   */
+  async getMyMentionWindowsOn(opportunityId, employeeId) {
+    if (!opportunityId || !employeeId) return [];
+    const { data, error } = await supabase
+      .from("sor_mention_viewers")
+      .select(
+        "id, created_at, stage_visit_id, granter:employees!sor_mention_viewers_granted_by_fkey(name), visit:sor_stage_visits(left_at, undone_at, flow_stages(name))",
+      )
+      .eq("opportunity_id", opportunityId)
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data || []).map((r) => ({
+      id: r.id,
+      mentionedBy: r.granter?.name ?? null,
+      stageName: r.visit?.flow_stages?.name ?? null,
+      hasVisit: !!r.stage_visit_id,
+      closed: !!r.stage_visit_id && !!(r.visit?.left_at || r.visit?.undone_at),
+    }));
+  },
+
   async getLockedSummary(opportunityId) {
     if (!opportunityId) return null;
     const { data, error } = await supabase.rpc("sor_locked_summary", { p_opportunity_id: opportunityId });
