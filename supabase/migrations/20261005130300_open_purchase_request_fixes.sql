@@ -1,7 +1,7 @@
 -- ==============================================================================
--- 20261007100000_open_purchase_request_fixes.sql
+-- 20261005130300_open_purchase_request_fixes.sql
 --
--- Issue #304 follow-up — fixes to 20261005150000_open_purchase_request_action.
+-- Issue #304 follow-up — fixes to 20261005130200_open_purchase_request_action.
 -- That file has been pushed, so everything here replaces it rather than
 -- editing it.
 --
@@ -41,7 +41,7 @@
 -- holding a window still sees the SOR's locked header.
 --
 -- CORRECTION
--- 20261005150000's header calls its two new columns "nullable-defaulted".
+-- 20261005130200's header calls its two new columns "nullable-defaulted".
 -- `access_until_stage_id` is nullable; `access_until` is `not null default
 -- 'stage_left'`.
 --

@@ -6,7 +6,7 @@
 --   3. The Buyer may add a substitute regardless of side.
 --   4. A top-up that sets a Buyer on a request with none posts `buyer_set`.
 -- Redefines: purchase_request_can_add_items, pr_can_add_substitute,
--- sor_open_purchase_request (body of 20261007100000 plus the buyer_set event).
+-- sor_open_purchase_request (body of 20261005130300 plus the buyer_set event).
 
 revoke all on function public.has_purchasing_access() from public, anon;
 revoke all on function public.is_purchase_request_member(uuid) from public, anon;

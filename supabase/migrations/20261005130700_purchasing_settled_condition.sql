@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 20261007161100_purchasing_settled_condition.sql
+-- 20261005130700_purchasing_settled_condition.sql
 --
 -- Issue #209, ticket #311: the Purchasing settled condition kind.
 --

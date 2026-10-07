@@ -33,7 +33,7 @@ const MEMBER_SELECT =
  * (the insert policy checks author and membership); anyone with Purchasing
  * access may Take an unassigned request; a purchasing member or Super Admin
  * names the Buyer. Who is notified is decided in the database, by a trigger
- * on every message: see 20261007141000_purchase_request_chat_and_buyer.sql.
+ * on every message: see 20261005130600_purchase_request_chat_and_buyer.sql.
  *
  * The queue (#308): `pr_queue` returns every request the caller may read,
  * with the SOR's locked header, the Buyer and item counts; the slices

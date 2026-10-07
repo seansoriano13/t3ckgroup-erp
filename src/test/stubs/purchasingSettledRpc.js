@@ -3,7 +3,7 @@ import { db } from "@/test/db/store"
 
 /**
  * Issue #311 — `sor_purchase_request_item_states` (supabase/migrations/
- * 20261007161100_purchasing_settled_condition.sql), Purchasing settled's
+ * 20261005130700_purchasing_settled_condition.sql), Purchasing settled's
  * evidence, re-implemented on the fake store: the SOR's Requested Items as
  * `{ status, created_at, status_changed_at }`, or null when it has no
  * Purchase Request. Who may call it is proven in the policy tier

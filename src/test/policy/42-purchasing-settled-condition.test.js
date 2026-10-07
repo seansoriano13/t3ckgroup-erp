@@ -18,7 +18,7 @@ import { MARKER, makeSor } from "./support/rows.js"
 import { isSettled } from "../../constants/purchaseRequest.js"
 
 const svc = () => serviceClient()
-const MIGRATION = readFileSync("supabase/migrations/20261007161100_purchasing_settled_condition.sql", "utf8")
+const MIGRATION = readFileSync("supabase/migrations/20261005130700_purchasing_settled_condition.sql", "utf8")
 
 let sorId, bareSorId, requestId, itemIds
 let saleTypeId, flowId, stageId, snapshotId

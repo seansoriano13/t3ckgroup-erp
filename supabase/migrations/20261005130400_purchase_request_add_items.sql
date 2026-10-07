@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 20261007120500_purchase_request_add_items.sql
+-- 20261005130400_purchase_request_add_items.sql
 --
 -- Issue #305 (part of #209) — Requested Items: picked from an SOR line, or
 -- described as a new product.
@@ -38,7 +38,7 @@
 --
 -- POSTS IN THE REQUEST
 -- Every added item starts at Requested and posts an `item_added` event
--- message. Only an RPC may post an event (20261005140000's insert policy).
+-- message. Only an RPC may post an event (20261005130100's insert policy).
 --
 -- SAFE TO RUN AT ANY TIME, against a live frontend of any version: new
 -- functions only, nothing existing altered or replaced. Idempotent.

@@ -9,7 +9,7 @@ const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().t
 
 /**
  * Issue #305 — the Requested Item RPCs (supabase/migrations/
- * 20261007120500_purchase_request_add_items.sql) live in Postgres, which the
+ * 20261005130400_purchase_request_add_items.sql) live in Postgres, which the
  * fake database does not execute. Re-implemented here against the in-memory
  * store, as stubReplaceItemsRpc does for sor_replace_items, so a service test
  * can run a real `updateOpportunity` between adding an item and reading it.
@@ -18,13 +18,13 @@ const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().t
  * get_employee_id(). Who may add is proven in the policy tier
  * (39-purchase-request-items.test.js), not here.
  *
- * #306's status RPCs (20261007130600_purchase_request_item_status.sql) too:
+ * #306's status RPCs (20261005130500_purchase_request_item_status.sql) too:
  * `side` is the actor's side (default: their stored member side, or null),
  * and `canSubstitute` stands in for pr_can_add_substitute. The transition
  * rule is the client's `allowedTransitions`, the one the SQL mirrors; who may
  * move what is proven in 40-purchase-request-item-status.test.js.
  *
- * #312's PO RPCs (20261007161200_purchase_request_item_po.sql): Ordered stores
+ * #312's PO RPCs (20261005130800_purchase_request_item_po.sql): Ordered stores
  * `details.po_number` / `po_verification`; `ipasLines` (`{ [poNumber]: [lineId] }`)
  * stands in for the `_ipas_po_line_ids` seam, empty by default as it ships.
  * The rules are proven in 43-purchase-request-item-po.test.js.
