@@ -173,6 +173,17 @@ describe("Mention Window", () => {
         expect(after).not.toContain(ids.ordinary)
     })
 
+    it("the mentioned person reads their own windows with the Stage and who mentioned them", async () => {
+        const { data, error } = await (await clientFor("outsider"))
+            .from("sor_mention_viewers")
+            .select("id, stage_visit_id, granter:employees!sor_mention_viewers_granted_by_fkey(name), visit:sor_stage_visits(left_at, undone_at, flow_stages(name))")
+            .eq("opportunity_id", sorId)
+            .order("created_at", { ascending: true })
+        expect(error).toBeNull()
+        expect(data.map((r) => r.visit?.flow_stages?.name)).toEqual([`${MARKER} MW Stage 1`, `${MARKER} MW Stage 2`])
+        expect(data.every((r) => r.granter?.name === "Deal Owner")).toBe(true)
+    })
+
     it("an SOR with no Stage Visit keeps the permanent header grant", async () => {
         const { error } = await mention("dealOwner", [ids.outsider], oldSor)
         expect(error).toBeNull()
