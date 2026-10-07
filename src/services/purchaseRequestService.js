@@ -1,5 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { ITEM_STATUS } from "../constants/purchaseRequest";
+import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
+import { purchasingService } from "./purchasingService";
 
 const ITEM_SELECT =
   "*, requester:employees!purchase_request_items_requested_by_fkey(id, name, avatar_path)";
@@ -18,6 +20,10 @@ const ITEM_SELECT =
  * Status (#306): every change goes through `pr_set_item_status`, which checks
  * the transition and the caller's side (purchasing walks the path; the sales
  * side may only cancel) and posts the change in the request.
+ *
+ * PO (#312): Ordered takes an optional PO number, checked against Odoo first;
+ * the PO line(s) the item is bought on are picked from the PO's IPAS stored
+ * Odoo copy (none exists yet, so nothing can be picked).
  */
 export const purchaseRequestService = {
   async addMember(requestId, employeeId) {
@@ -147,14 +153,67 @@ export const purchaseRequestService = {
   /**
    * Moves an item to `status`. The database refuses a step off the path, or
    * one the caller's side may not take, and posts the change in the request.
-   * `details` is reserved for per-status data (#312: PO number and lines on
-   * Ordered). Returns the updated item.
+   * `details` carries per-status data: Ordered takes `{ po_number,
+   * po_verification }` (#312; use `orderItem`). Returns the updated item.
    */
   async setItemStatus(itemId, status, details = {}) {
     const { data, error } = await supabase.rpc("pr_set_item_status", {
       p_item_id: itemId,
       p_status: status,
       p_details: details,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  // ── PO number and PO lines (#312) ────────────────────────────────────────
+
+  /**
+   * Checks a PO number against Odoo (`odoo-po-verify`, through the legacy
+   * panel's wrapper). Never throws: returns the `po_verification` value —
+   * VERIFIED, NOT_FOUND, or PENDING_VERIFICATION when Odoo couldn't be asked.
+   */
+  async verifyPo(poNumber) {
+    const { state } = await purchasingService.verifyPoNumber(normalizePoNumber(poNumber));
+    return state;
+  },
+
+  /**
+   * Sets an item Ordered. With a PO number, checks it against Odoo first and
+   * stores the number with the result; without one, the item is Ordered with
+   * no PO. Throws on a number that isn't an Odoo PO ("P" then digits).
+   * Returns the updated item.
+   */
+  async orderItem(itemId, { poNumber = "" } = {}) {
+    const po = normalizePoNumber(poNumber);
+    if (!po) return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.ORDERED);
+    if (!isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
+    const verification = await purchaseRequestService.verifyPo(po);
+    return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.ORDERED, {
+      po_number: po,
+      po_verification: verification,
+    });
+  },
+
+  /**
+   * The Odoo PO line ids on the IPAS stored copy of the item's PO — what may
+   * be picked. Empty when the item has no PO number or its PO has no IPAS.
+   */
+  async poLines(itemId) {
+    if (!itemId) return [];
+    const { data, error } = await supabase.rpc("pr_item_po_lines", { p_item_id: itemId });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Records the PO line(s) an Ordered item is bought on. The database
+   * refuses any line not on the PO's IPAS copy. Returns the updated item.
+   */
+  async pickPoLines(itemId, lineIds) {
+    const { data, error } = await supabase.rpc("pr_pick_po_lines", {
+      p_item_id: itemId,
+      p_line_ids: lineIds,
     });
     if (error) throw error;
     return data;

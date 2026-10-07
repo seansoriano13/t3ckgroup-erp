@@ -4,6 +4,7 @@ import {
   SOR_LINE_CHANGE,
   formatAmount,
   isLineRequested,
+  poLineNotPicked,
   requestedItemStock,
   sorLineChange,
 } from "./requestedItem"
@@ -114,5 +115,25 @@ describe("formatAmount", () => {
   it("drops trailing zeros and adds the unit", () => {
     expect(formatAmount("10.00", "pc")).toBe("10 pc")
     expect(formatAmount(2.5, null)).toBe("2.5")
+  })
+})
+
+describe("poLineNotPicked (#312)", () => {
+  const ordered = (overrides = {}) => ({ status: "ordered", po_number: "P01234", odoo_po_line_ids: [], ...overrides })
+
+  it("flags an Ordered item with a PO but no line", () => {
+    expect(poLineNotPicked(ordered())).toBe(true)
+    expect(poLineNotPicked(ordered({ odoo_po_line_ids: undefined }))).toBe(true)
+  })
+
+  it("still flags it once Received", () => {
+    expect(poLineNotPicked(ordered({ status: "received" }))).toBe(true)
+  })
+
+  it("says nothing once a line is picked, with no PO number, or before Ordered", () => {
+    expect(poLineNotPicked(ordered({ odoo_po_line_ids: [501] }))).toBe(false)
+    expect(poLineNotPicked(ordered({ po_number: null }))).toBe(false)
+    expect(poLineNotPicked(ordered({ status: "to_order" }))).toBe(false)
+    expect(poLineNotPicked(null)).toBe(false)
   })
 })

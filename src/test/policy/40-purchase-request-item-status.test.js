@@ -283,10 +283,10 @@ describe("bad input", () => {
         expect((await setStatus("stageParticipant", id, "shipped")).error?.code).toBe("22023")
     })
 
-    it("refuses details no status takes yet", async () => {
-        const id = await seedItem("to_order")
-        expect((await setStatus("stageParticipant", id, "ordered", { po_number: "P01234" })).error?.code).toBe("22023")
-        expect((await setStatus("stageParticipant", id, "ordered", {})).error).toBeNull()
+    it("refuses details a status doesn't take (only Ordered takes a PO number, #312)", async () => {
+        const id = await seedItem()
+        expect((await setStatus("stageParticipant", id, "to_order", { po_number: "P01234" })).error?.code).toBe("22023")
+        expect((await setStatus("stageParticipant", id, "to_order", {})).error).toBeNull()
     })
 
     it("refuses an item that doesn't exist", async () => {

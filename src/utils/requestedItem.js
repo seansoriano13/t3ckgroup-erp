@@ -86,3 +86,15 @@ export function isLineRequested(line, items = []) {
     (item) => item.source === ITEM_SOURCE.SOR_LINE && item.status !== ITEM_STATUS.CANCELLED && sameProduct(line, item),
   );
 }
+
+/**
+ * Issue #312 — whether an item bought on a PO still lacks its Odoo PO line:
+ * Ordered (or since Received) with a PO number and no line picked. A line is
+ * never guessed; Purchasing picks it from the PO's IPAS stored Odoo copy once
+ * that exists.
+ */
+export function poLineNotPicked(item) {
+  if (!item?.po_number) return false;
+  if (item.status !== ITEM_STATUS.ORDERED && item.status !== ITEM_STATUS.RECEIVED) return false;
+  return !(item.odoo_po_line_ids?.length > 0);
+}

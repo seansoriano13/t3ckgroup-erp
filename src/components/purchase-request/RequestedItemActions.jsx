@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ChevronDown, Replace } from "lucide-react";
+import { ChevronDown, ListChecks, Replace } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Dropdown from "@/components/ui/Dropdown";
 import Spinner from "@/components/ui/Spinner";
 import { NewProductDialog } from "./AddRequestedItems";
+import { OrderItemDialog, PickPoLinesDialog } from "./PoDialogs";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   ITEM_STATUS,
@@ -65,12 +66,29 @@ function MenuItem({ children, onClick, tone }) {
  * canSubstitute }`). Purchasing gets a menu of the next steps on the path and
  * the ways out (and, for the Buyer, "Offer a substitute"); the sales side gets
  * only Cancel; anyone else gets nothing. The database checks every move again.
+ *
+ * Ordered (#312) opens a dialog for the optional PO number. Once an item is
+ * Ordered on a PO, "Pick PO line…" appears only when that PO's IPAS copy has
+ * lines to pick (none do until IPAS exists).
  */
 export default function RequestedItemActions({ item, request, actor }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(null);
   const [substituting, setSubstituting] = useState(false);
+  const [ordering, setOrdering] = useState(false);
+  const [pickingLines, setPickingLines] = useState(false);
   const requestId = request?.id;
+  const side = actor?.side ?? null;
+  const onPo =
+    side === MEMBER_SIDE.PURCHASING &&
+    !!item.po_number &&
+    (item.status === ITEM_STATUS.ORDERED || item.status === ITEM_STATUS.RECEIVED);
+
+  const { data: poLineIds = [] } = useQuery({
+    queryKey: purchaseRequestKeys.poLines(requestId, item.id),
+    queryFn: () => purchaseRequestService.poLines(item.id),
+    enabled: onPo,
+  });
 
   const moveMutation = useMutation({
     mutationFn: (status) => purchaseRequestService.setItemStatus(item.id, status),
@@ -79,12 +97,16 @@ export default function RequestedItemActions({ item, request, actor }) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) }),
   });
 
-  const side = actor?.side ?? null;
   const next = allowedTransitions(item.status, side);
   const canSubstitute = !!actor?.canSubstitute && !isClosedStatus(item.status);
-  if (next.length === 0 && !canSubstitute) return null;
+  const canPickLines = onPo && poLineIds.length > 0;
+  if (next.length === 0 && !canSubstitute && !canPickLines) return null;
 
-  const choose = (status) => (CONFIRM[status] ? setConfirming(status) : moveMutation.mutate(status));
+  const choose = (status) => {
+    if (status === ITEM_STATUS.ORDERED) setOrdering(true);
+    else if (CONFIRM[status]) setConfirming(status);
+    else moveMutation.mutate(status);
+  };
   const busy = moveMutation.isPending;
 
   const confirm = confirming && CONFIRM[confirming];
@@ -107,6 +129,10 @@ export default function RequestedItemActions({ item, request, actor }) {
           requestId={requestId}
           substituteFor={item}
         />
+      )}
+      {ordering && <OrderItemDialog open onOpenChange={setOrdering} item={item} requestId={requestId} />}
+      {canPickLines && pickingLines && (
+        <PickPoLinesDialog open onOpenChange={setPickingLines} item={item} requestId={requestId} lineIds={poLineIds} />
       )}
     </>
   );
@@ -162,7 +188,20 @@ export default function RequestedItemActions({ item, request, actor }) {
                 {ITEM_STATUS_LABELS[status]}
               </MenuItem>
             ))}
-            {onPath.length > 0 && (waysOut.length > 0 || canSubstitute) && <div className="my-1 h-px bg-border" />}
+            {canPickLines && (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  setPickingLines(true);
+                }}
+              >
+                <ListChecks size={14} />
+                Pick PO line…
+              </MenuItem>
+            )}
+            {(onPath.length > 0 || canPickLines) && (waysOut.length > 0 || canSubstitute) && (
+              <div className="my-1 h-px bg-border" />
+            )}
             {canSubstitute && (
               <MenuItem
                 onClick={() => {

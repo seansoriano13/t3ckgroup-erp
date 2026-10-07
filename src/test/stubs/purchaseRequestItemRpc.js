@@ -23,8 +23,13 @@ const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().t
  * and `canSubstitute` stands in for pr_can_add_substitute. The transition
  * rule is the client's `allowedTransitions`, the one the SQL mirrors; who may
  * move what is proven in 40-purchase-request-item-status.test.js.
+ *
+ * #312's PO RPCs (20261007161200_purchase_request_item_po.sql): Ordered stores
+ * `details.po_number` / `po_verification`; `ipasLines` (`{ [poNumber]: [lineId] }`)
+ * stands in for the `_ipas_po_line_ids` seam, empty by default as it ships.
+ * The rules are proven in 43-purchase-request-item-po.test.js.
  */
-export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false }) {
+export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {} }) {
   const postAdded = (item) => {
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
@@ -153,7 +158,38 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
   stubRpc("pr_set_item_status", (args) => {
     const item = findRow("purchase_request_items", args.p_item_id)
     if (!item) refuse(`pr_set_item_status: item ${args.p_item_id} not found`, "P0002")
-    return move(item, args.p_status, null, "pr_set_item_status")
+    const details = args.p_details || {}
+    const po = (details.po_number || "").trim().toUpperCase() || null
+    if (Object.keys(details).length && args.p_status !== "ordered") {
+      refuse(`pr_set_item_status: ${ITEM_STATUS_LABELS[args.p_status]} takes no details`, "22023")
+    }
+    if (po && !/^P\d+$/.test(po)) refuse(`pr_set_item_status: ${po} isn't an Odoo PO number`, "22023")
+    const poFields = po ? { po_number: po, po_verification: details.po_verification || "UNVERIFIED" } : null
+    const moved = move(item, args.p_status, poFields, "pr_set_item_status")
+    return poFields ? updateRow("purchase_request_items", item, poFields) : moved
+  })
+
+  const ipasOf = (poNumber) => (poNumber && ipasLines[poNumber]) || []
+
+  stubRpc("pr_item_po_lines", (args) => ipasOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
+
+  stubRpc("pr_pick_po_lines", (args) => {
+    const item = findRow("purchase_request_items", args.p_item_id)
+    if (!item) refuse(`pr_pick_po_lines: item ${args.p_item_id} not found`, "P0002")
+    if (sideOf(item.request_id) !== "purchasing") refuse("pr_pick_po_lines: only Purchasing picks an item's PO line", "42501")
+    const ipas = ipasOf(item.po_number)
+    if (!ipas.length) refuse(`pr_pick_po_lines: PO ${item.po_number} has no IPAS yet; pick its line once it does`, "22023")
+    const lines = [...new Set(args.p_line_ids || [])].sort((a, b) => a - b)
+    const stray = lines.filter((l) => !ipas.includes(l))
+    if (!lines.length || stray.length) refuse(`pr_pick_po_lines: line ${stray.join(", ")} isn't on PO ${item.po_number}'s IPAS copy`, "22023")
+    const updated = updateRow("purchase_request_items", item, { odoo_po_line_ids: lines })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `${item.name}: PO line picked on ${item.po_number}.`,
+      metadata: { event: "item_po_lines_picked", item_id: item.id, po_number: item.po_number, line_ids: lines },
+    })
+    return updated
   })
 
   stubRpc("pr_add_substitute", (args) => {
