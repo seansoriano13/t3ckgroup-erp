@@ -294,7 +294,12 @@ export default function GlobalDetailManager() {
   return (
     <>
       {purchaseRequestId && (
-        <PurchaseRequestModal requestId={purchaseRequestId} onClose={() => setPurchaseRequestId(null)} />
+        <PurchaseRequestModal requestId={purchaseRequestId} onClose={() => {
+            // #310: an SOR behind the request re-reads its card and item statuses.
+            queryClient.invalidateQueries({ queryKey: ["sor-purchase-request"] });
+            queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
+            setPurchaseRequestId(null);
+          }} />
       )}
 
       {/* TASK MODAL */}

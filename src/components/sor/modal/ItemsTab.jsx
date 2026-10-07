@@ -8,6 +8,9 @@ import StatusBadge from "../../StatusBadge";
 import OpportunityItemsEditor from "../OpportunityItemsEditor";
 import TabSkeleton from "./TabSkeleton";
 import { useSorModalData } from "./useSorModalData";
+import { useSorPurchaseRequest } from "./useSorPurchaseRequest";
+import { requestedItemForLine } from "../../../utils/sorPurchaseRequest";
+import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../../constants/purchaseRequest";
 import { opportunityService } from "../../../services/opportunityService";
 import { stockBadge, STOCK_BADGE_THEME } from "../../../constants/stock";
 import { formatPHP, isValidSalesReference, normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
@@ -15,6 +18,24 @@ import { formatDate } from "../../../utils/formatDate";
 import { pullOdooLines, saveOdooLines } from "./odooLines";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
+
+/**
+ * A Product List line's Requested Item status (#310): a badge when the SOR's
+ * Purchase Request has an item picked from this line, nothing otherwise.
+ */
+function RequestedItemStatus({ line, requested }) {
+  const item = requestedItemForLine(line, requested);
+  if (!item) return null;
+  return (
+    <span className="mt-1 block">
+      <StatusBadge
+        label={ITEM_STATUS_LABELS[item.status] || item.status}
+        theme={ITEM_STATUS_THEME[item.status]}
+        title="Requested Item status"
+      />
+    </span>
+  );
+}
 
 export function ItemStockRow({ item, snapshotData }) {
   const [expanded, setExpanded] = useState(false);
@@ -130,6 +151,10 @@ export default function ItemsTab({ ctx, hasOpened }) {
 
   const [search, setSearch] = useState("");
 
+  // #310: a line with a Requested Item shows that item's status. Lines are
+  // matched by product, never line id (ids change on every save).
+  const { data: purchaseRequest } = useSorPurchaseRequest(id);
+
   const { data: stockSnapshot, isLoading } = useSorModalData({
     tab: "items",
     opportunityId: id,
@@ -240,6 +265,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
             <div key={it.id} className="grid grid-cols-12 items-center gap-3 px-6 py-3 text-sm transition-colors hover:bg-muted/25">
               <div className={cn("min-w-0 pr-2", showMoney ? "col-span-6" : "col-span-10")}>
                 <span className="block truncate font-semibold text-foreground">{it.product_name}</span>
+                <RequestedItemStatus line={it} requested={purchaseRequest?.items} />
                 {it.unit && <span className="mt-0.5 inline-block text-[11px] font-medium text-muted-foreground">Unit: {it.unit}</span>}
               </div>
               <div className="col-span-2 text-right">

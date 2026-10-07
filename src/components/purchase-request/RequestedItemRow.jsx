@@ -2,24 +2,11 @@ import { AlertTriangle, FileText, Replace } from "lucide-react";
 
 import StatusBadge from "../StatusBadge";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
-import { ITEM_STATUS, ITEM_STATUS_LABELS } from "../../constants/purchaseRequest";
+import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../constants/purchaseRequest";
 import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
-import { STATUS_THEME } from "../../constants/statusTheme";
 import { formatDate } from "../../utils/formatDate";
 import { ITEM_SOURCE, formatAmount, poLineNotPicked, requestedItemStock, sorLineChange } from "../../utils/requestedItem";
-
-const ITEM_STATUS_THEME = {
-  [ITEM_STATUS.REQUESTED]: STATUS_THEME.BLUE,
-  [ITEM_STATUS.FROM_STOCK]: STATUS_THEME.GREEN,
-  [ITEM_STATUS.TO_ORDER]: STATUS_THEME.AMBER,
-  [ITEM_STATUS.CANVASSING]: STATUS_THEME.VIOLET,
-  [ITEM_STATUS.ORDERED]: STATUS_THEME.BLUE,
-  [ITEM_STATUS.RECEIVED]: STATUS_THEME.GREEN,
-  [ITEM_STATUS.SUBSTITUTED]: STATUS_THEME.ORANGE,
-  [ITEM_STATUS.CANNOT_SOURCE]: STATUS_THEME.RED,
-  [ITEM_STATUS.CANCELLED]: STATUS_THEME.MAUVE,
-};
 
 /**
  * One Requested Item (#305) as it was picked or described: its amount and

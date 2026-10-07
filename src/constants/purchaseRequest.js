@@ -10,6 +10,7 @@
  */
 
 import { PROCUREMENT_OUTCOME, normalizeOutcome } from "./procurement";
+import { STATUS_THEME } from "./statusTheme";
 
 export const ITEM_STATUS = {
   REQUESTED: "requested",
@@ -46,6 +47,19 @@ export const ITEM_STATUS_LABELS = {
   [ITEM_STATUS.SUBSTITUTED]: "Substituted",
   [ITEM_STATUS.CANNOT_SOURCE]: "Cannot source",
   [ITEM_STATUS.CANCELLED]: "Cancelled",
+};
+
+/** The badge colour of each status (StatusBadge `theme`). */
+export const ITEM_STATUS_THEME = {
+  [ITEM_STATUS.REQUESTED]: STATUS_THEME.BLUE,
+  [ITEM_STATUS.FROM_STOCK]: STATUS_THEME.GREEN,
+  [ITEM_STATUS.TO_ORDER]: STATUS_THEME.AMBER,
+  [ITEM_STATUS.CANVASSING]: STATUS_THEME.VIOLET,
+  [ITEM_STATUS.ORDERED]: STATUS_THEME.BLUE,
+  [ITEM_STATUS.RECEIVED]: STATUS_THEME.GREEN,
+  [ITEM_STATUS.SUBSTITUTED]: STATUS_THEME.ORANGE,
+  [ITEM_STATUS.CANNOT_SOURCE]: STATUS_THEME.RED,
+  [ITEM_STATUS.CANCELLED]: STATUS_THEME.MAUVE,
 };
 
 /** Statuses an item never leaves. Purchasing settled waits for every item to reach one. */
