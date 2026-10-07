@@ -1,12 +1,13 @@
-import { AlertTriangle, Replace } from "lucide-react";
+import { AlertTriangle, FileText, Replace } from "lucide-react";
 
 import StatusBadge from "../StatusBadge";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
 import { ITEM_STATUS, ITEM_STATUS_LABELS } from "../../constants/purchaseRequest";
+import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { STATUS_THEME } from "../../constants/statusTheme";
 import { formatDate } from "../../utils/formatDate";
-import { ITEM_SOURCE, formatAmount, requestedItemStock, sorLineChange } from "../../utils/requestedItem";
+import { ITEM_SOURCE, formatAmount, poLineNotPicked, requestedItemStock, sorLineChange } from "../../utils/requestedItem";
 
 const ITEM_STATUS_THEME = {
   [ITEM_STATUS.REQUESTED]: STATUS_THEME.BLUE,
@@ -29,11 +30,15 @@ const ITEM_STATUS_THEME = {
  * `stockSnapshot` is the SOR's `sor_stock_snapshots` row. `actions` is a slot
  * for the status controls (#306). `replaces` / `replacedBy` are the items on
  * either end of a Buyer's substitute, when the request has them.
+ *
+ * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
+ * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
  */
 export default function RequestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   const change = sorLineChange(item);
   const isNew = item.source === ITEM_SOURCE.NEW;
+  const lines = item.odoo_po_line_ids || [];
 
   return (
     <li className="flex flex-col gap-1.5 py-3" data-testid="requested-item">
@@ -55,6 +60,21 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Replace size={12} className="shrink-0" />
           {replaces ? `Substitute for ${replaces.name}` : `Replaced by ${replacedBy.name}`}
+        </p>
+      )}
+
+      {item.po_number && (
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="requested-item-po">
+          <FileText size={12} className="shrink-0" />
+          <span className="font-medium text-foreground">PO {item.po_number}</span>
+          <span>· {PO_VERIFICATION_LABELS[item.po_verification] || item.po_verification}</span>
+          {lines.length > 0 && <span>· {lines.length === 1 ? "PO line" : "PO lines"} {lines.join(", ")}</span>}
+        </p>
+      )}
+      {poLineNotPicked(item) && (
+        <p className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+          <AlertTriangle size={12} className="shrink-0" />
+          PO line not picked
         </p>
       )}
 
