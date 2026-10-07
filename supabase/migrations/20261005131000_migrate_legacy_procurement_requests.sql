@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 20261007190300_migrate_legacy_procurement_requests.sql
+-- 20261005131000_migrate_legacy_procurement_requests.sql
 --
 -- Issue #313 (part of #209) — carry the old procurement requests into Purchase
 -- Requests, close the old purchasing tasks, and make the old table read-only.

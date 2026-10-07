@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 20261007161200_purchase_request_item_po.sql
+-- 20261005130800_purchase_request_item_po.sql
 --
 -- Issue #312 (part of #209) — the PO number and the Odoo PO line on Ordered.
 --
@@ -12,7 +12,7 @@
 --   and must look like an Odoo purchase order ("P" then digits). Any other
 --   status still takes no details, and Ordered takes no other key.
 --
---   REDEFINES `pr_set_item_status` from 20261007130600 (#306). Same signature,
+--   REDEFINES `pr_set_item_status` from 20261005130500 (#306). Same signature,
 --   same checks; only the details rule changes.
 --
 -- THE PO LINE, FROM THE PO'S IPAS

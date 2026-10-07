@@ -18,7 +18,7 @@ import { MARKER, makeSor, makeTask } from "./support/rows.js"
 import { tryInsert, tryUpdate, tryDelete, canRead, RLS_VIOLATION } from "./support/access.js"
 
 const MIGRATION = readFileSync(
-    "supabase/migrations/20261007190300_migrate_legacy_procurement_requests.sql",
+    "supabase/migrations/20261005131000_migrate_legacy_procurement_requests.sql",
     "utf8",
 )
 const PURCHASERS = ["stageParticipant", "outsider"]

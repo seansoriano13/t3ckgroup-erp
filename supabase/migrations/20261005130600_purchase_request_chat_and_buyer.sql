@@ -1,12 +1,12 @@
 -- ==============================================================================
--- 20261007141000_purchase_request_chat_and_buyer.sql
+-- 20261005130600_purchase_request_chat_and_buyer.sql
 --
 -- Issue #307 (part of #209) — the request's Chat, the Buyer, and who hears
 -- about what.
 --
 -- THE CHAT
 --   Members post straight into `purchase_request_messages` under its existing
---   insert policy (20261005140000: author is me, no `event`, member or Super
+--   insert policy (20261005130100: author is me, no `event`, member or Super
 --   Admin). Mentions ride in `metadata.mentions` ([{id, name}]), the Mention
 --   model the SOR and task chats use. Reads stay `can_read_purchase_request`.
 --

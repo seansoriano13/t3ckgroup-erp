@@ -271,6 +271,30 @@ describe("running the action", () => {
         expect(kept.buyer_id).toBe(ids.stageParticipant)
     })
 
+    it("a top-up that sets a Buyer posts buyer_set and notifies them; one that keeps the Buyer posts nothing", async () => {
+        const sorId = await freshSor({ topUp: { buyer: employee(ids.stageParticipant) } })
+        await run(sorId, [firstActionId])
+        const [req] = await requestOf(sorId)
+        await run(sorId, [topUpActionId])
+        const events = async () =>
+            (await svc().from("purchase_request_messages").select("metadata").eq("request_id", req.id)).data.filter(
+                (m) => m.metadata?.event === "buyer_set",
+            )
+        const set = await events()
+        expect(set).toHaveLength(1)
+        expect(set[0].metadata.buyer_id).toBe(ids.stageParticipant)
+        const { data: notes } = await svc()
+            .from("notifications")
+            .select("id")
+            .eq("recipient_id", ids.stageParticipant)
+            .eq("type", "PURCHASE_REQUEST_BUYER")
+            .eq("reference_id", req.id)
+        expect(notes.length).toBeGreaterThan(0)
+
+        await run(sorId, [topUpActionId])
+        expect(await events()).toHaveLength(1)
+    })
+
     it("an Optional Action opens the request once a Decider picks Create", async () => {
         const sorId = await freshSor({ first: { buyer: employee(ids.stageParticipant) } })
         await run(sorId, [firstActionId], { confirm: true })

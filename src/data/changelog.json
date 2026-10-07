@@ -1,12 +1,17 @@
 [
     {
         "date": "2026-10-07",
-        "title": "Open a Purchase Request from a Stage",
+        "title": "Purchase Requests Replace Procurement Requests",
         "version": "1.9.6",
         "changes": [
             "Sales Flows: a new Stage Action, Open Purchase Request, opens the SOR's Purchase Request when the SOR enters the Stage, or once a Decider picks Create. An SOR has one request; a second action on a later Stage adds to it.",
             "Sales Flows: everyone with Purchasing access and the SOR's Deal Team become members. On the action you can name a default Buyer, add people or groups, and leave out Deal Team roles.",
-            "SORs: purchasing members can open the SOR for the Stage the request was opened on, for as long as the action's access window allows. Other members see the SOR's name and current Stage."
+            "SORs: purchasing members can open the SOR for the Stage the request was opened on, for as long as the action's access window allows. Other members see the SOR's name and current Stage.",
+            "Purchase Requests: each request has its own chat with @mentions and attachments. The Deal Team and the Buyer add items from the SOR's Product List, or request something that isn't in Odoo.",
+            "Purchase Requests: Purchasing moves each item along (To order, Canvassing, Ordered, Received, From stock) or closes it. The Buyer can offer a substitute. Ordered items can carry an Odoo PO number, checked against Odoo.",
+            "Purchasing: the old Purchasing page is now the Procurement Queue. Take an unassigned request to become its Buyer. A new request with no Buyer notifies Purchasing once.",
+            "SORs: the Now, Products and History tabs show the SOR's Purchase Request and its items. A new Stage condition, Purchasing settled, stops an SOR leaving a Stage until every item is closed.",
+            "Old procurement requests moved into each SOR's Purchase Request and can no longer be edited. The SOR's old Purchasing panel is gone."
         ]
     },
     {

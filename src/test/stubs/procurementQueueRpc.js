@@ -8,7 +8,7 @@ const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
 
 /**
  * Issue #308 — the Procurement Queue's RPCs re-implemented on the fake
- * database's store: `pr_queue` (20261007180800_procurement_queue.sql), and
+ * database's store: `pr_queue` (20261005130900_procurement_queue.sql), and
  * #307's `pr_take` / `pr_set_buyer` with the member they add and the event
  * they post. The fake has no signed-in identity or RLS, so `actorId` stands in
  * for get_employee_id(), every request is readable, and `canManage` stands in

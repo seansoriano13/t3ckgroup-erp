@@ -2,7 +2,7 @@
  * Purchase Request rules (issue #209, ticket #303).
  *
  * The single place the Requested Item status path lives. The schema's CHECK
- * constraint (20261005140000_purchase_requests.sql) holds the same nine
+ * constraint (20261005130100_purchase_requests.sql) holds the same nine
  * values; the status RPC (#306) enforces the same transitions server-side.
  *
  * Supersedes the per-row outcomes in ./procurement.js once the legacy

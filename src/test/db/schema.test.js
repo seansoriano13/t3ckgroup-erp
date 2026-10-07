@@ -41,7 +41,7 @@ describe("schema registry", () => {
   })
 
   it("reads each column of one ALTER TABLE that adds several", () => {
-    // 20261005150000_open_purchase_request_action.sql:
+    // 20261005130200_open_purchase_request_action.sql:
     // `add column if not exists access_until text not null default 'stage_left',
     //  add column if not exists access_until_stage_id uuid references public.flow_stages (id);`
     const table = getTable("purchase_requests")
