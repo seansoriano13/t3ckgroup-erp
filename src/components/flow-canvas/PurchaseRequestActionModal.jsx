@@ -8,10 +8,9 @@ import PeoplePicker from "@/components/ui/PeoplePicker";
 import { SelectField } from "@/components/ui/SelectField";
 import { Switch } from "@/components/ui/switch";
 import { DEAL_TEAM_ROLES, SELECTOR_TYPES } from "@/utils/resolvePeople";
-import { BUYER_COSTING_INCHARGE, LEAVE_OUT_ROLES } from "@/utils/purchaseRequestAction";
+import { BUYER_COSTING_INCHARGE, BUYER_EMPLOYEE, LEAVE_OUT_ROLES } from "@/utils/purchaseRequestAction";
 
 const NO_BUYER = "none";
-const EMPLOYEE = "employee";
 
 const buyerKind = (buyer) => buyer?.type || NO_BUYER;
 
@@ -35,10 +34,10 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
   const setBuyerKind = (kind) => {
     if (kind === NO_BUYER) setBuyer(null);
     else if (kind === BUYER_COSTING_INCHARGE) setBuyer({ type: BUYER_COSTING_INCHARGE });
-    else setBuyer({ type: EMPLOYEE, id: buyer?.id ?? null });
+    else setBuyer({ type: BUYER_EMPLOYEE, id: buyer?.id ?? null });
   };
 
-  const buyerChosen = buyer?.type !== EMPLOYEE || Boolean(buyer.id);
+  const buyerChosen = buyer?.type !== BUYER_EMPLOYEE || Boolean(buyer.id);
 
   const submit = () =>
     onSubmit({
@@ -64,18 +63,18 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
               onChange={setBuyerKind}
               options={[
                 { value: NO_BUYER, label: "None — wait in the queue for a Take" },
-                { value: EMPLOYEE, label: "A person" },
+                { value: BUYER_EMPLOYEE, label: "A person" },
                 { value: BUYER_COSTING_INCHARGE, label: "The Costing Matrix's Purchasing Incharge" },
               ]}
               className="w-full"
             />
-            {buyer?.type === EMPLOYEE && (
+            {buyer?.type === BUYER_EMPLOYEE && (
               <div className="mt-2">
                 <PeoplePicker
                   value={buyer.id ? [{ type: SELECTOR_TYPES.EMPLOYEE, id: buyer.id }] : []}
                   onChange={(next) => {
                     const last = next[next.length - 1];
-                    setBuyer({ type: EMPLOYEE, id: last?.id ?? null });
+                    setBuyer({ type: BUYER_EMPLOYEE, id: last?.id ?? null });
                   }}
                   types={[SELECTOR_TYPES.EMPLOYEE]}
                   placeholder="Choose the Buyer"
@@ -87,7 +86,7 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
           <FieldBox label="Extra default members" bare>
             <PeoplePicker value={extras} onChange={setExtras} placeholder="Add people or groups" />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Everyone with Purchasing access and the deal's Deal Team are members already.
+              Everyone with Purchasing access and the SOR's Deal Team are members already.
             </p>
           </FieldBox>
 

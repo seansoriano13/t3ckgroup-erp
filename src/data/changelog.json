@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-10-07",
+        "title": "Open a Purchase Request from a Stage",
+        "version": "1.9.6",
+        "changes": [
+            "Sales Flows: a new Stage Action, Open Purchase Request, opens the SOR's Purchase Request when the SOR enters the Stage, or once a Decider picks Create. An SOR has one request; a second action on a later Stage adds to it.",
+            "Sales Flows: everyone with Purchasing access and the SOR's Deal Team become members. On the action you can name a default Buyer, add people or groups, and leave out Deal Team roles.",
+            "SORs: purchasing members can open the SOR for the Stage the request was opened on, for as long as the action's access window allows. Other members see the SOR's name and current Stage."
+        ]
+    },
+    {
         "date": "2026-10-05",
         "title": "Retail Shows Your Real Income, Kept Current",
         "version": "1.9.5",

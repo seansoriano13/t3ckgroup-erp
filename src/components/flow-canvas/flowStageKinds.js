@@ -89,7 +89,9 @@ export const ACTION_KIND_META = {
   open_purchase_request: {
     label: "Open Purchase Request",
     icon: ShoppingCart,
-    hint: "Starts buying for the deal. One request per deal.",
+    hint: "Starts buying for the SOR. One request per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
   },
 }
 
@@ -125,7 +127,8 @@ export function conditionDetail(condition) {
 export function actionTitle(action) {
   const config = action?.config ?? {}
   const named = config.title || config.projectTitle
-  if (!named && action?.kind === "open_purchase_request") return "Open Purchase Request"
+  const meta = ACTION_KIND_META[action?.kind]
+  if (!named && meta?.titled === false) return meta.label
   return (typeof named === "string" && named.trim()) || "Untitled action"
 }
 

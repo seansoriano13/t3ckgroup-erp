@@ -9,7 +9,7 @@
  * requests are migrated (#313) — `legacyOutcomeToStatus` is that mapping.
  */
 
-import { PROCUREMENT_OUTCOME } from "./procurement";
+import { PROCUREMENT_OUTCOME, normalizeOutcome } from "./procurement";
 
 export const ITEM_STATUS = {
   REQUESTED: "requested",
@@ -107,7 +107,6 @@ export const isSettled = (items) => (items ?? []).every((item) => isClosedStatus
 const LEGACY_OUTCOME_STATUS = {
   [PROCUREMENT_OUTCOME.IN_PROGRESS]: ITEM_STATUS.CANVASSING,
   [PROCUREMENT_OUTCOME.PURCHASED]: ITEM_STATUS.ORDERED,
-  ON_ORDER: ITEM_STATUS.ORDERED,
   [PROCUREMENT_OUTCOME.DELIVERED]: ITEM_STATUS.RECEIVED,
   [PROCUREMENT_OUTCOME.ALREADY_EXISTS]: ITEM_STATUS.FROM_STOCK,
   [PROCUREMENT_OUTCOME.SUBSTITUTED]: ITEM_STATUS.SUBSTITUTED,
@@ -116,7 +115,7 @@ const LEGACY_OUTCOME_STATUS = {
 
 export function legacyOutcomeToStatus(outcome) {
   if (outcome == null) return ITEM_STATUS.REQUESTED;
-  const status = LEGACY_OUTCOME_STATUS[outcome];
+  const status = LEGACY_OUTCOME_STATUS[normalizeOutcome(outcome)];
   if (!status) throw new Error(`Unknown legacy procurement outcome: ${outcome}`);
   return status;
 }
