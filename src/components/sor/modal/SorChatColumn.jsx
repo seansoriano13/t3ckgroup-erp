@@ -220,7 +220,7 @@ export default function SorChatColumn({
             </Button>
           </div>
           {mentionAccessHint && (
-            <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-violet-11" role="status">
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-foreground" role="status">
               <KeyRound size={11} className="shrink-0" aria-hidden />
               {mentionAccessHint}
             </p>

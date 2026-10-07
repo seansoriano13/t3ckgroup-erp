@@ -6,7 +6,6 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import { Lock } from "lucide-react";
 import { Tooltip } from "../ui/Tooltip";
 import StatusBadge from "../StatusBadge";
 
@@ -73,11 +72,7 @@ export default function MySorsTable({ rows, onOpen }) {
                     <span className="font-mono text-[13px] font-semibold text-foreground">
                       {row.salesReference || row.sorCode || "—"}
                     </span>
-                    {!row.isOpen && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-mauve-4 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        <Lock size={10} aria-hidden /> Access ended
-                      </span>
-                    )}
+                    {!row.isOpen && <StatusBadge theme="mauve" label="Access ended" />}
                   </div>
                   <div className="max-w-xs truncate text-muted-foreground">
                     {row.projectTitle || "Untitled"}

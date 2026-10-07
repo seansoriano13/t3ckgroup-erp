@@ -32,6 +32,7 @@ import SorModalHeader from "./SorModalHeader";
 import LockedSorSlideOver from "../LockedSorSlideOver";
 import NoAccessSorSlideOver from "../NoAccessSorSlideOver";
 import { hiddenVisits } from "../../../utils/sorHiddenVisits";
+import { liveMentionIds, mentionWindowHint } from "../../../utils/mentionWindowHint";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
@@ -155,25 +156,23 @@ export default function SorModal({
   const [noteMentions, setNoteMentions] = useState([]);
   // #476: who the note being written would open a Mention Window for, so the
   // writer sees the consequence before posting. Only names still in the text.
-  const liveMentionIds = useMemo(
-    () => noteMentions.filter((m) => m?.id && m.id !== user?.id && note.includes(`@${m.name}`)).map((m) => m.id),
-    [noteMentions, note, user?.id],
-  );
+  const liveMentions = useMemo(() => liveMentionIds(noteMentions, note, user?.id), [noteMentions, note, user?.id]);
   const { data: mentionWindowIds = [] } = useQuery({
-    queryKey: ["sorMentionWindowCandidates", id, [...liveMentionIds].sort().join(",")],
-    queryFn: () => opportunityService.getMentionWindowCandidates(id, liveMentionIds),
-    enabled: !!id && isOpen && liveMentionIds.length > 0 && (accessLevel === "full" || accessLevel === "participant"),
+    queryKey: ["sorMentionWindowCandidates", id, [...liveMentions].sort().join(",")],
+    queryFn: () => opportunityService.getMentionWindowCandidates(id, liveMentions),
+    enabled: !!id && isOpen && liveMentions.length > 0 && (accessLevel === "full" || accessLevel === "participant"),
     staleTime: 30_000,
   });
-  const mentionAccessHint = useMemo(() => {
-    const names = noteMentions.filter((m) => mentionWindowIds.includes(m.id)).map((m) => m.name);
-    if (names.length === 0) return null;
-    const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-    const verb = names.length === 1 ? "gets" : "get";
-    return visitVisibility?.visits?.length
-      ? `${who} ${verb} access to this Stage until it moves.`
-      : `${who} ${verb} read-only access to this deal.`;
-  }, [noteMentions, mentionWindowIds, visitVisibility]);
+  const mentionAccessHint = useMemo(
+    () => mentionWindowHint(noteMentions, mentionWindowIds, { hasVisits: !!visitVisibility?.visits?.length }),
+    [noteMentions, mentionWindowIds, visitVisibility],
+  );
+  // #477: who this SOR has been shared with by Mention, for the Deal Team.
+  const { data: mentionShares = [] } = useQuery({
+    queryKey: ["sorMentionShares", id],
+    queryFn: () => opportunityService.getMentionShares(id),
+    enabled: !!id && isOpen && accessLevel === "full",
+  });
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
@@ -918,7 +917,7 @@ export default function SorModal({
             <li key={m.id} className="text-xs leading-relaxed text-violet-11">
               {!m.hasVisit ? (
                 <>
-                  <span className="font-bold">{m.mentionedBy || "Someone"}</span> mentioned you. You see this deal, read-only.
+                  <span className="font-bold">{m.mentionedBy || "Someone"}</span> mentioned you. You see this SOR, read-only.
                 </>
               ) : m.closed ? (
                 <>
@@ -954,6 +953,7 @@ export default function SorModal({
     ctx: tabCtx,
     chatColumn,
     windowsBanner,
+    mentionShares,
     notes,
     canViewJourney,
     isWide,

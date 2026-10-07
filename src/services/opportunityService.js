@@ -3377,7 +3377,7 @@ export const opportunityService = {
             calledInAtStageName: m.stage_name ?? null,
             closedAt: m.closed_at ?? null,
             createdAt: m.created_at ?? null,
-            reachLabel: m.stage_visit_id ? "this Stage until it moves" : "this deal, read-only",
+            reachLabel: m.stage_visit_id ? "this Stage until it moves" : "this SOR, read-only",
           })),
         ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         return {

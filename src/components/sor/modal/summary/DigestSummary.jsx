@@ -7,11 +7,10 @@
  * "Rail + summary"'s own arrangement.
  */
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { opportunityService } from "../../../../services/opportunityService";
 import { Button } from "@/components/ui/button";
 import Avatar from "../../../Avatar";
+import StatusBadge from "../../../StatusBadge";
 import { useDigest } from "./useDigest";
 import { LABEL, QuoteActions, detailRows, formatShort, showMoney, teamRows } from "./shared";
 
@@ -124,14 +123,10 @@ export function KeyFacts({ p, cols = 2 }) {
 /**
  * #477: who has been mentioned into this SOR, by whom, on which Stage, and
  * whether that window is still open. Mentions chain, so the Deal Team needs to
- * see who is in. Read-only; renders nothing when no one has been.
+ * see who is in. Read-only; renders nothing when no one has been. `shares`
+ * comes from `sor_mention_shares`, read by SorModal (full access only).
  */
-export function SharedWithList({ opportunityId }) {
-  const { data: shares = [] } = useQuery({
-    queryKey: ["sorMentionShares", opportunityId],
-    queryFn: () => opportunityService.getMentionShares(opportunityId),
-    enabled: !!opportunityId,
-  });
+export function SharedWithList({ shares = [] }) {
   if (shares.length === 0) return null;
   return (
     <div>
@@ -141,12 +136,10 @@ export function SharedWithList({ opportunityId }) {
           <li key={s.id} className="flex items-baseline gap-2 text-[12px]">
             <span className="truncate font-semibold text-foreground">{s.employee_name}</span>
             <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-              {s.stage_name ? `at ${s.stage_name}` : "this deal"}
+              {s.stage_name ? `at ${s.stage_name}` : "this SOR"}
               {s.granted_by_name ? ` · by ${s.granted_by_name}` : ""}
             </span>
-            <span className={cn("shrink-0 text-[10px] font-bold uppercase", s.is_open ? "text-violet-11" : "text-muted-foreground/70")}>
-              {s.is_open ? "Open" : "Ended"}
-            </span>
+            <StatusBadge theme={s.is_open ? "violet" : "mauve"} label={s.is_open ? "Open" : "Ended"} />
           </li>
         ))}
       </ul>
@@ -174,7 +167,7 @@ export function TeamAndQuote({ p }) {
           </ul>
         )}
       </div>
-      <SharedWithList opportunityId={p.id} />
+      <SharedWithList shares={p.mentionShares} />
       <QuoteActions p={p} stacked={false} />
     </section>
   );
