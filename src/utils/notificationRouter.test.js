@@ -266,7 +266,17 @@ describe("handleNotificationRoute", () => {
       expect(type).not.toContain("TASK")
       handleNotificationRoute({ type, reference_id: "pr-1" }, employee, navigate, onClose)
 
-      expect(navigate).toHaveBeenCalledWith("/purchasing?request=pr-1")
+      // #309: a modal over the current page, not a navigation.
+      const dispatch = vi.spyOn(window, "dispatchEvent")
+      handleNotificationRoute({ type, reference_id: "pr-1" }, employee, navigate, onClose)
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "OPEN_ENTITY_DETAILS",
+          detail: { id: "pr-1", type: "PURCHASE_REQUEST" },
+        }),
+      )
+      dispatch.mockRestore()
       expect(onClose).toHaveBeenCalled()
     })
 

@@ -10,12 +10,13 @@ import OpportunityDetailsModal from "./sor/OpportunityDetailsModal";
 import OpportunityQuickView from "./sor/OpportunityQuickView";
 import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
+import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }
+  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }; PURCHASE_REQUEST has its own slot
   const [activeItem, setActiveItem] = useState(null);
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
@@ -24,6 +25,10 @@ export default function GlobalDetailManager() {
   // it's a drill-down, not a replacement, so closing the Task returns to
   // Quick View rather than to nothing.
   const [stackedTaskId, setStackedTaskId] = useState(null);
+  // A Purchase Request (#309) always opens stacked: it never replaces an open
+  // SOR/task (#310 opens it from the SOR), and closing it leaves the page, or
+  // whatever was open underneath, exactly as it was.
+  const [purchaseRequestId, setPurchaseRequestId] = useState(null);
 
   const isSuperAdmin = user?.is_super_admin === true || user?.isSuperAdmin === true;
   const isHead = user?.is_head === true || user?.isHead === true;
@@ -33,7 +38,9 @@ export default function GlobalDetailManager() {
   useEffect(() => {
     const handleOpenDetails = (e) => {
       const { id, type, isNew } = e.detail;
-      if (id && type) {
+      if (id && type === "PURCHASE_REQUEST") {
+        setPurchaseRequestId(id);
+      } else if (id && type) {
         setActiveItem({ id, type });
         if (isNew) {
           setHighlightIdOnClose(id);
@@ -279,14 +286,19 @@ export default function GlobalDetailManager() {
     setActiveItem(null);
     setIsRateOpen(false);
     setStackedTaskId(null);
+    setPurchaseRequestId(null);
   };
 
-  if (!activeItem) return null;
+  if (!activeItem && !purchaseRequestId) return null;
 
   return (
     <>
+      {purchaseRequestId && (
+        <PurchaseRequestModal requestId={purchaseRequestId} onClose={() => setPurchaseRequestId(null)} />
+      )}
+
       {/* TASK MODAL */}
-      {activeItem.type === "TASK" && (
+      {activeItem?.type === "TASK" && (
         <TaskDetails
           isOpen={true}
           onClose={handleClose}
@@ -297,7 +309,7 @@ export default function GlobalDetailManager() {
       )}
 
       {/* GROUP TASK MODAL */}
-      {activeItem.type === "GROUP_TASK" && (
+      {activeItem?.type === "GROUP_TASK" && (
         <>
           <GroupTaskDetailModal
             isOpen={true}
@@ -344,12 +356,12 @@ export default function GlobalDetailManager() {
       )}
 
       {/* OPPORTUNITY MODAL */}
-      {activeItem.type === "OPPORTUNITY" && opportunityData && opportunityData.accessLevel !== "none" && (
+      {activeItem?.type === "OPPORTUNITY" && opportunityData && opportunityData.accessLevel !== "none" && (
         <OpportunityDetailsModal
           isOpen={true}
           onClose={handleClose}
           opportunity={opportunityData.opportunity}
-          opportunityId={activeItem.id}
+          opportunityId={activeItem?.id}
           accessLevel={opportunityData.accessLevel}
           lockedSummary={opportunityData.lockedSummary}
         />
@@ -359,7 +371,7 @@ export default function GlobalDetailManager() {
           Locked access has no Tasks/Conditions of its own left to act
           on (its window is closed), so it keeps the existing trimmed summary
           dialog instead of a Quick View with nothing in it. */}
-      {activeItem.type === "OPPORTUNITY_QUICK_VIEW" &&
+      {activeItem?.type === "OPPORTUNITY_QUICK_VIEW" &&
         opportunityData &&
         opportunityData.accessLevel !== "none" &&
         (opportunityData.accessLevel === "locked" ? (
@@ -367,7 +379,7 @@ export default function GlobalDetailManager() {
             isOpen={true}
             onClose={handleClose}
             opportunity={opportunityData.opportunity}
-            opportunityId={activeItem.id}
+            opportunityId={activeItem?.id}
             accessLevel={opportunityData.accessLevel}
             lockedSummary={opportunityData.lockedSummary}
           />
@@ -376,7 +388,7 @@ export default function GlobalDetailManager() {
             isOpen={true}
             onClose={handleClose}
             opportunity={opportunityData.opportunity}
-            opportunityId={activeItem.id}
+            opportunityId={activeItem?.id}
             userId={user?.id}
             onViewFullDetails={() => setActiveItem({ id: activeItem.id, type: "OPPORTUNITY" })}
             onOpenTask={(taskId) => setStackedTaskId(taskId)}
