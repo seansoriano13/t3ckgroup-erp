@@ -355,6 +355,8 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["stageVisitId", id] });
     queryClient.invalidateQueries({ queryKey: ["currentStageVisit", id] });
     queryClient.invalidateQueries({ queryKey: ["followUpStatus", id] });
+    // #310: the Now card, Items statuses and Journey read the Purchase Request.
+    queryClient.invalidateQueries({ queryKey: ["sor-purchase-request", id] });
   }, [queryClient, id]);
 
   const handleMentionClick = (person) => {

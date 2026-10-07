@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { ITEM_STATUS } from "../constants/purchaseRequest";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
 import { purchasingService } from "./purchasingService";
+import { shapeSorOverview } from "../utils/sorPurchaseRequest";
 
 const ITEM_SELECT =
   "*, requester:employees!purchase_request_items_requested_by_fkey(id, name, avatar_path)";
@@ -80,6 +81,20 @@ export const purchaseRequestService = {
     if (error) throw error;
     const rows = data || [];
     return filter ? filterQueue(rows, filter, userId) : rows;
+  },
+
+  /**
+   * The SOR's Purchase Request as the SOR modal shows it (#310; see
+   * `shapeSorOverview`). Null when the SOR has none, or the caller may not
+   * read it: the SOR then shows nothing of purchasing.
+   */
+  async getSorOverview(opportunityId) {
+    if (!opportunityId) return null;
+    const { data, error } = await supabase.rpc("sor_purchase_request_overview", {
+      p_opportunity_id: opportunityId,
+    });
+    if (error) throw error;
+    return shapeSorOverview((data || [])[0]);
   },
 
   /** One request, shaped like a `listQueue` row; null when it can't be read. */

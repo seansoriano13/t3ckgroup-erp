@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { purchasingService } from "./purchasingService";
+import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
 import { accessWindowSummary } from "../utils/stageAudience";
 import { sorStageParticipantService } from "./sorStageParticipantService";
@@ -4165,6 +4166,19 @@ export const opportunityService = {
     }
     const rawVisitById = Object.fromEntries(visits.map((v) => [v.id, v]));
 
+    // #310: the SOR's Purchase Request, as far as the caller may read it. A
+    // failed read leaves the Journey without the group, not without the Journey.
+    let requestedItems = [];
+    try {
+      const { data: overviewRows, error: overviewError } = await supabase.rpc("sor_purchase_request_overview", {
+        p_opportunity_id: opportunityId,
+      });
+      if (overviewError) throw overviewError;
+      requestedItems = shapeSorOverview((overviewRows || [])[0])?.items || [];
+    } catch {
+      requestedItems = [];
+    }
+
     const shaped = visits.map((visit) => {
       const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
       const isRestricted = !visibleVisitIds.has(visit.id);
@@ -4187,9 +4201,9 @@ export const opportunityService = {
         isRestricted,
         tasks: isRestricted ? [] : tasks.filter((task) => visitOwnsTask(task, visitWindow)),
         groupTasks: isRestricted ? [] : groupTasks.filter((task) => visitOwnsTask(task, visitWindow)),
-        // #209 fills this in with the visit's Purchase Requests; until it does,
-        // the slot exists so the tab renders the same shape either way.
-        requestedItems: [],
+        // #310: the Requested Items raised during this visit (none on a
+        // restricted one). Items carry no visit id, so it is the visit window.
+        requestedItems: isRestricted ? [] : itemsForVisit(requestedItems, visitWindow),
         // #397: labelled from the visit's own Flow Snapshot, never the live
         // flow_stage_fields — same "frozen with everything else" rule the
         // Stage itself is named from (see `stageFor`, above).

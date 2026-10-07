@@ -3288,6 +3288,20 @@ describe("opportunityService", () => {
       expect(journey[0]).toMatchObject({ leftAt: null, requestedItems: [] })
     })
 
+    it("lists requested items under the visit they were raised on, by the visit's window (#310)", async () => {
+      const raised = (id, created_at) => ({ id, name: id, status: "requested", source: "sor_line", created_at })
+      stubRpc("sor_purchase_request_overview", [
+        { request_id: "r", buyer_id: null, items: [raised("in-v1", "2026-01-05T00:00:00Z"), raised("in-v2", "2026-01-10T00:00:00Z"), raised("in-v3", "2026-01-25T00:00:00Z")] },
+      ])
+      const journey = await opportunityService.getJourney(deal.id)
+      expect(journey.map((v) => v.requestedItems.map((i) => i.id))).toEqual([["in-v3"], ["in-v2"], ["in-v1"]])
+    })
+
+    it("a Purchase Request that can't be read leaves the Journey without items (#310)", async () => {
+      const journey = await opportunityService.getJourney(deal.id)
+      expect(journey.every((v) => v.requestedItems.length === 0)).toBe(true)
+    })
+
     it("judges a tickbox per visit, so a loop back asks again", async () => {
       const [nda] = (await opportunityService.getJourney(deal.id))[2].conditions
       makeConditionStatus({ opportunity_id: deal.id, condition_id: nda.condition.id, stage_visit_id: v1.id })

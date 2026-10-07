@@ -39,6 +39,7 @@ import { CONDITION_KINDS, CONDITION_STATUS } from "../../../constants/stageGate"
 import { REVERT_CHOICE } from "../../../constants/revertChoice";
 import { formatDueDate as formatWhen } from "../../../utils/formatDate";
 import { formatBytes } from "../../../utils/attachments";
+import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../../constants/purchaseRequest";
 
 // Closed-off work stays on its visit (#400): an individual task a Start fresh
 // or Remove progress cancelled is stored DELETED, but it is history, not noise.
@@ -532,8 +533,8 @@ function PastVisit({ row, onToggle }) {
             <VisitGroup label="Requested items" count={visit.requestedItems.length}>
               {visit.requestedItems.map((item) => (
                 <div key={item.id} className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{item.description}</span>
-                  <StatusBadge status={item.status} />
+                  <span>{item.name}</span>
+                  <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
                 </div>
               ))}
             </VisitGroup>
