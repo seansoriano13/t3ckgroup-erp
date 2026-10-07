@@ -264,7 +264,7 @@ union of them. A window only ever reaches forward: someone called in at a Stage
 never sees the visits before it. An Assignment on the entry Stage makes someone a
 participant from the SOR's first day. Afterwards they get a locked view plus a
 read-only look at the visits they worked on. A Mention never makes someone a
-Stage Participant.
+Stage Participant; it opens a Mention Window instead.
 _Avoid_: Collaborator, Guest, Member, Lifeline (a window belongs to one call-in
 on one SOR, not to a person)
 
@@ -899,6 +899,17 @@ employee later being renamed. Mentioning someone notifies them and suppresses
 the ordinary new-message notification they would otherwise receive, so a Mention
 replaces that notice rather than adding a second one.
 _Avoid_: Tag, @, Callout
+
+**Mention Window**:
+The access a Mention in an SOR's notes opens for someone who could not already
+reach the Stage: everything in the Stage Visit the SOR is on when they are
+mentioned — notes, tasks, Stage Fields, attachments — to read and reply to,
+without Expected Value or commission. It opens even on a Restricted Stage, and
+the person may mention others in. It closes when the SOR leaves that visit,
+leaving a locked view plus a read-only look at that visit. Each Mention on a
+later visit opens its own window. On an SOR with no Stage Visit it opens the
+record header only, with no end.
+_Avoid_: Mention grant, Shared access
 
 **Mention Target**:
 The one Message a mention notification takes the recipient to — the most recent

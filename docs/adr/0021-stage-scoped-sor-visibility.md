@@ -165,3 +165,33 @@ is unrelated and still grants nothing beyond that task.
 
 The grant is permanent; there is no revoke. If that proves too loose, the
 natural next step is closing it with the Stage like a Stage Participant window.
+
+### 2026-10-07 — a note Mention opens the current Stage Visit until it is left
+
+Decided by the product owner after a purchasing employee, mentioned on an SOR,
+opened it to an empty timeline and no explanation. Replaces the 2026-10-01
+amendment's "a Mention opens no Stage Visit data" and its permanent grant.
+
+A Mention in an SOR's notes opens a **Mention Window** on the Stage Visit the
+SOR is on at that moment: its notes, tasks, Stage Fields and attachments, to
+read and reply to. Expected Value and commission stay Deal Team only. When the
+SOR leaves that visit the window closes and the person drops to `locked`,
+keeping a read-only look at the visit they were mentioned in. A Mention on a
+later visit opens another window. An SOR with no Stage Visit keeps the
+2026-10-01 behaviour: the record header, permanently. Grants made before this
+amendment are tied to the visit the SOR was on when they were made.
+
+Two deliberate relaxations, because the business is not yet ready for the
+strict form and asked to be able to restore it quickly:
+
+- A Mention Window opens **even on a Restricted Stage**.
+- **Anyone inside a Mention Window can mention others in**, so invitations chain.
+
+Both strict forms are kept in the code, commented, under a `TIGHTEN(mention)`
+marker. `grep -rn "TIGHTEN(mention)" supabase src` finds every place to change.
+
+The silences are closed in the UI too: someone with no access sees a
+prohibited screen naming the Deal Owner to ask, partial access carries a banner
+and a placeholder for each Stage hidden from them, the composer says when a
+Mention will open a window, the SOR lists who it is shared with, and My SORs
+tags windows that have ended.
