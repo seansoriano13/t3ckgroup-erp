@@ -432,7 +432,7 @@ export const SECTIONS = [
       {
         id: "purchasing-queue-retiring",
         kind: "next",
-        title: "The Purchasing Queue will be removed",
+        title: "The Procurement Queue will be removed",
         body: "It stays for now. Once the Purchasing modules below are all in use, it goes away and they take its place: Purchase Requests, IPAS, Costing Matrix, Canvass, Transmittal and TSR, and Order Monitoring.",
         who: ["Purchasing", "Sales"],
       },
