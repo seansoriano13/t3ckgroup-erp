@@ -3522,6 +3522,17 @@ export const opportunityService = {
     return (data || []).map((row) => (typeof row === "string" ? row : row.sor_mention_window_candidates));
   },
 
+  /**
+   * #477: who this SOR has been shared with by Mention — `sor_mention_shares`,
+   * full access only (empty below it).
+   */
+  async getMentionShares(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("sor_mention_shares", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data || [];
+  },
+
   async getLockedSummary(opportunityId) {
     if (!opportunityId) return null;
     const { data, error } = await supabase.rpc("sor_locked_summary", { p_opportunity_id: opportunityId });
