@@ -361,7 +361,7 @@ export default function GlobalDetailManager() {
       )}
 
       {/* OPPORTUNITY MODAL */}
-      {activeItem?.type === "OPPORTUNITY" && opportunityData && opportunityData.accessLevel !== "none" && (
+      {activeItem?.type === "OPPORTUNITY" && opportunityData && (
         <OpportunityDetailsModal
           isOpen={true}
           onClose={handleClose}
@@ -378,8 +378,9 @@ export default function GlobalDetailManager() {
           dialog instead of a Quick View with nothing in it. */}
       {activeItem?.type === "OPPORTUNITY_QUICK_VIEW" &&
         opportunityData &&
-        opportunityData.accessLevel !== "none" &&
-        (opportunityData.accessLevel === "locked" ? (
+        // Locked and no-access both land on the modal's own preview: there is
+        // no Quick View work to show either of them (#474).
+        (opportunityData.accessLevel === "locked" || opportunityData.accessLevel === "none" ? (
           <OpportunityDetailsModal
             isOpen={true}
             onClose={handleClose}
