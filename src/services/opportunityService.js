@@ -467,6 +467,25 @@ async function resolveHasPurchasing(conditions, opportunityId, { asOf } = {}) {
 }
 
 /**
+ * Purchasing settled's evidence (#311): the SOR's Requested Items as
+ * `{ status, created_at, status_changed_at }`, or null when it has no
+ * Purchase Request. Read through a SECURITY DEFINER RPC, not the table: a
+ * Deal Team member left out of the request (or an Always-edits user) may move
+ * the SOR but can't read the request, and a plain select would show them "no
+ * request" — settled — and let the move through. Undefined when no condition
+ * asks for it; the evaluator fails closed on that.
+ */
+async function resolvePurchaseRequestItems(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.PURCHASING_SETTLED);
+  if (!needsIt) return undefined;
+  const { data, error } = await supabase.rpc("sor_purchase_request_item_states", {
+    p_opportunity_id: opportunityId,
+  });
+  if (error) throw error;
+  return data ?? null;
+}
+
+/**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
  * .scratch/stage-gate-engine/issues/) — throws if any required condition
  * on any Stage the move crosses is unsatisfied, naming what's missing.
@@ -494,6 +513,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   const conditions = Object.values(conditionsByStage).flat();
   const hasInclusions = await resolveHasInclusions(conditions, opportunityId);
   const hasPurchasing = await resolveHasPurchasing(conditions, opportunityId);
+  const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, opportunityId);
 
   const gateResult = evaluateCrossing({
     fromCode,
@@ -506,6 +526,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     statusRowsByCondition,
     hasInclusions,
     hasPurchasing,
+    purchaseRequestItems,
   });
 
   if (!gateResult.blocked) return;
@@ -1105,6 +1126,7 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
   const conditions = blockingConditions(conditionsForFrom);
   const hasInclusions = await resolveHasInclusions(conditions, existing.id);
   const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
+  const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, existing.id);
 
   for (const condition of conditions) {
     const result = evaluateCondition(condition, {
@@ -1114,6 +1136,7 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
       statusRow: statusRowsByCondition[condition.id] ?? null,
       hasInclusions,
       hasPurchasing,
+      purchaseRequestItems,
     });
     if (result.status === CONDITION_STATUS.UNSATISFIED) {
       missing.push({ stage: from, condition });
@@ -3725,6 +3748,7 @@ export const opportunityService = {
 
     const hasInclusions = await resolveHasInclusions(conditions, target.id);
     const hasPurchasing = await resolveHasPurchasing(conditions, target.id);
+    const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, target.id);
 
     return conditions
       .map((condition) => ({
@@ -3736,6 +3760,7 @@ export const opportunityService = {
           statusRow: statusRowsByCondition[condition.id] ?? null,
           hasInclusions,
           hasPurchasing,
+          purchaseRequestItems,
         }),
       }))
       // Issue #203: a removed kind (field, project_evaluation) always reads
@@ -3851,9 +3876,10 @@ export const opportunityService = {
 
       if (stageConditions.length === 0) continue;
 
-      const [hasInclusions, hasPurchasing] = await Promise.all([
+      const [hasInclusions, hasPurchasing, purchaseRequestItems] = await Promise.all([
         resolveHasInclusions(stageConditions, opportunity.id),
         resolveHasPurchasing(stageConditions, opportunity.id),
+        resolvePurchaseRequestItems(stageConditions, opportunity.id),
       ]);
 
       const missing = stageConditions.filter(
@@ -3865,6 +3891,7 @@ export const opportunityService = {
             statusRow: (statusByOpportunity[opportunity.id] || {})[condition.id] ?? null,
             hasInclusions,
             hasPurchasing,
+            purchaseRequestItems,
           }).status === CONDITION_STATUS.UNSATISFIED,
       );
       if (missing.length > 0) blocked[opportunity.id] = missing;
@@ -4250,10 +4277,11 @@ export const opportunityService = {
           return { ...visit, conditions: [], attachments: attachments || [] };
         }
 
-        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing] = await Promise.all([
+        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing, purchaseRequestItems] = await Promise.all([
           gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt, preloaded }),
           resolveHasInclusions(conditions, opportunityId, { asOf: visit.leftAt }),
           resolveHasPurchasing(conditions, opportunityId, { asOf: visit.leftAt }),
+          resolvePurchaseRequestItems(conditions, opportunityId),
         ]);
 
         return {
@@ -4268,6 +4296,8 @@ export const opportunityService = {
                 statusRow: statusRowsByCondition[condition.id] ?? null,
                 hasInclusions,
                 hasPurchasing,
+                purchaseRequestItems,
+                purchaseRequestAsOf: visit.leftAt,
               });
 
               let matchedFiles = [];

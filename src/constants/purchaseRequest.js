@@ -96,8 +96,23 @@ export function allowedTransitions(status, side) {
 /**
  * Purchasing settled: every Requested Item is closed. A request with no items
  * is settled, and so is an SOR with no request at all (pass null).
+ *
+ * `asOf` (a closed visit's `left_at`) reads the request as it stood then: an
+ * item raised later doesn't count, and a closed item counts as closed only if
+ * it closed by then. Closed is final, so its `status_changed_at` is when it
+ * closed.
  */
-export const isSettled = (items) => (items ?? []).every((item) => isClosedStatus(item?.status));
+export function isSettled(items, { asOf = null } = {}) {
+  const cutoff = asOf ? new Date(asOf).getTime() : null;
+  const at = (value) => (value ? new Date(value).getTime() : null);
+  return (items ?? []).every((item) => {
+    if (cutoff == null) return isClosedStatus(item?.status);
+    if (at(item?.created_at) > cutoff) return true;
+    if (!isClosedStatus(item?.status)) return false;
+    const closedAt = at(item.status_changed_at ?? item.created_at);
+    return closedAt == null || closedAt <= cutoff;
+  });
+}
 
 /**
  * The status a legacy `sor_procurement_requests` outcome becomes when it is
