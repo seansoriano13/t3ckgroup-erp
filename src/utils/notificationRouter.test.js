@@ -253,6 +253,23 @@ describe("handleNotificationRoute", () => {
       dispatch.mockRestore()
     })
 
+    it.each([
+      "PURCHASE_REQUEST_OPENED",
+      "PURCHASE_REQUEST_BUYER",
+      "PURCHASE_REQUEST_ITEM_STATUS",
+      "PURCHASE_REQUEST_ITEM_ADDED",
+      "PURCHASE_REQUEST_MESSAGE",
+      "PURCHASE_REQUEST_MENTION",
+    ])("opens the Purchase Request a %s names", (type) => {
+      // #307. None of these may contain "TASK": the generic branch below
+      // would send them to the task pages.
+      expect(type).not.toContain("TASK")
+      handleNotificationRoute({ type, reference_id: "pr-1" }, employee, navigate, onClose)
+
+      expect(navigate).toHaveBeenCalledWith("/purchasing?request=pr-1")
+      expect(onClose).toHaveBeenCalled()
+    })
+
     it("sends procurement notifications to the deal, not to purchasing's task", () => {
       // The naming is load-bearing. The branch above this one is
       // `type.includes("TASK")`, so calling these PROCUREMENT_TASK_* would

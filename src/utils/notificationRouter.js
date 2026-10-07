@@ -42,6 +42,13 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
 
   if (notif.type === "BUG_REPORT_SUBMITTED" || notif.type === "BUG_REPORT_NOTE") {
     navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
+  } else if (notif.type.startsWith("PURCHASE_REQUEST_")) {
+    // Purchase Request notifications (#307): reference_id is the request.
+    // Before the generic `includes("TASK")` branch, though no type here may
+    // contain "TASK" anyway. The Procurement Queue opens the request named
+    // by `?request=`.
+    // TODO(#309): open the request as a modal over the current page instead.
+    navigate(`/purchasing?request=${encodeURIComponent(notif.reference_id)}`);
   } else if (notif.type === "GROUP_TASK_COMMENT") {
     navigate("/group-tasks");
     window.dispatchEvent(

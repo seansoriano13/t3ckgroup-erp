@@ -83,7 +83,8 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
       setPicked(new Set());
       queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.pickableLines(requestId) });
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.items(requestId) }),
+    // The whole request: the items, and the chat each new item posts in.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) }),
   });
 
   const pickedIds = lines.filter((l) => picked.has(l.id)).map((l) => l.id);
