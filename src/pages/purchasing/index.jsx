@@ -62,6 +62,7 @@ const reference = (row) => row.sales_reference || "No SOR";
 
 function RequestState({ row }) {
   if (isRequestClosed(row)) return <StatusBadge theme="green" label="Closed" />;
+  if (row.sor_closed) return <StatusBadge theme="red" label={`SOR ${row.sor_closed}`} />;
   return <StatusBadge theme="amber" label="Open" />;
 }
 

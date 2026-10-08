@@ -319,7 +319,7 @@ export default function SorModalHeader({
                         onClick={() => {
                           close();
                           confirmDeleteToast(
-                            `Delete ${opportunity.opportunity_no}?`,
+                            `Delete ${sorCodeOf(opportunity) || "this SOR"}?`,
                             "The record is archived, not erased.",
                             () => deleteMutation.mutate(),
                           );

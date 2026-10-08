@@ -70,9 +70,7 @@ as $function$
   left join lateral (
     select
       count(*) as item_count,
-      count(*) filter (
-        where it.status not in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled')
-      ) as open_count
+      count(*) filter (where not public._purchase_request_item_is_closed(it.status)) as open_count
     from public.purchase_request_items it
     where it.request_id = r.id
   ) i on true

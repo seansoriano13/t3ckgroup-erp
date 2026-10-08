@@ -70,7 +70,8 @@ export const purchaseRequestService = {
   /**
    * The Procurement Queue: every request the signed-in employee may read,
    * most recently active first. Each row: `id`, `opportunity_id`, the SOR's
-   * locked header (`sales_reference`, `project_title`, `stage_name`), the
+   * locked header (`sales_reference`, `project_title`, `stage_name`, and
+   * `sor_closed`: "deleted", "lost" or null), the
    * Buyer (`buyer_id`, `buyer_name`, `buyer_avatar_path`), `item_count`,
    * `open_count`, `created_at`, `last_activity_at`. `filter` narrows it (see
    * `filterQueue`); "mine" needs `userId`.

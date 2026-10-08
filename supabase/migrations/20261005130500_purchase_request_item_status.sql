@@ -63,6 +63,17 @@ as $$
   end;
 $$;
 
+-- Whether an item status is closed: nothing more happens to the item. The one
+-- place the list lives.
+create or replace function public._purchase_request_item_is_closed(p_status text)
+returns boolean
+language sql
+immutable
+set search_path = public
+as $$
+  select p_status in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled');
+$$;
+
 -- Whether a member on `p_side` may move an item from `p_from` to `p_to`.
 create or replace function public._purchase_request_item_transition_ok(p_from text, p_to text, p_side text)
 returns boolean
@@ -71,7 +82,7 @@ immutable
 set search_path = public
 as $$
   select case
-    when p_from in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled') then false
+    when public._purchase_request_item_is_closed(p_from) then false
     when p_side = 'sales' then p_to = 'cancelled'
     when p_side = 'purchasing' then
       p_to in ('substituted', 'cannot_source', 'cancelled')
@@ -361,6 +372,7 @@ comment on function public.pr_add_substitute(uuid, text, numeric, text, text, js
 -- ------------------------------------------------------------------------------
 
 revoke all on function public._purchase_request_item_status_label(text) from public, anon;
+revoke all on function public._purchase_request_item_is_closed(text) from public, anon;
 revoke all on function public._purchase_request_item_transition_ok(text, text, text) from public, anon;
 revoke all on function public.pr_actor_side(uuid) from public, anon;
 revoke all on function public.pr_can_add_substitute(uuid) from public, anon;
@@ -368,6 +380,7 @@ revoke all on function public.pr_set_item_status(uuid, text, jsonb) from public,
 revoke all on function public.pr_add_substitute(uuid, text, numeric, text, text, jsonb) from public, anon;
 
 grant execute on function public._purchase_request_item_status_label(text) to authenticated;
+grant execute on function public._purchase_request_item_is_closed(text) to authenticated;
 grant execute on function public._purchase_request_item_transition_ok(text, text, text) to authenticated;
 grant execute on function public.pr_actor_side(uuid) to authenticated;
 grant execute on function public.pr_can_add_substitute(uuid) to authenticated;

@@ -2849,22 +2849,8 @@ begin
     return false;
   end if;
 
-  if v_side = 'purchasing'
-     and v_req.opportunity_id is not null
-     and not public._purchase_request_window_over(v_req)
-     and not exists (
-       select 1 from public.sor_stage_participants p
-       where p.opportunity_id = v_req.opportunity_id
-         and p.employee_id = p_employee_id
-         and p.source = 'purchase_request'
-         and p.source_id = p_request_id
-         and p.closed_at is null
-     ) then
-    insert into public.sor_stage_participants
-      (opportunity_id, employee_id, source, source_id, opened_visit_id, until_rule, until_stage_id)
-    values
-      (v_req.opportunity_id, p_employee_id, 'purchase_request', p_request_id, v_req.opened_visit_id,
-       v_req.access_until, v_req.access_until_stage_id);
+  if v_side = 'purchasing' then
+    perform public._purchase_request_open_window(v_req, p_employee_id);
   end if;
 
   return true;
@@ -2894,6 +2880,35 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_has_open_items(p_request_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from purchase_request_items i
+    where i.request_id = p_request_id
+      and not public._purchase_request_item_is_closed(i.status)
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_is_live(p_req purchase_requests)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select not exists (
+      select 1 from sales_opportunities o
+      where o.id = p_req.opportunity_id and public._sor_closed_for_purchasing(o)
+    )
+    and (
+      public._purchase_request_has_open_items(p_req.id)
+      or not exists (select 1 from purchase_request_items i where i.request_id = p_req.id)
+    );
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_item_added(p_item purchase_request_items)
  RETURNS void
  LANGUAGE plpgsql
@@ -2916,6 +2931,15 @@ begin
 
   update public.purchase_requests set updated_at = now() where id = p_item.request_id;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_item_is_closed(p_status text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select p_status in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled');
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._purchase_request_item_move(p_item purchase_request_items, p_to text, p_side text, p_actor uuid, p_details jsonb, p_fn text)
@@ -2997,7 +3021,7 @@ CREATE OR REPLACE FUNCTION public._purchase_request_item_transition_ok(p_from te
  SET search_path TO 'public'
 AS $function$
   select case
-    when p_from in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled') then false
+    when public._purchase_request_item_is_closed(p_from) then false
     when p_side = 'sales' then p_to = 'cancelled'
     when p_side = 'purchasing' then
       p_to in ('substituted', 'cannot_source', 'cancelled')
@@ -3142,37 +3166,6 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._purchase_request_new_purchaser()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_req uuid;
-begin
-  if not coalesce(new.has_purchasing_flow, false)
-     or coalesce(new.is_deleted, false)
-     or (tg_op = 'UPDATE'
-         and coalesce(old.has_purchasing_flow, false)
-         and not coalesce(old.is_deleted, false)) then
-    return null;
-  end if;
-
-  for v_req in
-    select r.id from public.purchase_requests r
-    where exists (
-      select 1 from public.purchase_request_items i
-      where i.request_id = r.id
-        and i.status not in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled')
-    )
-  loop
-    perform public._purchase_request_add_member(v_req, new.id, public.get_employee_id());
-  end loop;
-  return null;
-end;
-$function$
-;
 CREATE OR REPLACE FUNCTION public._purchase_request_notify(p_request_id uuid, p_recipients uuid[], p_sender uuid, p_type text, p_title text, p_message text, p_members_only boolean DEFAULT true)
  RETURNS void
  LANGUAGE plpgsql
@@ -3196,6 +3189,32 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_open_window(p_req purchase_requests, p_employee_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if p_req.opportunity_id is not null
+     and not public._purchase_request_window_over(p_req)
+     and not exists (
+       select 1 from public.sor_stage_participants p
+       where p.opportunity_id = p_req.opportunity_id
+         and p.employee_id = p_employee_id
+         and p.source = 'purchase_request'
+         and p.source_id = p_req.id
+         and p.closed_at is null
+     ) then
+    insert into public.sor_stage_participants
+      (opportunity_id, employee_id, source, source_id, opened_visit_id, until_rule, until_stage_id)
+    values
+      (p_req.opportunity_id, p_employee_id, 'purchase_request', p_req.id, p_req.opened_visit_id,
+       p_req.access_until, p_req.access_until_stage_id);
+  end if;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_post_event(p_request_id uuid, p_author uuid, p_content text, p_metadata jsonb)
  RETURNS void
  LANGUAGE plpgsql
@@ -3210,52 +3229,96 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._purchase_request_sor_closed_notify()
+CREATE OR REPLACE FUNCTION public._purchase_request_purchasing_access_changed()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
+  v_actor uuid := public.get_employee_id();
   v_req public.purchase_requests;
-  v_why text;
 begin
-  if new.is_deleted and not old.is_deleted then
-    v_why := 'was deleted';
-  elsif new.flow_stage_id is distinct from old.flow_stage_id
-        and exists (
-          select 1
-          from public.flow_stages s
-          join public.sales_flows f on f.id = s.flow_id
-          where s.id = new.flow_stage_id
-            and s.is_terminal
-            and s.id is distinct from f.won_stage_id
-        ) then
-    v_why := 'was lost';
-  else
+  -- An AFTER trigger: the row as changed is what the rule reads.
+  if public._employee_has_purchasing_access(new.id) then
+    for v_req in
+      select r.* from public.purchase_requests r where public._purchase_request_is_live(r)
+    loop
+      if not public._purchase_request_add_member(v_req.id, new.id, v_actor) then
+        update public.purchase_request_members
+        set side = 'purchasing'
+        where request_id = v_req.id and employee_id = new.id and side <> 'purchasing';
+        if found then
+          perform public._purchase_request_open_window(v_req, new.id);
+        end if;
+      end if;
+    end loop;
+  elsif tg_op = 'UPDATE' then
+    -- Where they'd now be on the other side, they were only there to buy: they
+    -- leave (the queue that shows those requests needs the access). The Deal
+    -- Team and the Buyer stay, on the side they'd otherwise have.
+    delete from public.purchase_request_members m
+    using public.purchase_requests r
+    where r.id = m.request_id and m.employee_id = new.id and m.side = 'purchasing'
+      and r.buyer_id is distinct from new.id
+      and public.purchase_request_member_side(r.opportunity_id, new.id) = 'other';
+
+    update public.purchase_request_members m
+    set side = public.purchase_request_member_side(r.opportunity_id, new.id)
+    from public.purchase_requests r
+    where r.id = m.request_id and m.employee_id = new.id and m.side = 'purchasing';
+
+    update public.sor_stage_participants
+    set closed_at = now(), closed_reason = 'access_revoked', removed_by = v_actor
+    where source = 'purchase_request' and employee_id = new.id and closed_at is null;
+  end if;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_sor_status_notify()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_closed boolean := public._sor_closed_for_purchasing(new);
+  v_req public.purchase_requests;
+  v_recipients uuid[];
+  v_happened text;
+begin
+  if v_closed = public._sor_closed_for_purchasing(old) then
     return null;
   end if;
 
   select * into v_req from public.purchase_requests where opportunity_id = new.id;
-  if v_req.id is null or v_req.buyer_id is null then
+  if v_req.id is null or not public._purchase_request_has_open_items(v_req.id) then
     return null;
   end if;
 
-  if not exists (
-    select 1 from public.purchase_request_items i
-    where i.request_id = v_req.id
-      and i.status not in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled')
-  ) then
-    return null;
+  if v_req.buyer_id is not null then
+    v_recipients := array[v_req.buyer_id];
+  else
+    select array_agg(m.employee_id) into v_recipients
+    from public.purchase_request_members m
+    where m.request_id = v_req.id and m.side = 'purchasing';
   end if;
+
+  v_happened := case
+    when v_closed and coalesce(new.is_deleted, false) then 'was deleted'
+    when v_closed then 'was lost'
+    when coalesce(old.is_deleted, false) then 'was restored'
+    else 'was reopened'
+  end;
 
   perform public._purchase_request_notify(
     v_req.id,
-    array[v_req.buyer_id],
+    v_recipients,
     public.get_employee_id(),
-    'PURCHASE_REQUEST_SOR_CLOSED',
-    'SOR ' || v_why,
-    format('%s %s. Its Purchase Request still has open items.', public._purchase_request_label(v_req.id), v_why),
+    case when v_closed then 'PURCHASE_REQUEST_SOR_CLOSED' else 'PURCHASE_REQUEST_SOR_REOPENED' end,
+    'SOR ' || v_happened,
+    format('%s %s. Its Purchase Request still has open items.', public._purchase_request_label(v_req.id), v_happened),
     false
   );
   return null;
@@ -3332,6 +3395,22 @@ AS $function$
   )
   from run
   join flow_stage_actions fa on fa.id = run.action_id;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._sor_closed_for_purchasing(p_opp sales_opportunities)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(p_opp.is_deleted, false) or exists (
+    select 1
+    from flow_stages s
+    join sales_flows f on f.id = s.flow_id
+    where s.id = p_opp.flow_stage_id
+      and s.is_terminal
+      and s.id is distinct from f.won_stage_id
+  );
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._sor_deal_team_roles(p_opp sales_opportunities)
@@ -4844,7 +4923,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_queue(p_request_id uuid DEFAULT NULL::uuid)
- RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone)
+ RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -4852,9 +4931,14 @@ AS $function$
   select
     r.id,
     r.opportunity_id,
-    coalesce(nullif(o.sales_reference, ''), o.opportunity_no),
+    coalesce(nullif(o.sales_reference, ''), o.sor_code, o.opportunity_no),
     o.project_title,
     fs.name,
+    case
+      when o.id is null or not public._sor_closed_for_purchasing(o) then null
+      when coalesce(o.is_deleted, false) then 'deleted'
+      else 'lost'
+    end,
     r.buyer_id,
     b.name,
     b.avatar_path,
@@ -4870,9 +4954,7 @@ AS $function$
   left join lateral (
     select
       count(*) as item_count,
-      count(*) filter (
-        where it.status not in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled')
-      ) as open_count
+      count(*) filter (where not public._purchase_request_item_is_closed(it.status)) as open_count
     from public.purchase_request_items it
     where it.request_id = r.id
   ) i on true
@@ -9056,7 +9138,8 @@ $function$
 -- Triggers
 -- ============================================================
 
-CREATE TRIGGER purchase_request_new_purchaser AFTER INSERT OR UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_new_purchaser();
+CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
+CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
@@ -9067,7 +9150,7 @@ CREATE TRIGGER purchase_request_messages_notify AFTER INSERT ON public.purchase_
 CREATE TRIGGER purchase_requests_updated_at BEFORE UPDATE ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION set_purchase_requests_updated_at();
 CREATE TRIGGER retail_orders_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION retail_orders_broadcast_change();
 CREATE TRIGGER trg_retail_orders_updated_at BEFORE UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION set_retail_orders_updated_at();
-CREATE TRIGGER purchase_request_sor_closed_notify AFTER UPDATE OF is_deleted, flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION _purchase_request_sor_closed_notify();
+CREATE TRIGGER purchase_request_sor_status_notify AFTER UPDATE OF is_deleted, flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION _purchase_request_sor_status_notify();
 CREATE TRIGGER sales_opportunities_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_broadcast_change();
 CREATE TRIGGER sor_guard_non_editor_update BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_non_editor_update();
 CREATE TRIGGER sor_guard_stage_move BEFORE UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_stage_move();

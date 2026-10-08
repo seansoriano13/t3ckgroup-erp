@@ -14,6 +14,7 @@ import Spinner from "../../../ui/Spinner";
 import Avatar from "../../../Avatar";
 import StatusBadge from "../../../StatusBadge";
 import { confirmDeleteToast } from "../../../ui/CustomToast";
+import { sorCodeOf } from "../../../../utils/sorCode";
 import { outgoingStages } from "../../../../constants/salesFlow";
 import { PROJECT_TYPE_LABELS, formatLeadSource, itbGateSatisfiedBy, ITB_EXEMPT_LABEL, formatPHP } from "../../../../constants/sor";
 import DetailsTab from "../DetailsTab";
@@ -275,7 +276,7 @@ export function HeaderActions({ p, extra = null }) {
                     variant="ghost"
                     onClick={() => {
                       close();
-                      confirmDeleteToast(`Delete ${p.opportunity.opportunity_no}?`, "The record is archived, not erased.", () => p.deleteMutation.mutate());
+                      confirmDeleteToast(`Delete ${sorCodeOf(p.opportunity) || "this SOR"}?`, "The record is archived, not erased.", () => p.deleteMutation.mutate());
                     }}
                     className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-red-9/10 hover:text-red-11"
                   >
