@@ -18,6 +18,7 @@ import {
   isClosedStatus,
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
+import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
@@ -120,6 +121,7 @@ export default function RequestedItemActions({ item, request, actor }) {
         confirmLabel={confirm?.confirmLabel}
         cancelLabel="Keep it"
         tone="destructive"
+        className={OVER_REQUEST_MODAL}
         onConfirm={() => moveMutation.mutate(confirming)}
       />
       {canSubstitute && substituting && (

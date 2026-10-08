@@ -73,6 +73,20 @@ export const CLOSED_STATUSES = [
 
 export const isClosedStatus = (status) => CLOSED_STATUSES.includes(status);
 
+/**
+ * Why the request's SOR is closed for Purchasing (`pr_queue.sor_closed`), and
+ * how that reads. Lost means a Terminal Stage before the Won Stage was reached.
+ */
+export const SOR_CLOSED_REASON = { DELETED: "deleted", LOST: "lost" };
+
+export const SOR_CLOSED_LABELS = {
+  [SOR_CLOSED_REASON.DELETED]: "SOR deleted",
+  [SOR_CLOSED_REASON.LOST]: "SOR lost",
+};
+
+/** The label for a closed SOR, or null while it's open. */
+export const sorClosedLabel = (reason) => SOR_CLOSED_LABELS[reason] ?? null;
+
 /** Which side of the request a member sits on. Decides what they may change. */
 export const MEMBER_SIDE = {
   PURCHASING: "purchasing",

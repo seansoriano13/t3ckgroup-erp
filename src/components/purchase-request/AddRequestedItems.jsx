@@ -29,6 +29,7 @@ import { STOCK_BADGE_THEME, stockBadge } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { formatAmount, isLineRequested } from "../../utils/requestedItem";
 import { purchaseRequestKeys, sorStockKey } from "./queryKeys";
+import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
@@ -91,7 +92,7 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-xl`}>
         <DialogHeader className="shrink-0 pr-10">
           <DialogTitle>Add from the SOR&apos;s Product List</DialogTitle>
           <DialogDescription>
@@ -224,7 +225,7 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-lg`}>
         <DialogHeader className="shrink-0 pr-10">
           {substituteFor ? (
             <>

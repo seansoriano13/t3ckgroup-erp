@@ -3048,6 +3048,52 @@ AS $function$
   left join sales_opportunities o on o.id = r.opportunity_id;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_member_event(p_request_id uuid, p_actor uuid, p_employee_id uuid, p_event text)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.purchase_request_messages (request_id, author_id, content, metadata)
+  values (
+    p_request_id,
+    p_actor,
+    format(
+      '%s %s.',
+      case p_event when 'member_added' then 'Added' else 'Removed' end,
+      coalesce((select name from public.employees where id = p_employee_id), 'a member')
+    ),
+    jsonb_build_object('event', p_event, 'employee_id', p_employee_id)
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_member_was_chosen(p_req purchase_requests, p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+      select 1 from purchase_request_messages m
+      where m.request_id = p_req.id
+        and m.metadata->>'event' = 'member_added'
+        and m.metadata->>'employee_id' = p_employee_id::text
+    )
+    or exists (
+      select 1
+      from sor_action_runs run
+      join sales_opportunities o on o.id = run.opportunity_id
+      cross join lateral (select public._sor_action_run_saved_action(run.id) as action) saved
+      cross join lateral jsonb_array_elements(
+        case when jsonb_typeof(saved.action->'config'->'extras') = 'array'
+          then saved.action->'config'->'extras' else '[]'::jsonb end
+      ) s
+      where run.opportunity_id = p_req.opportunity_id
+        and saved.action->>'kind' = 'open_purchase_request'
+        and public.sor_selector_covers(s, o, p_employee_id)
+    );
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_message_notify()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3254,14 +3300,38 @@ begin
       end if;
     end loop;
   elsif tg_op = 'UPDATE' then
-    -- Where they'd now be on the other side, they were only there to buy: they
-    -- leave (the queue that shows those requests needs the access). The Deal
-    -- Team and the Buyer stay, on the side they'd otherwise have.
+    -- A Buyer must hold Purchasing access (pr_set_buyer): their live requests go
+    -- back to the queue, the way clearing the Buyer does, and Purchasing hears.
+    for v_req in
+      select r.* from public.purchase_requests r
+      where r.buyer_id = new.id and public._purchase_request_is_live(r)
+    loop
+      update public.purchase_requests set buyer_id = null where id = v_req.id;
+      perform public._purchase_request_post_event(
+        v_req.id, v_actor,
+        format('%s no longer has Purchasing access; the request is back in the queue.', new.name),
+        jsonb_build_object('event', 'buyer_set', 'buyer_id', null, 'previous_buyer_id', new.id)
+      );
+      perform public._purchase_request_notify(
+        v_req.id,
+        array(select e.id from public.employees e where public._employee_has_purchasing_access(e.id)),
+        v_actor, 'PURCHASE_REQUEST_REQUEUED',
+        'Back in the queue',
+        public._purchase_request_label(v_req.id) || ' needs a Buyer. Take it from the Procurement Queue.',
+        false
+      );
+    end loop;
+
+    -- Where they'd now be on the other side and nobody chose them, they were
+    -- only there to buy: they leave (the queue that shows those requests needs
+    -- the access). The Deal Team, a Buyer of a closed request, and anyone added
+    -- by hand or as an action's extra stay, on the side they'd otherwise have.
     delete from public.purchase_request_members m
     using public.purchase_requests r
     where r.id = m.request_id and m.employee_id = new.id and m.side = 'purchasing'
       and r.buyer_id is distinct from new.id
-      and public.purchase_request_member_side(r.opportunity_id, new.id) = 'other';
+      and public.purchase_request_member_side(r.opportunity_id, new.id) = 'other'
+      and not public._purchase_request_member_was_chosen(r, new.id);
 
     update public.purchase_request_members m
     set side = public.purchase_request_member_side(r.opportunity_id, new.id)
@@ -3283,7 +3353,8 @@ CREATE OR REPLACE FUNCTION public._purchase_request_sor_status_notify()
  SET search_path TO 'public'
 AS $function$
 declare
-  v_closed boolean := public._sor_closed_for_purchasing(new);
+  v_reason text := public._sor_purchasing_closed_reason(new);
+  v_closed boolean := v_reason is not null;
   v_req public.purchase_requests;
   v_recipients uuid[];
   v_happened text;
@@ -3297,17 +3368,22 @@ begin
     return null;
   end if;
 
-  if v_req.buyer_id is not null then
-    v_recipients := array[v_req.buyer_id];
-  else
-    select array_agg(m.employee_id) into v_recipients
-    from public.purchase_request_members m
-    where m.request_id = v_req.id and m.side = 'purchasing';
-  end if;
+  -- The Buyer, else everyone with Purchasing access (as when an unassigned
+  -- request opens); and the requesters.
+  select array_agg(distinct x) into v_recipients
+  from (
+    select v_req.buyer_id as x where v_req.buyer_id is not null
+    union all
+    select e.id from public.employees e
+    where v_req.buyer_id is null and public._employee_has_purchasing_access(e.id)
+    union all
+    select v_req.created_by
+    union all
+    select i.requested_by from public.purchase_request_items i where i.request_id = v_req.id
+  ) q;
 
   v_happened := case
-    when v_closed and coalesce(new.is_deleted, false) then 'was deleted'
-    when v_closed then 'was lost'
+    when v_closed then 'was ' || v_reason
     when coalesce(old.is_deleted, false) then 'was restored'
     else 'was reopened'
   end;
@@ -3403,14 +3479,7 @@ CREATE OR REPLACE FUNCTION public._sor_closed_for_purchasing(p_opp sales_opportu
  STABLE
  SET search_path TO 'public'
 AS $function$
-  select coalesce(p_opp.is_deleted, false) or exists (
-    select 1
-    from flow_stages s
-    join sales_flows f on f.id = s.flow_id
-    where s.id = p_opp.flow_stage_id
-      and s.is_terminal
-      and s.id is distinct from f.won_stage_id
-  );
+  select public._sor_purchasing_closed_reason(p_opp) is not null;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._sor_deal_team_roles(p_opp sales_opportunities)
@@ -3429,6 +3498,31 @@ AS $function$
     (p_opp.sales_director_id, 'sales_director')
   ) as x (employee_id, role)
   where x.employee_id is not null;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._sor_purchasing_closed_reason(p_opp sales_opportunities)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when coalesce(p_opp.is_deleted, false) then 'deleted'
+    when exists (
+      select 1
+      from flow_stages s
+      join sales_flows f on f.id = s.flow_id
+      where s.id = p_opp.flow_stage_id
+        and s.is_terminal
+        and s.id is distinct from f.won_stage_id
+        and not exists (
+          select 1 from sor_stage_visits v
+          where v.opportunity_id = p_opp.id
+            and v.flow_stage_id = f.won_stage_id
+            and v.undone_at is null
+        )
+    ) then 'lost'
+  end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.add_bug_report_note(p_report_id uuid, p_body text)
@@ -4934,11 +5028,7 @@ AS $function$
     coalesce(nullif(o.sales_reference, ''), o.sor_code, o.opportunity_no),
     o.project_title,
     fs.name,
-    case
-      when o.id is null or not public._sor_closed_for_purchasing(o) then null
-      when coalesce(o.is_deleted, false) then 'deleted'
-      else 'lost'
-    end,
+    case when o.id is not null then public._sor_purchasing_closed_reason(o) end,
     r.buyer_id,
     b.name,
     b.avatar_path,
@@ -5302,9 +5392,7 @@ begin
   end if;
 
   if public._purchase_request_add_member(p_request_id, p_employee_id, v_actor) then
-    insert into public.purchase_request_messages (request_id, author_id, content, metadata)
-    values (p_request_id, v_actor, 'Member added.',
-            jsonb_build_object('event', 'member_added', 'employee_id', p_employee_id));
+    perform public._purchase_request_member_event(p_request_id, v_actor, p_employee_id, 'member_added');
   end if;
 end;
 $function$
@@ -5504,9 +5592,7 @@ begin
   where source = 'purchase_request' and source_id = p_request_id
     and employee_id = p_employee_id and closed_at is null;
 
-  insert into public.purchase_request_messages (request_id, author_id, content, metadata)
-  values (p_request_id, v_actor, 'Member removed.',
-          jsonb_build_object('event', 'member_removed', 'employee_id', p_employee_id));
+  perform public._purchase_request_member_event(p_request_id, v_actor, p_employee_id, 'member_removed');
 end;
 $function$
 ;

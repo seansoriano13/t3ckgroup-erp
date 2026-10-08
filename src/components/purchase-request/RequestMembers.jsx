@@ -11,6 +11,7 @@ import { employeeService } from "@/services/employeeService";
 import { purchaseRequestService } from "@/services/purchaseRequestService";
 import { MEMBER_SIDE } from "@/constants/purchaseRequest";
 import { procurementQueueKey, purchaseRequestKeys } from "./queryKeys";
+import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
@@ -129,6 +130,7 @@ export default function RequestMembers({ request }) {
         description="They stop seeing this request and its chat. Purchasing members also lose their window into the SOR."
         confirmLabel="Remove"
         tone="destructive"
+        className={OVER_REQUEST_MODAL}
         onConfirm={() => removing && remove.mutate(removing.id)}
       />
     </section>

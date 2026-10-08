@@ -24,6 +24,7 @@ import {
   normalizePoNumber,
 } from "../../constants/procurement";
 import { purchaseRequestKeys } from "./queryKeys";
+import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
@@ -62,7 +63,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-md`}>
         <DialogHeader className="shrink-0 pr-10">
           <DialogTitle>Mark as Ordered</DialogTitle>
           <DialogDescription>{item.name}. Add the Odoo PO number if you have it; it&apos;s checked against Odoo.</DialogDescription>
@@ -129,7 +130,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-md`}>
         <DialogHeader className="shrink-0 pr-10">
           <DialogTitle>Pick the PO line</DialogTitle>
           <DialogDescription>

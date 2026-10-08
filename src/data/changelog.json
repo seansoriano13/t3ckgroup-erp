@@ -11,7 +11,11 @@
             "Purchase Requests: Purchasing moves each item along (To order, Canvassing, Ordered, Received, From stock) or closes it. The Buyer can offer a substitute. Ordered items can carry an Odoo PO number, checked against Odoo.",
             "Purchasing: the old Purchasing page is now the Procurement Queue. Take an unassigned request to become its Buyer. A new request with no Buyer notifies Purchasing once.",
             "SORs: the Now, Products and History tabs show the SOR's Purchase Request and its items. A new Stage condition, Purchasing settled, stops an SOR leaving a Stage until every item is closed.",
-            "Old procurement requests moved into each SOR's Purchase Request and can no longer be edited. The SOR's old Purchasing panel is gone."
+            "Old procurement requests moved into each SOR's Purchase Request and can no longer be edited. The SOR's old Purchasing panel is gone.",
+            "Purchase Requests: when an SOR is deleted or lost while items are still open, the Buyer and the people who asked for items are told, and told again if it comes back. With no Buyer, everyone with Purchasing access hears.",
+            "Purchase Requests: the Procurement Queue marks a request whose SOR was deleted or lost, and shows the SOR number when there's no Sales Reference.",
+            "Purchasing: someone given Purchasing access joins the requests still being worked. When the access is removed they leave the requests they were only on to buy, and any they were the Buyer of go back to the queue.",
+            "Purchase Requests: the chat says who was added or removed, and dialogs opened from a request on an SOR now show in front of it."
         ]
     },
     {

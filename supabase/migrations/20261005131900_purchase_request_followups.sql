@@ -1,28 +1,32 @@
 -- ==============================================================================
 -- 20261005131900_purchase_request_followups.sql
 --
--- Two gaps left open when #209 shipped:
+-- Three gaps left open when #209 shipped:
 --
 -- 1. THE BUYER ISN'T TOLD WHEN THE SOR GOES AWAY
---    An SOR closes for Purchasing when it is deleted, or moves to a Terminal
---    Stage other than its flow's Won Stage (lost). On the move from open to
---    closed, a request with open items tells its Buyer once
---    (`PURCHASE_REQUEST_SOR_CLOSED`); with no Buyer yet, its purchasing members.
---    Lost then deleted is still one closing. On the move back (restored from the
---    Deleted view, or reverted off the lost Stage) the same people hear
---    `PURCHASE_REQUEST_SOR_REOPENED`. The request and its history stay.
+--    An SOR closes for Purchasing when it is deleted, or lost: on a Terminal
+--    Stage without having reached its flow's Won Stage (a Closed Won Stage after
+--    the Won Stage is not lost; purchasing carries on). On the move from open to
+--    closed, a request with open items tells its Buyer and its requesters once
+--    (`PURCHASE_REQUEST_SOR_CLOSED`); with no Buyer yet, everyone with
+--    Purchasing access instead of the Buyer. Lost then deleted is still one
+--    closing. On the move back (restored from the Deleted view, or reverted off
+--    the lost Stage) the same people hear `PURCHASE_REQUEST_SOR_REOPENED`. The
+--    request and its history stay.
 --
 -- 2. PURCHASING HOLDERS FOLLOW THE ACCESS
 --    Someone granted Purchasing access joins every live request: one whose SOR
 --    hasn't closed and which has an open item or no items yet. A member already
 --    there on another side moves to the purchasing side and gets the SOR window.
---    Someone who loses the access leaves the requests where they'd now be on
---    the other side; as the Buyer or on the Deal Team they stay, on that side.
---    Their SOR windows close. No chat event is posted.
+--    Someone who loses the access stops being the Buyer of live requests (each
+--    goes back to the queue, and Purchasing hears once). They leave the requests
+--    where they'd now be on the other side, unless someone chose them: added by
+--    hand, or one of the action's extras. The Deal Team stays, on that side.
+--    Their SOR windows close. Joining and leaving post no chat event.
 --
 -- 3. THE QUEUE SAYS WHEN THE SOR HAS CLOSED
---    `pr_queue` gains `sor_closed`, and its reference falls back to the SOR
---    Code before "No SOR".
+--    `pr_queue` gains `sor_closed` ('deleted' or 'lost'), and its reference
+--    falls back to the SOR Code before "No SOR".
 --
 -- SAFE TO RUN AT ANY TIME, against a live frontend of any version: helper
 -- functions, one redefinition with unchanged behaviour, triggers, and
@@ -34,22 +38,44 @@
 -- Helpers
 -- ------------------------------------------------------------------------------
 
--- Whether an SOR is closed for Purchasing: deleted, or on a Terminal Stage
--- other than its flow's Won Stage.
+-- Why an SOR is closed for Purchasing: 'deleted'; 'lost' when it sits on a
+-- Terminal Stage without having reached its flow's Won Stage (a visit to it
+-- that wasn't reverted); else null. The Won Stage usually sits mid-flow, so a
+-- Closed Won Stage after it is not lost.
+create or replace function public._sor_purchasing_closed_reason(p_opp public.sales_opportunities)
+returns text
+language sql
+stable
+set search_path = public
+as $$
+  select case
+    when coalesce(p_opp.is_deleted, false) then 'deleted'
+    when exists (
+      select 1
+      from flow_stages s
+      join sales_flows f on f.id = s.flow_id
+      where s.id = p_opp.flow_stage_id
+        and s.is_terminal
+        and s.id is distinct from f.won_stage_id
+        and not exists (
+          select 1 from sor_stage_visits v
+          where v.opportunity_id = p_opp.id
+            and v.flow_stage_id = f.won_stage_id
+            and v.undone_at is null
+        )
+    ) then 'lost'
+  end;
+$$;
+
+revoke all on function public._sor_purchasing_closed_reason(public.sales_opportunities) from public, anon, authenticated;
+
 create or replace function public._sor_closed_for_purchasing(p_opp public.sales_opportunities)
 returns boolean
 language sql
 stable
 set search_path = public
 as $$
-  select coalesce(p_opp.is_deleted, false) or exists (
-    select 1
-    from flow_stages s
-    join sales_flows f on f.id = s.flow_id
-    where s.id = p_opp.flow_stage_id
-      and s.is_terminal
-      and s.id is distinct from f.won_stage_id
-  );
+  select public._sor_purchasing_closed_reason(p_opp) is not null;
 $$;
 
 revoke all on function public._sor_closed_for_purchasing(public.sales_opportunities) from public, anon, authenticated;
@@ -88,6 +114,39 @@ as $$
 $$;
 
 revoke all on function public._purchase_request_is_live(public.purchase_requests) from public, anon, authenticated;
+
+-- Whether someone chose this person as a member, rather than their Purchasing
+-- access bringing them in: added by hand (a `member_added` event), or covered
+-- by the extras of an Open Purchase Request action run on the SOR.
+create or replace function public._purchase_request_member_was_chosen(p_req public.purchase_requests, p_employee_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+      select 1 from purchase_request_messages m
+      where m.request_id = p_req.id
+        and m.metadata->>'event' = 'member_added'
+        and m.metadata->>'employee_id' = p_employee_id::text
+    )
+    or exists (
+      select 1
+      from sor_action_runs run
+      join sales_opportunities o on o.id = run.opportunity_id
+      cross join lateral (select public._sor_action_run_saved_action(run.id) as action) saved
+      cross join lateral jsonb_array_elements(
+        case when jsonb_typeof(saved.action->'config'->'extras') = 'array'
+          then saved.action->'config'->'extras' else '[]'::jsonb end
+      ) s
+      where run.opportunity_id = p_req.opportunity_id
+        and saved.action->>'kind' = 'open_purchase_request'
+        and public.sor_selector_covers(s, o, p_employee_id)
+    );
+$$;
+
+revoke all on function public._purchase_request_member_was_chosen(public.purchase_requests, uuid) from public, anon, authenticated;
 
 -- Opens a purchasing member's window into the SOR (#208), with the action's
 -- rule, unless the window is over or already open.
@@ -170,7 +229,8 @@ security definer
 set search_path = public
 as $$
 declare
-  v_closed boolean := public._sor_closed_for_purchasing(new);
+  v_reason text := public._sor_purchasing_closed_reason(new);
+  v_closed boolean := v_reason is not null;
   v_req public.purchase_requests;
   v_recipients uuid[];
   v_happened text;
@@ -184,17 +244,22 @@ begin
     return null;
   end if;
 
-  if v_req.buyer_id is not null then
-    v_recipients := array[v_req.buyer_id];
-  else
-    select array_agg(m.employee_id) into v_recipients
-    from public.purchase_request_members m
-    where m.request_id = v_req.id and m.side = 'purchasing';
-  end if;
+  -- The Buyer, else everyone with Purchasing access (as when an unassigned
+  -- request opens); and the requesters.
+  select array_agg(distinct x) into v_recipients
+  from (
+    select v_req.buyer_id as x where v_req.buyer_id is not null
+    union all
+    select e.id from public.employees e
+    where v_req.buyer_id is null and public._employee_has_purchasing_access(e.id)
+    union all
+    select v_req.created_by
+    union all
+    select i.requested_by from public.purchase_request_items i where i.request_id = v_req.id
+  ) q;
 
   v_happened := case
-    when v_closed and coalesce(new.is_deleted, false) then 'was deleted'
-    when v_closed then 'was lost'
+    when v_closed then 'was ' || v_reason
     when coalesce(old.is_deleted, false) then 'was restored'
     else 'was reopened'
   end;
@@ -251,14 +316,38 @@ begin
       end if;
     end loop;
   elsif tg_op = 'UPDATE' then
-    -- Where they'd now be on the other side, they were only there to buy: they
-    -- leave (the queue that shows those requests needs the access). The Deal
-    -- Team and the Buyer stay, on the side they'd otherwise have.
+    -- A Buyer must hold Purchasing access (pr_set_buyer): their live requests go
+    -- back to the queue, the way clearing the Buyer does, and Purchasing hears.
+    for v_req in
+      select r.* from public.purchase_requests r
+      where r.buyer_id = new.id and public._purchase_request_is_live(r)
+    loop
+      update public.purchase_requests set buyer_id = null where id = v_req.id;
+      perform public._purchase_request_post_event(
+        v_req.id, v_actor,
+        format('%s no longer has Purchasing access; the request is back in the queue.', new.name),
+        jsonb_build_object('event', 'buyer_set', 'buyer_id', null, 'previous_buyer_id', new.id)
+      );
+      perform public._purchase_request_notify(
+        v_req.id,
+        array(select e.id from public.employees e where public._employee_has_purchasing_access(e.id)),
+        v_actor, 'PURCHASE_REQUEST_REQUEUED',
+        'Back in the queue',
+        public._purchase_request_label(v_req.id) || ' needs a Buyer. Take it from the Procurement Queue.',
+        false
+      );
+    end loop;
+
+    -- Where they'd now be on the other side and nobody chose them, they were
+    -- only there to buy: they leave (the queue that shows those requests needs
+    -- the access). The Deal Team, a Buyer of a closed request, and anyone added
+    -- by hand or as an action's extra stay, on the side they'd otherwise have.
     delete from public.purchase_request_members m
     using public.purchase_requests r
     where r.id = m.request_id and m.employee_id = new.id and m.side = 'purchasing'
       and r.buyer_id is distinct from new.id
-      and public.purchase_request_member_side(r.opportunity_id, new.id) = 'other';
+      and public.purchase_request_member_side(r.opportunity_id, new.id) = 'other'
+      and not public._purchase_request_member_was_chosen(r, new.id);
 
     update public.purchase_request_members m
     set side = public.purchase_request_member_side(r.opportunity_id, new.id)
@@ -326,11 +415,7 @@ as $function$
     coalesce(nullif(o.sales_reference, ''), o.sor_code, o.opportunity_no),
     o.project_title,
     fs.name,
-    case
-      when o.id is null or not public._sor_closed_for_purchasing(o) then null
-      when coalesce(o.is_deleted, false) then 'deleted'
-      else 'lost'
-    end,
+    case when o.id is not null then public._sor_purchasing_closed_reason(o) end,
     r.buyer_id,
     b.name,
     b.avatar_path,

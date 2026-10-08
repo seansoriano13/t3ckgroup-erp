@@ -30,6 +30,7 @@ import { useRecordParam } from "../../hooks/useRecordParam";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import { getPermissionContext } from "../../utils/permissions";
 import { formatDate } from "../../utils/formatDate.js";
+import { sorClosedLabel } from "../../constants/purchaseRequest";
 
 /**
  * The Procurement Queue (issue #308, spec #209), a Queue page: every Purchase
@@ -62,7 +63,8 @@ const reference = (row) => row.sales_reference || "No SOR";
 
 function RequestState({ row }) {
   if (isRequestClosed(row)) return <StatusBadge theme="green" label="Closed" />;
-  if (row.sor_closed) return <StatusBadge theme="red" label={`SOR ${row.sor_closed}`} />;
+  const sorClosed = sorClosedLabel(row.sor_closed);
+  if (sorClosed) return <StatusBadge theme="red" label={sorClosed} />;
   return <StatusBadge theme="amber" label="Open" />;
 }
 

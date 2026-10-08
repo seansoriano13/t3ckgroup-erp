@@ -2,12 +2,13 @@
  * Follow-ups to #209: the Buyer hears when the SOR closes or comes back, and
  * Purchasing membership follows the access when it is granted or taken away.
  *
- * `outsider` is the Buyer where there is one; `stageParticipant` is a
- * purchasing member and `dealOwner` a sales member. `hr` is the one whose
- * Purchasing access changes. Assertions read as those people.
+ * `outsider` is the Buyer where there is one; `dealOwner` registered the SOR
+ * and asked for the items. `stageParticipant` holds Purchasing access while a
+ * request with no Buyer closes. `hr` is the one whose Purchasing access
+ * changes. Assertions read as those people.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
+import { CAST, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 
@@ -16,9 +17,9 @@ const requests = []
 const sors = []
 const stage = {}
 let saleTypeId, flowId
-// hr's rows from before this file, so teardown removes only what it caused.
-let hrMembersBefore = []
-let hrWindowsBefore = []
+// Rows granting access touched, from before this file, per cast key, so
+// teardown removes only what the file caused.
+const before = {}
 
 async function one(query, what) {
     const { data, error } = await query
@@ -56,7 +57,18 @@ async function newRequest({ buyer = null, items = ["requested"], members = [] } 
 
 const setSor = (sorId, patch) => one(svc().from("sales_opportunities").update(patch).eq("id", sorId), "Updating an SOR")
 
-const setHrAccess = (on) => sql().query("update employees set has_purchasing_flow = $2 where id = $1", [ids.hr, on])
+const idsOf = async (query, key) => (await sql().query(query, [ids[key]])).rows.map((r) => r.id)
+
+/** Turns `key`'s Purchasing access on or off, remembering what was there first. */
+async function setAccess(key, on) {
+    if (on && !before[key]) {
+        before[key] = {
+            members: await idsOf("select id from purchase_request_members where employee_id = $1", key),
+            windows: await idsOf("select id from sor_stage_participants where source = 'purchase_request' and employee_id = $1", key),
+        }
+    }
+    await sql().query("update employees set has_purchasing_flow = $2 where id = $1", [ids[key], on])
+}
 
 /** The notification types `key` can see for this request. */
 async function notified(key, requestId) {
@@ -87,35 +99,34 @@ beforeAll(async () => {
     await ensureCastLoaded()
     saleTypeId = (await one(svc().from("sale_types").insert({ name: `${MARKER} Followups` }).select("id").single(), "Seeding a Sale Type")).id
     flowId = (await one(svc().from("sales_flows").insert({ sale_type_id: saleTypeId }).select("id").single(), "Seeding a flow")).id
+    // The Won Stage sits mid-flow, as it usually does; Closed Won comes after it.
     const stages = await one(
         svc()
             .from("flow_stages")
             .insert([
                 { flow_id: flowId, name: `${MARKER} Open`, sort_order: 0, is_terminal: false },
-                { flow_id: flowId, name: `${MARKER} Won`, sort_order: 1, is_terminal: true },
-                { flow_id: flowId, name: `${MARKER} Lost`, sort_order: 2, is_terminal: true },
+                { flow_id: flowId, name: `${MARKER} Won`, sort_order: 1, is_terminal: false },
+                { flow_id: flowId, name: `${MARKER} Closed Won`, sort_order: 2, is_terminal: true },
+                { flow_id: flowId, name: `${MARKER} Lost`, sort_order: 3, is_terminal: true },
             ])
             .select("id, sort_order"),
         "Seeding Stages",
     )
-    ;[stage.open, stage.won, stage.lost] = stages.sort((a, b) => a.sort_order - b.sort_order).map((s) => s.id)
+    ;[stage.open, stage.won, stage.closedWon, stage.lost] = stages.sort((a, b) => a.sort_order - b.sort_order).map((s) => s.id)
     await one(svc().from("sales_flows").update({ won_stage_id: stage.won }).eq("id", flowId), "Naming the Won Stage")
-
-    hrMembersBefore = (await sql().query("select id from purchase_request_members where employee_id = $1", [ids.hr])).rows.map((r) => r.id)
-    hrWindowsBefore = (
-        await sql().query("select id from sor_stage_participants where source = 'purchase_request' and employee_id = $1", [ids.hr])
-    ).rows.map((r) => r.id)
 })
 
 afterAll(async () => {
-    await setHrAccess(false)
-    // Granting access adds hr to every live request in the database, not only
-    // this file's; take back everything that wasn't there before.
-    await sql().query("delete from purchase_request_members where employee_id = $1 and not (id = any($2::uuid[]))", [ids.hr, hrMembersBefore])
-    await sql().query(
-        "delete from sor_stage_participants where source = 'purchase_request' and employee_id = $1 and not (id = any($2::uuid[]))",
-        [ids.hr, hrWindowsBefore],
-    )
+    // Granting access adds people to every live request in the database, not
+    // only this file's; take back everything that wasn't there before.
+    for (const [key, rows] of Object.entries(before)) {
+        await sql().query("update employees set has_purchasing_flow = false where id = $1", [ids[key]])
+        await sql().query("delete from purchase_request_members where employee_id = $1 and not (id = any($2::uuid[]))", [ids[key], rows.members])
+        await sql().query(
+            "delete from sor_stage_participants where source = 'purchase_request' and employee_id = $1 and not (id = any($2::uuid[]))",
+            [ids[key], rows.windows],
+        )
+    }
     if (requests.length) {
         await svc().from("notifications").delete().in("reference_id", requests)
         await svc().from("purchase_requests").delete().in("id", requests)
@@ -128,10 +139,11 @@ afterAll(async () => {
 })
 
 describe("the SOR closes", () => {
-    it("deleted: tells the Buyer once while items are open", async () => {
+    it("deleted: tells the Buyer and the requester once while items are open", async () => {
         const { id, sorId } = await newRequest({ buyer: "outsider" })
         await setSor(sorId, { is_deleted: true })
         expect(await notified("outsider", id)).toEqual(["PURCHASE_REQUEST_SOR_CLOSED"])
+        expect(await notified("dealOwner", id)).toEqual(["PURCHASE_REQUEST_SOR_CLOSED"])
     })
 
     it("deleted: stays quiet once every item is closed", async () => {
@@ -146,9 +158,10 @@ describe("the SOR closes", () => {
         expect(await notified("outsider", id)).toEqual(["PURCHASE_REQUEST_SOR_CLOSED"])
     })
 
-    it("won: stays quiet", async () => {
+    it("won and then Closed Won: stays quiet, because purchasing carries on", async () => {
         const { id, sorId } = await newRequest({ buyer: "outsider" })
         await setSor(sorId, { flow_stage_id: stage.won })
+        await setSor(sorId, { flow_stage_id: stage.closedWon })
         expect(await notified("outsider", id)).toEqual([])
     })
 
@@ -166,16 +179,19 @@ describe("the SOR closes", () => {
         expect(await notified("outsider", id)).toEqual(["PURCHASE_REQUEST_SOR_CLOSED", "PURCHASE_REQUEST_SOR_REOPENED"])
     })
 
-    it("with no Buyer, tells the purchasing members and not the sales side", async () => {
-        const { id, sorId } = await newRequest({ members: [["stageParticipant", "purchasing"], ["dealOwner", "sales"]] })
+    it("with no Buyer, tells everyone with Purchasing access and the requester, not other members", async () => {
+        await setAccess("stageParticipant", true)
+        const { id, sorId } = await newRequest({ members: [["ordinary", "other"]] })
         await setSor(sorId, { is_deleted: true })
+        await setAccess("stageParticipant", false)
         expect(await notified("stageParticipant", id)).toEqual(["PURCHASE_REQUEST_SOR_CLOSED"])
-        expect(await notified("dealOwner", id)).toEqual([])
+        expect(await notified("dealOwner", id)).toEqual(["PURCHASE_REQUEST_SOR_CLOSED"])
+        expect(await notified("ordinary", id)).toEqual([])
     })
 })
 
 describe("Purchasing access granted and taken away", () => {
-    let live, empty, done, deleted, lost, existing, removed, bought
+    let live, empty, done, deleted, lost, closedWon, existing, removed, bought, chosen
 
     beforeAll(async () => {
         live = await newRequest()
@@ -183,23 +199,28 @@ describe("Purchasing access granted and taken away", () => {
         done = await newRequest({ items: ["cancelled"] })
         deleted = await newRequest()
         lost = await newRequest()
+        closedWon = await newRequest()
         existing = await newRequest({ members: [["hr", "other"]] })
         removed = await newRequest()
         bought = await newRequest({ buyer: "hr" })
+        chosen = await newRequest()
         await setSor(deleted.sorId, { is_deleted: true })
         await setSor(lost.sorId, { flow_stage_id: stage.lost })
+        await setSor(closedWon.sorId, { flow_stage_id: stage.won })
+        await setSor(closedWon.sorId, { flow_stage_id: stage.closedWon })
 
         // The SOR window needs the request to have been opened at a visit.
         const { rows } = await sql().query("select id from sor_stage_visits where opportunity_id = $1 order by sequence desc limit 1", [existing.sorId])
         await sql().query("update purchase_requests set opened_visit_id = $2, access_until = 'stage_left' where id = $1", [existing.id, rows[0].id])
 
-        await setHrAccess(true)
+        await setAccess("hr", true)
     })
 
-    it("joins live requests, empty ones included, but not finished ones or ones on a closed SOR", async () => {
-        expect(await hrSides([live.id, empty.id, done.id, deleted.id, lost.id])).toEqual({
+    it("joins live requests, empty and Closed Won ones included, but not finished ones or ones on a closed SOR", async () => {
+        expect(await hrSides([live.id, empty.id, closedWon.id, done.id, deleted.id, lost.id])).toEqual({
             [live.id]: "purchasing",
             [empty.id]: "purchasing",
+            [closedWon.id]: "purchasing",
         })
     })
 
@@ -210,16 +231,35 @@ describe("Purchasing access granted and taken away", () => {
 
     it("doesn't re-add someone a person removed when the access hasn't changed", async () => {
         await sql().query("delete from purchase_request_members where request_id = $1 and employee_id = $2", [removed.id, ids.hr])
-        await setHrAccess(true)
+        await setAccess("hr", true)
         await sql().query("update employees set name = name where id = $1", [ids.hr])
         const { rows } = await sql().query("select 1 from purchase_request_members where request_id = $1 and employee_id = $2", [removed.id, ids.hr])
         expect(rows).toEqual([])
     })
 
-    it("taken away: leaves the requests they were only buying for, stays where they're the Buyer, and the SOR window closes", async () => {
-        await setHrAccess(false)
-        expect(await hrSides([live.id, existing.id, bought.id])).toEqual({ [bought.id]: "other" })
+    it("taken away: leaves the requests they were only buying for, keeps one they were added to by hand, and the SOR window closes", async () => {
+        const admin = await clientFor("superAdmin")
+        await one(admin.rpc("purchase_request_remove_member", { p_request_id: chosen.id, p_employee_id: ids.hr }), "Removing hr")
+        await one(admin.rpc("purchase_request_add_member", { p_request_id: chosen.id, p_employee_id: ids.hr }), "Adding hr by hand")
+        await setAccess("hr", false)
+        expect(await hrSides([live.id, existing.id, bought.id, chosen.id])).toEqual({ [chosen.id]: "other" })
         expect(await hrWindow(existing.id)).toEqual([{ closed_reason: "access_revoked" }])
+    })
+
+    it("taken away: a request they were the Buyer of goes back to the queue", async () => {
+        const { rows } = await sql().query("select buyer_id from purchase_requests where id = $1", [bought.id])
+        expect(rows).toEqual([{ buyer_id: null }])
+        const admin = await clientFor("superAdmin")
+        const messages = await one(
+            admin.from("purchase_request_messages").select("content, metadata").eq("request_id", bought.id),
+            "Reading the chat",
+        )
+        expect(messages).toEqual([
+            {
+                content: `${CAST.hr.name} no longer has Purchasing access; the request is back in the queue.`,
+                metadata: { event: "buyer_set", buyer_id: null, previous_buyer_id: ids.hr },
+            },
+        ])
     })
 })
 
@@ -230,14 +270,21 @@ describe("the Procurement Queue", () => {
         return rows[0]
     }
 
-    it("marks a request whose SOR was deleted or lost, and not one that's live or won", async () => {
-        const [deleted, lost, live, won] = [await newRequest({ buyer: "outsider" }), await newRequest({ buyer: "outsider" }), await newRequest({ buyer: "outsider" }), await newRequest({ buyer: "outsider" })]
+    it("marks a request whose SOR was deleted or lost, and not one that's live, won or Closed Won", async () => {
+        const [deleted, lost, live, won] = [
+            await newRequest({ buyer: "outsider" }),
+            await newRequest({ buyer: "outsider" }),
+            await newRequest({ buyer: "outsider" }),
+            await newRequest({ buyer: "outsider" }),
+        ]
         await setSor(deleted.sorId, { is_deleted: true })
         await setSor(lost.sorId, { flow_stage_id: stage.lost })
         await setSor(won.sorId, { flow_stage_id: stage.won })
         expect((await queueRow(deleted.id)).sor_closed).toBe("deleted")
         expect((await queueRow(lost.id)).sor_closed).toBe("lost")
         expect((await queueRow(live.id)).sor_closed).toBeNull()
+        expect((await queueRow(won.id)).sor_closed).toBeNull()
+        await setSor(won.sorId, { flow_stage_id: stage.closedWon })
         expect((await queueRow(won.id)).sor_closed).toBeNull()
     })
 
@@ -246,5 +293,20 @@ describe("the Procurement Queue", () => {
         const { rows } = await sql().query("select sor_code from sales_opportunities where id = $1", [sorId])
         expect(rows[0].sor_code).toMatch(/^SOR-/)
         expect((await queueRow(id)).sales_reference).toBe(rows[0].sor_code)
+    })
+})
+
+describe("membership changes in the chat", () => {
+    it("name who was added and who was removed", async () => {
+        const { id } = await newRequest()
+        const admin = await clientFor("superAdmin")
+        await one(admin.rpc("purchase_request_add_member", { p_request_id: id, p_employee_id: ids.ordinary }), "Adding a member")
+        await one(admin.rpc("purchase_request_remove_member", { p_request_id: id, p_employee_id: ids.ordinary }), "Removing a member")
+        const messages = await one(
+            admin.from("purchase_request_messages").select("content").eq("request_id", id).order("created_at"),
+            "Reading the chat",
+        )
+        const name = CAST.ordinary.name
+        expect(messages.map((m) => m.content)).toEqual([`Added ${name}.`, `Removed ${name}.`])
     })
 })
