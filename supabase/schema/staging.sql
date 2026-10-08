@@ -3142,6 +3142,37 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_new_purchaser()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_req uuid;
+begin
+  if not coalesce(new.has_purchasing_flow, false)
+     or coalesce(new.is_deleted, false)
+     or (tg_op = 'UPDATE'
+         and coalesce(old.has_purchasing_flow, false)
+         and not coalesce(old.is_deleted, false)) then
+    return null;
+  end if;
+
+  for v_req in
+    select r.id from public.purchase_requests r
+    where exists (
+      select 1 from public.purchase_request_items i
+      where i.request_id = r.id
+        and i.status not in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled')
+    )
+  loop
+    perform public._purchase_request_add_member(v_req, new.id, public.get_employee_id());
+  end loop;
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_notify(p_request_id uuid, p_recipients uuid[], p_sender uuid, p_type text, p_title text, p_message text, p_members_only boolean DEFAULT true)
  RETURNS void
  LANGUAGE plpgsql
@@ -3176,6 +3207,58 @@ begin
   values (p_request_id, p_author, p_content, p_metadata);
 
   update public.purchase_requests set updated_at = now() where id = p_request_id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_sor_closed_notify()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_req public.purchase_requests;
+  v_why text;
+begin
+  if new.is_deleted and not old.is_deleted then
+    v_why := 'was deleted';
+  elsif new.flow_stage_id is distinct from old.flow_stage_id
+        and exists (
+          select 1
+          from public.flow_stages s
+          join public.sales_flows f on f.id = s.flow_id
+          where s.id = new.flow_stage_id
+            and s.is_terminal
+            and s.id is distinct from f.won_stage_id
+        ) then
+    v_why := 'was lost';
+  else
+    return null;
+  end if;
+
+  select * into v_req from public.purchase_requests where opportunity_id = new.id;
+  if v_req.id is null or v_req.buyer_id is null then
+    return null;
+  end if;
+
+  if not exists (
+    select 1 from public.purchase_request_items i
+    where i.request_id = v_req.id
+      and i.status not in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled')
+  ) then
+    return null;
+  end if;
+
+  perform public._purchase_request_notify(
+    v_req.id,
+    array[v_req.buyer_id],
+    public.get_employee_id(),
+    'PURCHASE_REQUEST_SOR_CLOSED',
+    'SOR ' || v_why,
+    format('%s %s. Its Purchase Request still has open items.', public._purchase_request_label(v_req.id), v_why),
+    false
+  );
+  return null;
 end;
 $function$
 ;
@@ -8973,6 +9056,7 @@ $function$
 -- Triggers
 -- ============================================================
 
+CREATE TRIGGER purchase_request_new_purchaser AFTER INSERT OR UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_new_purchaser();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
@@ -8983,6 +9067,7 @@ CREATE TRIGGER purchase_request_messages_notify AFTER INSERT ON public.purchase_
 CREATE TRIGGER purchase_requests_updated_at BEFORE UPDATE ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION set_purchase_requests_updated_at();
 CREATE TRIGGER retail_orders_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION retail_orders_broadcast_change();
 CREATE TRIGGER trg_retail_orders_updated_at BEFORE UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION set_retail_orders_updated_at();
+CREATE TRIGGER purchase_request_sor_closed_notify AFTER UPDATE OF is_deleted, flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION _purchase_request_sor_closed_notify();
 CREATE TRIGGER sales_opportunities_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_broadcast_change();
 CREATE TRIGGER sor_guard_non_editor_update BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_non_editor_update();
 CREATE TRIGGER sor_guard_stage_move BEFORE UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_stage_move();
