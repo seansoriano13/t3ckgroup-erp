@@ -38,6 +38,28 @@ describe("StageSettingsPanel", () => {
     onSetWon: vi.fn(),
   };
 
+  it("asks how deals end on a Terminal Stage, and sets Won", () => {
+    const onSetTerminalOutcome = vi.fn();
+    render(
+      <StageSettingsPanel
+        {...defaultProps}
+        stage={{ ...defaultProps.stage, is_terminal: true }}
+        onSetTerminalOutcome={onSetTerminalOutcome}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Lost" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Won" }));
+    expect(onSetTerminalOutcome).toHaveBeenCalledWith("won");
+  });
+
+  it("doesn't ask on a Stage that isn't terminal, or on the Won Stage", () => {
+    const props = { ...defaultProps, onSetTerminalOutcome: vi.fn() };
+    const { rerender } = render(<StageSettingsPanel {...props} />);
+    expect(screen.queryByText("Deals here end as")).not.toBeInTheDocument();
+    rerender(<StageSettingsPanel {...props} isWon stage={{ ...props.stage, is_terminal: true }} />);
+    expect(screen.queryByText("Deals here end as")).not.toBeInTheDocument();
+  });
+
   it("renders the stage name and bracket label", () => {
     render(<StageSettingsPanel {...defaultProps} />);
     expect(screen.getByRole("heading", { name: "Initial Contact" })).toBeInTheDocument();

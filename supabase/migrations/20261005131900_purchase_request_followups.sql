@@ -5,8 +5,8 @@
 --
 -- 1. THE BUYER ISN'T TOLD WHEN THE SOR GOES AWAY
 --    An SOR closes for Purchasing when it is deleted, or lost: on a Terminal
---    Stage without having reached its flow's Won Stage (a Closed Won Stage after
---    the Won Stage is not lost; purchasing carries on). On the move from open to
+--    Stage other than its flow's Won Stage (20261005132000 lets a Terminal
+--    Stage end as won, e.g. Closed Won, and refines this). On the move from open to
 --    closed, a request with open items tells its Buyer and its requesters once
 --    (`PURCHASE_REQUEST_SOR_CLOSED`); with no Buyer yet, everyone with
 --    Purchasing access instead of the Buyer. Lost then deleted is still one
@@ -38,10 +38,9 @@
 -- Helpers
 -- ------------------------------------------------------------------------------
 
--- Why an SOR is closed for Purchasing: 'deleted'; 'lost' when it sits on a
--- Terminal Stage without having reached its flow's Won Stage (a visit to it
--- that wasn't reverted); else null. The Won Stage usually sits mid-flow, so a
--- Closed Won Stage after it is not lost.
+-- Why an SOR is closed for Purchasing: 'deleted'; 'lost' on a Terminal Stage
+-- other than its flow's Won Stage; else null. 20261005132000 adds the Stage's
+-- own outcome, so a Closed Won Stage isn't lost.
 create or replace function public._sor_purchasing_closed_reason(p_opp public.sales_opportunities)
 returns text
 language sql
@@ -57,12 +56,6 @@ as $$
       where s.id = p_opp.flow_stage_id
         and s.is_terminal
         and s.id is distinct from f.won_stage_id
-        and not exists (
-          select 1 from sor_stage_visits v
-          where v.opportunity_id = p_opp.id
-            and v.flow_stage_id = f.won_stage_id
-            and v.undone_at is null
-        )
     ) then 'lost'
   end;
 $$;

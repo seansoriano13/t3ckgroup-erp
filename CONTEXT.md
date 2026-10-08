@@ -218,8 +218,10 @@ _Avoid_: Status, Step
 **Terminal Stage**:
 A Stage no SOR can leave — where a Sales Flow ends (Closed Won, Closed Lost).
 Not the Won Stage, which usually sits mid-flow with PO, delivery and collection
-still ahead of it. SORs on a Terminal Stage sink to the bottom of the register's
-default order.
+still ahead of it. Each Terminal Stage says how deals end there, **Won** (Closed
+Won) or **Lost** (Closed Lost, Cancelled), set on the Flow Canvas; one left
+unset ends as Lost. SORs on a Terminal Stage sink to the bottom of the
+register's default order.
 _Avoid_: Last Stage, Final Stage, Closed
 
 **Stage Visit**:
@@ -406,7 +408,7 @@ to reverting a Sales Flow to an earlier Flow Snapshot on the Flow Canvas.
 _Avoid_: Correction, Stage Correction, Rollback, Undo
 
 **Won** (or **Realized**):
-An SOR counts as booked money when its current Stage is its Sales Flow's designated Won Stage or any non-terminal post-won Stage downstream from it. For legacy SORs with no Sales Flow, it means occupying the Awarded stage or beyond. Labelled **Won** on screen.
+An SOR counts as booked money when its current Stage is its Sales Flow's designated Won Stage, any non-terminal post-won Stage downstream from it, or a Terminal Stage that ends as Won. For legacy SORs with no Sales Flow, it means occupying the Awarded stage or beyond. Labelled **Won** on screen.
 _Avoid_: Booked, Closed (when meaning the money pool)
 
 **Open Pipeline**:

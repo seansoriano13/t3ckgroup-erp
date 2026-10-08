@@ -311,6 +311,24 @@ describe("realized is having a contract date", () => {
       expect(isRealizedOpportunity(won)).toBe(true)
     })
 
+    it("counts a deal on a Terminal Stage that ends as won (Closed Won)", () => {
+      const closedWon = {
+        ...wonThenLost,
+        flow_stage_id: "s-closed",
+        flow_snapshot: {
+          snapshot_data: {
+            wonStageId: "s-won",
+            stages: [
+              { id: "s-won", is_terminal: false },
+              { id: "s-closed", is_terminal: true, terminal_outcome: "won" },
+            ],
+            edges: [{ from_stage_id: "s-won", to_stage_id: "s-closed" }],
+          },
+        },
+      }
+      expect(isRealizedOpportunity(closedWon)).toBe(true)
+    })
+
     it("counts a deal on a post-won Stage downstream of Won", () => {
       const postWon = {
         ...wonThenLost,

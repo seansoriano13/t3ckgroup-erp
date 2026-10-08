@@ -398,7 +398,8 @@ create table if not exists public."flow_stages" (
   "pos_x" integer not null default 0,
   "pos_y" integer not null default 0,
   "color" text,
-  "bracket_label" text
+  "bracket_label" text,
+  "terminal_outcome" text
 );
 
 create table if not exists public."group_task_template_members" (
@@ -1234,6 +1235,7 @@ alter table flow_stage_follow_ups add constraint "flow_stage_follow_ups_days_whe
 alter table flow_stage_follow_ups add constraint "flow_stage_follow_ups_every_days_check" CHECK (((every_days IS NULL) OR (every_days > 0)));
 alter table flow_stages add constraint "flow_stages_color_check" CHECK (((color IS NULL) OR (color = ANY (ARRAY['tomato'::text, 'red'::text, 'crimson'::text, 'pink'::text, 'plum'::text, 'violet'::text, 'indigo'::text, 'blue'::text, 'sky'::text, 'cyan'::text, 'teal'::text, 'jade'::text, 'green'::text, 'lime'::text, 'yellow'::text, 'amber'::text, 'orange'::text, 'gold'::text, 'brown'::text, 'mauve'::text]))));
 alter table flow_stages add constraint "flow_stages_name_not_blank" CHECK ((btrim(name) <> ''::text));
+alter table flow_stages add constraint "flow_stages_terminal_outcome_chk" CHECK (((terminal_outcome IS NULL) OR (is_terminal AND (terminal_outcome = ANY (ARRAY['won'::text, 'lost'::text])))));
 alter table hr_day_shift_config add constraint "hr_day_shift_config_weekday_check" CHECK (((weekday >= 0) AND (weekday <= 6)));
 alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -3515,12 +3517,7 @@ AS $function$
       where s.id = p_opp.flow_stage_id
         and s.is_terminal
         and s.id is distinct from f.won_stage_id
-        and not exists (
-          select 1 from sor_stage_visits v
-          where v.opportunity_id = p_opp.id
-            and v.flow_stage_id = f.won_stage_id
-            and v.undone_at is null
-        )
+        and coalesce(s.terminal_outcome, 'lost') = 'lost'
     ) then 'lost'
   end;
 $function$
@@ -5800,7 +5797,7 @@ begin
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stages', '[]'::jsonb)) as e
   loop
     insert into flow_stages (
-      id, flow_id, name, sort_order, is_terminal, pos_x, pos_y, color, bracket_label, created_at, updated_at
+      id, flow_id, name, sort_order, is_terminal, terminal_outcome, pos_x, pos_y, color, bracket_label, created_at, updated_at
     )
     values (
       (v_elem->>'id')::uuid,
@@ -5808,6 +5805,7 @@ begin
       v_elem->>'name',
       coalesce((v_elem->>'sort_order')::int, 0),
       coalesce((v_elem->>'is_terminal')::boolean, false),
+      case when coalesce((v_elem->>'is_terminal')::boolean, false) then nullif(v_elem->>'terminal_outcome', '') end,
       coalesce((v_elem->>'pos_x')::int, 0),
       coalesce((v_elem->>'pos_y')::int, 0),
       nullif(v_elem->>'color', ''),
@@ -5819,6 +5817,7 @@ begin
       name = excluded.name,
       sort_order = excluded.sort_order,
       is_terminal = excluded.is_terminal,
+      terminal_outcome = excluded.terminal_outcome,
       pos_x = excluded.pos_x,
       pos_y = excluded.pos_y,
       color = excluded.color,

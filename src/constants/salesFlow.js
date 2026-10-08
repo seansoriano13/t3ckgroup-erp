@@ -171,29 +171,37 @@ export function isAtEntryStage(opportunity, stages = []) {
 }
 
 /**
- * Whether a deal sitting on `flowStage` counts as lost.
+ * How deals end on a Terminal Stage (`flow_stages.terminal_outcome`). The Won
+ * Stage usually sits mid-flow, so a flow ends on Terminal Stages like Closed
+ * Won and Closed Lost; each says which it is. Unset means lost.
+ */
+export const TERMINAL_OUTCOME = { WON: "won", LOST: "lost" }
+
+/** Whether a Terminal Stage ends deals as won (e.g. Closed Won). */
+export function endsAsWon(flowStage) {
+  return Boolean(flowStage?.is_terminal) && flowStage.terminal_outcome === TERMINAL_OUTCOME.WON
+}
+
+/**
+ * Whether a deal sitting on `flowStage` counts as lost: a Terminal Stage that
+ * is neither the flow's Won Stage (`won_stage_id`, on the flow) nor one that
+ * ends as won. The deal has stopped moving somewhere other than a win.
  *
- * A flow Stage carries no `is_lost` flag — the global pipeline's kind of
- * terminal is `is_won` / `is_lost` as two separate flags, but a flow only
- * designates one special Stage (`won_stage_id`, on the flow, not the Stage —
- * see 0047/0048). So "lost" here is a terminal Stage that is not that one:
- * the deal has stopped moving somewhere other than where it was won.
- *
- * This is what `isRealizedOpportunity` (constants/sor.js) asks for a
- * flow-built deal instead of `isLostCode`, which only knows
- * `crm_pipeline_stages` codes a flow deal never carries.
+ * The flow twin of `isLostCode`, which only knows `crm_pipeline_stages` codes
+ * a flow deal never carries.
  */
 export function isLostFlowStage(flowStage, wonStageId) {
   if (!flowStage?.is_terminal) return false
-  return flowStage.id !== wonStageId
+  return flowStage.id !== wonStageId && !endsAsWon(flowStage)
 }
 
 /**
  * Classifies a Stage within a Sales Flow graph:
  * - "WON": the designated Won Stage
- * - "POST_WON": an active Stage strictly downstream of the Won Stage
+ * - "POST_WON": an active Stage strictly downstream of the Won Stage, or a
+ *   Terminal Stage that ends as won (Closed Won)
  * - "PRE_WON": an active Stage preceding the Won Stage (open pipeline)
- * - "LOST": a terminal Stage that is not the Won Stage
+ * - "LOST": a Terminal Stage that is not the Won Stage and doesn't end as won
  * - null: unknown or unresolvable Stage
  */
 export function classifyFlowStage(stageId, { stages = [], edges = [], wonStageId = null } = {}) {
@@ -202,7 +210,7 @@ export function classifyFlowStage(stageId, { stages = [], edges = [], wonStageId
   if (!stage) return null
 
   if (stage.is_terminal && stage.id !== wonStageId) {
-    return "LOST"
+    return endsAsWon(stage) ? "POST_WON" : "LOST"
   }
 
   if (wonStageId && stage.id === wonStageId) {

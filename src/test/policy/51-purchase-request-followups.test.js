@@ -99,20 +99,22 @@ beforeAll(async () => {
     await ensureCastLoaded()
     saleTypeId = (await one(svc().from("sale_types").insert({ name: `${MARKER} Followups` }).select("id").single(), "Seeding a Sale Type")).id
     flowId = (await one(svc().from("sales_flows").insert({ sale_type_id: saleTypeId }).select("id").single(), "Seeding a flow")).id
-    // The Won Stage sits mid-flow, as it usually does; Closed Won comes after it.
+    // The Won Stage sits mid-flow, as it usually does; Closed Won comes after
+    // it and ends deals as won. Cancelled also comes after it and ends as lost.
     const stages = await one(
         svc()
             .from("flow_stages")
             .insert([
                 { flow_id: flowId, name: `${MARKER} Open`, sort_order: 0, is_terminal: false },
                 { flow_id: flowId, name: `${MARKER} Won`, sort_order: 1, is_terminal: false },
-                { flow_id: flowId, name: `${MARKER} Closed Won`, sort_order: 2, is_terminal: true },
+                { flow_id: flowId, name: `${MARKER} Closed Won`, sort_order: 2, is_terminal: true, terminal_outcome: "won" },
                 { flow_id: flowId, name: `${MARKER} Lost`, sort_order: 3, is_terminal: true },
+                { flow_id: flowId, name: `${MARKER} Cancelled`, sort_order: 4, is_terminal: true, terminal_outcome: "lost" },
             ])
             .select("id, sort_order"),
         "Seeding Stages",
     )
-    ;[stage.open, stage.won, stage.closedWon, stage.lost] = stages.sort((a, b) => a.sort_order - b.sort_order).map((s) => s.id)
+    ;[stage.open, stage.won, stage.closedWon, stage.lost, stage.cancelled] = stages.sort((a, b) => a.sort_order - b.sort_order).map((s) => s.id)
     await one(svc().from("sales_flows").update({ won_stage_id: stage.won }).eq("id", flowId), "Naming the Won Stage")
 })
 
@@ -163,6 +165,13 @@ describe("the SOR closes", () => {
         await setSor(sorId, { flow_stage_id: stage.won })
         await setSor(sorId, { flow_stage_id: stage.closedWon })
         expect(await notified("outsider", id)).toEqual([])
+    })
+
+    it("won and then Cancelled (a Terminal Stage ending as lost): tells the Buyer", async () => {
+        const { id, sorId } = await newRequest({ buyer: "outsider" })
+        await setSor(sorId, { flow_stage_id: stage.won })
+        await setSor(sorId, { flow_stage_id: stage.cancelled })
+        expect(await notified("outsider", id)).toEqual(["PURCHASE_REQUEST_SOR_CLOSED"])
     })
 
     it("lost and then deleted is one closing", async () => {
