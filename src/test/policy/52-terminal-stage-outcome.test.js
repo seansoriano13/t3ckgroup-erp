@@ -2,11 +2,13 @@
  * A Terminal Stage says how deals end there, Won or Lost
  * (20261005132000_terminal_stage_outcome.sql).
  *
- * The flow here runs Lead → Won (the Won Stage, mid-flow) → Closed Won, with
- * Lead → Lost and Won → Cancelled. Re-running the migration's backfill must
- * mark Closed Won and Cancelled as won (both are reachable from the Won
- * Stage), leave Lost unset, and do the same inside a Flow Snapshot. Restoring
- * a snapshot carries the outcome.
+ * The flow here is shaped like the real ones: Lead → Won (the Won Stage,
+ * mid-flow) → Closed Won, and Closed Lost and Cancelled reachable from every
+ * Stage, after the Won Stage too (docs/crm-pipeline-redesign.md D36).
+ * Re-running the migration's backfill must mark only the Stage named Closed
+ * Won (any spacing or case) as won, leave Closed Lost and Cancelled unset
+ * (lost), and do the same inside a Flow Snapshot. Restoring a snapshot
+ * carries the outcome.
  */
 import { readFileSync } from "fs"
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -42,8 +44,9 @@ beforeAll(async () => {
             .insert([
                 { flow_id: flowId, name: `${MARKER} Lead`, sort_order: 0, is_terminal: false },
                 { flow_id: flowId, name: `${MARKER} Won`, sort_order: 1, is_terminal: false },
-                { flow_id: flowId, name: `${MARKER} Closed Won`, sort_order: 2, is_terminal: true },
-                { flow_id: flowId, name: `${MARKER} Lost`, sort_order: 3, is_terminal: true },
+                // Unprefixed: the backfill matches the name itself.
+                { flow_id: flowId, name: "  CLOSED WON ", sort_order: 2, is_terminal: true },
+                { flow_id: flowId, name: "Closed Lost", sort_order: 3, is_terminal: true },
                 { flow_id: flowId, name: `${MARKER} Cancelled`, sort_order: 4, is_terminal: true },
             ])
             .select("id, sort_order"),
@@ -57,6 +60,7 @@ beforeAll(async () => {
                 { flow_id: flowId, from_stage_id: stage.lead, to_stage_id: stage.won },
                 { flow_id: flowId, from_stage_id: stage.won, to_stage_id: stage.closedWon },
                 { flow_id: flowId, from_stage_id: stage.lead, to_stage_id: stage.lost },
+                { flow_id: flowId, from_stage_id: stage.won, to_stage_id: stage.lost },
                 { flow_id: flowId, from_stage_id: stage.won, to_stage_id: stage.cancelled },
             ])
             .select("*"),
@@ -89,13 +93,13 @@ afterAll(async () => {
 })
 
 describe("the backfill", () => {
-    it("marks Terminal Stages reachable from the Won Stage as won, and leaves the rest unset", async () => {
+    it("marks only the Terminal Stage named Closed Won as won; Closed Lost and Cancelled stay lost though reachable after the Won Stage", async () => {
         expect(await outcomes()).toEqual({
             [stage.lead]: null,
             [stage.won]: null,
             [stage.closedWon]: "won",
             [stage.lost]: null,
-            [stage.cancelled]: "won",
+            [stage.cancelled]: null,
         })
     })
 
@@ -107,7 +111,7 @@ describe("the backfill", () => {
             [stage.won]: null,
             [stage.closedWon]: "won",
             [stage.lost]: null,
-            [stage.cancelled]: "won",
+            [stage.cancelled]: null,
         })
     })
 })
@@ -126,10 +130,10 @@ describe("the rule", () => {
 
 describe("restoring a Flow Snapshot", () => {
     it("brings back each Terminal Stage's outcome", async () => {
-        // Cancelled is set back to Lost by hand after the backfill; the
-        // snapshot still says won, so a restore brings won back.
-        await one(svc().from("flow_stages").update({ terminal_outcome: "lost" }).eq("id", stage.cancelled), "Setting Cancelled to lost")
+        // Closed Won is set to Lost by hand after the backfill; the snapshot
+        // still says won, so a restore brings won back.
+        await one(svc().from("flow_stages").update({ terminal_outcome: "lost" }).eq("id", stage.closedWon), "Setting Closed Won to lost")
         await one(svc().rpc("restore_flow_snapshot", { p_flow_id: flowId, p_snapshot_id: snapshotId }), "Restoring")
-        expect((await outcomes())[stage.cancelled]).toBe("won")
+        expect((await outcomes())[stage.closedWon]).toBe("won")
     })
 })

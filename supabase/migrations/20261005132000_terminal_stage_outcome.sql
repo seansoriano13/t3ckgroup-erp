@@ -14,12 +14,15 @@
 -- otherwise. A Terminal Stage with none set ends as lost, as before. Set in
 -- Flow Canvas; carried by Flow Snapshots and restored with them.
 --
--- BACKFILL: a Terminal Stage reachable from its flow's Won Stage along the
--- flow's moves is marked 'won', in the live flow and in every Flow Snapshot
--- (from that snapshot's own Stages, moves and Won Stage), so deals on older
--- versions read the same. Every other Terminal Stage is left unset (lost). A
--- post-award cancellation Stage downstream of the Won Stage needs setting back
--- to Lost in Flow Canvas by hand.
+-- BACKFILL: a Terminal Stage named "Closed Won" (trimmed, any case: the same
+-- name match 20260930320000 colors it green by) is marked 'won', in the live
+-- flow and in every Flow Snapshot, so deals on older versions read the same.
+-- Every other Terminal Stage stays unset, which ends as lost, as before.
+--
+-- Not by the graph: Closed Lost is reachable from every Stage, after the Won
+-- Stage included (docs/crm-pipeline-redesign.md D36: a client defaulting at
+-- Collection), so "reachable from the Won Stage" would book every lost deal.
+-- A win Stage named otherwise is set to Won in Flow Canvas by hand.
 --
 -- Also: the Purchase Request rule for a lost SOR (20261005131900) reads the
 -- outcome, and restore_flow_snapshot (20260929020000) carries it.
@@ -43,68 +46,37 @@ comment on column public.flow_stages.terminal_outcome is
 -- Backfill: live flows
 -- ------------------------------------------------------------------------------
 
-with recursive reach (flow_id, stage_id) as (
-  select f.id, f.won_stage_id from public.sales_flows f where f.won_stage_id is not null
-  union
-  select r.flow_id, e.to_stage_id
-  from reach r
-  join public.flow_edges e on e.flow_id = r.flow_id and e.from_stage_id = r.stage_id
-)
 update public.flow_stages s
 set terminal_outcome = 'won'
-from reach r, public.sales_flows f
-where s.id = r.stage_id
-  and f.id = r.flow_id
-  and s.is_terminal
-  and s.id is distinct from f.won_stage_id
+where s.is_terminal
+  and btrim(s.name) ~* '^closed won$'
   and s.terminal_outcome is null;
 
 -- ------------------------------------------------------------------------------
 -- Backfill: Flow Snapshots
 -- ------------------------------------------------------------------------------
 
-do $backfill$
-declare
-  v_snap record;
-  v_won text;
-  v_reached text[];
-  v_stages jsonb;
-begin
-  for v_snap in select id, snapshot_data from public.flow_snapshots loop
-    v_won := v_snap.snapshot_data->>'wonStageId';
-    continue when v_won is null;
-
-    with recursive reach (stage_id) as (
-      select v_won
-      union
-      select e->>'to_stage_id'
-      from reach r
-      join jsonb_array_elements(coalesce(v_snap.snapshot_data->'edges', '[]'::jsonb)) e
-        on e->>'from_stage_id' = r.stage_id
-    )
-    select array_agg(stage_id) into v_reached from reach;
-
-    select jsonb_agg(
-      case
-        when coalesce((st->>'is_terminal')::boolean, false)
-          and st->>'id' <> v_won
-          and st->>'id' = any (v_reached)
-          and coalesce(st->>'terminal_outcome', '') = ''
-        then st || jsonb_build_object('terminal_outcome', 'won')
-        else st
-      end
-      order by ord
-    ) into v_stages
-    from jsonb_array_elements(coalesce(v_snap.snapshot_data->'stages', '[]'::jsonb)) with ordinality as x(st, ord);
-
-    if v_stages is distinct from v_snap.snapshot_data->'stages' then
-      update public.flow_snapshots
-      set snapshot_data = jsonb_set(snapshot_data, '{stages}', v_stages)
-      where id = v_snap.id;
-    end if;
-  end loop;
-end
-$backfill$;
+update public.flow_snapshots fs
+set snapshot_data = jsonb_set(fs.snapshot_data, '{stages}', marked.stages)
+from (
+  select f.id, jsonb_agg(
+    case
+      when coalesce((st->>'is_terminal')::boolean, false)
+        and btrim(coalesce(st->>'name', '')) ~* '^closed won$'
+        and coalesce(st->>'terminal_outcome', '') = ''
+      then st || jsonb_build_object('terminal_outcome', 'won')
+      else st
+    end
+    order by ord
+  ) as stages
+  from public.flow_snapshots f
+  cross join lateral jsonb_array_elements(
+    case when jsonb_typeof(f.snapshot_data->'stages') = 'array' then f.snapshot_data->'stages' else '[]'::jsonb end
+  ) with ordinality as x(st, ord)
+  group by f.id
+) marked
+where fs.id = marked.id
+  and marked.stages is distinct from fs.snapshot_data->'stages';
 
 -- ------------------------------------------------------------------------------
 -- A lost SOR reads the outcome (redefines 20261005131900)
