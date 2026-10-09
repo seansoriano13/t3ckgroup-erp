@@ -76,7 +76,7 @@ describe("Procurement Queue", () => {
   it("is a Queue page listing open requests, with the closed ones a filter away", async () => {
     renderAt()
 
-    expect(await screen.findByRole("heading", { name: /procurement\s*queue/i })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: /purchase\s*requests/i })).toBeInTheDocument()
     expect(await rowFor("S01001")).toBeInTheDocument()
     expect(await rowFor("S01002")).toBeInTheDocument()
     expect(screen.queryByText("S01003")).not.toBeInTheDocument()

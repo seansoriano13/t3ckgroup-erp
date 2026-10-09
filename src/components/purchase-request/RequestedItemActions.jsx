@@ -140,8 +140,8 @@ export default function RequestedItemActions({ item, request, actor }) {
     </>
   );
 
-  // The sales side may only cancel: one plain button, no menu.
-  if (side === MEMBER_SIDE.SALES) {
+  // The sales side and the Requester may only cancel: one plain button, no menu.
+  if (side === MEMBER_SIDE.SALES || side === MEMBER_SIDE.REQUESTER) {
     return (
       <>
         <Button

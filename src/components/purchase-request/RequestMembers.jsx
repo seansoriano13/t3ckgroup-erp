@@ -19,6 +19,7 @@ const refusal = (error) => (error?.message || "Something went wrong.").replace(/
 const SIDE_LABEL = {
   [MEMBER_SIDE.PURCHASING]: "Purchasing",
   [MEMBER_SIDE.SALES]: "Sales",
+  [MEMBER_SIDE.REQUESTER]: "Requester",
   [MEMBER_SIDE.OTHER]: "Other",
 };
 

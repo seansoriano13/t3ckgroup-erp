@@ -504,16 +504,26 @@ _Avoid_: Backup, Export
 Terms for purchasing's work against SORs (issue #38 and its tickets #39–#50). The go/no-go Project Evaluation that issue also introduced is retired: the business keeps that judgment in its own linked sheet.
 
 **Purchasing**:
-The Module carrying purchasing's own work — Purchase Requests and the Procurement Queue that lists them. Granted per employee by an access flag, alongside Sales and Task access; deliberately not inferred from the freeform `department` field, which a typo would silently break.
+The Module carrying purchasing's own work — buying against Purchase Requests, and later the Purchasing Dashboard. Purchasing access is granted per employee by an access flag, alongside Sales and Task access; deliberately not inferred from the freeform `department` field, which a typo would silently break. Without it an employee still opens and follows their own Purchase Requests.
 _Avoid_: Procurement, PMS (when meaning the Module)
 
 **Purchase Request**:
-Where Sales and Purchasing coordinate buying for one SOR — one per SOR, opened by a Stage Action, holding Requested Items, its own members, and its own Chat, so each project's buying talk stays apart from every other's. Its purchasing members also see the SOR's Stage Visit it was opened in; any other member sees only the request and the SOR's locked header.
-Opened as early as Sales' first "do we carry this?" and at the latest by award; the same request then carries the buying after award, so a product question and the order it becomes stay on one record.
-_Avoid_: Procurement Request, Requisition, PR Batch
+Every request for Purchasing to buy something — whether it comes from a project or not. Holds Requested Items, its own members, and its own Chat, so each request's buying talk stays apart from every other's. A Buyer from Purchasing takes it and buys; nobody approves it first.
+_Avoid_: Procurement Request, Requisition, PR Batch, Non-SOR Purchase Request
+
+**Project** (a Purchase Request's kind):
+A Purchase Request for one SOR — at most one per SOR, opened by a Stage Action, showing the SOR's reference. Opened as early as Sales' first "do we carry this?" and at the latest by award; the same request then carries the buying after award, so a product question and the order it becomes stay on one record. Its purchasing members also see the SOR's Stage Visit it was opened in; any other member sees only the request and the SOR's locked header.
+
+**Direct** (a Purchase Request's kind):
+A Purchase Request with no SOR, opened by any employee to buy something outside a project — stock, supplies, tools. Has a title instead of an SOR reference and new-product Requested Items only; any number may exist. The kind is never chosen or stored: a request is Project when it has an SOR and Direct when it has none.
+_Avoid_: Internal, Standalone, Non-SOR
+
+**Requester**:
+Whoever opened a Purchase Request or added a Requested Item to it. Status changes and chat reach them. On a Direct request the one who opened it has the rights a Deal Team has on a Project request — add Requested Items, cancel them, chat — and nothing more; only Purchasing adds members. A Requester who also has Purchasing access may take and buy their own request.
+_Avoid_: Sales side (when the person is not on a Deal Team), Owner
 
 **Buyer**:
-The one purchaser who owns a Purchase Request — named by the Stage Action that opens it, or taken from the Procurement Queue by anyone with Purchasing access. Once there is a Buyer, the request's status changes and chat notify only the Buyer and the requester.
+The one purchaser who owns a Purchase Request — named by the Stage Action that opens a Project request, or taken from the Purchase Requests list by anyone with Purchasing access. Once there is a Buyer, the request's status changes and chat notify only the Buyer and the Requesters.
 _Avoid_: Assignee, Purchaser (when meaning this role)
 
 **Requested Item**:
@@ -524,9 +534,9 @@ buys for, and once Ordered it records the Odoo purchase order line as well as it
 number, which is how Landed Cost finds its way back. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
 _Avoid_: Line Item, Procurement Request
 
-**Procurement Queue**:
-The cross-SOR list of every Purchase Request with a Requested Item still open.
-_Avoid_: Sourcing List, Purchasing Dashboard (a different thing: the Queue lists open requests, the Dashboard groups all buying by what is outstanding)
+**Purchase Requests** (the list):
+Every Purchase Request the viewer may read, Project and Direct together, filterable by kind — all of them for Purchasing, one's own for everyone else. Where a new Direct request is opened.
+_Avoid_: Procurement Queue, Sourcing List, Purchasing Dashboard (a different thing: the list shows requests, the Dashboard groups all buying by what is outstanding)
 
 **Purchasing Dashboard**:
 Where every project's buying is seen at once, grouped by what is outstanding
@@ -534,7 +544,7 @@ rather than by which record holds it — **To source**, **To price**, **To order
 **On order**, **To check**. The groups are derived and never stored, and one SOR
 sits in as many as apply, because purchasing is not a line: components are
 canvassed while others are already ordered and others are on a truck. Sits above
-the Procurement Queue and Order Monitoring rather than replacing either — they
+the Purchase Requests list and Order Monitoring rather than replacing either — they
 answer what to do today, this answers where everything is.
 _Avoid_: Purchasing Stages, Sourcing (the Inclusion field of that name), Pipeline
 

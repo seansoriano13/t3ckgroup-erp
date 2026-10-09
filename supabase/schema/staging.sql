@@ -602,7 +602,8 @@ create table if not exists public."purchase_requests" (
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
   "access_until" text not null default 'stage_left'::text,
-  "access_until_stage_id" uuid
+  "access_until_stage_id" uuid,
+  "title" text
 );
 
 create table if not exists public."push_subscriptions" (
@@ -1248,8 +1249,9 @@ alter table purchase_request_items add constraint "purchase_request_items_po_ver
 alter table purchase_request_items add constraint "purchase_request_items_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table purchase_request_items add constraint "purchase_request_items_source_chk" CHECK ((source = ANY (ARRAY['sor_line'::text, 'new'::text])));
 alter table purchase_request_items add constraint "purchase_request_items_status_chk" CHECK ((status = ANY (ARRAY['requested'::text, 'from_stock'::text, 'to_order'::text, 'canvassing'::text, 'ordered'::text, 'received'::text, 'substituted'::text, 'cannot_source'::text, 'cancelled'::text])));
-alter table purchase_request_members add constraint "purchase_request_members_side_chk" CHECK ((side = ANY (ARRAY['purchasing'::text, 'sales'::text, 'other'::text])));
+alter table purchase_request_members add constraint "purchase_request_members_side_chk" CHECK ((side = ANY (ARRAY['purchasing'::text, 'sales'::text, 'requester'::text, 'other'::text])));
 alter table purchase_requests add constraint "purchase_requests_access_until_chk" CHECK ((access_until = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
+alter table purchase_requests add constraint "purchase_requests_title_chk" CHECK ((((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 120))) AND ((opportunity_id IS NOT NULL) OR (NULLIF(btrim(title), ''::text) IS NOT NULL))));
 alter table retail_orders add constraint "retail_orders_source_check" CHECK ((source = ANY (ARRAY['sync'::text, 'queue'::text, 'sor'::text])));
 alter table sale_types add constraint "sale_types_name_not_blank" CHECK ((btrim(name) <> ''::text));
 alter table sales_flows add constraint "sales_flows_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'locked'::text])));
@@ -2840,7 +2842,7 @@ declare
   v_added uuid;
 begin
   select * into v_req from public.purchase_requests where id = p_request_id;
-  v_side := public.purchase_request_member_side(v_req.opportunity_id, p_employee_id);
+  v_side := public._purchase_request_side_on(v_req, p_employee_id);
 
   insert into public.purchase_request_members (request_id, employee_id, side, added_by)
   values (p_request_id, p_employee_id, v_side, p_actor)
@@ -3024,7 +3026,7 @@ CREATE OR REPLACE FUNCTION public._purchase_request_item_transition_ok(p_from te
 AS $function$
   select case
     when public._purchase_request_item_is_closed(p_from) then false
-    when p_side = 'sales' then p_to = 'cancelled'
+    when p_side in ('sales', 'requester') then p_to = 'cancelled'
     when p_side = 'purchasing' then
       p_to in ('substituted', 'cannot_source', 'cancelled')
       or (p_from = 'requested'  and p_to in ('from_stock', 'to_order'))
@@ -3043,6 +3045,7 @@ CREATE OR REPLACE FUNCTION public._purchase_request_label(p_request_id uuid)
 AS $function$
   select coalesce(
     nullif(concat_ws(' — ', nullif(coalesce(o.sales_reference, o.opportunity_no), ''), nullif(o.project_title, '')), ''),
+    nullif(btrim(r.title), ''),
     'a Purchase Request'
   )
   from (select 1) one
@@ -3151,7 +3154,7 @@ begin
         array(select e.id from public.employees e where public._employee_has_purchasing_access(e.id)),
         new.author_id, 'PURCHASE_REQUEST_OPENED',
         'New Purchase Request',
-        v_label || ' needs a Buyer. Take it from the Procurement Queue.',
+        v_label || ' needs a Buyer. Take it from Purchase Requests.',
         false
       );
     else
@@ -3319,7 +3322,7 @@ begin
         array(select e.id from public.employees e where public._employee_has_purchasing_access(e.id)),
         v_actor, 'PURCHASE_REQUEST_REQUEUED',
         'Back in the queue',
-        public._purchase_request_label(v_req.id) || ' needs a Buyer. Take it from the Procurement Queue.',
+        public._purchase_request_label(v_req.id) || ' needs a Buyer. Take it from Purchase Requests.',
         false
       );
     end loop;
@@ -3332,11 +3335,11 @@ begin
     using public.purchase_requests r
     where r.id = m.request_id and m.employee_id = new.id and m.side = 'purchasing'
       and r.buyer_id is distinct from new.id
-      and public.purchase_request_member_side(r.opportunity_id, new.id) = 'other'
+      and public._purchase_request_side_on(r, new.id) = 'other'
       and not public._purchase_request_member_was_chosen(r, new.id);
 
     update public.purchase_request_members m
-    set side = public.purchase_request_member_side(r.opportunity_id, new.id)
+    set side = public._purchase_request_side_on(r, new.id)
     from public.purchase_requests r
     where r.id = m.request_id and m.employee_id = new.id and m.side = 'purchasing';
 
@@ -3346,6 +3349,19 @@ begin
   end if;
   return null;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_side_on(p_req purchase_requests, p_employee_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when public._employee_has_purchasing_access(p_employee_id) then 'purchasing'
+    when p_req.opportunity_id is null and p_req.created_by = p_employee_id then 'requester'
+    else public.purchase_request_member_side(p_req.opportunity_id, p_employee_id)
+  end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._purchase_request_sor_status_notify()
@@ -4827,6 +4843,7 @@ AS $function$
     when get_employee_id() is null or r.id is null then null
     when coalesce(is_super_admin(), false) then 'purchasing'
     when m.employee_id is not null and has_purchasing_access() then 'purchasing'
+    when m.side = 'requester' then 'requester'
     when m.side = 'sales' or r.buyer_id = get_employee_id() then 'sales'
     when m.employee_id is not null then 'other'
     else null
@@ -5014,7 +5031,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_queue(p_request_id uuid DEFAULT NULL::uuid)
- RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone, sor_status text)
+ RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone, sor_status text, title text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -5034,7 +5051,8 @@ AS $function$
     coalesce(i.item_count, 0)::integer,
     coalesce(i.open_count, 0)::integer,
     greatest(r.updated_at, m.last_message_at),
-    o.status
+    o.status,
+    r.title
   from public.purchase_requests r
   left join public.sales_opportunities o on o.id = r.opportunity_id
   left join public.flow_stages fs on fs.id = o.flow_stage_id
@@ -5445,12 +5463,13 @@ AS $function$
       and get_employee_id() is not null
       and (
         r.buyer_id = get_employee_id()
+        or (r.opportunity_id is null and r.created_by = get_employee_id())
         or exists (
           select 1 from purchase_request_members m
           where m.request_id = r.id
             and m.employee_id = get_employee_id()
             and (
-              m.side = 'sales'
+              m.side in ('sales', 'requester')
               or exists (
                 select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
                 where o.id = r.opportunity_id and t.employee_id = m.employee_id
@@ -5537,6 +5556,70 @@ begin
     null;
   end;
   return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_open(p_title text, p_items jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_title text := btrim(p_title);
+  v_req public.purchase_requests;
+  v_item jsonb;
+  v_emp uuid;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_open: not signed in' using errcode = '42501';
+  end if;
+  if nullif(v_title, '') is null then
+    raise exception 'purchase_request_open: a Purchase Request needs a title' using errcode = '22023';
+  end if;
+  if char_length(v_title) > 120 then
+    raise exception 'purchase_request_open: the title must be 120 characters or fewer' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'purchase_request_open: ask for at least one item' using errcode = '22023';
+  end if;
+  if jsonb_array_length(p_items) > 50 then
+    raise exception 'purchase_request_open: at most 50 items at once' using errcode = '22023';
+  end if;
+
+  insert into public.purchase_requests (title, created_by)
+  values (v_title, v_actor)
+  returning * into v_req;
+
+  -- The Requester, then everyone with Purchasing access (a live request).
+  perform public._purchase_request_add_member(v_req.id, v_actor, v_actor);
+  for v_emp in
+    select e.id from public.employees e where public._employee_has_purchasing_access(e.id)
+  loop
+    perform public._purchase_request_add_member(v_req.id, v_emp, v_actor);
+  end loop;
+
+  -- No Buyer yet: the `opened` event tells everyone with Purchasing access.
+  insert into public.purchase_request_messages (request_id, author_id, content, metadata)
+  values (v_req.id, v_actor, 'Purchase Request opened.', jsonb_build_object('event', 'opened'));
+
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    if jsonb_typeof(v_item) <> 'object' then
+      raise exception 'purchase_request_open: each item must be an object' using errcode = '22023';
+    end if;
+    perform public.purchase_request_add_new_item(
+      v_req.id,
+      v_item->>'name',
+      nullif(v_item->>'quantity', '')::numeric,
+      v_item->>'unit',
+      v_item->>'description',
+      coalesce(v_item->'images', '[]'::jsonb)
+    );
+  end loop;
+
+  return v_req.id;
 end;
 $function$
 ;

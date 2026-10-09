@@ -12,7 +12,7 @@ import { usePurchaseRequest } from "./requestHooks";
 /**
  * Issue #308 — one Purchase Request: its Buyer, members, Requested Items with
  * their statuses, and its Chat. Knows nothing of its container: the
- * Procurement Queue mounts it in a slide-over (with the Buyer pinned in the
+ * Purchase Requests list mounts it in a slide-over (with the Buyer pinned in the
  * footer, `hideBuyer`), and the modal opened from elsewhere (#309) mounts it
  * whole. Everything is read by `requestId`; each part refreshes itself.
  */

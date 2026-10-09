@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { ITEM_STATUS } from "../constants/purchaseRequest";
+import { ITEM_STATUS, REQUEST_KIND, requestKind } from "../constants/purchaseRequest";
 import { PO_NUMBER_HINT, PO_VERIFICATION, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
 import { shapeSorOverview } from "../utils/sorPurchaseRequest";
 
@@ -46,6 +46,7 @@ const MEMBER_SELECT =
  */
 export const QUEUE_BUYER = { UNASSIGNED: "unassigned", MINE: "mine", ALL: "all" };
 export const QUEUE_STATE = { OPEN: "open", CLOSED: "closed", ALL: "all" };
+export const QUEUE_KIND = { ALL: "all", ...REQUEST_KIND };
 
 /**
  * A request is closed once it has items and every one is in a closed status.
@@ -54,8 +55,13 @@ export const QUEUE_STATE = { OPEN: "open", CLOSED: "closed", ALL: "all" };
 export const isRequestClosed = (row) => (row?.item_count ?? 0) > 0 && (row?.open_count ?? 0) === 0;
 
 /** The queue rows matching `filter`; "mine" compares the Buyer with `userId`. */
-export function filterQueue(rows, { buyer = QUEUE_BUYER.ALL, state = QUEUE_STATE.ALL } = {}, userId = null) {
+export function filterQueue(
+  rows,
+  { buyer = QUEUE_BUYER.ALL, state = QUEUE_STATE.ALL, kind = QUEUE_KIND.ALL } = {},
+  userId = null,
+) {
   return (rows || []).filter((row) => {
+    if (kind !== QUEUE_KIND.ALL && requestKind(row) !== kind) return false;
     if (buyer === QUEUE_BUYER.UNASSIGNED && row.buyer_id) return false;
     if (buyer === QUEUE_BUYER.MINE && (!userId || row.buyer_id !== userId)) return false;
     if (state === QUEUE_STATE.OPEN && isRequestClosed(row)) return false;
@@ -68,10 +74,10 @@ export const purchaseRequestService = {
   // ── The queue and one request (#308) ─────────────────────────────────────
 
   /**
-   * The Procurement Queue: every request the signed-in employee may read,
-   * most recently active first. Each row: `id`, `opportunity_id`, the SOR's
-   * locked header (`sales_reference`, `project_title`, `stage_name`, and
-   * `sor_closed`: "deleted", "lost" or null), the
+   * The Purchase Requests list: every request the signed-in employee may
+   * read, most recently active first. Each row: `id`, `opportunity_id`, the
+   * SOR's locked header (`sales_reference`, `project_title`, `stage_name`, and
+   * `sor_closed`: "deleted", "lost" or null) or a Direct request's `title`, the
    * Buyer (`buyer_id`, `buyer_name`, `buyer_avatar_path`), `item_count`,
    * `open_count`, `created_at`, `last_activity_at`. `filter` narrows it (see
    * `filterQueue`); "mine" needs `userId`.
@@ -95,6 +101,24 @@ export const purchaseRequestService = {
     });
     if (error) throw error;
     return shapeSorOverview((data || [])[0]);
+  },
+
+  /**
+   * Opens a Direct request (#179): no SOR, a title, and new products
+   * (`{ name, quantity, unit, description }`). Any employee; returns its id.
+   */
+  async openDirect(title, items) {
+    const { data, error } = await supabase.rpc("purchase_request_open", {
+      p_title: title,
+      p_items: items.map((item) => ({
+        name: item.name,
+        quantity: Number(item.quantity),
+        unit: item.unit || null,
+        description: item.description || null,
+      })),
+    });
+    if (error) throw error;
+    return data;
   },
 
   /** One request, shaped like a `listQueue` row; null when it can't be read. */

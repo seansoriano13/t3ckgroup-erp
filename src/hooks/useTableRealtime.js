@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 /**
  * One broadcast channel per table, shared by every consumer mounted at once.
  * `supabase.channel(topic)` hands back the existing channel for a topic, so
- * two consumers of one table (the Procurement Queue and the request chat
+ * two consumers of one table (the Purchase Requests list and the request chat
  * open beside it) would otherwise share it unknowingly, and the first to
  * unmount would tear it down under the other. The channel is opened by the
  * first consumer and removed when the last one leaves.
