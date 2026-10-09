@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import Avatar from "@/components/Avatar";
 import { cn } from "@/lib/utils";
@@ -30,10 +30,11 @@ const SIDE_LABEL = {
  * any window into the SOR). The Buyer can't be removed: name another Buyer
  * first. `request` is a queue row (`id`, `buyer_id`).
  */
-export default function RequestMembers({ request }) {
+export default function RequestMembers({ request, rail = false }) {
   const requestId = request?.id;
   const queryClient = useQueryClient();
   const [removing, setRemoving] = useState(null);
+  const [adding, setAdding] = useState(false);
 
   const { data: members = [] } = useQuery({
     queryKey: purchaseRequestKeys.members(requestId),
@@ -81,21 +82,9 @@ export default function RequestMembers({ request }) {
           Members
           <span className="ml-2 text-xs font-medium text-muted-foreground">{members.length}</span>
         </h3>
-        {canManage && (
-          <SelectField
-            aria-label="Add a member"
-            placeholder="Add a member"
-            options={addOptions}
-            value=""
-            onChange={(id) => id && add.mutate(id)}
-            disabled={add.isPending}
-            size="sm"
-            className="h-8 w-44"
-          />
-        )}
       </div>
 
-      <ul className="flex flex-wrap gap-1.5 pt-0.5">
+      <ul className={rail ? "flex flex-col gap-1 pt-0.5" : "flex flex-wrap gap-2 pt-0.5"}>
         {members.map((m) => {
           const isBuyer = m.id === request?.buyer_id;
           const showRemove = canManage && !isBuyer;
@@ -103,13 +92,15 @@ export default function RequestMembers({ request }) {
             <li
               key={m.id}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card py-0.5 pl-1 text-xs transition-colors",
-                showRemove ? "pr-1.5" : "pr-2.5",
+                rail
+                  ? "flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs whitespace-nowrap hover:bg-muted/60"
+                  : "inline-flex items-center gap-2 rounded-full border border-border/80 bg-card py-1 pl-1.5 text-xs whitespace-nowrap transition-colors",
+                !rail && (showRemove ? "pr-2" : "pr-3.5"),
               )}
               data-testid="request-member"
             >
               <Avatar name={m.name} src={m.avatar_path} size="xs" />
-              <span className="font-medium text-foreground">{m.name}</span>
+              <span className={cn("font-medium text-foreground", rail && "min-w-0 flex-1 truncate")}>{m.name}</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/75">
                 {isBuyer ? "Buyer" : SIDE_LABEL[m.side] || m.side}
               </span>
@@ -129,6 +120,39 @@ export default function RequestMembers({ request }) {
           );
         })}
       </ul>
+
+      {canManage && (
+        <div className="pt-1">
+          {adding ? (
+            <div className="flex items-center gap-2">
+              <SelectField
+                aria-label="Add a member"
+                placeholder="Pick who to add"
+                contentClassName="min-w-72"
+                options={addOptions}
+                value=""
+                onChange={(id) => {
+                  if (id) add.mutate(id);
+                  setAdding(false);
+                }}
+                disabled={add.isPending}
+                size="sm"
+                className="h-9 min-w-0 flex-1"
+              />
+              <Button type="button" variant="ghost" size="sm" onClick={() => setAdding(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAdding(true)}
+              className="h-auto w-full gap-2 rounded-xl border-2 border-dashed border-border py-2.5 text-[11px] font-bold text-muted-foreground hover:border-mauve-8 hover:bg-muted/50 hover:text-foreground"
+            >
+              <Plus size={15} /> Add member
+            </Button>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!removing}

@@ -41,38 +41,55 @@ export default function PurchaseRequestView({
     );
   }
 
-  if (layout === "split") {
+  const open = request.open_count ?? request.open_item_count ?? 0;
+  const summary = (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+      {!hideBuyer && (
+        <div className="min-w-[260px] flex-1">
+          <RequestBuyer request={request} />
+        </div>
+      )}
+      {request.item_count > 0 && (
+        <p className="text-xs font-medium text-muted-foreground">
+          {open} open of {request.item_count}
+        </p>
+      )}
+    </div>
+  );
+
+  // Slide-over: members on top of the items in one card, chat below.
+  if (layout !== "split") {
     return (
-      <div className={cn("flex flex-1 flex-col lg:flex-row min-h-0 overflow-hidden", className)}>
-        {/* Left pane: Details, Buyer, Members, Requested Items */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 space-y-6 custom-scrollbar">
-          {!hideBuyer && (
-            <div className="rounded-xl border border-border/80 bg-card p-4 shadow-xs">
-              <RequestBuyer request={request} />
-            </div>
-          )}
-          <div className="rounded-xl border border-border/80 bg-card p-4 shadow-xs">
-            <RequestMembers request={request} />
+      <div className={cn("flex flex-col gap-4", className)}>
+        {summary}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border bg-muted/20 px-3 py-3">
+            <RequestMembers request={request} rail />
           </div>
-          <div className="rounded-xl border border-border/80 bg-card p-4 shadow-xs">
+          <div className="px-4 py-4">
             <RequestedItems request={request} />
           </div>
         </div>
-
-        {/* Right pane: Dedicated Full-Height Chat */}
-        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 border-t lg:border-t-0 lg:border-l border-border flex flex-col min-h-0 bg-card">
-          <RequestChat request={request} className="h-full flex-1 rounded-none border-0" />
-        </div>
+        <RequestChat request={request} className="h-[26rem] shrink-0 overflow-hidden rounded-2xl border border-border" />
       </div>
     );
   }
 
+  // Full screen: member rail | items | chat, in one bordered card (like Group Tasks).
   return (
-    <div className={cn("flex flex-col gap-6", className)}>
-      {!hideBuyer && <RequestBuyer request={request} />}
-      <RequestMembers request={request} />
-      <RequestedItems request={request} />
-      <RequestChat request={request} className="h-[28rem] shrink-0 overflow-hidden rounded-xl border border-border" />
+    <div className={cn("flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 py-5", className)}>
+      {summary}
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="w-[240px] shrink-0 overflow-y-auto border-r border-border bg-muted/20 px-3 py-4">
+          <RequestMembers request={request} rail />
+        </div>
+        <div className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
+          <RequestedItems request={request} />
+        </div>
+        <div className="flex w-[380px] shrink-0 flex-col border-l border-border">
+          <RequestChat request={request} className="h-full flex-1 rounded-none border-0" />
+        </div>
+      </div>
     </div>
   );
 }

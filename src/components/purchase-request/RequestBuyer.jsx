@@ -65,23 +65,12 @@ export default function RequestBuyer({ request }) {
   const busy = take.isPending || setBuyer.isPending;
 
   return (
-    <section aria-label="Buyer" className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Buyer</p>
-        {unassigned ? (
-          <p className="text-[13px] text-muted-foreground">No Buyer yet</p>
-        ) : (
-          <PersonChip
-            person={{ id: request.buyer_id, name: request.buyer_name || "Someone", avatarPath: request.buyer_avatar_path }}
-          />
-        )}
-      </div>
-
+    <section aria-label="Buyer" className="flex flex-col gap-1.5">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Buyer</p>
       <div className="flex items-center gap-2">
-        {busy && <Spinner size="sm" />}
-        {canManage && (
+        {canManage ? (
           <SelectField
-            aria-label="Change Buyer"
+            aria-label="Buyer"
             options={buyerOptions}
             value={request.buyer_id || NO_BUYER}
             onChange={(next) => {
@@ -90,9 +79,16 @@ export default function RequestBuyer({ request }) {
             }}
             disabled={busy}
             size="sm"
-            className="h-8 w-44"
+            className="h-9 min-w-0 flex-1"
+          />
+        ) : unassigned ? (
+          <p className="text-[13px] text-muted-foreground">No Buyer yet</p>
+        ) : (
+          <PersonChip
+            person={{ id: request.buyer_id, name: request.buyer_name || "Someone", avatarPath: request.buyer_avatar_path }}
           />
         )}
+        {busy && <Spinner size="sm" />}
         {unassigned && hasPurchasingFlow && (
           <Button size="sm" onClick={() => take.mutate()} disabled={busy} className="gap-1.5">
             <Hand size={14} />
