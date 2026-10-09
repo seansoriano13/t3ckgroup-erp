@@ -40,8 +40,8 @@ export function nextFlowVersion(flowId, snapshotData) {
 /**
  * `lock_sales_flow` (issue #181) and `flow_snapshot_next_version` (#188) live
  * in Postgres, which the fake database does not execute — so this re-implements
- * their logic in JS against the same in-memory store, the pattern
- * `purchasingService.test.js` established for `sor_raise_procurement_task`.
+ * their logic in JS against the same in-memory store, the usual
+ * fake-database RPC stub pattern.
  * Mirrors the migration's writes — flip the flow to locked, publish the
  * snapshot at the computed (major, minor) — as one stub call so a test can
  * never observe the half-locked state the real function makes impossible.

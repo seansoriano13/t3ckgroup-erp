@@ -520,11 +520,23 @@ export default function OpportunitiesPage() {
     };
   }, [filtered, stageContext, pipelineStages]);
 
-  const { data: directOpportunity } = useQuery({
+  const { data: directOpportunity, isError: directOpportunityRefused } = useQuery({
     queryKey: ["opportunity", selectedId],
     queryFn: () => opportunityService.getOpportunityById(selectedId),
     enabled: !!selectedId && !opportunities.some((o) => o.id === selectedId),
+    retry: false,
   });
+
+  // #474: RLS returns no row below full access, so a deep link to an SOR the
+  // viewer cannot fully read used to open nothing. Hand it to the global modal,
+  // which branches on access level and shows the participant, locked or
+  // no-access view instead.
+  useEffect(() => {
+    if (!directOpportunityRefused || !selectedId) return;
+    window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: selectedId, type: "OPPORTUNITY" } }));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedId(null);
+  }, [directOpportunityRefused, selectedId]);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;

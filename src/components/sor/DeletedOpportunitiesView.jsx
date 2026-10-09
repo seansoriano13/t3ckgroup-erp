@@ -73,7 +73,7 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
   const handleRestore = (row) => {
     confirmActionToast(
       "Restore this SOR?",
-      `${row.client_name} — ${row.project_title} moves back into the live register. This doesn't reopen any procurement requests its delete cancelled; re-raise what's still needed.`,
+      `${row.client_name} — ${row.project_title} moves back into the live register. Its Purchase Request, if it has one, carries on where it stopped.`,
       "Restore",
       "warning",
       () => restoreMutation.mutate(row.id),

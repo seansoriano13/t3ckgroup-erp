@@ -4,14 +4,31 @@
     {
       "name": "dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "forms-preview",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "5199", "--directory", "C:/Program Files/KMSpico/temp/claude/D--Sean-t3ckgroup-erp/33f9ed34-12aa-4dd3-90ea-8c2f5ec70a6a/scratchpad"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5199",
+        "--directory",
+        "C:/Program Files/KMSpico/temp/claude/D--Sean-t3ckgroup-erp/33f9ed34-12aa-4dd3-90ea-8c2f5ec70a6a/scratchpad"
+      ],
       "port": 5199
+    },
+    {
+      "name": "dev-npx",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js"
+      ],
+      "port": 5173
     }
   ]
 }

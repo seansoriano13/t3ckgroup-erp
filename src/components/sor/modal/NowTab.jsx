@@ -6,6 +6,7 @@ import StageFieldsForm from "../StageFieldsForm";
 import FollowUpPanel from "../FollowUpPanel";
 import PendingActionDecisions from "../PendingActionDecisions";
 import TaskRow from "./TaskRow";
+import PurchaseRequestCard from "./PurchaseRequestCard";
 import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
 import { Button } from "../../ui/button";
@@ -226,7 +227,8 @@ export default function NowTab({ ctx }) {
         </Section>
       )}
 
-      {/* #209's Purchase Request card goes here, after follow-up. */}
+      {/* #310: renders nothing for an SOR with no Purchase Request. */}
+      <PurchaseRequestCard opportunityId={id} />
     </div>
   );
 }

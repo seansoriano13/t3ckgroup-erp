@@ -17,6 +17,7 @@
  */
 
 import { stageByCode } from "./sor"
+import { isSettled } from "./purchaseRequest"
 
 export const CONDITION_KINDS = {
   ATTACHMENT: "attachment",
@@ -29,14 +30,19 @@ export const CONDITION_KINDS = {
   // required, the decision needs an owner, not a second approval step.
   PROJECT_EVALUATION: "project_evaluation",
   INCLUSIONS: "inclusions",
+  // The old kind: a legacy procurement request exists. Hidden from the
+  // picker; older flow versions still evaluate it.
   PURCHASING: "purchasing",
+  // Issue #209 (#311): every Requested Item on the SOR's Purchase Request is
+  // closed, or the SOR has no Purchase Request at all.
+  PURCHASING_SETTLED: "purchasing_settled",
 }
 
 /**
  * The kinds offered when adding a *new* condition (issue #203): Field on
  * record and Project Evaluation are gone outright; Inclusions and the old
- * Purchasing kind are hidden pending the Purchase Requests spec, though a
- * condition already using one keeps evaluating. Shared by
+ * Purchasing kind are hidden (the old one replaced by Purchasing settled,
+ * #311), though a condition already using one keeps evaluating. Shared by
  * `stageConditionService`'s own validation and the picker's dropdown, so the
  * two lists can't quietly drift apart.
  */
@@ -45,6 +51,7 @@ export const NEW_CONDITION_KINDS = [
   CONDITION_KINDS.TICKBOX,
   CONDITION_KINDS.ASSIGNMENT,
   CONDITION_KINDS.DEADLINE,
+  CONDITION_KINDS.PURCHASING_SETTLED,
 ]
 
 export const CONDITION_STATUS = {
@@ -157,6 +164,12 @@ export function evaluateCondition(condition, {
   asOf = null,
   hasInclusions = false,
   hasPurchasing = false,
+  // Purchasing settled's evidence: the Purchase Request's items
+  // (`{ status, created_at, status_changed_at }`), null when the SOR has no
+  // request. Left undefined (nobody loaded it), it fails closed.
+  purchaseRequestItems = undefined,
+  // A closed visit's `left_at`: reads the items as they stood then.
+  purchaseRequestAsOf = null,
 } = {}) {
   if (condition.archived_at) return notApplicable()
   if (asOf && condition.created_at && condition.created_at > asOf) return notApplicable()
@@ -213,6 +226,10 @@ export function evaluateCondition(condition, {
     }
     case CONDITION_KINDS.PURCHASING: {
       return hasPurchasing ? satisfied() : unsatisfied()
+    }
+    case CONDITION_KINDS.PURCHASING_SETTLED: {
+      if (purchaseRequestItems === undefined) return unsatisfied()
+      return isSettled(purchaseRequestItems, { asOf: purchaseRequestAsOf }) ? satisfied() : unsatisfied()
     }
     default:
       return unsatisfied()
@@ -291,6 +308,7 @@ export function evaluateCrossing({
   asOf = null,
   hasInclusions = false,
   hasPurchasing = false,
+  purchaseRequestItems = undefined,
 }) {
   const crossed = stagesCrossed(fromCode, toCode, stages)
   const missing = []
@@ -306,6 +324,7 @@ export function evaluateCrossing({
         asOf,
         hasInclusions,
         hasPurchasing,
+        purchaseRequestItems,
       })
       if (result.status === CONDITION_STATUS.UNSATISFIED) {
         missing.push({ stage, condition })

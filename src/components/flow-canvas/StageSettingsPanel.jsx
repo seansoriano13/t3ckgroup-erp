@@ -11,6 +11,7 @@ import StageFieldManager from "./StageFieldManager";
 import StageAccessManager from "./StageAccessManager";
 import FollowUpCadenceEditor from "./FollowUpCadenceEditor";
 import { SelectField } from "@/components/ui/SelectField";
+import { TERMINAL_OUTCOME } from "@/constants/salesFlow";
 
 /**
  * Everything a single Stage is, opened beside the canvas.
@@ -65,6 +66,7 @@ export default function StageSettingsPanel({
   onBracketChange,
   onDelete,
   onToggleTerminal,
+  onSetTerminalOutcome,
   onSetEntry,
   onSetWon,
   outgoingMoves = [],
@@ -239,6 +241,40 @@ export default function StageSettingsPanel({
                 </Button>
               </div>
             </section>
+
+            {/* The Won Stage usually sits mid-flow, so the flow ends on Terminal
+                Stages like Closed Won and Closed Lost: each says which it is.
+                It decides whether a deal there counts as Realized or lost. */}
+            {stage.is_terminal && !isWon && onSetTerminalOutcome && (
+              <section className="space-y-2.5">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                  Deals here end as
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { outcome: TERMINAL_OUTCOME.WON, label: "Won", on: "bg-green-a3 text-green-11 outline-green-a6 hover:bg-green-a3 hover:text-green-11" },
+                    { outcome: TERMINAL_OUTCOME.LOST, label: "Lost", on: "bg-red-a3 text-red-11 outline-red-a6 hover:bg-red-a3 hover:text-red-11" },
+                  ].map(({ outcome, label, on }) => {
+                    const selected = (stage.terminal_outcome || TERMINAL_OUTCOME.LOST) === outcome;
+                    return (
+                      <Button
+                        key={outcome}
+                        variant="ghost"
+                        aria-pressed={selected}
+                        onClick={() => !selected && onSetTerminalOutcome(outcome)}
+                        disabled={disabled}
+                        className={cn(ROLE_BUTTON, selected ? on : "text-foreground outline-mauve-6 hover:bg-mauve-a3")}
+                      >
+                        {label}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Won counts the deal as booked (Realized). Lost takes it out of the pipeline.
+                </p>
+              </section>
+            )}
 
             {/* The form twin of dragging a connection on the canvas, so a move can be
                 made (and read back) without a pointer. */}

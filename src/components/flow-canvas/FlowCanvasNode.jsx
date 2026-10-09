@@ -19,6 +19,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import AddStagePopoverForm from "./AddStagePopoverForm";
 import { STAGE_H, STAGE_W } from "./flowCanvasLayout";
 import { initialsOf } from "@/utils/stageAudience";
+import { endsAsWon } from "@/constants/salesFlow";
 
 /**
  * A Stage on the Flow Canvas.
@@ -477,6 +478,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
             {stage.is_terminal && (
               <Chip className={ROLE.terminal.chip} icon={Octagon}>Terminal</Chip>
             )}
+            {endsAsWon(stage) && <Chip className={ROLE.won.chip} icon={Flag}>Ends won</Chip>}
             {!isEntry && !isWon && !stage.is_terminal && (
               <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Stage

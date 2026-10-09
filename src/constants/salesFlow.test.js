@@ -3,6 +3,8 @@ import {
   actionsForSnapshotStage,
   buildDraftSnapshotData,
   classifyFlowStage,
+  endsAsWon,
+  isLostFlowStage,
   conditionsForSnapshotStage,
   countFlowSnapshotChanges,
   diffFlowSnapshots,
@@ -652,6 +654,26 @@ describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", ()
     expect(isWonOrPostWonFlowStage(lost, snapshotData)).toBe(false)
     expect(isPreWonFlowStage(close, snapshotData)).toBe(false)
     expect(isWonOrPostWonFlowStage(close, snapshotData)).toBe(false)
+  })
+
+  it("counts a Terminal Stage marked as ending won (Closed Won) as POST_WON, not LOST", () => {
+    const closedWon = { ...stages[4], terminal_outcome: "won" }
+    const marked = stages.map((s) => (s.id === "s-close" ? closedWon : s))
+    const data = { ...snapshotData, stages: marked }
+    expect(classifyFlowStage("s-close", data)).toBe("POST_WON")
+    expect(isWonOrPostWonFlowStage(closedWon, data)).toBe(true)
+    expect(isLostFlowStage(closedWon, "s-won")).toBe(false)
+  })
+
+  it("keeps a Terminal Stage marked as ending lost, or unmarked, as LOST", () => {
+    const closedLost = { ...stages[5], terminal_outcome: "lost" }
+    expect(isLostFlowStage(closedLost, "s-won")).toBe(true)
+    expect(isLostFlowStage(stages[4], "s-won")).toBe(true)
+    expect(endsAsWon(stages[4])).toBe(false)
+  })
+
+  it("ignores an outcome on a Stage that isn't terminal", () => {
+    expect(endsAsWon({ id: "x", is_terminal: false, terminal_outcome: "won" })).toBe(false)
   })
 
   it("classifies a terminal won stage as WON, not LOST", () => {

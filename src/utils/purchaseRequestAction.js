@@ -1,0 +1,28 @@
+/**
+ * The Open Purchase Request Stage Action's config (issue #304).
+ *
+ * The config is what the action's modal saves:
+ *   buyer         { type: BUYER_EMPLOYEE, id } | { type: BUYER_COSTING_INCHARGE } | null
+ *   extras        people selectors (resolvePeople.js) added as default members
+ *   leaveOutRoles Deal Team roles not made members
+ *   access        { until, stageId }, the purchasing members' window
+ *
+ * `sor_open_purchase_request` reads it from the Flow Snapshot and resolves
+ * all of it itself; the client sends none of it.
+ */
+
+import { DEAL_TEAM_ROLES, SELECTOR_TYPES } from "./resolvePeople";
+
+export const BUYER_EMPLOYEE = SELECTOR_TYPES.EMPLOYEE;
+export const BUYER_COSTING_INCHARGE = "costing_incharge";
+
+/** Deal Team roles an action may leave out of the request. */
+export const LEAVE_OUT_ROLES = Object.keys(DEAL_TEAM_ROLES);
+
+export function purchaseRequestSummary(config = {}, nameOf = (id) => id) {
+  if (config.buyer?.type === BUYER_EMPLOYEE) return `Buyer: ${nameOf(config.buyer.id)}`;
+  if (config.buyer?.type === BUYER_COSTING_INCHARGE) {
+    return "Buyer: the Costing Matrix's Purchasing Incharge";
+  }
+  return "No default Buyer";
+}
