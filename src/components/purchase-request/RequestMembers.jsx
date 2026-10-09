@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { X } from "lucide-react";
 
 import Avatar from "@/components/Avatar";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { SelectField } from "@/components/ui/SelectField";
@@ -74,8 +75,8 @@ export default function RequestMembers({ request }) {
   }, [employees, members]);
 
   return (
-    <section aria-label="Members" className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section aria-label="Members" className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">
           Members
           <span className="ml-2 text-xs font-medium text-muted-foreground">{members.length}</span>
@@ -88,35 +89,40 @@ export default function RequestMembers({ request }) {
             value=""
             onChange={(id) => id && add.mutate(id)}
             disabled={add.isPending}
-            className="h-8 w-48"
+            size="sm"
+            className="h-8 w-44"
           />
         )}
       </div>
 
-      <ul className="flex flex-wrap gap-2">
+      <ul className="flex flex-wrap gap-1.5 pt-0.5">
         {members.map((m) => {
           const isBuyer = m.id === request?.buyer_id;
+          const showRemove = canManage && !isBuyer;
           return (
             <li
               key={m.id}
-              className="flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-2"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card py-0.5 pl-1 text-xs transition-colors",
+                showRemove ? "pr-1.5" : "pr-2.5",
+              )}
               data-testid="request-member"
             >
               <Avatar name={m.name} src={m.avatar_path} size="xs" />
-              <span className="text-xs font-medium text-foreground">{m.name}</span>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">{m.name}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/75">
                 {isBuyer ? "Buyer" : SIDE_LABEL[m.side] || m.side}
               </span>
-              {canManage && !isBuyer && (
+              {showRemove && (
                 <Button
                   variant="ghost"
                   size="icon-xs"
                   aria-label={`Remove ${m.name}`}
                   onClick={() => setRemoving(m)}
                   disabled={remove.isPending}
-                  className="-mr-1 size-5 text-muted-foreground"
+                  className="-mr-0.5 size-4 rounded-full p-0 text-muted-foreground/70 hover:bg-muted hover:text-foreground active:scale-95"
                 >
-                  <X size={12} />
+                  <X size={11} />
                 </Button>
               )}
             </li>

@@ -8,7 +8,12 @@ import PeoplePicker from "@/components/ui/PeoplePicker";
 import { SelectField } from "@/components/ui/SelectField";
 import { Switch } from "@/components/ui/switch";
 import { DEAL_TEAM_ROLES, SELECTOR_TYPES } from "@/utils/resolvePeople";
-import { BUYER_COSTING_INCHARGE, BUYER_EMPLOYEE, LEAVE_OUT_ROLES } from "@/utils/purchaseRequestAction";
+import {
+  BUYER_COSTING_INCHARGE,
+  BUYER_EMPLOYEE,
+  DEFAULT_REQUESTERS,
+  LEAVE_OUT_ROLES,
+} from "@/utils/purchaseRequestAction";
 
 const NO_BUYER = "none";
 
@@ -17,14 +22,15 @@ const buyerKind = (buyer) => buyer?.type || NO_BUYER;
 /**
  * Issue #304 — the Open Purchase Request action's own config: the default
  * Buyer (a person, the Costing Matrix's Purchasing Incharge, or none), extra
- * default members, the Deal Team roles left out, and whether it waits for a
- * Decider. The purchasing members' window is the action's detail panel's
- * access window, like every other action's.
+ * default members, the Deal Team roles left out, who may request items, and
+ * whether it waits for a Decider. The purchasing members' window is the
+ * action's detail panel's access window, like every other action's.
  */
 export default function PurchaseRequestActionModal({ isOpen, onClose, initialData, onSubmit, isSubmitting }) {
   const [buyer, setBuyer] = useState(initialData?.buyer ?? null);
   const [extras, setExtras] = useState(initialData?.extras ?? []);
   const [leaveOutRoles, setLeaveOutRoles] = useState(initialData?.leaveOutRoles ?? []);
+  const [requesters, setRequesters] = useState(initialData?.requesters ?? DEFAULT_REQUESTERS);
   const [confirmMode, setConfirmMode] = useState(initialData?.confirmMode);
   const [decider, setDecider] = useState(initialData?.decider ?? []);
 
@@ -44,6 +50,7 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
       buyer,
       extras,
       leaveOutRoles,
+      requesters,
       confirmMode,
       decider: confirmMode === "confirm" ? decider : undefined,
     });
@@ -102,6 +109,13 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
                 </FieldBox>
               ))}
             </div>
+          </FieldBox>
+
+          <FieldBox label="Who can request items" bare>
+            <PeoplePicker value={requesters} onChange={setRequesters} allowRoles allowDepartments placeholder="Add people, roles or groups" />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              They join the request and may add and cancel items. The Buyer always can.
+            </p>
           </FieldBox>
 
           <div className="rounded-lg border border-dashed border-mauve-7 px-3 py-2">

@@ -3,16 +3,19 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ChevronDown, ListChecks, Replace } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Dropdown from "@/components/ui/Dropdown";
 import Spinner from "@/components/ui/Spinner";
+import StatusBadge from "../StatusBadge";
 import { NewProductDialog } from "./AddRequestedItems";
 import { OrderItemDialog, PickPoLinesDialog } from "./PoDialogs";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   ITEM_STATUS,
   ITEM_STATUS_LABELS,
+  ITEM_STATUS_THEME,
   MEMBER_SIDE,
   allowedTransitions,
   isClosedStatus,
@@ -45,15 +48,28 @@ const CONFIRM = {
 
 const WAYS_OUT = [ITEM_STATUS.SUBSTITUTED, ITEM_STATUS.CANNOT_SOURCE, ITEM_STATUS.CANCELLED];
 
+const THEME_STYLES = {
+  green: "bg-card text-green-600 dark:text-green-400 border-green-400 hover:bg-green-3 hover:border-green-6",
+  amber: "bg-card text-amber-600 dark:text-amber-400 border-amber-400 hover:bg-amber-3 hover:border-amber-6",
+  blue: "bg-card text-blue-600 dark:text-blue-400 border-blue-400 hover:bg-blue-3 hover:border-blue-6",
+  red: "bg-card text-red-600 dark:text-red-400 border-red-400 hover:bg-red-3 hover:border-red-6",
+  violet: "bg-card text-violet-600 dark:text-violet-400 border-violet-400 hover:bg-violet-3 hover:border-violet-6",
+  orange: "bg-card text-orange-600 dark:text-orange-400 border-orange-400 hover:bg-orange-3 hover:border-orange-6",
+  mauve: "bg-card text-muted-foreground border-mauve-5 hover:bg-mauve-3 hover:border-mauve-7",
+};
+
 function MenuItem({ children, onClick, tone }) {
   return (
     <Button
       type="button"
       variant="ghost"
       onClick={onClick}
-      className={`h-auto w-full justify-start gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold ${
-        tone === "destructive" ? "text-destructive hover:text-destructive" : "text-foreground"
-      }`}
+      className={cn(
+        "h-auto w-full justify-start gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors cursor-pointer",
+        tone === "destructive"
+          ? "text-destructive hover:bg-destructive/15 hover:text-destructive active:bg-destructive/20"
+          : "text-foreground hover:bg-mauve-4 hover:text-foreground active:bg-mauve-5",
+      )}
     >
       {children}
     </Button>
@@ -67,7 +83,7 @@ function MenuItem({ children, onClick, tone }) {
  * `actor` is `purchaseRequestService.itemActor`'s answer (`{ side,
  * canSubstitute }`). Purchasing gets a menu of the next steps on the path and
  * the ways out (and, for the Buyer, "Offer a substitute"); the sales side gets
- * only Cancel; anyone else gets nothing. The database checks every move again.
+ * only Cancel; anyone else gets a static StatusBadge.
  *
  * Ordered (#312) opens a dialog for the optional PO number. Once an item is
  * Ordered on a PO, "Pick PO line…" appears only when that PO's IPAS copy has
@@ -102,7 +118,16 @@ export default function RequestedItemActions({ item, request, actor }) {
   const next = allowedTransitions(item.status, side);
   const canSubstitute = !!actor?.canSubstitute && !isClosedStatus(item.status);
   const canPickLines = onPo && poLineIds.length > 0;
-  if (next.length === 0 && !canSubstitute && !canPickLines) return null;
+  const canInteract = next.length > 0 || canSubstitute || canPickLines;
+
+  if (!canInteract) {
+    return (
+      <StatusBadge
+        label={ITEM_STATUS_LABELS[item.status] || item.status}
+        theme={ITEM_STATUS_THEME[item.status]}
+      />
+    );
+  }
 
   const choose = (status) => {
     if (status === ITEM_STATUS.ORDERED) setOrdering(true);
@@ -140,26 +165,8 @@ export default function RequestedItemActions({ item, request, actor }) {
     </>
   );
 
-  // The sales side and the Requester may only cancel: one plain button, no menu.
-  if (side === MEMBER_SIDE.SALES || side === MEMBER_SIDE.REQUESTER) {
-    return (
-      <>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => choose(ITEM_STATUS.CANCELLED)}
-          aria-label={`Cancel ${item.name}`}
-        >
-          {busy && <Spinner size="sm" />}
-          Cancel
-        </Button>
-        {dialogs}
-      </>
-    );
-  }
-
+  const theme = ITEM_STATUS_THEME[item.status] || "mauve";
+  const appliedTheme = THEME_STYLES[theme] || THEME_STYLES.mauve;
   const onPath = next.filter((s) => !WAYS_OUT.includes(s));
   const waysOut = next.filter((s) => WAYS_OUT.includes(s));
 
@@ -170,16 +177,26 @@ export default function RequestedItemActions({ item, request, actor }) {
         placement="bottom-end"
         matchTriggerWidth={false}
         disabled={busy}
+        popoverClassName="bg-muted border border-border rounded-xl shadow-lg z-[10001] min-w-[180px] p-1 popover-enter"
         trigger={
-          <Button type="button" variant="outline" size="sm" disabled={busy} aria-label={`Change status of ${item.name}`}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            aria-label={`Change status of ${item.name}`}
+            className={cn(
+              "inline-flex items-center justify-center h-5 px-2 py-0 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap gap-1 cursor-pointer transition-colors active:scale-95 shadow-none leading-none shrink-0",
+              appliedTheme,
+            )}
+          >
             {busy && <Spinner size="sm" />}
-            Status
-            <ChevronDown size={12} />
+            <span>{ITEM_STATUS_LABELS[item.status] || item.status}</span>
+            <ChevronDown size={10} className="shrink-0 -mr-0.5 opacity-70" />
           </Button>
         }
       >
         {({ close }) => (
-          <div className="flex min-w-[180px] flex-col">
+          <div className="flex min-w-[180px] flex-col p-1">
             {onPath.map((status) => (
               <MenuItem
                 key={status}
@@ -225,7 +242,7 @@ export default function RequestedItemActions({ item, request, actor }) {
                   choose(status);
                 }}
               >
-                {ITEM_STATUS_LABELS[status]}
+                {status === ITEM_STATUS.CANCELLED ? "Cancel item" : ITEM_STATUS_LABELS[status]}
               </MenuItem>
             ))}
           </div>

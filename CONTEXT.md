@@ -534,6 +534,10 @@ buys for, and once Ordered it records the Odoo purchase order line as well as it
 number, which is how Landed Cost finds its way back. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
 _Avoid_: Line Item, Procurement Request
 
+**Requested Item Status**:
+The stage of sourcing for a Requested Item, rendered as an interactive status pill consolidating the status indicator and action controls into one element, allowing permitted members to advance the item along its path or cancel it.
+_Avoid_: Status dropdown, Outcome selector, Status button
+
 **Purchase Requests** (the list):
 Every Purchase Request the viewer may read, Project and Direct together, filterable by kind — all of them for Purchasing, one's own for everyone else. Where a new Direct request is opened.
 _Avoid_: Procurement Queue, Sourcing List, Purchasing Dashboard (a different thing: the list shows requests, the Dashboard groups all buying by what is outstanding)

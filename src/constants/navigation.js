@@ -331,6 +331,14 @@ export const QUICK_ACTIONS = [
         icon: UsersRound,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasTaskFlow,
       },
+      {
+        // Every employee may open a Purchase Request (#179), as in the nav.
+        id: "purchase-request",
+        key: "quick.purchaseRequest",
+        label: "New Purchase Request",
+        icon: ShoppingCart,
+        isPermitted: () => true,
+      },
     ],
   },
   {

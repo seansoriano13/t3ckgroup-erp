@@ -352,6 +352,14 @@ function PurchaseRequests() {
           if (to) step(to.id);
         }}
         onClose={close}
+        onOpenFull={(row) => {
+          window.dispatchEvent(
+            new CustomEvent("OPEN_ENTITY_DETAILS", {
+              detail: { id: row.id, type: "PURCHASE_REQUEST" },
+            }),
+          );
+        }}
+        openFullLabel="Open full screen"
       >
         {(row) => (
           <>

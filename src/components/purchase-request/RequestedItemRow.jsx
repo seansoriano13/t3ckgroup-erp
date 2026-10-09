@@ -28,19 +28,22 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
   const lines = item.odoo_po_line_ids || [];
 
   return (
-    <li className="flex flex-col gap-1.5 py-3" data-testid="requested-item">
-      <div className="flex items-start gap-3">
+    <li className="flex flex-col gap-2 py-3" data-testid="requested-item">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground break-words">{item.name}</p>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{formatAmount(item.quantity, item.unit)}</span>
+          <p className="text-sm font-semibold text-foreground break-words leading-snug">{item.name}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{formatAmount(item.quantity, item.unit)}</span>
             {" · "}
             {isNew ? "New product" : "From the SOR"}
             {item.requester?.name && ` · ${item.requester.name}`}
           </p>
         </div>
-        <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
-        {actions}
+        <div className="shrink-0 pt-0.5">
+          {actions ?? (
+            <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
+          )}
+        </div>
       </div>
 
       {(replaces || replacedBy) && (
@@ -53,7 +56,7 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
       {item.po_number && (
         <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="requested-item-po">
           <FileText size={12} className="shrink-0" />
-          <span className="font-medium text-foreground">PO {item.po_number}</span>
+          <span className="font-semibold text-foreground">PO {item.po_number}</span>
           <span>· {PO_VERIFICATION_LABELS[item.po_verification] || item.po_verification}</span>
           {lines.length > 0 && <span>· {lines.length === 1 ? "PO line" : "PO lines"} {lines.join(", ")}</span>}
         </p>
@@ -80,7 +83,9 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
       )}
 
       {item.description && (
-        <p className="text-xs leading-relaxed whitespace-pre-line text-muted-foreground">{item.description}</p>
+        <div className="mt-0.5 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground whitespace-pre-line break-words">
+          {item.description}
+        </div>
       )}
       {item.images?.length > 0 && <AttachmentEvidence attachments={item.images} />}
     </li>

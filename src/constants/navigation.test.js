@@ -391,11 +391,14 @@ describe("navigation registry", () => {
       };
 
       const actions = getFilteredQuickActions(standardUser);
-      expect(actions).toHaveLength(1);
+      // New Purchase Request is open to everyone (#179), under Operations.
+      expect(actions).toHaveLength(2);
       expect(actions[0].category).toBe("Personal");
       expect(actions[0].items.map((i) => i.label)).toEqual([
         "Apply Leave / Overtime",
       ]);
+      expect(actions[1].category).toBe("Operations");
+      expect(actions[1].items.map((i) => i.label)).toEqual(["New Purchase Request"]);
     });
 
     it("returns Personal, Operations, and Sales categories for Super Admin", () => {

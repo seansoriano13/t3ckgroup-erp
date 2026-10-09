@@ -51,6 +51,7 @@ const Checklist = ({ value }) => {
 const deciderLabel = (selector, nameOf) => {
   if (selector.type === "employee") return nameOf(selector.id);
   if (selector.type === "team") return `Everyone in ${selector.team}`;
+  if (selector.type === "department") return `Everyone in ${selector.department} department`;
   if (selector.type === "role") return String(selector.role || "").replace(/_/g, " ");
   if (selector.type === "group") return "an Employee Group";
   return "someone";
@@ -102,7 +103,16 @@ export default function StageActionDetail({
       </Field>
 
       {action.kind === "open_purchase_request" ? (
-        <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
+        <>
+          <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
+          <Field label="Who can request items">
+            {!Array.isArray(config.requesters)
+              ? "The Deal Team"
+              : config.requesters.length === 0
+                ? "Only the Buyer"
+                : config.requesters.map((s) => deciderLabel(s, nameOf)).join(", ")}
+          </Field>
+        </>
       ) : action.kind === "create_group_task" ? (
         <>
           {config.description?.trim() && (

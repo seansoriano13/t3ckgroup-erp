@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-10-09",
+        "title": "Consolidated Purchase Request Item Status",
+        "version": "1.9.7",
+        "changes": [
+            "Purchase Requests: Requested item status and action controls are now consolidated into a single interactive status pill with responsive color feedback, removing the redundant Status button and saving space.",
+            "Purchase Requests: Polished SlideOver layout, member chip presentation, section spacing, item notes styling, and unified status pill metrics according to design guidelines.",
+            "Purchase Requests: Added an Expand / Full Screen button to the SlideOver and redesigned the Purchase Request modal into a responsive two-column split layout with dedicated full-height Chat."
+        ]
+    },
+    {
         "date": "2026-10-07",
         "title": "Purchase Requests Replace Procurement Requests",
         "version": "1.9.6",

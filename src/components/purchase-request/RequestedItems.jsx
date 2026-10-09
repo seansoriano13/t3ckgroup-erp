@@ -6,9 +6,10 @@ import Spinner from "@/components/ui/Spinner";
 import AddRequestedItems from "./AddRequestedItems";
 import RequestedItemRow from "./RequestedItemRow";
 import RequestedItemActions from "./RequestedItemActions";
+import StatusBadge from "../StatusBadge";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { opportunityService } from "../../services/opportunityService";
-import { isClosedStatus } from "../../constants/purchaseRequest";
+import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME, isClosedStatus } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys, sorStockKey } from "./queryKeys";
 
 /**
@@ -46,8 +47,8 @@ export default function RequestedItems({ request, renderActions }) {
   const open = items.filter((i) => !isClosedStatus(i.status)).length;
 
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">
           Requested Items
           {items.length > 0 && (
@@ -69,7 +70,7 @@ export default function RequestedItems({ request, renderActions }) {
         <EmptyState
           icon={PackageSearch}
           title="Nothing requested yet"
-          description="The Deal Team adds what needs buying: a line from the SOR's Product List, or a new product."
+          description="Whoever may request items adds what needs buying: a line from the SOR's Product List, or a new product."
           className="py-10"
         />
       ) : (
@@ -83,7 +84,10 @@ export default function RequestedItems({ request, renderActions }) {
               replacedBy={substituteOf.get(item.id)}
               actions={
                 renderActions ? (
-                  renderActions(item)
+                  <div className="flex items-center gap-2">
+                    <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
+                    {renderActions(item)}
+                  </div>
                 ) : (
                   <RequestedItemActions item={item} request={request} actor={actor} />
                 )
