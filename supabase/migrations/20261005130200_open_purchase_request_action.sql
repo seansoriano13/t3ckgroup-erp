@@ -268,32 +268,6 @@ $$;
 
 grant execute on function public.purchase_request_can_manage_members(uuid) to authenticated;
 
--- Posts "Added <name>." / "Removed <name>." in the request's chat.
-create or replace function public._purchase_request_member_event(
-  p_request_id uuid,
-  p_actor uuid,
-  p_employee_id uuid,
-  p_event text
-) returns void
-language sql
-security definer
-set search_path = public
-as $$
-  insert into public.purchase_request_messages (request_id, author_id, content, metadata)
-  values (
-    p_request_id,
-    p_actor,
-    format(
-      '%s %s.',
-      case p_event when 'member_added' then 'Added' else 'Removed' end,
-      coalesce((select name from public.employees where id = p_employee_id), 'a member')
-    ),
-    jsonb_build_object('event', p_event, 'employee_id', p_employee_id)
-  );
-$$;
-
-revoke all on function public._purchase_request_member_event(uuid, uuid, uuid, text) from public, anon, authenticated;
-
 create or replace function public.purchase_request_add_member(p_request_id uuid, p_employee_id uuid)
 returns void
 language plpgsql
@@ -308,7 +282,9 @@ begin
   end if;
 
   if public._purchase_request_add_member(p_request_id, p_employee_id, v_actor) then
-    perform public._purchase_request_member_event(p_request_id, v_actor, p_employee_id, 'member_added');
+    insert into public.purchase_request_messages (request_id, author_id, content, metadata)
+    values (p_request_id, v_actor, 'Member added.',
+            jsonb_build_object('event', 'member_added', 'employee_id', p_employee_id));
   end if;
 end;
 $$;
@@ -346,7 +322,9 @@ begin
   where source = 'purchase_request' and source_id = p_request_id
     and employee_id = p_employee_id and closed_at is null;
 
-  perform public._purchase_request_member_event(p_request_id, v_actor, p_employee_id, 'member_removed');
+  insert into public.purchase_request_messages (request_id, author_id, content, metadata)
+  values (p_request_id, v_actor, 'Member removed.',
+          jsonb_build_object('event', 'member_removed', 'employee_id', p_employee_id));
 end;
 $$;
 
