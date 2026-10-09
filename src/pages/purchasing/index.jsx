@@ -1,327 +1,285 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CircleDot, FileText, PackageSearch, UserRound } from "lucide-react";
+import { CircleDot, Hand, Layers, PackageSearch, Plus } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
 import Spinner from "../../components/ui/Spinner";
+import TabGroup from "../../components/ui/TabGroup";
 import FilterBar from "../../components/ui/FilterBar";
 import { FilterSelect } from "../../components/ui/FilterDropdown";
 import SlideOver, { SlideOverBody, SlideOverFooter } from "../../components/ui/SlideOver";
-import { DetailRow, DetailSection, PersonChip } from "../../components/ui/DetailParts";
-import StatusBadge from "../../components/StatusBadge";
+import { Button } from "../../components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
-import { purchasingService } from "../../services/purchasingService";
-import { employeeService } from "../../services/employeeService";
+import PurchaseRequestView from "../../components/purchase-request/PurchaseRequestView";
+import NewPurchaseRequestDialog from "../../components/purchase-request/NewPurchaseRequestDialog";
+import RequestBuyer from "../../components/purchase-request/RequestBuyer";
+import { useTakeRequest } from "../../components/purchase-request/requestHooks";
+import { procurementQueueKey } from "../../components/purchase-request/queryKeys";
 import {
-  daysWaiting,
-  displayOutcome,
-  procurementAffinity,
-  PROCUREMENT_OUTCOME_LABELS,
-} from "../../constants/procurement";
+  QUEUE_BUYER,
+  QUEUE_KIND,
+  QUEUE_STATE,
+  filterQueue,
+  isRequestClosed,
+  purchaseRequestService,
+} from "../../services/purchaseRequestService";
 import { useAuth } from "../../context/AuthContext";
 import { useRecordParam } from "../../hooks/useRecordParam";
+import { useTableRealtime } from "../../hooks/useTableRealtime";
+import { getPermissionContext } from "../../utils/permissions";
 import { formatDate } from "../../utils/formatDate.js";
-import { BuyerSelect } from "./_components/BuyerSelect";
+import {
+  REQUEST_KIND,
+  REQUEST_KIND_LABELS,
+  requestIdentity,
+  requestKind,
+  requestStageLabel,
+  sorClosedLabel,
+} from "../../constants/purchaseRequest";
 
 /**
- * The Purchasing queue (issue #39), a Queue page (#439).
+ * Purchase Requests (issue #308, spec #209; #179), a Queue page: every
+ * Purchase Request the signed-in employee may read — all of them for
+ * Purchasing, their own for everyone else — as a table, with the picked one
+ * open in a slide-over beside it (`?request=`, where notifications link).
+ * Anyone opens a Direct request (no SOR) from here.
  *
- * Every other read of a procurement request is scoped to one thing — one deal,
- * one task, one purchaser. This is the only screen that answers "what is
- * purchasing sourcing this week", which until now meant opening Tasks one at a
- * time, and is why that answer has been living in a spreadsheet.
- *
- * A row opens the request in the slide-over (`?record=`). What purchasing does
- * to a request here is assign a Buyer; resolving it still happens on the SOR
- * the ask came from ("Open SOR"), so there is exactly one place a request is
- * answered.
+ * For Purchasing, level-2 pills slice by Buyer (unassigned / mine / all) and
+ * an unassigned row offers Take right in the table. The filter bar narrows by
+ * open or closed and by kind (Project / Direct), and searches. The slide-over
+ * holds the whole request (`PurchaseRequestView`: members, Requested Items,
+ * chat) with the Buyer pinned in its footer.
  */
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
 const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 
-/** How long a request has been waiting, in words a purchaser reads at a glance. */
-function waitedFor(request, now) {
-  const days = daysWaiting(request, now);
-  if (days === null) return "—";
-  if (days === 0) return "Today";
-  if (days === 1) return "1 day";
-  return `${days} days`;
+const STATE_OPTIONS = [
+  { value: QUEUE_STATE.OPEN, label: "Open" },
+  { value: QUEUE_STATE.CLOSED, label: "Closed" },
+  { value: QUEUE_STATE.ALL, label: "Open or closed" },
+];
+
+const KIND_OPTIONS = [
+  { value: QUEUE_KIND.ALL, label: "Project or Direct" },
+  { value: REQUEST_KIND.PROJECT, label: REQUEST_KIND_LABELS[REQUEST_KIND.PROJECT] },
+  { value: REQUEST_KIND.DIRECT, label: REQUEST_KIND_LABELS[REQUEST_KIND.DIRECT] },
+];
+
+const matches = (row, term) =>
+  [row.sales_reference, row.project_title, row.title, requestStageLabel(row), row.buyer_name].some((field) =>
+    field?.toLowerCase().includes(term),
+  );
+
+function RequestState({ row }) {
+  if (isRequestClosed(row)) return <StatusBadge theme="green" label="Closed" />;
+  const sorClosed = sorClosedLabel(row.sor_closed);
+  if (sorClosed) return <StatusBadge theme="red" label={sorClosed} />;
+  return <StatusBadge theme="amber" label="Open" />;
 }
 
-const matches = (request, term) =>
-  [
-    request.requested_name,
-    request.requested_description,
-    request.opportunity?.sales_reference,
-    request.opportunity?.client_name,
-    request.requester?.name,
-  ].some((field) => field?.toLowerCase().includes(term));
+function itemsSummary(row) {
+  if (!row.item_count) return "No items yet";
+  return `${row.open_count} open of ${row.item_count}`;
+}
 
-function QueueRow({ request, now, onOpen, buyers, currentUserId }) {
-  const { raw: outcomeRaw, label: outcomeLabel } = displayOutcome(request);
-  const days = daysWaiting(request, now);
-  const sor = request.opportunity;
+function TakeButton({ requestId }) {
+  const take = useTakeRequest(requestId);
+  return (
+    <Button
+      size="xs"
+      variant="outline"
+      onClick={(e) => {
+        e.stopPropagation();
+        take.mutate();
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+      disabled={take.isPending}
+      className="gap-1"
+    >
+      {take.isPending ? <Spinner size="sm" /> : <Hand size={12} />}
+      Take
+    </Button>
+  );
+}
 
+function QueueRow({ row, selected, onOpen, canTake }) {
+  const { reference, title } = requestIdentity(row);
   return (
     <TableRow
       tabIndex={0}
-      onClick={() => onOpen(request.id)}
+      aria-selected={selected}
+      data-testid="queue-row"
+      onClick={() => onOpen(row.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target === e.currentTarget) {
           e.preventDefault();
-          onOpen(request.id);
+          onOpen(row.id);
         }
       }}
-      className="group cursor-pointer outline-none focus-visible:bg-muted"
+      className="group cursor-pointer outline-none focus-visible:bg-muted aria-selected:bg-muted/60"
     >
       <TableCell>
-        <span className="block text-sm font-bold text-foreground">{request.requested_name}</span>
-        <span className="mt-0.5 block text-xs text-muted-foreground">
-          {Number(request.requested_quantity)} {request.requested_unit || "unit"}
-        </span>
+        {requestKind(row) === REQUEST_KIND.DIRECT ? (
+          <StatusBadge theme="blue" label={reference} />
+        ) : (
+          <span className="block font-mono text-xs font-semibold text-foreground">{reference}</span>
+        )}
+        <span className="mt-0.5 block max-w-[22rem] truncate text-sm text-foreground">{title}</span>
       </TableCell>
-
       <TableCell>
-        <span className="block text-sm font-semibold text-foreground">{sor.sales_reference || "Unregistered"}</span>
-        <span className="mt-0.5 block truncate text-xs text-muted-foreground">{sor.client_name}</span>
+        <span className="text-xs text-muted-foreground">{requestStageLabel(row) || "—"}</span>
       </TableCell>
-
       <TableCell>
-        <div className="flex items-center gap-2">
-          <Avatar src={request.requester?.avatar_path} name={request.requester?.name} size="xs" />
-          <span className="truncate text-xs font-medium text-foreground">{request.requester?.name || "—"}</span>
-        </div>
+        <span className="text-xs font-medium tabular-nums text-foreground">{itemsSummary(row)}</span>
       </TableCell>
-
-      <TableCell onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <BuyerSelect
-          request={request}
-          buyers={buyers}
-          currentUserId={currentUserId}
-          className="-ml-2 h-8 w-40 border-transparent bg-transparent shadow-none hover:bg-mauve-a3 focus:ring-0"
-        />
-      </TableCell>
-
       <TableCell>
-        <span
-          className={
-            days !== null && days >= 7
-              ? "text-xs font-bold tabular-nums text-red-11"
-              : "text-xs font-medium tabular-nums text-muted-foreground"
-          }
-        >
-          {waitedFor(request, now)}
-        </span>
+        {row.buyer_id ? (
+          <div className="flex items-center gap-2">
+            <Avatar src={row.buyer_avatar_path} name={row.buyer_name} size="xs" />
+            <span className="truncate text-xs font-medium text-foreground">{row.buyer_name}</span>
+          </div>
+        ) : canTake ? (
+          <TakeButton requestId={row.id} />
+        ) : (
+          <span className="text-xs text-muted-foreground">Unassigned</span>
+        )}
       </TableCell>
-
+      <TableCell>
+        <span className="text-xs tabular-nums text-muted-foreground">{formatDate(row.last_activity_at || row.created_at)}</span>
+      </TableCell>
       <TableCell className="text-right">
-        <StatusBadge status={outcomeRaw} label={outcomeLabel} />
+        <RequestState row={row} />
       </TableCell>
     </TableRow>
   );
 }
 
-const sheetIdentity = (now) => (r) => {
-  const { raw, label } = displayOutcome(r);
-  return {
-    ref: r.opportunity.sales_reference || "Unregistered",
-    title: r.requested_name,
-    badge: <StatusBadge status={raw} label={label} />,
-    subtitle: `waiting ${waitedFor(r, now)}`,
-  };
-};
+const sheetIdentity = (row) => ({
+  ref: requestIdentity(row).reference,
+  title: requestIdentity(row).title,
+  badge: <RequestState row={row} />,
+  subtitle: [requestStageLabel(row), itemsSummary(row)].filter(Boolean).join(" · "),
+});
 
-function RequestSheet({ request, now, index, total, onStep, onClose, onOpenSor, buyers, currentUserId }) {
-  return (
-    <SlideOver
-      record={request}
-      icon={PackageSearch}
-      crumb="Purchasing Queue"
-      identity={sheetIdentity(now)}
-      index={index}
-      total={total}
-      onStep={onStep}
-      onClose={onClose}
-      onOpenFull={(r) => onOpenSor(r.opportunity.id)}
-      openFullLabel="Open SOR"
-    >
-      {(r) => (
-        <>
-          <SlideOverBody>
-            <DetailSection title="Request">
-              <dl className="divide-y divide-border">
-                <DetailRow label="Product">{r.requested_name}</DetailRow>
-                <DetailRow label="Quantity">
-                  {Number(r.requested_quantity)} {r.requested_unit || "unit"}
-                </DetailRow>
-                <DetailRow label="Description">{r.requested_description}</DetailRow>
-                <DetailRow label="Raised">{formatDate(r.created_at)}</DetailRow>
-                <DetailRow label="Waiting">{waitedFor(r, now)}</DetailRow>
-              </dl>
-            </DetailSection>
-            <DetailSection title="Requested by">
-              {r.requester ? (
-                <PersonChip
-                  person={{ id: r.requester.id, name: r.requester.name, avatarPath: r.requester.avatar_path }}
-                />
-              ) : (
-                "—"
-              )}
-            </DetailSection>
-            <DetailSection title="SOR">
-              <dl className="divide-y divide-border">
-                <DetailRow label="Reference">{r.opportunity.sales_reference || "Unregistered"}</DetailRow>
-                <DetailRow label="Client">{r.opportunity.client_name}</DetailRow>
-              </dl>
-            </DetailSection>
-          </SlideOverBody>
-          <SlideOverFooter>
-            <DetailSection title="Buyer">
-              <BuyerSelect request={r} buyers={buyers} currentUserId={currentUserId} className="w-full" />
-            </DetailSection>
-          </SlideOverFooter>
-        </>
-      )}
-    </SlideOver>
-  );
-}
-
-function PurchasingQueue() {
-  const navigate = useNavigate();
+function PurchaseRequests() {
   const { user } = useAuth();
-  const { recordId, open, step, close } = useRecordParam();
+  const { isSuperAdmin, hasPurchasingFlow } = getPermissionContext(user);
+  const purchaser = isSuperAdmin || hasPurchasingFlow;
+  const { recordId, open, step, close } = useRecordParam("request");
 
+  const [buyerPill, setBuyer] = useState(QUEUE_BUYER.ALL);
+  // Only Purchasing has Buyers to slice by; everyone else sees all of theirs.
+  const buyer = purchaser ? buyerPill : QUEUE_BUYER.ALL;
+  const [state, setState] = useState(QUEUE_STATE.OPEN);
+  const [kind, setKind] = useState(QUEUE_KIND.ALL);
   const [search, setSearch] = useState("");
-  const [filterAssignee, setFilterAssignee] = useState("all");
-  const [filterOutcome, setFilterOutcome] = useState("all");
-  const [filterSor, setFilterSor] = useState("all");
+  const [creating, setCreating] = useState(false);
 
-  const { data: employees = [] } = useQuery({
-    queryKey: ["employees"],
-    queryFn: () => employeeService.getAllEmployees(),
+  // Every item, member and Buyer change posts a message, so this one signal
+  // keeps the list (and any request open beside it) current.
+  useTableRealtime("purchase_request_messages", {
+    invalidateKeys: [procurementQueueKey],
+    debounceMs: 500,
   });
 
-  const buyers = useMemo(() => {
-    return [...employees].sort(
-      (a, b) => procurementAffinity(a) - procurementAffinity(b) || a.name.localeCompare(b.name)
-    );
-  }, [employees]);
-
-  // The age column is measured from when the queue was fetched, not from when
-  // React happened to render — so every row on screen is measured against the
-  // same instant, and reading the clock stays out of render entirely.
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["procurementQueue"],
-    queryFn: async () => ({
-      rows: await purchasingService.listOpenQueue(),
-      fetchedAt: Date.now(),
-    }),
+  const { data: rows = [], isLoading, isError, error } = useQuery({
+    queryKey: procurementQueueKey,
+    queryFn: () => purchaseRequestService.listQueue(),
   });
 
-  const requests = data?.rows;
-  const now = data?.fetchedAt;
-
-  const openSor = (opportunityId) =>
-    navigate("/sors", { state: { openOpportunityId: opportunityId } });
-
-  const uniqueSors = useMemo(() => {
-    if (!requests) return [];
-    return Array.from(new Map(requests.map((r) => [r.opportunity.id, r.opportunity])).values())
-      .sort((a, b) => (a.sales_reference || a.client_name).localeCompare(b.sales_reference || b.client_name));
-  }, [requests]);
-
-  const filteredRequests = useMemo(() => {
-    if (!requests) return [];
+  // Search, open/closed and kind narrow first; the pills count within that.
+  const scoped = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return requests.filter((req) => {
-      if (term && !matches(req, term)) return false;
-      if (filterAssignee === "unassigned" && req.assignee) return false;
-      if (filterAssignee !== "all" && filterAssignee !== "unassigned" && req.assignee?.id !== filterAssignee) return false;
-      const { raw } = displayOutcome(req);
-      if (filterOutcome !== "all" && raw !== filterOutcome) return false;
-      if (filterSor !== "all" && req.opportunity?.id !== filterSor) return false;
-      return true;
-    });
-  }, [requests, search, filterAssignee, filterOutcome, filterSor]);
+    return filterQueue(rows, { state, kind }).filter((r) => !term || matches(r, term));
+  }, [rows, state, kind, search]);
+  const visible = useMemo(() => filterQueue(scoped, { buyer }, user?.id), [scoped, buyer, user?.id]);
+  const counts = {
+    [QUEUE_BUYER.UNASSIGNED]: filterQueue(scoped, { buyer: QUEUE_BUYER.UNASSIGNED }).length,
+    [QUEUE_BUYER.MINE]: filterQueue(scoped, { buyer: QUEUE_BUYER.MINE }, user?.id).length,
+    [QUEUE_BUYER.ALL]: scoped.length,
+  };
 
-  const count = filteredRequests.length;
-  const index = filteredRequests.findIndex((r) => String(r.id) === recordId);
-  const openRequest = index >= 0 ? filteredRequests[index] : null;
+  // The open request may sit outside the current slice (a notification's
+  // link, or a request just taken off "Unassigned"): it stays open, without
+  // stepping.
+  const openRow = rows.find((r) => String(r.id) === recordId) || null;
+  const index = visible.findIndex((r) => String(r.id) === recordId);
+  const stepping = index >= 0;
 
-  const hasActiveFilters = search !== "" || filterAssignee !== "all" || filterOutcome !== "all" || filterSor !== "all";
-
-  const assigneeOptions = [
-    { value: "all", label: "Any buyer" },
-    { value: "unassigned", label: "Unassigned" },
-    ...buyers.map((b) => ({ value: b.id, label: b.name })),
-  ];
-  const outcomeOptions = [
-    { value: "all", label: "Any outcome" },
-    ...Object.entries(PROCUREMENT_OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
-  ];
-  const sorOptions = [
-    { value: "all", label: "Any SOR" },
-    ...uniqueSors.map((s) => ({ value: s.id, label: s.sales_reference || s.client_name })),
-  ];
+  const hasActiveFilters = search !== "" || state !== QUEUE_STATE.OPEN || kind !== QUEUE_KIND.ALL;
 
   const toolbar = (
-    <FilterBar
-      search={{ value: search, onChange: setSearch, placeholder: "Search requests" }}
-      chips={
-        <>
-          <FilterSelect
-            icon={UserRound}
-            label="Assignee"
-            options={assigneeOptions}
-            value={filterAssignee}
-            onChange={setFilterAssignee}
-            allValue="all"
-            className={CHIP}
-            wrapperClassName={CHIP_WRAPPER}
-          />
-          <FilterSelect
-            icon={CircleDot}
-            label="Outcome"
-            options={outcomeOptions}
-            value={filterOutcome}
-            onChange={setFilterOutcome}
-            allValue="all"
-            className={CHIP}
-            wrapperClassName={CHIP_WRAPPER}
-          />
-          <FilterSelect
-            icon={FileText}
-            label="SOR"
-            options={sorOptions}
-            value={filterSor}
-            onChange={setFilterSor}
-            allValue="all"
-            className={CHIP}
-            wrapperClassName={CHIP_WRAPPER}
-          />
-        </>
-      }
-      hasActiveFilters={hasActiveFilters}
-      onClearAll={() => {
-        setSearch("");
-        setFilterAssignee("all");
-        setFilterOutcome("all");
-        setFilterSor("all");
-      }}
-    />
+    <>
+      {purchaser && (
+        <TabGroup
+          variant="pill"
+          size="sm"
+          activeTab={buyer}
+          onChange={setBuyer}
+          tabs={[
+            { value: QUEUE_BUYER.UNASSIGNED, label: "Unassigned", badge: counts[QUEUE_BUYER.UNASSIGNED] },
+            { value: QUEUE_BUYER.MINE, label: "Mine", badge: counts[QUEUE_BUYER.MINE] },
+            { value: QUEUE_BUYER.ALL, label: "All", badge: counts[QUEUE_BUYER.ALL] },
+          ]}
+        />
+      )}
+      <FilterBar
+        search={{ value: search, onChange: setSearch, placeholder: "Search requests" }}
+        chips={
+          <>
+            <FilterSelect
+              icon={CircleDot}
+              label="Status"
+              options={STATE_OPTIONS}
+              value={state}
+              onChange={setState}
+              allValue={QUEUE_STATE.OPEN}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+            <FilterSelect
+              icon={Layers}
+              label="Kind"
+              options={KIND_OPTIONS}
+              value={kind}
+              onChange={setKind}
+              allValue={QUEUE_KIND.ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+          </>
+        }
+        hasActiveFilters={hasActiveFilters}
+        onClearAll={() => {
+          setSearch("");
+          setState(QUEUE_STATE.OPEN);
+          setKind(QUEUE_KIND.ALL);
+        }}
+      />
+    </>
   );
 
   return (
     <>
       <PageShell
-        title="Purchasing Queue"
-        description="Every product still waiting on purchasing, across all SORs."
+        title="Purchase Requests"
+        description={
+          purchaser
+            ? "Every Purchase Request: take one, work its items, talk it through."
+            : "Ask Purchasing to buy something, and follow your requests here."
+        }
+        action={
+          <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
+            <Plus size={14} />
+            New Purchase Request
+          </Button>
+        }
         toolbar={toolbar}
       >
         {isLoading && (
@@ -332,30 +290,30 @@ function PurchasingQueue() {
 
         {isError && (
           <div className="rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center">
-            <p className="text-sm font-semibold text-red-11">The queue could not be loaded.</p>
+            <p className="text-sm font-semibold text-red-11">Purchase Requests could not be loaded.</p>
             <p className="mt-1 text-xs text-muted-foreground">{error?.message}</p>
           </div>
         )}
 
-        {!isLoading && !isError && count === 0 && (
+        {!isLoading && !isError && visible.length === 0 && (
           <EmptyState
             icon={PackageSearch}
-            title={hasActiveFilters ? "No matching requests" : "Nothing to source"}
+            title={rows.length === 0 ? "No Purchase Requests yet" : "No matching requests"}
             description={
-              hasActiveFilters
-                ? "No open request matches these filters."
-                : "Every product sales has sent to purchasing has an answer against it."
+              rows.length === 0
+                ? "Need something bought? Open a Purchase Request and Purchasing takes it from there."
+                : "Nothing in this slice. Try another tab or clear the filters."
             }
           />
         )}
 
-        {!isLoading && !isError && count > 0 && (
+        {!isLoading && !isError && visible.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="overflow-x-auto">
               <Table className="min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["Product", "SOR", "Requested by", "Assigned to", "Waiting", "Status"].map((heading) => (
+                    {["Request", "Stage", "Items", "Buyer", "Last activity", "Status"].map((heading) => (
                       <TableHead key={heading} className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}>
                         {heading}
                       </TableHead>
@@ -363,48 +321,69 @@ function PurchasingQueue() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRequests.map((request) => (
+                  {visible.map((row) => (
                     <QueueRow
-                      key={request.id}
-                      request={request}
-                      now={now}
+                      key={row.id}
+                      row={row}
+                      selected={String(row.id) === recordId}
                       onOpen={open}
-                      buyers={buyers}
-                      currentUserId={user?.id}
+                      canTake={purchaser}
                     />
                   ))}
                 </TableBody>
               </Table>
             </div>
             <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-              {count} open {count === 1 ? "request" : "requests"}
+              {visible.length} {visible.length === 1 ? "request" : "requests"}
             </div>
           </div>
         )}
       </PageShell>
 
-      <RequestSheet
-        request={openRequest}
-        now={now}
-        index={index}
-        total={count}
+      <SlideOver
+        record={openRow}
+        icon={PackageSearch}
+        crumb="Purchase Requests"
+        identity={sheetIdentity}
+        index={stepping ? index : 0}
+        total={stepping ? visible.length : 1}
         onStep={(d) => {
-          const to = filteredRequests[index + d];
+          const to = visible[index + d];
           if (to) step(to.id);
         }}
         onClose={close}
-        onOpenSor={openSor}
-        buyers={buyers}
-        currentUserId={user?.id}
-      />
+        onOpenFull={(row) => {
+          window.dispatchEvent(
+            new CustomEvent("OPEN_ENTITY_DETAILS", {
+              detail: { id: row.id, type: "PURCHASE_REQUEST" },
+            }),
+          );
+        }}
+        openFullLabel="Open full screen"
+      >
+        {(row) => (
+          <>
+            <SlideOverBody>
+              <PurchaseRequestView requestId={row.id} hideBuyer />
+            </SlideOverBody>
+            <SlideOverFooter>
+              <RequestBuyer request={row} />
+            </SlideOverFooter>
+          </>
+        )}
+      </SlideOver>
+
+      <NewPurchaseRequestDialog open={creating} onOpenChange={setCreating} onOpened={open} />
     </>
   );
 }
 
-export default function PurchasingQueuePage() {
+// Every employee: a request is read by its members and Purchasing (the
+// database decides), and anyone may open one.
+export default function PurchaseRequestsPage() {
   return (
-    <ProtectedRoute requirePurchasing={true}>
-      <PurchasingQueue />
+    <ProtectedRoute>
+      <PurchaseRequests />
     </ProtectedRoute>
   );
 }

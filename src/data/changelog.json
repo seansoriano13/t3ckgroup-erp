@@ -1,5 +1,35 @@
 [
     {
+        "date": "2026-10-09",
+        "title": "Consolidated Purchase Request Item Status",
+        "version": "1.9.7",
+        "changes": [
+            "Purchase Requests: Requested item status and action controls are now consolidated into a single interactive status pill with responsive color feedback, removing the redundant Status button and saving space.",
+            "Purchase Requests: Polished SlideOver layout, member chip presentation, section spacing, item notes styling, and unified status pill metrics according to design guidelines.",
+            "Purchase Requests: Added an Expand / Full Screen button to the SlideOver and redesigned the Purchase Request modal into a responsive two-column split layout with dedicated full-height Chat."
+        ]
+    },
+    {
+        "date": "2026-10-07",
+        "title": "Purchase Requests Replace Procurement Requests",
+        "version": "1.9.6",
+        "changes": [
+            "Sales Flows: a new Stage Action, Open Purchase Request, opens the SOR's Purchase Request when the SOR enters the Stage, or once a Decider picks Create. An SOR has one request; a second action on a later Stage adds to it.",
+            "Sales Flows: everyone with Purchasing access and the SOR's Deal Team become members. On the action you can name a default Buyer, add people or groups, and leave out Deal Team roles.",
+            "SORs: purchasing members can open the SOR for the Stage the request was opened on, for as long as the action's access window allows. Other members see the SOR's name and current Stage.",
+            "Purchase Requests: each request has its own chat with @mentions and attachments. The Deal Team and the Buyer add items from the SOR's Product List, or request something that isn't in Odoo.",
+            "Purchase Requests: Purchasing moves each item along (To order, Canvassing, Ordered, Received, From stock) or closes it. The Buyer can offer a substitute. Ordered items can carry an Odoo PO number, checked against Odoo.",
+            "Purchasing: the old Purchasing page is now the Procurement Queue. Take an unassigned request to become its Buyer. A new request with no Buyer notifies Purchasing once.",
+            "SORs: the Now, Products and History tabs show the SOR's Purchase Request and its items. A new Stage condition, Purchasing settled, stops an SOR leaving a Stage until every item is closed.",
+            "Old procurement requests moved into each SOR's Purchase Request and can no longer be edited. The SOR's old Purchasing panel is gone.",
+            "Purchase Requests: when an SOR is deleted or lost while items are still open, the Buyer and the people who asked for items are told, and told again if it comes back. With no Buyer, everyone with Purchasing access hears.",
+            "Purchase Requests: the Procurement Queue marks a request whose SOR was deleted or lost, and shows the SOR number when there's no Sales Reference.",
+            "Purchasing: someone given Purchasing access joins the requests still being worked. When the access is removed they leave the requests they were only on to buy, and any they were the Buyer of go back to the queue.",
+            "Purchase Requests: the chat says who was added or removed, and dialogs opened from a request on an SOR now show in front of it.",
+            "Sales Flows: each Terminal Stage now says whether deals end there as Won or Lost. A deal at a Closed Won Stage counts as Won (Realized) instead of lost. Stages named Closed Won were set to Won automatically; set any other winning end Stage to Won in Flow Canvas."
+        ]
+    },
+    {
         "date": "2026-10-05",
         "title": "Retail Shows Your Real Income, Kept Current",
         "version": "1.9.5",

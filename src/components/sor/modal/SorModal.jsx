@@ -12,12 +12,10 @@ import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { employeeService } from "../../../services/employeeService";
 import { odooService } from "../../../services/odooService";
 import { quotationService } from "../../../services/quotationService";
-import { purchasingService } from "../../../services/purchasingService";
 import { salesFlowService } from "../../../services/salesFlowService";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { missingStageFields } from "../../../constants/stageGate";
 import { flowStageTone } from "../../../constants/salesFlow";
-import { openRequests } from "../../../constants/procurement";
 import { usePipelineStages } from "../../../hooks/usePipelineStages";
 import {
   isJudgedByStageCode,
@@ -32,6 +30,9 @@ import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
 import LockedSorSlideOver from "../LockedSorSlideOver";
+import NoAccessSorSlideOver from "../NoAccessSorSlideOver";
+import { hiddenVisits } from "../../../utils/sorHiddenVisits";
+import { liveMentionIds, mentionWindowHint } from "../../../utils/mentionWindowHint";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
@@ -94,6 +95,12 @@ export default function SorModal({
   const lockedSummary = lockedSummaryProp ?? fetchedLockedSummary ?? null;
   const isRestricted = !!lockedSummary?.is_restricted;
 
+  const { data: accessContact = null } = useQuery({
+    queryKey: ["sorAccessContact", id],
+    queryFn: () => opportunityService.getAccessContact(id),
+    enabled: !!id && isOpen && accessLevel === "none",
+  });
+
   const { data: myVisits = [] } = useQuery({
     queryKey: ["sorMyVisits", id],
     queryFn: () => opportunityService.getMyVisits(id),
@@ -119,6 +126,22 @@ export default function SorModal({
     queryFn: () => opportunityService.getMyWindowsOn(id, user.id),
     enabled: !!id && isOpen && !!user?.id && (accessLevel === "participant" || accessLevel === "locked"),
   });
+  const { data: myMentionWindows = [] } = useQuery({
+    queryKey: ["myMentionWindowsOn", id, user?.id],
+    queryFn: () => opportunityService.getMyMentionWindowsOn(id, user.id),
+    enabled: !!id && isOpen && !!user?.id && accessLevel === "participant",
+  });
+  // #475: the visits this viewer cannot read, marked in the timeline rather
+  // than left as a silent gap.
+  const { data: visitVisibility } = useQuery({
+    queryKey: ["sorVisitVisibility", id],
+    queryFn: () => opportunityService.getVisitVisibility(id),
+    enabled: !!id && isOpen && (accessLevel === "full" || accessLevel === "participant"),
+  });
+  const hiddenStageVisits = useMemo(
+    () => (visitVisibility ? hiddenVisits(visitVisibility.visits, visitVisibility.visibleIds, accessLevel) : []),
+    [visitVisibility, accessLevel],
+  );
   const { stages: allStages } = usePipelineStages({ includeInactive: true });
   const pipelineStages = useMemo(
     () => allStages.filter((s) => s.is_active || s.code === rawOpportunity?.status),
@@ -131,6 +154,25 @@ export default function SorModal({
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
   const [noteMentions, setNoteMentions] = useState([]);
+  // #476: who the note being written would open a Mention Window for, so the
+  // writer sees the consequence before posting. Only names still in the text.
+  const liveMentions = useMemo(() => liveMentionIds(noteMentions, note, user?.id), [noteMentions, note, user?.id]);
+  const { data: mentionWindowIds = [] } = useQuery({
+    queryKey: ["sorMentionWindowCandidates", id, [...liveMentions].sort().join(",")],
+    queryFn: () => opportunityService.getMentionWindowCandidates(id, liveMentions),
+    enabled: !!id && isOpen && liveMentions.length > 0 && (accessLevel === "full" || accessLevel === "participant"),
+    staleTime: 30_000,
+  });
+  const mentionAccessHint = useMemo(
+    () => mentionWindowHint(noteMentions, mentionWindowIds, { hasVisits: !!visitVisibility?.visits?.length }),
+    [noteMentions, mentionWindowIds, visitVisibility],
+  );
+  // #477: who this SOR has been shared with by Mention, for the Deal Team.
+  const { data: mentionShares = [] } = useQuery({
+    queryKey: ["sorMentionShares", id],
+    queryFn: () => opportunityService.getMentionShares(id),
+    enabled: !!id && isOpen && accessLevel === "full",
+  });
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
@@ -224,15 +266,6 @@ export default function SorModal({
   });
   const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === rawOpportunity?.flow_stage_id) || null;
   const currentFlowStageTone = flowCanvas ? flowStageTone(currentFlowStage, flowCanvas.flow, flowCanvas.stages) : "mauve";
-
-  const requiresInclusions = checklist.some((c) => c.condition.kind === "inclusions");
-  const requiresPurchasing = checklist.some((c) => c.condition.kind === "purchasing");
-
-  const { data: procurementRequests = [] } = useQuery({
-    queryKey: ["procurementRequests", id],
-    queryFn: () => purchasingService.listForOpportunity(id),
-    enabled: !!id && isOpen && accessLevel !== "locked",
-  });
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -355,6 +388,8 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["stageVisitId", id] });
     queryClient.invalidateQueries({ queryKey: ["currentStageVisit", id] });
     queryClient.invalidateQueries({ queryKey: ["followUpStatus", id] });
+    // #310: the Now card, Items statuses and Journey read the Purchase Request.
+    queryClient.invalidateQueries({ queryKey: ["sor-purchase-request", id] });
   }, [queryClient, id]);
 
   const handleMentionClick = (person) => {
@@ -723,6 +758,9 @@ export default function SorModal({
   // every hook above has run unconditionally, so the branch never changes
   // this component's hook order.
   if (!id) return null;
+  if (accessLevel === "none") {
+    return <NoAccessSorSlideOver isOpen={isOpen} onClose={onClose} contact={accessContact} />;
+  }
   if (accessLevel === "locked") {
     return <LockedSorSlideOver isOpen={isOpen} onClose={onClose} lockedSummary={lockedSummary} myVisits={myVisits} />;
   }
@@ -758,19 +796,6 @@ export default function SorModal({
       handleTabChange("now");
       return;
     }
-    const stillOpen = openRequests(procurementRequests);
-    if (stillOpen.length && !isLostCode(next)) {
-      confirmActionToast(
-        "Purchasing hasn't answered yet",
-        `${stillOpen.length} product${stillOpen.length === 1 ? " is" : "s are"} still with purchasing. Moving to ${stageLabel(next)} means quoting ${
-          stillOpen.length === 1 ? "it" : "them"
-        } before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
-        "Move anyway",
-        "warning",
-        () => stageMutation.mutate({ next, reason: null, salesReference: null }),
-      );
-      return;
-    }
     stageMutation.mutate({ next, reason: null, salesReference: null });
   };
 
@@ -802,8 +827,6 @@ export default function SorModal({
     employees,
     activeLeadSources,
     checklist,
-    requiresInclusions,
-    requiresPurchasing,
     automationTasks,
     invalidate,
     handleSaveField,
@@ -869,6 +892,7 @@ export default function SorModal({
   const chatColumn = (
     <SorChatColumn
       notes={notes}
+      hiddenVisits={hiddenStageVisits}
       loadingNotes={loadingNotes}
       notesContainerRef={notesContainerRef}
       handleMentionClick={handleMentionClick}
@@ -876,6 +900,7 @@ export default function SorModal({
       setNote={setNote}
       noteMentions={noteMentions}
       setNoteMentions={setNoteMentions}
+      mentionAccessHint={mentionAccessHint}
       employees={mentionableEmployees}
       attachments={attachments}
       fileInputRef={fileInputRef}
@@ -884,9 +909,30 @@ export default function SorModal({
     />
   );
 
-  const windowsBanner = myWindows.length > 0 && (
+  // #475: a Mention Window says who opened it and when it ends.
+  const windowsBanner = (myWindows.length > 0 || myMentionWindows.length > 0) && (
       <div className="shrink-0 border-b border-border/60 bg-violet-a2 px-6 py-2">
         <ul className="space-y-0.5">
+          {myMentionWindows.map((m) => (
+            <li key={m.id} className="text-xs leading-relaxed text-violet-11">
+              {!m.hasVisit ? (
+                <>
+                  <span className="font-bold">{m.mentionedBy || "Someone"}</span> mentioned you. You see this SOR, read-only.
+                </>
+              ) : m.closed ? (
+                <>
+                  <span className="font-bold">{m.mentionedBy || "Someone"}</span> mentioned you at{" "}
+                  <span className="font-bold">{m.stageName || "an earlier Stage"}</span>. That Stage has moved on.
+                </>
+              ) : (
+                <>
+                  You're viewing <span className="font-bold">{m.stageName || "this Stage"}</span> because{" "}
+                  <span className="font-bold">{m.mentionedBy || "someone"}</span> mentioned you. Other Stages are hidden;
+                  this ends when the Stage moves.
+                </>
+              )}
+            </li>
+          ))}
           {myWindows.map((w) => (
             <li key={w.id} className="text-xs leading-relaxed text-violet-11">
               Called in at{" "}
@@ -907,6 +953,7 @@ export default function SorModal({
     ctx: tabCtx,
     chatColumn,
     windowsBanner,
+    mentionShares,
     notes,
     canViewJourney,
     isWide,

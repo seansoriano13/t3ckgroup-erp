@@ -90,7 +90,9 @@ of its own, and it would block every open purchasing ticket while it ran.
 - Purchasing gets no Flow Canvas, no Stage Conditions and no Stage Actions. Where
   purchasing work must gate a *sales* decision, it does so through a Stage
   Condition on the Sales Flow — `purchasing settled` and `costing settled` — not
-  by having a flow of its own.
+  by having a flow of its own. *(Amended 2026-10-05 by ADR 0033: purchasing's
+  one-per-SOR tools — Purchase Request, Costing Matrix, Packing List request —
+  do mount as Sales Flow Stage Actions; purchasing still has no flow of its own.)*
 - The record-agnostic half of the engine stays reusable if a genuinely
   flow-shaped second record type ever appears. This ADR rejects generalising it
   *for purchasing*, not forever.

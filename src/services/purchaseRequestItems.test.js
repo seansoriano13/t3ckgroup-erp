@@ -1,0 +1,151 @@
+import { beforeEach, describe, expect, it } from "vitest"
+import { purchaseRequestService } from "./purchaseRequestService"
+import { opportunityService } from "./opportunityService"
+import { db } from "@/test/db/store"
+import { makeEmployee, makeOpportunity } from "@/test/factories"
+import { stubRpc } from "@/test/msw/server"
+import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
+import { sorLineChange, SOR_LINE_CHANGE } from "@/utils/requestedItem"
+
+/**
+ * Requested Items (#305) through the service, against the fake database with
+ * the item RPCs re-implemented on its store. What the next person reads: the
+ * item as picked, what its SOR line says now, and the post in the request.
+ * Who may add is the policy tier's (39-purchase-request-items.test.js).
+ */
+describe("purchaseRequestService — Requested Items", () => {
+  let salesperson
+  let opportunity
+  let request
+
+  const productList = [
+    { product_name: "Full Body Harness", unit: "pc", quantity: 10, unit_price: 5998.1, odoo_product_id: 101 },
+    { product_name: "Rope Access Kit", unit: "set", quantity: 2, unit_price: 30000, odoo_product_id: 202 },
+  ]
+
+  const lineNamed = async (name) =>
+    (await opportunityService.getItems(opportunity.id)).find((l) => l.product_name === name)
+
+  beforeEach(async () => {
+    salesperson = makeEmployee({ name: "Sales Person", department: "SALES" })
+    opportunity = makeOpportunity({ registered_by: salesperson.id, deal_owner_id: salesperson.id })
+    await opportunityService.updateOpportunity(opportunity.id, { items: productList }, salesperson.id)
+
+    request = db.seed("purchase_requests", { opportunity_id: opportunity.id, created_by: salesperson.id })
+    db.seed("purchase_request_members", { request_id: request.id, employee_id: salesperson.id, side: "sales" })
+    stubPurchaseRequestItemRpcs({ actorId: salesperson.id })
+  })
+
+  it("keeps what was picked after updateOpportunity replaces the lines, and reports the new quantity", async () => {
+    const harness = await lineNamed("Full Body Harness")
+    await purchaseRequestService.addItemFromLine(request.id, harness.id)
+
+    await opportunityService.updateOpportunity(
+      opportunity.id,
+      { items: [{ ...productList[0], quantity: 12 }, productList[1]] },
+      salesperson.id,
+    )
+
+    const [item] = await purchaseRequestService.listItems(request.id)
+    expect(item).toMatchObject({
+      source: "sor_line",
+      status: "requested",
+      odoo_product_id: 101,
+      name: "Full Body Harness",
+      quantity: 10,
+      unit: "pc",
+      sor_line_snapshot: { name: "Full Body Harness", quantity: 10, unit: "pc" },
+    })
+    expect(sorLineChange(item)).toMatchObject({ kind: SOR_LINE_CHANGE.CHANGED, label: "SOR line now says 12 pc" })
+  })
+
+  it("says nothing while the SOR line still says what was picked", async () => {
+    const kit = await lineNamed("Rope Access Kit")
+    await purchaseRequestService.addItemFromLine(request.id, kit.id)
+
+    // A re-save with the same lines re-creates every line under a new id.
+    await opportunityService.updateOpportunity(opportunity.id, { items: productList }, salesperson.id)
+
+    const [item] = await purchaseRequestService.listItems(request.id)
+    expect(item.sorLine).toEqual({ found: true, quantity: 2, unit: "set" })
+    expect(sorLineChange(item)).toBeNull()
+  })
+
+  it("says the line is gone once the SOR drops it", async () => {
+    const kit = await lineNamed("Rope Access Kit")
+    await purchaseRequestService.addItemFromLine(request.id, kit.id)
+
+    await opportunityService.updateOpportunity(opportunity.id, { items: [productList[0]] }, salesperson.id)
+
+    const [item] = await purchaseRequestService.listItems(request.id)
+    expect(item.quantity).toBe(2)
+    expect(sorLineChange(item)).toEqual({ kind: SOR_LINE_CHANGE.REMOVED, label: "SOR line removed" })
+  })
+
+  it("adds a new product with its description and images, and it appears in the request", async () => {
+    const images = [{ url: "https://res.cloudinary.com/demo/bracket.jpg", name: "bracket.jpg", type: "image/jpeg", bytes: 2048 }]
+
+    await purchaseRequestService.addNewItem(request.id, {
+      name: "Custom mounting bracket",
+      quantity: 4,
+      unit: "pc",
+      description: "Stainless, per the client's drawing",
+      images,
+    })
+
+    const [item] = await purchaseRequestService.listItems(request.id)
+    expect(item).toMatchObject({
+      source: "new",
+      status: "requested",
+      name: "Custom mounting bracket",
+      quantity: 4,
+      description: "Stainless, per the client's drawing",
+      images,
+      sor_line_snapshot: null,
+      requester: { id: salesperson.id, name: "Sales Person" },
+    })
+    expect(item.sorLine).toBeUndefined()
+  })
+
+  it("posts every added item in the request", async () => {
+    const harness = await lineNamed("Full Body Harness")
+    await purchaseRequestService.addItemFromLine(request.id, harness.id)
+    await purchaseRequestService.addNewItem(request.id, { name: "Custom mounting bracket", quantity: 1 })
+
+    const items = await purchaseRequestService.listItems(request.id)
+    const posts = db.rows("purchase_request_messages").filter((m) => m.request_id === request.id)
+    expect(posts.map((m) => m.metadata)).toEqual(
+      items.map((i) => ({ event: "item_added", item_id: i.id, source: i.source })),
+    )
+    expect(items.every((i) => i.status === "requested")).toBe(true)
+  })
+
+  it("surfaces the refusal of a line the SOR has since re-saved", async () => {
+    const harness = await lineNamed("Full Body Harness")
+    await opportunityService.updateOpportunity(opportunity.id, { items: productList }, salesperson.id)
+
+    await expect(purchaseRequestService.addItemFromLine(request.id, harness.id)).rejects.toThrow(
+      "no longer on this SOR's Product List",
+    )
+  })
+
+  it("sends a new product's fields as the RPC names them", async () => {
+    let sent
+    stubRpc("purchase_request_add_new_item", (args) => {
+      sent = args
+      return "item-1"
+    })
+
+    const id = await purchaseRequestService.addNewItem("r1", { name: "Bracket", quantity: "3" })
+
+    expect(id).toBe("item-1")
+    expect(sent).toEqual({
+      p_request_id: "r1",
+      p_name: "Bracket",
+      p_quantity: 3,
+      p_unit: null,
+      p_description: null,
+      p_images: [],
+    })
+  })
+})

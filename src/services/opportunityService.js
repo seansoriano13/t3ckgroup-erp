@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { purchasingService } from "./purchasingService";
+import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
 import { accessWindowSummary } from "../utils/stageAudience";
 import { sorStageParticipantService } from "./sorStageParticipantService";
@@ -467,6 +467,25 @@ async function resolveHasPurchasing(conditions, opportunityId, { asOf } = {}) {
 }
 
 /**
+ * Purchasing settled's evidence (#311): the SOR's Requested Items as
+ * `{ status, created_at, status_changed_at }`, or null when it has no
+ * Purchase Request. Read through a SECURITY DEFINER RPC, not the table: a
+ * Deal Team member left out of the request (or an Always-edits user) may move
+ * the SOR but can't read the request, and a plain select would show them "no
+ * request" — settled — and let the move through. Undefined when no condition
+ * asks for it; the evaluator fails closed on that.
+ */
+async function resolvePurchaseRequestItems(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.PURCHASING_SETTLED);
+  if (!needsIt) return undefined;
+  const { data, error } = await supabase.rpc("sor_purchase_request_item_states", {
+    p_opportunity_id: opportunityId,
+  });
+  if (error) throw error;
+  return data ?? null;
+}
+
+/**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
  * .scratch/stage-gate-engine/issues/) — throws if any required condition
  * on any Stage the move crosses is unsatisfied, naming what's missing.
@@ -494,6 +513,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   const conditions = Object.values(conditionsByStage).flat();
   const hasInclusions = await resolveHasInclusions(conditions, opportunityId);
   const hasPurchasing = await resolveHasPurchasing(conditions, opportunityId);
+  const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, opportunityId);
 
   const gateResult = evaluateCrossing({
     fromCode,
@@ -506,6 +526,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     statusRowsByCondition,
     hasInclusions,
     hasPurchasing,
+    purchaseRequestItems,
   });
 
   if (!gateResult.blocked) return;
@@ -1000,6 +1021,8 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
                   actorId,
                 );
               }
+            } else if (created.kind === "open_purchase_request" && created.request_id) {
+              await notePurchaseRequestOpened(existing.id, to, action.id, created.request_id, actorId);
             } else if (created.kind === "create_group_task" && created.group_task_id) {
               await opportunityService.addSystemNote(
                 existing.id,
@@ -1103,6 +1126,7 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
   const conditions = blockingConditions(conditionsForFrom);
   const hasInclusions = await resolveHasInclusions(conditions, existing.id);
   const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
+  const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, existing.id);
 
   for (const condition of conditions) {
     const result = evaluateCondition(condition, {
@@ -1112,6 +1136,7 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
       statusRow: statusRowsByCondition[condition.id] ?? null,
       hasInclusions,
       hasPurchasing,
+      purchaseRequestItems,
     });
     if (result.status === CONDITION_STATUS.UNSATISFIED) {
       missing.push({ stage: from, condition });
@@ -1391,11 +1416,26 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
   }
 }
 
+/**
+ * Issue #304 — the SOR's note that a Stage Action opened its Purchase Request.
+ * `sor_open_purchase_request` reads the action's saved config itself, so this
+ * note is all the client adds.
+ */
+function notePurchaseRequestOpened(opportunityId, stage, actionId, requestId, actorId) {
+  return opportunityService.addSystemNote(
+    opportunityId,
+    `Purchase Request opened on entering Stage: ${stage.name}.`,
+    { event: "STAGE_ACTION_PURCHASE_REQUEST_OPENED", stageId: stage.id, actionId, requestId },
+    actorId,
+  );
+}
+
 /** How a failed Stage Action is named to the person who moved the SOR. */
 function stageActionName(action) {
   const config = action?.config ?? {};
   const named = config.title || config.projectTitle;
   if (typeof named === "string" && named.trim()) return named.trim();
+  if (action?.kind === "open_purchase_request") return "Purchase Request";
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";
 }
 
@@ -2149,16 +2189,6 @@ export const opportunityService = {
       actorId,
     ).catch(console.error);
 
-    // Purchasing may already have committed to a supplier for this deal. They
-    // are told; nothing of theirs is closed on their behalf, because a task
-    // that silently vanished would take the evidence of that spend with it.
-    // Fire-and-forget: losing the deal must not fail because a notification did.
-    if (isLostCode(nextStatus)) {
-      purchasingService
-        .notifyDealClosed(id, actorId, lostReason)
-        .catch(console.error);
-    }
-
     return data;
   },
 
@@ -2421,10 +2451,6 @@ export const opportunityService = {
 
     if (error) throw error;
 
-    purchasingService
-      .handleOpportunityDeleted(id, actorId, data)
-      .catch(console.error);
-
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
       id,
@@ -2463,10 +2489,8 @@ export const opportunityService = {
 
   /**
    * Restores a deleted SOR — a Super Admin or its own Deal Owner. Clears the
-   * flag and its deletion stamp, and never touches procurement: those
-   * requests were cancelled on delete (purchasingService.handleOpportunityDeleted)
-   * and restoring doesn't reopen them — whoever restores has to re-raise
-   * what's still needed.
+   * flag and its deletion stamp. A Purchase Request is untouched by either
+   * delete or restore.
    */
   async restoreOpportunity(id, actorId) {
     const { data: existing, error: readError } = await supabase
@@ -2929,6 +2953,17 @@ export const opportunityService = {
       dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
       saleType: existing.sale_type || null,
     };
+    if (action.kind === "open_purchase_request") {
+      const { data: requestId, error: openError } = await supabase.rpc("sor_open_purchase_request", {
+        p_run_id: runId,
+      });
+      if (openError) {
+        await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "failed" });
+        throw openError;
+      }
+      await notePurchaseRequestOpened(existing.id, stage, action.id, requestId, actorId).catch(() => {});
+      return { outcome: "created" };
+    }
     await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
     return { outcome: "created" };
   },
@@ -2998,7 +3033,9 @@ export const opportunityService = {
       // real builder would use, not a placeholder or a bare count.
       // `PendingActionDecisions.jsx` turns this into a sentence.
       const target =
-        action.kind === "create_group_task"
+        action.kind === "open_purchase_request"
+          ? { kind: "purchase_request" }
+          : action.kind === "create_group_task"
           ? {
               kind: "group",
               members: (config.members || []).map((m) => ({
@@ -3303,9 +3340,9 @@ export const opportunityService = {
       .order("created_at", { ascending: false });
     if (error) throw error;
 
-    // An old SOR's mention grant (`sor_mention_viewers`) is the same kind of
-    // "you were called in", with no Stage window behind it. RLS lets a person
-    // read only their own rows.
+    // A Mention Window (`sor_mention_viewers`) is the same kind of "you were
+    // called in": one per visit the person was mentioned on, closed once the
+    // SOR has left it. RLS lets a person read only their own rows.
     const mentionRows = await opportunityService.getMyMentionGrants(employeeId);
     if ((!windows || windows.length === 0) && mentionRows.length === 0) return [];
 
@@ -3317,35 +3354,41 @@ export const opportunityService = {
       byOpportunity.get(w.opportunity_id).push(w);
     }
 
-    const mentionByOpportunity = new Map(mentionRows.map((m) => [m.opportunity_id, m]));
-    for (const id of mentionByOpportunity.keys()) {
-      if (!byOpportunity.has(id)) byOpportunity.set(id, []);
+    const mentionsByOpportunity = new Map();
+    for (const m of mentionRows) {
+      if (!mentionsByOpportunity.has(m.opportunity_id)) mentionsByOpportunity.set(m.opportunity_id, []);
+      mentionsByOpportunity.get(m.opportunity_id).push(m);
+      if (!byOpportunity.has(m.opportunity_id)) byOpportunity.set(m.opportunity_id, []);
     }
+
+    // #478: the SOR code and Sales Flow the filters need. Never fatal.
+    const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]).catch(() => ({}));
 
     const rows = await Promise.all(
       [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
         const summary = await opportunityService.getLockedSummary(opportunityId).catch(() => null);
-        const mention = mentionByOpportunity.get(opportunityId);
+        const mentions = mentionsByOpportunity.get(opportunityId) || [];
+        const allWindows = [
+          ...ownWindows.map(shape),
+          ...mentions.map((m) => ({
+            id: `mention-${m.id ?? opportunityId}`,
+            source: "mention",
+            mentionedBy: m.granted_by_name ?? null,
+            calledInAtStageName: m.stage_name ?? null,
+            closedAt: m.closed_at ?? null,
+            createdAt: m.created_at ?? null,
+            reachLabel: m.stage_visit_id ? "this Stage until it moves" : "this SOR, read-only",
+          })),
+        ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         return {
           opportunityId,
           salesReference: summary?.sales_reference ?? null,
           projectTitle: summary?.project_title ?? null,
           currentStageName: summary?.current_stage_name ?? null,
-          isOpen: Boolean(mention) || ownWindows.some((w) => !w.closed_at),
-          windows: [
-            ...ownWindows.map(shape),
-            ...(mention
-              ? [
-                  {
-                    id: `mention-${opportunityId}`,
-                    source: "mention",
-                    mentionedBy: mention.granted_by_name ?? null,
-                    closedAt: null,
-                    reachLabel: "this deal, read-only",
-                  },
-                ]
-              : []),
-          ],
+          sorCode: facets[opportunityId]?.sorCode ?? null,
+          saleTypeName: facets[opportunityId]?.saleTypeName ?? null,
+          isOpen: allWindows.some((w) => !w.closedAt),
+          windows: allWindows,
         };
       }),
     );
@@ -3384,17 +3427,35 @@ export const opportunityService = {
   },
 
   /**
-   * Old-SOR mention grants held by this person, with who mentioned them.
-   * Never throws: My SORs must still list the windows if this read fails.
+   * This person's Mention Windows, with who mentioned them, on which Stage,
+   * and when the SOR left it (`closed_at`, null while open or on an SOR with
+   * no visit). Never throws: My SORs must still list the windows if this fails.
    */
   async getMyMentionGrants(employeeId) {
     if (!employeeId) return [];
     const { data, error } = await supabase
       .from("sor_mention_viewers")
-      .select("opportunity_id, granted_by, created_at, granter:employees!sor_mention_viewers_granted_by_fkey(name)")
+      .select(
+        "id, opportunity_id, granted_by, created_at, stage_visit_id, granter:employees!sor_mention_viewers_granted_by_fkey(name), visit:sor_stage_visits(left_at, undone_at, flow_stages(name))",
+      )
       .eq("employee_id", employeeId);
     if (error) return [];
-    return (data || []).map((r) => ({ ...r, granted_by_name: r.granter?.name ?? null }));
+    return (data || []).map((r) => ({
+      ...r,
+      granted_by_name: r.granter?.name ?? null,
+      stage_name: r.visit?.flow_stages?.name ?? null,
+      closed_at: r.stage_visit_id ? (r.visit?.left_at ?? r.visit?.undone_at ?? null) : null,
+    }));
+  },
+
+  /** #478: `sor_my_sors_facets` keyed by SOR — the SOR code and Sales Flow. */
+  async getMySorsFacets(opportunityIds) {
+    if (!opportunityIds?.length) return {};
+    const { data, error } = await supabase.rpc("sor_my_sors_facets", { p_opportunity_ids: opportunityIds });
+    if (error) throw error;
+    return Object.fromEntries(
+      (data || []).map((r) => [r.opportunity_id, { sorCode: r.sor_code ?? null, saleTypeName: r.sale_type_name ?? null }]),
+    );
   },
 
   async countMyOpenSors(employeeId) {
@@ -3408,8 +3469,93 @@ export const opportunityService = {
     const mentions = await opportunityService.getMyMentionGrants(employeeId);
     return new Set([
       ...(data || []).map((r) => r.opportunity_id),
-      ...mentions.map((m) => m.opportunity_id),
+      // Only Mention Windows still open: an ended one is listed, not counted.
+      ...mentions.filter((m) => !m.closed_at).map((m) => m.opportunity_id),
     ]).size;
+  },
+
+  /**
+   * #474: the prohibited screen's one fact — the Deal Owner to ask — from
+   * `sor_access_contact`. `found: false` when the SOR does not exist.
+   */
+  async getAccessContact(opportunityId) {
+    if (!opportunityId) return { found: false, dealOwnerName: null };
+    const { data, error } = await supabase.rpc("sor_access_contact", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    const row = data?.[0];
+    return row ? { found: true, dealOwnerName: row.deal_owner_name ?? null } : { found: false, dealOwnerName: null };
+  },
+
+  /**
+   * #475: every live Stage Visit on the SOR beside the ones this viewer can
+   * read, so the timeline can mark the hidden ones instead of leaving a gap.
+   */
+  async getVisitVisibility(opportunityId) {
+    if (!opportunityId) return { visits: [], visibleIds: [] };
+    const [{ data: visits, error }, { data: idRows, error: idErr }] = await Promise.all([
+      supabase
+        .from("sor_stage_visits")
+        .select("id, sequence, entered_at, left_at, flow_stages(name)")
+        .eq("opportunity_id", opportunityId)
+        .is("undone_at", null)
+        .order("sequence", { ascending: true }),
+      supabase.rpc("sor_visible_visit_ids", { p_opportunity_id: opportunityId }),
+    ]);
+    if (error) throw error;
+    if (idErr) throw idErr;
+    const visibleIds = (idRows || []).map((row) => (typeof row === "string" ? row : row.sor_visible_visit_ids));
+    return { visits: visits || [], visibleIds };
+  },
+
+  /**
+   * #475: this person's Mention Windows on one SOR — who mentioned them, on
+   * which Stage, and whether the SOR has since left it. RLS returns only the
+   * caller's own rows.
+   */
+  async getMyMentionWindowsOn(opportunityId, employeeId) {
+    if (!opportunityId || !employeeId) return [];
+    const { data, error } = await supabase
+      .from("sor_mention_viewers")
+      .select(
+        "id, created_at, stage_visit_id, granter:employees!sor_mention_viewers_granted_by_fkey(name), visit:sor_stage_visits(left_at, undone_at, flow_stages(name))",
+      )
+      .eq("opportunity_id", opportunityId)
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data || []).map((r) => ({
+      id: r.id,
+      mentionedBy: r.granter?.name ?? null,
+      stageName: r.visit?.flow_stages?.name ?? null,
+      hasVisit: !!r.stage_visit_id,
+      closed: !!r.stage_visit_id && !!(r.visit?.left_at || r.visit?.undone_at),
+    }));
+  },
+
+  /**
+   * #476: which of these people a Mention would open a Mention Window for —
+   * `sor_mention_window_candidates`, the same rule the grant applies, so the
+   * composer's hint never promises access the grant would not give.
+   */
+  async getMentionWindowCandidates(opportunityId, employeeIds) {
+    if (!opportunityId || !employeeIds?.length) return [];
+    const { data, error } = await supabase.rpc("sor_mention_window_candidates", {
+      p_opportunity_id: opportunityId,
+      p_employee_ids: employeeIds,
+    });
+    if (error) throw error;
+    return (data || []).map((row) => (typeof row === "string" ? row : row.sor_mention_window_candidates));
+  },
+
+  /**
+   * #477: who this SOR has been shared with by Mention — `sor_mention_shares`,
+   * full access only (empty below it).
+   */
+  async getMentionShares(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("sor_mention_shares", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data || [];
   },
 
   async getLockedSummary(opportunityId) {
@@ -3695,6 +3841,7 @@ export const opportunityService = {
 
     const hasInclusions = await resolveHasInclusions(conditions, target.id);
     const hasPurchasing = await resolveHasPurchasing(conditions, target.id);
+    const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, target.id);
 
     return conditions
       .map((condition) => ({
@@ -3706,6 +3853,7 @@ export const opportunityService = {
           statusRow: statusRowsByCondition[condition.id] ?? null,
           hasInclusions,
           hasPurchasing,
+          purchaseRequestItems,
         }),
       }))
       // Issue #203: a removed kind (field, project_evaluation) always reads
@@ -3821,9 +3969,10 @@ export const opportunityService = {
 
       if (stageConditions.length === 0) continue;
 
-      const [hasInclusions, hasPurchasing] = await Promise.all([
+      const [hasInclusions, hasPurchasing, purchaseRequestItems] = await Promise.all([
         resolveHasInclusions(stageConditions, opportunity.id),
         resolveHasPurchasing(stageConditions, opportunity.id),
+        resolvePurchaseRequestItems(stageConditions, opportunity.id),
       ]);
 
       const missing = stageConditions.filter(
@@ -3835,6 +3984,7 @@ export const opportunityService = {
             statusRow: (statusByOpportunity[opportunity.id] || {})[condition.id] ?? null,
             hasInclusions,
             hasPurchasing,
+            purchaseRequestItems,
           }).status === CONDITION_STATUS.UNSATISFIED,
       );
       if (missing.length > 0) blocked[opportunity.id] = missing;
@@ -4108,6 +4258,19 @@ export const opportunityService = {
     }
     const rawVisitById = Object.fromEntries(visits.map((v) => [v.id, v]));
 
+    // #310: the SOR's Purchase Request, as far as the caller may read it. A
+    // failed read leaves the Journey without the group, not without the Journey.
+    let requestedItems = [];
+    try {
+      const { data: overviewRows, error: overviewError } = await supabase.rpc("sor_purchase_request_overview", {
+        p_opportunity_id: opportunityId,
+      });
+      if (overviewError) throw overviewError;
+      requestedItems = shapeSorOverview((overviewRows || [])[0])?.items || [];
+    } catch {
+      requestedItems = [];
+    }
+
     const shaped = visits.map((visit) => {
       const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
       const isRestricted = !visibleVisitIds.has(visit.id);
@@ -4130,9 +4293,9 @@ export const opportunityService = {
         isRestricted,
         tasks: isRestricted ? [] : tasks.filter((task) => visitOwnsTask(task, visitWindow)),
         groupTasks: isRestricted ? [] : groupTasks.filter((task) => visitOwnsTask(task, visitWindow)),
-        // #209 fills this in with the visit's Purchase Requests; until it does,
-        // the slot exists so the tab renders the same shape either way.
-        requestedItems: [],
+        // #310: the Requested Items raised during this visit (none on a
+        // restricted one). Items carry no visit id, so it is the visit window.
+        requestedItems: isRestricted ? [] : itemsForVisit(requestedItems, visitWindow),
         // #397: labelled from the visit's own Flow Snapshot, never the live
         // flow_stage_fields — same "frozen with everything else" rule the
         // Stage itself is named from (see `stageFor`, above).
@@ -4220,10 +4383,11 @@ export const opportunityService = {
           return { ...visit, conditions: [], attachments: attachments || [] };
         }
 
-        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing] = await Promise.all([
+        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing, purchaseRequestItems] = await Promise.all([
           gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt, preloaded }),
           resolveHasInclusions(conditions, opportunityId, { asOf: visit.leftAt }),
           resolveHasPurchasing(conditions, opportunityId, { asOf: visit.leftAt }),
+          resolvePurchaseRequestItems(conditions, opportunityId),
         ]);
 
         return {
@@ -4238,6 +4402,8 @@ export const opportunityService = {
                 statusRow: statusRowsByCondition[condition.id] ?? null,
                 hasInclusions,
                 hasPurchasing,
+                purchaseRequestItems,
+                purchaseRequestAsOf: visit.leftAt,
               });
 
               let matchedFiles = [];

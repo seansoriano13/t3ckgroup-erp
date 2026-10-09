@@ -1,0 +1,806 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Purchasing Head-to-Head</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: one long engineering brief on the ERP's own desk/ink palette; sticky section bar; diagrams scroll sideways inside their own frames. Red is reserved for conflicts (the ERP's One Red Object rule). */
+:root{
+  --bg:#fdfcfd; --raised:#faf9fb; --muted:#f2eff3; --seam:#e3dfe6; --line:#dbd8e0;
+  --ink:#211f26; --ink-2:#65636d; --ink-3:#8e8c99;
+  --red:#ce2c31; --red-wash:#feebec;
+  --green:#218358; --green-wash:#e6f6eb;
+  --amber:#ab6400; --amber-wash:#fff7c2;
+  --blue:#0d74ce; --blue-wash:#e6f4fe;
+  --violet:#6550b9; --violet-wash:#f4f0fe;
+  --sans:"Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121113; --raised:#1a191b; --muted:#211f23; --seam:#2b292d; --line:#3c393f;
+    --ink:#eeeef0; --ink-2:#b5b2bc; --ink-3:#7c7a85;
+    --red:#ff9592; --red-wash:#3b1219; --green:#3dd68c; --green-wash:#132d21;
+    --amber:#ffca16; --amber-wash:#302008; --blue:#70b8ff; --blue-wash:#0d2847;
+    --violet:#baa7ff; --violet-wash:#1f1a36; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121113; --raised:#1a191b; --muted:#211f23; --seam:#2b292d; --line:#3c393f;
+  --ink:#eeeef0; --ink-2:#b5b2bc; --ink-3:#7c7a85;
+  --red:#ff9592; --red-wash:#3b1219; --green:#3dd68c; --green-wash:#132d21;
+  --amber:#ffca16; --amber-wash:#302008; --blue:#70b8ff; --blue-wash:#0d2847;
+  --violet:#baa7ff; --violet-wash:#1f1a36; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:28px 80px}
+a{color:inherit}
+h1,h2,h3{text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(28px,4.4vw,40px);font-weight:800;line-height:1.1}
+h1 em{font-style:normal;color:var(--red)}
+h2{font-size:22px;font-weight:800;line-height:1.2}
+h3{font-size:15px;font-weight:700}
+p{margin:0;max-width:72ch}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+.mono{font-family:var(--mono);font-size:.86em}
+.muted{color:var(--ink-2)}
+code{font-family:var(--mono);font-size:.84em;background:var(--muted);padding:1px 5px;border-radius:4px}
+
+/* top */
+header.top{display:grid;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--seam)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--ink-2)}
+.meta b{color:var(--ink);font-weight:600}
+
+nav.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--seam);margin-inline:-20px;padding:10px 20px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.bar a{font-size:12.5px;font-weight:600;color:var(--ink-2);text-decoration:none;padding:5px 10px;border-radius:6px;white-space:nowrap}
+nav.bar a:hover,nav.bar a:focus-visible{background:var(--muted);color:var(--ink);outline:none}
+
+section{padding-top:44px;display:grid;gap:16px;scroll-margin-top:52px}
+.sechead{display:grid;gap:6px}
+
+/* verdict */
+.verdict{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;align-items:start}
+.verdict .lead{font-size:18px;line-height:1.5;font-weight:500;max-width:60ch}
+.tally{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tile{border:1px solid var(--seam);border-radius:10px;padding:10px 12px;background:var(--raised);display:grid;gap:2px}
+.tile .n{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.tile .l{font-size:12px;color:var(--ink-2)}
+.tile.c .n{color:var(--red)} .tile.g .n{color:var(--blue)} .tile.r .n{color:var(--amber)} .tile.a .n{color:var(--green)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.fact{border-top:2px solid var(--line);padding-top:8px;display:grid;gap:3px}
+.fact .k{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.fact .d{font-size:12.5px;color:var(--ink-2)}
+
+/* figures */
+figure{margin:0;display:grid;gap:10px}
+.frame{border:1px solid var(--seam);border-radius:12px;background:var(--bg);overflow-x:auto}
+.frame svg{display:block;max-width:none;height:auto}
+figcaption{font-size:13px;color:var(--ink-2);max-width:90ch}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{display:inline-block;width:22px;height:0;border-top:2px solid var(--ink-2)}
+.sw.v{border-top:2px dashed var(--violet)}
+.sw.d{border-top:2px dashed var(--ink-3)}
+.tag{font-family:var(--mono);font-size:10.5px;padding:1px 5px;border-radius:4px;background:var(--muted);color:var(--ink-2)}
+
+/* svg classes */
+.s-band{fill:var(--muted);stroke:var(--seam)}
+.s-box{fill:var(--raised);stroke:var(--line)}
+.s-in{fill:var(--bg);stroke:var(--line)}
+.s-dash{fill:var(--bg);stroke:var(--violet);stroke-dasharray:4 3}
+.s-t{fill:var(--ink);font-family:var(--sans);font-size:12px;font-weight:700}
+.s-h{fill:var(--ink);font-family:var(--sans);font-size:13.5px;font-weight:800}
+.s-s{fill:var(--ink-2);font-family:var(--sans);font-size:10px}
+.s-x{fill:var(--ink-3);font-family:var(--mono);font-size:9.5px}
+.s-k{fill:var(--ink-3);font-family:var(--sans);font-size:9px;font-weight:700;letter-spacing:.08em}
+.s-b{fill:var(--ink-3);font-family:var(--sans);font-size:8.5px;font-weight:700;letter-spacing:.06em}
+.s-v{fill:var(--violet);font-family:var(--sans);font-size:10px;font-weight:600}
+.s-a{stroke:var(--ink-2);stroke-width:1.4;fill:none}
+.s-av{stroke:var(--violet);stroke-width:1.6;fill:none;stroke-dasharray:5 4}
+.s-ad{stroke:var(--ink-3);stroke-width:1.3;fill:none;stroke-dasharray:3 3}
+.s-pill{fill:var(--bg);stroke:var(--line)}
+.s-mk{fill:var(--ink-2)} .s-mkv{fill:var(--violet)}
+.s-rail{stroke:var(--line);stroke-width:3}
+.s-guide{stroke:var(--seam);stroke-width:1}
+.s-node{stroke:var(--bg);stroke-width:2}
+.s-nt{fill:#141218;font-family:var(--sans);font-size:9.5px;font-weight:800}
+.s-cv{stroke-width:2.2} .cv-c{stroke:var(--red)} .cv-g{stroke:var(--blue)} .cv-r{stroke:var(--amber)} .cv-a{stroke:var(--green)}
+.s-dot-p{fill:var(--ink)} .s-dot-s{fill:var(--bg);stroke:var(--ink);stroke-width:1.6}
+
+/* comparison rows */
+.h2h{display:grid;gap:0;border:1px solid var(--seam);border-radius:12px;overflow:hidden}
+.h2h-head,.row{display:grid;grid-template-columns:150px minmax(0,1fr) 112px minmax(0,1fr);gap:0}
+.h2h-head>div{padding:10px 14px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);background:var(--muted);border-bottom:1px solid var(--seam)}
+.row>div{padding:14px;border-bottom:1px solid var(--seam);min-width:0}
+.row:last-child>div{border-bottom:0}
+.row .st{display:grid;gap:4px;align-content:start}
+.row .st b{font-size:14px;font-weight:700;line-height:1.25}
+.row .st .c{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.row .prod,.row .spec{display:grid;gap:6px;font-size:13.5px;align-content:start}
+.row .prod{background:var(--raised)}
+.row ul{margin:0;padding-left:16px;display:grid;gap:4px}
+.row li{max-width:68ch}
+.row .vd{display:grid;gap:6px;align-content:start;justify-items:start}
+.row.quiet>div{padding-block:8px;color:var(--ink-3);font-size:12.5px}
+.row.quiet .st b{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:5px;white-space:nowrap}
+.chip.c{background:var(--red-wash);color:var(--red)}
+.chip.g{background:var(--blue-wash);color:var(--blue)}
+.chip.r{background:var(--amber-wash);color:var(--amber)}
+.chip.a{background:var(--green-wash);color:var(--green)}
+.qref{font-size:11.5px;font-weight:700;color:var(--ink-2);text-decoration:none;border-bottom:1px dotted var(--ink-3)}
+.lbl{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+
+/* trim table */
+.trim{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.trim .m{border:1px solid var(--seam);border-radius:10px;padding:10px 12px;display:grid;gap:6px;background:var(--raised)}
+.bar2{height:6px;border-radius:3px;background:var(--muted);overflow:hidden;display:flex}
+.bar2 i{display:block;height:100%;background:var(--amber)}
+.trim .m small{font-size:12px;color:var(--ink-2)}
+
+/* cross-cut */
+table.cc{width:100%;border-collapse:collapse;font-size:13.5px;min-width:760px}
+table.cc th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:10px 12px;background:var(--muted);border-bottom:1px solid var(--seam)}
+table.cc td{padding:12px;border-bottom:1px solid var(--seam);vertical-align:top}
+table.cc tr:last-child td{border-bottom:0}
+table.cc td:first-child{font-weight:700;width:190px}
+.tablewrap{border:1px solid var(--seam);border-radius:12px;overflow-x:auto}
+
+/* build */
+.steps{display:grid;gap:8px}
+.step{display:grid;grid-template-columns:64px minmax(0,1fr);gap:14px;align-items:start;padding:12px 0;border-top:1px solid var(--seam)}
+.step .no{font-size:12px;font-weight:800;color:var(--ink-3);font-family:var(--mono);padding-top:2px}
+.step h3{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.tix{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.tk{font-family:var(--mono);font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--ink-2);text-decoration:none}
+.tk.done{background:var(--green-wash);border-color:transparent;color:var(--green);font-weight:700}
+.tk.blk{border-style:dashed}
+
+/* decisions */
+.qs{display:grid;gap:10px}
+.q{border:1px solid var(--seam);border-radius:12px;padding:14px 16px;display:grid;gap:8px;background:var(--raised)}
+.q .qh{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.q .qn{font-family:var(--mono);font-size:12px;font-weight:800;color:var(--ink-3)}
+.q .rec{border-left:3px solid var(--green);padding-left:10px;font-size:14px}
+.q .rec b{color:var(--green)}
+.q .why{font-size:13px;color:var(--ink-2)}
+.bugs{display:grid;gap:8px}
+.bug{border:1px dashed var(--line);border-radius:10px;padding:12px 14px;font-size:13.5px;display:grid;gap:4px}
+
+@media (max-width:860px){
+  .verdict{grid-template-columns:1fr}
+  .h2h-head{display:none}
+  .row{grid-template-columns:1fr}
+  .row>div{border-bottom:0;padding-block:8px}
+  .row{border-bottom:1px solid var(--seam);padding-block:6px}
+  .row .prod::before{content:"Prod today";font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+  .row .spec::before{content:"The spec";font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+  .row.quiet .prod::before,.row.quiet .spec::before{content:none}
+  .step{grid-template-columns:1fr;gap:4px}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+html{scroll-behavior:smooth}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">T3CK ERP · Purchasing module · as of 5 Oct 2026</div>
+  <h1>Purchasing, spec against <em>prod</em></h1>
+  <p class="muted">Left side: the purchasing module as the GitHub issues specify it (maps #210 and #316, specs #209 · #241 · #251 · #261 · #266 · #275 · #283, and #317–#323). Right side: what the Government Sales Flow on production actually asks purchasing to do today, read live from project <span class="mono">epqmberwewztzbrkhhss</span>.</p>
+  <div class="meta">
+    <span><b>Government flow</b> published v5.2 · 18 stages</span>
+    <span><b>31</b> live SORs on it</span>
+    <span><b>~70</b> purchasing tickets open</span>
+    <span><b>1</b> built (#303, on <span class="mono">integrate/purchasing</span>)</span>
+  </div>
+</header>
+
+<nav class="bar" aria-label="Sections">
+  <a href="#verdict">Verdict</a><a href="#spec">Spec architecture</a><a href="#prod">Prod flow</a><a href="#h2h">Stage by stage</a><a href="#crosscut">Across the flow</a><a href="#build">Build order</a><a href="#decisions">Open decisions</a><a href="#bugs">Parked bugs</a>
+</nav>
+
+<!-- VERDICT -->
+<section id="verdict">
+  <div class="verdict">
+    <div class="sechead" style="gap:12px">
+      <div class="eyebrow">Verdict</div>
+      <p class="lead">Same direction, different tools. Prod runs purchasing as group-task checklists and Google Sheet links hung on Sales Flow stages. The spec turns that work into records (Costing Matrix, Canvass, Purchase Request, IPAS, Transmittal) and keeps the group tasks only as who-does-what. Nothing on prod contradicts ADR 0023, but three things clash with the spec and seven were never specced.</p>
+      <p class="muted" style="font-size:13.5px">Nothing has been tested by real use yet: no Government SOR has passed SO Evaluation, the canvass, inclusion and PO-link tables hold zero rows, and the five Evaluation of Specification tasks created on 1 Oct have no checklist item ticked.</p>
+    </div>
+    <div class="tally" role="list" aria-label="Comparison tally">
+      <div class="tile c" role="listitem"><span class="n">3</span><span class="l">Conflicts: prod and spec disagree</span></div>
+      <div class="tile g" role="listitem"><span class="n">7</span><span class="l">Gaps: neither side has decided</span></div>
+      <div class="tile r" role="listitem"><span class="n">6</span><span class="l">Prod items the spec replaces</span></div>
+      <div class="tile a" role="listitem"><span class="n">7</span><span class="l">Aligned already</span></div>
+    </div>
+  </div>
+  <div class="facts">
+    <div class="fact"><span class="k">27 · 4</span><span class="d">Government SORs at Lead · at SO Evaluation. None further.</span></div>
+    <div class="fact"><span class="k">0 / 5</span><span class="d">Evaluation of Specification tasks with any checklist item ticked (since 1 Oct).</span></div>
+    <div class="fact"><span class="k">18</span><span class="d">Hand-made "PMS" group tasks, Jul 7 – Aug 18, 17 still active, none linked to an SOR.</span></div>
+    <div class="fact"><span class="k">49</span><span class="d">Legacy procurement requests on 35 SORs. None on Government. 28 never answered.</span></div>
+    <div class="fact"><span class="k">1</span><span class="d">Employee with Purchasing access on prod. The Purchasing Manager is not it.</span></div>
+  </div>
+</section>
+
+<!-- SPEC ARCHITECTURE -->
+<section id="spec">
+  <div class="sechead">
+    <div class="eyebrow">Part 1 · What we will build</div>
+    <h2>The purchasing module, as the issues specify it</h2>
+    <p class="muted">Every record, who writes which part, and the joins between them. The SOR is the only thing that moves along a flow; purchasing touches the flow at four hooks along the top. Bracketed tags are write bands: the database refuses a write from outside its band.</p>
+  </div>
+  <figure>
+    <div class="frame">
+<svg viewBox="0 0 1440 1004" width="1440" role="img" aria-label="Spec architecture: the Sales Flow touches purchasing through two Stage Actions and two Conditions. Each SOR has a PMS page holding a Costing Matrix, a Purchase Request, Canvasses and Packing Lists. Each Odoo purchase order has one IPAS, and Transmittals carry its lines. Landed Cost flows back from IPAS lines through Requested Items to Components. Odoo is read-only. Four views are derived from the records.">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="s-mk"/></marker>
+    <marker id="ahv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="s-mkv"/></marker>
+  </defs>
+
+  <!-- Band A: Sales Flow -->
+  <rect x="20" y="20" width="1400" height="96" rx="10" class="s-band"/>
+  <text x="36" y="40" class="s-k">SALES FLOW · GOVERNMENT — THE SOR MOVES; PURCHASING ONLY GATES IT</text>
+  <text x="1404" y="40" text-anchor="end" class="s-s">No-go notifies and moves nothing · PMS never moves the deal (#227 · ADR 0023)</text>
+  <rect x="40" y="50" width="220" height="56" rx="7" class="s-in"/>
+  <text x="52" y="66" class="s-b">STAGE ACTION · SO EVALUATION</text>
+  <text x="52" y="82" class="s-t">Evaluation of Specification</text>
+  <text x="52" y="97" class="s-s">group task · calls Technical in</text>
+  <rect x="270" y="50" width="210" height="56" rx="7" class="s-in"/>
+  <text x="282" y="66" class="s-b">CONDITION · FOR BIDDING</text>
+  <text x="282" y="82" class="s-t">Costing settled (#272)</text>
+  <text x="282" y="97" class="s-s">Final Offers · eval · ≤ ABC · Go</text>
+  <rect x="580" y="50" width="165" height="56" rx="7" class="s-in"/>
+  <text x="592" y="66" class="s-b">STAGE ACTION · #304</text>
+  <text x="592" y="82" class="s-t">Open Purchase Request</text>
+  <text x="592" y="97" class="s-s">one per SOR · idempotent</text>
+  <rect x="755" y="50" width="165" height="56" rx="7" class="s-in"/>
+  <text x="767" y="66" class="s-b">CONDITION · #311</text>
+  <text x="767" y="82" class="s-t">Purchasing settled</text>
+  <text x="767" y="97" class="s-s">every Requested Item closed</text>
+  <rect x="1000" y="50" width="404" height="56" rx="7" class="s-in"/>
+  <text x="1012" y="66" class="s-b">THE RECORD THAT MOVES</text>
+  <text x="1012" y="82" class="s-t">SOR · one deal</text>
+  <text x="1012" y="97" class="s-s">Deal Team · Stage Participants · Always sees (#208)</text>
+
+  <!-- hook arrows -->
+  <path d="M150,106 V170" class="s-a" marker-end="url(#ah)"/>
+  <path d="M375,172 V108" class="s-a" marker-end="url(#ah)"/>
+  <path d="M662,106 V170" class="s-a" marker-end="url(#ah)"/>
+  <path d="M838,172 V108" class="s-a" marker-end="url(#ah)"/>
+  <path d="M1200,172 V108" class="s-a" marker-end="url(#ah)"/>
+  <rect x="74" y="114" width="152" height="15" rx="7" class="s-pill"/><text x="150" y="125" text-anchor="middle" class="s-s">Technical writes Compliance</text>
+  <rect x="328" y="114" width="94" height="15" rx="7" class="s-pill"/><text x="375" y="125" text-anchor="middle" class="s-s">reads the matrix</text>
+  <rect x="632" y="114" width="60" height="15" rx="7" class="s-pill"/><text x="662" y="125" text-anchor="middle" class="s-s">opens it</text>
+  <rect x="784" y="114" width="108" height="15" rx="7" class="s-pill"/><text x="838" y="125" text-anchor="middle" class="s-s">every item's status</text>
+  <rect x="1152" y="114" width="96" height="15" rx="7" class="s-pill"/><text x="1200" y="125" text-anchor="middle" class="s-s">names 0..n SORs</text>
+
+  <!-- PMS container -->
+  <rect x="20" y="136" width="920" height="640" rx="12" class="s-band"/>
+  <text x="36" y="766" class="s-k">PMS PAGE · ONE PER SOR, EVERY SALE TYPE, FROM REGISTRATION (#266) · ALSO GATHERS ITS IPAS SUMMARIES (#249 #265) AND TRANSMITTALS (#257)</text>
+
+  <!-- Costing Matrix -->
+  <rect x="40" y="172" width="440" height="410" rx="9" class="s-box"/>
+  <text x="56" y="194" class="s-h">Costing Matrix</text>
+  <text x="56" y="210" class="s-x">#266–#274 · Closed Book #319 · Bid Decision #320</text>
+  <rect x="56" y="222" width="408" height="50" rx="6" class="s-in"/>
+  <text x="68" y="241" class="s-t">Tender Line 1, 2, …</text>
+  <text x="68" y="259" class="s-s">client's ask · unit · qty · ABC · Final Offer <tspan class="s-b">SALES</tspan></text>
+  <rect x="76" y="282" width="388" height="92" rx="6" class="s-in"/>
+  <text x="88" y="300" class="s-t">Component 1.1, 1.2, … <tspan class="s-s">(a bundle is priced whole)</tspan></text>
+  <text x="88" y="316" class="s-s">brand · status · source · P.O./RFQ No. <tspan class="s-b">SALES · PURCH</tspan></text>
+  <text x="88" y="332" class="s-s">Acquire <tspan class="s-b">PURCH</tspan> · Odoo cost <tspan class="s-b">SALES</tspan> · Final Acquire <tspan class="s-b">MGMT</tspan></text>
+  <text x="88" y="348" class="s-s">markup factor <tspan class="s-b">MGMT</tspan> · Compliance + note <tspan class="s-b">TECH</tspan></text>
+  <text x="88" y="365" class="s-v">Landed Cost · computed on read, never stored (#283)</text>
+  <rect x="96" y="382" width="368" height="30" rx="6" class="s-in"/>
+  <text x="108" y="401" class="s-s"><tspan class="s-t" style="font-size:11px">Inclusion</tspan> · unpriced · Completeness: Covered / Missing / …</text>
+  <rect x="56" y="420" width="408" height="30" rx="6" class="s-in"/>
+  <text x="68" y="439" class="s-s"><tspan class="s-t" style="font-size:11px">Cost-only row</tspan> · e.g. Delivery Charge · markup starts ×1.00</text>
+  <rect x="56" y="460" width="200" height="100" rx="6" class="s-in"/>
+  <text x="68" y="478" class="s-t">Summary <tspan class="s-b">CLOSED BOOK</tspan></text>
+  <text x="68" y="495" class="s-s">VAT 12% · Tax 6% · Retention 1%</text>
+  <text x="68" y="510" class="s-s">ITR = (offer − ₱250k) × 8%</text>
+  <text x="68" y="525" class="s-s">Revenue: offer − cost − ITR</text>
+  <text x="68" y="540" class="s-s">blank cost ≠ ₱0: "Incomplete"</text>
+  <rect x="266" y="460" width="198" height="46" rx="6" class="s-in"/>
+  <text x="278" y="478" class="s-t">Evaluation approved</text>
+  <text x="278" y="494" class="s-s">one sign-off · cleared by edits</text>
+  <rect x="266" y="514" width="198" height="46" rx="6" class="s-in"/>
+  <text x="278" y="532" class="s-t">Bid Decision <tspan class="s-b">MGMT</tspan></text>
+  <text x="278" y="548" class="s-s">Go · No-go · Revise vs ABC</text>
+
+  <!-- Packing List -->
+  <rect x="40" y="600" width="440" height="140" rx="9" class="s-box"/>
+  <text x="56" y="622" class="s-h">Packing List · PKL_</text>
+  <text x="56" y="638" class="s-x">#255 · #257 · #260</text>
+  <text x="56" y="660" class="s-s">exactly one SOR · boxes: number, marks, seal, gross weight</text>
+  <text x="56" y="676" class="s-s">contents typed or picked from the SOR's Product List</text>
+  <text x="56" y="692" class="s-s">"Packed by" signs it closed · moves no stock in Odoo</text>
+  <text x="56" y="708" class="s-s">Odoo delivery ref typed (TG En/OUT/…) · client deliveries stay in Odoo</text>
+
+  <!-- Purchase Request -->
+  <rect x="580" y="172" width="340" height="300" rx="9" class="s-box"/>
+  <text x="596" y="194" class="s-h">Purchase Request</text>
+  <text x="596" y="210" class="s-x">#209 · #303–#314 · #318</text>
+  <rect x="596" y="222" width="308" height="46" rx="6" class="s-in"/>
+  <text x="608" y="240" class="s-t">One per SOR · Buyer · members</text>
+  <text x="608" y="256" class="s-s">its own chat · listed in the Procurement Queue</text>
+  <rect x="612" y="278" width="292" height="80" rx="6" class="s-in"/>
+  <text x="624" y="296" class="s-t">Requested Item</text>
+  <text x="624" y="312" class="s-s">from an SOR line · a new product · a Component</text>
+  <text x="624" y="327" class="s-s">Find in Odoo → product id + free stock (#318)</text>
+  <text x="624" y="342" class="s-s">Ordered → PO number + PO line(s) (#312)</text>
+  <rect x="596" y="366" width="308" height="96" rx="6" class="s-in"/>
+  <text x="608" y="383" class="s-t" style="font-size:11.5px">Status path (#306) · the one state machine</text>
+  <text x="608" y="400" class="s-s">Requested → From stock ✓</text>
+  <text x="608" y="415" class="s-s">→ To order → Canvassing → Ordered → Received ✓</text>
+  <text x="608" y="430" class="s-s">→ Substituted · Cannot source · Cancelled ✓</text>
+  <text x="608" y="447" class="s-x">✓ closed · Deal Team may only cancel</text>
+
+  <!-- Canvass -->
+  <rect x="580" y="500" width="340" height="240" rx="9" class="s-box"/>
+  <text x="596" y="522" class="s-h">Canvass · CNV_0001</text>
+  <text x="596" y="538" class="s-x">#275–#282 · #317 · #321 · #323</text>
+  <rect x="596" y="550" width="308" height="46" rx="6" class="s-in"/>
+  <text x="608" y="568" class="s-t">One per Component (or bare item)</text>
+  <text x="608" y="584" class="s-s">Canvasser · reason for winner · 1001's sign-off</text>
+  <rect x="612" y="604" width="292" height="62" rx="6" class="s-in"/>
+  <text x="624" y="622" class="s-t">Offer × 3+ <tspan class="s-s">· warns below three</tspan></text>
+  <text x="624" y="638" class="s-s">supplier (Odoo-suggested) · currency · validity</text>
+  <text x="624" y="653" class="s-s">comparison rate ← Reference Rate, dated</text>
+  <rect x="612" y="674" width="292" height="56" rx="6" class="s-dash"/>
+  <text x="624" y="692" class="s-t">Offer Projection <tspan class="s-s">· computed</tspan></text>
+  <text x="624" y="708" class="s-s">Purchasing: Acquire in ₱ and the Markup Price</text>
+  <text x="624" y="722" class="s-s">Closed Book: plus margin and the summary delta</text>
+
+  <!-- arrows inside PMS -->
+  <path d="M612,300 H468" class="s-a" marker-end="url(#ah)"/>
+  <rect x="502" y="283" width="56" height="14" rx="7" class="s-pill"/><text x="530" y="293.5" text-anchor="middle" class="s-s">buys for</text>
+  <path d="M612,336 H468" class="s-av" marker-end="url(#ahv)"/>
+  <rect x="494" y="342" width="72" height="14" rx="7" class="s-pill"/><text x="530" y="352.5" text-anchor="middle" class="s-v">Landed Cost</text>
+  <path d="M596,573 H545 V366 H468" class="s-a" marker-end="url(#ah)"/>
+  <rect x="505" y="452" width="80" height="30" rx="7" class="s-pill"/>
+  <text x="545" y="465" text-anchor="middle" class="s-s" style="font-size:9.5px">winner fills</text>
+  <text x="545" y="477" text-anchor="middle" class="s-s" style="font-size:9.5px">Acquire, spec</text>
+  <path d="M884,550 V466" class="s-ad" marker-end="url(#ah)"/>
+  <text x="874" y="489" text-anchor="end" class="s-s">or hangs off a bare Requested Item · re-points later</text>
+
+  <!-- Per-PO container -->
+  <rect x="980" y="136" width="440" height="640" rx="12" class="s-band"/>
+  <text x="996" y="766" class="s-k">PER PURCHASE ORDER · SPANS SORS</text>
+
+  <!-- IPAS -->
+  <rect x="996" y="172" width="408" height="330" rx="9" class="s-box"/>
+  <text x="1012" y="194" class="s-h">IPAS · TGIPAS_049…</text>
+  <text x="1012" y="210" class="s-x">#241–#250 · Finance access · Odoo read-only</text>
+  <rect x="1012" y="222" width="376" height="24" rx="5" class="s-in"/><text x="1022" y="238" class="s-s">1 per Odoo PO (an RFQ is enough) · Purpose · 0..n SORs</text>
+  <rect x="1012" y="250" width="376" height="24" rx="5" class="s-in"/><text x="1022" y="266" class="s-s">Stored Odoo copy · overrides kept · frozen at Filing</text>
+  <rect x="1012" y="278" width="376" height="24" rx="5" class="s-in"/><text x="1022" y="294" class="s-s">§1 Payments: DP · Payment · FP · shipping fee · P.O.P</text>
+  <rect x="1012" y="306" width="376" height="24" rx="5" class="s-in"/><text x="1022" y="322" class="s-s">§3 Charges · documents (2 ticks) · bank, changed # flagged</text>
+  <rect x="1012" y="334" width="376" height="24" rx="5" class="s-in"/><text x="1022" y="350" class="s-s">§5 Logistics: the Transmittals carrying its lines</text>
+  <rect x="1012" y="362" width="376" height="24" rx="5" class="s-in"/><text x="1022" y="378" class="s-s">§6 Supplier Origin · buyer track ×7 · computation status</text>
+  <rect x="1012" y="390" width="376" height="24" rx="5" class="s-in"/><text x="1022" y="406" class="s-s">§7 Filing: the only lock, after Costs complete</text>
+  <rect x="1012" y="418" width="376" height="24" rx="5" class="s-in"/><text x="1022" y="434" class="s-v">Landed Cost per line · provisional → final</text>
+  <rect x="1012" y="450" width="376" height="42" rx="5" class="s-in"/>
+  <text x="1022" y="467" class="s-t" style="font-size:11px">Sign-offs §1 · §3 · §7 → Approval Center</text>
+  <text x="1022" y="482" class="s-s">signer lists kept by Super Admins · no self-approval</text>
+
+  <!-- Transmittal -->
+  <rect x="996" y="532" width="408" height="208" rx="9" class="s-box"/>
+  <text x="1012" y="554" class="s-h">Transmittal · TG03-526…</text>
+  <text x="1012" y="570" class="s-x">#251–#260 · rebuilt on the paper slip (#284)</text>
+  <rect x="1012" y="582" width="112" height="26" rx="5" class="s-in"/><text x="1068" y="599" text-anchor="middle" class="s-s">WH checking</text>
+  <path d="M1124,595 H1138" class="s-a" marker-end="url(#ah)"/>
+  <rect x="1140" y="582" width="112" height="26" rx="5" class="s-in"/><text x="1196" y="599" text-anchor="middle" class="s-s">WH releasing</text>
+  <path d="M1252,595 H1266" class="s-a" marker-end="url(#ah)"/>
+  <rect x="1268" y="582" width="120" height="26" rx="5" class="s-in"/><text x="1328" y="599" text-anchor="middle" class="s-s">Technical inspection</text>
+  <text x="1012" y="628" class="s-s">each line = an IPAS PO line (or typed) + its SOR</text>
+  <text x="1012" y="644" class="s-s">GC / NA per line per check · NA needs a remark, blocks nothing</text>
+  <text x="1012" y="660" class="s-s">Received in Odoo by → Check by ×2 (1001, 102) closes it</text>
+  <text x="1012" y="676" class="s-s">Draft → Submitted → its stages → Awaiting Check → Closed</text>
+  <text x="1012" y="692" class="s-s">staff lists: Warehouse · Technical · Logistics · Check by</text>
+  <text x="1012" y="708" class="s-s">no approver · no TSR record · a replacement rides a new slip</text>
+  <path d="M1384,532 V506" class="s-a" marker-end="url(#ah)"/>
+  <text x="1374" y="522" text-anchor="end" class="s-s">IPAS §5 reads it · stamps Delivered and Actual Checking</text>
+
+  <!-- RI -> IPAS, LC back, Odoo -> RI, Odoo -> IPAS -->
+  <path d="M904,292 H960 V262 H1010" class="s-a" marker-end="url(#ah)"/>
+  <rect x="918" y="225" width="84" height="28" rx="7" class="s-pill"/>
+  <text x="960" y="237" text-anchor="middle" class="s-s">Ordered: picks</text>
+  <text x="960" y="249" text-anchor="middle" class="s-s">the PO line</text>
+  <path d="M1012,430 H950 V322 H906" class="s-av" marker-end="url(#ahv)"/>
+  <rect x="908" y="368" width="84" height="28" rx="7" class="s-pill"/>
+  <text x="950" y="380" text-anchor="middle" class="s-v">Landed Cost</text>
+  <text x="950" y="392" text-anchor="middle" class="s-v">per picked line</text>
+  <path d="M930,796 V346 H906" class="s-a" marker-end="url(#ah)"/>
+  <g transform="rotate(-90 930 640)"><rect x="868" y="633" width="124" height="14" rx="7" class="s-pill"/><text x="930" y="643.5" text-anchor="middle" class="s-s">Find in Odoo · free stock</text></g>
+  <path d="M1412,796 V262 H1390" class="s-a" marker-end="url(#ah)"/>
+  <g transform="rotate(-90 1412 660)"><rect x="1352" y="653" width="120" height="14" rx="7" class="s-pill"/><text x="1412" y="663.5" text-anchor="middle" class="s-s">PO copy, refreshed</text></g>
+
+  <!-- Band D: Odoo -->
+  <rect x="20" y="796" width="1400" height="80" rx="10" class="s-band"/>
+  <text x="36" y="814" class="s-k">ODOO 17 · READ-ONLY THROUGH EDGE FUNCTIONS · NOTHING IS WRITTEN BACK</text>
+  <text x="1150" y="814" class="s-k">OTHER SOURCE</text>
+  <rect x="36" y="824" width="200" height="42" rx="6" class="s-in"/><text x="48" y="841" class="s-t" style="font-size:11px">Purchase orders</text><text x="48" y="856" class="s-s">lines · states · currency</text>
+  <rect x="244" y="824" width="210" height="42" rx="6" class="s-in"/><text x="256" y="841" class="s-t" style="font-size:11px">Products</text><text x="256" y="856" class="s-s">free stock per warehouse (#202)</text>
+  <rect x="462" y="824" width="200" height="42" rx="6" class="s-in"/><text x="474" y="841" class="s-t" style="font-size:11px">Suppliers</text><text x="474" y="856" class="s-s">suggested on Offers (#277)</text>
+  <rect x="670" y="824" width="232" height="42" rx="6" class="s-in"/><text x="682" y="841" class="s-t" style="font-size:11px">Receipts · bills</text><text x="682" y="856" class="s-s">Received in Odoo · Create Bill</text>
+  <rect x="950" y="824" width="186" height="42" rx="6" class="s-in"/><text x="962" y="841" class="s-t" style="font-size:11px">Analytic · Source Doc</text><text x="962" y="856" class="s-s">suggest the IPAS's SORs</text>
+  <rect x="1150" y="824" width="250" height="42" rx="6" class="s-dash"/><text x="1162" y="841" class="s-t" style="font-size:11px">Reference Rate (#317)</text><text x="1162" y="856" class="s-s">daily FX · pre-fills Offer rates</text>
+
+  <!-- Band E: views -->
+  <rect x="20" y="896" width="1400" height="96" rx="10" class="s-band"/>
+  <text x="36" y="914" class="s-k">VIEWS · DERIVED FROM THE RECORDS ABOVE · NOTHING STORED, NO "CURRENT PURCHASING STAGE" ANYWHERE</text>
+  <rect x="36" y="924" width="338" height="58" rx="7" class="s-in"/><text x="48" y="943" class="s-t">Procurement Queue <tspan class="s-x">#308 · #439</tspan></text><text x="48" y="959" class="s-s">Purchase Requests with an item still open</text><text x="48" y="973" class="s-s">list + request pane · Take an unassigned one</text>
+  <rect x="382" y="924" width="338" height="58" rx="7" class="s-in"/><text x="394" y="943" class="s-t">Order Monitoring <tspan class="s-x">#261–#265</tspan></text><text x="394" y="959" class="s-s">every IPAS: needs chasing · waiting on us ·</text><text x="394" y="973" class="s-s">waiting on someone else · filed · ageing rules</text>
+  <rect x="728" y="924" width="338" height="58" rx="7" class="s-in"/><text x="740" y="943" class="s-t">Purchasing Dashboard <tspan class="s-x">#322</tspan></text><text x="740" y="959" class="s-s">To source · To price · To order · On order · To check</text><text x="740" y="973" class="s-s">one SOR sits in every group that applies</text>
+  <rect x="1074" y="924" width="330" height="58" rx="7" class="s-in"/><text x="1086" y="943" class="s-t">Approval Center</text><text x="1086" y="959" class="s-s">IPAS §1 · §3 · §7 · Canvass sign-off</text><text x="1086" y="973" class="s-s">Bid Decision for the Final Acquire list</text>
+</svg>
+    </div>
+    <div class="legend">
+      <span><i class="sw"></i>links, fills or reads</span>
+      <span><i class="sw v"></i>Landed Cost flowing back, computed on read</span>
+      <span><i class="sw d"></i>alternative attachment</span>
+      <span><span class="tag">SALES</span> <span class="tag">PURCH</span> <span class="tag">MGMT</span> <span class="tag">TECH</span> write bands</span>
+    </div>
+    <figcaption>The one join that carries money back is the Odoo PO line: a Requested Item marked Ordered picks the line from its IPAS's stored Odoo copy, and that line's Landed Cost returns to the Component beside Acquire, Odoo cost and Final Acquire, replacing none of them. Reading is a separate rule from the write bands: Purchasing never receives the Final Offer, Sales never receives Acquire or the markup factor, and only Super Admins and the Final Acquire list receive both (Closed Book, #319).</figcaption>
+  </figure>
+</section>
+
+<!-- PROD FLOW -->
+<section id="prod">
+  <div class="sechead">
+    <div class="eyebrow">Part 2 · What prod runs today</div>
+    <h2>The Government Sales Flow, with purchasing's touchpoints</h2>
+    <p class="muted">Published v5.2 (1 Oct), read live. Filled dots are what prod asks of purchasing today; hollow dots are where the spec hooks in. The line joining them is coloured by verdict.</p>
+  </div>
+  <figure>
+    <div class="frame">
+<svg viewBox="0 0 1400 250" width="1400" role="img" aria-label="Government flow on prod: seventeen steps from Lead to Closed Won or Lost. Prod touches purchasing at Lead (off-flow inquiry tasks), SO Evaluation, PMS Sourcing GS, Qualified, For Bidding, NTP, CA / PO and Project Delivery. The spec hooks in at SO Evaluation, For Bidding, NOA or NTP, and an undecided stage for Purchasing settled. Conflicts sit at SO Evaluation and PMS Sourcing GS.">
+  <text x="16" y="64" class="s-k">FLOW</text>
+  <text x="16" y="146" class="s-k">PROD TODAY</text>
+  <text x="16" y="208" class="s-k">THE SPEC</text>
+  <line x1="110" y1="142" x2="1380" y2="142" class="s-guide"/>
+  <line x1="110" y1="204" x2="1380" y2="204" class="s-guide"/>
+  <line x1="120" y1="60" x2="1344" y2="60" class="s-rail"/>
+
+  <!-- connectors (verdict colour) -->
+  <line x1="120" y1="148" x2="120" y2="198" class="s-cv cv-c"/>
+  <line x1="196.5" y1="148" x2="196.5" y2="198" class="s-cv cv-c"/>
+  <line x1="273" y1="148" x2="273" y2="198" class="s-cv cv-c"/>
+  <line x1="426" y1="148" x2="426" y2="198" class="s-cv cv-g"/>
+  <line x1="502.5" y1="148" x2="502.5" y2="198" class="s-cv cv-a"/>
+  <line x1="808.5" y1="148" x2="808.5" y2="198" class="s-cv cv-c" stroke-dasharray="3 3"/>
+  <line x1="961.5" y1="148" x2="961.5" y2="198" class="s-cv cv-r"/>
+  <line x1="1038" y1="148" x2="1038" y2="198" class="s-cv cv-g"/>
+  <line x1="1114.5" y1="148" x2="1114.5" y2="198" class="s-cv cv-g"/>
+
+  <!-- nodes -->
+  <g>
+    <circle cx="120" cy="60" r="12" fill="#68ddfd" class="s-node"/><text x="120" y="63.5" text-anchor="middle" class="s-nt">27</text>
+    <circle cx="196.5" cy="60" r="12" fill="#a9a6b3" class="s-node"/><text x="196.5" y="63.5" text-anchor="middle" class="s-nt">4</text>
+    <circle cx="273" cy="60" r="10" fill="#00a2c7" class="s-node"/>
+    <circle cx="349.5" cy="60" r="10" fill="#3e63dd" class="s-node"/>
+    <circle cx="426" cy="60" r="10" fill="#0090ff" class="s-node"/>
+    <circle cx="502.5" cy="60" r="10" fill="#68ddfd" class="s-node"/>
+    <circle cx="579" cy="60" r="10" fill="#ab4aba" class="s-node"/>
+    <circle cx="655.5" cy="60" r="10" fill="#d6409f" class="s-node"/>
+    <circle cx="732" cy="60" r="10" fill="#e93d82" class="s-node"/>
+    <circle cx="808.5" cy="60" r="10" fill="#ffc53d" class="s-node"/>
+    <circle cx="885" cy="60" r="10" fill="#f76b15" class="s-node"/>
+    <circle cx="961.5" cy="60" r="10" fill="#ffe629" class="s-node"/>
+    <circle cx="1038" cy="60" r="10" fill="#978365" class="s-node"/>
+    <circle cx="1114.5" cy="60" r="10" fill="#12a594" class="s-node"/>
+    <circle cx="1191" cy="60" r="10" fill="#29a383" class="s-node"/>
+    <circle cx="1267.5" cy="60" r="10" fill="#ad7f58" class="s-node"/>
+    <path d="M1334,60 a10,10 0 0 1 20,0 z" fill="#30a46c"/><path d="M1334,60 a10,10 0 0 0 20,0 z" fill="#e54d2e"/>
+  </g>
+  <!-- labels, alternating -->
+  <g class="s-t" style="font-size:11px">
+    <text x="120" y="36" text-anchor="middle">Lead</text>
+    <text x="196.5" y="92" text-anchor="middle">SO Evaluation</text>
+    <text x="273" y="36" text-anchor="middle">PMS Sourcing GS</text>
+    <text x="349.5" y="92" text-anchor="middle">Proposal Submitted</text>
+    <text x="426" y="36" text-anchor="middle">Qualified</text>
+    <text x="502.5" y="92" text-anchor="middle">For Bidding</text>
+    <text x="579" y="36" text-anchor="middle">Bid Submitted</text>
+    <text x="655.5" y="92" text-anchor="middle">PQ</text>
+    <text x="732" y="36" text-anchor="middle">Negotiation</text>
+    <text x="808.5" y="92" text-anchor="middle">NOA</text>
+    <text x="885" y="36" text-anchor="middle">PB</text>
+    <text x="961.5" y="92" text-anchor="middle">NTP</text>
+    <text x="1038" y="36" text-anchor="middle">CA / PO</text>
+    <text x="1114.5" y="92" text-anchor="middle">Project Delivery</text>
+    <text x="1191" y="36" text-anchor="middle">Collection</text>
+    <text x="1267.5" y="92" text-anchor="middle">Retention</text>
+    <text x="1344" y="36" text-anchor="middle">Won · Lost</text>
+  </g>
+  <text x="120" y="112" text-anchor="middle" class="s-x">SORs here</text>
+
+  <!-- prod markers -->
+  <g class="s-s" style="font-size:9.5px">
+    <circle cx="120" cy="142" r="5" class="s-dot-p"/><text x="120" y="162" text-anchor="middle">18 inquiry</text><text x="120" y="174" text-anchor="middle">tasks, off-flow</text>
+    <circle cx="196.5" cy="142" r="5" class="s-dot-p"/><text x="196.5" y="162" text-anchor="middle">Eval. task</text><text x="196.5" y="174" text-anchor="middle">0 ticks in 5</text>
+    <circle cx="273" cy="142" r="5" class="s-dot-p"/><text x="273" y="162" text-anchor="middle">sheet link req.</text><text x="273" y="174" text-anchor="middle">no exit test</text>
+    <circle cx="426" cy="142" r="5" class="s-dot-p"/><text x="426" y="162" text-anchor="middle">"assign purch.</text><text x="426" y="174" text-anchor="middle">assistant"</text>
+    <circle cx="502.5" cy="142" r="5" class="s-dot-p"/><text x="502.5" y="162" text-anchor="middle">"Purchasing</text><text x="502.5" y="174" text-anchor="middle">Involved" text</text>
+    <circle cx="961.5" cy="142" r="5" class="s-dot-p"/><text x="961.5" y="162" text-anchor="middle">PMS task (7)</text><text x="961.5" y="174" text-anchor="middle">15-day deadline</text>
+    <circle cx="1038" cy="142" r="5" class="s-dot-p"/><text x="1038" y="162" text-anchor="middle">client's "PO"</text><text x="1038" y="174" text-anchor="middle">attachment</text>
+    <circle cx="1114.5" cy="142" r="5" class="s-dot-p"/><text x="1114.5" y="162" text-anchor="middle">DELIVERY task</text><text x="1114.5" y="174" text-anchor="middle">WH · Tech · Log</text>
+  </g>
+  <!-- spec markers -->
+  <g class="s-s" style="font-size:9.5px">
+    <circle cx="120" cy="204" r="5" class="s-dot-s"/><text x="120" y="224" text-anchor="middle">PR only after</text><text x="120" y="236" text-anchor="middle">award · Q3</text>
+    <circle cx="196.5" cy="204" r="5" class="s-dot-s"/><text x="196.5" y="224" text-anchor="middle">task stays,</text><text x="196.5" y="236" text-anchor="middle">window · Q2</text>
+    <circle cx="273" cy="204" r="5" class="s-dot-s"/><text x="273" y="224" text-anchor="middle">no such stage;</text><text x="273" y="236" text-anchor="middle">sheets stop · Q1</text>
+    <circle cx="426" cy="204" r="5" class="s-dot-s"/><text x="426" y="224" text-anchor="middle">Incharge or</text><text x="426" y="236" text-anchor="middle">Canvasser? Q4</text>
+    <circle cx="502.5" cy="204" r="5" class="s-dot-s"/><text x="502.5" y="224" text-anchor="middle">Costing</text><text x="502.5" y="236" text-anchor="middle">settled #272</text>
+    <circle cx="808.5" cy="204" r="5" class="s-dot-s"/><text x="808.5" y="224" text-anchor="middle">"PR opens</text><text x="808.5" y="236" text-anchor="middle">after award"</text>
+    <circle cx="961.5" cy="204" r="5" class="s-dot-s"/><text x="961.5" y="224" text-anchor="middle">task stays,</text><text x="961.5" y="236" text-anchor="middle">trimmed · #232</text>
+    <circle cx="1038" cy="204" r="5" class="s-dot-s"/><text x="1038" y="224" text-anchor="middle">PO = supplier</text><text x="1038" y="236" text-anchor="middle">PO · Q6</text>
+    <circle cx="1114.5" cy="204" r="5" class="s-dot-s"/><text x="1114.5" y="224" text-anchor="middle">Purchasing</text><text x="1114.5" y="236" text-anchor="middle">settled? · Q7</text>
+  </g>
+</svg>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="border-color:var(--red)"></i>conflict</span>
+      <span><i class="sw" style="border-color:var(--blue)"></i>gap</span>
+      <span><i class="sw" style="border-color:var(--amber)"></i>spec replaces it</span>
+      <span><i class="sw" style="border-color:var(--green)"></i>aligned</span>
+      <span>Node colours are the stage colours set on the Flow Canvas.</span>
+    </div>
+    <figcaption>Path as published: Lead → SO Evaluation → PMS Sourcing GS → Proposal Submitted → Qualified → For Bidding → Bid Submitted → PQ → Negotiation → NOA → PB → NTP → CA / PO → Project Delivery → Collection → Retention → Closed Won or Closed Lost. "PMS Sourcing GS" is a purchasing step Operations added to the Sales Flow itself; the spec has no stage for it.</figcaption>
+  </figure>
+</section>
+
+<!-- STAGE BY STAGE -->
+<section id="h2h">
+  <div class="sechead">
+    <div class="eyebrow">Part 3 · Head to head</div>
+    <h2>Stage by stage</h2>
+    <p class="muted">Every stage, in flow order. Stages with no purchasing work are collapsed.</p>
+  </div>
+  <div class="h2h" role="table" aria-label="Prod against spec, by stage">
+    <div class="h2h-head" role="row"><div role="columnheader">Stage</div><div role="columnheader">Prod today</div><div role="columnheader">Verdict</div><div role="columnheader">The spec</div></div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#68ddfd"></i>Lead</b><span class="c">27 SORs</span></div>
+      <div class="prod" role="cell"><p>No purchasing action on the stage. Sales asks purchasing about products off the flow instead: 18 hand-made group tasks titled like "S07711 PMS Product Inquiry" or "S06619 PMS (Survival Go Bag Kit)", Jul 7 – Aug 18, 17 still active, Raquel pending on all 18, none linked to its SOR.</p></div>
+      <div class="vd" role="cell"><span class="chip c">Conflict</span><a class="qref" href="#q3">Q3</a></div>
+      <div class="spec" role="cell"><p>#316: the Purchase Request is <i>the</i> channel for "do we carry this?". #227: the Purchase Request opens after award. Both can't hold for pre-award inquiries. The Open Purchase Request action is idempotent per SOR, so it can sit on two stages.</p></div>
+    </div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#a9a6b3"></i>SO Evaluation</b><span class="c">4 SORs · 5 runs</span></div>
+      <div class="prod" role="cell">
+        <ul>
+          <li>Stage Action creates "Evaluation of Specification": 7 members (101, Sales, Raquel, two sourcing reps, two Technical), 46 checklist items. Window: until this stage is left.</li>
+          <li>Five created on 1 Oct: 3 active, 1 cancelled, 1 on hold. <b>0 items ticked in any.</b></li>
+          <li>Required field "Brochure GDRIVE" (a Drive link).</li>
+        </ul>
+      </div>
+      <div class="vd" role="cell"><span class="chip c">Conflict</span><span class="chip r">Replaced</span><a class="qref" href="#q2">Q2</a></div>
+      <div class="spec" role="cell">
+        <ul>
+          <li>The task stays on SO Evaluation (#266, #271). It is what calls Technical in and grants their Compliance write.</li>
+          <li><b>But</b> Components, the things Technical judges, are sourced at the next stage. With a stage-left window, Technical loses the SOR before there is anything to judge.</li>
+          <li>The matrix row is the evaluation; the checklists and the brochure link become records (Offer brochures cited on the Component, #278).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#00a2c7"></i>PMS Sourcing GS</b><span class="c">0 SORs · never fired</span></div>
+      <div class="prod" role="cell">
+        <ul>
+          <li>A purchasing stage on the Sales Flow, between SO Evaluation and Proposal Submitted.</li>
+          <li>Group task "PMS Sourcing GS – {so} {company} {title}": Sales (Daniella), Raquel, Cjay, and Ayla's deleted employee row. No checklists.</li>
+          <li>Required field "GS 1 CRM GDrive": the link to the costing Google Sheet. No condition gates leaving.</li>
+        </ul>
+      </div>
+      <div class="vd" role="cell"><span class="chip c">Conflict</span><a class="qref" href="#q1">Q1</a></div>
+      <div class="spec" role="cell">
+        <ul>
+          <li>No sourcing stage anywhere. The Costing Matrix exists from registration; Canvasses run per Component in parallel; nothing "opens" costing (#227).</li>
+          <li>#210's destination: the Google Sheets stop being used. A required sheet link contradicts that on the day the matrix ships.</li>
+          <li>ADR 0023 rejects a purchasing <i>flow</i>, not a sales stage where one deal waits on pricing. The stage itself can stay.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row quiet" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#3e63dd"></i>Proposal Submitted</b></div>
+      <div class="prod" role="cell">ITB attachment, required.</div>
+      <div class="vd" role="cell">—</div>
+      <div class="spec" role="cell">No purchasing hook.</div>
+    </div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#0090ff"></i>Qualified</b></div>
+      <div class="prod" role="cell">
+        <ul>
+          <li>"TOR" group task, "Verification of Tech Specs / TOR": Sales and Admin compare bid-doc tech specs to the offered items.</li>
+          <li>Raquel's line: <b>"Assigning purchasing assistant."</b></li>
+        </ul>
+      </div>
+      <div class="vd" role="cell"><span class="chip g">Gap</span><a class="qref" href="#q4">Q4</a></div>
+      <div class="spec" role="cell">
+        <ul>
+          <li>Three purchasing ownership words: <b>Incharge</b> (matrix row, names only), <b>Canvasser</b> (per Canvass, defaults to the Buyer), <b>Buyer</b> (Purchase Request). None is "the assistant Raquel assigns".</li>
+          <li>Before award there is no Purchase Request, so the Canvasser default has no Buyer to copy.</li>
+          <li>Sales and Admin reading tech specs is fine: Compliance stays Technical's write.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#68ddfd"></i>For Bidding</b></div>
+      <div class="prod" role="cell">
+        <ul>
+          <li>"BIDCOM" group task; Finance (Jelai) checks the Price Schedule, Bid Form and NFCC.</li>
+          <li>Required PDF "PRICE SCHEDULE / PRICE OFFER".</li>
+          <li>Required text fields "Purchasing Involved" and "Logistics Representative".</li>
+        </ul>
+      </div>
+      <div class="vd" role="cell"><span class="chip a">Aligned</span><span class="chip r">Replaced</span></div>
+      <div class="spec" role="cell">
+        <ul>
+          <li>"Costing settled" goes here (#266): every Tender Line has a Final Offer, the summary is complete, the evaluation is approved, the total is within ABC, and the Bid Decision is Go (#320). Not built yet.</li>
+          <li>"Purchasing Involved" is the matrix's Purchasing Incharge; the typed field retires (<a class="qref" href="#q4">Q4</a>).</li>
+          <li>Finance checks the PDF, not the matrix. Closed Book gives Finance no summary, and doesn't need to.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row quiet" role="row">
+      <div class="st" role="cell"><b>Bid Submitted · PQ · Negotiation</b></div>
+      <div class="prod" role="cell">Bid result fields; PQ preparation task with 101 deciding; product-demo flag.</div>
+      <div class="vd" role="cell">—</div>
+      <div class="spec" role="cell">No purchasing hook.</div>
+    </div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#ffc53d"></i>NOA – Notice of Award</b></div>
+      <div class="prod" role="cell">NOA attachment and NOA Amount, both required. No purchasing action.</div>
+      <div class="vd" role="cell"><span class="chip c">Conflict</span><a class="qref" href="#q3">Q3</a></div>
+      <div class="spec" role="cell">"The Purchase Request opens after award" (#227). Which stage counts as award on Government (NOA or NTP) was never named.</div>
+    </div>
+
+    <div class="row quiet" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#f76b15"></i>PB – Performance Bond</b></div>
+      <div class="prod" role="cell">PB Team task; "Submit PB" tick.</div>
+      <div class="vd" role="cell">—</div>
+      <div class="spec" role="cell">No purchasing hook.</div>
+    </div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#ffe629"></i>NTP – Notice to Proceed</b></div>
+      <div class="prod" role="cell">
+        <ul>
+          <li>"PMS" group task from template "PMS (staging)": 101 as Final Approving Authority, Raquel (15 items), Cjay (Import 11 + Local 9), 201, Technical "Quality Checking &amp; TSR Reporting", Warehouse, Logistics. 54 checklist items.</li>
+          <li>Conditions: NTP attachment, and <b>Delivery Deadline: 15 days</b>.</li>
+        </ul>
+      </div>
+      <div class="vd" role="cell"><span class="chip a">Aligned</span><span class="chip r">Replaced</span><span class="chip g">Gap</span><a class="qref" href="#q5">Q5</a></div>
+      <div class="spec" role="cell">
+        <ul>
+          <li>#232: the task stays as who-does-what, with its grading. PMS never reads or ticks it; the business trims the items records now carry (27 of 54, below).</li>
+          <li>#284: no TSR record and no transmittal approver; Technical's check is the TG03's Technical inspection and Raquel signs as Check by.</li>
+          <li>Order Monitoring's ageing rules are per buyer-track step. Nothing reads the client's delivery deadline, which is where Liquidated Damages start.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#978365"></i>CA / PO</b></div>
+      <div class="prod" role="cell">"Notary" task. Attachments "PO" and "Contract": the <b>client's</b> purchase order to T3CK.</div>
+      <div class="vd" role="cell"><span class="chip g">Gap</span><a class="qref" href="#q6">Q6</a></div>
+      <div class="spec" role="cell">Every purchasing spec uses "PO" for T3CK's Odoo purchase order to a supplier (IPAS, Requested Item, Transmittal line). <code>CONTEXT.md</code> defines neither.</div>
+    </div>
+
+    <div class="row" role="row">
+      <div class="st" role="cell"><b><i class="dot" style="background:#12a594"></i>Project Delivery</b></div>
+      <div class="prod" role="cell">"DELIVERY" task (template) with Warehouse, Technical, Logistics, Finance, Sales, 101 and 201. Sales Invoice and Inspection &amp; Acceptance Report: in the draft only, not yet published.</div>
+      <div class="vd" role="cell"><span class="chip a">Aligned</span><span class="chip g">Gap</span><a class="qref" href="#q7">Q7</a></div>
+      <div class="spec" role="cell">Client deliveries stay in Odoo; the Packing List is PMS's one warehouse record (#239). "Purchasing settled" exists as a condition kind (#311) but no stage is named for it on Government.</div>
+    </div>
+
+    <div class="row quiet" role="row">
+      <div class="st" role="cell"><b>Collection · Retention · Closed</b></div>
+      <div class="prod" role="cell">Collection Team task; receipts; Retention yes/no.</div>
+      <div class="vd" role="cell">—</div>
+      <div class="spec" role="cell">No purchasing hook. Retention Money is a sales-side term.</div>
+    </div>
+  </div>
+
+  <div class="sechead" style="margin-top:14px">
+    <h3>What the NTP "PMS" task stops tracking once the records exist</h3>
+    <p class="muted" style="font-size:13.5px">Amber is the share of each member's checklist that a record now carries. The business does the trimming at switch-over (#232); this is the list to hand them.</p>
+  </div>
+  <div class="trim">
+    <div class="m"><b>Raquel · 9 of 15</b><div class="bar2"><i style="width:60%"></i></div><small>Canvass form, supplier/quotation approval → Canvass sign-off · IPAS form, PO → IPAS §1 · Transmittal, approve transmittals → TG03 Check by · two monitoring items → Order Monitoring</small></div>
+    <div class="m"><b>Cjay · 8 of 20</b><div class="bar2"><i style="width:40%"></i></div><small>Fill out IPAS ×2, Purchase Order ×2, Proceed to Payment ×2 → IPAS · Transmittal Form ×2 → TG03. RFQ, mode of payment, shipping, forwarder, logistics stay.</small></div>
+    <div class="m"><b>Technical · 6 of 7</b><div class="bar2"><i style="width:86%"></i></div><small>Transmittal number, TSR number, TSR report with serials, attachments, picture, video → the TG03's Technical inspection</small></div>
+    <div class="m"><b>Warehouse · 3 of 7</b><div class="bar2"><i style="width:43%"></i></div><small>"Put SALES ORDER" → each line's Project Name · check quality → GC / NA · packing list per box → Packing List</small></div>
+    <div class="m"><b>Logistics · 1 of 5</b><div class="bar2"><i style="width:20%"></i></div><small>"Receive packages per the Transmittal Form" → the TG03 itself</small></div>
+  </div>
+</section>
+
+<!-- CROSS CUTTING -->
+<section id="crosscut">
+  <div class="sechead">
+    <div class="eyebrow">Part 4 · Across the flow</div>
+    <h2>Access, data and naming</h2>
+  </div>
+  <div class="tablewrap">
+    <table class="cc">
+      <thead><tr><th>Topic</th><th>Prod today</th><th>The spec</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Purchasing access</td><td>One holder: Ayla's re-created employee row. Raquel (Purchasing Manager) and Cjay have none. No Finance access flag, Final Acquire list, evaluation list or TG03 staff lists exist.</td><td>Everything keys off them: queue, default members, notifications, the Purchasing write band, the cost side of the Closed Book, Canvass reads.</td><td><span class="chip g">Gap</span> <a class="qref" href="#q8">Q8</a></td></tr>
+        <tr><td>Always sees</td><td>Government: 101 plus the whole SALES department.</td><td>#319 resolves tiers as Closed Book, then Purchasing, then Deal Team, then participant. Always sees is in none of them, so all of Sales falls to "no money" or to the price side by accident.</td><td><span class="chip g">Gap</span> <a class="qref" href="#q9">Q9</a></td></tr>
+        <tr><td>Hand-made "PMS" tasks</td><td>18 group tasks (Jul 7 – Aug 18), 17 active, none with an SOR link, Raquel pending on all.</td><td>#210 left them in "switch-over" fog. #313 migrates only <code>sor_procurement_requests</code>, so these are untouched.</td><td><span class="chip g">Gap</span> <a class="qref" href="#q10">Q10</a></td></tr>
+        <tr><td>Legacy procurement requests</td><td>49 rows on 35 SORs, none on Government. 28 never answered, 9 in progress, 11 delivered, 1 purchased.</td><td>#313: one Purchase Request per SOR, statuses mapped, old tasks closed with a link.</td><td><span class="chip a">Aligned</span></td></tr>
+        <tr><td>Canvass, Offer, Inclusion, PO-link tables</td><td>All four empty.</td><td>#276 re-points the canvass tables and refuses to run if they hold rows; #323 (AI note) stays blocked until about ten real Canvasses exist.</td><td><span class="chip a">Aligned</span></td></tr>
+        <tr><td>Who decides the bid</td><td>101 decides PQ (confirm mode) and is "Final Approving Authority" on the PMS task.</td><td>Bid Decision by the Final Acquire list (#320), recorded against the Final Offer total and ABC.</td><td><span class="chip a">Aligned</span></td></tr>
+        <tr><td>Draft vs published</td><td>Draft carries 5 conditions not in v5.2 (Project Delivery ×2, Collection ×3). 5 SORs still on v5.1.</td><td>Not purchasing. Noted so nobody reads the draft as live.</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- BUILD -->
+<section id="build">
+  <div class="sechead">
+    <div class="eyebrow">Part 5 · Build order</div>
+    <h2>Where the build stands</h2>
+    <p class="muted">Order from #240, with #316's additions placed where that map lands them. The #209 block is being built first, ahead of IPAS v1, on <span class="mono">integrate/purchasing</span>; it lands on staging as one block.</p>
+  </div>
+  <div class="steps">
+    <div class="step"><span class="no">#209</span><div><h3>Purchase Requests <span class="chip a">in progress</span></h3><p class="muted" style="font-size:13.5px">One request per SOR, Requested Items and their status path, Buyer, chat, Procurement Queue, Purchasing settled, legacy migration.</p><div class="tix"><a class="tk done" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/303">#303 built</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/304">#304</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/305">#305</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/306">#306</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/307">#307</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/308">#308</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/309">#309</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/310">#310</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/311">#311</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/312">#312</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/313">#313</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/314">#314</a><a class="tk blk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/318">#318 blocked</a></div></div></div>
+    <div class="step"><span class="no">1</span><div><h3>IPAS v1</h3><p class="muted" style="font-size:13.5px">One record per Odoo PO; payments, charges, Landed Cost; sign-offs §1 §3 §7; Filing.</p><div class="tix"><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/241">#241</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/242">#242</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/243">#243</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/244">#244</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/245">#245</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/246">#246</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/247">#247</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/248">#248</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/249">#249</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/250">#250</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/317">#317 rate</a></div></div></div>
+    <div class="step"><span class="no">2</span><div><h3>Transmittals (TG03) and Packing Lists</h3><div class="tix"><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/251">#251</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/252">#252</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/253">#253</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/254">#254</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/255">#255</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/256">#256</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/257">#257</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/258">#258</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/259">#259</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/260">#260</a></div></div></div>
+    <div class="step"><span class="no">3</span><div><h3>Order Monitoring</h3><div class="tix"><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/261">#261</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/262">#262</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/263">#263</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/264">#264</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/265">#265</a></div></div></div>
+    <div class="step"><span class="no">5a</span><div><h3>Costing Matrix, Evaluation, Closed Book, Bid Decision</h3><div class="tix"><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/266">#266</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/267">#267</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/268">#268</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/269">#269</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/270">#270</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/271">#271</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/272">#272</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/273">#273</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/274">#274</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/319">#319</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/320">#320</a></div></div></div>
+    <div class="step"><span class="no">5b</span><div><h3>Canvass and Offers</h3><div class="tix"><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/275">#275</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/276">#276</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/277">#277</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/278">#278</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/279">#279</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/280">#280</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/281">#281</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/282">#282</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/321">#321</a><a class="tk blk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/323">#323 deferred</a></div></div></div>
+    <div class="step"><span class="no">6</span><div><h3>Landed cost flows back, then the Dashboard</h3><div class="tix"><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/283">#283</a><a class="tk" href="https://github.com/seansoriano13/t3ckgroup-erp/issues/322">#322 dashboard</a></div></div></div>
+  </div>
+</section>
+
+<!-- DECISIONS -->
+<section id="decisions">
+  <div class="sechead">
+    <div class="eyebrow">Part 6 · Round 1</div>
+    <h2>Open decisions, each with a recommendation</h2>
+    <p class="muted">These ten can be answered now; none depends on another. The exit test for PMS Sourcing GS waits on Q1 and comes in round 2.</p>
+  </div>
+  <div class="qs">
+    <div class="q" id="q1"><div class="qh"><span class="qn">Q1</span><h3>What PMS Sourcing GS becomes once the Costing Matrix ships</h3><span class="chip c">Conflict</span></div><p class="rec"><b>Keep the stage, retire its sheet link.</b> It is one deal waiting on pricing, which ADR 0023 allows. The required "GS 1 CRM GDrive" field goes when the matrix lands, so nobody keeps a second sheet.</p></div>
+    <div class="q" id="q2"><div class="qh"><span class="qn">Q2</span><h3>How long Technical keeps the SOR after SO Evaluation</h3><span class="chip c">Conflict</span></div><p class="rec"><b>Set the Evaluation task's window to "until For Bidding is left".</b> The engine already has that option, so this is a Flow Canvas edit, not code. Technical then sees the matrix while Components exist and until Costing settled is checked.</p></div>
+    <div class="q" id="q3"><div class="qh"><span class="qn">Q3</span><h3>When the Purchase Request opens on Government</h3><span class="chip c">Conflict</span></div><p class="rec"><b>Twice, idempotently: an Optional Action at Lead (Deal Owner decides) for inquiries, and automatic at NTP for buying.</b> Amend #227 from "after award" to "by award at the latest". The 18 hand-made inquiry tasks show the need starts at Lead.</p></div>
+    <div class="q" id="q4"><div class="qh"><span class="qn">Q4</span><h3>What Raquel's "assign a purchasing assistant" is</h3><span class="chip g">Gap</span></div><p class="rec"><b>The matrix's Purchasing Incharge.</b> A Canvass on a Component defaults its Canvasser to that row's Incharge, then to the Buyer. For Bidding's "Purchasing Involved" text field retires.</p></div>
+    <div class="q" id="q5"><div class="qh"><span class="qn">Q5</span><h3>Whether purchasing views show the client's delivery deadline</h3><span class="chip g">Gap</span></div><p class="rec"><b>Yes, read-only.</b> Show NTP's Delivery Deadline beside the SOR's orders in Order Monitoring and the Dashboard's On order group, and mark an order not yet received as the deadline nears. Blocks nothing. One small ticket under #261.</p></div>
+    <div class="q" id="q6"><div class="qh"><span class="qn">Q6</span><h3>What "PO" means</h3><span class="chip g">Gap</span></div><p class="rec"><b>"Purchase Order" is T3CK's Odoo order to a supplier; the client's is a "Client PO".</b> Purchasing screens say "Odoo PO". The CA / PO stage keeps its name; Operations owns it.</p></div>
+    <div class="q" id="q7"><div class="qh"><span class="qn">Q7</span><h3>Where Purchasing settled sits on Government</h3><span class="chip g">Gap</span></div><p class="rec"><b>On leaving Project Delivery.</b> Deliveries go out partly; the stage just can't close while an item is still open.</p></div>
+    <div class="q" id="q8"><div class="qh"><span class="qn">Q8</span><h3>Who gets purchasing access, and when</h3><span class="chip g">Gap</span></div><p class="rec"><b>Grant on the day the #209 block reaches prod, not before</b>, so nobody lands on the old queue. Purchasing: Raquel, Cjay, Ayla. Final Acquire list: 101. Evaluation list: Raquel. Finance: Jelai. Check by: 1001 and 102.</p></div>
+    <div class="q" id="q9"><div class="qh"><span class="qn">Q9</span><h3>Which Closed Book tier Always sees gets</h3><span class="chip g">Gap</span></div><p class="rec"><b>The price side, same as the Deal Team.</b> Always-sees salespeople already read quotation prices on the SOR; ABC, Markup Price and Final Offer leak nothing new.</p></div>
+    <div class="q" id="q10"><div class="qh"><span class="qn">Q10</span><h3>What happens to the 18 hand-made "PMS" tasks</h3><span class="chip g">Gap</span></div><p class="rec"><b>No migration.</b> At switch-over Raquel closes each with a note, and re-raises any still-live inquiry as a Requested Item on that SOR's Purchase Request. A status change, never a delete.</p></div>
+  </div>
+</section>
+
+<!-- BUGS -->
+<section id="bugs">
+  <div class="sechead">
+    <div class="eyebrow">Found while scanning</div>
+    <h2>Parked bugs</h2>
+    <p class="muted">Not decisions. Listed so they get fixed, not argued.</p>
+  </div>
+  <div class="bugs">
+    <div class="bug"><b>Stage Actions assign a deleted employee.</b><span class="muted">SO Evaluation's and PMS Sourcing GS's actions name Ayla Cervantes's old row, which is deleted. Her live row gets no tasks, and all five Evaluation tasks (plus 13 of the hand-made PMS tasks) carry the dead member. Fix: re-pick her in both actions on the Flow Canvas and publish.</span></div>
+    <div class="bug"><b>Prod templates still say "(staging)".</b><span class="muted">"PMS (staging)", "Evaluation of Specification (staging)" and others came across in the template transfer with their staging names. Cosmetic.</span></div>
+  </div>
+</section>
+</div>
+
+</body></html>

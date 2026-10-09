@@ -8,7 +8,7 @@
 --
 -- Two additions keep ADR 0021's locked view (a former participant) working
 -- without widening it: a visit row sor_visible_visit_ids already hands the
--- caller (their own past window — getMyVisits), and the caller's own
+-- caller (their own past window â€” getMyVisits), and the caller's own
 -- participant rows. Neither shows anyone else's history or roster.
 --
 -- sor_access_level is security definer, so its own read of

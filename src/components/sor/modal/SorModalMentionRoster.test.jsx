@@ -75,4 +75,46 @@ describe("SorModal — mention roster offers everyone", () => {
     await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument())
     expect(screen.getByRole("option", { name: new RegExp(someone.name) })).toBeInTheDocument()
   })
+
+  it("says when a Mention will open the Stage to someone without access (#476)", async () => {
+    const saleType = makeSaleType({ name: "Flow for mention hint" })
+    const stage = makeFlowStage({ name: "Costing" })
+    const deal = makeOpportunity({ status: "LEAD", sale_type_id: saleType.id })
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stage.id })
+    const outsider = makeEmployee({ name: "Raquel Buyer" })
+    const insider = makeEmployee({ name: "Dina Team" })
+
+    stubRpc("sor_visit_audience", () => [insider.id])
+    stubRpc("sor_visible_visit_ids", () => [visit.id])
+    stubRpc("sor_mention_window_candidates", (args) => args.p_employee_ids.filter((id) => id === outsider.id))
+
+    renderModal(deal)
+    await screen.findByRole("button", { name: /^Notes/ })
+    await waitForNetworkIdle()
+
+    await openChatAndType("@Raq")
+    fireEvent.click(await screen.findByRole("option", { name: /Raquel Buyer/ }))
+
+    expect(await screen.findByText("Raquel Buyer gets access to this Stage until it moves.")).toBeInTheDocument()
+  })
+
+  it("gives no hint for someone who already reaches the Stage (#476)", async () => {
+    const saleType = makeSaleType({ name: "Flow for no hint" })
+    const stage = makeFlowStage({ name: "Costing" })
+    const deal = makeOpportunity({ status: "LEAD", sale_type_id: saleType.id })
+    makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stage.id })
+    makeEmployee({ name: "Dina Team" })
+
+    stubRpc("sor_mention_window_candidates", () => [])
+
+    renderModal(deal)
+    await screen.findByRole("button", { name: /^Notes/ })
+    await waitForNetworkIdle()
+
+    await openChatAndType("@Din")
+    fireEvent.click(await screen.findByRole("option", { name: /Dina Team/ }))
+    await waitForNetworkIdle()
+
+    expect(screen.queryByText(/until it moves/)).not.toBeInTheDocument()
+  })
 })

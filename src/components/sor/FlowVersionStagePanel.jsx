@@ -14,6 +14,7 @@ import {
   actionTitle,
   conditionDetail,
 } from "@/components/flow-canvas/flowStageKinds"
+import { endsAsWon } from "@/constants/salesFlow"
 
 /**
  * One Stage of a Flow Snapshot, opened beside the version viewer, read-only.
@@ -68,7 +69,7 @@ export default function FlowVersionStagePanel({
     isWon && { icon: Flag, label: "Deals are won here", tone: "text-green-11 bg-green-a3" },
     stage.is_terminal && {
       icon: Octagon,
-      label: "Deals end here",
+      label: isWon ? "Deals end here" : endsAsWon(stage) ? "Deals end here, as won" : "Deals end here, as lost",
       tone: "text-amber-11 bg-amber-a3",
     },
   ].filter(Boolean)

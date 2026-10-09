@@ -1,11 +1,13 @@
 /**
  * The SOR modal layout: summary, two columns. The same picks as
  * "Summary · stacked", arranged to fit one screen: the numbers across the top, what to do and
- * where the money is on the left, time per stage, team and facts on the right.
+ * where the money is (and the Purchase Request, when there is one) on the left,
+ * time per stage, team and facts on the right.
  * The crumb also lists the sibling views, so any section is one click from
  * any other.
  */
 import NestedShell from "./NestedShell";
+import PurchaseRequestCard from "../PurchaseRequestCard";
 import { AttentionList, KeyFacts, LatestNote, SectionTitle, StatsBand, StatusLine, TeamAndQuote } from "./DigestSummary";
 import { MoneyBars, StageTimeChart } from "./SummaryCharts";
 import { useJourneyVisits } from "./StageStrip";
@@ -31,6 +33,8 @@ function Summary({ p, go, open, openNotes }) {
               <MoneyBars p={p} onOpen={() => open("items")} />
             </div>
           </section>
+          {/* #310: renders nothing for an SOR with no Purchase Request. */}
+          <PurchaseRequestCard opportunityId={p.id} />
         </div>
 
         <div className="space-y-6 lg:col-span-5">

@@ -156,6 +156,27 @@ describe("salesFlowService", () => {
       expect(stages.find((s) => s.id === lost.id).is_terminal).toBe(true)
     })
 
+    it("records whether a Terminal Stage ends deals as won, and drops it when the Stage stops being terminal", async () => {
+      const flow = makeSalesFlow()
+      const closed = await salesFlowService.addStage(flow.id, "Closed Won", admin.id)
+      await salesFlowService.setStageTerminal(closed.id, true, admin.id)
+
+      await salesFlowService.setStageTerminalOutcome(closed.id, "won", admin.id)
+      let { stages } = await salesFlowService.getFlow(flow.sale_type_id)
+      expect(stages.find((s) => s.id === closed.id).terminal_outcome).toBe("won")
+
+      await salesFlowService.setStageTerminal(closed.id, false, admin.id)
+      ;({ stages } = await salesFlowService.getFlow(flow.sale_type_id))
+      expect(stages.find((s) => s.id === closed.id).terminal_outcome ?? null).toBeNull()
+    })
+
+    it("refuses an outcome that isn't won or lost", async () => {
+      const flow = makeSalesFlow()
+      const closed = await salesFlowService.addStage(flow.id, "Closed", admin.id)
+      await salesFlowService.setStageTerminal(closed.id, true, admin.id)
+      await expect(salesFlowService.setStageTerminalOutcome(closed.id, "maybe", admin.id)).rejects.toThrow(/Unknown terminal outcome/)
+    })
+
     it("deletes a Stage and every edge that touched it", async () => {
       const flow = makeSalesFlow()
       const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)

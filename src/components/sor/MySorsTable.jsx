@@ -18,6 +18,7 @@ const VIA_LABEL = {
   action: "Task",
   assignment: "Assignment",
   purchase_request: "Purchase request",
+  mention: "Mention",
 };
 
 const formatSince = (iso) =>
@@ -30,7 +31,9 @@ const formatSince = (iso) =>
     : "—";
 
 const describeWindow = (w) =>
-  `${w.calledInAtStageName || "This deal"} · ${VIA_LABEL[w.source] || "—"} · sees ${w.reachLabel}${
+  `${w.calledInAtStageName || "This deal"} · ${VIA_LABEL[w.source] || "—"}${
+    w.mentionedBy ? ` by ${w.mentionedBy}` : ""
+  } · sees ${w.reachLabel}${
     w.closedAt ? " (closed)" : ""
   }`;
 
@@ -65,8 +68,11 @@ export default function MySorsTable({ rows, onOpen }) {
                 className="group cursor-pointer"
               >
                 <TableCell>
-                  <div className="font-mono text-[13px] font-semibold text-foreground">
-                    {row.salesReference || "—"}
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[13px] font-semibold text-foreground">
+                      {row.salesReference || row.sorCode || "—"}
+                    </span>
+                    {!row.isOpen && <StatusBadge theme="mauve" label="Access ended" />}
                   </div>
                   <div className="max-w-xs truncate text-muted-foreground">
                     {row.projectTitle || "Untitled"}
@@ -80,7 +86,10 @@ export default function MySorsTable({ rows, onOpen }) {
                   )}
                 </TableCell>
                 <TableCell>{first?.calledInAtStageName || "—"}</TableCell>
-                <TableCell>{VIA_LABEL[first?.source] || "—"}</TableCell>
+                <TableCell>
+                  {VIA_LABEL[first?.source] || "—"}
+                  {first?.mentionedBy ? <span className="text-muted-foreground"> by {first.mentionedBy}</span> : null}
+                </TableCell>
                 <TableCell>
                   <span className="inline-flex items-center gap-2">
                     {first ? `Sees ${first.reachLabel}` : "—"}

@@ -1686,6 +1686,9 @@ function FlowCanvasInner() {
             onEdgesDelete([{ id: move.id, source: selectedStage.id, target: move.to }])
           }
           onToggleTerminal={() => handleToggleTerminal(selectedStage)}
+          onSetTerminalOutcome={(outcome) =>
+            run(() => salesFlowService.setStageTerminalOutcome(selectedStage.id, outcome, user?.id))
+          }
           onSetEntry={() => setAsEntryStage(selectedStage.id)}
           onSetWon={() =>
             run(() =>

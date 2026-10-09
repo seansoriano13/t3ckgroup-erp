@@ -122,9 +122,9 @@ const flowSnapshotData = (opportunity, snapshotsById = {}) =>
  * booked" without asking where the deal currently sits. For a flow-built deal
  * the check below decides by current Stage, not by the Contract Date.
  *
- * A lost deal never counts. A flow deal is Realized while on the Won Stage or
- * a non-terminal Stage downstream of it, and stops being Realized if it moves
- * back before it. A legacy deal is Realized at or past the anchor Stage, and
+ * A lost deal never counts. A flow deal is Realized while on the Won Stage, a
+ * non-terminal Stage downstream of it, or a Terminal Stage that ends as won
+ * (Closed Won), and stops being Realized if it moves back before the Won Stage. A legacy deal is Realized at or past the anchor Stage, and
  * falls back to the Contract Date only when no anchor exists.
  */
 export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_STAGE_SEED) => {

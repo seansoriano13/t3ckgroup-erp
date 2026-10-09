@@ -142,17 +142,15 @@ export const NAV_MODULES = {
     key: "purchasing",
     label: "Purchasing",
     defaultExpanded: true,
-    // Issue #179 — a Purchase Request module for purchases outside a
-    // project (not tied to an SOR) was considered and deferred. This entry
-    // and the queue below are untouched; the note is here so the deferred
-    // plan is where the next person will look for it.
     links: [
       {
+        // Every employee opens and follows their own Purchase Requests (#179);
+        // Purchasing access is what lets someone take and buy them.
         key: "purchasing.queue",
-        label: "Purchasing Queue",
+        label: "Purchase Requests",
         link: "/purchasing",
         icon: ShoppingCart,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow,
+        isPermitted: () => true,
         exactMatch: true,
       },
     ],
@@ -332,6 +330,14 @@ export const QUICK_ACTIONS = [
         label: "Create Group Task",
         icon: UsersRound,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasTaskFlow,
+      },
+      {
+        // Every employee may open a Purchase Request (#179), as in the nav.
+        id: "purchase-request",
+        key: "quick.purchaseRequest",
+        label: "New Purchase Request",
+        icon: ShoppingCart,
+        isPermitted: () => true,
       },
     ],
   },

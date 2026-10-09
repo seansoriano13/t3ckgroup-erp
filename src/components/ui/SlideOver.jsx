@@ -92,7 +92,7 @@ export default function SlideOver({
                 </>
               )}
               {onOpenFull && (
-                <Button variant="ghost" size="icon-sm" onClick={() => onOpenFull(current)} aria-label={openFullLabel}>
+                <Button variant="ghost" size="icon-sm" onClick={() => onOpenFull(current)} aria-label={openFullLabel} title={openFullLabel}>
                   <Maximize2 size={14} />
                 </Button>
               )}

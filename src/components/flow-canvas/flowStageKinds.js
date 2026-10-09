@@ -16,6 +16,7 @@ import {
   User,
   ListChecks,
   ShoppingCart,
+  PackageCheck,
   Database,
   Type,
   Hash,
@@ -73,6 +74,11 @@ export const CONDITION_KIND_META = {
     icon: ShoppingCart,
     hint: "At least one procurement request must exist.",
   },
+  [CONDITION_KINDS.PURCHASING_SETTLED]: {
+    label: "Purchasing settled",
+    icon: PackageCheck,
+    hint: "Every Requested Item is closed. Met when there is no Purchase Request.",
+  },
 }
 
 export const ACTION_KIND_META = {
@@ -85,6 +91,13 @@ export const ACTION_KIND_META = {
     label: "Individual Task",
     icon: User,
     hint: "One assignee.",
+  },
+  open_purchase_request: {
+    label: "Open Purchase Request",
+    icon: ShoppingCart,
+    hint: "Starts buying for the SOR. One request per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
   },
 }
 
@@ -120,6 +133,8 @@ export function conditionDetail(condition) {
 export function actionTitle(action) {
   const config = action?.config ?? {}
   const named = config.title || config.projectTitle
+  const meta = ACTION_KIND_META[action?.kind]
+  if (!named && meta?.titled === false) return meta.label
   return (typeof named === "string" && named.trim()) || "Untitled action"
 }
 

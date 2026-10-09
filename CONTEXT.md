@@ -218,8 +218,10 @@ _Avoid_: Status, Step
 **Terminal Stage**:
 A Stage no SOR can leave — where a Sales Flow ends (Closed Won, Closed Lost).
 Not the Won Stage, which usually sits mid-flow with PO, delivery and collection
-still ahead of it. SORs on a Terminal Stage sink to the bottom of the register's
-default order.
+still ahead of it. Each Terminal Stage says how deals end there, **Won** (Closed
+Won) or **Lost** (Closed Lost, Cancelled), set on the Flow Canvas; one left
+unset ends as Lost. SORs on a Terminal Stage sink to the bottom of the
+register's default order.
 _Avoid_: Last Stage, Final Stage, Closed
 
 **Stage Visit**:
@@ -264,7 +266,7 @@ union of them. A window only ever reaches forward: someone called in at a Stage
 never sees the visits before it. An Assignment on the entry Stage makes someone a
 participant from the SOR's first day. Afterwards they get a locked view plus a
 read-only look at the visits they worked on. A Mention never makes someone a
-Stage Participant.
+Stage Participant; it opens a Mention Window instead.
 _Avoid_: Collaborator, Guest, Member, Lifeline (a window belongs to one call-in
 on one SOR, not to a person)
 
@@ -406,7 +408,7 @@ to reverting a Sales Flow to an earlier Flow Snapshot on the Flow Canvas.
 _Avoid_: Correction, Stage Correction, Rollback, Undo
 
 **Won** (or **Realized**):
-An SOR counts as booked money when its current Stage is its Sales Flow's designated Won Stage or any non-terminal post-won Stage downstream from it. For legacy SORs with no Sales Flow, it means occupying the Awarded stage or beyond. Labelled **Won** on screen.
+An SOR counts as booked money when its current Stage is its Sales Flow's designated Won Stage, any non-terminal post-won Stage downstream from it, or a Terminal Stage that ends as Won. For legacy SORs with no Sales Flow, it means occupying the Awarded stage or beyond. Labelled **Won** on screen.
 _Avoid_: Booked, Closed (when meaning the money pool)
 
 **Open Pipeline**:
@@ -502,15 +504,26 @@ _Avoid_: Backup, Export
 Terms for purchasing's work against SORs (issue #38 and its tickets #39–#50). The go/no-go Project Evaluation that issue also introduced is retired: the business keeps that judgment in its own linked sheet.
 
 **Purchasing**:
-The Module carrying purchasing's own work — Purchase Requests and the Procurement Queue that lists them. Granted per employee by an access flag, alongside Sales and Task access; deliberately not inferred from the freeform `department` field, which a typo would silently break.
+The Module carrying purchasing's own work — buying against Purchase Requests, and later the Purchasing Dashboard. Purchasing access is granted per employee by an access flag, alongside Sales and Task access; deliberately not inferred from the freeform `department` field, which a typo would silently break. Without it an employee still opens and follows their own Purchase Requests.
 _Avoid_: Procurement, PMS (when meaning the Module)
 
 **Purchase Request**:
-Where Sales and Purchasing coordinate buying for one SOR — one per SOR, opened by a Stage Action, holding Requested Items, its own members, and its own Chat, so each project's buying talk stays apart from every other's. Its purchasing members also see the SOR's Stage Visit it was opened in; any other member sees only the request and the SOR's locked header.
-_Avoid_: Procurement Request, Requisition, PR Batch
+Every request for Purchasing to buy something — whether it comes from a project or not. Holds Requested Items, its own members, and its own Chat, so each request's buying talk stays apart from every other's. A Buyer from Purchasing takes it and buys; nobody approves it first.
+_Avoid_: Procurement Request, Requisition, PR Batch, Non-SOR Purchase Request
+
+**Project** (a Purchase Request's kind):
+A Purchase Request for one SOR — at most one per SOR, opened by a Stage Action, showing the SOR's reference. Opened as early as Sales' first "do we carry this?" and at the latest by award; the same request then carries the buying after award, so a product question and the order it becomes stay on one record. Its purchasing members also see the SOR's Stage Visit it was opened in; any other member sees only the request and the SOR's locked header.
+
+**Direct** (a Purchase Request's kind):
+A Purchase Request with no SOR, opened by any employee to buy something outside a project — stock, supplies, tools. Has a title instead of an SOR reference and new-product Requested Items only; any number may exist. The kind is never chosen or stored: a request is Project when it has an SOR and Direct when it has none.
+_Avoid_: Internal, Standalone, Non-SOR
+
+**Requester**:
+Whoever opened a Purchase Request or added a Requested Item to it. Status changes and chat reach them. On a Direct request the one who opened it has the rights a Deal Team has on a Project request — add Requested Items, cancel them, chat — and nothing more; only Purchasing adds members. A Requester who also has Purchasing access may take and buy their own request.
+_Avoid_: Sales side (when the person is not on a Deal Team), Owner
 
 **Buyer**:
-The one purchaser who owns a Purchase Request — named by the Stage Action that opens it, or taken from the Procurement Queue by anyone with Purchasing access. Once there is a Buyer, the request's status changes and chat notify only the Buyer and the requester.
+The one purchaser who owns a Purchase Request — named by the Stage Action that opens a Project request, or taken from the Purchase Requests list by anyone with Purchasing access. Once there is a Buyer, the request's status changes and chat notify only the Buyer and the Requesters.
 _Avoid_: Assignee, Purchaser (when meaning this role)
 
 **Requested Item**:
@@ -521,9 +534,13 @@ buys for, and once Ordered it records the Odoo purchase order line as well as it
 number, which is how Landed Cost finds its way back. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
 _Avoid_: Line Item, Procurement Request
 
-**Procurement Queue**:
-The cross-SOR list of every Purchase Request with a Requested Item still open.
-_Avoid_: Sourcing List, Purchasing Dashboard (a different thing: the Queue lists open requests, the Dashboard groups all buying by what is outstanding)
+**Requested Item Status**:
+The stage of sourcing for a Requested Item, rendered as an interactive status pill consolidating the status indicator and action controls into one element, allowing permitted members to advance the item along its path or cancel it.
+_Avoid_: Status dropdown, Outcome selector, Status button
+
+**Purchase Requests** (the list):
+Every Purchase Request the viewer may read, Project and Direct together, filterable by kind — all of them for Purchasing, one's own for everyone else. Where a new Direct request is opened.
+_Avoid_: Procurement Queue, Sourcing List, Purchasing Dashboard (a different thing: the list shows requests, the Dashboard groups all buying by what is outstanding)
 
 **Purchasing Dashboard**:
 Where every project's buying is seen at once, grouped by what is outstanding
@@ -531,7 +548,7 @@ rather than by which record holds it — **To source**, **To price**, **To order
 **On order**, **To check**. The groups are derived and never stored, and one SOR
 sits in as many as apply, because purchasing is not a line: components are
 canvassed while others are already ordered and others are on a truck. Sits above
-the Procurement Queue and Order Monitoring rather than replacing either — they
+the Purchase Requests list and Order Monitoring rather than replacing either — they
 answer what to do today, this answers where everything is.
 _Avoid_: Purchasing Stages, Sourcing (the Inclusion field of that name), Pipeline
 
@@ -586,8 +603,10 @@ no row to project.
 _Avoid_: Draft Matrix, Scenario, What-if, Alternative Costing
 
 **Canvasser**:
-The purchaser who owns a Canvass — defaulting to the Purchase Request's Buyer,
-changeable by Purchasing, and the name printed as "Canvassed by". Ownership, not
+The purchaser who owns a Canvass — defaulting to the Purchasing Incharge of the
+Component's row, else the Purchase Request's Buyer (a bid is canvassed before
+any Purchase Request exists), changeable by Purchasing, and the name printed as
+"Canvassed by". Ownership, not
 access: every employee with Purchasing access reads every Canvass, and the
 Canvasser is who answers for this one. Research runs over days and people go on
 leave, so the paper names whoever holds it now rather than whoever opened it;
@@ -634,6 +653,18 @@ _Avoid_: Retention (unqualified — it is ambiguous between the money and the st
 A per-day deduction for late delivery, needing no proof of actual loss. At 10%
 of the total contract price the client may rescind the contract.
 _Avoid_: Penalty, Late Fee
+
+**Purchase Order**:
+T3CK's order to a supplier, raised in Odoo and numbered there (P02552). What an
+IPAS records, what a Requested Item is Ordered on, and what a Transmittal line
+names. On screen it is the "Odoo PO", never the client's paper.
+_Avoid_: PO (unqualified, where the Client PO could be meant), Order (unqualified)
+
+**Client PO**:
+The government client's own purchase order or contract to T3CK — the paper
+attached at the CA / PO Stage. Revenue coming in, where a Purchase Order is cost
+going out.
+_Avoid_: PO (unqualified), Purchase Order (which is always T3CK's, to a supplier)
 
 **IPAS (Integrated Purchasing and Shipping Form)**:
 The company's record of one Odoo purchase order end to end — supplier and
@@ -774,14 +805,19 @@ Purchasing proposes Acquire and never sees the Final Offer; Sales reads the peso
 Markup Price, types the Final Offer, and sees neither the cost nor the factor
 that produced it. Neither side can derive the margin alone, which is the whole
 point, and the database serves each side its own column list rather than the
-browser hiding what it was sent. Distinct from the write bands, which say who may
-*change* a column and grant no reading.
+browser hiding what it was sent. Whoever a Sales Flow names as Always sees reads
+what the Deal Team reads — the price side — since they already read the SOR's
+quoted prices. Distinct from the write bands, which say who may *change* a
+column and grant no reading.
 _Avoid_: Margin Tier, Confidential, Management View, Band (which is the write rule)
 
 **Incharge**:
 The salesperson and the purchaser who answer for a Costing Matrix row — set once
 for the matrix, and overridable row by row. Names only: being Incharge grants no
-access and sends no notifications.
+access and sends no notifications. The Purchasing Incharge is the purchasing
+assistant the Purchasing Manager assigns to a bid — the person a sheet or a
+Stage Field once recorded as "Purchasing Involved" — named when the bid enters
+sourcing, before any Canvass opens.
 _Avoid_: Assignee, Owner, Buyer (a Purchase Request's role)
 
 **Markup**:
@@ -824,7 +860,10 @@ recorded on the Costing Matrix against the Final Offer total and the ABC it was
 taken at, with the reason in the decider's own words. What the Costing Matrix
 exists to produce: the judgement of whether this price can win this project.
 Cleared by any later change to a Final Offer or a Final Acquire, so a Go always
-refers to numbers that still stand. Not the retired Project Evaluation, which
+refers to numbers that still stand. The decider may be the one who set the Final
+Acquire: it is the boss's own judgement on the boss's own numbers, not a sign-off
+on someone else's work, so the no-self-approval rule of the IPAS, Canvass and
+Evaluation does not apply. Not the retired Project Evaluation, which
 judged whether a deal was worth chasing before anything was costed; this judges
 one priced offer.
 _Avoid_: Approval, Go/No-go (as the record's name), Project Evaluation, Sign-off
@@ -876,6 +915,17 @@ employee later being renamed. Mentioning someone notifies them and suppresses
 the ordinary new-message notification they would otherwise receive, so a Mention
 replaces that notice rather than adding a second one.
 _Avoid_: Tag, @, Callout
+
+**Mention Window**:
+The access a Mention in an SOR's notes opens for someone who could not already
+reach the Stage: everything in the Stage Visit the SOR is on when they are
+mentioned — notes, tasks, Stage Fields, attachments — to read and reply to,
+without Expected Value or commission. It opens even on a Restricted Stage, and
+the person may mention others in. It closes when the SOR leaves that visit,
+leaving a locked view plus a read-only look at that visit. Each Mention on a
+later visit opens its own window. On an SOR with no Stage Visit it opens the
+record header only, with no end.
+_Avoid_: Mention grant, Shared access
 
 **Mention Target**:
 The one Message a mention notification takes the recipient to — the most recent

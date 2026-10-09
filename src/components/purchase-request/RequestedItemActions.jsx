@@ -1,0 +1,254 @@
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import toast from "react-hot-toast";
+import { ChevronDown, ListChecks, Replace } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Dropdown from "@/components/ui/Dropdown";
+import Spinner from "@/components/ui/Spinner";
+import StatusBadge from "../StatusBadge";
+import { NewProductDialog } from "./AddRequestedItems";
+import { OrderItemDialog, PickPoLinesDialog } from "./PoDialogs";
+import { purchaseRequestService } from "../../services/purchaseRequestService";
+import {
+  ITEM_STATUS,
+  ITEM_STATUS_LABELS,
+  ITEM_STATUS_THEME,
+  MEMBER_SIDE,
+  allowedTransitions,
+  isClosedStatus,
+} from "../../constants/purchaseRequest";
+import { purchaseRequestKeys } from "./queryKeys";
+import { useRefreshRequest } from "./requestHooks";
+import { OVER_REQUEST_MODAL } from "./stacking";
+
+/** The database's refusal, without the function name it leads with. */
+const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
+
+/** Ways out end the item for good, so they ask first. */
+const CONFIRM = {
+  [ITEM_STATUS.CANCELLED]: {
+    title: "Cancel this item?",
+    description: "Purchasing stops working on it. A cancelled item can't be reopened; request it again if it's needed.",
+    confirmLabel: "Cancel item",
+  },
+  [ITEM_STATUS.CANNOT_SOURCE]: {
+    title: "Mark as Cannot source?",
+    description: "Sales will know to re-price or drop it. This closes the item.",
+    confirmLabel: "Cannot source",
+  },
+  [ITEM_STATUS.SUBSTITUTED]: {
+    title: "Mark as Substituted?",
+    description: "This closes the item. To say what replaces it, offer a substitute instead.",
+    confirmLabel: "Mark Substituted",
+  },
+};
+
+const WAYS_OUT = [ITEM_STATUS.SUBSTITUTED, ITEM_STATUS.CANNOT_SOURCE, ITEM_STATUS.CANCELLED];
+
+const THEME_STYLES = {
+  green: "bg-card text-green-600 dark:text-green-400 border-green-400 hover:bg-green-3 hover:border-green-6",
+  amber: "bg-card text-amber-600 dark:text-amber-400 border-amber-400 hover:bg-amber-3 hover:border-amber-6",
+  blue: "bg-card text-blue-600 dark:text-blue-400 border-blue-400 hover:bg-blue-3 hover:border-blue-6",
+  red: "bg-card text-red-600 dark:text-red-400 border-red-400 hover:bg-red-3 hover:border-red-6",
+  violet: "bg-card text-violet-600 dark:text-violet-400 border-violet-400 hover:bg-violet-3 hover:border-violet-6",
+  orange: "bg-card text-orange-600 dark:text-orange-400 border-orange-400 hover:bg-orange-3 hover:border-orange-6",
+  mauve: "bg-card text-muted-foreground border-mauve-5 hover:bg-mauve-3 hover:border-mauve-7",
+};
+
+function MenuItem({ children, onClick, tone }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={onClick}
+      className={cn(
+        "h-auto w-full justify-start gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors cursor-pointer",
+        tone === "destructive"
+          ? "text-destructive hover:bg-destructive/15 hover:text-destructive active:bg-destructive/20"
+          : "text-foreground hover:bg-mauve-4 hover:text-foreground active:bg-mauve-5",
+      )}
+    >
+      {children}
+    </Button>
+  );
+}
+
+/**
+ * Issue #306 — what the signed-in member may do to one Requested Item, for
+ * RequestedItems' row action slot.
+ *
+ * `actor` is `purchaseRequestService.itemActor`'s answer (`{ side,
+ * canSubstitute }`). Purchasing gets a menu of the next steps on the path and
+ * the ways out (and, for the Buyer, "Offer a substitute"); the sales side gets
+ * only Cancel; anyone else gets a static StatusBadge.
+ *
+ * Ordered (#312) opens a dialog for the optional PO number. Once an item is
+ * Ordered on a PO, "Pick PO line…" appears only when that PO's IPAS copy has
+ * lines to pick (none do until IPAS exists).
+ */
+export default function RequestedItemActions({ item, request, actor }) {
+  const refresh = useRefreshRequest(request?.id);
+  const [confirming, setConfirming] = useState(null);
+  const [substituting, setSubstituting] = useState(false);
+  const [ordering, setOrdering] = useState(false);
+  const [pickingLines, setPickingLines] = useState(false);
+  const requestId = request?.id;
+  const side = actor?.side ?? null;
+  const onPo =
+    side === MEMBER_SIDE.PURCHASING &&
+    !!item.po_number &&
+    (item.status === ITEM_STATUS.ORDERED || item.status === ITEM_STATUS.RECEIVED);
+
+  const { data: poLineIds = [] } = useQuery({
+    queryKey: purchaseRequestKeys.poLines(requestId, item.id),
+    queryFn: () => purchaseRequestService.poLines(item.id),
+    enabled: onPo,
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: (status) => purchaseRequestService.setItemStatus(item.id, status),
+    onSuccess: (_, status) => toast.success(`${item.name}: ${ITEM_STATUS_LABELS[status]}.`),
+    onError: (error) => toast.error(refusal(error)),
+    onSettled: refresh,
+  });
+
+  const next = allowedTransitions(item.status, side);
+  const canSubstitute = !!actor?.canSubstitute && !isClosedStatus(item.status);
+  const canPickLines = onPo && poLineIds.length > 0;
+  const canInteract = next.length > 0 || canSubstitute || canPickLines;
+
+  if (!canInteract) {
+    return (
+      <StatusBadge
+        label={ITEM_STATUS_LABELS[item.status] || item.status}
+        theme={ITEM_STATUS_THEME[item.status]}
+      />
+    );
+  }
+
+  const choose = (status) => {
+    if (status === ITEM_STATUS.ORDERED) setOrdering(true);
+    else if (CONFIRM[status]) setConfirming(status);
+    else moveMutation.mutate(status);
+  };
+  const busy = moveMutation.isPending;
+
+  const confirm = confirming && CONFIRM[confirming];
+  const dialogs = (
+    <>
+      <ConfirmDialog
+        open={!!confirming}
+        onOpenChange={(open) => !open && setConfirming(null)}
+        title={confirm?.title}
+        description={confirm?.description}
+        confirmLabel={confirm?.confirmLabel}
+        cancelLabel="Keep it"
+        tone="destructive"
+        className={OVER_REQUEST_MODAL}
+        onConfirm={() => moveMutation.mutate(confirming)}
+      />
+      {canSubstitute && substituting && (
+        <NewProductDialog
+          open
+          onOpenChange={(open) => !open && setSubstituting(false)}
+          requestId={requestId}
+          substituteFor={item}
+        />
+      )}
+      {ordering && <OrderItemDialog open onOpenChange={setOrdering} item={item} requestId={requestId} />}
+      {canPickLines && pickingLines && (
+        <PickPoLinesDialog open onOpenChange={setPickingLines} item={item} requestId={requestId} lineIds={poLineIds} />
+      )}
+    </>
+  );
+
+  const theme = ITEM_STATUS_THEME[item.status] || "mauve";
+  const appliedTheme = THEME_STYLES[theme] || THEME_STYLES.mauve;
+  const onPath = next.filter((s) => !WAYS_OUT.includes(s));
+  const waysOut = next.filter((s) => WAYS_OUT.includes(s));
+
+  return (
+    <>
+      <Dropdown
+        usePortal
+        placement="bottom-end"
+        matchTriggerWidth={false}
+        disabled={busy}
+        popoverClassName="bg-muted border border-border rounded-xl shadow-lg z-[10001] min-w-[180px] p-1 popover-enter"
+        trigger={
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            aria-label={`Change status of ${item.name}`}
+            className={cn(
+              "inline-flex items-center justify-center h-5 px-2 py-0 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap gap-1 cursor-pointer transition-colors active:scale-95 shadow-none leading-none shrink-0",
+              appliedTheme,
+            )}
+          >
+            {busy && <Spinner size="sm" />}
+            <span>{ITEM_STATUS_LABELS[item.status] || item.status}</span>
+            <ChevronDown size={10} className="shrink-0 -mr-0.5 opacity-70" />
+          </Button>
+        }
+      >
+        {({ close }) => (
+          <div className="flex min-w-[180px] flex-col p-1">
+            {onPath.map((status) => (
+              <MenuItem
+                key={status}
+                onClick={() => {
+                  close();
+                  choose(status);
+                }}
+              >
+                {ITEM_STATUS_LABELS[status]}
+              </MenuItem>
+            ))}
+            {canPickLines && (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  setPickingLines(true);
+                }}
+              >
+                <ListChecks size={14} />
+                Pick PO line…
+              </MenuItem>
+            )}
+            {(onPath.length > 0 || canPickLines) && (waysOut.length > 0 || canSubstitute) && (
+              <div className="my-1 h-px bg-border" />
+            )}
+            {canSubstitute && (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  setSubstituting(true);
+                }}
+              >
+                <Replace size={14} />
+                Offer a substitute…
+              </MenuItem>
+            )}
+            {waysOut.map((status) => (
+              <MenuItem
+                key={status}
+                tone={status === ITEM_STATUS.CANCELLED ? "destructive" : undefined}
+                onClick={() => {
+                  close();
+                  choose(status);
+                }}
+              >
+                {status === ITEM_STATUS.CANCELLED ? "Cancel item" : ITEM_STATUS_LABELS[status]}
+              </MenuItem>
+            ))}
+          </div>
+        )}
+      </Dropdown>
+      {dialogs}
+    </>
+  );
+}

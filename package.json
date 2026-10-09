@@ -25,6 +25,7 @@
         "mirror:brochures": "node scripts/mirror-brochures.mjs",
         "db:snapshot:prod": "node scripts/db-snapshot.mjs prod",
         "db:snapshot:staging": "node scripts/db-snapshot.mjs staging",
+        "db:snapshot:local": "node scripts/db-snapshot.mjs staging --from-local",
         "db:check-drift:prod": "node scripts/db-snapshot.mjs prod --check",
         "db:check-drift:staging": "node scripts/db-snapshot.mjs staging --check",
         "db:ledger:check": "node scripts/db-ledger-check.mjs",

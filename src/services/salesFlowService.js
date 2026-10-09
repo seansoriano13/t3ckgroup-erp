@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { flowLockBlockers, buildDraftSnapshotData, diffFlowSnapshots } from "../constants/salesFlow";
+import { flowLockBlockers, buildDraftSnapshotData, diffFlowSnapshots, TERMINAL_OUTCOME } from "../constants/salesFlow";
 import { stageActionService } from "./stageActionService";
 import { stageConditionService } from "./stageConditionService";
 import { followUpService } from "./followUpService";
@@ -673,9 +673,13 @@ export const salesFlowService = {
     await requireSuperAdmin(actorId);
     await requireDraftStage(stageId);
 
+    // Only a Terminal Stage carries an outcome, so un-marking one drops it.
+    const patch = { is_terminal: Boolean(isTerminal), updated_at: new Date().toISOString() };
+    if (!isTerminal) patch.terminal_outcome = null;
+
     const { data, error } = await supabase
       .from("flow_stages")
-      .update({ is_terminal: Boolean(isTerminal), updated_at: new Date().toISOString() })
+      .update(patch)
       .eq("id", stageId)
       .select()
       .single();
@@ -686,6 +690,37 @@ export const salesFlowService = {
       stageId,
       `Stage "${data.name}" marked ${data.is_terminal ? "terminal" : "not terminal"}.`,
       { event: "FLOW_STAGE_TERMINAL_SET", isTerminal: data.is_terminal, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * How deals end on a Terminal Stage: TERMINAL_OUTCOME.WON (e.g. Closed Won,
+   * after the Won Stage) or TERMINAL_OUTCOME.LOST. Decides Realized vs lost.
+   */
+  async setStageTerminalOutcome(stageId, outcome, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraftStage(stageId);
+    if (!Object.values(TERMINAL_OUTCOME).includes(outcome)) {
+      throw new Error(`Unknown terminal outcome: ${outcome}`);
+    }
+
+    const { data, error } = await supabase
+      .from("flow_stages")
+      .update({ terminal_outcome: outcome, updated_at: new Date().toISOString() })
+      .eq("id", stageId)
+      .eq("is_terminal", true)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "FLOW_STAGE",
+      stageId,
+      `Deals on Stage "${data.name}" end as ${outcome}.`,
+      { event: "FLOW_STAGE_TERMINAL_OUTCOME_SET", outcome, employeeId: actorId },
       actorId,
     ).catch(console.error);
 

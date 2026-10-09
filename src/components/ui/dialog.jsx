@@ -43,9 +43,12 @@ function DialogContent({
   showCloseButton = true,
   ...props
 }) {
+  // A dialog stacked above another (e.g. `z-[80]`) lifts its own backdrop to the
+  // same layer, so it dims the dialog beneath it instead of sitting under it.
+  const layer = typeof className === "string" ? className.match(/(?:^|\s)(z-\[\d+\])/)?.[1] : undefined;
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={layer} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(

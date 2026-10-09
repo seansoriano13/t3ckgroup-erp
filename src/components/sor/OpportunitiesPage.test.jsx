@@ -76,12 +76,6 @@ vi.mock("../../services/leadSourceService", () => ({
   },
 }));
 
-vi.mock("../../services/purchasingService", () => ({
-  purchasingService: {
-    listForOpportunity: vi.fn(async () => []),
-  },
-}));
-
 vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({
     user: { id: "user-1", name: "Alice", isSuperAdmin: true },

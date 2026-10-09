@@ -29,10 +29,15 @@ describe("flowStageKinds", () => {
     expect(Object.keys(ACTION_KIND_META).sort()).toEqual([
       "create_group_task",
       "create_individual_task",
+      "open_purchase_request",
     ])
   })
 
   describe("actionTitle", () => {
+    it("names an Open Purchase Request, which carries no title", () => {
+      expect(actionTitle({ kind: "open_purchase_request", config: {} })).toBe("Open Purchase Request")
+    })
+
     it("reads a group task's own title", () => {
       expect(actionTitle({ kind: "create_group_task", config: { title: "Prepare bid docs" } }))
         .toBe("Prepare bid docs")

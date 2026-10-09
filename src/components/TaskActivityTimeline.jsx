@@ -160,6 +160,7 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
 
           <SwipeToReplyWrapper 
             isMe={isMe} 
+            copyText={entry.content}
             onReply={() => onReply?.(entry)}
             onReact={(emoji) => onReact?.(entry, emoji)}
           >

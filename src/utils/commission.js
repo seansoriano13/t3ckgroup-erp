@@ -239,7 +239,7 @@ export const isRealizedCommissionOpportunity = (opp, stages = PIPELINE_STAGE_SEE
  * Lost, for either kind of deal. A legacy deal is lost by its status code. A
  * flow-built deal's status never changes after registration (it moves via
  * flow_stage_id), so it is lost when it sits on a Terminal Stage of its own
- * Flow Snapshot that is not the Won Stage or a post-won Stage. A deal whose
+ * Flow Snapshot that is not the Won Stage and doesn't end as won. A deal whose
  * Stage cannot be resolved is not treated as lost.
  */
 const isLostOpportunity = (opp, stages) => {

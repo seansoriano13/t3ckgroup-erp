@@ -5,6 +5,7 @@ import AccessWindowConfig from "./AccessWindowConfig";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
 import { Switch } from "../ui/switch";
+import { purchaseRequestSummary } from "../../utils/purchaseRequestAction";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -50,6 +51,7 @@ const Checklist = ({ value }) => {
 const deciderLabel = (selector, nameOf) => {
   if (selector.type === "employee") return nameOf(selector.id);
   if (selector.type === "team") return `Everyone in ${selector.team}`;
+  if (selector.type === "department") return `Everyone in ${selector.department} department`;
   if (selector.type === "role") return String(selector.role || "").replace(/_/g, " ");
   if (selector.type === "group") return "an Employee Group";
   return "someone";
@@ -73,7 +75,9 @@ export default function StageActionDetail({
     .filter(Boolean)
     .map(nameOf);
   const subjectLabel =
-    assigneeNames.length === 0
+    action.kind === "open_purchase_request"
+      ? "Purchasing members"
+      : assigneeNames.length === 0
       ? null
       : assigneeNames.length <= 2
         ? assigneeNames.join(" and ")
@@ -98,7 +102,18 @@ export default function StageActionDetail({
         )}
       </Field>
 
-      {action.kind === "create_group_task" ? (
+      {action.kind === "open_purchase_request" ? (
+        <>
+          <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
+          <Field label="Who can request items">
+            {!Array.isArray(config.requesters)
+              ? "The Deal Team"
+              : config.requesters.length === 0
+                ? "Only the Buyer"
+                : config.requesters.map((s) => deciderLabel(s, nameOf)).join(", ")}
+          </Field>
+        </>
+      ) : action.kind === "create_group_task" ? (
         <>
           {config.description?.trim() && (
             <Field label="Objective">{config.description}</Field>
