@@ -108,12 +108,14 @@ describe("the sales side", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = await rowNamed("Full Body Harness")
-    expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
-    await user.click(within(row).getByRole("button", { name: "Cancel Full Body Harness" }))
+    await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    expect(screen.queryByRole("button", { name: "Received" })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Cancel item" }))
     const dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("button", { name: "Cancel item" }))
 
     await waitFor(() => expect(within(row).getByText("Cancelled")).toBeInTheDocument())
+    expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
     expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "cancelled", status_changed_by: salesperson.id })
   })
 })

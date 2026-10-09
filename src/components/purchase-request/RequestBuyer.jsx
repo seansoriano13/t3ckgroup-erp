@@ -65,9 +65,9 @@ export default function RequestBuyer({ request }) {
   const busy = take.isPending || setBuyer.isPending;
 
   return (
-    <section aria-label="Buyer" className="flex flex-wrap items-center justify-between gap-3">
+    <section aria-label="Buyer" className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Buyer</p>
+        <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Buyer</p>
         {unassigned ? (
           <p className="text-[13px] text-muted-foreground">No Buyer yet</p>
         ) : (
@@ -89,7 +89,8 @@ export default function RequestBuyer({ request }) {
               if (id !== (request.buyer_id || null)) setBuyer.mutate(id);
             }}
             disabled={busy}
-            className="h-8 w-48"
+            size="sm"
+            className="h-8 w-44"
           />
         )}
         {unassigned && hasPurchasingFlow && (

@@ -603,7 +603,8 @@ create table if not exists public."purchase_requests" (
   "updated_at" timestamp with time zone not null default now(),
   "access_until" text not null default 'stage_left'::text,
   "access_until_stage_id" uuid,
-  "title" text
+  "title" text,
+  "requesters" jsonb
 );
 
 create table if not exists public."push_subscriptions" (
@@ -3053,6 +3054,20 @@ AS $function$
   left join sales_opportunities o on o.id = r.opportunity_id;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_may_request(p_req purchase_requests, p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1
+    from sales_opportunities o, jsonb_array_elements(coalesce(p_req.requesters, '[]'::jsonb)) s
+    where o.id = p_req.opportunity_id
+      and public.sor_selector_covers(s, o, p_employee_id)
+  );
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_member_event(p_request_id uuid, p_actor uuid, p_employee_id uuid, p_event text)
  RETURNS void
  LANGUAGE sql
@@ -3360,6 +3375,8 @@ AS $function$
   select case
     when public._employee_has_purchasing_access(p_employee_id) then 'purchasing'
     when p_req.opportunity_id is null and p_req.created_by = p_employee_id then 'requester'
+    when public.purchase_request_member_side(p_req.opportunity_id, p_employee_id) = 'other'
+      and public._purchase_request_may_request(p_req, p_employee_id) then 'requester'
     else public.purchase_request_member_side(p_req.opportunity_id, p_employee_id)
   end;
 $function$
@@ -5468,13 +5485,14 @@ AS $function$
           select 1 from purchase_request_members m
           where m.request_id = r.id
             and m.employee_id = get_employee_id()
-            and (
-              m.side in ('sales', 'requester')
-              or exists (
-                select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
-                where o.id = r.opportunity_id and t.employee_id = m.employee_id
-              )
-            )
+            and case
+              when r.requesters is not null then public._purchase_request_may_request(r, m.employee_id)
+              else m.side in ('sales', 'requester')
+                or exists (
+                  select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
+                  where o.id = r.opportunity_id and t.employee_id = m.employee_id
+                )
+            end
         )
       )
   );
@@ -7269,6 +7287,7 @@ declare
   v_emp uuid;
   v_created boolean;
   v_buyer_set boolean := false;
+  v_requesters jsonb;
 begin
   if v_actor is null then
     raise exception 'sor_open_purchase_request: not signed in' using errcode = '42501';
@@ -7319,10 +7338,16 @@ begin
 
   select * into v_opp from public.sales_opportunities where id = v_run.opportunity_id;
 
+  -- Who may request items: the action's list, or null (the Deal Team, as
+  -- before) for an action saved before the setting existed.
+  if jsonb_typeof(v_config->'requesters') = 'array' then
+    v_requesters := v_config->'requesters';
+  end if;
+
   insert into public.purchase_requests
-    (opportunity_id, opened_by_action_id, opened_visit_id, buyer_id, created_by, access_until, access_until_stage_id)
+    (opportunity_id, opened_by_action_id, opened_visit_id, buyer_id, created_by, access_until, access_until_stage_id, requesters)
   values
-    (v_run.opportunity_id, v_run.action_id, v_run.stage_visit_id, v_buyer, v_actor, v_until, v_until_stage)
+    (v_run.opportunity_id, v_run.action_id, v_run.stage_visit_id, v_buyer, v_actor, v_until, v_until_stage, v_requesters)
   on conflict (opportunity_id) do nothing
   returning * into v_req;
   v_created := v_req.id is not null;
@@ -7333,11 +7358,14 @@ begin
     update public.purchase_requests set buyer_id = v_buyer
     where opportunity_id = v_run.opportunity_id and buyer_id is null and v_buyer is not null
     returning true into v_buyer_set;
+    -- A list arriving for a request that had none takes effect.
+    update public.purchase_requests set requesters = v_requesters
+    where opportunity_id = v_run.opportunity_id and requesters is null and v_requesters is not null;
     select * into v_req from public.purchase_requests where opportunity_id = v_run.opportunity_id;
   end if;
 
   -- Members: Purchasing access, the Deal Team minus the left-out roles, the
-  -- configured extras, and the Buyer.
+  -- configured extras, whoever may request items, and the Buyer.
   for v_emp in
     select e.id from public.employees e
     where public._employee_has_purchasing_access(e.id)
@@ -7352,6 +7380,13 @@ begin
         select 1 from jsonb_array_elements(
           case when jsonb_typeof(v_config->'extras') = 'array' then v_config->'extras' else '[]'::jsonb end
         ) s
+        where public.sor_selector_covers(s, v_opp, e.id)
+      )
+    union
+    select e.id from public.employees e
+    where not coalesce(e.is_deleted, false)
+      and exists (
+        select 1 from jsonb_array_elements(coalesce(v_req.requesters, '[]'::jsonb)) s
         where public.sor_selector_covers(s, v_opp, e.id)
       )
     union

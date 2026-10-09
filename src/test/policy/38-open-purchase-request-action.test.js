@@ -484,3 +484,56 @@ describe("the purchasing window", () => {
         }
     })
 })
+
+describe("who can request items", () => {
+    async function canAdd(key, requestId) {
+        const client = await clientFor(key)
+        const { data } = await client.rpc("purchase_request_can_add_items", { p_request_id: requestId })
+        const added = await client.rpc("purchase_request_add_new_item", { p_request_id: requestId, p_name: `${MARKER} Item`, p_quantity: 1 })
+        expect(Boolean(data), key).toBe(added.error === null)
+        return data
+    }
+
+    it("an action saved without the setting keeps the Deal Team rule", async () => {
+        const sorId = await freshSor({ first: { extras: [employee(ids.ordinary)] } })
+        await run(sorId, [firstActionId])
+        const [request] = await requestOf(sorId)
+        expect(request.requesters).toBeNull()
+        expect(await canAdd("support", request.id)).toBe(true)
+        expect(await canAdd("ordinary", request.id)).toBe(false)
+    })
+
+    it("the action's list decides; someone off the Deal Team joins on the requester side", async () => {
+        const requesters = [{ type: "role", role: "deal_owner" }, employee(ids.outsider)]
+        const sorId = await freshSor({ first: { requesters } })
+        await run(sorId, [firstActionId])
+        const [request] = await requestOf(sorId)
+        expect(request.requesters).toEqual(requesters)
+
+        const members = await membersOf(request.id)
+        expect(members[ids.outsider]).toBe("requester")
+        expect(await canAdd("outsider", request.id)).toBe(true)
+        expect(await canAdd("dealOwner", request.id)).toBe(true)
+        expect(await canAdd("support", request.id)).toBe(false)
+        expect(await canAdd("ordinary", request.id)).toBe(false)
+    })
+
+    it("the requester side may cancel but not buy", async () => {
+        const sorId = await freshSor({ first: { requesters: [employee(ids.outsider)] } })
+        await run(sorId, [firstActionId])
+        const [request] = await requestOf(sorId)
+        const client = await clientFor("outsider")
+        await client.rpc("purchase_request_add_new_item", { p_request_id: request.id, p_name: `${MARKER} Item`, p_quantity: 1 })
+        const { data: [item] } = await svc().from("purchase_request_items").select("id").eq("request_id", request.id)
+        expect((await client.rpc("pr_set_item_status", { p_item_id: item.id, p_status: "to_order" })).error).not.toBeNull()
+        expect((await client.rpc("pr_set_item_status", { p_item_id: item.id, p_status: "cancelled" })).error).toBeNull()
+    })
+
+    it("an empty list leaves it to the Buyer", async () => {
+        const sorId = await freshSor({ first: { requesters: [], buyer: employee(ids.stageParticipant) } })
+        await run(sorId, [firstActionId])
+        const [request] = await requestOf(sorId)
+        expect(await canAdd("dealOwner", request.id)).toBe(false)
+        expect(await canAdd("stageParticipant", request.id)).toBe(true)
+    })
+})

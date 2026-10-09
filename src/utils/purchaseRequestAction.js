@@ -5,6 +5,8 @@
  *   buyer         { type: BUYER_EMPLOYEE, id } | { type: BUYER_COSTING_INCHARGE } | null
  *   extras        people selectors (resolvePeople.js) added as default members
  *   leaveOutRoles Deal Team roles not made members
+ *   requesters    people selectors who may request items; absent keeps the
+ *                 old rule (the Deal Team)
  *   access        { until, stageId }, the purchasing members' window
  *
  * `sor_open_purchase_request` reads it from the Flow Snapshot and resolves
@@ -18,6 +20,11 @@ export const BUYER_COSTING_INCHARGE = "costing_incharge";
 
 /** Deal Team roles an action may leave out of the request. */
 export const LEAVE_OUT_ROLES = Object.keys(DEAL_TEAM_ROLES);
+
+/** Who may request items until someone changes it: the whole Deal Team. */
+export const DEFAULT_REQUESTERS = Object.freeze(
+  Object.keys(DEAL_TEAM_ROLES).map((role) => ({ type: SELECTOR_TYPES.ROLE, role })),
+);
 
 export function purchaseRequestSummary(config = {}, nameOf = (id) => id) {
   if (config.buyer?.type === BUYER_EMPLOYEE) return `Buyer: ${nameOf(config.buyer.id)}`;

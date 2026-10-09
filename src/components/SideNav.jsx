@@ -46,6 +46,7 @@ import RoleSwitcher from "./RoleSwitcher";
 import { Clock } from "lucide-react";
 import ApplyLeaveModal from "./offsets/ApplyLeaveModal";
 import OpportunityFormModal from "./sor/OpportunityFormModal";
+import NewPurchaseRequestDialog from "./purchase-request/NewPurchaseRequestDialog";
 import { opportunityService } from "../services/opportunityService";
 import {
   getFilteredNavigationGroups,
@@ -65,6 +66,7 @@ export default function SideNav() {
     else if (actionId === "group-task") setIsCreateGroupOpen(true);
     else if (actionId === "offset") setIsApplyOffsetOpen(true);
     else if (actionId === "sor") setIsOpportunityOpen(true);
+    else if (actionId === "purchase-request") setIsPurchaseRequestOpen(true);
   };
 
   // Mobile Toggle State
@@ -74,6 +76,7 @@ export default function SideNav() {
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [isApplyOffsetOpen, setIsApplyOffsetOpen] = useState(false);
   const [isOpportunityOpen, setIsOpportunityOpen] = useState(false);
+  const [isPurchaseRequestOpen, setIsPurchaseRequestOpen] = useState(false);
 
   const getInitialExpandedState = (userId) => {
     const defaults = {
@@ -594,6 +597,11 @@ export default function SideNav() {
         onClose={() => setIsOpportunityOpen(false)}
         onSubmit={(payload) => createOpportunityMutation.mutate(payload)}
         isPending={createOpportunityMutation.isPending}
+      />
+      <NewPurchaseRequestDialog
+        open={isPurchaseRequestOpen}
+        onOpenChange={setIsPurchaseRequestOpen}
+        onOpened={(id) => navigate(`/purchasing?request=${id}`)}
       />
     </>
   );
