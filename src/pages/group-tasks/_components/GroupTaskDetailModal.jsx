@@ -63,6 +63,7 @@ import SwipeToReplyWrapper from "@/components/ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "@/utils/chatReply";
 import MentionTextarea from "@/components/ui/MentionTextarea";
 import { supabase } from "@/lib/supabase";
+import { notificationService } from "@/services/notificationService";
 import { useFileAttachments } from "@/hooks/useFileAttachments";
 import SorLink from "@/components/sor/SorLink";
 import { AttachmentPreviews, AttachmentList } from "@/components/ui/Attachments";
@@ -399,6 +400,53 @@ export default function GroupTaskDetailModal({
       seenBy: userToLastSeenMsgId[m.id] || []
     }));
   }, [rawMessages, readReceipts, user, employees, avatarMap]);
+
+  const toggleReaction = async (message, emoji) => {
+    if (!message || !emoji || !task?.id) return;
+    const currentReactions = message.metadata?.reactions || {};
+    const usersWithEmoji = currentReactions[emoji] || [];
+    const hasReacted = usersWithEmoji.includes(user?.id);
+
+    const newReactions = { ...currentReactions };
+    let isAdding = false;
+    if (hasReacted) {
+      newReactions[emoji] = usersWithEmoji.filter((id) => id !== user?.id);
+      if (newReactions[emoji].length === 0) delete newReactions[emoji];
+    } else {
+      newReactions[emoji] = [...usersWithEmoji, user?.id];
+      isAdding = true;
+    }
+    const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
+    const queryKey = ["chatMessages", "GROUP_TASK", task.id];
+
+    queryClient.setQueryData(queryKey, (old = []) =>
+      old.map((m) => (m.id === message.id ? { ...m, metadata: newMetadata } : m)),
+    );
+
+    try {
+      const { error } = await supabase.rpc("toggle_chat_reaction", {
+        p_table: "committee_task_activity",
+        p_message_id: message.id,
+        p_user_id: user?.id,
+        p_emoji: emoji,
+      });
+      if (error) throw error;
+
+      if (isAdding && message.authorId && message.authorId !== user?.id) {
+        notificationService.createNotification({
+          recipient_id: message.authorId,
+          sender_id: user.id,
+          type: "TASK_REACTION",
+          title: "New Reaction",
+          message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
+          reference_id: task.id,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to toggle reaction:", err);
+      queryClient.invalidateQueries({ queryKey });
+    }
+  };
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -1369,7 +1417,12 @@ export default function GroupTaskDetailModal({
                             <span className="text-[7px] bg-primary/10 text-foreground px-1 rounded font-black uppercase">Admin</span>
                           )}
                         </div>
-                        <SwipeToReplyWrapper isMe={isMe} onReply={() => setReplyingTo(buildReplySnapshot(m))}>
+                        <SwipeToReplyWrapper
+                          isMe={isMe}
+                          copyText={m.content}
+                          onReply={() => setReplyingTo(buildReplySnapshot(m))}
+                          onReact={(emoji) => toggleReaction(m, emoji)}
+                        >
                           <div
                             className={cn(
                               "px-3 py-2 rounded-2xl text-xs shadow-sm whitespace-pre-wrap break-words min-w-0",
@@ -1388,6 +1441,27 @@ export default function GroupTaskDetailModal({
                             )}
                           </div>
                         </SwipeToReplyWrapper>
+                        {Object.keys(m.metadata?.reactions || {}).length > 0 && (
+                          <div className={cn("flex flex-wrap gap-1 mt-1", isMe ? "justify-end" : "justify-start")}>
+                            {Object.entries(m.metadata.reactions).map(([emoji, users]) => {
+                              const iReacted = users.includes(user?.id);
+                              return (
+                                <Button
+                                  key={emoji}
+                                  variant="outline"
+                                  onClick={() => toggleReaction(m, emoji)}
+                                  className={cn(
+                                    "h-auto flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-card hover:bg-muted transition-colors",
+                                    iReacted ? "border-foreground/40 text-foreground bg-muted" : "border-border text-muted-foreground",
+                                  )}
+                                >
+                                  <span>{emoji}</span>
+                                  <span>{users.length}</span>
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        )}
                         <div className={cn("flex items-center gap-1 mt-0.5", isMe ? "flex-row-reverse" : "flex-row")}>
                           <span className="text-[8px] text-muted-foreground/60 px-1 font-medium">
                             {timeAgo(m.createdAt)}
