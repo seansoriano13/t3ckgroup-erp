@@ -222,6 +222,11 @@ they only decide how the file's SQL gets written:
   before committing; a diff tool doesn't know your intent, only the before
   and after.
 
+A migration that changes the schema also updates
+`supabase/schema/staging.sql` in the same PR, since that is what the gate
+compares against: `supabase db reset`, then `pnpm db:snapshot:local`, and
+commit the diff with the migration.
+
 Either way, re-run the `db-snapshot.mjs --check` command above before
 pushing — it's the same check the PR gate runs, just faster to get feedback
 from locally.
