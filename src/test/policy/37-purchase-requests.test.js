@@ -66,7 +66,7 @@ beforeAll(async () => {
     })
 
     // A Buyer: stageParticipant owns it and is its only member. No SOR.
-    assigned = await insert("purchase_requests", { created_by: ids.stageParticipant, buyer_id: ids.stageParticipant })
+    assigned = await insert("purchase_requests", { created_by: ids.stageParticipant, buyer_id: ids.stageParticipant, title: `${MARKER} Direct` })
     await insert("purchase_request_members", { request_id: assigned, employee_id: ids.stageParticipant, side: "purchasing" })
 })
 
@@ -120,8 +120,8 @@ describe("the tables", () => {
         expect(await constraintInsert("purchase_requests", { opportunity_id: sorId, created_by: ids.dealOwner })).toBe("23505")
     })
 
-    it("allows any number of requests with no SOR", async () => {
-        expect(await constraintInsert("purchase_requests", { created_by: ids.dealOwner })).toBeNull()
+    it("allows any number of requests with no SOR (Direct, #179: each with a title)", async () => {
+        expect(await constraintInsert("purchase_requests", { created_by: ids.dealOwner, title: `${MARKER} Direct` })).toBeNull()
     })
 
     it("holds a person once per request", async () => {
@@ -181,7 +181,7 @@ describe("Purchasing access", () => {
     })
 
     it("loses an unassigned request once it gets a Buyer", async () => {
-        const id = await insert("purchase_requests", { created_by: ids.dealOwner })
+        const id = await insert("purchase_requests", { created_by: ids.dealOwner, title: `${MARKER} Direct` })
         try {
             const client = await clientFor("outsider")
             expect(await canRead(client, "purchase_requests", id)).toBe(true)
