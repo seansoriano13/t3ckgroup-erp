@@ -5014,7 +5014,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_queue(p_request_id uuid DEFAULT NULL::uuid)
- RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone)
+ RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone, sor_status text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -5033,7 +5033,8 @@ AS $function$
     r.updated_at,
     coalesce(i.item_count, 0)::integer,
     coalesce(i.open_count, 0)::integer,
-    greatest(r.updated_at, m.last_message_at)
+    greatest(r.updated_at, m.last_message_at),
+    o.status
   from public.purchase_requests r
   left join public.sales_opportunities o on o.id = r.opportunity_id
   left join public.flow_stages fs on fs.id = o.flow_stage_id
