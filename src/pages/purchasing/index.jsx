@@ -30,7 +30,7 @@ import { useRecordParam } from "../../hooks/useRecordParam";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import { getPermissionContext } from "../../utils/permissions";
 import { formatDate } from "../../utils/formatDate.js";
-import { sorClosedLabel } from "../../constants/purchaseRequest";
+import { requestStageLabel, sorClosedLabel } from "../../constants/purchaseRequest";
 
 /**
  * The Procurement Queue (issue #308, spec #209), a Queue page: every Purchase
@@ -55,7 +55,7 @@ const STATE_OPTIONS = [
 ];
 
 const matches = (row, term) =>
-  [row.sales_reference, row.project_title, row.stage_name, row.buyer_name].some((field) =>
+  [row.sales_reference, row.project_title, requestStageLabel(row), row.buyer_name].some((field) =>
     field?.toLowerCase().includes(term),
   );
 
@@ -113,7 +113,7 @@ function QueueRow({ row, selected, onOpen, canTake }) {
         <span className="mt-0.5 block max-w-[22rem] truncate text-sm text-foreground">{row.project_title || "—"}</span>
       </TableCell>
       <TableCell>
-        <span className="text-xs text-muted-foreground">{row.stage_name || "—"}</span>
+        <span className="text-xs text-muted-foreground">{requestStageLabel(row) || "—"}</span>
       </TableCell>
       <TableCell>
         <span className="text-xs font-medium tabular-nums text-foreground">{itemsSummary(row)}</span>
@@ -144,7 +144,7 @@ const sheetIdentity = (row) => ({
   ref: reference(row),
   title: row.project_title || "Purchase Request",
   badge: <RequestState row={row} />,
-  subtitle: [row.stage_name, itemsSummary(row)].filter(Boolean).join(" · "),
+  subtitle: [requestStageLabel(row), itemsSummary(row)].filter(Boolean).join(" · "),
 });
 
 function ProcurementQueue() {

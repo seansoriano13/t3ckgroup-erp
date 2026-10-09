@@ -16,7 +16,11 @@ export function usePurchaseRequest(requestId) {
   });
 }
 
-/** What refreshes after the Buyer changes: the queue and the request. */
+/**
+ * What refreshes after a change to the request (its Buyer, its items): the
+ * request and its queue row. The queue also listens on realtime, but a change
+ * made here shouldn't depend on that channel to show beside it.
+ */
 export function useRefreshRequest(requestId) {
   const queryClient = useQueryClient();
   return () => {

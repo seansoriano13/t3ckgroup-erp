@@ -10,6 +10,7 @@
  */
 
 import { PROCUREMENT_OUTCOME, normalizeOutcome } from "./procurement";
+import { STAGE_LABELS } from "./sor";
 import { STATUS_THEME } from "./statusTheme";
 
 export const ITEM_STATUS = {
@@ -86,6 +87,12 @@ export const SOR_CLOSED_LABELS = {
 
 /** The label for a closed SOR, or null while it's open. */
 export const sorClosedLabel = (reason) => SOR_CLOSED_LABELS[reason] ?? null;
+
+/**
+ * The SOR's Stage as a request row shows it (`pr_queue`): its Flow Stage, or,
+ * for an SOR registered before Sales Flows, its legacy status. Null when neither.
+ */
+export const requestStageLabel = (row) => row?.stage_name || STAGE_LABELS[row?.sor_status] || null;
 
 /** Which side of the request a member sits on. Decides what they may change. */
 export const MEMBER_SIDE = {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import {
   isValidPoNumber,
   normalizePoNumber,
 } from "../../constants/procurement";
-import { purchaseRequestKeys } from "./queryKeys";
+import { useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
@@ -35,7 +35,7 @@ const refusal = (error) => (error?.message || "Something went wrong.").replace(/
  * item can be Ordered without one.
  */
 export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
-  const queryClient = useQueryClient();
+  const refresh = useRefreshRequest(requestId);
   const [poNumber, setPoNumber] = useState("");
   const po = normalizePoNumber(poNumber);
   const invalid = !!po && !isValidPoNumber(po);
@@ -57,7 +57,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
       close();
     },
     onError: (error) => toast.error(refusal(error)),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) }),
+    onSettled: refresh,
   });
   const busy = orderMutation.isPending;
 
@@ -105,7 +105,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
  * only offers this when there are lines; the database refuses any other.
  */
 export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds }) {
-  const queryClient = useQueryClient();
+  const refresh = useRefreshRequest(requestId);
   const [picked, setPicked] = useState(() => new Set(item.odoo_po_line_ids || []));
 
   const toggle = (id, on) =>
@@ -123,7 +123,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
       onOpenChange(false);
     },
     onError: (error) => toast.error(refusal(error)),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) }),
+    onSettled: refresh,
   });
 
   const pickedIds = lineIds.filter((id) => picked.has(id));

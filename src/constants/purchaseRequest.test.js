@@ -9,6 +9,7 @@ import {
   isClosedStatus,
   isSettled,
   legacyOutcomeToStatus,
+  requestStageLabel,
 } from "./purchaseRequest";
 
 const S = ITEM_STATUS;
@@ -156,5 +157,21 @@ describe("legacyOutcomeToStatus", () => {
 
   it("refuses a value the legacy table never allowed", () => {
     expect(() => legacyOutcomeToStatus("SHIPPED")).toThrow(/SHIPPED/);
+  });
+});
+
+describe("requestStageLabel", () => {
+  it("reads the Flow Stage when the SOR has one", () => {
+    expect(requestStageLabel({ stage_name: "Bid Submitted", sor_status: "LEAD" })).toBe("Bid Submitted");
+  });
+
+  it("labels the legacy status of an SOR registered before Sales Flows", () => {
+    expect(requestStageLabel({ stage_name: null, sor_status: "PROPOSAL_SUBMITTED" })).toBe("Proposal Submitted");
+  });
+
+  it("is null with neither, or with a status it doesn't know", () => {
+    expect(requestStageLabel({ stage_name: null, sor_status: null })).toBeNull();
+    expect(requestStageLabel({ sor_status: "NOT_A_STATUS" })).toBeNull();
+    expect(requestStageLabel(null)).toBeNull();
   });
 });

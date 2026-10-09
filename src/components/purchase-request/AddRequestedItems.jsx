@@ -29,6 +29,7 @@ import { STOCK_BADGE_THEME, stockBadge } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { formatAmount, isLineRequested } from "../../utils/requestedItem";
 import { purchaseRequestKeys, sorStockKey } from "./queryKeys";
+import { useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
@@ -41,6 +42,7 @@ const refusal = (error) => (error?.message || "Something went wrong.").replace(/
  */
 function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, items }) {
   const queryClient = useQueryClient();
+  const refresh = useRefreshRequest(requestId);
   const [picked, setPicked] = useState(() => new Set());
 
   const linesQuery = useQuery({
@@ -84,8 +86,8 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
       setPicked(new Set());
       queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.pickableLines(requestId) });
     },
-    // The whole request: the items, and the chat each new item posts in.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) }),
+    // The whole request (the items, and the chat each new item posts in) and its queue row.
+    onSettled: refresh,
   });
 
   const pickedIds = lines.filter((l) => picked.has(l.id)).map((l) => l.id);
@@ -178,7 +180,7 @@ const blankProduct = (from = null) => ({
  * Substituted.
  */
 export function NewProductDialog({ open, onOpenChange, requestId, substituteFor = null }) {
-  const queryClient = useQueryClient();
+  const refresh = useRefreshRequest(requestId);
   const [product, setProduct] = useState(() => blankProduct(substituteFor));
   const attachments = useFileAttachments();
   const fileRef = useRef(null);
@@ -215,7 +217,7 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
     },
     onSuccess: () => {
       toast.success(substituteFor ? "Substitute offered." : "New product requested.");
-      queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) });
+      refresh();
       close();
     },
     onError: (error) => toast.error(refusal(error)),

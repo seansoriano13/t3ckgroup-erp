@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ChevronDown, ListChecks, Replace } from "lucide-react";
 
@@ -18,6 +18,7 @@ import {
   isClosedStatus,
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
+import { useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
@@ -73,7 +74,7 @@ function MenuItem({ children, onClick, tone }) {
  * lines to pick (none do until IPAS exists).
  */
 export default function RequestedItemActions({ item, request, actor }) {
-  const queryClient = useQueryClient();
+  const refresh = useRefreshRequest(request?.id);
   const [confirming, setConfirming] = useState(null);
   const [substituting, setSubstituting] = useState(false);
   const [ordering, setOrdering] = useState(false);
@@ -95,7 +96,7 @@ export default function RequestedItemActions({ item, request, actor }) {
     mutationFn: (status) => purchaseRequestService.setItemStatus(item.id, status),
     onSuccess: (_, status) => toast.success(`${item.name}: ${ITEM_STATUS_LABELS[status]}.`),
     onError: (error) => toast.error(refusal(error)),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) }),
+    onSettled: refresh,
   });
 
   const next = allowedTransitions(item.status, side);
