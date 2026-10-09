@@ -45,7 +45,7 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
   } else if (notif.type.startsWith("PURCHASE_REQUEST_")) {
     // Purchase Request notifications (#307): reference_id is the request.
     // Before the generic `includes("TASK")` branch, though no type here may
-    // contain "TASK" anyway. The Procurement Queue opens the request named
+    // contain "TASK" anyway. The Purchase Requests list opens the request named
     // by `?request=`.
     // #309: a modal over the current page, no navigation.
     window.dispatchEvent(

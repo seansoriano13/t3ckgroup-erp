@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { stubRpc } from "@/test/msw/server"
 import {
   QUEUE_BUYER,
+  QUEUE_KIND,
   QUEUE_STATE,
   filterQueue,
   isRequestClosed,
@@ -38,6 +39,36 @@ describe("filterQueue", () => {
     expect(ids(filterQueue(rows, { state: QUEUE_STATE.CLOSED }))).toEqual(["d", "e"])
     expect(ids(filterQueue(rows, { buyer: QUEUE_BUYER.MINE, state: QUEUE_STATE.OPEN }, ME))).toEqual(["c"])
     expect(ids(filterQueue(rows, {}))).toEqual(["a", "b", "c", "d", "e"])
+  })
+
+  it("narrows by kind: Project has an SOR, Direct has none (#179)", () => {
+    const mixed = [
+      { id: "p", opportunity_id: "o1", item_count: 1, open_count: 1 },
+      { id: "d", opportunity_id: null, title: "Toner", item_count: 1, open_count: 1 },
+    ]
+    expect(ids(filterQueue(mixed, { kind: QUEUE_KIND.PROJECT }))).toEqual(["p"])
+    expect(ids(filterQueue(mixed, { kind: QUEUE_KIND.DIRECT }))).toEqual(["d"])
+    expect(ids(filterQueue(mixed, { kind: QUEUE_KIND.ALL }))).toEqual(["p", "d"])
+  })
+})
+
+describe("opening a Direct request", () => {
+  it("sends the title and the items as the RPC wants them", async () => {
+    let sent
+    stubRpc("purchase_request_open", (args) => {
+      sent = args
+      return "r9"
+    })
+
+    const id = await purchaseRequestService.openDirect("Office", [
+      { name: "Toner", quantity: "2", unit: "pc", description: "" },
+    ])
+
+    expect(id).toBe("r9")
+    expect(sent).toEqual({
+      p_title: "Office",
+      p_items: [{ name: "Toner", quantity: 2, unit: "pc", description: null }],
+    })
   })
 })
 

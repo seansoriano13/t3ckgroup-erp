@@ -3,7 +3,7 @@ import { RecordModalContent } from "@/components/ui/record-modal";
 import PurchaseRequestView from "./PurchaseRequestView";
 import { usePurchaseRequest } from "./requestHooks";
 import { REQUEST_MODAL_LAYER } from "./stacking";
-import { requestStageLabel, sorClosedLabel } from "@/constants/purchaseRequest";
+import { REQUEST_KIND, requestIdentity, requestKind, requestStageLabel, sorClosedLabel } from "@/constants/purchaseRequest";
 
 /**
  * Issue #309 — a Purchase Request opened from anywhere but the queue (an SOR,
@@ -15,9 +15,10 @@ import { requestStageLabel, sorClosedLabel } from "@/constants/purchaseRequest";
  */
 export default function PurchaseRequestModal({ requestId, onClose }) {
   const { data: request } = usePurchaseRequest(requestId);
-  const title = request?.project_title || "Purchase Request";
+  const { title } = requestIdentity(request);
+  const direct = request && requestKind(request) === REQUEST_KIND.DIRECT;
   const sorState = sorClosedLabel(request?.sor_closed) ?? requestStageLabel(request);
-  const subtitle = [request?.sales_reference, sorState].filter(Boolean).join(" · ");
+  const subtitle = direct ? "Direct Purchase Request" : [request?.sales_reference, sorState].filter(Boolean).join(" · ");
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

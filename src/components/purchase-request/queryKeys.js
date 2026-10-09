@@ -12,7 +12,7 @@ export const purchaseRequestKeys = {
   members: (requestId) => ["purchase-request", requestId, "members"],
 };
 
-/** The Procurement Queue (#308): every request the signed-in employee may read. */
+/** The Purchase Requests list (#308, #179): every request the signed-in employee may read. */
 export const procurementQueueKey = ["procurement-queue"];
 
 /** The SOR's stock snapshot (#202), as the request's items read it. */

@@ -34,8 +34,8 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(standardUser);
-      // Two entries are deliberately visible to everyone, so a standard
-      // employee sees three groups rather than one:
+      // Three entries are deliberately visible to everyone, so a standard
+      // employee sees four groups rather than one:
       //
       // - Flow Canvas (issue #36) — its tables are writable by every signed-in
       //   employee (see the policy tier).
@@ -44,7 +44,9 @@ describe("navigation registry", () => {
       //   are exactly the ones who may hold no sales flow. Gating it on
       //   `hasSalesFlow` would hide the only screen that lists the deals they
       //   already have enforced access to. The page shows an empty state.
-      expect(groups).toHaveLength(3);
+      // - Purchase Requests (#179) — anyone asks Purchasing to buy something
+      //   and follows their own requests; the database limits what they read.
+      expect(groups).toHaveLength(4);
       expect(groups[0].key).toBe("workspace");
       expect(groups[0].label).toBe("Workspace");
       expect(groups[0].links.map((l) => l.label)).toEqual([
@@ -55,8 +57,10 @@ describe("navigation registry", () => {
       ]);
       expect(groups[1].key).toBe("sales");
       expect(groups[1].links.map((l) => l.label)).toEqual(["My SORs"]);
-      expect(groups[2].key).toBe("administration");
-      expect(groups[2].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
+      expect(groups[2].key).toBe("purchasing");
+      expect(groups[2].links.map((l) => l.label)).toEqual(["Purchase Requests"]);
+      expect(groups[3].key).toBe("administration");
+      expect(groups[3].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
     });
 
     it("includes My Tasks in Workspace when user has task flow", () => {
@@ -264,11 +268,14 @@ describe("navigation registry", () => {
       const purchasingGroup = groups.find((g) => g.key === "purchasing");
       expect(purchasingGroup).toBeDefined();
       expect(purchasingGroup.links.map((l) => l.label)).toEqual([
-        "Procurement Queue",
+        "Purchase Requests",
       ]);
     });
 
-    it("hides Purchasing from an employee in a purchasing department without the flag", () => {
+    // Purchase Requests is open to everyone (#179), so the Purchasing group
+    // shows without the flag. What the flag grants (Take, Buyer pills) is the
+    // page's and the database's business, and stays off the department field.
+    it("shows Purchase Requests to an employee in a purchasing department without the flag", () => {
       const buyerWithoutAccess = {
         id: "buyer-2",
         department: "OPERATIONS",
@@ -277,10 +284,10 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(buyerWithoutAccess);
-      expect(groups.map((g) => g.key)).not.toContain("purchasing");
+      expect(groups.find((g) => g.key === "purchasing")?.links.map((l) => l.label)).toEqual(["Purchase Requests"]);
     });
 
-    it("does not grant Purchasing to sales or task flow", () => {
+    it("shows Purchase Requests to sales and task flow too", () => {
       const salesUser = {
         id: "sales-2",
         has_sales_flow: true,
@@ -288,7 +295,7 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(salesUser);
-      expect(groups.map((g) => g.key)).not.toContain("purchasing");
+      expect(groups.map((g) => g.key)).toContain("purchasing");
     });
 
     // Issue #133/#134 — the hidden_nav_keys override.

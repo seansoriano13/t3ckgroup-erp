@@ -94,10 +94,32 @@ export const sorClosedLabel = (reason) => SOR_CLOSED_LABELS[reason] ?? null;
  */
 export const requestStageLabel = (row) => row?.stage_name || STAGE_LABELS[row?.sor_status] || null;
 
+/**
+ * A Purchase Request's kind (#179): Project when it has an SOR, Direct when it
+ * has none. Worked out, never stored.
+ */
+export const REQUEST_KIND = { PROJECT: "project", DIRECT: "direct" };
+
+export const REQUEST_KIND_LABELS = {
+  [REQUEST_KIND.PROJECT]: "Project",
+  [REQUEST_KIND.DIRECT]: "Direct",
+};
+
+export const requestKind = (row) => (row?.opportunity_id ? REQUEST_KIND.PROJECT : REQUEST_KIND.DIRECT);
+
+/** What names a request: its SOR's reference and project, or a Direct request's title. */
+export function requestIdentity(row) {
+  if (requestKind(row) === REQUEST_KIND.DIRECT) {
+    return { reference: REQUEST_KIND_LABELS[REQUEST_KIND.DIRECT], title: row?.title || "Purchase Request" };
+  }
+  return { reference: row?.sales_reference || "No SOR", title: row?.project_title || "Purchase Request" };
+}
+
 /** Which side of the request a member sits on. Decides what they may change. */
 export const MEMBER_SIDE = {
   PURCHASING: "purchasing",
   SALES: "sales",
+  REQUESTER: "requester",
   OTHER: "other",
 };
 
@@ -118,13 +140,14 @@ const WAYS_OUT = [ITEM_STATUS.SUBSTITUTED, ITEM_STATUS.CANNOT_SOURCE, ITEM_STATU
 /**
  * The statuses a member on `side` may move an item to from `status`.
  *
- * Purchasing walks the path and takes any way out; the sales side may only
- * cancel; anyone else changes nothing. A closed item goes nowhere.
+ * Purchasing walks the path and takes any way out; the sales side and a
+ * Direct request's Requester may only cancel; anyone else changes nothing. A
+ * closed item goes nowhere.
  */
 export function allowedTransitions(status, side) {
   if (!ITEM_STATUSES.includes(status) || isClosedStatus(status)) return [];
   if (side === MEMBER_SIDE.PURCHASING) return [...NEXT_ON_PATH[status], ...WAYS_OUT];
-  if (side === MEMBER_SIDE.SALES) return [ITEM_STATUS.CANCELLED];
+  if (side === MEMBER_SIDE.SALES || side === MEMBER_SIDE.REQUESTER) return [ITEM_STATUS.CANCELLED];
   return [];
 }
 

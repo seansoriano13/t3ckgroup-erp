@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CircleDot, Hand, PackageSearch } from "lucide-react";
+import { CircleDot, Hand, Layers, PackageSearch, Plus } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageShell from "../../components/ui/PageShell";
@@ -15,11 +15,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
 import PurchaseRequestView from "../../components/purchase-request/PurchaseRequestView";
+import NewPurchaseRequestDialog from "../../components/purchase-request/NewPurchaseRequestDialog";
 import RequestBuyer from "../../components/purchase-request/RequestBuyer";
 import { useTakeRequest } from "../../components/purchase-request/requestHooks";
 import { procurementQueueKey } from "../../components/purchase-request/queryKeys";
 import {
   QUEUE_BUYER,
+  QUEUE_KIND,
   QUEUE_STATE,
   filterQueue,
   isRequestClosed,
@@ -30,18 +32,27 @@ import { useRecordParam } from "../../hooks/useRecordParam";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import { getPermissionContext } from "../../utils/permissions";
 import { formatDate } from "../../utils/formatDate.js";
-import { requestStageLabel, sorClosedLabel } from "../../constants/purchaseRequest";
+import {
+  REQUEST_KIND,
+  REQUEST_KIND_LABELS,
+  requestIdentity,
+  requestKind,
+  requestStageLabel,
+  sorClosedLabel,
+} from "../../constants/purchaseRequest";
 
 /**
- * The Procurement Queue (issue #308, spec #209), a Queue page: every Purchase
- * Request the signed-in purchaser may read, as a table, with the picked one
+ * Purchase Requests (issue #308, spec #209; #179), a Queue page: every
+ * Purchase Request the signed-in employee may read — all of them for
+ * Purchasing, their own for everyone else — as a table, with the picked one
  * open in a slide-over beside it (`?request=`, where notifications link).
+ * Anyone opens a Direct request (no SOR) from here.
  *
- * Level-2 pills slice by Buyer (unassigned / mine / all); the filter bar
- * narrows by open or closed, and searches. An unassigned row offers Take
- * right in the table; the slide-over holds the whole request
- * (`PurchaseRequestView`: members, Requested Items, chat) with the Buyer
- * pinned in its footer.
+ * For Purchasing, level-2 pills slice by Buyer (unassigned / mine / all) and
+ * an unassigned row offers Take right in the table. The filter bar narrows by
+ * open or closed and by kind (Project / Direct), and searches. The slide-over
+ * holds the whole request (`PurchaseRequestView`: members, Requested Items,
+ * chat) with the Buyer pinned in its footer.
  */
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
@@ -54,12 +65,16 @@ const STATE_OPTIONS = [
   { value: QUEUE_STATE.ALL, label: "Open or closed" },
 ];
 
+const KIND_OPTIONS = [
+  { value: QUEUE_KIND.ALL, label: "Project or Direct" },
+  { value: REQUEST_KIND.PROJECT, label: REQUEST_KIND_LABELS[REQUEST_KIND.PROJECT] },
+  { value: REQUEST_KIND.DIRECT, label: REQUEST_KIND_LABELS[REQUEST_KIND.DIRECT] },
+];
+
 const matches = (row, term) =>
-  [row.sales_reference, row.project_title, requestStageLabel(row), row.buyer_name].some((field) =>
+  [row.sales_reference, row.project_title, row.title, requestStageLabel(row), row.buyer_name].some((field) =>
     field?.toLowerCase().includes(term),
   );
-
-const reference = (row) => row.sales_reference || "No SOR";
 
 function RequestState({ row }) {
   if (isRequestClosed(row)) return <StatusBadge theme="green" label="Closed" />;
@@ -94,6 +109,7 @@ function TakeButton({ requestId }) {
 }
 
 function QueueRow({ row, selected, onOpen, canTake }) {
+  const { reference, title } = requestIdentity(row);
   return (
     <TableRow
       tabIndex={0}
@@ -109,8 +125,12 @@ function QueueRow({ row, selected, onOpen, canTake }) {
       className="group cursor-pointer outline-none focus-visible:bg-muted aria-selected:bg-muted/60"
     >
       <TableCell>
-        <span className="block font-mono text-xs font-semibold text-foreground">{reference(row)}</span>
-        <span className="mt-0.5 block max-w-[22rem] truncate text-sm text-foreground">{row.project_title || "—"}</span>
+        {requestKind(row) === REQUEST_KIND.DIRECT ? (
+          <StatusBadge theme="blue" label={reference} />
+        ) : (
+          <span className="block font-mono text-xs font-semibold text-foreground">{reference}</span>
+        )}
+        <span className="mt-0.5 block max-w-[22rem] truncate text-sm text-foreground">{title}</span>
       </TableCell>
       <TableCell>
         <span className="text-xs text-muted-foreground">{requestStageLabel(row) || "—"}</span>
@@ -141,20 +161,25 @@ function QueueRow({ row, selected, onOpen, canTake }) {
 }
 
 const sheetIdentity = (row) => ({
-  ref: reference(row),
-  title: row.project_title || "Purchase Request",
+  ref: requestIdentity(row).reference,
+  title: requestIdentity(row).title,
   badge: <RequestState row={row} />,
   subtitle: [requestStageLabel(row), itemsSummary(row)].filter(Boolean).join(" · "),
 });
 
-function ProcurementQueue() {
+function PurchaseRequests() {
   const { user } = useAuth();
-  const { hasPurchasingFlow } = getPermissionContext(user);
+  const { isSuperAdmin, hasPurchasingFlow } = getPermissionContext(user);
+  const purchaser = isSuperAdmin || hasPurchasingFlow;
   const { recordId, open, step, close } = useRecordParam("request");
 
-  const [buyer, setBuyer] = useState(QUEUE_BUYER.ALL);
+  const [buyerPill, setBuyer] = useState(QUEUE_BUYER.ALL);
+  // Only Purchasing has Buyers to slice by; everyone else sees all of theirs.
+  const buyer = purchaser ? buyerPill : QUEUE_BUYER.ALL;
   const [state, setState] = useState(QUEUE_STATE.OPEN);
+  const [kind, setKind] = useState(QUEUE_KIND.ALL);
   const [search, setSearch] = useState("");
+  const [creating, setCreating] = useState(false);
 
   // Every item, member and Buyer change posts a message, so this one signal
   // keeps the list (and any request open beside it) current.
@@ -168,11 +193,11 @@ function ProcurementQueue() {
     queryFn: () => purchaseRequestService.listQueue(),
   });
 
-  // Search and open/closed narrow first; the pills count within that.
+  // Search, open/closed and kind narrow first; the pills count within that.
   const scoped = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return filterQueue(rows, { state }).filter((r) => !term || matches(r, term));
-  }, [rows, state, search]);
+    return filterQueue(rows, { state, kind }).filter((r) => !term || matches(r, term));
+  }, [rows, state, kind, search]);
   const visible = useMemo(() => filterQueue(scoped, { buyer }, user?.id), [scoped, buyer, user?.id]);
   const counts = {
     [QUEUE_BUYER.UNASSIGNED]: filterQueue(scoped, { buyer: QUEUE_BUYER.UNASSIGNED }).length,
@@ -187,39 +212,54 @@ function ProcurementQueue() {
   const index = visible.findIndex((r) => String(r.id) === recordId);
   const stepping = index >= 0;
 
-  const hasActiveFilters = search !== "" || state !== QUEUE_STATE.OPEN;
+  const hasActiveFilters = search !== "" || state !== QUEUE_STATE.OPEN || kind !== QUEUE_KIND.ALL;
 
   const toolbar = (
     <>
-      <TabGroup
-        variant="pill"
-        size="sm"
-        activeTab={buyer}
-        onChange={setBuyer}
-        tabs={[
-          { value: QUEUE_BUYER.UNASSIGNED, label: "Unassigned", badge: counts[QUEUE_BUYER.UNASSIGNED] },
-          { value: QUEUE_BUYER.MINE, label: "Mine", badge: counts[QUEUE_BUYER.MINE] },
-          { value: QUEUE_BUYER.ALL, label: "All", badge: counts[QUEUE_BUYER.ALL] },
-        ]}
-      />
+      {purchaser && (
+        <TabGroup
+          variant="pill"
+          size="sm"
+          activeTab={buyer}
+          onChange={setBuyer}
+          tabs={[
+            { value: QUEUE_BUYER.UNASSIGNED, label: "Unassigned", badge: counts[QUEUE_BUYER.UNASSIGNED] },
+            { value: QUEUE_BUYER.MINE, label: "Mine", badge: counts[QUEUE_BUYER.MINE] },
+            { value: QUEUE_BUYER.ALL, label: "All", badge: counts[QUEUE_BUYER.ALL] },
+          ]}
+        />
+      )}
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: "Search requests" }}
         chips={
-          <FilterSelect
-            icon={CircleDot}
-            label="Status"
-            options={STATE_OPTIONS}
-            value={state}
-            onChange={setState}
-            allValue={QUEUE_STATE.OPEN}
-            className={CHIP}
-            wrapperClassName={CHIP_WRAPPER}
-          />
+          <>
+            <FilterSelect
+              icon={CircleDot}
+              label="Status"
+              options={STATE_OPTIONS}
+              value={state}
+              onChange={setState}
+              allValue={QUEUE_STATE.OPEN}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+            <FilterSelect
+              icon={Layers}
+              label="Kind"
+              options={KIND_OPTIONS}
+              value={kind}
+              onChange={setKind}
+              allValue={QUEUE_KIND.ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+          </>
         }
         hasActiveFilters={hasActiveFilters}
         onClearAll={() => {
           setSearch("");
           setState(QUEUE_STATE.OPEN);
+          setKind(QUEUE_KIND.ALL);
         }}
       />
     </>
@@ -228,8 +268,18 @@ function ProcurementQueue() {
   return (
     <>
       <PageShell
-        title="Procurement Queue"
-        description="Every Purchase Request: take one, work its items, talk it through."
+        title="Purchase Requests"
+        description={
+          purchaser
+            ? "Every Purchase Request: take one, work its items, talk it through."
+            : "Ask Purchasing to buy something, and follow your requests here."
+        }
+        action={
+          <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
+            <Plus size={14} />
+            New Purchase Request
+          </Button>
+        }
         toolbar={toolbar}
       >
         {isLoading && (
@@ -240,7 +290,7 @@ function ProcurementQueue() {
 
         {isError && (
           <div className="rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center">
-            <p className="text-sm font-semibold text-red-11">The queue could not be loaded.</p>
+            <p className="text-sm font-semibold text-red-11">Purchase Requests could not be loaded.</p>
             <p className="mt-1 text-xs text-muted-foreground">{error?.message}</p>
           </div>
         )}
@@ -251,7 +301,7 @@ function ProcurementQueue() {
             title={rows.length === 0 ? "No Purchase Requests yet" : "No matching requests"}
             description={
               rows.length === 0
-                ? "A request appears here when an SOR opens one."
+                ? "Need something bought? Open a Purchase Request and Purchasing takes it from there."
                 : "Nothing in this slice. Try another tab or clear the filters."
             }
           />
@@ -263,7 +313,7 @@ function ProcurementQueue() {
               <Table className="min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["SOR", "Stage", "Items", "Buyer", "Last activity", "Status"].map((heading) => (
+                    {["Request", "Stage", "Items", "Buyer", "Last activity", "Status"].map((heading) => (
                       <TableHead key={heading} className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}>
                         {heading}
                       </TableHead>
@@ -277,7 +327,7 @@ function ProcurementQueue() {
                       row={row}
                       selected={String(row.id) === recordId}
                       onOpen={open}
-                      canTake={hasPurchasingFlow}
+                      canTake={purchaser}
                     />
                   ))}
                 </TableBody>
@@ -293,7 +343,7 @@ function ProcurementQueue() {
       <SlideOver
         record={openRow}
         icon={PackageSearch}
-        crumb="Procurement Queue"
+        crumb="Purchase Requests"
         identity={sheetIdentity}
         index={stepping ? index : 0}
         total={stepping ? visible.length : 1}
@@ -314,14 +364,18 @@ function ProcurementQueue() {
           </>
         )}
       </SlideOver>
+
+      <NewPurchaseRequestDialog open={creating} onOpenChange={setCreating} onOpened={open} />
     </>
   );
 }
 
-export default function ProcurementQueuePage() {
+// Every employee: a request is read by its members and Purchasing (the
+// database decides), and anyone may open one.
+export default function PurchaseRequestsPage() {
   return (
-    <ProtectedRoute requirePurchasing={true}>
-      <ProcurementQueue />
+    <ProtectedRoute>
+      <PurchaseRequests />
     </ProtectedRoute>
   );
 }

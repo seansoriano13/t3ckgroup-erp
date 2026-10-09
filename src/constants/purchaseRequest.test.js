@@ -10,6 +10,9 @@ import {
   isSettled,
   legacyOutcomeToStatus,
   requestStageLabel,
+  REQUEST_KIND,
+  requestIdentity,
+  requestKind,
 } from "./purchaseRequest";
 
 const S = ITEM_STATUS;
@@ -173,5 +176,28 @@ describe("requestStageLabel", () => {
     expect(requestStageLabel({ stage_name: null, sor_status: null })).toBeNull();
     expect(requestStageLabel({ sor_status: "NOT_A_STATUS" })).toBeNull();
     expect(requestStageLabel(null)).toBeNull();
+  });
+});
+
+describe("a request's kind (#179)", () => {
+  it("is Project with an SOR and Direct without one", () => {
+    expect(requestKind({ opportunity_id: "o1" })).toBe(REQUEST_KIND.PROJECT);
+    expect(requestKind({ opportunity_id: null })).toBe(REQUEST_KIND.DIRECT);
+  });
+
+  it("names a Project request by its SOR and a Direct one by its title", () => {
+    expect(requestIdentity({ opportunity_id: "o1", sales_reference: "S0001", project_title: "Fit-out" })).toEqual({
+      reference: "S0001",
+      title: "Fit-out",
+    });
+    expect(requestIdentity({ opportunity_id: null, title: "Printer toner" })).toEqual({
+      reference: "Direct",
+      title: "Printer toner",
+    });
+  });
+
+  it("lets the Requester only cancel, like the sales side", () => {
+    expect(allowedTransitions(S.REQUESTED, MEMBER_SIDE.REQUESTER)).toEqual([S.CANCELLED]);
+    expect(allowedTransitions(S.RECEIVED, MEMBER_SIDE.REQUESTER)).toEqual([]);
   });
 });

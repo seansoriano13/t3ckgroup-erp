@@ -9,7 +9,7 @@ const DEFAULT_PARAM = "record";
  * neighbour and closing replace it, so Back leaves the slide-over rather than
  * replaying every record visited. Other query params are left alone.
  * `param` names the query param where a page's links already use another
- * (the Procurement Queue's `?request=`, which notifications link to).
+ * (the Purchase Requests list's `?request=`, which notifications link to).
  *
  * The router commits URL changes as a low-priority transition, so a change
  * is also held locally until the URL catches up: without that, a query
