@@ -685,7 +685,14 @@ export default function TasksPage() {
           <EmptyState
             icon={ListChecks}
             title="No tasks found"
-            description="Try adjusting your filters or search term."
+            description={rawTasks.length > 0 ? "No tasks match these filters." : undefined}
+            action={
+              rawTasks.length > 0 ? (
+                <Button variant="outline" size="sm" className="mt-2" onClick={clearAllFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
           />
         )}
       </div>

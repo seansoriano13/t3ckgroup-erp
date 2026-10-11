@@ -181,7 +181,7 @@ function GroupTaskReview({ item, onVerify, onReturn, isSubmitting, onDecided, se
 }
 
 /** HR verification for group tasks: the Approval Center's table and slide-over, same as every other queue. */
-export default function GroupTaskApprovalSection({ searchTerm = "" }) {
+export default function GroupTaskApprovalSection({ searchTerm = "", onClearSearch }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
@@ -231,6 +231,8 @@ export default function GroupTaskApprovalSection({ searchTerm = "" }) {
         personLabel="Created by"
         onOpen={(item) => openRecord(item.id)}
         searchTerm={searchTerm}
+        filtered={groupTasks.some((t) => t.status === "HR_PENDING")}
+        onClearFilters={onClearSearch}
         keyboard={!open}
         renderRowAction={(item) => (
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openRecord(item.id)}>

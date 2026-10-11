@@ -34,6 +34,8 @@ export function ApprovalTable({
   keyboard = true,
   paginate = false,
   empty,
+  filtered = false,
+  onClearFilters,
 }) {
   const [cursorId, setCursorId] = useState(null);
   const [pageSize, setPageSize] = useState(25);
@@ -70,6 +72,20 @@ export function ApprovalTable({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [keyboard, rows, cursor, onOpen]);
+
+  if (items.length === 0 && filtered) {
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-20 text-center">
+        <p className="text-sm font-bold text-foreground">No results match these filters</p>
+        <p className="max-w-sm text-xs text-muted-foreground">Nothing here fits the current search or filters.</p>
+        {onClearFilters && (
+          <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
