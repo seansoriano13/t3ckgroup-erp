@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import GroupTaskTableView from "@/pages/group-tasks/_components/GroupTaskTableView";
 import { renderWithProviders, setupUser } from "@/test/support";
@@ -60,6 +60,26 @@ describe("GroupTaskTableView", () => {
 
     expect(onView).toHaveBeenCalledTimes(1);
     expect(onView).toHaveBeenCalledWith(taskItem);
+  });
+
+  it("opens a row on Enter and exposes sort headers as buttons with aria-sort on the th", async () => {
+    const user = setupUser();
+    const onView = vi.fn();
+    const taskItem = mockGroupTask({ id: "g1", title: "Keyboard Row" });
+
+    renderWithProviders(
+      <GroupTaskTableView tasks={[taskItem]} searchTerm="" onView={onView} />,
+    );
+
+    const row = screen.getByText("Keyboard Row").closest("tr");
+    row.focus();
+    await user.keyboard("{Enter}");
+    expect(onView).toHaveBeenCalledWith(taskItem);
+
+    const th = screen.getByRole("columnheader", { name: /Creator/ });
+    expect(th).toHaveAttribute("aria-sort", "none");
+    await user.click(within(th).getByRole("button"));
+    expect(th).toHaveAttribute("aria-sort", "ascending");
   });
 
   it("renders empty state when no group tasks exist", () => {

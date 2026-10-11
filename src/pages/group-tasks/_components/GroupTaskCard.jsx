@@ -43,8 +43,15 @@ export default function GroupTaskCard({
 
   return (
     <div
+      tabIndex={0}
       onClick={onView}
-      className="bg-card p-5 rounded-2xl border border-border shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-all duration-300 group flex flex-col h-full cursor-pointer relative"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target === e.currentTarget) {
+          e.preventDefault();
+          onView?.();
+        }
+      }}
+      className="outline-none focus-visible:ring-2 focus-visible:ring-ring/50 bg-card p-5 rounded-2xl border border-border shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-all duration-300 group flex flex-col h-full cursor-pointer relative"
     >
       <div className="flex justify-between items-start gap-4 mb-3 w-full">
         <h3 className="font-bold text-foreground line-clamp-2 break-words min-w-0 flex-1 leading-snug group-hover:text-primary transition-colors">

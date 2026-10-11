@@ -247,8 +247,15 @@ export default function TaskTableView({
                 return (
                   <TableRow
                     key={task.id}
+                    tabIndex={0}
                     onClick={() => onView && onView(task)}
-                    className={`hover:bg-muted/40 transition-colors cursor-pointer group ${isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.target === e.currentTarget) {
+                        e.preventDefault();
+                        onView && onView(task);
+                      }
+                    }}
+                    className={`hover:bg-muted/40 focus-visible:bg-muted outline-none transition-colors cursor-pointer group ${isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
                       }`}
                   >
                     {/* Task Title & Category */}

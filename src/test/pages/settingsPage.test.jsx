@@ -44,6 +44,14 @@ describe("SettingsPage", () => {
     vi.restoreAllMocks();
   });
 
+  it("exposes the theme toggle as a switch", async () => {
+    mockUser.current = makeSuperAdmin({ name: "Boss" });
+    renderAt("/settings?tab=general");
+
+    const sw = await screen.findByRole("switch", { name: "Theme mode", hidden: true });
+    expect(sw).toHaveAttribute("aria-checked");
+  });
+
   it("shows an employee only General, and bounces a forbidden tab without a history entry", async () => {
     mockUser.current = makeEmployee({ name: "Rank And File" });
     renderAt("/settings?tab=approvals");
