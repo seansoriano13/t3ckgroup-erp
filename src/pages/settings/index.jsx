@@ -1,10 +1,11 @@
 import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import FAQModal from "./_components/FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import TabGroup from "@/components/ui/TabGroup";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
@@ -41,14 +42,7 @@ function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPe
       {isLoading ? (
         <Spinner size="sm" />
       ) : (
-        <div
-          onClick={!isPending ? onToggle : undefined}
-          className={`w-11 h-6 rounded-full relative cursor-pointer transition-all duration-200 shrink-0 ${
-            checked ? "bg-primary shadow-sm" : "bg-mauve-5"
-          } ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
-        >
-          <div className={`absolute top-1 bg-mauve-1 w-4 h-4 rounded-full shadow transition-all duration-200 ${checked ? "right-1" : "left-1"}`} />
-        </div>
+        <Switch checked={!!checked} onCheckedChange={() => onToggle?.()} disabled={isPending} aria-label={label} />
       )}
     </div>
   );
@@ -56,7 +50,6 @@ function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPe
 
 function GeneralPanel() {
   const { logout, user } = useAuth();
-  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const [showChangelog, setShowChangelog] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -113,14 +106,7 @@ function GeneralPanel() {
                 <p className="text-xs text-muted-foreground mt-0.5">Toggle between light and dark themes.</p>
               </div>
             </div>
-            <div
-              onClick={toggleTheme}
-              className={`w-11 h-6 rounded-full relative cursor-pointer transition-all duration-200 shrink-0 ${
-                theme === "dark" ? "bg-primary shadow-sm" : "bg-mauve-5"
-              }`}
-            >
-              <div className={`absolute top-1 bg-mauve-1 w-4 h-4 rounded-full shadow transition-all duration-200 ${theme === "dark" ? "right-1" : "left-1"}`} />
-            </div>
+            <Switch checked={theme === "dark"} onCheckedChange={toggleTheme} aria-label="Theme mode" />
           </div>
 
           {/* Desktop push notifications — #166/#167 */}
@@ -136,13 +122,15 @@ function GeneralPanel() {
           )}
 
           {/* What's New row */}
-          <div
-            className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-auto w-full justify-between rounded-none p-5 text-left font-normal whitespace-normal hover:bg-muted/30 group"
             onClick={() => setShowChangelog(true)}
           >
             <div className="flex items-center gap-4">
               <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
-                <Sparkles size={18} />
+                <Sparkles size={18} className="size-[18px]" />
               </div>
               <div>
                 <p className="font-bold text-foreground text-sm">What's New</p>
@@ -155,7 +143,7 @@ function GeneralPanel() {
                 <ArrowRight size={16} />
               </span>
             </div>
-          </div>
+          </Button>
         </div>
       </div>
 
@@ -169,9 +157,9 @@ function GeneralPanel() {
               Content
             </h2>
           </div>
-          <div
-            className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
-            onClick={() => navigate("/settings/FAQEditor")}
+          <Link
+            to="/settings/FAQEditor"
+            className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group outline-none focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
           >
             <div className="flex items-center gap-4">
               <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
@@ -183,7 +171,7 @@ function GeneralPanel() {
               </div>
             </div>
             <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
-          </div>
+          </Link>
         </div>
       )}
 

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { generateId, ICON_MAP, ICON_NAMES, CATEGORY_COLORS } from "./faqData";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 // ─── Role definitions ─────────────────────────────────────────────────────────
 const ROLES = [
@@ -71,8 +72,16 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
 
   return (
     <div
+      tabIndex={0}
+      aria-current={isActive ? "true" : undefined}
       onClick={onClick}
-      className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all ${
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
         isActive
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -106,7 +115,7 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
       )}
 
       <div
-        className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
         onClick={(e) => e.stopPropagation()}
       >
         <Button
@@ -179,7 +188,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
             value={item.q}
             onChange={(e) => onUpdate({ ...item, q: e.target.value })}
             placeholder="Question..."
-            className="w-full text-sm font-semibold text-foreground bg-transparent outline-none placeholder:text-muted-foreground/50 leading-snug"
+            className="w-full text-sm font-semibold text-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/50 leading-snug"
           />
         </div>
 
@@ -255,7 +264,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                   value={item.a}
                   onChange={(e) => onUpdate({ ...item, a: e.target.value })}
                   placeholder="Default answer for all roles... (use new lines for bullet lists)"
-                  className="w-full text-sm text-muted-foreground bg-transparent outline-none placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
+                  className="w-full text-sm text-muted-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
                 />
               </>
             ) : (() => {
@@ -264,18 +273,12 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
               return (
                 <>
                   {/* Share toggle */}
-                  <FieldBox label={<><div
-                      onClick={() => toggleShared(activeTab)}
-                      className={`w-8 h-4 rounded-full relative transition-colors shrink-0 ${
-                        shared ? "bg-muted-foreground/30" : "bg-primary"
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${
-                          shared ? "left-0.5" : "left-4"
-                        }`}
-                      />
-                    </div>
+                  <FieldBox label={<><Switch
+                      size="sm"
+                      checked={!shared}
+                      onCheckedChange={() => toggleShared(activeTab)}
+                      aria-label={"Custom answer for " + role.label}
+                    />
                     <span className="text-xs font-medium text-muted-foreground group-hover/toggle:text-foreground transition-colors">
                       {shared ? "Using shared answer" : "Custom answer for " + role.label}
                     </span></>} className="gap-2 mb-3 cursor-pointer group/toggle" />
@@ -294,7 +297,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                       value={roleAnswers[activeTab] ?? ""}
                       onChange={(e) => setRoleAnswer(activeTab, e.target.value)}
                       placeholder={`Custom answer for ${role.label}...`}
-                      className="w-full text-sm text-muted-foreground bg-transparent outline-none placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
+                      className="w-full text-sm text-muted-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
                     />
                   )}
                 </>

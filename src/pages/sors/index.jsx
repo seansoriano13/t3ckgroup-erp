@@ -88,24 +88,28 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
   const { cell, inner } = TH_ALIGN[align] ?? TH_ALIGN.left;
 
   const icon = !active ? (
-    <ArrowUpDown size={11} className="opacity-40 ml-1 inline-block shrink-0" />
+    <ArrowUpDown size={11} className="size-[11px] opacity-40 ml-1 inline-block shrink-0" />
   ) : sortOrder === "asc" ? (
-    <ArrowUp size={11} className="text-primary ml-1 inline-block shrink-0" />
+    <ArrowUp size={11} className="size-[11px] text-primary ml-1 inline-block shrink-0" />
   ) : (
-    <ArrowDown size={11} className="text-primary ml-1 inline-block shrink-0" />
+    <ArrowDown size={11} className="size-[11px] text-primary ml-1 inline-block shrink-0" />
   );
 
   return (
     <TableHead
       scope="col"
-      onClick={() => onSort(field)}
       aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
-      className={`${cell} px-2.5 py-2.5 whitespace-nowrap cursor-pointer hover:text-foreground transition-colors ${className}`}
+      className={`${cell} px-2.5 py-2.5 whitespace-nowrap hover:text-foreground transition-colors ${className}`}
     >
-      <span className={`flex items-center ${inner}`}>
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={() => onSort(field)}
+        className={`h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent w-full gap-0 ${inner || "justify-start"}`}
+      >
         {children}
         {icon}
-      </span>
+      </Button>
     </TableHead>
   );
 }
@@ -1066,8 +1070,15 @@ export default function OpportunitiesPage() {
                     return (
                       <TableRow
                         key={o.id}
+                        tabIndex={0}
                         onClick={() => setSelectedId(o.id)}
-                        className="cursor-pointer"
+                        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target === e.currentTarget) {
+            e.preventDefault();
+            setSelectedId(o.id);
+          }
+        }}
+                        className="cursor-pointer outline-none focus-visible:bg-muted"
                       >
                         <TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
                           <HighlightText text={sorCodeOf(o)} search={search} />

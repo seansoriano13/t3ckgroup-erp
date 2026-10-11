@@ -13,13 +13,13 @@ export function PillFilter({ label, icon, value, options, onChange }) {
     <Dropdown
       usePortal
       trigger={({ isOpen }) => (
-        <div className={`property-pill ${active ? "active" : ""}`} data-open={isOpen || undefined} role="button" aria-label={`${label}${active ? `: ${current?.label}` : ""}`}>
+        <Button type="button" variant="ghost" className={`property-pill h-auto gap-1.5 rounded-full border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground ${active ? "active border-mauve-6 bg-muted font-semibold text-foreground" : ""}`} data-open={isOpen || undefined} aria-haspopup="listbox" aria-expanded={!!isOpen} aria-label={`${label}${active ? `: ${current?.label}` : ""}`}>
           {icon}
           <span>
             {label}
             {active && `: ${current?.label}`}
           </span>
-        </div>
+        </Button>
       )}
     >
       {({ close }) => <FilterOptionList options={options} value={value} onChange={onChange} close={close} />}

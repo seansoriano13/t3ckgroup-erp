@@ -229,7 +229,7 @@ export default function TemplateEditorModal({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Template Name (e.g. Monthly Safety Audit)"
-                  containerClassName="w-full mb-2" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1"
+                  containerClassName="w-full mb-2" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-b border-transparent focus-visible:border-primary pb-1"
                   autoComplete="off"
                 />
 
