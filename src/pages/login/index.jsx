@@ -9,6 +9,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
+import { getDevLoginPrefill } from "../../utils/devLoginPrefill.js";
 import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function Login() {
@@ -19,12 +20,8 @@ export default function Login() {
 
   const redirectTo = resolvePostLoginPath(location.state?.from);
 
-  const [email, setEmail] = useState(
-    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_EMAIL || "" : "")
-  );
-  const [password, setPassword] = useState(
-    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || "" : "")
-  );
+  const [email, setEmail] = useState(() => getDevLoginPrefill().email);
+  const [password, setPassword] = useState(() => getDevLoginPrefill().password);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // If the user is already authenticated (e.g. swiped back to /login, or
