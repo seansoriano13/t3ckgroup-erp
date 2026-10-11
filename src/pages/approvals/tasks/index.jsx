@@ -59,6 +59,7 @@ function TaskApprovalsQueue() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkGrade, setBulkGrade] = useState(null);
   const [isBulkDeclineOpen, setIsBulkDeclineOpen] = useState(false);
+  const [isBulkPending, setIsBulkPending] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -183,7 +184,9 @@ function TaskApprovalsQueue() {
   };
 
   const bulkApprove = async () => {
+    if (isBulkPending) return;
     const ids = selected.map((i) => i.id);
+    setIsBulkPending(true);
     try {
       await taskService.bulkApproveTasks(ids, user.id, bulkGrade, "");
       invalidate();
@@ -192,12 +195,16 @@ function TaskApprovalsQueue() {
       undoableSuccessToast(`${pluralize(ids.length, "task")} approved.`, "Undo", () => undoBulk(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Bulk approval failed.");
+    } finally {
+      setIsBulkPending(false);
     }
   };
 
   const bulkReturn = async ({ remarks }) => {
+    if (isBulkPending) return;
     const ids = selected.map((i) => i.id);
     setIsBulkDeclineOpen(false);
+    setIsBulkPending(true);
     try {
       await taskService.bulkDeclineTasks(ids, user.id, remarks);
       invalidate();
@@ -205,6 +212,8 @@ function TaskApprovalsQueue() {
       undoableSuccessToast(`${pluralize(ids.length, "task")} returned.`, "Undo", () => undoBulk(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Bulk return failed.");
+    } finally {
+      setIsBulkPending(false);
     }
   };
 
@@ -352,10 +361,12 @@ function TaskApprovalsQueue() {
             <div className="w-52">
               <GradeSelector grade={bulkGrade} onSelect={setBulkGrade} canEvaluate compact />
             </div>
-            <Button variant="destructive" size="sm" onClick={() => setIsBulkDeclineOpen(true)}>
+            <Button variant="destructive" size="sm" disabled={isBulkPending} onClick={() => setIsBulkDeclineOpen(true)}>
+              {isBulkPending && <Spinner size="sm" className="mr-1" />}
               Return {selected.length}
             </Button>
-            <Button size="sm" className={APPROVE_CLASS} disabled={!bulkGrade} onClick={bulkApprove}>
+            <Button size="sm" className={APPROVE_CLASS} disabled={!bulkGrade || isBulkPending} onClick={bulkApprove}>
+              {isBulkPending && <Spinner size="sm" className="mr-1" />}
               Approve {selected.length}
             </Button>
           </>
@@ -397,7 +408,7 @@ function TaskApprovalsQueue() {
         onDeleteTask={(payload) => deleteTask.mutateAsync(payload)}
       />
 
-      <BulkDeclineModal isOpen={isBulkDeclineOpen} onClose={() => setIsBulkDeclineOpen(false)} selectedCount={selected.length} onConfirm={bulkReturn} isSubmitting={editTask.isPending} />
+      <BulkDeclineModal isOpen={isBulkDeclineOpen} onClose={() => setIsBulkDeclineOpen(false)} selectedCount={selected.length} onConfirm={bulkReturn} isSubmitting={isBulkPending} />
     </>
   );
 }

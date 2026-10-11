@@ -197,6 +197,7 @@ export default function ResetPassword() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (!password) {
       toast.error("Enter a password.");
@@ -315,7 +316,7 @@ export default function ResetPassword() {
           />
         </div>
 
-        <Button type="submit" className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}>
+        <Button type="submit" disabled={isSubmitting} className="h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full">
 {isSubmitting ? "Saving..." : "Save Password"}
 </Button>
       </form>
