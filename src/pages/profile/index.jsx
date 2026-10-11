@@ -140,7 +140,7 @@ export default function ProfilePage() {
         ? bannerUrlInput.trim()
         : user?.dashboardBannerUrl || "/leaf-background.jpg";
 
-  const { data: stats, isLoading: isStatsLoading } = useQuery({
+  const { data: stats, isLoading: isStatsLoading, isError: isStatsError } = useQuery({
     queryKey: ["profileStats", user?.id],
     queryFn: async () => {
       if (user?.isSuperAdmin) return null;
@@ -479,7 +479,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-foreground">
-                    {isStatsLoading ? <Spinner size="sm" /> : stats?.primary}
+                    {isStatsLoading ? <Spinner size="sm" /> : isStatsError ? "—" : stats?.primary}
                   </p>
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                     {stats?.primaryLabel || "Metrics"}
@@ -492,7 +492,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-green-10">
-                    {isStatsLoading ? <Spinner size="sm" /> : stats?.secondary}
+                    {isStatsLoading ? <Spinner size="sm" /> : isStatsError ? "—" : stats?.secondary}
                   </p>
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                     {stats?.secondaryLabel || "Completed"}

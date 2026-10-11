@@ -1,4 +1,5 @@
 import { useParams, useSearchParams, Link } from "react-router"
+import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft } from "lucide-react"
 
@@ -33,7 +34,7 @@ export default function FlowVersionPage() {
         data: snapshot,
         isLoading,
         isError,
-        error,
+        refetch,
     } = useQuery({
         queryKey: ["flowSnapshot", snapshotId],
         queryFn: () => salesFlowService.getSnapshot(snapshotId),
@@ -82,9 +83,7 @@ export default function FlowVersionPage() {
                     )}
 
                     {isError && (
-                        <p className="p-8 text-sm text-red-11">
-                            This version could not be loaded. {error?.message}
-                        </p>
+                        <QueryError className="m-8" title="This version could not be loaded." onRetry={refetch} />
                     )}
 
                     {!isLoading && !isError && !snapshot && (

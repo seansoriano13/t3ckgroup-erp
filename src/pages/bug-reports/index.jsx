@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bug, CheckCircle2, RotateCcw, SendHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
@@ -332,7 +333,7 @@ function BugReportsList({ isReader, meId }) {
   const [showResolved, setShowResolved] = useState(false);
 
   const queryClient = useQueryClient();
-  const { data: reports = [], isLoading, isError, error } = useQuery({
+  const { data: reports = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["bugReports"],
     queryFn: () => bugReportService.list(),
   });
@@ -379,10 +380,7 @@ function BugReportsList({ isReader, meId }) {
         )}
 
         {isError && (
-          <div className="rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center">
-            <p className="text-sm font-semibold text-red-11">Bug reports could not be loaded.</p>
-            <p className="mt-1 text-xs text-muted-foreground">{error?.message}</p>
-          </div>
+          <QueryError title="Bug reports could not be loaded." onRetry={refetch} />
         )}
 
         {!isLoading && !isError && shown.length === 0 && (

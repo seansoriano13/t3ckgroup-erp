@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { employeeService } from "../../../services/employeeService";
@@ -55,7 +56,7 @@ export default function EmployeeManagement() {
     [avatarMap],
   );
 
-  const { data: employees = [], isLoading } = useQuery({
+  const { data: employees = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["allEmployees"],
     queryFn: () => employeeService.getAllEmployees(),
   });
@@ -293,7 +294,13 @@ export default function EmployeeManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {isError ? (
+                    <TableRow>
+                      <TableCell colSpan={10}>
+                        <QueryError title="Employees could not be loaded." onRetry={refetch} />
+                      </TableCell>
+                    </TableRow>
+                  ) : isLoading ? (
                     <TableRow>
                       <TableCell
                         colSpan={10}

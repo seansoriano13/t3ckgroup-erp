@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pluralize } from "@/utils/plural";
+import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -199,7 +200,7 @@ export default function OpportunitiesPage() {
     sessionStorage.setItem("opportunitiesView", next);
   };
 
-  const { data: opportunities = [], isLoading } = useQuery({
+  const { data: opportunities = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["opportunities"],
     queryFn: () => opportunityService.getOpportunities(),
   });
@@ -959,6 +960,8 @@ export default function OpportunitiesPage() {
       >
         {view === "deleted" ? (
           <DeletedOpportunitiesView currentUserId={user?.id} isSuperAdmin={isSuperAdmin} />
+        ) : isError ? (
+          <QueryError title="The SOR register could not be loaded." onRetry={refetch} />
         ) : view === "overview" ? (
           <div>
             {isLoading ? (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Star, Users } from "lucide-react";
 import toast from "react-hot-toast";
@@ -185,7 +186,7 @@ export default function GroupTaskApprovalSection({ searchTerm = "" }) {
   const queryClient = useQueryClient();
   const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
 
-  const { data: groupTasks = [], isLoading } = useQuery({
+  const { data: groupTasks = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["groupTasksForHR"],
     queryFn: () => groupTaskService.getGroupTasks(user.id, false, true), // HR sees all
     enabled: !!user?.id,
@@ -211,6 +212,8 @@ export default function GroupTaskApprovalSection({ searchTerm = "" }) {
     mutationFn: ({ id, remarks }) => groupTaskService.rejectGroupTask(id, user.id, remarks),
     onSuccess: refresh,
   });
+
+  if (isError) return <QueryError title="Group tasks could not be loaded." onRetry={refetch} />;
 
   if (isLoading) {
     return (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { Navigate } from "react-router";
 import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,7 +35,7 @@ export default function GroupTaskTemplatesPage() {
     }
   }, [canManage]);
 
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templates = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["groupTaskTemplates", "manage", statusFilter],
     queryFn: () =>
       groupTaskTemplateService.getTemplates({
@@ -102,7 +103,9 @@ export default function GroupTaskTemplatesPage() {
         />
       }
     >
-      {isLoading ? (
+      {isError ? (
+        <QueryError title="Templates could not be loaded." onRetry={refetch} />
+      ) : isLoading ? (
         <div className="py-20 flex justify-center">
           <Spinner size="md" />
         </div>

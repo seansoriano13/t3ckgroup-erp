@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskService } from "../../services/groupTaskService";
@@ -73,7 +74,7 @@ export default function GroupTasksPage() {
   const canManage = isHead || isSuperAdmin;
 
   // --- Data Fetching ---
-  const { data: groupTasks = [], isLoading } = useQuery({
+  const { data: groupTasks = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["groupTasks", user?.id],
     queryFn: () =>
       groupTaskService.getGroupTasks(user?.id, isHead, isSuperAdmin),
@@ -361,6 +362,8 @@ export default function GroupTasksPage() {
     },
     onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
+
+  if (isError) return <QueryError className="m-6" title="Group tasks could not be loaded." onRetry={refetch} />;
 
   if (isLoading) {
     return (

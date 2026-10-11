@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ImagePlus, ListPlus, PackagePlus } from "lucide-react";
@@ -112,7 +113,7 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
               <Spinner />
             </div>
           ) : linesQuery.isError ? (
-            <p className="py-10 text-center text-sm text-destructive">{refusal(linesQuery.error)}</p>
+            <QueryError title="Couldn't load the product list." onRetry={linesQuery.refetch} />
           ) : lines.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">This SOR&apos;s Product List is empty.</p>
           ) : (

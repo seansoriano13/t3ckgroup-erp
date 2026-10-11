@@ -1086,6 +1086,8 @@ export const salesFlowService = {
       .select("*, flow:sales_flows!flow_snapshots_flow_id_fkey(id, sale_type_id, state)")
       .eq("id", snapshotId)
       .maybeSingle();
+    // A malformed id (Postgres 22P02) is "no such version", not a failure.
+    if (error?.code === "22P02") return null;
     if (error) throw error;
     return data || null;
   },
