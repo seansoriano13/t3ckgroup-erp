@@ -373,10 +373,10 @@ export default function ProfilePage() {
 
             <div>
               <h2 className="text-xl font-black text-foreground">
-                {user?.name || "Employee Name"}
+                {user?.name || "—"}
               </h2>
               <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 justify-center">
-                <Mail size={13} className="shrink-0" /> <span className="break-all">{user?.email || "email@t3ckgroup.com"}</span>
+                <Mail size={13} className="shrink-0" /> <span className="break-all">{user?.email || "—"}</span>
               </p>
               <Button
                 type="button"
@@ -437,7 +437,7 @@ export default function ProfilePage() {
                     System ID
                   </p>
                   <p className="text-muted-foreground font-mono text-xs mt-1 break-all select-all">
-                    {user?.id || "UUID_PENDING"}
+                    {user?.id || "—"}
                   </p>
                 </div>
               </div>

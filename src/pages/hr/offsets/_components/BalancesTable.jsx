@@ -98,7 +98,7 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
                       </span>
                     </span>
                     <span className="truncate text-muted-foreground">
-                      {e.company?.name || <span className="font-semibold text-amber-11">No company</span>}
+                      {e.company?.name || <span className="font-semibold text-amber-11">No company set</span>}
                     </span>
                     <Bar value={get.offset(e)} max={maxOffset} tone={TYPE_META.OFFSET.solid} />
                     <Bar value={get.sil(e)} max={maxSil} tone={TYPE_META.SIL.solid} />
