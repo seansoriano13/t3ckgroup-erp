@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
+import { formatDateWith } from "../../utils/formatDate";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -1064,7 +1065,7 @@ export default function OpportunitiesPage() {
                     const dateFormatted = o.registration_date
                       ? (() => {
                         const d = new Date(o.registration_date);
-                        const m = d.toLocaleDateString("en-US", { month: "short" });
+                        const m = formatDateWith(d, { month: "short" });
                         const day = d.getDate();
                         const yr = String(d.getFullYear()).slice(-2);
                         return `${m} ${day}, '${yr}`;

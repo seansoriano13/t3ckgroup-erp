@@ -20,12 +20,13 @@ import { useRecordParam } from "../../hooks/useRecordParam";
 import { bugReportService } from "../../services/bugReportService";
 import { getPermissionContext } from "../../utils/permissions";
 import { APPROVE_CLASS } from "../approvals/_components/approvalUi";
+import { formatDateWith } from "../../utils/formatDate";
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
 
 const firstLine = (text) => (text || "").split("\n")[0];
 const formatWhen = (iso) =>
-  new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  formatDateWith(iso, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }, { time: true });
 
 function Status({ report }) {
   return report.resolved_at ? (

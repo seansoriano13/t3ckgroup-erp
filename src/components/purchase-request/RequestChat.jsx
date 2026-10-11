@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
+import { formatDateWith } from "@/utils/formatDate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { MessagesSquare, Paperclip, Send, Sparkles } from "lucide-react";
@@ -23,12 +24,12 @@ import { refusal } from "./requestHooks";
 
 function formatWhen(iso) {
   if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, {
+  return formatDateWith(iso, {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  });
+  }, { time: true });
 }
 
 function Message({ message }) {

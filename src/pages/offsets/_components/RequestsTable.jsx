@@ -11,6 +11,7 @@ import {
 import StatusBadge from '../../../components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { AttachmentList } from '../../../components/ui/Attachments';
+import { fmtDay } from '../../hr/offsets/_components/leaveDisplay';
 import { formatWindow } from '../../../utils/time';
 import { deriveRequestStage } from '../../../utils/requestStage';
 import { getRequestStageTheme } from '../../../constants/status';
@@ -43,7 +44,7 @@ export default function RequestsTable({ rows, onWithdraw }) {
             return (
               <TableRow key={req.type + '-' + req.id}>
                 <TableCell className="text-xs text-muted-foreground font-medium">
-                  {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {fmtDay(req.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </TableCell>
                 <TableCell>
                   <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${REQUEST_TYPE_BADGE[req.type].badgeClass}`}>
@@ -53,15 +54,15 @@ export default function RequestsTable({ rows, onWithdraw }) {
                 <TableCell className="text-sm font-bold text-foreground">
                   {req.dayCount > 1 ? (
                     <>
-                      {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtDay(req.startDate, { month: 'short', day: 'numeric' })}
                       {' – '}
-                      {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtDay(req.endDate, { month: 'short', day: 'numeric' })}
                       <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                         {req.dayCount} days
                       </span>
                     </>
                   ) : (
-                    new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                    fmtDay(req.date, { weekday: 'short', month: 'short', day: 'numeric' })
                   )}
                 </TableCell>
                 <TableCell>

@@ -83,3 +83,9 @@ export const formatDateOnly = (ymd) => {
     year: "numeric",
   });
 };
+
+/** Locale-pinned (en-US) date/time formatter with caller options. */
+export const formatDateWith = (value, options, { time = false } = {}) => {
+  const d = new Date(value);
+  return time ? d.toLocaleString("en-US", options) : d.toLocaleDateString("en-US", options);
+};

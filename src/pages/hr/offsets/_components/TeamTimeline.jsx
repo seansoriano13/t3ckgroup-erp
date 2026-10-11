@@ -38,7 +38,7 @@ export default function TeamTimeline({ approvedLeaves, pendingLeaves, monthStart
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-4">
-        <h3 className="text-base font-black text-foreground">{start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h3>
+        <h3 className="text-base font-black text-foreground">{fmtDay(start, { month: 'long', year: 'numeric' })}</h3>
         <span className="text-sm font-medium text-muted-foreground">
           <b className="font-bold text-foreground">{people.length}</b> with time off · <b className="font-bold text-foreground">{outToday}</b> out today
         </span>
