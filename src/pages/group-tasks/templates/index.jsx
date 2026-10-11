@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatDateWith } from "@/utils/formatDate";
 import { Navigate } from "react-router";
 import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -141,9 +142,9 @@ export default function GroupTaskTemplatesPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {stats
-                        ? `Used ${stats.count} time${stats.count === 1 ? "" : "s"} · last ${new Date(
+                        ? `Used ${stats.count} time${stats.count === 1 ? "" : "s"} · last ${formatDateWith(
                             stats.lastUsedAt,
-                          ).toLocaleDateString()}`
+                          )}`
                         : "Never used"}
                     </TableCell>
                     <TableCell>

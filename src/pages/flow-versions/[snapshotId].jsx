@@ -1,4 +1,5 @@
 import { useParams, useSearchParams, Link } from "react-router"
+import { formatDateWith } from "@/utils/formatDate"
 import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft } from "lucide-react"
 
@@ -42,7 +43,7 @@ export default function FlowVersionPage() {
     })
 
     const published = snapshot?.created_at
-        ? `Published ${new Date(snapshot.created_at).toLocaleDateString(undefined, {
+        ? `Published ${formatDateWith(snapshot.created_at, {
               year: "numeric",
               month: "short",
               day: "numeric",
