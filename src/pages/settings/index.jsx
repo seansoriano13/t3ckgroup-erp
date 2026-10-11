@@ -386,7 +386,7 @@ export default function SettingsPage() {
           size="md"
           tabs={visibleTabs.map(({ value, label }) => ({ value, label }))}
           activeTab={activeTab}
-          onChange={(value) => setSearchParams({ tab: value })}
+          onChange={(value) => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.set("tab", value); return next; }, { replace: true })}
         />
       }
     >
