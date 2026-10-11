@@ -175,7 +175,7 @@ export default function GlobalDetailManager() {
     mutationFn: (memberId) => groupTaskService.updateMemberStatus(memberId, "DONE", user?.id),
     onSuccess: () => {
       invalidateGroup();
-      toast.success("Task marked as done!");
+      toast.success("Task marked as done.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -227,7 +227,7 @@ export default function GlobalDetailManager() {
         queryClient.invalidateQueries({ queryKey: ["groupTasks"] }),
         queryClient.invalidateQueries({ queryKey: ["globalGroupTask", activeItem?.id] }),
       ]);
-      toast.success("Attachment uploaded successfully!");
+      toast.success("Attachment uploaded.");
     },
     onError: (err) => toast.error(err.message),
   });

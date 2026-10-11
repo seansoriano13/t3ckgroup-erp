@@ -210,10 +210,10 @@ export default function GroupTasksPage() {
     mutationFn: (payload) => groupTaskService.createGroupTask(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group Task created!");
+      toast.success("Group Task created.");
       setIsCreateOpen(false);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const markDoneMutation = useMutation({
@@ -221,11 +221,11 @@ export default function GroupTasksPage() {
       groupTaskService.updateMemberStatus(memberId, "DONE", user.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Task marked as done!");
+      toast.success("Task marked as done.");
       // If the selected task was auto-completed, let's close or refresh it
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const updateTaskMutation = useMutation({
@@ -234,7 +234,7 @@ export default function GroupTasksPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Group Task updated.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const addMemberAttachmentMutation = useMutation({
@@ -246,9 +246,9 @@ export default function GroupTasksPage() {
       // button clears before the list re-renders and it looks like the
       // upload vanished.
       await queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Attachment uploaded successfully!");
+      toast.success("Attachment uploaded.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const revertDoneMutation = useMutation({
@@ -258,7 +258,7 @@ export default function GroupTasksPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Task reverted to pending.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const rateMutation = useMutation({
@@ -266,11 +266,11 @@ export default function GroupTasksPage() {
       groupTaskService.rateMembers(selectedTask.id, ratings, user.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Ratings submitted and task completed!");
+      toast.success("Ratings submitted and task completed.");
       setIsRateOpen(false);
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const deleteMutation = useMutation({
@@ -280,7 +280,7 @@ export default function GroupTasksPage() {
       toast.success("Group Task deleted.");
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const addMemberMutation = useMutation({
@@ -288,9 +288,9 @@ export default function GroupTasksPage() {
       groupTaskService.addMemberToTask(selectedTask.id, payload, user.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Member added successfully!");
+      toast.success("Member added.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const updateMemberMutation = useMutation({
@@ -303,9 +303,9 @@ export default function GroupTasksPage() {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Member task updated!");
+      toast.success("Member task updated.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const removeMemberMutation = useMutation({
@@ -319,7 +319,7 @@ export default function GroupTasksPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Member removed from task.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   // Ticking a checklist item writes the checklist column, not
@@ -337,7 +337,7 @@ export default function GroupTasksPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const verifyMutation = useMutation({
@@ -345,10 +345,10 @@ export default function GroupTasksPage() {
       groupTaskService.verifyGroupTask(id, user.id, remarks),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group Task verified!");
+      toast.success("Group Task verified.");
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const rejectMutation = useMutation({
@@ -359,7 +359,7 @@ export default function GroupTasksPage() {
       toast.success("Group Task rejected and sent back.");
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   if (isLoading) {

@@ -173,9 +173,9 @@ export default function EmployeeManagement() {
     mutationFn: (id) => employeeService.deleteEmployee(id, user?.id || null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
-      toast.success("Employee deleted successfully");
+      toast.success("Employee deleted.");
     },
-    onError: (err) => toast.error("Failed to delete employee: " + err.message),
+    onError: (err) => toast.error(err.message || "Could not delete the employee."),
   });
 
   const handleDelete = (id) => {
@@ -531,7 +531,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
-      toast.success(isEditing ? "Employee updated!" : "Employee added!");
+      toast.success(isEditing ? "Employee updated." : "Employee added.");
       onClose();
 
       if (!isEditing && data?.id) {

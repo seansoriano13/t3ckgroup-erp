@@ -113,6 +113,14 @@ function ContentDisplay({ content, search }) {
   );
 }
 
+// "HR_NOTE" -> "HR note": codes are for the database, not the reader.
+const humanizeCode = (code) =>
+  String(code || "")
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/^hr(?= |$)/, "HR")
+    .replace(/^./, (c) => c.toUpperCase());
+
 // Entity type badge colors for SYSTEM logs
 const ENTITY_TYPE_STYLES = {
   EMPLOYEE: "bg-blue-a2 text-blue-11 border-blue-a4",
@@ -450,8 +458,8 @@ export default function SuperAdminActivityLogPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          {e.type || "SYSTEM"}
+                        <span className="text-[10px] font-black tracking-widest text-muted-foreground">
+                          {humanizeCode(e.type || "SYSTEM")}
                         </span>
                         {e.isGroup && (
                           <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-11">
@@ -460,9 +468,9 @@ export default function SuperAdminActivityLogPage() {
                         )}
                         {(activeTab === "SYSTEM" || activeTab === "SOR") && e.entityType && (
                           <span
-                            className={`rounded-sm border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
+                            className={`rounded-sm border px-1.5 py-0.5 text-[9px] font-black tracking-wider ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
                           >
-                            {e.entityType}
+                            {humanizeCode(e.entityType)}
                           </span>
                         )}
                       </div>

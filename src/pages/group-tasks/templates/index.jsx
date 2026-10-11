@@ -57,7 +57,7 @@ export default function GroupTaskTemplatesPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTaskTemplates"] });
       toast.success("Template archived.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not update the template."),
   });
 
   const restoreMutation = useMutation({

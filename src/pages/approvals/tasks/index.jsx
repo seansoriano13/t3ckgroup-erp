@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { pluralize } from "@/utils/plural";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Clock, History, Layers } from "lucide-react";
@@ -187,7 +188,7 @@ function TaskApprovalsQueue() {
       invalidate();
       setSelectedIds([]);
       setBulkGrade(null);
-      undoableSuccessToast(`${ids.length} tasks approved.`, "Undo", () => undoBulk(ids), 6000);
+      undoableSuccessToast(`${pluralize(ids.length, "task")} approved.`, "Undo", () => undoBulk(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Bulk approval failed.");
     }
@@ -200,7 +201,7 @@ function TaskApprovalsQueue() {
       await taskService.bulkDeclineTasks(ids, user.id, remarks);
       invalidate();
       setSelectedIds([]);
-      undoableSuccessToast(`${ids.length} tasks returned.`, "Undo", () => undoBulk(ids), 6000);
+      undoableSuccessToast(`${pluralize(ids.length, "task")} returned.`, "Undo", () => undoBulk(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Bulk return failed.");
     }
@@ -223,7 +224,7 @@ function TaskApprovalsQueue() {
         <p className="mt-2 text-muted-foreground">
           Looking for HR verification? Go to{" "}
           <Link to="/approvals/hr-verification" className="font-semibold underline">
-            /approvals/hr-verification
+            HR Verification
           </Link>
         </p>
       </div>

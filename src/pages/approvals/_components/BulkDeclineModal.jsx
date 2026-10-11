@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { pluralize } from "@/utils/plural";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, XSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,10 +73,10 @@ export default function BulkDeclineModal({
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-6">
           <div tabIndex={-1} ref={titleRef} className="outline-none">
             <h2 className="text-xl font-extrabold text-foreground tracking-tight">
-              Decline {selectedCount} Tasks
+              Decline {pluralize(selectedCount, "Task")}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Provide feedback for declining the {selectedCount} selected tasks. A remark is required.
+              Provide feedback for declining the {pluralize(selectedCount, "selected task")}. A remark is required.
             </p>
           </div>
 
@@ -102,7 +103,7 @@ export default function BulkDeclineModal({
             disabled={isSubmitting || !remarks.trim()}
             className="bg-destructive hover:bg-red-700 text-primary-foreground font-bold tracking-wide shadow-sm"
           >
-            {isSubmitting ? "Processing..." : `Decline ${selectedCount} Tasks`}
+            {isSubmitting ? "Processing..." : `Decline ${pluralize(selectedCount, "Task")}`}
           </Button>
         </div>
       </DialogContent>

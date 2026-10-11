@@ -280,7 +280,7 @@ export default function TasksPage() {
               .then((task) => {
                 if (task) setViewTask(task);
               })
-              .catch((err) => toast.error(err.message || "Something went wrong"));
+              .catch((err) => toast.error(err.message || "Could not open that task. Try again."));
           },
         );
         navigate(location.pathname, { replace: true, state: {} });
@@ -296,7 +296,7 @@ export default function TasksPage() {
     },
     onError: (error) => {
       console.error("Failed to update task:", error);
-      toast.error("Database error: Could not update task.");
+      toast.error("Could not update the task. Check your connection and try again.");
     },
   });
 
