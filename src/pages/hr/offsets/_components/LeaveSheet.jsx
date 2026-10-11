@@ -243,7 +243,7 @@ function BalanceImpact({ request, available }) {
   if (request.type === 'UNDERTIME') {
     return (
       <DetailSection title="Balance impact">
-        <p className="text-[13px] leading-relaxed text-muted-foreground">Counts toward this month's undertime. It is not taken from any balance.</p>
+        <p className="text-[13px] leading-relaxed text-muted-foreground">Counts toward this month’s undertime. It is not taken from any balance.</p>
       </DetailSection>
     );
   }

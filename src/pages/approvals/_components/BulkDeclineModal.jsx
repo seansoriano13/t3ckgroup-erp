@@ -88,7 +88,7 @@ export default function BulkDeclineModal({
               type="text"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="e.g. Please revise these tasks..."
+              placeholder="e.g. Please revise these tasks…"
               className="w-full bg-card mt-1 focus:ring-primary/50"
               required
             />
@@ -105,7 +105,7 @@ export default function BulkDeclineModal({
             disabled={isSubmitting || !remarks.trim()}
             className="bg-destructive hover:bg-red-700 text-primary-foreground font-bold tracking-wide shadow-sm"
           >
-            {isSubmitting ? "Processing..." : `Decline ${pluralize(selectedCount, "Task")}`}
+            {isSubmitting ? "Processing…" : `Decline ${pluralize(selectedCount, "Task")}`}
           </Button>
         </div>
       </DialogContent>

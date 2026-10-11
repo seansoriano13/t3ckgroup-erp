@@ -373,7 +373,7 @@ export default function TasksPage() {
       <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
         <Spinner size="md" />
         <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Fetching Directory...
+          Fetching Directory…
         </p>
       </div>
     );

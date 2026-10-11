@@ -333,7 +333,7 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByText(/don't have access to retail/i)).toBeInTheDocument();
+    expect(await screen.findByText(/don’t have access to retail/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryByText("Order Income")).not.toBeInTheDocument();
     });
@@ -354,6 +354,6 @@ describe("Retail page", () => {
 
     renderPage();
 
-    expect(await screen.findByText(/don't have access to retail/i)).toBeInTheDocument();
+    expect(await screen.findByText(/don’t have access to retail/i)).toBeInTheDocument();
   });
 });

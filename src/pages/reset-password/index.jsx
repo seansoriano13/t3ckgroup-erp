@@ -221,7 +221,7 @@ export default function ResetPassword() {
         console.error("Failed to clear issued-password flag:", flagError);
       }
 
-      toast.success("Password updated. You're all set.");
+      toast.success("Password updated. You’re all set.");
       // The session is now an ordinary one — let the other tabs resume, and
       // full-load rather than client-nav so AuthContext boots fresh and
       // resolves the employee behind it.
@@ -317,7 +317,7 @@ export default function ResetPassword() {
         </div>
 
         <Button type="submit" disabled={isSubmitting} className="h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full">
-{isSubmitting ? "Saving..." : "Save Password"}
+{isSubmitting ? "Saving…" : "Save Password"}
 </Button>
       </form>
     </div>

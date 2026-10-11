@@ -33,14 +33,14 @@ export default function PurchaseRequestView({
     );
   }
   if (isError) {
-    return <QueryError title="Couldn't load this request." onRetry={refetch} />;
+    return <QueryError title="Couldn’t load this request." onRetry={refetch} />;
   }
   if (!request) {
     return (
       <EmptyState
         icon={PackageSearch}
         title="Request not available"
-        description="It may have been removed, or you aren't one of its members."
+        description="It may have been removed, or you aren’t one of its members."
       />
     );
   }

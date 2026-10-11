@@ -305,7 +305,7 @@ export default function EmployeeManagement() {
                         className="p-10 text-center text-muted-foreground font-bold"
                       >
                         <Spinner size="md" />
-                        Loading employees...
+                        Loading employees…
                       </TableCell>
                     </TableRow>
                   ) : filteredEmployees.length > 0 ? (
@@ -329,7 +329,7 @@ export default function EmployeeManagement() {
                             </p>
 
                             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-                              {emp.id?.slice(0, 8)}...
+                              {emp.id?.slice(0, 8)}…
                             </p>
                           </div>
                         </TableCell>
@@ -618,7 +618,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
       title={isEditing ? "Edit Employee" : "Add Employee"}
       subtitle={
         isEditing
-          ? `Employee ID: ${employee.id?.slice(0, 8)}...`
+          ? `Employee ID: ${employee.id?.slice(0, 8)}…`
           : "Define system access & roles"
       }
       icon={isEditing ? Edit : UserPlus}

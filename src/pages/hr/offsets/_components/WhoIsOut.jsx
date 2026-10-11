@@ -21,12 +21,12 @@ export default function WhoIsOut({ approvedLeaves }) {
       trigger={
         <Button type="button" variant="outline" size="lg" aria-haspopup="dialog" className="gap-2">
           <Icon />
-          {out.today.length > 0 ? `${out.today.length} out today` : "Everyone's in"}
+          {out.today.length > 0 ? `${out.today.length} out today` : "Everyone’s in"}
         </Button>
       }
     >
       <div className="flex w-64 flex-col gap-5 p-3">
-        <OutList label="Out today" rows={out.today} empty="Everyone's in." />
+        <OutList label="Out today" rows={out.today} empty="Everyone’s in." />
         <OutList label="Out tomorrow" rows={out.tomorrow} empty="No one." />
       </div>
     </Dropdown>

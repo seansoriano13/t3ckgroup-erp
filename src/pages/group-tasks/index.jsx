@@ -370,7 +370,7 @@ export default function GroupTasksPage() {
       <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
         <Spinner size="md" />
         <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Loading Group Tasks...
+          Loading Group Tasks…
         </p>
       </div>
     );

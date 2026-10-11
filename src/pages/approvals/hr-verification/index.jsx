@@ -191,7 +191,7 @@ function HrVerificationQueue() {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center py-20 text-muted-foreground">
         <Spinner size="md" />
-        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Verification Queue...</p>
+        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Verification Queue…</p>
       </div>
     );
   }

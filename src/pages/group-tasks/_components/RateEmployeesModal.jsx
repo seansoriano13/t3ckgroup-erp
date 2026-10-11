@@ -225,7 +225,7 @@ export default function RateEmployeesModal({
                             e.target.value,
                           )
                         }
-                        placeholder="Add feedback for this member..."
+                        placeholder="Add feedback for this member…"
                         className="h-20 min-h-0 resize-none text-[13px] md:text-[13px]"
                       />
                     </div>
@@ -266,7 +266,7 @@ export default function RateEmployeesModal({
               className="h-9 gap-2 rounded-xl px-6 font-bold shadow-lg shadow-primary/20"
             >
               <Star size={14} fill="currentColor" />
-              {isSubmitting ? "Submitting..." : "Submit Ratings & Complete"}
+              {isSubmitting ? "Submitting…" : "Submit Ratings & Complete"}
             </Button>
           </div>
         </div>
