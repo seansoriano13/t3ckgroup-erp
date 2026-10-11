@@ -385,7 +385,7 @@ export default function ProfilePage() {
                 disabled={isSendingPasswordReset}
                 className="mt-3 h-auto p-0 text-xs font-bold text-foreground disabled:opacity-60"
               >
-                {isSendingPasswordReset ? "Sending..." : "Change Password"}
+                {isSendingPasswordReset ? "Sending…" : "Change Password"}
               </Button>
             </div>
           </div>
@@ -736,7 +736,7 @@ export default function ProfilePage() {
                 setRemoveQuote(false);
               }}
               className="min-h-[70px] resize-none p-4 text-sm md:text-sm"
-              placeholder="Write your 7-word motivational quote (all users)..."
+              placeholder="Write your 7-word motivational quote (all users)…"
             />
           </div>
         </div>

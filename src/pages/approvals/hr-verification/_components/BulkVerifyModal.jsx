@@ -137,7 +137,7 @@ export default function BulkVerifyModal({
             className="bg-blue-10 hover:bg-blue-11 text-primary-foreground font-bold tracking-wide shadow-sm"
           >
             {isSubmitting
-              ? "Verifying..."
+              ? "Verifying…"
               : `Verify & Sign ${pluralize(selectedCount, "Task")}`}
           </Button>
         </div>

@@ -78,7 +78,7 @@ function RetailScreen() {
       ) : (
         <EmptyState
           icon={ShoppingBag}
-          title="You don't have access to Retail"
+          title="You don’t have access to Retail"
           description="This screen needs the Retail access right. Ask a Super Admin or HR to turn it on for you."
           className="py-24"
         />

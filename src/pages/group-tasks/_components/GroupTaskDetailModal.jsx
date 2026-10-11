@@ -752,7 +752,7 @@ export default function GroupTaskDetailModal({
                     value={taskEditDraft.description}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
                     className="h-20 min-h-0 resize-y rounded-lg px-3 py-2 text-[13px] md:text-[13px]"
-                    placeholder="Task Description..."
+                    placeholder="Task Description…"
                   />
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -778,7 +778,7 @@ export default function GroupTaskDetailModal({
                     Cancel
                   </Button>
                   <Button type="button" size="sm" onClick={handleSaveTaskEdit} disabled={isUpdatingTask} className="h-8 px-4 text-xs">
-                    {isUpdatingTask ? "Saving..." : "Save Changes"}
+                    {isUpdatingTask ? "Saving…" : "Save Changes"}
                   </Button>
                 </div>
               </div>
@@ -1154,7 +1154,7 @@ export default function GroupTaskDetailModal({
                                     }
                                   }}>
                                   <Paperclip size={12} />
-                                  {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
+                                  {isUploadingAttachment || isUploadingMemberFile ? "Uploading…" : "Add File"}
                                 </FileInput>
                               )}
                             </div>
@@ -1212,7 +1212,7 @@ export default function GroupTaskDetailModal({
                                 >
                                   <CheckCircle2 size={16} />
                                   {isMarkingDone
-                                    ? "Marking..."
+                                    ? "Marking…"
                                     : "Submit for Review"}
                                 </Button>
                               )}
@@ -1224,7 +1224,7 @@ export default function GroupTaskDetailModal({
                                 disabled={isReverting}
                                 className="ml-auto h-auto gap-1.5 rounded-lg border-amber-500/20 bg-warning/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-amber-10 hover:bg-warning/20"
                               >
-                                {isReverting ? "..." : "Revert"}
+                                {isReverting ? "…" : "Revert"}
                               </Button>
                             )}
                           </div>
@@ -1360,7 +1360,7 @@ export default function GroupTaskDetailModal({
             >
               {isLoadingChat ? (
                 <div className="flex items-center justify-center h-full gap-2 text-muted-foreground italic text-xs">
-                  <Spinner size="sm" /> Fetching messages...
+                  <Spinner size="sm" /> Fetching messages…
                 </div>
               ) : chatMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full opacity-30 select-none gap-2">
@@ -1523,7 +1523,7 @@ export default function GroupTaskDetailModal({
                   people={employees}
                   mentions={mentions}
                   onMentionsChange={setMentions}
-                  placeholder="Write a message or paste a file..."
+                  placeholder="Write a message or paste a file…"
                   className="w-full bg-transparent resize-none border-none shadow-none focus-visible:ring-0 text-sm block px-3 py-1.5 outline-none custom-scrollbar disabled:opacity-50 min-h-[36px]"
                   rows={1}
                   disabled={sendMessageMutation.isPending || isUploading}
@@ -1561,7 +1561,7 @@ export default function GroupTaskDetailModal({
                     {isUploading ? (
                       <><Spinner size="sm" /> Uploading</>
                     ) : sendMessageMutation.isPending ? (
-                      "..."
+                      "…"
                     ) : (
                       <>Send <Send size={12} /></>
                     )}
@@ -1597,7 +1597,7 @@ export default function GroupTaskDetailModal({
                 title="Delete Task"
               >
                 <Trash2 size={14} className={isDeleting ? "animate-pulse" : "sm:mr-1.5"} />
-                <span className="hidden sm:inline">{isDeleting ? "Deleting..." : "Delete Task"}</span>
+                <span className="hidden sm:inline">{isDeleting ? "Deleting…" : "Delete Task"}</span>
               </Button>
             )}
 
@@ -1667,7 +1667,7 @@ export default function GroupTaskDetailModal({
                       type="text"
                       value={rejectRemarks}
                       onChange={(e) => setRejectRemarks(e.target.value)}
-                      placeholder="Reason for rejection..."
+                      placeholder="Reason for rejection…"
                       containerClassName="w-[220px]" className="h-9 px-3 bg-card border border-border rounded-xl text-xs text-foreground outline-none focus:border-red-400 transition-colors"
                     />
                     <Button
@@ -1691,7 +1691,7 @@ export default function GroupTaskDetailModal({
                       }}
                       className="h-9 px-5 rounded-xl text-xs bg-destructive hover:bg-destructive text-primary-foreground font-bold"
                     >
-                      {isRejecting ? "Rejecting..." : "Confirm Reject"}
+                      {isRejecting ? "Rejecting…" : "Confirm Reject"}
                     </Button>
                   </div>
                 ) : (
@@ -1711,7 +1711,7 @@ export default function GroupTaskDetailModal({
                       className="h-9 px-6 rounded-xl shadow-lg shadow-green-200 bg-green-9 hover:bg-green-9 text-primary-foreground flex items-center gap-2 font-bold text-xs"
                     >
                       <ShieldCheck size={16} />
-                      {isVerifying ? "Verifying..." : "Verify & Approve"}
+                      {isVerifying ? "Verifying…" : "Verify & Approve"}
                     </Button>
                   </>
                 )}

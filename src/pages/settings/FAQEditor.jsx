@@ -187,7 +187,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
           <AutoTextarea
             value={item.q}
             onChange={(e) => onUpdate({ ...item, q: e.target.value })}
-            placeholder="Question..."
+            placeholder="Question…"
             className="w-full text-sm font-semibold text-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/50 leading-snug"
           />
         </div>
@@ -263,7 +263,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                 <AutoTextarea
                   value={item.a}
                   onChange={(e) => onUpdate({ ...item, a: e.target.value })}
-                  placeholder="Default answer for all roles... (use new lines for bullet lists)"
+                  placeholder="Default answer for all roles… (use new lines for bullet lists)"
                   className="w-full text-sm text-muted-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
                 />
               </>
@@ -296,7 +296,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                     <AutoTextarea
                       value={roleAnswers[activeTab] ?? ""}
                       onChange={(e) => setRoleAnswer(activeTab, e.target.value)}
-                      placeholder={`Custom answer for ${role.label}...`}
+                      placeholder={`Custom answer for ${role.label}…`}
                       className="w-full text-sm text-muted-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
                     />
                   )}
