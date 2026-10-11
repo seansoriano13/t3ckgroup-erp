@@ -4,18 +4,18 @@ Static review of `src/pages/*` against web-design-guidelines + sibling consisten
 
 ## Triage (2026-10-11)
 
-Every finding re-read against local `staging` @ `dcf2c6db`, then the files that differ on `origin/staging` @ `2e171de1` (83 commits ahead) re-checked there. Nothing fixed. Status column below is now `fix · Fnn`, `decide · Dnn`, `defer · Xnn`, `dismissed: reason` or `dup → UI-nnn`; the code is the theme.
+Every finding re-read against `staging` @ `dcf2c6db`, then the files that differ at `2e171de1` (83 commits later, now the local checkout too) re-checked there. UI-214–223 come from a static pass over `src/components/purchase-request`, added the same day. Nothing fixed. Status column below is now `fix · Fnn`, `decide · Dnn`, `defer · Xnn`, `dismissed: reason` or `dup → UI-nnn`; the code is the theme.
 
 ### Counts
 
 | Status | Findings |
 |--------|----------|
-| fix | 103 |
-| decide | 70 |
-| defer | 21 |
+| fix | 108 |
+| decide | 73 |
+| defer | 23 |
 | dismissed (false positive or stale) | 10 |
 | duplicate | 9 |
-| **Total** | **213** |
+| **Total** | **223** |
 
 Verification notes:
 
@@ -34,11 +34,11 @@ Verification notes:
 | # | Theme | Status | n | Impact | Effort | Why it ranks here |
 |---|-------|--------|---|--------|--------|-------------------|
 | 1 | F12 Login credential prefill gate | fix | 1 | H | S | A `VITE_` password ships in the bundle if the env var is ever set on a deploy. One line. |
-| 2 | F06 Copy bugs | fix | 13 | M | S | Includes the visible typo "Request rejectd successfully" and blank error toasts. |
+| 2 | F06 Copy bugs | fix | 14 | M | S | Includes the visible typo "Request rejectd successfully" and blank error toasts. |
 | 3 | F10 Mechanical layout bugs | fix | 5 | H | S | UI-203: SOR register columns collapse to 0px at 768/375. |
 | 4 | F01 Keyboard operability & focus | fix | 12 | H | M | 4 of the 5 High findings: SOR rows, settings toggles, group-task cards, approval filters unreachable by keyboard. |
-| 5 | F02 Accessible names & labels | fix | 22 | H | M | Unnamed inputs/buttons, incl. login email + password (UI-086). Mostly one attribute each. |
-| 6 | F04 Query error states + retry | fix | 13 | H | M | A failed fetch currently says "Queue is Clear" / "No employees found". Needs one shared error block (pattern already in bug-reports/purchasing). |
+| 5 | F02 Accessible names & labels | fix | 23 | H | M | Unnamed inputs/buttons, incl. login email + password (UI-086). Mostly one attribute each. |
+| 6 | F04 Query error states + retry | fix | 14 | H | M | A failed fetch currently says "Queue is Clear" / "No employees found". Needs one shared error block (pattern already in bug-reports/purchasing). |
 | 7 | F08 Routing: redirects, 404, titles | fix | 7 | M | S | Wrong-tab redirects, dropped params, blank page on unknown URL, same tab title everywhere. |
 | 8 | F05 Filtered-empty vs truly-empty | fix | 4 | M | S | Filters hiding all rows read as "all caught up". Purchasing already does it right. |
 | 9 | F03 Submit guards & shared confirms | fix | 5 | M | S | Double submit on login/reset/bulk approve; `window.confirm` on delete employee. |
@@ -46,20 +46,20 @@ Verification notes:
 | 11 | D10 Retail "This month" KPI | decide | 1 | M | S | Reads as a 76% collapse on the 11th of every month. |
 | 12 | D04 One-click destructive decisions | decide | 2 | M | S | Leave approve/decline fires in one click, no undo. |
 | 13 | D03 Tab-strip overflow & 768 sidebar | decide | 2 | M | S | One file (`TabGroup.jsx`) covers every clipped tab strip. |
-| 14 | D09 Unsaved-changes guard & URL state | decide | 4 | M | S | Profile and FAQ Editor drop edits silently. |
-| 15 | D02 Mobile toolbars / cards overflow | decide | 12 | M | M | Controls off-screen at 375; scope question first. |
+| 14 | D09 Unsaved-changes guard & URL state | decide | 5 | M | S | Profile and FAQ Editor drop edits silently. |
+| 15 | D02 Mobile toolbars / cards overflow | decide | 13 | M | M | Controls off-screen at 375; scope question first. |
 | 16 | D01 Responsive tables below md | decide | 10 | M | L | Status + row action off-screen on phone in 9 tables. |
 | 17 | F09 Empty-cell placeholders & units | fix | 5 | L | S | "-" / blank / "—", "hrs" / "h", fake fallback values. |
-| 18 | F11 Dates through the shared formatter | fix | 6 | L | S | Two call sites follow the browser locale; rest is no visual change. |
-| 19 | F07 Typographic characters | fix | 9 | L | S | "..." → "…", ' → ’. Tests assert on some of these strings. |
+| 18 | F11 Dates through the shared formatter | fix | 7 | L | S | Two call sites follow the browser locale; rest is no visual change. |
+| 19 | F07 Typographic characters | fix | 10 | L | S | "..." → "…", ' → ’. Tests assert on some of these strings. |
 | 20 | D05 Action vocabulary | decide | 9 | L | S | Return/Decline/Reject, Sign in/Log in, button casing. |
 | 21 | D13 Auth pages: validation & theming | decide | 2 | L (H if dark-mode bug is real) | S | See "check before deciding" above. |
 | 22 | D12 Landing defaults | decide | 2 | L | S | Where two pages open by default. |
 | 23 | D06 Loading treatment | decide | 6 | L | M | ~8 loading variants. Bulk visual change. |
 | 24 | D07 Empty-state voice & component | decide | 7 | L | M | Title Case! vs sentence case; local EmptyState copies. |
 | 25 | D08 Pagination | decide | 6 | L | M | Fine at today's volumes (≤150 rows). |
-| 26 | D11 Sub-12px caption text | decide | 7 | L | S–L | 10px caps is the house caption style (`FieldBox.jsx:5`). |
-| 27 | X01 Shared primitives / tokens adoption | defer | 14 | L | L | Bulk UI refactor; the last Primitive migration was reverted from staging. |
+| 26 | D11 Sub-12px caption text | decide | 8 | L | S–L | 10px caps is the house caption style (`FieldBox.jsx:5`). |
+| 27 | X01 Shared primitives / tokens adoption | defer | 16 | L | L | Bulk UI refactor; the last Primitive migration was reverted from staging. |
 | 28 | X02 Motion polish | defer | 3 | L | S | `transition-all`, reduced-motion guards. |
 | 29 | X03 Out of UI scope / low-value polish | defer | 4 | L | – | Staging data hygiene, retail gating style, changelog dialog. |
 
@@ -68,16 +68,16 @@ Verification notes:
 | Theme | Findings (UI-) | What the commit does |
 |-------|----------------|----------------------|
 | F01 | 001, 049, 050, 051, 067, 074, 133, 134, 135, 136, 147, 148 | Real `<button>`/`Link`/`Switch` instead of `div onClick`; `tabIndex` + Enter on clickable rows; sort `<button>` inside `th`; `KeyboardSensor`; arrow keys on the radio group; restore a focus style where `outline-none` removed it. |
-| F02 | 006, 007, 008, 016, 018, 019, 040, 045, 052, 068, 069, 086, 102, 113, 139, 150, 151, 158, 168, 179, 208, 213 | `aria-label` / `htmlFor`+`id` / `sr-only` text / `role="status"` / `role="alert"`. UI-208 needs `FlowVersionRail.test.jsx` updated. |
+| F02 | 006, 007, 008, 016, 018, 019, 040, 045, 052, 068, 069, 086, 102, 113, 139, 150, 151, 158, 168, 179, 208, 213, 214 | `aria-label` / `htmlFor`+`id` / `sr-only` text / `role="status"` / `role="alert"`. UI-208 needs `FlowVersionRail.test.jsx` updated. |
 | F03 | 003, 020, 062, 087, 093 | `disabled` + early return while pending; `confirmActionToast` in place of `window.confirm`. |
-| F04 | 005, 026, 034, 055, 063, 099, 100, 115, 127, 129, 149, 160, 177 | Read `isError`; shared error block with Retry (lift the bug-reports/purchasing panel); never print raw `error.message` (UI-177). |
+| F04 | 005, 026, 034, 055, 063, 099, 100, 115, 127, 129, 149, 160, 177, 217 | Read `isError`; shared error block with Retry (lift the bug-reports/purchasing panel); never print raw `error.message` (UI-177). |
 | F05 | 004, 056, 152, 161 | Branch empty copy on "filters active", with a clear-filters action. |
-| F06 | 015, 021, 033, 041, 057, 061, 077, 081, 110, 141, 154, 156, 162 | Past-tense map for approve/reject; plural helper; `err.message \|\| "Could not …"`; per-setting toast; human labels for raw paths/enums. |
-| F07 | 022, 054, 078, 082, 096, 098, 118, 132, 145 | "…" and "’" in user-facing strings. |
+| F06 | 015, 021, 033, 041, 057, 061, 077, 081, 110, 141, 154, 156, 162, 215 | Past-tense map for approve/reject; plural helper; `err.message \|\| "Could not …"`; per-setting toast; human labels for raw paths/enums. |
+| F07 | 022, 054, 078, 082, 096, 098, 118, 132, 145, 218 | "…" and "’" in user-facing strings. |
 | F08 | 043, 111, 128, 144, 155, 176, 212 | Forward `search`+`hash` in the two formula redirects; `/super-admin` → `?tab=announcements`, `/super-admin/lead-sources` → `?tab=sales`; merge params on tab change; add `src/pages/404.jsx`; per-route `document.title` (keep the StagingBanner prefix). |
 | F09 | 038, 075, 076, 105, 116 | "—" for every empty cell; "hrs" everywhere; one "No company set". |
 | F10 | 101, 173, 192, 194, 203 | Inner flex div in the `td`; `flex-wrap`; `break-words`; min-width + scroll on the SOR register so columns stop collapsing. |
-| F11 | 039, 047, 059, 085, 104, 153 | Route `toLocaleDateString` calls through the shared `formatDate`. |
+| F11 | 039, 047, 059, 085, 104, 153, 216 | Route `toLocaleDateString` calls through the shared `formatDate`. |
 | F12 | 089 | Gate the prefill on `import.meta.env.DEV`. |
 | F13 | 178 | Diagnose in devtools first; not a UI change. |
 
@@ -90,7 +90,7 @@ Tables keep desktop width (720–1880px) inside the card, so on phone/tablet onl
 - **C. Desktop-only, add a visible scroll cue.** *Consequence:* cheapest; phone users still scroll sideways, but they can tell there is more.
 - **Recommend:** A for the queues employees open on phones (approvals, tasks, group-tasks, purchasing, bug-reports); C for admin tables (HR directory, activity log, templates, retail breakdown).
 
-**D02 Mobile toolbars / cards overflow** (UI-170, 174, 175, 180, 183, 186, 190, 195, 197, 201, 207, 209)
+**D02 Mobile toolbars / cards overflow** (UI-170, 174, 175, 180, 183, 186, 190, 195, 197, 201, 207, 209, 223)
 At 375 some controls are clipped or unreachable: HR working-week end time + day toggle, commission amounts, purchasing and tasks filters, the month pill over the page title.
 - **A. Fix all of them for 375.** *Consequence:* ~10 layouts reworked and reviewed, several on pages nobody opens on a phone.
 - **B. Fix employee-facing pages (tasks, my requests, purchasing, commission, target sizes); show a "best on desktop" notice on admin/config pages (settings HR, flow canvas, release-notes demos).** *Consequence:* about half the work; admin pages stay cramped on a phone but say so.
@@ -145,7 +145,7 @@ Four pager implementations; SOR register (142 rows), HR directory (62), group-ta
 - **C. Leave until it is slow.** *Consequence:* no work; fine at today's volumes.
 - **Recommend:** C for HR directory and bug reports, A for SORs + group-task grid. Leave the Leaves Manager 20/100/500 toggle (UI-065) as designed.
 
-**D09 Unsaved-changes guard & URL state** (UI-112, 131, 138, 157)
+**D09 Unsaved-changes guard & URL state** (UI-112, 131, 138, 157, 221)
 Profile and FAQ Editor hold edits in local state and drop them on navigation.
 - **A. Shared `useUnsavedGuard(hasChanges)`: `beforeunload` + a router confirm.** *Consequence:* no silent loss; users see a prompt when leaving dirty.
 - **B. Autosave.** *Consequence:* no prompt; needs debounced writes and failure handling (FAQ Editor writes the whole document).
@@ -159,7 +159,7 @@ Profile and FAQ Editor hold edits in local state and drop them on navigation.
 - **C. Show last full month vs the one before.** *Consequence:* stable; no longer "this month".
 - **Recommend:** A.
 
-**D11 Sub-12px caption text** (UI-017, 031, 060, 084, 107, 119, 164)
+**D11 Sub-12px caption text** (UI-017, 031, 060, 084, 107, 119, 164, 222)
 `text-[10px]` bold uppercase is the house caption style, built into `FieldBox` (`FieldBox.jsx:5`) and the `HEAD` / `LABEL` constants.
 - **A. Keep the size; centralise it as one token.** *Consequence:* no visual change; a later resize is one line.
 - **B. Raise captions to 11px.** *Consequence:* a small shift app-wide; some table headers may wrap.
@@ -176,7 +176,7 @@ Profile and FAQ Editor hold edits in local state and drop them on navigation.
 
 ### Deferred
 
-- **X01 Shared primitives / tokens** (UI-014, 023, 024, 036, 037, 046, 058, 066, 080, 083, 097, 103, 114, 117): hand-rolled badges, buttons, table frames, duplicated modal shells, raw palette classes. Each is a visible change; do as separate, browser-reviewed PRs. Quick wins if wanted: UI-023 (HR verify is green in the bar, blue in its modal), UI-037 (move `APPROVE_CLASS` out of approvals).
+- **X01 Shared primitives / tokens** (UI-014, 023, 024, 036, 037, 046, 058, 066, 080, 083, 097, 103, 114, 117, 219, 220): hand-rolled badges, buttons, table frames, duplicated modal shells, raw palette classes. Each is a visible change; do as separate, browser-reviewed PRs. Quick wins if wanted: UI-023 (HR verify is green in the bar, blue in its modal), UI-037 (move `APPROVE_CLASS` out of approvals).
 - **X02 Motion** (UI-053, 094, 095).
 - **X03 Out of scope** (UI-130, 140, 171, 188). UI-188 (real-looking names/emails on staging) is an owner call, not code.
 
@@ -223,6 +223,7 @@ One commit per theme, on a branch off `staging`, in this order. No push until th
 - [x] super-admin (flow-canvas shell only; src/components/flow-canvas not audited)
 - [x] tasks (index.jsx via greps + targeted reads; table/grid components in src/components not audited)
 - [x] verify (8-line wrapper; VerifiedRecordPreview in src/components/verify not audited)
+- [x] components/purchase-request (static only, 2026-10-11, at `2e171de1`; added after the purchasing rewrite replaced the page's `_components`; tests not audited)
 
 ## Browser progress
 
@@ -467,3 +468,13 @@ Screenshots: `C:\Users\PC01\.claude\projects\D--laragon-www-t3ckgroup-erp\d866c3
 | UI-211 | /tasks | src/pages/tasks/index.jsx:451-452 | copy/navigation | L | Sidebar item "My Tasks" opens a page headed "All Tasks / Monitor and filter all task logs." that defaults to the Company scope; "My Tasks" is the second toggle. Name and landing view disagree (see UI-163) | Match nav label to page, or default to My Tasks | M | decide · D12 · title logic at tasks/index.jsx:413-419 |
 | UI-212 | /verify (no token) | src/pages/verify/[token].jsx | missing-state | M | Bare `/verify` (no token segment) renders a completely blank page inside the app shell: no heading, no 404, no message. Only `/verify/:token` is routed to the preview. Shot: `blob-1791702582831-3wde4d.jpg` | Redirect `/verify` to home or render a "paste your token" / not-found page | H | fix · F08 · wider than stated: src/pages has no 404.jsx (generouted), so every unmatched URL renders blank |
 | UI-213 | /verify/:token (invalid, 375) | src/components/verify/VerifiedRecordPreview.jsx | a11y/empty-state | L | "Record Not Found" card is clean and centred (no overflow, no sidebar, public layout), but has no `role="alert"`/status and no way out (no link to the portal or login); the card sits mid-viewport with the staging banner only. Valid-token states (APPROVED/REJECTED/hash badges) not testable without a real token. Shot: `blob-1791702601900-0zz0wq.jpg` | Add a "Back to portal" link; role=alert | M | fix · F02 · partial: the card does link to /login but only when signed out (VerifiedRecordPreview.jsx:125-129); role=alert is missing |
+| UI-214 | /purchasing (request chat) | src/components/purchase-request/RequestChat.jsx:183-193; src/components/ui/MentionTextarea.jsx:22-36,117 | a11y/forms | M | Chat message box has a placeholder only and no accessible name; `MentionTextarea` takes no `aria-label` prop, so the call site cannot give it one (bug-reports note box has `aria-label="Note"`) | Accept and forward `aria-label` in MentionTextarea; pass "Message" | H | fix · F02 · MentionTextarea is shared: the prop fixes every chat that uses it |
+| UI-215 | /purchasing (request chat) | src/components/purchase-request/RequestChat.jsx:117,129 | copy | L | `toast.error(err.message)` with no fallback and raw `Upload failed: ${err.message}`, while every sibling in the folder goes through `refusal()` (requestHooks.js:8) | Use `refusal(err)` | H | fix · F06 |
+| UI-216 | /purchasing (request chat) | src/components/purchase-request/RequestChat.jsx:22-30 | locale | L | `toLocaleString(undefined, …)` follows the browser locale; AddRequestedItems.jsx:106 uses the shared `formatDate` (see UI-047) | Shared formatter | H | fix · F11 |
+| UI-217 | /purchasing (request view) | src/components/purchase-request/PurchaseRequestView.jsx:34-40; RequestChat.jsx:150; RequestedItems.jsx:68; AddRequestedItems.jsx:115 | error-state | L | Load failures are handled but offer no retry: bare red text in chat, items and the product-list picker; the request view says "Try again in a moment." with no action (see UI-034) | Retry action calling refetch | H | fix · F04 |
+| UI-218 | /purchasing (request view) | src/components/purchase-request/requestHooks.js:40; PurchaseRequestView.jsx:38-39 | typography | L | Straight apostrophes in user-facing strings ("You're the Buyer.", "Couldn't load…", "you aren't one of…"); see UI-078 | Use ’ | H | fix · F07 |
+| UI-219 | /purchasing (request view) | src/components/purchase-request/requestHooks.js:8 vs AddRequestedItems.jsx:36; NewPurchaseRequestDialog.jsx:25; PoDialogs.jsx:30; RequestMembers.jsx:18; RequestedItemActions.jsx:28 | consistency | L | `refusal` is exported once and then redefined identically in five more files | Import the exported one | H | defer · X01 · quick win if wanted |
+| UI-220 | /purchasing (request items) | src/components/purchase-request/RequestedItemActions.jsx:51-59 | theming | L | Item status pill themes use raw palette classes (`text-green-600 dark:text-green-400 border-green-400`) instead of tokens / `StatusBadge` themes (see UI-154) | Tokens or StatusBadge | H | defer · X01 |
+| UI-221 | New Purchase Request dialog (sidebar quick action) | src/components/purchase-request/NewPurchaseRequestDialog.jsx:49-53,74 | navigation/forms | M | Esc, outside click or Cancel calls `close()`, which wipes the title and every item with no confirm; a multi-item draft is lost on a stray click (see UI-112) | Confirm when the draft is dirty | H | decide · D09 |
+| UI-222 | /purchasing (request view) | src/components/purchase-request/RequestBuyer.jsx:69; RequestMembers.jsx:104; RequestedItemActions.jsx:188 | typography | L | `text-[10px]` captions and status pill (see UI-017) | Token size | M | decide · D11 |
+| UI-223 | /purchasing (request view) | src/components/purchase-request/RequestMembers.jsx:108-117; RequestedItemActions.jsx:188 | a11y/target-size | L | Remove-member button is 16×16 (`size-4`) and the item status pill is 20px tall (`h-5`): under the 24px target minimum (see UI-174) | 24px minimum hit area | H | decide · D02 |
