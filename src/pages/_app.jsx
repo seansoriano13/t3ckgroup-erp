@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
+import { routeTitle } from "../lib/routeTitle";
 import SideNav from "../components/SideNav";
 import { useAuth } from "../context/AuthContext";
 import { isResetPasswordPath } from "../lib/recoveryLink";
@@ -11,6 +13,10 @@ import Spinner from "@/components/ui/Spinner";
 export default function AppLayout() {
   const { user, isAuthLoading } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+    document.title = routeTitle(location.pathname);
+  }, [location.pathname]);
 
   // Editor screens fill the frame instead of sitting in the centred page
   // column: a canvas that pans and zooms wants every pixel of it, and its own

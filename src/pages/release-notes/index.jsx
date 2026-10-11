@@ -25,7 +25,7 @@ export default function ReleaseNotesPage() {
             variant="underline"
             tabs={SECTIONS.map(({ key, label }) => ({ value: key, label }))}
             activeTab={section.key}
-            onChange={(value) => setSearchParams({ tab: value })}
+            onChange={(value) => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.set("tab", value); return next; }, { replace: true })}
           />
         }
       >
