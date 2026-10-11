@@ -52,7 +52,7 @@ function ReportRow({ report, onOpen, showSender }) {
       </TableCell>
       {showSender && <TableCell className="text-xs text-foreground">{report.reporter?.name || "—"}</TableCell>}
       <TableCell className="max-w-[12rem] truncate font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
-      <TableCell className="text-xs tabular-nums text-muted-foreground">{report.attachments?.length || ""}</TableCell>
+      <TableCell className="text-xs tabular-nums text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
       <TableCell className="text-right">
         <Status report={report} />

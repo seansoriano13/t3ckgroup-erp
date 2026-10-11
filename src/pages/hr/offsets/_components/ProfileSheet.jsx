@@ -41,7 +41,7 @@ function BalanceBlock({ icon: Icon, label, hours, held = 0, note }) {
   return (
     <div className="rounded-xl border border-border bg-card p-3">
       <p className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground"><Icon size={14} /> {label}</p>
-      <p className="mt-2 text-2xl font-black tracking-tight text-foreground">
+      <p className="mt-2 text-2xl font-black tabular-nums tracking-tight text-foreground">
         {hours}<span className="ml-1 text-xs font-bold text-muted-foreground">hrs</span>
       </p>
       <p className={`mt-1 text-xs font-medium ${left < 0 ? 'text-red-11' : 'text-muted-foreground'}`}>
@@ -63,7 +63,7 @@ function ProfileList({ title, rows, empty, onReview }) {
               <Dot size="size-2" color={TYPE_META[r.type].dot} />
               <span className="w-20 shrink-0 font-bold text-foreground">{TYPE_META[r.type].label}</span>
               <span className="min-w-0 flex-1 truncate font-medium text-foreground">{fmtRange(r, true)}</span>
-              <span className="font-mono tabular-nums text-muted-foreground">{hoursOf(r).granted}h</span>
+              <span className="font-mono tabular-nums text-muted-foreground">{hoursOf(r).granted} hrs</span>
               {onReview
                 ? <Button type="button" variant="outline" size="sm" onClick={() => onReview(r)}>Review</Button>
                 : <StatusPill record={r} />}

@@ -371,17 +371,17 @@ export default function EmployeeManagement() {
                             <span className="text-muted-foreground">{emp.company.name}</span>
                           ) : (
                             <span className="text-amber-11 bg-amber-2 border border-amber-6 px-2 py-1 rounded text-xs font-bold">
-                              No company
+                              No company set
                             </span>
                           )}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                              SIL: <span className="text-foreground">{emp.sil_hours_balance || 0}h</span>
+                              SIL: <span className="text-foreground">{emp.sil_hours_balance || 0} hrs</span>
                             </span>
                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                              OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0}h</span>
+                              OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0} hrs</span>
                             </span>
                           </div>
                         </TableCell>

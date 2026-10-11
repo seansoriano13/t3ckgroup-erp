@@ -87,14 +87,14 @@ export default function RequestsTable({ rows, onWithdraw }) {
                   {req.attachments?.length ? (
                     <AttachmentList attachments={req.attachments} compact />
                   ) : (
-                    <span className="text-xs text-muted-foreground/50">-</span>
+                    <span className="text-xs text-muted-foreground/50">—</span>
                   )}
                 </TableCell>
                 <TableCell>
                   <StatusBadge theme={getRequestStageTheme(stage.tone)} label={stage.label} />
                 </TableCell>
                 <TableCell className="text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
-                  {stage.note || '-'}
+                  {stage.note || '—'}
                 </TableCell>
                 <TableCell className="text-right flex items-center justify-end gap-2">
                   {req.verification_token && (
