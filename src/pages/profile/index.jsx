@@ -376,7 +376,7 @@ export default function ProfilePage() {
                 {user?.name || "Employee Name"}
               </h2>
               <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 justify-center">
-                <Mail size={13} /> {user?.email || "email@t3ckgroup.com"}
+                <Mail size={13} className="shrink-0" /> <span className="break-all">{user?.email || "email@t3ckgroup.com"}</span>
               </p>
               <Button
                 type="button"
@@ -616,7 +616,7 @@ export default function ProfilePage() {
                     {bannerFile ? bannerFile.name : "URL, upload, or random"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"

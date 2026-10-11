@@ -1024,7 +1024,7 @@ export default function OpportunitiesPage() {
         ) : (
           <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <Table className="table-fixed">
+              <Table className="table-fixed min-w-[1100px]">
                 <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground

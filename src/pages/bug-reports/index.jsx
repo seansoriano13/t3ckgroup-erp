@@ -101,10 +101,10 @@ function Byline({ name, tag, at }) {
 /** The technical facts sent with a report, small, under its text. */
 function ReportMeta({ report }) {
   const facts = [
-    ["Page", report.page_url, "font-mono"],
+    ["Page", report.page_url, "font-mono break-all"],
     ["Environment", report.environment],
     ["Version", report.app_version],
-    ["Browser", report.user_agent, "truncate"],
+    ["Browser", report.user_agent, "break-words"],
   ].filter(([, value]) => value);
   if (!facts.length) return null;
   return (
