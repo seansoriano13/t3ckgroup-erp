@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { pluralize } from "@/utils/plural";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -82,10 +83,10 @@ export default function BulkVerifyModal({
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-6">
           <div tabIndex={-1} ref={titleRef} className="outline-none">
             <h2 className="text-xl font-extrabold text-foreground tracking-tight">
-              Verify {selectedCount} Tasks
+              Verify {pluralize(selectedCount, "Task")}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              HR sign-off for {selectedCount} task(s). This does{" "}
+              HR sign-off for {pluralize(selectedCount, "task")}. This does{" "}
               <span className="font-bold text-foreground">not</span> change
               grades — it marks them as officially verified for payroll.
             </p>
@@ -136,7 +137,7 @@ export default function BulkVerifyModal({
           >
             {isSubmitting
               ? "Verifying..."
-              : `Verify & Sign ${selectedCount} Tasks`}
+              : `Verify & Sign ${pluralize(selectedCount, "Task")}`}
           </Button>
         </div>
       </DialogContent>

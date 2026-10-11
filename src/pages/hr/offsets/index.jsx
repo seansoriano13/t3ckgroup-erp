@@ -184,6 +184,7 @@ export default function HrLeavesManagerPage() {
     }
 
     let actionLabel = actionType === 'reject' ? 'Reject' : 'Approve';
+    const pastTense = actionType === 'reject' ? 'rejected' : 'approved';
 
     const rangeNote = request.dayCount > 1 ? ` (${request.dayCount} days, ${request.startDate} to ${request.endDate})` : '';
     let title = `${actionLabel} Request`;
@@ -199,7 +200,7 @@ export default function HrLeavesManagerPage() {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
           await silService.handleSilLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         }
-        toast.success(`Request ${actionLabel.toLowerCase()}d successfully.`);
+        toast.success(`Request ${pastTense} successfully.`);
         queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
       } catch (err) {
         toast.error(err.message || `Failed to ${actionLabel.toLowerCase()} request.`);

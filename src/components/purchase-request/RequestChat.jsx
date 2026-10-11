@@ -18,6 +18,7 @@ import { getPermissionContext } from "@/utils/permissions";
 import { ALLOWED_EXTENSIONS_STRING } from "@/utils/attachments";
 import { purchaseRequestService } from "@/services/purchaseRequestService";
 import { purchaseRequestKeys } from "./queryKeys";
+import { refusal } from "./requestHooks";
 
 function formatWhen(iso) {
   if (!iso) return "";
@@ -114,7 +115,7 @@ export default function RequestChat({ request, className = "" }) {
       setMentions([]);
       attachments.clear();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(refusal(err)),
     onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.messages(requestId) }),
   });
   const isPosting = isUploading || postMutation.isPending;
@@ -126,7 +127,7 @@ export default function RequestChat({ request, className = "" }) {
     try {
       uploaded = await attachments.upload();
     } catch (err) {
-      toast.error(`Upload failed: ${err.message}`);
+      toast.error(`Could not upload the file. ${refusal(err)}`);
       return;
     }
     postMutation.mutate({ content, uploaded });

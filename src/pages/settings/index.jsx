@@ -223,11 +223,11 @@ function GeneralPanel() {
 function ApprovalRulesPanel() {
   const { settings: appSettings, updateSetting, isPending, isLoading: loadingSettings } = useAppSettings();
 
-  const toggle = (key) => () =>
+  const toggle = (key, label) => () =>
     !isPending &&
     updateSetting(
       { [key]: !appSettings[key] },
-      { onSuccess: () => toast.success("Security configuration updated system-wide!") },
+      { onSuccess: () => toast.success(`${label} turned ${appSettings[key] ? "off" : "on"}.`) },
     );
 
   return (
@@ -247,7 +247,7 @@ function ApprovalRulesPanel() {
           description="When ON, the Operations Manager can also approve/reject 'Awaiting Approval' tasks created by Marketing employees. When OFF, only Super Admins can process these."
           icon={Shield}
           checked={!!appSettings?.marketing_approval_by_ops_manager}
-          onToggle={toggle("marketing_approval_by_ops_manager")}
+          onToggle={toggle("marketing_approval_by_ops_manager", "Ops Manager Marketing Approvals")}
           isPending={isPending}
           isLoading={loadingSettings}
         />
@@ -256,7 +256,7 @@ function ApprovalRulesPanel() {
           description="All employees can explicitly submit tasks for manager review before approval. Heads will see submitted tasks in their approval queue."
           icon={Shield}
           checked={!!appSettings?.universal_task_submission}
-          onToggle={toggle("universal_task_submission")}
+          onToggle={toggle("universal_task_submission", "Universal Task Submission")}
           isPending={isPending}
           isLoading={loadingSettings}
         />
@@ -265,7 +265,7 @@ function ApprovalRulesPanel() {
           description="Allow employees to self-verify their own tasks if a manager has not responded after 48 hours. These will be flagged for HR audit."
           icon={Shield}
           checked={!!appSettings?.enable_self_verification}
-          onToggle={toggle("enable_self_verification")}
+          onToggle={toggle("enable_self_verification", "Task Self-Verification")}
           isPending={isPending}
           isLoading={loadingSettings}
         />
@@ -274,7 +274,7 @@ function ApprovalRulesPanel() {
           description="Allow Super Admins to bulk-approve delayed pending tasks to clear bottlenecks."
           icon={Shield}
           checked={!!appSettings?.enable_bulk_approval}
-          onToggle={toggle("enable_bulk_approval")}
+          onToggle={toggle("enable_bulk_approval", "Manager Bulk Approval")}
           isPending={isPending}
           isLoading={loadingSettings}
         />
@@ -283,7 +283,7 @@ function ApprovalRulesPanel() {
           description='Highlight tasks waiting more than 48 hours for a manager with a "DELAYED" badge in the action queue.'
           icon={Shield}
           checked={!!appSettings?.enable_visual_shaming}
-          onToggle={toggle("enable_visual_shaming")}
+          onToggle={toggle("enable_visual_shaming", "Visual Urgency Indicators")}
           isPending={isPending}
           isLoading={loadingSettings}
         />

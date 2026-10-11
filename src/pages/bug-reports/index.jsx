@@ -222,7 +222,7 @@ function ThreadComposer({ report, isReader, onSent }) {
       await queryClient.invalidateQueries({ queryKey: ["bugReportNotes", report.id] });
       onSent();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Could not send the note.");
     } finally {
       setSending(false);
     }
@@ -261,7 +261,7 @@ function ThreadComposer({ report, isReader, onSent }) {
         className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
       />
       <div className="flex items-center gap-2">
-        <span className="mr-auto hidden text-[11px] text-muted-foreground sm:inline">Ctrl + Enter to send</span>
+        <span className="mr-auto hidden text-[11px] text-muted-foreground sm:inline">{/Mac|iPhone|iPad/i.test(navigator.platform || "") ? "⌘ Enter" : "Ctrl + Enter"} to send</span>
         {isReader && (
           <Button
             variant={isResolved ? "outline" : "default"}
