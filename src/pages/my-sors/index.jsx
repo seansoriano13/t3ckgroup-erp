@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query";
 import { Handshake } from "lucide-react";
 
@@ -66,7 +67,7 @@ function MySorsScreen() {
   const [filters, setFilters] = useState(initial);
   const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["mySors", user?.id],
     queryFn: () => opportunityService.getMySors(user.id),
     enabled: !!user?.id,
@@ -78,7 +79,9 @@ function MySorsScreen() {
   const endedCount = useMemo(() => rows.filter((r) => !r.isOpen).length, [rows]);
 
   let body;
-  if (isLoading) {
+  if (isError) {
+    body = <QueryError title="Your SORs could not be loaded." onRetry={refetch} />;
+  } else if (isLoading) {
     body = (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Spinner size="sm" />

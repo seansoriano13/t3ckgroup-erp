@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { MessagesSquare, Paperclip, Send, Sparkles } from "lucide-react";
@@ -147,7 +148,7 @@ export default function RequestChat({ request, className = "" }) {
             <Spinner />
           </div>
         ) : messagesQuery.isError ? (
-          <p className="py-8 text-center text-sm text-destructive">Couldn&apos;t load the chat.</p>
+          <QueryError title="Couldn't load the chat." onRetry={messagesQuery.refetch} />
         ) : messages.length === 0 ? (
           <EmptyState
             icon={MessagesSquare}

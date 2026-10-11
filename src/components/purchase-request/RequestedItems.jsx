@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import QueryError from "@/components/ui/QueryError";
 import { PackageSearch } from "lucide-react";
 
 import EmptyState from "@/components/ui/EmptyState";
@@ -65,7 +66,7 @@ export default function RequestedItems({ request, renderActions }) {
           <Spinner />
         </div>
       ) : itemsQuery.isError ? (
-        <p className="py-8 text-center text-sm text-destructive">Couldn&apos;t load the items.</p>
+        <QueryError title="Couldn't load the items." onRetry={itemsQuery.refetch} />
       ) : items.length === 0 ? (
         <EmptyState
           icon={PackageSearch}

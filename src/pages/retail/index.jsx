@@ -1,4 +1,5 @@
 import { useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
@@ -35,7 +36,7 @@ function RetailScreen() {
 
   // One read of the orders, shared with the report (same query key): the filter
   // bar offers only what exists. Not fetched for someone without access.
-  const { data: orders = [] } = useQuery({ ...retailOrdersQuery, enabled: hasAccess });
+  const { data: orders = [], isError: ordersError, refetch: refetchOrders } = useQuery({ ...retailOrdersQuery, enabled: hasAccess });
 
   // The time range is the Page's, so it can sit in the header (Report type).
   const [range, setRange] = useState("3m");
@@ -60,7 +61,7 @@ function RetailScreen() {
         )
       }
       toolbar={
-        hasAccess && (
+        hasAccess && !ordersError && (
           <RetailFilterBar
             orders={orders}
             filters={filters}
@@ -70,7 +71,9 @@ function RetailScreen() {
         )
       }
     >
-      {hasAccess ? (
+      {hasAccess && ordersError ? (
+        <QueryError title="Retail orders could not be loaded." onRetry={refetchOrders} />
+      ) : hasAccess ? (
         <RetailReport range={range} custom={custom} filters={filters} />
       ) : (
         <EmptyState

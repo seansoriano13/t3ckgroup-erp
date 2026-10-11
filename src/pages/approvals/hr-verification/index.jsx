@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Clock, History, Layers, Users } from "lucide-react";
@@ -166,6 +167,10 @@ function HrVerificationQueue() {
       toast.error(err.message || "Verification failed.");
     }
   };
+
+  if (q.isErrorTasks) {
+    return <QueryError className="m-6" title="The verification queue could not be loaded." onRetry={q.refetchTasks} />;
+  }
 
   if (q.isLoadingTasks) {
     return (

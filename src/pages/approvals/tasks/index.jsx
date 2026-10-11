@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Clock, History, Layers } from "lucide-react";
@@ -205,6 +206,10 @@ function TaskApprovalsQueue() {
       toast.error(err.message || "Bulk return failed.");
     }
   };
+
+  if (q.isErrorTasks) {
+    return <QueryError className="m-6" title="Task approvals could not be loaded." onRetry={q.refetchTasks} />;
+  }
 
   if (q.isLoadingTasks) {
     return (

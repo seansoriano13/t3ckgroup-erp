@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query";
 import { CircleDot, Hand, Layers, PackageSearch, Plus } from "lucide-react";
 
@@ -188,7 +189,7 @@ function PurchaseRequests() {
     debounceMs: 500,
   });
 
-  const { data: rows = [], isLoading, isError, error } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: procurementQueueKey,
     queryFn: () => purchaseRequestService.listQueue(),
   });
@@ -289,10 +290,7 @@ function PurchaseRequests() {
         )}
 
         {isError && (
-          <div className="rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center">
-            <p className="text-sm font-semibold text-red-11">Purchase Requests could not be loaded.</p>
-            <p className="mt-1 text-xs text-muted-foreground">{error?.message}</p>
-          </div>
+          <QueryError title="Purchase Requests could not be loaded." onRetry={refetch} />
         )}
 
         {!isLoading && !isError && visible.length === 0 && (

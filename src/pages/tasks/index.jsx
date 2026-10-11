@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
 import { LayoutGrid, ListChecks, Table as TableIcon } from "lucide-react";
 import { TASK_STATUS } from "../../constants/status.js";
@@ -238,6 +239,7 @@ export default function TasksPage() {
     data,
     isLoading,
     isError,
+    refetch,
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
@@ -379,11 +381,9 @@ export default function TasksPage() {
 
   if (isError)
     return (
-      <div className="py-10 text-center bg-red-a2 border border-red-a5 rounded-xl">
-        <p className="text-red-11 font-bold">
-          Connection Error: Failed to load task directory.
-        </p>
-      </div>
+      <PageShell title="Tasks">
+        <QueryError title="Tasks could not be loaded." onRetry={refetch} />
+      </PageShell>
     );
 
   const isPersonalView = isHr && hrViewMode === "PERSONAL";
