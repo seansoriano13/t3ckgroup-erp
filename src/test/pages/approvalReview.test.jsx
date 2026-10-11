@@ -104,6 +104,24 @@ describe("ApprovalTable", () => {
         expect(screen.getByText("2 requests")).toBeInTheDocument()
     })
 
+    it("says the filters hide everything, with a working clear action, instead of calling the queue clear", async () => {
+        const user = setupUser()
+        const onClearFilters = vi.fn()
+        renderTable([], { filtered: true, onClearFilters })
+
+        expect(screen.getByText(/no results match these filters/i)).toBeInTheDocument()
+        expect(screen.queryByText(/queue is clear/i)).not.toBeInTheDocument()
+        await user.click(screen.getByRole("button", { name: /clear filters/i }))
+        expect(onClearFilters).toHaveBeenCalledTimes(1)
+    })
+
+    it("keeps the true-empty copy when no rows exist", () => {
+        renderTable([], { filtered: false, onClearFilters: vi.fn() })
+
+        expect(screen.getByText(/queue is clear/i)).toBeInTheDocument()
+        expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument()
+    })
+
     it("tells the reviewer the queue is clear when there is nothing to do", () => {
         renderTable([])
 

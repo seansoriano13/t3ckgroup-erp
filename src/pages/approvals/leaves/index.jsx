@@ -139,6 +139,12 @@ function LeaveApprovalsQueue() {
 
         <ApprovalTable
           items={items}
+          filtered={source.length > 0}
+          onClearFilters={() => {
+            setSearch("");
+            setPerson("ALL");
+            setType("ALL");
+          }}
           queueIcon={QUEUE.icon}
           personLabel="Requested by"
           onOpen={(item) => openRecord(item.id)}

@@ -114,6 +114,16 @@ function HrVerificationQueue() {
     [source, searchQuery, priorityFilter, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
   );
 
+  const clearFilters = () => {
+    setSearchQuery("");
+    setPriorityFilter("ALL");
+    setSelectedDateFilter("");
+    setDeptFilter("ALL");
+    setSubDeptFilter("ALL");
+    setEmployeeFilter("ALL");
+    setSelectedIds([]);
+  };
+
   const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
 
@@ -217,7 +227,7 @@ function HrVerificationQueue() {
       >
 
         {view === "GROUP" ? (
-          <GroupTaskApprovalSection searchTerm={searchQuery} />
+          <GroupTaskApprovalSection searchTerm={searchQuery} onClearSearch={() => setSearchQuery("")} />
         ) : (
           <>
             {showAdvanced && (
@@ -263,6 +273,8 @@ function HrVerificationQueue() {
               onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
               onToggleAll={(on, pageItems) => setSelectedIds(on ? pageItems.map((i) => i.id) : [])}
               paginate
+              filtered={source.length > 0}
+              onClearFilters={clearFilters}
               searchTerm={searchQuery}
               keyboard={!open && !viewTask}
               renderRowAction={(item) =>

@@ -427,6 +427,8 @@ export default function GroupTasksPage() {
         <div className="pb-10">
           <GroupTaskTableView
             tasks={filteredTasks}
+            hasAnyTasks={groupTasks.length > 0}
+            onClearFilters={clearAllFilters}
             searchTerm={searchTerm}
             onView={(task) => setSelectedTaskId(task.id)}
             currentUserId={user?.id}
@@ -454,9 +456,16 @@ export default function GroupTasksPage() {
             icon={Users}
             title="No Group Tasks Found"
             description={
-              searchTerm
-                ? "Try adjusting your search criteria."
+              groupTasks.length > 0
+                ? "No group tasks match these filters."
                 : "There are no active group tasks at the moment."
+            }
+            action={
+              groupTasks.length > 0 ? (
+                <Button variant="outline" size="sm" className="mt-2" onClick={clearAllFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
             }
           />
         )

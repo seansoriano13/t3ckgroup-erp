@@ -1027,8 +1027,13 @@ export default function OpportunitiesPage() {
               <p className="text-xs text-muted-foreground mt-1 max-w-sm">
                 {opportunities.length === 0
                   ? "Register a lead to claim ownership of it."
-                  : "Try clearing the search or stage filter."}
+                  : "A search or filter is hiding every opportunity."}
               </p>
+              {opportunities.length > 0 && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={handleClearAll}>
+                  Clear filters
+                </Button>
+              )}
             </div>
           </div>
         ) : (

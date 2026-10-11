@@ -35,6 +35,8 @@ export default function GroupTaskTableView({
   tasks = [],
   searchTerm = "",
   onView,
+  hasAnyTasks = false,
+  onClearFilters,
 }) {
   const avatarMap = useEmployeeAvatarMap();
 
@@ -117,9 +119,16 @@ export default function GroupTaskTableView({
         icon={Users}
         title="No Group Tasks Found"
         description={
-          searchTerm
-            ? "Try adjusting your search criteria."
+          hasAnyTasks
+            ? "No group tasks match these filters."
             : "There are no active group tasks at the moment."
+        }
+        action={
+          hasAnyTasks && onClearFilters ? (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          ) : undefined
         }
       />
     );
