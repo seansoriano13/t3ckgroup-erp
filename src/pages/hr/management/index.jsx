@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import HRFormModal from "../../../components/hr/HRFormModal";
 import EmployeeForm from "../../../components/hr/EmployeeForm";
 import EmployeeFilterBar from "../../../components/hr/EmployeeFilterBar";
-import { confirmActionToast } from "../../../components/ui/CustomToast";
+import { confirmActionToast, confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { silService } from "../../../services/silService";
 import { offsetService } from "../../../services/offsetService";
 import {
@@ -179,13 +179,11 @@ export default function EmployeeManagement() {
   });
 
   const handleDelete = (id) => {
-    if (
-      window.confirm(
-        "Are you sure you want to delete this employee? This action cannot be undone.",
-      )
-    ) {
-      deleteMutation.mutate(id);
-    }
+    confirmDeleteToast(
+      "Delete employee?",
+      "Are you sure you want to delete this employee? This action cannot be undone.",
+      () => deleteMutation.mutate(id),
+    );
   };
 
   const handleEdit = (employee) => {
@@ -211,13 +209,13 @@ export default function EmployeeManagement() {
   });
 
   const handleReissuePassword = (employee) => {
-    if (
-      window.confirm(
-        `Issue ${employee.name} a new password? Their current one stops working immediately.`,
-      )
-    ) {
-      reissueMutation.mutate(employee.id);
-    }
+    confirmActionToast(
+      "Reissue password?",
+      `Issue ${employee.name} a new password? Their current one stops working immediately.`,
+      "Reissue",
+      "destructive",
+      () => reissueMutation.mutate(employee.id),
+    );
   };
 
   const isEmployees = activeTab === "employees";

@@ -34,8 +34,9 @@ export default function BulkVerifyModal({
 
   const handleSubmit = useCallback((e) => {
     if (e?.preventDefault) e.preventDefault();
+    if (isSubmitting) return;
     onConfirm({ notes });
-  }, [notes, onConfirm]);
+  }, [notes, onConfirm, isSubmitting]);
 
   // Keyboard shortcut Ctrl+Enter to submit
   useEffect(() => {

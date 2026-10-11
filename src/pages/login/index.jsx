@@ -26,6 +26,7 @@ export default function Login() {
     () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || "" : "")
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   // If the user is already authenticated (e.g. swiped back to /login, or
   // the session was restored on reload), redirect immediately.
@@ -37,6 +38,7 @@ export default function Login() {
 
   const handleManualLogin = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (!email || !password) {
       toast.error("Please enter your email and password.");
@@ -77,12 +79,16 @@ export default function Login() {
       toast.error("Enter your email address first.");
       return;
     }
+    if (isResetting) return;
+    setIsResetting(true);
     try {
       await passwordService.requestPasswordReset(email);
       toast.success("Check your email for a link to reset your password.");
     } catch (error) {
       console.error("Password reset request failed:", error);
       toast.error(error.message || "Could not send reset email.");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -151,6 +157,7 @@ export default function Login() {
                 <Button
                   type="button"
                   variant="link"
+                  disabled={isResetting}
                   onClick={handleForgotPassword}
                   className="h-auto p-0 text-xs font-medium text-mauve-11 hover:underline"
                 >
@@ -174,7 +181,7 @@ export default function Login() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <Button type="submit" className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}>
+                <Button type="submit" disabled={isSubmitting} className="h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto">
 {isSubmitting ? "Logging in..." : "Log In"}
 </Button>
 

@@ -54,6 +54,7 @@ function HrVerificationQueue() {
   const [viewTask, setViewTask] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBulkVerifyOpen, setIsBulkVerifyOpen] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -157,6 +158,8 @@ function HrVerificationQueue() {
   };
 
   const verify = async (ids, notes = "") => {
+    if (isVerifying) return;
+    setIsVerifying(true);
     try {
       await taskService.bulkVerifyTasks(ids, user.id, notes);
       invalidate();
@@ -164,6 +167,8 @@ function HrVerificationQueue() {
       undoableSuccessToast(`${ids.length} task${ids.length === 1 ? "" : "s"} verified.`, "Undo", () => unverify(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Verification failed.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -288,7 +293,8 @@ function HrVerificationQueue() {
             Undo verification
           </Button>
         ) : (
-          <Button size="sm" className={APPROVE_CLASS} onClick={() => setIsBulkVerifyOpen(true)}>
+          <Button size="sm" className={APPROVE_CLASS} disabled={isVerifying} onClick={() => setIsBulkVerifyOpen(true)}>
+            {isVerifying && <Spinner size="sm" className="mr-1" />}
             Verify {selected.length}
           </Button>
         )}
@@ -340,7 +346,7 @@ function HrVerificationQueue() {
             notes,
           );
         }}
-        isSubmitting={editTask.isPending}
+        isSubmitting={isVerifying}
       />
     </>
   );

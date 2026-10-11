@@ -25,9 +25,10 @@ export default function BulkDeclineModal({
 
   const handleSubmit = useCallback((e) => {
     if (e?.preventDefault) e.preventDefault();
+    if (isSubmitting) return;
     if (!remarks.trim()) return; // Require remarks for decline
     onConfirm({ remarks });
-  }, [remarks, onConfirm]);
+  }, [remarks, onConfirm, isSubmitting]);
 
   // Keyboard shortcut Ctrl+Enter to submit
   useEffect(() => {
