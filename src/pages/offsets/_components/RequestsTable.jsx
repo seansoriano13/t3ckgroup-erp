@@ -96,7 +96,8 @@ export default function RequestsTable({ rows, onWithdraw }) {
                 <TableCell className="text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
                   {stage.note || '-'}
                 </TableCell>
-                <TableCell className="text-right flex items-center justify-end gap-2">
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
                   {req.verification_token && (
                     <Link
                       to={`/verify/${req.verification_token}`}
@@ -120,6 +121,7 @@ export default function RequestsTable({ rows, onWithdraw }) {
                       <Trash2 size={14} />
                     </Button>
                   )}
+                </div>
                 </TableCell>
               </TableRow>
             );
