@@ -237,6 +237,7 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
+              aria-label={isHr ? "HR audit notes" : "Evaluation remarks"}
               placeholder={isHr ? "Add HR audit notes (required to return)" : "Add evaluation remarks (required to return)"}
               className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
             />

@@ -597,6 +597,7 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
+                      aria-label="Previous page"
                       className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       ←
@@ -630,33 +631,40 @@ export default function TasksPage() {
                         pages.push(totalGroupPages);
                       }
 
-                      return pages.map((p, idx) => (
+                      return pages.map((p, idx) =>
+                        p === "..." ? (
+                          <span
+                            key={idx}
+                            aria-hidden="true"
+                            className="inline-flex h-7 w-7 items-center justify-center text-xs font-bold text-muted-foreground/80 opacity-50"
+                          >
+                            ...
+                          </span>
+                        ) : (
                         <Button
                           key={idx}
                           variant="outline"
                           size="icon"
-                          disabled={p === "..."}
+                          aria-label={`Page ${p}`}
+                          aria-current={p === currentGroupPage ? "page" : undefined}
                           onClick={(e) => {
-                            if (p !== "...") {
-                              setGroupPage(statusKey, p);
-                              e.target
-                                .closest(".group-container")
-                                ?.scrollIntoView({
-                                  behavior: "smooth",
-                                  block: "nearest",
-                                });
-                            }
+                            setGroupPage(statusKey, p);
+                            e.target
+                              .closest(".group-container")
+                              ?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "nearest",
+                              });
                           }}
                           className={`h-7 w-7 text-xs font-bold ${p === currentGroupPage
                             ? "bg-primary text-primary-foreground border-primary hover:bg-primary"
-                            : p === "..."
-                              ? "bg-transparent text-muted-foreground/80 border-transparent cursor-default"
-                              : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
+                            : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
                             }`}
                         >
                           {p}
                         </Button>
-                      ));
+                        ),
+                      );
                     })()}
                     <Button
                       variant="outline"
@@ -670,6 +678,7 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
+                      aria-label="Next page"
                       className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       →

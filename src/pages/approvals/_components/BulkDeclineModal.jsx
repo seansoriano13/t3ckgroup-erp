@@ -82,8 +82,9 @@ export default function BulkDeclineModal({
           </div>
 
           <div>
-            <FieldBox label="Decline Remarks (Required)" className="mb-2 block" />
+            <FieldBox label="Decline Remarks (Required)" htmlFor="bulk-decline-remarks" className="mb-2 block" />
             <Input
+              id="bulk-decline-remarks"
               type="text"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}

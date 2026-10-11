@@ -163,6 +163,7 @@ function GroupTaskReview({ item, onVerify, onReturn, isSubmitting, onDecided, se
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
+          aria-label="HR audit notes"
           placeholder="Add HR audit notes (required to return)"
           className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
         />

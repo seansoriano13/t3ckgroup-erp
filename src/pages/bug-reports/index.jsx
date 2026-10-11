@@ -21,6 +21,7 @@ import { bugReportService } from "../../services/bugReportService";
 import { getPermissionContext } from "../../utils/permissions";
 import { APPROVE_CLASS } from "../approvals/_components/approvalUi";
 import { formatDateWith } from "../../utils/formatDate";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
 
@@ -368,10 +369,10 @@ function BugReportsList({ isReader, meId }) {
             : "Bugs you reported with the bug button, and IT's notes on them."
         }
         toolbar={
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Switch checked={showResolved} onCheckedChange={setShowResolved} aria-label="Show resolved" />
-            <span aria-hidden="true">Show resolved</span>
-          </div>
+          <FieldBox inline label="Show resolved" className="gap-2 text-xs font-medium normal-case tracking-normal text-muted-foreground">
+            <Switch checked={showResolved} onCheckedChange={setShowResolved} />
+            <span>Show resolved</span>
+          </FieldBox>
         }
       >
         {isLoading && (

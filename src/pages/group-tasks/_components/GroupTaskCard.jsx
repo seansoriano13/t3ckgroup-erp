@@ -64,6 +64,10 @@ export default function GroupTaskCard({
           />
           {(isHrPending || isHrVerified) && (
             <div
+              role="img"
+              aria-label={
+                isHrVerified ? "Verified by HR" : "Pending HR Verification"
+              }
               title={
                 isHrVerified ? "Verified by HR" : "Pending HR Verification"
               }

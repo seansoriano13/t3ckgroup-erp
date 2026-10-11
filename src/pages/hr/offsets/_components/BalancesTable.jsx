@@ -55,6 +55,7 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
           size="sm"
           className="h-9"
           value={group}
+          aria-label="Group by"
           onChange={setGroup}
           options={[{ value: 'none', label: 'No grouping' }, { value: 'company', label: 'Group: Company' }, { value: 'department', label: 'Group: Department' }]}
         />

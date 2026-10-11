@@ -97,7 +97,9 @@ export function ApprovalTable({
             <TableHead className={`${HEAD} hidden md:table-cell`}>Waiting</TableHead>
             <TableHead className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
             <TableHead className={HEAD}>Status</TableHead>
-            <TableHead className="w-24" />
+            <TableHead className="w-24">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -204,6 +206,7 @@ export function ApprovalTable({
                   }}
                   options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
                   size="sm"
+                  aria-label="Rows per page"
                 />
               </div>
             </>
@@ -211,13 +214,13 @@ export function ApprovalTable({
         </div>
         {paginate && totalPages > 1 && (
           <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} title="Previous Page">
+            <Button variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} title="Previous Page" aria-label="Previous page">
               <ChevronLeft size={14} />
             </Button>
             <span className="px-2 text-xs font-semibold text-foreground">
               Page {currentPage} of {totalPages}
             </span>
-            <Button variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} title="Next Page">
+            <Button variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} title="Next Page" aria-label="Next page">
               <ChevronRight size={14} />
             </Button>
           </div>

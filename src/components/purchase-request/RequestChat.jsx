@@ -185,6 +185,7 @@ export default function RequestChat({ request, className = "" }) {
             <div className="flex-1 rounded-xl border border-border/80 bg-muted/25 p-3 focus-within:border-mauve-7 focus-within:bg-card">
               <MentionTextarea
                 rows={2}
+                aria-label="Message"
                 value={text}
                 onChange={setText}
                 people={people}

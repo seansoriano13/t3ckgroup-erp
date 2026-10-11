@@ -674,6 +674,7 @@ export default function ProfilePage() {
               />
               <Input
                 type="url"
+                aria-label="Banner image URL"
                 value={bannerUrlInput}
                 onChange={(e) => {
                   setBannerUrlInput(e.target.value);
@@ -729,6 +730,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <Textarea
+              aria-label="Custom quote"
               value={customQuote}
               maxLength={100}
               onChange={(e) => {

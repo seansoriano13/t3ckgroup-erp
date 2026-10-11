@@ -293,7 +293,7 @@ const FACE_LIMIT = 4;
  * Clicking it opens the Stage's Access tab, which is the only place the
  * roster can actually be changed.
  */
-const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
+const AudienceStrip = ({ audience, lensState, viewAsLabel, stageName, onOpen }) => {
   const calledIn = audience?.calledIn ?? [];
   const faces = calledIn.slice(0, FACE_LIMIT);
   const shutOutCount =
@@ -325,7 +325,7 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
         type="button"
         variant="ghost"
         title={title}
-        aria-label={title}
+        aria-label={stageName ? `${stageName}: ${title}` : title}
         className={cn(
           "nodrag nopan -my-0.5 h-auto w-full justify-start gap-2 rounded-lg px-1 py-1 text-left hover:bg-transparent",
         )}
@@ -501,6 +501,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
         audience={audience}
         lensState={accessLensState}
         viewAsLabel={viewAsLabel}
+        stageName={stage.name}
         onOpen={onOpenAccess}
       />
 

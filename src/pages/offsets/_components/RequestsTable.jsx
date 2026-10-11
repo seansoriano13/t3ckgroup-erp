@@ -103,6 +103,8 @@ export default function RequestsTable({ rows, onWithdraw }) {
                     <Link
                       to={`/verify/${req.verification_token}`}
                       target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="View verified form"
                       className="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
                       title="View Verified Form"
                     >

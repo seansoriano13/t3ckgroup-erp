@@ -668,6 +668,7 @@ export default function OpportunitiesPage() {
         <Search size={15} className="shrink-0 text-muted-foreground" />
         <Input
           value={search}
+          aria-label="Search register"
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search number, client, project, deal owner…"
           containerClassName="w-full"
@@ -1165,7 +1166,8 @@ export default function OpportunitiesPage() {
                                 title={`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}
                                 className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
                               >
-                                <AlertTriangle size={10} />
+                                <AlertTriangle size={10} aria-hidden="true" />
+                                <span className="sr-only">{`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}</span>
                               </span>
                             )}
                             {/* Deadline kind (ticket 7, story 26) — deadlines

@@ -262,6 +262,7 @@ export default function FAQModal({ isOpen, onClose }) {
             />
             <Input
               type="text"
+              aria-label="Search questions"
               placeholder="Search questions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

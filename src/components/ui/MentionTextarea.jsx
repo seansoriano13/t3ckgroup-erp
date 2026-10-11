@@ -33,6 +33,7 @@ export default function MentionTextarea({
   disabled,
   maxLength,
   onEnterSubmit,
+  "aria-label": ariaLabel,
 }) {
   const areaRef = useRef(null);
   const [query, setQuery] = useState(null);
@@ -120,6 +121,7 @@ export default function MentionTextarea({
         value={value}
         disabled={disabled}
         placeholder={placeholder}
+        aria-label={ariaLabel}
         maxLength={maxLength}
         onPaste={onPaste}
         onChange={(e) => {

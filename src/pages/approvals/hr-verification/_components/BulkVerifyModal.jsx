@@ -110,8 +110,9 @@ export default function BulkVerifyModal({
           </div>
 
           <div>
-            <FieldBox label="HR Verification Notes (Optional)" className="mb-2 block" />
+            <FieldBox label="HR Verification Notes (Optional)" htmlFor="bulk-verify-notes" className="mb-2 block" />
             <Input
+              id="bulk-verify-notes"
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

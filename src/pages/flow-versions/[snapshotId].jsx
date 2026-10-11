@@ -80,7 +80,7 @@ export default function FlowVersionPage() {
 
                 <div className="min-h-0 flex-1">
                     {isLoading && (
-                        <p className="p-8 text-sm text-muted-foreground">Loading this version…</p>
+                        <p role="status" className="p-8 text-sm text-muted-foreground">Loading this version…</p>
                     )}
 
                     {isError && (

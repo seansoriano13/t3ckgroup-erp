@@ -137,8 +137,9 @@ export default function Login() {
           {/* Email + password form */}
           <form className="grid gap-5" onSubmit={handleManualLogin}>
             <div className="grid gap-2">
-              <FieldBox label="Email Address" />
+              <FieldBox label="Email Address" htmlFor="login-email" />
               <Input
+                id="login-email"
                 className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="email"
                 autoComplete="username"
@@ -150,7 +151,7 @@ export default function Login() {
 
             <div className="grid gap-2">
               <div className="flex justify-between items-center">
-                <FieldBox label="Password" />
+                <FieldBox label="Password" htmlFor="login-password" />
                 <Button
                   type="button"
                   variant="link"
@@ -162,6 +163,7 @@ export default function Login() {
                 </Button>
               </div>
               <Input
+                id="login-password"
                 className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="password"
                 autoComplete="current-password"
