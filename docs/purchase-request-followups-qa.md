@@ -194,6 +194,103 @@ ROLLBACK;
 
 ### #503 Deal Team can always add Requested Items
 
+Migration `20261012100100_purchase_request_deal_team_always_adds.sql`. Run the block below once in the SQL
+editor; it picks a Project request with a Buyer and a non-Purchasing Deal Team member, sets a requesters list
+naming one outsider only, joins that outsider the way Open Purchase Request does, adds a second outsider by
+hand, then returns one row per check. Every row should read `pass = true`. Verified locally 2026-10-12
+(before the migration 503.1 returns `false`).
+
+```sql
+begin;
+
+-- A Project request with a Buyer and a sales-side Deal Team member who is
+-- neither the Buyer, a Super Admin nor on Purchasing; plus two employees
+-- outside the request (not Deal Team, no Purchasing).
+create temp table t503 on commit drop as
+select r.id as request_id,
+       e.email as deal_email,
+       b.email as buyer_email,
+       x.ids[1] as listed,
+       (select email from employees where id = x.ids[1]) as listed_email,
+       x.ids[2] as unlisted,
+       (select email from employees where id = x.ids[2]) as unlisted_email
+from purchase_requests r
+join purchase_request_members m on m.request_id = r.id and m.side = 'sales'
+join employees e on e.id = m.employee_id
+join employees b on b.id = r.buyer_id
+cross join lateral (
+  select array_agg(c.id) as ids from (
+    select c.id from employees c
+    where not coalesce(c.is_deleted, false) and c.email is not null
+      and not coalesce(c.is_super_admin, false)
+      and not public._employee_has_purchasing_access(c.id)
+      and public.purchase_request_member_side(r.opportunity_id, c.id) = 'other'
+      and not exists (select 1 from purchase_request_members pm where pm.request_id = r.id and pm.employee_id = c.id)
+    order by c.id limit 2
+  ) c
+) x
+where r.opportunity_id is not null
+  and m.employee_id <> r.buyer_id
+  and not coalesce(e.is_super_admin, false)
+  and not public._employee_has_purchasing_access(m.employee_id)
+  and exists (
+    select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
+    where o.id = r.opportunity_id and t.employee_id = m.employee_id
+  )
+limit 1;
+
+-- Set a requesters list that names only `listed` (not the Deal Team member),
+-- then join `listed` the way Open Purchase Request does and `unlisted` by hand.
+update purchase_requests r set requesters = jsonb_build_array(jsonb_build_object('type', 'employee', 'id', t.listed))
+from t503 t where r.id = t.request_id;
+select public._purchase_request_add_member(t.request_id, t.listed, null) from t503 t;
+insert into purchase_request_members (request_id, employee_id, side)
+select t.request_id, t.unlisted, 'other' from t503 t;
+
+create function pg_temp.can_add_as(p_email text, p_request uuid) returns boolean language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('email', p_email)::text, true);
+  return public.purchase_request_can_add_items(p_request);
+end $$;
+create function pg_temp.can_sub_as(p_email text, p_request uuid) returns boolean language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('email', p_email)::text, true);
+  return public.pr_can_add_substitute(p_request);
+end $$;
+
+select step, got, expected, got is not distinct from expected as pass from (
+  select '503.1 Deal Team member not on the list can add' as step, pg_temp.can_add_as(t.deal_email, t.request_id)::text as got, 'true' as expected, 1 as o from t503 t
+  union all
+  select '503.2 person added through the setting joins as requester', (select side from purchase_request_members where request_id = t.request_id and employee_id = t.listed), 'requester', 2 from t503 t
+  union all
+  select '503.3 person added through the setting can add', pg_temp.can_add_as(t.listed_email, t.request_id)::text, 'true', 3 from t503 t
+  union all
+  select '503.4 member neither on the list nor Deal Team cannot add', pg_temp.can_add_as(t.unlisted_email, t.request_id)::text, 'false', 4 from t503 t
+  union all
+  select '503.5 setting still configurable (column + Open Purchase Request reads config.requesters)',
+    (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'purchase_requests' and column_name = 'requesters')
+     and (select prosrc like '%v_config->''requesters''%' from pg_proc where oid = 'public.sor_open_purchase_request(uuid, jsonb)'::regprocedure))::text,
+    'true', 5
+  union all
+  select '503.6 Buyer can add items', pg_temp.can_add_as(t.buyer_email, t.request_id)::text, 'true', 6 from t503 t
+  union all
+  select '503.7 Buyer can add a substitute', pg_temp.can_sub_as(t.buyer_email, t.request_id)::text, 'true', 7 from t503 t
+  union all
+  select '503.8 Deal Team member cannot add a substitute', pg_temp.can_sub_as(t.deal_email, t.request_id)::text, 'false', 8 from t503 t
+) s order by o;
+
+rollback;
+```
+
+- [ ] 503.1 Deal Team member not on the list can add → `true`
+- [ ] 503.2 Person added through the setting joins as requester → `requester`
+- [ ] 503.3 Person added through the setting can add → `true`
+- [ ] 503.4 Member neither on the list nor Deal Team cannot add → `false`
+- [ ] 503.5 Setting still configurable (column kept, Open Purchase Request still copies `config.requesters`) → `true`
+- [ ] 503.6 Buyer can add items → `true`
+- [ ] 503.7 Buyer can add a substitute → `true`
+- [ ] 503.8 Deal Team member cannot add a substitute → `false`
+
 ### #504 Open Purchase Request top-up
 
 Finding (verified locally 2026-10-12): already correct, no migration. A second run on an SOR that

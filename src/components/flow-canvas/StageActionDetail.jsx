@@ -5,7 +5,7 @@ import AccessWindowConfig from "./AccessWindowConfig";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
 import { Switch } from "../ui/switch";
-import { purchaseRequestSummary } from "../../utils/purchaseRequestAction";
+import { extraRequesters, purchaseRequestSummary } from "../../utils/purchaseRequestAction";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -106,11 +106,11 @@ export default function StageActionDetail({
         <>
           <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
           <Field label="Who can request items">
-            {!Array.isArray(config.requesters)
+            {extraRequesters(config.requesters).length === 0
               ? "The Deal Team"
-              : config.requesters.length === 0
-                ? "Only the Buyer"
-                : config.requesters.map((s) => deciderLabel(s, nameOf)).join(", ")}
+              : `The Deal Team, plus ${extraRequesters(config.requesters)
+                  .map((s) => deciderLabel(s, nameOf))
+                  .join(", ")}`}
           </Field>
         </>
       ) : action.kind === "create_group_task" ? (
