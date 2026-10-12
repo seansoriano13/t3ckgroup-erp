@@ -39,9 +39,10 @@ export const taskActivityService = {
   /**
    * One page of a task's Chat (its COMMENT entries), oldest first: the `limit`
    * newest strictly older than `before`, or the newest overall when `before`
-   * is null. A full page means older ones may remain.
+   * is null. A full page means older ones may remain. `includeEvents` pages
+   * system entries in with the comments, for a Chat that shows them inline.
    */
-  async getCommentsPage(taskId, { before = null, limit = 30 } = {}) {
+  async getCommentsPage(taskId, { before = null, limit = 30, includeEvents = false } = {}) {
     if (!taskId) return [];
     let query = supabase
       .from("task_activity")
@@ -50,9 +51,9 @@ export const taskActivityService = {
         author:employees!task_activity_author_id_fkey(name, is_head, is_hr, is_super_admin, avatar_path)
       `)
       .eq("task_id", taskId)
-      .eq("type", "COMMENT")
       .order("created_at", { ascending: false })
       .limit(limit);
+    if (!includeEvents) query = query.eq("type", "COMMENT");
     if (before) query = query.lt("created_at", before);
     const { data, error } = await query;
     if (error) throw error;

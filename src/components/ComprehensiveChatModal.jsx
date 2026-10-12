@@ -13,6 +13,8 @@ import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { taskService } from "../services/taskService";
 import { groupTaskService } from "../services/groupTaskService";
 import { useAuth } from "../context/AuthContext";
+import ChatScroller from "@/components/ui/ChatScroller";
+import { usePagedChat, patchPagedMessage } from "../hooks/usePagedChat";
 import {
   MessageCircle,
   X,
@@ -370,7 +372,6 @@ export default function ComprehensiveChatModal({
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [selectedChat, setSelectedChat] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -453,20 +454,26 @@ export default function ComprehensiveChatModal({
   }, [activeChats]);
 
   // -- Data: Messages for Selected Chat ----------------------
-  const { data: rawMessages = [], isLoading: isLoadingMessages } = useQuery({
-    queryKey: [
-      "chatMessages",
-      selectedChat?.entity_type,
-      selectedChat?.entity_id,
-    ],
-    queryFn: () =>
-      selectedChat?.entity_type === "TASK"
-        ? taskActivityService.getActivityForTask(selectedChat.entity_id)
-        : groupTaskActivityService.getActivityForTask(
-            selectedChat.entity_id,
-          ),
+  // Pages newest-first. The key extends ["chatMessages", type, id] so prefix
+  // invalidations (send, realtime) still reach it, yet stays apart from the
+  // whole-thread query other screens keep under the bare key.
+  const chatKey = [
+    "chatMessages",
+    selectedChat?.entity_type,
+    selectedChat?.entity_id,
+    "paged",
+  ];
+  const chat = usePagedChat({
+    queryKey: chatKey,
+    fetchPage: ({ before, limit }) => {
+      const service =
+        selectedChat.entity_type === "TASK" ? taskActivityService : groupTaskActivityService;
+      return service.getCommentsPage(selectedChat.entity_id, { before, limit, includeEvents: true });
+    },
     enabled: !!selectedChat && internalOpen,
   });
+  const rawMessages = chat.messages;
+  const isLoadingMessages = chat.isLoading;
 
   // -- Data: Read Receipts for Selected Chat -------------------
   const { data: readReceipts = [] } = useQuery({
@@ -658,10 +665,7 @@ export default function ComprehensiveChatModal({
     const table = selectedChat?.entity_type === "TASK" ? "task_activity" : "committee_task_activity";
     
     // Optimistic update
-    queryClient.setQueryData(
-      ["chatMessages", selectedChat?.entity_type, selectedChat?.entity_id],
-      (old = []) => old.map(m => m.id === message.id ? { ...m, metadata: newMetadata } : m)
-    );
+    patchPagedMessage(queryClient, chatKey, message.id, (m) => ({ ...m, metadata: newMetadata }));
 
     try {
       const { error } = await supabase.rpc('toggle_chat_reaction', {
@@ -815,13 +819,6 @@ export default function ComprehensiveChatModal({
       supabase.removeChannel(channel);
     };
   }, [selectedChat, internalOpen, queryClient]);
-
-  // Auto-scroll on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages.length, selectedChat, internalOpen]);
 
   // Bump the read receipt when the thread is open and the newest message changes.
   // Keyed on primitives only: depending on the `messages` array or the whole
@@ -1282,9 +1279,16 @@ export default function ComprehensiveChatModal({
               ) : null}
 
               {/* Messages Area */}
-              <div
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 custom-scrollbar py-4 space-y-1"
+              <ChatScroller
+                key={`${selectedChat?.entity_type}-${selectedChat?.entity_id}`}
+                firstKey={messages[0]?.id}
+                lastKey={messages[messages.length - 1]?.id}
+                lastIsMine={messages[messages.length - 1]?.authorId === user?.id}
+                hasMore={chat.hasMore}
+                isFetchingMore={chat.isFetchingMore}
+                onLoadMore={chat.loadMore}
+                className="min-w-0"
+                scrollClassName="overflow-x-hidden min-w-0 py-4 space-y-1"
               >
                 {isLoadingMessages ? (
                   <div className="flex items-center justify-center h-full gap-2 text-muted-foreground italic text-xs">
@@ -1308,7 +1312,7 @@ export default function ComprehensiveChatModal({
                     />
                   ))
                 )}
-              </div>
+              </ChatScroller>
 
               {/* Input Area */}
               <form
