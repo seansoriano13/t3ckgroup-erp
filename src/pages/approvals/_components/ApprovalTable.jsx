@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CircleAlert, MessageSquareReply, Paperclip } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CircleAlert, MessageSquareReply, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SelectField } from "@/components/ui/SelectField";
+import { TablePager } from "@/components/ui/TablePager";
 import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePaging } from "@/hooks/usePaging";
 import { useTableSort } from "@/hooks/useTableSort";
 import HighlightText from "../../../components/HighlightText";
 import { shortAge, shortDate } from "../../../utils/approvalItems.js";
@@ -49,15 +50,8 @@ export function ApprovalTable({
 }) {
   const { sorted: items, sort, toggle } = useTableSort(unsortedItems, APPROVAL_SORT);
   const [cursorId, setCursorId] = useState(null);
-  const [pageSize, setPageSize] = useState(25);
-  const [page, setPage] = useState(1);
-
-  const totalPages = paginate ? Math.ceil(items.length / pageSize) || 1 : 1;
-  const currentPage = Math.min(page, totalPages);
-  const rows = useMemo(
-    () => (paginate ? items.slice((currentPage - 1) * pageSize, currentPage * pageSize) : items),
-    [paginate, items, currentPage, pageSize],
-  );
+  const paging = usePaging(items);
+  const rows = paginate ? paging.rows : items;
   const cursor = rows.some((i) => i.id === cursorId) ? cursorId : rows[0]?.id;
 
   useEffect(() => {
@@ -205,57 +199,22 @@ export function ApprovalTable({
           })}
         </TableBody>
       </Table>
-      <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-        <div className="flex items-center gap-3">
-          <span>
-            {paginate ? (
-              <>
-                Showing <span className="font-semibold text-foreground">{(currentPage - 1) * pageSize + 1}</span> to{" "}
-                <span className="font-semibold text-foreground">{Math.min(currentPage * pageSize, items.length)}</span> of{" "}
-                <span className="font-semibold text-foreground">{items.length}</span> requests
-              </>
-            ) : (
-              <>
-                {items.length} request{items.length === 1 ? "" : "s"}
-              </>
-            )}
+      {paginate ? (
+        <TablePager {...paging} noun="requests">
+          <span className="hidden sm:inline">
+            <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
           </span>
-          {paginate && (
-            <>
-              <span className="text-border">|</span>
-              <div className="flex items-center gap-1.5">
-                <span>Rows:</span>
-                <SelectField
-                  value={pageSize}
-                  onChange={(next) => {
-                    setPageSize(Number(next));
-                    setPage(1);
-                  }}
-                  options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
-                  size="sm"
-                  aria-label="Rows per page"
-                />
-              </div>
-            </>
-          )}
+        </TablePager>
+      ) : (
+        <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+          <span>
+            {items.length} request{items.length === 1 ? "" : "s"}
+          </span>
+          <span className="hidden sm:inline">
+            <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
+          </span>
         </div>
-        {paginate && totalPages > 1 && (
-          <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} title="Previous Page" aria-label="Previous page">
-              <ChevronLeft size={14} />
-            </Button>
-            <span className="px-2 text-xs font-semibold text-foreground">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} title="Next Page" aria-label="Next page">
-              <ChevronRight size={14} />
-            </Button>
-          </div>
-        )}
-        <span className="hidden sm:inline">
-          <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
-        </span>
-      </div>
+      )}
     </div>
   );
 }
