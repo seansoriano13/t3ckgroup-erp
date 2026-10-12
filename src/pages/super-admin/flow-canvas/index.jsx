@@ -2,6 +2,7 @@ import ProtectedRoute from "@/components/ProtectedRoute.jsx";
 import FlowCanvas from "@/components/flow-canvas/FlowCanvas.jsx";
 import { FlowDataProvider } from "@/components/flow-canvas/FlowDataContext.jsx";
 import PageShell from "@/components/ui/PageShell";
+import DesktopNotice from "@/components/ui/DesktopNotice";
 
 /**
  * The Flow Canvas (issue #36) — one screen, one nav entry, for what was always
@@ -35,6 +36,7 @@ export default function FlowCanvasAdminPage() {
         frame="full"
       >
         <div className="relative flex h-full flex-col">
+          <DesktopNotice className="m-3" />
           <FlowDataProvider>
             <FlowCanvas />
           </FlowDataProvider>

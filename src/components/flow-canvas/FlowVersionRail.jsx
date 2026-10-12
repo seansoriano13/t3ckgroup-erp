@@ -123,7 +123,7 @@ export default function FlowVersionRail({
 
   return (
     <>
-      <div className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 flex max-h-[calc(100%-6rem)] w-80 flex-col overflow-hidden rounded-2xl bg-card/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+      <div className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 flex max-h-[calc(100%-6rem)] w-80 max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-2xl bg-card/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
         <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
           <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Versions</p>
           <Button

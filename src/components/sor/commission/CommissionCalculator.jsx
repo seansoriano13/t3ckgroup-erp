@@ -11,14 +11,14 @@ const OP_ICON = { "−": Minus, "÷": Divide, "×": Times, "=": Equal };
 function Operation({ op, amount, label, hint, strong, tone }) {
   const Icon = OP_ICON[op];
   return (
-    <li className="relative flex items-center gap-4 py-2.5">
+    <li className="relative flex items-center gap-3 py-2.5 sm:gap-4">
       <span
         className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${strong ? "bg-foreground text-background" : "border border-border bg-card text-muted-foreground"}`}
         aria-label={op}
       >
         {Icon && <Icon size={12} strokeWidth={2.5} />}
       </span>
-      <span className={`w-36 shrink-0 text-sm tabular-nums text-foreground ${strong ? "font-semibold" : ""}`}>{amount}</span>
+      <span className={`w-28 shrink-0 text-sm tabular-nums sm:w-36 text-foreground ${strong ? "font-semibold" : ""}`}>{amount}</span>
       <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
         {tone && <Swatch tone={tone} />}
         <span className={strong ? "font-medium text-foreground" : ""}>{label}</span>
@@ -74,8 +74,8 @@ export default function CommissionCalculator({ access, splits }) {
         <h3 className="text-base font-semibold text-foreground">Try it</h3>
         <p className="mt-0.5 text-sm text-muted-foreground">Type any contract value, or load a real SOR. Nothing is saved.</p>
       </div>
-      <div className="grid overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div className="space-y-5 border-b border-border p-6 lg:border-b-0 lg:border-r">
+      <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <div className="min-w-0 space-y-5 border-b border-border p-4 sm:p-6 lg:border-b-0 lg:border-r">
           <div>
             <p id="commission-calculator-contract" className="text-sm font-medium text-muted-foreground">Contract value</p>
             <div className="mt-1.5 flex items-center rounded-xl border border-border bg-background px-4 focus-within:border-mauve-8 focus-within:ring-2 focus-within:ring-mauve-5">
@@ -118,7 +118,7 @@ export default function CommissionCalculator({ access, splits }) {
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="min-w-0 p-4 sm:p-6">
           <ol className="relative">
             <span aria-hidden className="absolute bottom-3 left-[11px] top-3 w-px bg-border" />
             <Operation op="−" amount={amount(f.vatAmount, seeCompany)} label={`VAT ${r.vat}%`} hint="divided out" tone="tax" />
@@ -129,7 +129,7 @@ export default function CommissionCalculator({ access, splits }) {
             <Operation op="×" amount={`${salesPercent}%`} label="Sales share" hint={`${100 - salesPercent}% to the other departments`} tone="sales" />
           </ol>
           <div className="mt-4 rounded-xl bg-muted/60 p-4">
-            <div className="flex items-baseline justify-between">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
               <span className="text-sm font-medium text-foreground">Sales fund</span>
               <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">{amount(f.sales, seeSales)}</span>
             </div>

@@ -185,7 +185,7 @@ export default function RequestedItemActions({ item, request, actor }) {
             disabled={busy}
             aria-label={`Change status of ${item.name}`}
             className={cn(
-              "inline-flex items-center justify-center h-5 px-2 py-0 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap gap-1 cursor-pointer transition-colors active:scale-95 shadow-none leading-none shrink-0",
+              "inline-flex items-center justify-center h-6 px-2 py-0 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap gap-1 cursor-pointer transition-colors active:scale-95 shadow-none leading-none shrink-0",
               appliedTheme,
             )}
           >

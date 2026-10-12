@@ -37,6 +37,8 @@ export default function AvatarGroup({ people = [], max = 4, size = "xs", classNa
           className={`${i === 0 ? "" : overlapClass} ring-2 ring-card rounded-full`}
           style={{ zIndex: visible.length - i }}
           title={person.name}
+          role="img"
+          aria-label={person.name}
         >
           <Avatar
             name={person.name}
