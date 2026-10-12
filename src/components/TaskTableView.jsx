@@ -94,6 +94,8 @@ export default function TaskTableView({
   tasks = [],
   searchTerm = "",
   onView,
+  filtered = false,
+  onClearFilters,
 }) {
   const { user } = useAuth();
   const avatarMap = useEmployeeAvatarMap();
@@ -176,7 +178,18 @@ export default function TaskTableView({
       <EmptyState
         icon={ListChecks}
         title="No tasks found"
-        description="Try adjusting your search query or active filters."
+        description={
+          filtered
+            ? "No tasks match these filters."
+            : "Try adjusting your search query or active filters."
+        }
+        action={
+          filtered && onClearFilters ? (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          ) : undefined
+        }
       />
     );
   }
@@ -247,8 +260,15 @@ export default function TaskTableView({
                 return (
                   <TableRow
                     key={task.id}
+                    tabIndex={0}
                     onClick={() => onView && onView(task)}
-                    className={`hover:bg-muted/40 transition-colors cursor-pointer group ${isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.target === e.currentTarget) {
+                        e.preventDefault();
+                        onView && onView(task);
+                      }
+                    }}
+                    className={`hover:bg-muted/40 focus-visible:bg-muted outline-none transition-colors cursor-pointer group ${isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
                       }`}
                   >
                     {/* Task Title & Category */}

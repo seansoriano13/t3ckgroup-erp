@@ -37,7 +37,7 @@ export function useTakeRequest(requestId) {
   const refresh = useRefreshRequest(requestId);
   return useMutation({
     mutationFn: () => purchaseRequestService.take(requestId),
-    onSuccess: () => toast.success("You're the Buyer."),
+    onSuccess: () => toast.success("You’re the Buyer."),
     onError: (err) => toast.error(refusal(err)),
     onSettled: refresh,
   });

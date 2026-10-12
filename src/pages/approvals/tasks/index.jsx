@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { pluralize } from "@/utils/plural";
+import QueryError from "@/components/ui/QueryError";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Clock, History, Layers } from "lucide-react";
@@ -57,6 +59,7 @@ function TaskApprovalsQueue() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkGrade, setBulkGrade] = useState(null);
   const [isBulkDeclineOpen, setIsBulkDeclineOpen] = useState(false);
+  const [isBulkPending, setIsBulkPending] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,6 +132,17 @@ function TaskApprovalsQueue() {
     [source, searchQuery, priorityFilter, statusFilter, view, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
   );
 
+  const clearFilters = () => {
+    setSearchQuery("");
+    setPriorityFilter("ALL");
+    setStatusFilter(view === "VERIFIED" ? TASK_STATUS.COMPLETE : "ALL");
+    setSelectedDateFilter("");
+    setDeptFilter("ALL");
+    setSubDeptFilter("ALL");
+    setEmployeeFilter("ALL");
+    setSelectedIds([]);
+  };
+
   const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
 
@@ -181,36 +195,48 @@ function TaskApprovalsQueue() {
   };
 
   const bulkApprove = async () => {
+    if (isBulkPending) return;
     const ids = selected.map((i) => i.id);
+    setIsBulkPending(true);
     try {
       await taskService.bulkApproveTasks(ids, user.id, bulkGrade, "");
       invalidate();
       setSelectedIds([]);
       setBulkGrade(null);
-      undoableSuccessToast(`${ids.length} tasks approved.`, "Undo", () => undoBulk(ids), 6000);
+      undoableSuccessToast(`${pluralize(ids.length, "task")} approved.`, "Undo", () => undoBulk(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Bulk approval failed.");
+    } finally {
+      setIsBulkPending(false);
     }
   };
 
   const bulkReturn = async ({ remarks }) => {
+    if (isBulkPending) return;
     const ids = selected.map((i) => i.id);
     setIsBulkDeclineOpen(false);
+    setIsBulkPending(true);
     try {
       await taskService.bulkDeclineTasks(ids, user.id, remarks);
       invalidate();
       setSelectedIds([]);
-      undoableSuccessToast(`${ids.length} tasks returned.`, "Undo", () => undoBulk(ids), 6000);
+      undoableSuccessToast(`${pluralize(ids.length, "task")} returned.`, "Undo", () => undoBulk(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Bulk return failed.");
+    } finally {
+      setIsBulkPending(false);
     }
   };
+
+  if (q.isErrorTasks) {
+    return <QueryError className="m-6" title="Task approvals could not be loaded." onRetry={q.refetchTasks} />;
+  }
 
   if (q.isLoadingTasks) {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center py-20 text-muted-foreground">
         <Spinner size="md" />
-        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Task Approvals...</p>
+        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Task Approvals…</p>
       </div>
     );
   }
@@ -223,7 +249,7 @@ function TaskApprovalsQueue() {
         <p className="mt-2 text-muted-foreground">
           Looking for HR verification? Go to{" "}
           <Link to="/approvals/hr-verification" className="font-semibold underline">
-            /approvals/hr-verification
+            HR Verification
           </Link>
         </p>
       </div>
@@ -316,6 +342,8 @@ function TaskApprovalsQueue() {
           onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
           onToggleAll={(on, pageItems) => setSelectedIds(on ? pageItems.map((i) => i.id) : [])}
           paginate
+          filtered={source.length > 0}
+          onClearFilters={clearFilters}
           repliedIds={repliedIds}
           searchTerm={searchQuery}
           keyboard={!open && !viewTask}
@@ -331,7 +359,7 @@ function TaskApprovalsQueue() {
               ? { title: "No Stale Backlog!", description: "Every task older than 48 hours has been graded." }
               : isDecidedView
                 ? { title: "No Approved Tasks", description: "Tasks you grade will appear here." }
-                : { title: "Queue is Clear!", description: "You're all caught up on approvals." }
+                : { title: "Queue is Clear!", description: "You’re all caught up on approvals." }
           }
         />
       </ApprovalCenterLayout>
@@ -346,10 +374,12 @@ function TaskApprovalsQueue() {
             <div className="w-52">
               <GradeSelector grade={bulkGrade} onSelect={setBulkGrade} canEvaluate compact />
             </div>
-            <Button variant="destructive" size="sm" onClick={() => setIsBulkDeclineOpen(true)}>
+            <Button variant="destructive" size="sm" disabled={isBulkPending} onClick={() => setIsBulkDeclineOpen(true)}>
+              {isBulkPending && <Spinner size="sm" className="mr-1" />}
               Return {selected.length}
             </Button>
-            <Button size="sm" className={APPROVE_CLASS} disabled={!bulkGrade} onClick={bulkApprove}>
+            <Button size="sm" className={APPROVE_CLASS} disabled={!bulkGrade || isBulkPending} onClick={bulkApprove}>
+              {isBulkPending && <Spinner size="sm" className="mr-1" />}
               Approve {selected.length}
             </Button>
           </>
@@ -391,7 +421,7 @@ function TaskApprovalsQueue() {
         onDeleteTask={(payload) => deleteTask.mutateAsync(payload)}
       />
 
-      <BulkDeclineModal isOpen={isBulkDeclineOpen} onClose={() => setIsBulkDeclineOpen(false)} selectedCount={selected.length} onConfirm={bulkReturn} isSubmitting={editTask.isPending} />
+      <BulkDeclineModal isOpen={isBulkDeclineOpen} onClose={() => setIsBulkDeclineOpen(false)} selectedCount={selected.length} onConfirm={bulkReturn} isSubmitting={isBulkPending} />
     </>
   );
 }

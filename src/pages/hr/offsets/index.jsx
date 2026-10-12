@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
@@ -72,7 +73,7 @@ export default function HrLeavesManagerPage() {
     queryFn: () => companyService.getCompanies(),
   });
 
-  const { data, isLoading: loading } = useQuery({
+  const { data, isLoading: loading, isError, refetch } = useQuery({
     queryKey: ['hrLeaves', dateRange.startDate, dateRange.endDate],
     queryFn: async () => {
       // 1. Fetch Balances
@@ -184,6 +185,7 @@ export default function HrLeavesManagerPage() {
     }
 
     let actionLabel = actionType === 'reject' ? 'Reject' : 'Approve';
+    const pastTense = actionType === 'reject' ? 'rejected' : 'approved';
 
     const rangeNote = request.dayCount > 1 ? ` (${request.dayCount} days, ${request.startDate} to ${request.endDate})` : '';
     let title = `${actionLabel} Request`;
@@ -199,7 +201,7 @@ export default function HrLeavesManagerPage() {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
           await silService.handleSilLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         }
-        toast.success(`Request ${actionLabel.toLowerCase()}d successfully.`);
+        toast.success(`Request ${pastTense} successfully.`);
         queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
       } catch (err) {
         toast.error(err.message || `Failed to ${actionLabel.toLowerCase()} request.`);
@@ -419,6 +421,9 @@ export default function HrLeavesManagerPage() {
         onOpenPerson={sheet.openPerson}
       />
     );
+  }
+  if (isError) {
+    view = <QueryError title="Leave requests could not be loaded." onRetry={refetch} />;
   }
 
   // Level 1 switches the view; level 2 slices the list by type. Search and

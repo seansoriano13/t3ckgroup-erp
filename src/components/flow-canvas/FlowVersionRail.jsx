@@ -259,6 +259,7 @@ export default function FlowVersionRail({
                       type="button"
                       variant={compareTargetId === entry.snapshot.id ? "secondary" : "outline"}
                       size="sm"
+                      aria-label={`${compareTargetId === entry.snapshot.id ? "Comparing" : "Compare"} ${formatSnapshotVersion(entry.snapshot)} with draft`}
                       className="h-7 text-xs px-2.5 rounded-lg border-border/80"
                       onClick={() => {
                         if (compareTargetId === entry.snapshot.id) {

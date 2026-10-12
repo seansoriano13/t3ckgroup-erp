@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { pluralize } from "@/utils/plural";
+import QueryError from "@/components/ui/QueryError";
+import { formatDateWith } from "../../utils/formatDate";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -88,24 +91,28 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
   const { cell, inner } = TH_ALIGN[align] ?? TH_ALIGN.left;
 
   const icon = !active ? (
-    <ArrowUpDown size={11} className="opacity-40 ml-1 inline-block shrink-0" />
+    <ArrowUpDown size={11} className="size-[11px] opacity-40 ml-1 inline-block shrink-0" />
   ) : sortOrder === "asc" ? (
-    <ArrowUp size={11} className="text-primary ml-1 inline-block shrink-0" />
+    <ArrowUp size={11} className="size-[11px] text-primary ml-1 inline-block shrink-0" />
   ) : (
-    <ArrowDown size={11} className="text-primary ml-1 inline-block shrink-0" />
+    <ArrowDown size={11} className="size-[11px] text-primary ml-1 inline-block shrink-0" />
   );
 
   return (
     <TableHead
       scope="col"
-      onClick={() => onSort(field)}
       aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
-      className={`${cell} px-2.5 py-2.5 whitespace-nowrap cursor-pointer hover:text-foreground transition-colors ${className}`}
+      className={`${cell} px-2.5 py-2.5 whitespace-nowrap hover:text-foreground transition-colors ${className}`}
     >
-      <span className={`flex items-center ${inner}`}>
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={() => onSort(field)}
+        className={`h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent w-full gap-0 ${inner || "justify-start"}`}
+      >
         {children}
         {icon}
-      </span>
+      </Button>
     </TableHead>
   );
 }
@@ -194,7 +201,7 @@ export default function OpportunitiesPage() {
     sessionStorage.setItem("opportunitiesView", next);
   };
 
-  const { data: opportunities = [], isLoading } = useQuery({
+  const { data: opportunities = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["opportunities"],
     queryFn: () => opportunityService.getOpportunities(),
   });
@@ -661,6 +668,7 @@ export default function OpportunitiesPage() {
         <Search size={15} className="shrink-0 text-muted-foreground" />
         <Input
           value={search}
+          aria-label="Search register"
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search number, client, project, deal owner…"
           containerClassName="w-full"
@@ -954,6 +962,8 @@ export default function OpportunitiesPage() {
       >
         {view === "deleted" ? (
           <DeletedOpportunitiesView currentUserId={user?.id} isSuperAdmin={isSuperAdmin} />
+        ) : isError ? (
+          <QueryError title="The SOR register could not be loaded." onRetry={refetch} />
         ) : view === "overview" ? (
           <div>
             {isLoading ? (
@@ -1017,14 +1027,19 @@ export default function OpportunitiesPage() {
               <p className="text-xs text-muted-foreground mt-1 max-w-sm">
                 {opportunities.length === 0
                   ? "Register a lead to claim ownership of it."
-                  : "Try clearing the search or stage filter."}
+                  : "A search or filter is hiding every opportunity."}
               </p>
+              {opportunities.length > 0 && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={handleClearAll}>
+                  Clear filters
+                </Button>
+              )}
             </div>
           </div>
         ) : (
           <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <Table className="table-fixed">
+              <Table className="table-fixed min-w-[1100px]">
                 <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground
@@ -1056,7 +1071,7 @@ export default function OpportunitiesPage() {
                     const dateFormatted = o.registration_date
                       ? (() => {
                         const d = new Date(o.registration_date);
-                        const m = d.toLocaleDateString("en-US", { month: "short" });
+                        const m = formatDateWith(d, { month: "short" });
                         const day = d.getDate();
                         const yr = String(d.getFullYear()).slice(-2);
                         return `${m} ${day}, '${yr}`;
@@ -1066,8 +1081,15 @@ export default function OpportunitiesPage() {
                     return (
                       <TableRow
                         key={o.id}
+                        tabIndex={0}
                         onClick={() => setSelectedId(o.id)}
-                        className="cursor-pointer"
+                        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target === e.currentTarget) {
+            e.preventDefault();
+            setSelectedId(o.id);
+          }
+        }}
+                        className="cursor-pointer outline-none focus-visible:bg-muted"
                       >
                         <TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
                           <HighlightText text={sorCodeOf(o)} search={search} />
@@ -1149,7 +1171,8 @@ export default function OpportunitiesPage() {
                                 title={`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}
                                 className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
                               >
-                                <AlertTriangle size={10} />
+                                <AlertTriangle size={10} aria-hidden="true" />
+                                <span className="sr-only">{`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}</span>
                               </span>
                             )}
                             {/* Deadline kind (ticket 7, story 26) — deadlines
@@ -1157,7 +1180,7 @@ export default function OpportunitiesPage() {
                                 separate from the "Blocked" badge above. */}
                             {deadline?.isBreached && (
                               <span
-                                title={`Deadline passed: "${deadline.condition.label}"`}
+                                title={`Deadline passed: “${deadline.condition.label}”`}
                                 className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
                               >
                                 <Clock size={10} />
@@ -1165,7 +1188,7 @@ export default function OpportunitiesPage() {
                             )}
                             {deadline && !deadline.isBreached && deadline.isApproaching && (
                               <span
-                                title={`"${deadline.condition.label}" — ${deadline.daysRemaining} day(s) left`}
+                                title={`“${deadline.condition.label}” — ${pluralize(deadline.daysRemaining, "day")} left`}
                                 className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
                               >
                                 <Clock size={10} />

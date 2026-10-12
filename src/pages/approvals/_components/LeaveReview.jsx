@@ -42,7 +42,7 @@ export function LeaveReview({ item, onDecide, isSubmitting }) {
       </SlideOverBody>
 
       <SlideOverFooter>
-        <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Note to employee (optional)" className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]" />
+        <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} aria-label="Note to employee" placeholder="Note to employee (optional)" className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]" />
         <NotePresets presets={NOTE_PRESETS.leaves} onPick={(q) => setNote((n) => (n ? `${n} ${q}` : q))} />
         <div className="flex gap-2">
           <Button variant="destructive" className="flex-1" disabled={isSubmitting} onClick={() => onDecide(item, "REJECTED", note)}>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Clock, History, Layers, Users } from "lucide-react";
@@ -54,6 +55,7 @@ function HrVerificationQueue() {
   const [viewTask, setViewTask] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBulkVerifyOpen, setIsBulkVerifyOpen] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,6 +114,16 @@ function HrVerificationQueue() {
     [source, searchQuery, priorityFilter, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
   );
 
+  const clearFilters = () => {
+    setSearchQuery("");
+    setPriorityFilter("ALL");
+    setSelectedDateFilter("");
+    setDeptFilter("ALL");
+    setSubDeptFilter("ALL");
+    setEmployeeFilter("ALL");
+    setSelectedIds([]);
+  };
+
   const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
 
@@ -157,6 +169,8 @@ function HrVerificationQueue() {
   };
 
   const verify = async (ids, notes = "") => {
+    if (isVerifying) return;
+    setIsVerifying(true);
     try {
       await taskService.bulkVerifyTasks(ids, user.id, notes);
       invalidate();
@@ -164,14 +178,20 @@ function HrVerificationQueue() {
       undoableSuccessToast(`${ids.length} task${ids.length === 1 ? "" : "s"} verified.`, "Undo", () => unverify(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Verification failed.");
+    } finally {
+      setIsVerifying(false);
     }
   };
+
+  if (q.isErrorTasks) {
+    return <QueryError className="m-6" title="The verification queue could not be loaded." onRetry={q.refetchTasks} />;
+  }
 
   if (q.isLoadingTasks) {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center py-20 text-muted-foreground">
         <Spinner size="md" />
-        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Verification Queue...</p>
+        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Verification Queue…</p>
       </div>
     );
   }
@@ -207,7 +227,7 @@ function HrVerificationQueue() {
       >
 
         {view === "GROUP" ? (
-          <GroupTaskApprovalSection searchTerm={searchQuery} />
+          <GroupTaskApprovalSection searchTerm={searchQuery} onClearSearch={() => setSearchQuery("")} />
         ) : (
           <>
             {showAdvanced && (
@@ -253,6 +273,8 @@ function HrVerificationQueue() {
               onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
               onToggleAll={(on, pageItems) => setSelectedIds(on ? pageItems.map((i) => i.id) : [])}
               paginate
+              filtered={source.length > 0}
+              onClearFilters={clearFilters}
               searchTerm={searchQuery}
               keyboard={!open && !viewTask}
               renderRowAction={(item) =>
@@ -288,7 +310,8 @@ function HrVerificationQueue() {
             Undo verification
           </Button>
         ) : (
-          <Button size="sm" className={APPROVE_CLASS} onClick={() => setIsBulkVerifyOpen(true)}>
+          <Button size="sm" className={APPROVE_CLASS} disabled={isVerifying} onClick={() => setIsBulkVerifyOpen(true)}>
+            {isVerifying && <Spinner size="sm" className="mr-1" />}
             Verify {selected.length}
           </Button>
         )}
@@ -340,7 +363,7 @@ function HrVerificationQueue() {
             notes,
           );
         }}
-        isSubmitting={editTask.isPending}
+        isSubmitting={isVerifying}
       />
     </>
   );

@@ -1,4 +1,6 @@
 import { useParams, useSearchParams, Link } from "react-router"
+import QueryError from "@/components/ui/QueryError";
+import { formatDateWith } from "@/utils/formatDate"
 import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft } from "lucide-react"
 
@@ -33,7 +35,7 @@ export default function FlowVersionPage() {
         data: snapshot,
         isLoading,
         isError,
-        error,
+        refetch,
     } = useQuery({
         queryKey: ["flowSnapshot", snapshotId],
         queryFn: () => salesFlowService.getSnapshot(snapshotId),
@@ -42,7 +44,7 @@ export default function FlowVersionPage() {
     })
 
     const published = snapshot?.created_at
-        ? `Published ${new Date(snapshot.created_at).toLocaleDateString(undefined, {
+        ? `Published ${formatDateWith(snapshot.created_at, {
               year: "numeric",
               month: "short",
               day: "numeric",
@@ -78,13 +80,11 @@ export default function FlowVersionPage() {
 
                 <div className="min-h-0 flex-1">
                     {isLoading && (
-                        <p className="p-8 text-sm text-muted-foreground">Loading this version…</p>
+                        <p role="status" className="p-8 text-sm text-muted-foreground">Loading this version…</p>
                     )}
 
                     {isError && (
-                        <p className="p-8 text-sm text-red-11">
-                            This version could not be loaded. {error?.message}
-                        </p>
+                        <QueryError className="m-8" title="This version could not be loaded." onRetry={refetch} />
                     )}
 
                     {!isLoading && !isError && !snapshot && (

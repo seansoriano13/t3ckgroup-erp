@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { renderWithProviders, setupUser } from "../../test/support";
 import OpportunitiesPage from "../../pages/sors/index";
@@ -205,7 +205,7 @@ describe("Deadline kind — countdown + notifications (ticket 7)", () => {
     );
 
     await screen.findByText("Acme CCTV Rollout");
-    expect(await screen.findByTitle('Deadline passed: "Confirm receipt"')).toBeInTheDocument();
+    expect(await screen.findByTitle('Deadline passed: “Confirm receipt”')).toBeInTheDocument();
   });
 
   it("checks for approach/breach notifications once, against the open deals loaded", async () => {
@@ -359,8 +359,8 @@ describe("default sort sinks Terminal Stage SORs", () => {
     // then descending — which the sink would never produce, since it always
     // sinks the terminal SOR regardless of column direction.
     // The page title also reads "SOR Register", so target the column header.
-    await user.click(screen.getByRole("columnheader", { name: /^SOR/ }))
-    await user.click(screen.getByRole("columnheader", { name: /^SOR/ }))
+    await user.click(within(screen.getByRole("columnheader", { name: /^SOR/ })).getByRole("button"))
+    await user.click(within(screen.getByRole("columnheader", { name: /^SOR/ })).getByRole("button"))
 
     expect(rowOrder()).toEqual(["Company 2", "Company 1"])
   })

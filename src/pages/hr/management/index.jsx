@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { employeeService } from "../../../services/employeeService";
@@ -22,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import HRFormModal from "../../../components/hr/HRFormModal";
 import EmployeeForm from "../../../components/hr/EmployeeForm";
 import EmployeeFilterBar from "../../../components/hr/EmployeeFilterBar";
-import { confirmActionToast } from "../../../components/ui/CustomToast";
+import { confirmActionToast, confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { silService } from "../../../services/silService";
 import { offsetService } from "../../../services/offsetService";
 import {
@@ -55,7 +56,7 @@ export default function EmployeeManagement() {
     [avatarMap],
   );
 
-  const { data: employees = [], isLoading } = useQuery({
+  const { data: employees = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["allEmployees"],
     queryFn: () => employeeService.getAllEmployees(),
   });
@@ -173,19 +174,17 @@ export default function EmployeeManagement() {
     mutationFn: (id) => employeeService.deleteEmployee(id, user?.id || null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
-      toast.success("Employee deleted successfully");
+      toast.success("Employee deleted.");
     },
-    onError: (err) => toast.error("Failed to delete employee: " + err.message),
+    onError: (err) => toast.error(err.message || "Could not delete the employee."),
   });
 
   const handleDelete = (id) => {
-    if (
-      window.confirm(
-        "Are you sure you want to delete this employee? This action cannot be undone.",
-      )
-    ) {
-      deleteMutation.mutate(id);
-    }
+    confirmDeleteToast(
+      "Delete employee?",
+      "Are you sure you want to delete this employee? This action cannot be undone.",
+      () => deleteMutation.mutate(id),
+    );
   };
 
   const handleEdit = (employee) => {
@@ -211,13 +210,13 @@ export default function EmployeeManagement() {
   });
 
   const handleReissuePassword = (employee) => {
-    if (
-      window.confirm(
-        `Issue ${employee.name} a new password? Their current one stops working immediately.`,
-      )
-    ) {
-      reissueMutation.mutate(employee.id);
-    }
+    confirmActionToast(
+      "Reissue password?",
+      `Issue ${employee.name} a new password? Their current one stops working immediately.`,
+      "Reissue",
+      "destructive",
+      () => reissueMutation.mutate(employee.id),
+    );
   };
 
   const isEmployees = activeTab === "employees";
@@ -293,14 +292,20 @@ export default function EmployeeManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {isError ? (
+                    <TableRow>
+                      <TableCell colSpan={10}>
+                        <QueryError title="Employees could not be loaded." onRetry={refetch} />
+                      </TableCell>
+                    </TableRow>
+                  ) : isLoading ? (
                     <TableRow>
                       <TableCell
                         colSpan={10}
                         className="p-10 text-center text-muted-foreground font-bold"
                       >
                         <Spinner size="md" />
-                        Loading employees...
+                        Loading employees…
                       </TableCell>
                     </TableRow>
                   ) : filteredEmployees.length > 0 ? (
@@ -324,7 +329,7 @@ export default function EmployeeManagement() {
                             </p>
 
                             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-                              {emp.id?.slice(0, 8)}...
+                              {emp.id?.slice(0, 8)}…
                             </p>
                           </div>
                         </TableCell>
@@ -371,7 +376,7 @@ export default function EmployeeManagement() {
                             <span className="text-muted-foreground">{emp.company.name}</span>
                           ) : (
                             <span className="text-amber-11 bg-amber-2 border border-amber-6 px-2 py-1 rounded text-xs font-bold">
-                              No company
+                              No company set
                             </span>
                           )}
                         </TableCell>
@@ -531,7 +536,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
-      toast.success(isEditing ? "Employee updated!" : "Employee added!");
+      toast.success(isEditing ? "Employee updated." : "Employee added.");
       onClose();
 
       if (!isEditing && data?.id) {
@@ -613,7 +618,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
       title={isEditing ? "Edit Employee" : "Add Employee"}
       subtitle={
         isEditing
-          ? `Employee ID: ${employee.id?.slice(0, 8)}...`
+          ? `Employee ID: ${employee.id?.slice(0, 8)}…`
           : "Define system access & roles"
       }
       icon={isEditing ? Edit : UserPlus}

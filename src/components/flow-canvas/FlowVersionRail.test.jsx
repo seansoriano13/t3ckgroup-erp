@@ -112,7 +112,7 @@ describe("FlowVersionRail", () => {
     await screen.findByText("v1.1")
 
     await user.click(screen.getByLabelText("Expand v1.0"))
-    const compareButtons = screen.getAllByRole("button", { name: "Compare with draft" })
+    const compareButtons = screen.getAllByRole("button", { name: /^Compare v.+ with draft$/ })
     await user.click(compareButtons[compareButtons.length - 1])
 
     expect(await screen.findByText(/Added: Onboarding/)).toBeInTheDocument()
@@ -127,11 +127,11 @@ describe("FlowVersionRail", () => {
     await screen.findByText("v1.1")
 
     // Do NOT expand v1.0 first — clicking Compare with draft must auto-expand the row
-    const compareButtons = screen.getAllByRole("button", { name: "Compare with draft" })
+    const compareButtons = screen.getAllByRole("button", { name: /^Compare v.+ with draft$/ })
     await user.click(compareButtons[compareButtons.length - 1])
 
     expect(await screen.findByText(/Added: Onboarding/)).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Comparing with draft" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Comparing v.+ with draft$/ })).toBeInTheDocument()
   })
 
   it("shows Flow is Locked in the rail and hides Compare with draft when flow is locked", async () => {
@@ -140,7 +140,7 @@ describe("FlowVersionRail", () => {
     await screen.findByText("v1.1")
 
     expect(screen.getByText("Flow is Locked")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Compare with draft" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Compare v.+ with draft$/ })).not.toBeInTheDocument()
   })
 
   it("calls onViewVersion when a row's label is clicked, and highlights the viewed row", async () => {

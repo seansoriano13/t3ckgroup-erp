@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Clock, Layers, SlidersHorizontal, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -89,6 +90,10 @@ function LeaveApprovalsQueue() {
     decide.mutate({ item, status, note }, { onSuccess: () => { if (String(item.id) !== recordId) return; if (next) stepRecord(next.id); else closeRecord(); } });
   };
 
+  if (q.isErrorLeaves) {
+    return <QueryError className="m-6" title="Leave & overtime requests could not be loaded." onRetry={q.refetchLeaves} />;
+  }
+
   if (q.isLoadingLeaves) {
     return (
       <div className="flex justify-center py-16">
@@ -134,6 +139,12 @@ function LeaveApprovalsQueue() {
 
         <ApprovalTable
           items={items}
+          filtered={source.length > 0}
+          onClearFilters={() => {
+            setSearch("");
+            setPerson("ALL");
+            setType("ALL");
+          }}
           queueIcon={QUEUE.icon}
           personLabel="Requested by"
           onOpen={(item) => openRecord(item.id)}

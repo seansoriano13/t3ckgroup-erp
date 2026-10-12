@@ -9,6 +9,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
+import { getDevLoginPrefill } from "../../utils/devLoginPrefill.js";
 import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function Login() {
@@ -19,13 +20,10 @@ export default function Login() {
 
   const redirectTo = resolvePostLoginPath(location.state?.from);
 
-  const [email, setEmail] = useState(
-    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_EMAIL || "" : "")
-  );
-  const [password, setPassword] = useState(
-    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || "" : "")
-  );
+  const [email, setEmail] = useState(() => getDevLoginPrefill().email);
+  const [password, setPassword] = useState(() => getDevLoginPrefill().password);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   // If the user is already authenticated (e.g. swiped back to /login, or
   // the session was restored on reload), redirect immediately.
@@ -37,6 +35,7 @@ export default function Login() {
 
   const handleManualLogin = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (!email || !password) {
       toast.error("Please enter your email and password.");
@@ -77,12 +76,16 @@ export default function Login() {
       toast.error("Enter your email address first.");
       return;
     }
+    if (isResetting) return;
+    setIsResetting(true);
     try {
       await passwordService.requestPasswordReset(email);
       toast.success("Check your email for a link to reset your password.");
     } catch (error) {
       console.error("Password reset request failed:", error);
       toast.error(error.message || "Could not send reset email.");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -134,8 +137,9 @@ export default function Login() {
           {/* Email + password form */}
           <form className="grid gap-5" onSubmit={handleManualLogin}>
             <div className="grid gap-2">
-              <FieldBox label="Email Address" />
+              <FieldBox label="Email Address" htmlFor="login-email" />
               <Input
+                id="login-email"
                 className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="email"
                 autoComplete="username"
@@ -147,10 +151,11 @@ export default function Login() {
 
             <div className="grid gap-2">
               <div className="flex justify-between items-center">
-                <FieldBox label="Password" />
+                <FieldBox label="Password" htmlFor="login-password" />
                 <Button
                   type="button"
                   variant="link"
+                  disabled={isResetting}
                   onClick={handleForgotPassword}
                   className="h-auto p-0 text-xs font-medium text-mauve-11 hover:underline"
                 >
@@ -158,6 +163,7 @@ export default function Login() {
                 </Button>
               </div>
               <Input
+                id="login-password"
                 className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="password"
                 autoComplete="current-password"
@@ -174,7 +180,7 @@ export default function Login() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <Button type="submit" className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}>
+                <Button type="submit" disabled={isSubmitting} className="h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto">
 {isSubmitting ? "Logging in..." : "Log In"}
 </Button>
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { pluralize } from "@/utils/plural";
 import { CheckCircle2, ChevronRight, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Spinner from '@/components/ui/Spinner';
@@ -89,7 +90,7 @@ export default function PendingList({ rows, total, loading, availableHoursFor, a
                       <span><StatusPill record={r} /></span>
                       <span className="flex items-center justify-end gap-2 font-mono text-xs text-muted-foreground">
                         {r.attachments?.length > 0 && (
-                          <span className="flex items-center gap-0.5" title={`${r.attachments.length} attachment(s)`}>
+                          <span className="flex items-center gap-0.5" title={pluralize(r.attachments.length, "attachment")}>
                             <Paperclip size={12} />{r.attachments.length}
                           </span>
                         )}

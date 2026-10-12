@@ -184,7 +184,20 @@ function PendingFooter({ request, decide, overtimeAs, onOvertimeAs }) {
   return (
     <SlideOverFooter>
       {request.type === 'OVERTIME' && (
-        <div className="flex flex-col gap-2" role="radiogroup" aria-label="Approve overtime as">
+        <div
+          className="flex flex-col gap-2"
+          role="radiogroup"
+          aria-label="Approve overtime as"
+          onKeyDown={(e) => {
+            const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+            if (!step) return;
+            e.preventDefault();
+            const radios = [...e.currentTarget.querySelectorAll('[role="radio"]')];
+            const next = radios[(radios.indexOf(document.activeElement) + step + radios.length) % radios.length];
+            next?.focus();
+            next?.click();
+          }}
+        >
           <p className={LABEL}>Approve as</p>
           {[
             ['offset', 'Offset hours', `Adds ${hours.requested} hrs to the Offset balance`],
@@ -196,6 +209,7 @@ function PendingFooter({ request, decide, overtimeAs, onOvertimeAs }) {
               variant="outline"
               role="radio"
               aria-checked={overtimeAs === value}
+              tabIndex={overtimeAs === value ? 0 : -1}
               onClick={() => onOvertimeAs(value)}
               className={`h-auto justify-start gap-3 whitespace-normal rounded-xl px-4 py-3 text-left ${overtimeAs === value ? 'border-mauve-12 bg-muted' : ''}`}
             >
@@ -229,7 +243,7 @@ function BalanceImpact({ request, available }) {
   if (request.type === 'UNDERTIME') {
     return (
       <DetailSection title="Balance impact">
-        <p className="text-[13px] leading-relaxed text-muted-foreground">Counts toward this month's undertime. It is not taken from any balance.</p>
+        <p className="text-[13px] leading-relaxed text-muted-foreground">Counts toward this month’s undertime. It is not taken from any balance.</p>
       </DetailSection>
     );
   }

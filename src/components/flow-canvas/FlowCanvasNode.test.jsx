@@ -43,7 +43,7 @@ describe("FlowCanvasNode", () => {
       expect(screen.getByText("called in")).toBeInTheDocument()
       expect(
         screen.getByRole("button", {
-          name: "Called in here: Maria Daniella C. Duran, Raquel Galacgac",
+          name: "Qualification: Called in here: Maria Daniella C. Duran, Raquel Galacgac",
         }),
       ).toBeInTheDocument()
     })

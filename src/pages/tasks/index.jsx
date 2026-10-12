@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
 import { LayoutGrid, ListChecks, Table as TableIcon } from "lucide-react";
 import { TASK_STATUS } from "../../constants/status.js";
@@ -238,6 +239,7 @@ export default function TasksPage() {
     data,
     isLoading,
     isError,
+    refetch,
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
@@ -280,7 +282,7 @@ export default function TasksPage() {
               .then((task) => {
                 if (task) setViewTask(task);
               })
-              .catch((err) => toast.error(err.message || "Something went wrong"));
+              .catch((err) => toast.error(err.message || "Could not open that task. Try again."));
           },
         );
         navigate(location.pathname, { replace: true, state: {} });
@@ -296,7 +298,7 @@ export default function TasksPage() {
     },
     onError: (error) => {
       console.error("Failed to update task:", error);
-      toast.error("Database error: Could not update task.");
+      toast.error("Could not update the task. Check your connection and try again.");
     },
   });
 
@@ -371,7 +373,7 @@ export default function TasksPage() {
       <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
         <Spinner size="md" />
         <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Fetching Directory...
+          Fetching Directory…
         </p>
       </div>
     );
@@ -379,11 +381,9 @@ export default function TasksPage() {
 
   if (isError)
     return (
-      <div className="py-10 text-center bg-red-a2 border border-red-a5 rounded-xl">
-        <p className="text-red-11 font-bold">
-          Connection Error: Failed to load task directory.
-        </p>
-      </div>
+      <PageShell title="Tasks">
+        <QueryError title="Tasks could not be loaded." onRetry={refetch} />
+      </PageShell>
     );
 
   const isPersonalView = isHr && hrViewMode === "PERSONAL";
@@ -482,6 +482,8 @@ export default function TasksPage() {
           <TaskTableView
             tasks={sortedAndFilteredTasks}
             searchTerm={searchTerm}
+            filtered={rawTasks.length > 0}
+            onClearFilters={clearAllFilters}
             onView={(task) => setViewTask(task)}
             onSilentUpdate={(payload) => editTaskMutation.mutateAsync(payload)}
           />
@@ -597,6 +599,7 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
+                      aria-label="Previous page"
                       className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       ←
@@ -630,33 +633,40 @@ export default function TasksPage() {
                         pages.push(totalGroupPages);
                       }
 
-                      return pages.map((p, idx) => (
+                      return pages.map((p, idx) =>
+                        p === "..." ? (
+                          <span
+                            key={idx}
+                            aria-hidden="true"
+                            className="inline-flex h-7 w-7 items-center justify-center text-xs font-bold text-muted-foreground/80 opacity-50"
+                          >
+                            ...
+                          </span>
+                        ) : (
                         <Button
                           key={idx}
                           variant="outline"
                           size="icon"
-                          disabled={p === "..."}
+                          aria-label={`Page ${p}`}
+                          aria-current={p === currentGroupPage ? "page" : undefined}
                           onClick={(e) => {
-                            if (p !== "...") {
-                              setGroupPage(statusKey, p);
-                              e.target
-                                .closest(".group-container")
-                                ?.scrollIntoView({
-                                  behavior: "smooth",
-                                  block: "nearest",
-                                });
-                            }
+                            setGroupPage(statusKey, p);
+                            e.target
+                              .closest(".group-container")
+                              ?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "nearest",
+                              });
                           }}
                           className={`h-7 w-7 text-xs font-bold ${p === currentGroupPage
                             ? "bg-primary text-primary-foreground border-primary hover:bg-primary"
-                            : p === "..."
-                              ? "bg-transparent text-muted-foreground/80 border-transparent cursor-default"
-                              : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
+                            : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
                             }`}
                         >
                           {p}
                         </Button>
-                      ));
+                        ),
+                      );
                     })()}
                     <Button
                       variant="outline"
@@ -670,6 +680,7 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
+                      aria-label="Next page"
                       className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       →
@@ -685,7 +696,14 @@ export default function TasksPage() {
           <EmptyState
             icon={ListChecks}
             title="No tasks found"
-            description="Try adjusting your filters or search term."
+            description={rawTasks.length > 0 ? "No tasks match these filters." : undefined}
+            action={
+              rawTasks.length > 0 ? (
+                <Button variant="outline" size="sm" className="mt-2" onClick={clearAllFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
           />
         )}
       </div>

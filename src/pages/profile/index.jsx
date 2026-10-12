@@ -140,7 +140,7 @@ export default function ProfilePage() {
         ? bannerUrlInput.trim()
         : user?.dashboardBannerUrl || "/leaf-background.jpg";
 
-  const { data: stats, isLoading: isStatsLoading } = useQuery({
+  const { data: stats, isLoading: isStatsLoading, isError: isStatsError } = useQuery({
     queryKey: ["profileStats", user?.id],
     queryFn: async () => {
       if (user?.isSuperAdmin) return null;
@@ -373,10 +373,10 @@ export default function ProfilePage() {
 
             <div>
               <h2 className="text-xl font-black text-foreground">
-                {user?.name || "Employee Name"}
+                {user?.name || "—"}
               </h2>
               <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 justify-center">
-                <Mail size={13} /> {user?.email || "email@t3ckgroup.com"}
+                <Mail size={13} className="shrink-0" /> <span className="break-all">{user?.email || "—"}</span>
               </p>
               <Button
                 type="button"
@@ -385,7 +385,7 @@ export default function ProfilePage() {
                 disabled={isSendingPasswordReset}
                 className="mt-3 h-auto p-0 text-xs font-bold text-foreground disabled:opacity-60"
               >
-                {isSendingPasswordReset ? "Sending..." : "Change Password"}
+                {isSendingPasswordReset ? "Sending…" : "Change Password"}
               </Button>
             </div>
           </div>
@@ -437,7 +437,7 @@ export default function ProfilePage() {
                     System ID
                   </p>
                   <p className="text-muted-foreground font-mono text-xs mt-1 break-all select-all">
-                    {user?.id || "UUID_PENDING"}
+                    {user?.id || "—"}
                   </p>
                 </div>
               </div>
@@ -479,7 +479,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-foreground">
-                    {isStatsLoading ? <Spinner size="sm" /> : stats?.primary}
+                    {isStatsLoading ? <Spinner size="sm" /> : isStatsError ? "—" : stats?.primary}
                   </p>
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                     {stats?.primaryLabel || "Metrics"}
@@ -492,7 +492,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-green-10">
-                    {isStatsLoading ? <Spinner size="sm" /> : stats?.secondary}
+                    {isStatsLoading ? <Spinner size="sm" /> : isStatsError ? "—" : stats?.secondary}
                   </p>
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                     {stats?.secondaryLabel || "Completed"}
@@ -616,7 +616,7 @@ export default function ProfilePage() {
                     {bannerFile ? bannerFile.name : "URL, upload, or random"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -674,6 +674,7 @@ export default function ProfilePage() {
               />
               <Input
                 type="url"
+                aria-label="Banner image URL"
                 value={bannerUrlInput}
                 onChange={(e) => {
                   setBannerUrlInput(e.target.value);
@@ -729,6 +730,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <Textarea
+              aria-label="Custom quote"
               value={customQuote}
               maxLength={100}
               onChange={(e) => {
@@ -736,7 +738,7 @@ export default function ProfilePage() {
                 setRemoveQuote(false);
               }}
               className="min-h-[70px] resize-none p-4 text-sm md:text-sm"
-              placeholder="Write your 7-word motivational quote (all users)..."
+              placeholder="Write your 7-word motivational quote (all users)…"
             />
           </div>
         </div>

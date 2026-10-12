@@ -34,6 +34,8 @@ export function ApprovalTable({
   keyboard = true,
   paginate = false,
   empty,
+  filtered = false,
+  onClearFilters,
 }) {
   const [cursorId, setCursorId] = useState(null);
   const [pageSize, setPageSize] = useState(25);
@@ -71,6 +73,20 @@ export function ApprovalTable({
     return () => window.removeEventListener("keydown", onKey);
   }, [keyboard, rows, cursor, onOpen]);
 
+  if (items.length === 0 && filtered) {
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-20 text-center">
+        <p className="text-sm font-bold text-foreground">No results match these filters</p>
+        <p className="max-w-sm text-xs text-muted-foreground">Nothing here fits the current search or filters.</p>
+        {onClearFilters && (
+          <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-20 text-center">
@@ -97,7 +113,9 @@ export function ApprovalTable({
             <TableHead className={`${HEAD} hidden md:table-cell`}>Waiting</TableHead>
             <TableHead className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
             <TableHead className={HEAD}>Status</TableHead>
-            <TableHead className="w-24" />
+            <TableHead className="w-24">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -204,6 +222,7 @@ export function ApprovalTable({
                   }}
                   options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
                   size="sm"
+                  aria-label="Rows per page"
                 />
               </div>
             </>
@@ -211,13 +230,13 @@ export function ApprovalTable({
         </div>
         {paginate && totalPages > 1 && (
           <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} title="Previous Page">
+            <Button variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} title="Previous Page" aria-label="Previous page">
               <ChevronLeft size={14} />
             </Button>
             <span className="px-2 text-xs font-semibold text-foreground">
               Page {currentPage} of {totalPages}
             </span>
-            <Button variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} title="Next Page">
+            <Button variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} title="Next Page" aria-label="Next page">
               <ChevronRight size={14} />
             </Button>
           </div>

@@ -116,7 +116,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
   if (error === "not_found") {
     return (
       <div className={`flex items-center justify-center p-4 ${standalone ? 'min-h-screen bg-[#F7F7F5]' : ''}`}>
-        <div className="max-w-md w-full border border-[#E9E9E7] bg-white rounded-md p-8 text-center text-[#37352F] shadow-sm">
+        <div role="alert" className="max-w-md w-full border border-[#E9E9E7] bg-white rounded-md p-8 text-center text-[#37352F] shadow-sm">
           <SearchX className="h-8 w-8 text-[#9B9A97] mx-auto mb-4" />
           <h2 className="text-xl font-bold mb-2">Record Not Found</h2>
           <p className="text-sm opacity-80 mb-6">

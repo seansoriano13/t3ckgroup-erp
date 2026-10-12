@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
@@ -57,7 +58,7 @@ export default function EmployeeLeavesPage() {
     endDate: initialBoundaries.endDate,
   });
 
-  const { data, isLoading: loadingHistory } = useQuery({
+  const { data, isLoading: loadingHistory, isError, refetch } = useQuery({
     queryKey: ['employeeLeaves', user?.id, dateRange.startDate, dateRange.endDate],
     queryFn: async () => {
       const [
@@ -229,7 +230,9 @@ export default function EmployeeLeavesPage() {
         )}
 
         {activeTab === 'requests' && (
-          loadingHistory ? (
+          isError ? (
+            <QueryError title="Your requests could not be loaded." onRetry={refetch} />
+          ) : loadingHistory ? (
             <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
               <Spinner size="sm" />
               <span className="text-sm font-bold">Loading requests…</span>

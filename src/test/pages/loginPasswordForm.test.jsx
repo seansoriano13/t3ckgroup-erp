@@ -101,4 +101,39 @@ describe("Login password form", () => {
     await waitFor(() => expect(resetSpy).toHaveBeenCalledWith("a@t3ckgroup.test"));
     expect(signInSpy).not.toHaveBeenCalled();
   });
+
+  it("sends one sign-in request on repeated Enter and disables the button in flight", async () => {
+    const user = setupUser();
+    let resolve;
+    const signInSpy = vi.spyOn(supabase.auth, "signInWithPassword").mockReturnValue(
+      new Promise((r) => { resolve = r; }),
+    );
+
+    renderLoggedOut();
+    await user.type(screen.getByPlaceholderText("name@t3ckgroup.com"), "a@t3ckgroup.test");
+    await user.type(screen.getByPlaceholderText("••••••••"), "pw{Enter}{Enter}{Enter}");
+
+    expect(signInSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /logging in/i })).toBeDisabled();
+    resolve({ data: null, error: new Error("x") });
+    await waitFor(() => expect(screen.getByRole("button", { name: /log in/i })).not.toBeDisabled());
+  });
+
+  it("sends one reset email on repeated Forgot password? clicks", async () => {
+    const user = setupUser();
+    let resolve;
+    const resetSpy = vi.spyOn(passwordService, "requestPasswordReset").mockReturnValue(
+      new Promise((r) => { resolve = r; }),
+    );
+
+    renderLoggedOut();
+    await user.type(screen.getByPlaceholderText("name@t3ckgroup.com"), "a@t3ckgroup.test");
+    const btn = screen.getByRole("button", { name: /forgot password/i });
+    await user.click(btn);
+    await user.click(btn);
+
+    expect(resetSpy).toHaveBeenCalledTimes(1);
+    resolve();
+    await waitFor(() => expect(btn).not.toBeDisabled());
+  });
 });

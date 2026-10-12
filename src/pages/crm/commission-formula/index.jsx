@@ -1,5 +1,12 @@
-import { Navigate } from "react-router";
+import { Navigate, useLocation } from "react-router";
+import { redirectTarget } from "@/lib/redirectTarget";
 
-export default function CrmCommissionFormulaRedirect() {
-  return <Navigate to="/sors/commission?tab=formula" replace />;
+export default function CommissionFormulaRedirect() {
+  const location = useLocation();
+  return (
+    <Navigate
+      to={redirectTarget("/sors/commission", location, { tab: "formula" })}
+      replace
+    />
+  );
 }

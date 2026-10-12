@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
+import { formatDateWith } from "@/utils/formatDate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { MessagesSquare, Paperclip, Send, Sparkles } from "lucide-react";
@@ -18,15 +20,16 @@ import { getPermissionContext } from "@/utils/permissions";
 import { ALLOWED_EXTENSIONS_STRING } from "@/utils/attachments";
 import { purchaseRequestService } from "@/services/purchaseRequestService";
 import { purchaseRequestKeys } from "./queryKeys";
+import { refusal } from "./requestHooks";
 
 function formatWhen(iso) {
   if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, {
+  return formatDateWith(iso, {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  });
+  }, { time: true });
 }
 
 function Message({ message }) {
@@ -114,7 +117,7 @@ export default function RequestChat({ request, className = "" }) {
       setMentions([]);
       attachments.clear();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(refusal(err)),
     onSettled: () => queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.messages(requestId) }),
   });
   const isPosting = isUploading || postMutation.isPending;
@@ -126,7 +129,7 @@ export default function RequestChat({ request, className = "" }) {
     try {
       uploaded = await attachments.upload();
     } catch (err) {
-      toast.error(`Upload failed: ${err.message}`);
+      toast.error(`Could not upload the file. ${refusal(err)}`);
       return;
     }
     postMutation.mutate({ content, uploaded });
@@ -147,7 +150,7 @@ export default function RequestChat({ request, className = "" }) {
             <Spinner />
           </div>
         ) : messagesQuery.isError ? (
-          <p className="py-8 text-center text-sm text-destructive">Couldn&apos;t load the chat.</p>
+          <QueryError title="Couldn't load the chat." onRetry={messagesQuery.refetch} />
         ) : messages.length === 0 ? (
           <EmptyState
             icon={MessagesSquare}
@@ -182,6 +185,7 @@ export default function RequestChat({ request, className = "" }) {
             <div className="flex-1 rounded-xl border border-border/80 bg-muted/25 p-3 focus-within:border-mauve-7 focus-within:bg-card">
               <MentionTextarea
                 rows={2}
+                aria-label="Message"
                 value={text}
                 onChange={setText}
                 people={people}

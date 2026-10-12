@@ -35,6 +35,8 @@ export default function GroupTaskTableView({
   tasks = [],
   searchTerm = "",
   onView,
+  hasAnyTasks = false,
+  onClearFilters,
 }) {
   const avatarMap = useEmployeeAvatarMap();
 
@@ -97,14 +99,17 @@ export default function GroupTaskTableView({
     return sortedTasks.slice(start, start + pageSize);
   }, [sortedTasks, currentPage, pageSize]);
 
+  const ariaSort = (field) =>
+    sortField !== field ? "none" : sortOrder === "asc" ? "ascending" : "descending";
+
   const renderSortIcon = (field) => {
     if (sortField !== field) {
-      return <ArrowUpDown size={12} className="opacity-40 ml-1 inline-block" />;
+      return <ArrowUpDown size={12} className="size-3 opacity-40 ml-1 inline-block" />;
     }
     return sortOrder === "asc" ? (
-      <ArrowUp size={12} className="text-primary ml-1 inline-block" />
+      <ArrowUp size={12} className="size-3 text-primary ml-1 inline-block" />
     ) : (
-      <ArrowDown size={12} className="text-primary ml-1 inline-block" />
+      <ArrowDown size={12} className="size-3 text-primary ml-1 inline-block" />
     );
   };
 
@@ -114,9 +119,16 @@ export default function GroupTaskTableView({
         icon={Users}
         title="No Group Tasks Found"
         description={
-          searchTerm
-            ? "Try adjusting your search criteria."
+          hasAnyTasks
+            ? "No group tasks match these filters."
             : "There are no active group tasks at the moment."
+        }
+        action={
+          hasAnyTasks && onClearFilters ? (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          ) : undefined
         }
       />
     );
@@ -131,45 +143,70 @@ export default function GroupTaskTableView({
             <TableHeader>
               <TableRow>
                 <TableHead
-                  onClick={() => handleSort("title")}
-                  className="cursor-pointer hover:text-foreground transition-colors"
+                  aria-sort={ariaSort("title")}
+                  className="hover:text-foreground transition-colors"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("title")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Group Task / Description {renderSortIcon("title")}
-                  </div>
+                  </Button>
                 </TableHead>
                 <TableHead
-                  onClick={() => handleSort("creator")}
-                  className="cursor-pointer hover:text-foreground transition-colors w-[170px]"
+                  aria-sort={ariaSort("creator")}
+                  className="hover:text-foreground transition-colors w-[170px]"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("creator")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Creator {renderSortIcon("creator")}
-                  </div>
+                  </Button>
                 </TableHead>
                 <TableHead className="w-[160px]">Members</TableHead>
                 <TableHead
-                  onClick={() => handleSort("status")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
+                  aria-sort={ariaSort("status")}
+                  className="px-3 hover:text-foreground transition-colors w-[150px]"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("status")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Status {renderSortIcon("status")}
-                  </div>
+                  </Button>
                 </TableHead>
                 <TableHead
-                  onClick={() => handleSort("dueDate")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
+                  aria-sort={ariaSort("dueDate")}
+                  className="px-3 hover:text-foreground transition-colors w-[130px]"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("dueDate")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Due Date {renderSortIcon("dueDate")}
-                  </div>
+                  </Button>
                 </TableHead>
                 <TableHead
-                  onClick={() => handleSort("progress")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[140px]"
+                  aria-sort={ariaSort("progress")}
+                  className="px-3 hover:text-foreground transition-colors w-[140px]"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("progress")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Progress {renderSortIcon("progress")}
-                  </div>
+                  </Button>
                 </TableHead>
                 <TableHead className="text-right w-[80px]">Action</TableHead>
               </TableRow>
@@ -202,8 +239,15 @@ export default function GroupTaskTableView({
                 return (
                   <TableRow
                     key={task.id}
+                    tabIndex={0}
                     onClick={() => onView && onView(task)}
-                    className={`cursor-pointer group ${
+                    onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target === e.currentTarget) {
+            e.preventDefault();
+            onView && onView(task);
+          }
+        }}
+                    className={`cursor-pointer outline-none focus-visible:bg-muted group ${
                       isOverdue ? "bg-amber-500/[0.03]" : ""
                     }`}
                   >

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bug, CheckCircle2, RotateCcw, SendHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
@@ -19,12 +20,14 @@ import { useRecordParam } from "../../hooks/useRecordParam";
 import { bugReportService } from "../../services/bugReportService";
 import { getPermissionContext } from "../../utils/permissions";
 import { APPROVE_CLASS } from "../approvals/_components/approvalUi";
+import { formatDateWith } from "../../utils/formatDate";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
 
 const firstLine = (text) => (text || "").split("\n")[0];
 const formatWhen = (iso) =>
-  new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  formatDateWith(iso, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }, { time: true });
 
 function Status({ report }) {
   return report.resolved_at ? (
@@ -52,7 +55,7 @@ function ReportRow({ report, onOpen, showSender }) {
       </TableCell>
       {showSender && <TableCell className="text-xs text-foreground">{report.reporter?.name || "—"}</TableCell>}
       <TableCell className="max-w-[12rem] truncate font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
-      <TableCell className="text-xs tabular-nums text-muted-foreground">{report.attachments?.length || ""}</TableCell>
+      <TableCell className="text-xs tabular-nums text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
       <TableCell className="text-right">
         <Status report={report} />
@@ -101,10 +104,10 @@ function Byline({ name, tag, at }) {
 /** The technical facts sent with a report, small, under its text. */
 function ReportMeta({ report }) {
   const facts = [
-    ["Page", report.page_url, "font-mono"],
+    ["Page", report.page_url, "font-mono break-all"],
     ["Environment", report.environment],
     ["Version", report.app_version],
-    ["Browser", report.user_agent, "truncate"],
+    ["Browser", report.user_agent, "break-words"],
   ].filter(([, value]) => value);
   if (!facts.length) return null;
   return (
@@ -222,7 +225,7 @@ function ThreadComposer({ report, isReader, onSent }) {
       await queryClient.invalidateQueries({ queryKey: ["bugReportNotes", report.id] });
       onSent();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Could not send the note.");
     } finally {
       setSending(false);
     }
@@ -236,7 +239,7 @@ function ThreadComposer({ report, isReader, onSent }) {
       await queryClient.invalidateQueries({ queryKey: ["bugReportNotes", report.id] });
       onSent();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Could not update the report.");
     } finally {
       setSaving(false);
     }
@@ -261,7 +264,7 @@ function ThreadComposer({ report, isReader, onSent }) {
         className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
       />
       <div className="flex items-center gap-2">
-        <span className="mr-auto hidden text-[11px] text-muted-foreground sm:inline">Ctrl + Enter to send</span>
+        <span className="mr-auto hidden text-[11px] text-muted-foreground sm:inline">{/Mac|iPhone|iPad/i.test(navigator.platform || "") ? "⌘ Enter" : "Ctrl + Enter"} to send</span>
         {isReader && (
           <Button
             variant={isResolved ? "outline" : "default"}
@@ -332,7 +335,7 @@ function BugReportsList({ isReader, meId }) {
   const [showResolved, setShowResolved] = useState(false);
 
   const queryClient = useQueryClient();
-  const { data: reports = [], isLoading, isError, error } = useQuery({
+  const { data: reports = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["bugReports"],
     queryFn: () => bugReportService.list(),
   });
@@ -366,10 +369,10 @@ function BugReportsList({ isReader, meId }) {
             : "Bugs you reported with the bug button, and IT's notes on them."
         }
         toolbar={
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Switch checked={showResolved} onCheckedChange={setShowResolved} aria-label="Show resolved" />
-            <span aria-hidden="true">Show resolved</span>
-          </div>
+          <FieldBox inline label="Show resolved" className="gap-2 text-xs font-medium normal-case tracking-normal text-muted-foreground">
+            <Switch checked={showResolved} onCheckedChange={setShowResolved} />
+            <span>Show resolved</span>
+          </FieldBox>
         }
       >
         {isLoading && (
@@ -379,10 +382,7 @@ function BugReportsList({ isReader, meId }) {
         )}
 
         {isError && (
-          <div className="rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center">
-            <p className="text-sm font-semibold text-red-11">Bug reports could not be loaded.</p>
-            <p className="mt-1 text-xs text-muted-foreground">{error?.message}</p>
-          </div>
+          <QueryError title="Bug reports could not be loaded." onRetry={refetch} />
         )}
 
         {!isLoading && !isError && shown.length === 0 && (

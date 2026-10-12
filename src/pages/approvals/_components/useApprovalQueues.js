@@ -112,5 +112,9 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
     counts,
     isLoadingTasks: tasksQuery.isLoading,
     isLoadingLeaves: leavesQuery.isLoading,
+    isErrorTasks: tasksQuery.isError,
+    isErrorLeaves: leavesQuery.isError,
+    refetchTasks: tasksQuery.refetch,
+    refetchLeaves: leavesQuery.refetch,
   };
 }

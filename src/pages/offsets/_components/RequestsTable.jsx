@@ -11,6 +11,7 @@ import {
 import StatusBadge from '../../../components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { AttachmentList } from '../../../components/ui/Attachments';
+import { fmtDay } from '../../hr/offsets/_components/leaveDisplay';
 import { formatWindow } from '../../../utils/time';
 import { deriveRequestStage } from '../../../utils/requestStage';
 import { getRequestStageTheme } from '../../../constants/status';
@@ -43,7 +44,7 @@ export default function RequestsTable({ rows, onWithdraw }) {
             return (
               <TableRow key={req.type + '-' + req.id}>
                 <TableCell className="text-xs text-muted-foreground font-medium">
-                  {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {fmtDay(req.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </TableCell>
                 <TableCell>
                   <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${REQUEST_TYPE_BADGE[req.type].badgeClass}`}>
@@ -53,15 +54,15 @@ export default function RequestsTable({ rows, onWithdraw }) {
                 <TableCell className="text-sm font-bold text-foreground">
                   {req.dayCount > 1 ? (
                     <>
-                      {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtDay(req.startDate, { month: 'short', day: 'numeric' })}
                       {' – '}
-                      {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtDay(req.endDate, { month: 'short', day: 'numeric' })}
                       <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                         {req.dayCount} days
                       </span>
                     </>
                   ) : (
-                    new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                    fmtDay(req.date, { weekday: 'short', month: 'short', day: 'numeric' })
                   )}
                 </TableCell>
                 <TableCell>
@@ -87,20 +88,23 @@ export default function RequestsTable({ rows, onWithdraw }) {
                   {req.attachments?.length ? (
                     <AttachmentList attachments={req.attachments} compact />
                   ) : (
-                    <span className="text-xs text-muted-foreground/50">-</span>
+                    <span className="text-xs text-muted-foreground/50">—</span>
                   )}
                 </TableCell>
                 <TableCell>
                   <StatusBadge theme={getRequestStageTheme(stage.tone)} label={stage.label} />
                 </TableCell>
                 <TableCell className="text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
-                  {stage.note || '-'}
+                  {stage.note || '—'}
                 </TableCell>
-                <TableCell className="text-right flex items-center justify-end gap-2">
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
                   {req.verification_token && (
                     <Link
                       to={`/verify/${req.verification_token}`}
                       target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="View verified form"
                       className="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
                       title="View Verified Form"
                     >
@@ -120,6 +124,7 @@ export default function RequestsTable({ rows, onWithdraw }) {
                       <Trash2 size={14} />
                     </Button>
                   )}
+                </div>
                 </TableCell>
               </TableRow>
             );

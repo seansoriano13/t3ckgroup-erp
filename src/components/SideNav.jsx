@@ -516,6 +516,8 @@ export default function SideNav() {
           variant="outline"
           size="icon"
           onClick={() => setIsMobileOpen(true)}
+          aria-label="Open navigation"
+          aria-expanded={isMobileOpen}
           className="h-auto w-auto text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-sidebar-border backdrop-blur-md p-1.5 rounded-lg shadow-sm transition-colors"
         >
           <PanelRight size={18} strokeWidth={2} />

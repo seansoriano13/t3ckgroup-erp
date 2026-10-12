@@ -1,5 +1,6 @@
 import { PackageSearch } from "lucide-react";
 
+import QueryError from "@/components/ui/QueryError";
 import { cn } from "@/lib/utils";
 import EmptyState from "@/components/ui/EmptyState";
 import Spinner from "@/components/ui/Spinner";
@@ -22,7 +23,7 @@ export default function PurchaseRequestView({
   layout = "stacked",
   className = "",
 }) {
-  const { data: request, isLoading, isError } = usePurchaseRequest(requestId);
+  const { data: request, isLoading, isError, refetch } = usePurchaseRequest(requestId);
 
   if (isLoading) {
     return (
@@ -31,12 +32,15 @@ export default function PurchaseRequestView({
       </div>
     );
   }
-  if (isError || !request) {
+  if (isError) {
+    return <QueryError title="Couldn’t load this request." onRetry={refetch} />;
+  }
+  if (!request) {
     return (
       <EmptyState
         icon={PackageSearch}
-        title={isError ? "Couldn't load this request" : "Request not available"}
-        description={isError ? "Try again in a moment." : "It may have been removed, or you aren't one of its members."}
+        title="Request not available"
+        description="It may have been removed, or you aren’t one of its members."
       />
     );
   }
