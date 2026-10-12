@@ -3208,9 +3208,11 @@ begin
     );
 
   elsif v_event is null then
+    -- The creator counts only before a Buyer, or as a Direct request's Requester.
     select array_agg(distinct x) into v_requesters
     from (
       select v_req.created_by as x
+      where v_req.buyer_id is null or v_req.opportunity_id is null
       union
       select i.requested_by from public.purchase_request_items i where i.request_id = v_req.id
     ) q
@@ -5237,14 +5239,14 @@ AS $function$
           select 1 from purchase_request_members m
           where m.request_id = r.id
             and m.employee_id = get_employee_id()
-            and case
-              when r.requesters is not null then public._purchase_request_may_request(r, m.employee_id)
-              else m.side in ('sales', 'requester')
-                or exists (
-                  select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
-                  where o.id = r.opportunity_id and t.employee_id = m.employee_id
-                )
-            end
+            and (
+              m.side in ('sales', 'requester')
+              or exists (
+                select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
+                where o.id = r.opportunity_id and t.employee_id = m.employee_id
+              )
+              or public._purchase_request_may_request(r, m.employee_id)
+            )
         )
       )
   );
@@ -5731,6 +5733,19 @@ begin
 
   return v_item;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_stock_snapshot(p_request_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object('fetched_at', s.fetched_at, 'data', s.data)
+  from purchase_requests r
+  join sor_stock_snapshots s on s.opportunity_id = r.opportunity_id
+  where r.id = p_request_id
+    and can_read_purchase_request(p_request_id);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_take(p_request_id uuid)
