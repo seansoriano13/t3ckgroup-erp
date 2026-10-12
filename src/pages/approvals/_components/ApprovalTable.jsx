@@ -119,7 +119,7 @@ export function ApprovalTable({
               {selectable && <Checkbox checked={allChecked} onCheckedChange={(v) => onToggleAll?.(v, rows)} aria-label="Select all" />}
             </TableHead>
             <SortHead id="request" sortKey="request" sort={sort} onSort={toggle} className={HEAD}>Request</SortHead>
-            <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={HEAD}>{personLabel}</SortHead>
+            <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>{personLabel}</SortHead>
             <SortHead id="submitted" sortKey="submitted" sort={sort} onSort={toggle} className={`${HEAD} hidden lg:table-cell`}>Submitted</SortHead>
             <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>Waiting</SortHead>
             <TableHead id="stage" className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
@@ -184,7 +184,7 @@ export function ApprovalTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="max-w-[180px]">
+                <TableCell className="hidden max-w-[180px] md:table-cell">
                   <PersonChip person={item.person} />
                 </TableCell>
                 <TableCell className="hidden whitespace-nowrap font-mono text-xs text-muted-foreground lg:table-cell">{shortDate(item.submittedAt)}</TableCell>
@@ -198,7 +198,7 @@ export function ApprovalTable({
                   <StatusPill item={item} />
                 </TableCell>
                 <TableCell className="pr-4 text-right" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-end gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{renderRowAction?.(item)}</div>
+                  <div className="flex justify-end gap-1 max-md:opacity-100 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{renderRowAction?.(item)}</div>
                 </TableCell>
               </TableRow>
             );

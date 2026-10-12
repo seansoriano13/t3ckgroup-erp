@@ -63,10 +63,10 @@ function ReportRow({ report, onOpen, showSender }) {
       <TableCell className="max-w-[28rem]">
         <span className="block truncate text-sm font-semibold text-foreground">{firstLine(report.description)}</span>
       </TableCell>
-      {showSender && <TableCell className="text-xs text-foreground">{report.reporter?.name || "—"}</TableCell>}
-      <TableCell className="max-w-[12rem] truncate font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
-      <TableCell className="text-xs tabular-nums text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
-      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
+      {showSender && <TableCell className="hidden text-xs md:table-cell text-foreground">{report.reporter?.name || "—"}</TableCell>}
+      <TableCell className="hidden max-w-[12rem] truncate md:table-cell font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
+      <TableCell className="hidden text-xs tabular-nums md:table-cell text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
+      <TableCell className="hidden whitespace-nowrap text-xs md:table-cell text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
       <TableCell className="text-right">
         <Status report={report} />
       </TableCell>
@@ -407,7 +407,7 @@ function BugReportsList({ isReader, meId }) {
 
         {!isLoading && !isError && shown.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <Table tableId="bug-reports" className="min-w-[48rem]">
+            <Table tableId="bug-reports" className="md:min-w-[48rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {["Report", ...(isReader ? ["Sent by"] : []), "Page", "Files", "Sent", "Status"].map((heading) => (
@@ -417,7 +417,7 @@ function BugReportsList({ isReader, meId }) {
                       sortKey={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
                       sort={sort}
                       onSort={toggle}
-                      className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}
+                      className={`${HEAD} ${heading === "Status" ? "text-right" : ""} ${heading !== "Report" && heading !== "Status" ? "hidden md:table-cell" : ""}`}
                     >
                       {heading}
                     </SortHead>

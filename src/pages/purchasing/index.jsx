@@ -91,8 +91,8 @@ function itemsSummary(row) {
   return `${row.open_count} open of ${row.item_count}`;
 }
 
-// Progress and Age hide below the medium breakpoint so Request and Status stay readable.
-const NARROW_HIDDEN = new Set(["Progress", "Age"]);
+// Stage, Progress, Last activity and Age hide below md so Request, Buyer and Status stay in view; the row sheet has the rest.
+const NARROW_HIDDEN = new Set(["Stage", "Progress", "Last activity", "Age"]);
 
 const REQUEST_SORT = {
   request: (r) => requestIdentity(r).title,
@@ -181,7 +181,7 @@ function QueueRow({ row, selected, onOpen, canTake }) {
         )}
         <span className="mt-0.5 block max-w-[22rem] truncate text-sm text-foreground">{title}</span>
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden md:table-cell">
         <span className="text-xs text-muted-foreground">{requestStageLabel(row) || "—"}</span>
       </TableCell>
       <TableCell className="hidden md:table-cell">
@@ -199,7 +199,7 @@ function QueueRow({ row, selected, onOpen, canTake }) {
           <span className="text-xs text-muted-foreground">Unassigned</span>
         )}
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden md:table-cell">
         <span className="text-xs tabular-nums text-muted-foreground">{formatDate(row.last_activity_at || row.created_at)}</span>
       </TableCell>
       <TableCell className="hidden md:table-cell">
@@ -360,7 +360,7 @@ function PurchaseRequests() {
         {!isLoading && !isError && visible.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="overflow-x-auto">
-              <Table tableId="purchasing" className="min-w-[52rem]">
+              <Table tableId="purchasing" className="md:min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     {["Request", "Stage", "Progress", "Buyer", "Last activity", "Age", "Status"].map((heading) => (
