@@ -8,7 +8,7 @@
  * than on any one section's internal markup, which is the seam this ticket
  * actually touches.
  */
-import { screen } from "@testing-library/react"
+import { act, screen } from "@testing-library/react"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { renderWithProviders, setupUser } from "../test/support"
 import TaskDetails from "./TaskDetails"
@@ -65,7 +65,7 @@ vi.mock("./TaskActivityTimeline", () => ({
 }))
 vi.mock("./TaskHeader", () => ({ default: () => <div>TaskHeader</div> }))
 vi.mock("./TaskFooter.jsx", () => ({
-  default: ({ actions, permissions }) => (
+  default: ({ actions, permissions, state }) => (
     <div>
       <button onClick={actions.onToggleEdit}>toggle-edit</button>
       <button onClick={actions.onDelete}>delete</button>
@@ -73,6 +73,7 @@ vi.mock("./TaskFooter.jsx", () => ({
       <span>canEvaluate:{String(permissions.canEvaluate)}</span>
       <span>isHr:{String(permissions.isHr)}</span>
       <span>isManagement:{String(permissions.isManagement)}</span>
+      <span>hasUncheckedItems:{String(state.hasUncheckedItems)}</span>
     </div>
   ),
 }))
@@ -192,5 +193,39 @@ describe("TaskDetails read-only gating", () => {
     expect(screen.getByText("canEvaluate:true")).toBeInTheDocument()
     expect(screen.queryByText(/held/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument()
+  })
+})
+
+// The form hydrates from the task in a microtask; flush it so assertions read
+// the hydrated state, not the empty initial one (which is trivially "no unchecked items").
+const hydrated = () => act(async () => { await Promise.resolve() })
+
+describe("TaskDetails checklist gating", () => {
+  const grouped = (checked) => [
+    { id: "g1", title: "Checking", items: [{ text: "A", checked }, { text: "B", checked }] },
+    { id: "g2", title: "Release", items: [{ text: "C", checked }] },
+  ]
+
+  it("does not block submit/approve when every item in a phased checklist is ticked", async () => {
+    renderModal({ as: head, task: task({ checklist: grouped(true) }) })
+    await hydrated()
+
+    expect(screen.getByText("hasUncheckedItems:false")).toBeInTheDocument()
+  })
+
+  it("still blocks when a phased checklist has an unticked item", async () => {
+    const list = grouped(true)
+    list[1].items[0].checked = false
+    renderModal({ as: head, task: task({ checklist: list }) })
+    await hydrated()
+
+    expect(screen.getByText("hasUncheckedItems:true")).toBeInTheDocument()
+  })
+
+  it("keeps blocking a flat checklist with an unticked item", async () => {
+    renderModal({ as: head, task: task({ checklist: [{ text: "A", checked: true }, { text: "B", checked: false }] }) })
+    await hydrated()
+
+    expect(screen.getByText("hasUncheckedItems:true")).toBeInTheDocument()
   })
 })

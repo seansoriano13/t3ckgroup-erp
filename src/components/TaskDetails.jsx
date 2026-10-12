@@ -9,6 +9,7 @@ import TaskMetaDetails from "./TaskMetaDetails"
 import TaskEvaluationSection from "./TaskEvaluationSection"
 import TaskActivityTimeline from "./TaskActivityTimeline"
 import { formatDate, toLocalDatetimeString } from "../utils/formatDate"
+import { parseChecklist } from "../utils/checklist"
 import {
   extractOthersDetailsFromRemarks,
   isCategoryMetadataRemarks,
@@ -216,23 +217,12 @@ export default function TaskDetails({
   // Checklist detection — now uses the dedicated checklist field
   let hasChecklist = false
   let hasUncheckedItems = false
-  const checklistData = formData.checklist
-  if (checklistData) {
-    try {
-      const items =
-        typeof checklistData === "string"
-          ? JSON.parse(checklistData)
-          : checklistData
-      const arr = Array.isArray(items) ? items : items?.items || []
-      if (arr.length > 0) {
-        hasChecklist = true
-        hasUncheckedItems = arr.some(
-          (item) => item && typeof item === "object" && !item.checked,
-        )
-      }
-    } catch (e) {
-      console.error(e)
-    }
+  const checklistItems = parseChecklist(formData.checklist)
+  if (checklistItems.length > 0) {
+    hasChecklist = true
+    hasUncheckedItems = checklistItems.some(
+      (item) => item && typeof item === "object" && !item.checked,
+    )
   }
 
   const taskDept = formData.department || user?.department
