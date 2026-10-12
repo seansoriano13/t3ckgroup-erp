@@ -72,11 +72,9 @@ function Table({ className, tableId, style, ...props }) {
       },
       set: (id, width, base) => setWidths({ ...base, [id]: Math.max(MIN_COL_WIDTH, Math.round(width)) }),
       save: (next) => commit(next),
-      reset: (id) => {
-        const next = { ...widths };
-        delete next[id];
-        commit(next);
-      },
+      // Back to the page's own widths. A single column cannot go back alone:
+      // the rest stay pinned, so it would collapse to the leftover space.
+      reset: () => commit({}),
     };
   }, [tableId, widths, commit]);
 
@@ -177,7 +175,7 @@ function TableHead({ className, id, style, children, ...props }) {
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => {
             e.stopPropagation();
-            ctx.reset(id);
+            ctx.reset();
           }}
           className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none hover:bg-foreground/20"
         />
