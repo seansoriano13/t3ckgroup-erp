@@ -91,7 +91,6 @@ describe("ResetPassword page", () => {
     stubLocation({ hash: RECOVERY_HASH });
     stubRecoverySession({ user: { id: "auth-1", email: "ana@t3ckgroup.test" } });
     const updateSpy = vi.spyOn(supabase.auth, "updateUser");
-    const toastSpy = vi.spyOn(toast, "error");
 
     renderPage();
     await screen.findByLabelText(/new password/i);
@@ -100,7 +99,27 @@ describe("ResetPassword page", () => {
     await user.type(screen.getByLabelText(/confirm password/i), "different-password");
     await user.click(screen.getByRole("button", { name: /save password/i }));
 
-    expect(toastSpy).toHaveBeenCalledWith(expect.stringMatching(/do not match/i));
+    const confirm = screen.getByLabelText(/confirm password/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/do not match/i);
+    expect(confirm).toHaveAttribute("aria-invalid", "true");
+    expect(confirm).toHaveFocus();
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("flags an empty password inline and focuses it", async () => {
+    stubLocation({ hash: RECOVERY_HASH });
+    stubRecoverySession({ user: { id: "auth-1", email: "ana@t3ckgroup.test" } });
+    const updateSpy = vi.spyOn(supabase.auth, "updateUser");
+
+    renderPage();
+    await screen.findByLabelText(/new password/i);
+    const user = setupUser();
+    await user.click(screen.getByRole("button", { name: /save password/i }));
+
+    const field = screen.getByLabelText(/new password/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/enter a password/i);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveFocus();
     expect(updateSpy).not.toHaveBeenCalled();
   });
 

@@ -49,6 +49,26 @@ describe("Login password form", () => {
     expect(screen.queryByText("(Disabled)")).not.toBeInTheDocument();
   });
 
+  it("flags empty fields inline, sets aria-invalid and focuses the first bad one", async () => {
+    const signIn = vi.spyOn(supabase.auth, "signInWithPassword");
+    renderLoggedOut();
+    const user = setupUser();
+    await user.click(screen.getByRole("button", { name: /log in/i }));
+
+    const email = screen.getByPlaceholderText("name@t3ckgroup.com");
+    const password = screen.getByPlaceholderText("••••••••");
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(email).toHaveAttribute("aria-invalid", "true");
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(email).toHaveFocus();
+    expect(signIn).not.toHaveBeenCalled();
+
+    await user.type(email, "ana@t3ckgroup.test");
+    expect(email).not.toHaveAttribute("aria-invalid");
+    await user.click(screen.getByRole("button", { name: /log in/i }));
+    expect(password).toHaveFocus();
+  });
+
   it("submits with signInWithPassword and proceeds on success", async () => {
     const user = setupUser();
     vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
