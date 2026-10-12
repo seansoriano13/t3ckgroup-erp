@@ -76,7 +76,7 @@ describe("who may add a substitute", () => {
         ["a purchasing member who isn't the Buyer", "outsider", "purchasing", null, false],
     ])("%s: %s", async (_, who, side, buyer, can) => {
         const id = await newRequest(buyer, [[who, side]])
-        const { data, error } = await (await clientFor(who)).rpc("pr_can_add_substitute", { p_request_id: id })
+        const { data, error } = await (await clientFor(who)).rpc("purchase_request_can_add_substitute", { p_request_id: id })
         expect(error).toBeNull()
         expect(data).toBe(can)
     })

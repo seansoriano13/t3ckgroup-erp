@@ -1,6 +1,7 @@
 import { AlertTriangle, FileText, Replace } from "lucide-react";
 
 import StatusBadge from "../StatusBadge";
+import StaleStockBadge from "./StaleStockBadge";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../constants/purchaseRequest";
 import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
@@ -72,6 +73,7 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
           <StatusBadge label={stock.badge.label} theme={STOCK_BADGE_THEME[stock.badge.kind]} />
           {stock.fetchedAt && <span>Stock as of {formatDate(stock.fetchedAt)}</span>}
+          {stock.stale && <StaleStockBadge />}
         </div>
       )}
 

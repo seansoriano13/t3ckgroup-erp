@@ -68,11 +68,22 @@ describe("requestedItemStock", () => {
     fetched_at: "2026-10-07T01:00:00Z",
     data: { products: { 101: { type: "product", free: 4, onHand: 6, forecast: 6 } } },
   }
+  const sameDay = new Date("2026-10-07T09:00:00Z").getTime()
 
   it("judges the product's free stock against the quantity requested, with the read time", () => {
-    expect(requestedItemStock(fromLine(), snapshot)).toEqual({
+    expect(requestedItemStock(fromLine(), snapshot, sameDay)).toEqual({
       badge: { kind: STOCK_BADGE.PARTIAL, label: "Partial · 4 of 10", free: 4 },
       fetchedAt: "2026-10-07T01:00:00Z",
+      stale: false,
+    })
+  })
+
+  it("marks a reading older than a day stale (#501)", () => {
+    const later = new Date("2026-10-08T01:00:01Z").getTime()
+    expect(requestedItemStock(fromLine(), snapshot, later)).toMatchObject({
+      badge: { kind: STOCK_BADGE.PARTIAL },
+      fetchedAt: "2026-10-07T01:00:00Z",
+      stale: true,
     })
   })
 
@@ -80,6 +91,7 @@ describe("requestedItemStock", () => {
     expect(requestedItemStock(fromLine(), null)).toEqual({
       badge: { kind: STOCK_BADGE.NOT_CHECKED, label: "Not checked", free: null },
       fetchedAt: null,
+      stale: false,
     })
   })
 

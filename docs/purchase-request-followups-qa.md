@@ -51,3 +51,579 @@ Bugs found and fixed:
 Noted, not fixed:
 - Nested dialogs in the modal show without a dimmed backdrop (overlay sits under the modal).
 - Buyer picker label truncates: "No Buyer (back to the q…".
+
+## #499 review follow-ups — staging SQL checks
+
+Run on staging after the migrations land (CI applies them on merge to `staging`).
+Each check runs inside `BEGIN; … ROLLBACK;` unless it says otherwise, so no data is kept.
+
+### #502 Chat notifies only the Buyer and requesters
+
+Paste the blocks in order into one session (psql, or the SQL editor as one run). Steps share the 502.0 fixture; any failure raises `502.x FAIL: notified {…}` and aborts the rest. Verified locally 2026-10-12 (fails 502.1 before the migration, all pass after).
+
+502.0 Fixture (no check): a Project request with a Buyer and items. All its items are re-pointed to one requester; the Stage Action actor (creator), the requester, an author and a bystander are members, all distinct.
+
+```sql
+BEGIN;
+
+create temp table f502 on commit drop as
+with r as (
+  select r.id, r.buyer_id, r.created_by from public.purchase_requests r
+  where r.opportunity_id is not null and r.buyer_id is not null and r.created_by <> r.buyer_id
+    and exists (select 1 from public.purchase_request_items i where i.request_id = r.id)
+  limit 1
+), e as (
+  select e.id, row_number() over (order by e.id) n
+  from public.employees e, r
+  where not coalesce(e.is_deleted, false) and e.id not in (r.buyer_id, r.created_by)
+  limit 3
+)
+select r.id req, r.buyer_id buyer, r.created_by actor,
+  (select id from e where n = 1) requester,
+  (select id from e where n = 2) author,
+  (select id from e where n = 3) bystander
+from r;
+
+update public.purchase_request_items set requested_by = (select requester from f502)
+where request_id = (select req from f502);
+
+insert into public.purchase_request_members (request_id, employee_id, side)
+select req, x, 'other' from f502, unnest(array[buyer, actor, requester, author, bystander]) x
+on conflict (request_id, employee_id) do nothing;
+
+create function pg_temp.got502(p_type text, p_tag text) returns uuid[] language sql as $$
+  select coalesce(array_agg(n.recipient_id order by n.recipient_id), '{}')
+  from public.notifications n, f502
+  where n.reference_id = f502.req::text and n.type = p_type and n.message like '%' || p_tag || '%';
+$$;
+create function pg_temp.set502(variadic p uuid[]) returns uuid[] language sql as $$
+  select coalesce(array_agg(x order by x), '{}') from unnest(p) x;
+$$;
+```
+
+- [ ] 502.1 A plain message notifies the Buyer and the requester only. Expected: NOTICE `502.1 pass`: the Buyer and the requester are told, no one else.
+
+```sql
+do $$
+declare f f502; got uuid[];
+begin
+  select * into f from f502;
+  if f.req is null then raise exception '502: no Project request with a Buyer and items'; end if;
+  insert into public.purchase_request_messages (request_id, author_id, content)
+  values (f.req, f.author, 'QA 502.1 plain');
+  got := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.1');
+  if got is distinct from pg_temp.set502(f.buyer, f.requester) then
+    raise exception '502.1 FAIL: notified %', got;
+  end if;
+  raise notice '502.1 pass';
+end $$;
+```
+
+- [ ] 502.2 The Stage Action actor (neither Buyer nor requester) and a bystander member are not notified. Expected: NOTICE `502.2 pass`: the Stage Action actor and the bystander got nothing.
+
+```sql
+do $$
+declare f f502; got uuid[];
+begin
+  select * into f from f502;
+  got := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.1');
+  if f.actor = any (got) or f.bystander = any (got) then
+    raise exception '502.2 FAIL: notified %', got;
+  end if;
+  raise notice '502.2 pass';
+end $$;
+```
+
+- [ ] 502.3 A mentioned member is still notified (once, as a mention). Expected: NOTICE `502.3 pass`: the bystander gets one mention; the message still goes to the Buyer and the requester only.
+
+```sql
+do $$
+declare f f502; men uuid[]; msg uuid[];
+begin
+  select * into f from f502;
+  insert into public.purchase_request_messages (request_id, author_id, content, metadata)
+  values (f.req, f.author, 'QA 502.3 mention',
+          jsonb_build_object('mentions', jsonb_build_array(jsonb_build_object('id', f.bystander))));
+  men := pg_temp.got502('PURCHASE_REQUEST_MENTION', 'QA 502.3');
+  msg := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.3');
+  if men is distinct from array[f.bystander] or msg is distinct from pg_temp.set502(f.buyer, f.requester) then
+    raise exception '502.3 FAIL: mention %, message %', men, msg;
+  end if;
+  raise notice '502.3 pass';
+end $$;
+```
+
+- [ ] 502.4 With no Buyer, behaviour is unchanged: the creator and the requester are notified. Expected: NOTICE `502.4 pass`: with no Buyer, the creator and the requester are told, as before.
+
+```sql
+do $$
+declare f f502; got uuid[];
+begin
+  select * into f from f502;
+  update public.purchase_requests set buyer_id = null where id = f.req;
+  insert into public.purchase_request_messages (request_id, author_id, content)
+  values (f.req, f.author, 'QA 502.4 no buyer');
+  got := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.4');
+  if got is distinct from pg_temp.set502(f.actor, f.requester) then
+    raise exception '502.4 FAIL: notified %', got;
+  end if;
+  raise notice '502.4 pass';
+end $$;
+```
+
+- [ ] 502.5 A Direct request's creator is its Requester, so stays notified with a Buyer. Expected: NOTICE `502.5 pass`: a Direct request's creator (its Requester) is still told alongside the Buyer.
+
+```sql
+do $$
+declare f f502; got uuid[];
+begin
+  select * into f from f502;
+  update public.purchase_requests set buyer_id = f.buyer, opportunity_id = null, title = 'QA 502 direct'
+  where id = f.req;
+  insert into public.purchase_request_messages (request_id, author_id, content)
+  values (f.req, f.author, 'QA 502.5 direct');
+  got := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.5');
+  if got is distinct from pg_temp.set502(f.buyer, f.actor, f.requester) then
+    raise exception '502.5 FAIL: notified %', got;
+  end if;
+  raise notice '502.5 pass';
+end $$;
+
+ROLLBACK;
+```
+
+### #503 Deal Team can always add Requested Items
+
+Migration `20261012100100_purchase_request_deal_team_always_adds.sql`. Run the block below once in the SQL
+editor; it picks a Project request with a Buyer and a non-Purchasing Deal Team member, sets a requesters list
+naming one outsider only, joins that outsider the way Open Purchase Request does, adds a second outsider by
+hand, then returns one row per check. Every row should read `pass = true`. Verified locally 2026-10-12
+(before the migration 503.1 returns `false`).
+
+```sql
+begin;
+
+-- A Project request with a Buyer and a sales-side Deal Team member who is
+-- neither the Buyer, a Super Admin nor on Purchasing; plus two employees
+-- outside the request (not Deal Team, no Purchasing).
+create temp table t503 on commit drop as
+select r.id as request_id,
+       e.email as deal_email,
+       b.email as buyer_email,
+       x.ids[1] as listed,
+       (select email from employees where id = x.ids[1]) as listed_email,
+       x.ids[2] as unlisted,
+       (select email from employees where id = x.ids[2]) as unlisted_email
+from purchase_requests r
+join purchase_request_members m on m.request_id = r.id and m.side = 'sales'
+join employees e on e.id = m.employee_id
+join employees b on b.id = r.buyer_id
+cross join lateral (
+  select array_agg(c.id) as ids from (
+    select c.id from employees c
+    where not coalesce(c.is_deleted, false) and c.email is not null
+      and not coalesce(c.is_super_admin, false)
+      and not public._employee_has_purchasing_access(c.id)
+      and public.purchase_request_member_side(r.opportunity_id, c.id) = 'other'
+      and not exists (select 1 from purchase_request_members pm where pm.request_id = r.id and pm.employee_id = c.id)
+    order by c.id limit 2
+  ) c
+) x
+where r.opportunity_id is not null
+  and m.employee_id <> r.buyer_id
+  and not coalesce(e.is_super_admin, false)
+  and not public._employee_has_purchasing_access(m.employee_id)
+  and exists (
+    select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
+    where o.id = r.opportunity_id and t.employee_id = m.employee_id
+  )
+limit 1;
+
+-- Set a requesters list that names only `listed` (not the Deal Team member),
+-- then join `listed` the way Open Purchase Request does and `unlisted` by hand.
+update purchase_requests r set requesters = jsonb_build_array(jsonb_build_object('type', 'employee', 'id', t.listed))
+from t503 t where r.id = t.request_id;
+select public._purchase_request_add_member(t.request_id, t.listed, null) from t503 t;
+insert into purchase_request_members (request_id, employee_id, side)
+select t.request_id, t.unlisted, 'other' from t503 t;
+
+create function pg_temp.can_add_as(p_email text, p_request uuid) returns boolean language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('email', p_email)::text, true);
+  return public.purchase_request_can_add_items(p_request);
+end $$;
+create function pg_temp.can_sub_as(p_email text, p_request uuid) returns boolean language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('email', p_email)::text, true);
+  return public.pr_can_add_substitute(p_request);
+end $$;
+
+select step, got, expected, got is not distinct from expected as pass from (
+  select '503.1 Deal Team member not on the list can add' as step, pg_temp.can_add_as(t.deal_email, t.request_id)::text as got, 'true' as expected, 1 as o from t503 t
+  union all
+  select '503.2 person added through the setting joins as requester', (select side from purchase_request_members where request_id = t.request_id and employee_id = t.listed), 'requester', 2 from t503 t
+  union all
+  select '503.3 person added through the setting can add', pg_temp.can_add_as(t.listed_email, t.request_id)::text, 'true', 3 from t503 t
+  union all
+  select '503.4 member neither on the list nor Deal Team cannot add', pg_temp.can_add_as(t.unlisted_email, t.request_id)::text, 'false', 4 from t503 t
+  union all
+  select '503.5 setting still configurable (column + Open Purchase Request reads config.requesters)',
+    (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'purchase_requests' and column_name = 'requesters')
+     and (select prosrc like '%v_config->''requesters''%' from pg_proc where oid = 'public.sor_open_purchase_request(uuid, jsonb)'::regprocedure))::text,
+    'true', 5
+  union all
+  select '503.6 Buyer can add items', pg_temp.can_add_as(t.buyer_email, t.request_id)::text, 'true', 6 from t503 t
+  union all
+  select '503.7 Buyer can add a substitute', pg_temp.can_sub_as(t.buyer_email, t.request_id)::text, 'true', 7 from t503 t
+  union all
+  select '503.8 Deal Team member cannot add a substitute', pg_temp.can_sub_as(t.deal_email, t.request_id)::text, 'false', 8 from t503 t
+) s order by o;
+
+rollback;
+```
+
+- [ ] 503.1 Deal Team member not on the list can add → `true`
+- [ ] 503.2 Person added through the setting joins as requester → `requester`
+- [ ] 503.3 Person added through the setting can add → `true`
+- [ ] 503.4 Member neither on the list nor Deal Team cannot add → `false`
+- [ ] 503.5 Setting still configurable (column kept, Open Purchase Request still copies `config.requesters`) → `true`
+- [ ] 503.6 Buyer can add items → `true`
+- [ ] 503.7 Buyer can add a substitute → `true`
+- [ ] 503.8 Deal Team member cannot add a substitute → `false`
+
+### #504 Open Purchase Request top-up
+
+Finding (verified locally 2026-10-12): already correct, no migration. A second run on an SOR that
+already has a request inserts nothing (`on conflict (opportunity_id) do nothing`), then runs the same
+member loop as a first open with the second action's own config: its leave-out roles, its extras, its
+requesters and its Buyer. A top-up only adds: it fills a missing Buyer or requesters list (an existing
+one is kept) and never removes anyone, so a role the second action leaves out that the first one
+brought in stays a member.
+
+- [ ] 504.1 Two Open Purchase Request runs on one SOR (verified locally 2026-10-12). Picks an open
+  SOR with no request, then run A (every role left out, one extra, no Buyer) and run B (only Deal
+  Owner kept, another extra, a Buyer, a requesters list). Expected: 9 rows, every `ok` = `t`.
+  `504: no suitable SOR` means no SOR fits; pick one by hand.
+
+```sql
+begin;
+create temp table t504 (step int, check_name text, ok boolean) on commit drop;
+do $$
+declare
+  v_opp public.sales_opportunities;
+  v_pick uuid[];
+  v_out uuid[];
+  v_action_a uuid; v_action_b uuid;
+  v_run_a uuid; v_run_b uuid;
+  v_req_a uuid; v_req_b uuid;
+  v_all_roles jsonb := '["registrar","deal_owner","closing_sales","support_sales","sales_director"]';
+begin
+  -- Act as any Super Admin.
+  perform set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'email', (
+    select email from employees
+    where is_super_admin and not coalesce(is_deleted, false) and email is not null limit 1
+  ))::text, true);
+
+  -- An open SOR with no request yet whose Deal Owner and at least one other
+  -- Deal Team member are not Purchasing (so membership comes from the roles).
+  select o.* into v_opp from sales_opportunities o
+  where not coalesce(o.is_deleted, false) and o.flow_stage_id is not null
+    and not exists (select 1 from purchase_requests r where r.opportunity_id = o.id)
+    and not public._sor_closed_for_purchasing(o)
+    and o.deal_owner_id is not null
+    and not public._employee_has_purchasing_access(o.deal_owner_id)
+    and exists (
+      select 1 from public._sor_deal_team_roles(o) t
+      where t.employee_id <> o.deal_owner_id and not public._employee_has_purchasing_access(t.employee_id)
+    )
+  limit 1;
+  if v_opp.id is null then raise exception '504: no suitable SOR'; end if;
+
+  -- The rest of the Deal Team, which run B leaves out.
+  select array_agg(distinct t.employee_id) into v_out
+  from public._sor_deal_team_roles(v_opp) t
+  where t.employee_id <> v_opp.deal_owner_id and not public._employee_has_purchasing_access(t.employee_id);
+
+  -- Four outsiders: extra for A, extra for B, Buyer for B, requester for B.
+  select array_agg(id) into v_pick from (
+    select e.id from employees e
+    where not coalesce(e.is_deleted, false) and not public._employee_has_purchasing_access(e.id)
+      and e.id not in (select t.employee_id from public._sor_deal_team_roles(v_opp) t)
+    order by e.id limit 4
+  ) s;
+
+  -- Run A: leaves out every role, one extra, no Buyer.
+  insert into flow_stage_actions (stage_id, kind, config)
+  values (v_opp.flow_stage_id, 'open_purchase_request', jsonb_build_object(
+    'leaveOutRoles', v_all_roles,
+    'extras', jsonb_build_array(jsonb_build_object('type', 'employee', 'id', v_pick[1]))))
+  returning id into v_action_a;
+  -- Run B: keeps only the Deal Owner role, a new extra, a Buyer, a requesters list.
+  insert into flow_stage_actions (stage_id, kind, config)
+  values (v_opp.flow_stage_id, 'open_purchase_request', jsonb_build_object(
+    'leaveOutRoles', v_all_roles - 'deal_owner',
+    'extras', jsonb_build_array(jsonb_build_object('type', 'employee', 'id', v_pick[2])),
+    'buyer', jsonb_build_object('type', 'employee', 'id', v_pick[3]),
+    'requesters', jsonb_build_array(jsonb_build_object('type', 'employee', 'id', v_pick[4]))))
+  returning id into v_action_b;
+  insert into sor_action_runs (opportunity_id, stage_id, action_id)
+  values (v_opp.id, v_opp.flow_stage_id, v_action_a) returning id into v_run_a;
+  insert into sor_action_runs (opportunity_id, stage_id, action_id)
+  values (v_opp.id, v_opp.flow_stage_id, v_action_b) returning id into v_run_b;
+
+  v_req_a := public.sor_open_purchase_request(v_run_a);
+  insert into t504 values (1, 'A: Deal Owner left out', not exists (
+    select 1 from purchase_request_members where request_id = v_req_a and employee_id = v_opp.deal_owner_id));
+
+  v_req_b := public.sor_open_purchase_request(v_run_b);
+  insert into t504 values
+    (2, 'B: same request, one per SOR', v_req_b = v_req_a
+      and (select count(*) from purchase_requests where opportunity_id = v_opp.id) = 1),
+    (3, 'B: Buyer set', (select buyer_id from purchase_requests where id = v_req_a) = v_pick[3]),
+    (4, 'B: requesters list set', (select requesters from purchase_requests where id = v_req_a)
+      = jsonb_build_array(jsonb_build_object('type', 'employee', 'id', v_pick[4]))),
+    (5, 'A extra + B extra + Buyer + requester are members', (
+      select count(*) from purchase_request_members where request_id = v_req_a and employee_id = any (v_pick)) = 4),
+    (6, 'B: kept role (Deal Owner) now a member', exists (
+      select 1 from purchase_request_members where request_id = v_req_a and employee_id = v_opp.deal_owner_id)),
+    (7, 'B: left-out roles still not members', not exists (
+      select 1 from purchase_request_members where request_id = v_req_a and employee_id = any (v_out))),
+    (8, 'events: one opened, one buyer_set', (
+      select array_agg(metadata->>'event' order by created_at, id) from purchase_request_messages
+      where request_id = v_req_a and metadata->>'event' in ('opened', 'buyer_set')) = array['opened', 'buyer_set']),
+    (9, 'both runs created, linked to the request', (
+      select count(*) from sor_action_runs
+      where id in (v_run_a, v_run_b) and outcome = 'created' and purchase_request_id = v_req_a) = 2);
+end $$;
+select * from t504 order by step;
+rollback;
+```
+
+### #505 Legacy task-closing notifications
+
+Finding: closing the old purchasing tasks sends no notifications, so nothing was
+changed. `tasks` has two triggers (HR-verification guard, realtime broadcast of
+the row id); neither writes `notifications`. `TASK_COMPLETED` is only sent by the
+frontend on HR verification (`taskMutationService.js`), which a migration never
+runs. The migration (`20261005131000`) already ran on staging; on prod it runs
+with the #209 block at the manual `migrate-prod` dispatch, and needs nothing extra.
+Verified locally 2026-10-12.
+
+- [ ] 505.1 No trigger on `tasks`, `task_activity` or `notifications` sends a notification.
+
+  ```sql
+  begin;
+  select c.relname as table_name, t.tgname, p.proname as function_name
+  from pg_trigger t
+  join pg_class c on c.oid = t.tgrelid
+  join pg_proc p on p.oid = t.tgfoid
+  where not t.tgisinternal
+    and c.relnamespace = 'public'::regnamespace
+    and c.relname in ('tasks', 'task_activity', 'notifications')
+  order by 1, 2;
+  rollback;
+  ```
+
+  Expected: exactly 2 rows, both on `tasks`: `enforce_task_verification_security`
+  (`protect_task_verification`) and `tasks_broadcast_change_trigger`
+  (`tasks_broadcast_change`). Any other row: stop and check it.
+
+- [ ] 505.2 The tasks the migration closed on staging are closed, noted, and sent no notification.
+
+  ```sql
+  begin;
+  select count(*) as migrated_tasks,
+         count(*) filter (where coalesce(t.status, '') not in ('COMPLETED', 'DELETED', 'CANCELLED')) as not_closed,
+         (select count(*)
+          from public.notifications n
+          join public.task_activity a2
+            on a2.task_id::text = n.reference_id::text
+           and a2.metadata->>'event' = 'PURCHASE_REQUEST_MIGRATED'
+          where n.created_at between a2.created_at and a2.created_at + interval '5 minutes'
+         ) as notifications_at_migration
+  from public.task_activity a
+  join public.tasks t on t.id = a.task_id
+  where a.metadata->>'event' = 'PURCHASE_REQUEST_MIGRATED';
+  rollback;
+  ```
+
+  Expected: `migrated_tasks` ≥ 0 (one per old purchasing task), `not_closed` = 0,
+  `notifications_at_migration` = 0.
+
+- [ ] 505.3 The migration's closing step, replayed on a seeded task, sends no notification.
+
+  ```sql
+  begin;
+  create temp table c505 as select count(*) as before from public.notifications;
+  with t as (
+    insert into public.tasks (logged_by, task_description, project_title)
+    select id, '#505 legacy purchasing task', '#505'
+    from public.employees where not coalesce(is_deleted, false) limit 1
+    returning id
+  ), note as (
+    insert into public.task_activity (task_id, author_id, type, content, metadata)
+    select id, null, 'SYSTEM', 'Moved to the Purchase Request for #505. Purchasing continues there.',
+           jsonb_build_object('event', 'PURCHASE_REQUEST_MIGRATED')
+    from t
+    returning task_id
+  )
+  select task_id from note;
+  update public.tasks
+  set status = 'COMPLETED', end_at = coalesce(end_at, now())
+  where task_description = '#505 legacy purchasing task'
+    and coalesce(status, '') not in ('COMPLETED', 'DELETED', 'CANCELLED');
+  select (select count(*) from public.notifications) - before as new_notifications from c505;
+  rollback;
+  ```
+
+  Expected: one `task_id` row, `UPDATE 1`, then `new_notifications` = 0.
+
+### #506 RPC prefixes unified on `purchase_request_`
+
+Migration `20261012100600_purchase_request_rpc_names.sql`. Every purchasing RPC that was `pr_*` gets a
+`purchase_request_*` name. Its body moves unchanged apart from the name and error prefix (the app strips
+that prefix). The old name stays as a thin alias with the same signature, security and grants. Nothing is
+dropped. The app now calls only the new names.
+
+| Old name (alias, kept) | New name | Called by |
+| --- | --- | --- |
+| `pr_actor_side(uuid)` | `purchase_request_actor_side` | app (`itemActor`) |
+| `pr_can_add_substitute(uuid)` | `purchase_request_can_add_substitute` | app (`itemActor`) |
+| `pr_set_item_status(uuid, text, jsonb)` | `purchase_request_set_item_status` | app |
+| `pr_add_substitute(uuid, text, numeric, text, text, jsonb)` | `purchase_request_add_substitute` | app |
+| `pr_take(uuid)` | `purchase_request_take` | app |
+| `pr_set_buyer(uuid, uuid)` | `purchase_request_set_buyer` | app |
+| `pr_item_po_lines(uuid)` | `purchase_request_item_po_lines` | app |
+| `pr_pick_po_lines(uuid, int[])` | `purchase_request_pick_po_lines` | app |
+| `pr_queue(uuid)` | `purchase_request_queue` | app (list + one request) |
+
+Left alone: internal helpers and trigger functions already named `_purchase_request_*` (not
+client-called), and the SOR-scoped `sor_open_purchase_request`, `sor_purchase_request_overview` and
+`sor_purchase_request_item_states` (`sor_` prefix, not `pr_`). Inside SQL, the moved bodies call the new
+names. One comment in `_purchase_request_purchasing_access_changed` still says `pr_set_buyer`; it was left
+as is, since changing it would mean rewriting the trigger.
+
+The block picks a Project request whose Buyer has Purchasing access, adds two Requested items to it,
+and runs as that Buyer. Every row in the first result should read `pass = true`. After that, each 506.6
+statement should succeed with the value in its trailing comment. Verified locally 2026-10-12.
+
+```sql
+begin;
+
+create temp table t506_pairs (old_fn regprocedure, new_fn regprocedure) on commit drop;
+insert into t506_pairs values
+  ('public.pr_actor_side(uuid)', 'public.purchase_request_actor_side(uuid)'),
+  ('public.pr_can_add_substitute(uuid)', 'public.purchase_request_can_add_substitute(uuid)'),
+  ('public.pr_set_item_status(uuid, text, jsonb)', 'public.purchase_request_set_item_status(uuid, text, jsonb)'),
+  ('public.pr_add_substitute(uuid, text, numeric, text, text, jsonb)', 'public.purchase_request_add_substitute(uuid, text, numeric, text, text, jsonb)'),
+  ('public.pr_take(uuid)', 'public.purchase_request_take(uuid)'),
+  ('public.pr_set_buyer(uuid, uuid)', 'public.purchase_request_set_buyer(uuid, uuid)'),
+  ('public.pr_item_po_lines(uuid)', 'public.purchase_request_item_po_lines(uuid)'),
+  ('public.pr_pick_po_lines(uuid, integer[])', 'public.purchase_request_pick_po_lines(uuid, integer[])'),
+  ('public.pr_queue(uuid)', 'public.purchase_request_queue(uuid)');
+
+-- A Project request whose Buyer has Purchasing access, plus two fresh
+-- Requested items on it (rolled back).
+create temp table t506 on commit drop as
+select r.id as request_id, r.buyer_id, b.email as buyer_email
+from purchase_requests r join employees b on b.id = r.buyer_id
+where r.opportunity_id is not null and public._employee_has_purchasing_access(b.id)
+order by r.created_at desc limit 1;
+create temp table t506_items on commit drop as
+with ins as (
+  insert into purchase_request_items (request_id, source, name, quantity, requested_by)
+  select t.request_id, 'new', '#506 item ' || n, 1, t.buyer_id from t506 t, generate_series(1, 2) n
+  returning id, name
+) select id, name from ins;
+
+create function pg_temp.as_user(p_email text) returns void language sql as $$
+  select set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'email', p_email)::text, true);
+$$;
+-- Runs a statement; 'ok' or the error code and message, prefix stripped the way the app strips it.
+create function pg_temp.try(p_sql text) returns text language plpgsql as $$
+begin
+  execute p_sql;
+  return 'ok';
+exception when others then
+  return sqlstate || ' ' || regexp_replace(sqlerrm, '^[a-z_]+: ', '');
+end $$;
+create function pg_temp.item(p_n int) returns uuid language sql as $$
+  select id from t506_items where name = '#506 item ' || p_n;
+$$;
+
+select pg_temp.as_user(buyer_email) from t506;
+
+select step, got, expected, got is not distinct from expected as pass from (
+  -- 506.1 every old name still exists, and no other pr_ function appeared or went
+  select '506.1 the nine pr_ names all still exist' as step,
+    (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname like 'pr\_%')::text as got,
+    '9' as expected, 1 as o
+  union all
+  -- 506.2 each new name matches its alias: arguments, result, volatility, security, search_path, grants
+  select '506.2 ' || p.new_fn::text || ' matches ' || p.old_fn::text,
+    (n.proargtypes = o.proargtypes and n.prorettype = o.prorettype and n.proretset = o.proretset
+     and n.provolatile = o.provolatile and n.prosecdef and o.prosecdef
+     and n.proconfig = o.proconfig and n.proacl = o.proacl
+     and pg_get_function_arguments(n.oid) = pg_get_function_arguments(o.oid)
+     and pg_get_function_result(n.oid) = pg_get_function_result(o.oid)
+     and not has_function_privilege('anon', n.oid, 'execute')
+     and has_function_privilege('authenticated', n.oid, 'execute'))::text,
+    'true', 2
+  from t506_pairs p join pg_proc n on n.oid = p.new_fn join pg_proc o on o.oid = p.old_fn
+  union all
+  -- 506.3 each alias is a thin call to its new name
+  select '506.3 ' || p.old_fn::text || ' calls ' || n.proname,
+    (o.prosrc like '%public.' || n.proname || '(%' and length(o.prosrc) < 200)::text, 'true', 3
+  from t506_pairs p join pg_proc n on n.oid = p.new_fn join pg_proc o on o.oid = p.old_fn
+  union all
+  -- 506.4 read RPCs: old and new give the Buyer the same answer
+  select '506.4 actor side, old = new', (public.pr_actor_side(t.request_id) = public.purchase_request_actor_side(t.request_id)
+    and public.purchase_request_actor_side(t.request_id) = 'purchasing')::text, 'true', 4 from t506 t
+  union all
+  select '506.4 can add substitute, old = new', (public.pr_can_add_substitute(t.request_id) = public.purchase_request_can_add_substitute(t.request_id)
+    and public.purchase_request_can_add_substitute(t.request_id))::text, 'true', 4 from t506 t
+  union all
+  select '506.4 queue (all), old = new',
+    ((select jsonb_agg(to_jsonb(q)) from public.pr_queue() q) = (select jsonb_agg(to_jsonb(q)) from public.purchase_request_queue() q)
+     and (select count(*) from public.purchase_request_queue()) > 0)::text, 'true', 4
+  union all
+  select '506.4 queue (one request), old = new',
+    ((select jsonb_agg(to_jsonb(q)) from public.pr_queue(t.request_id) q) = (select jsonb_agg(to_jsonb(q)) from public.purchase_request_queue(t.request_id) q)
+     and (select count(*) from public.purchase_request_queue(t.request_id)) = 1)::text, 'true', 4 from t506 t
+  union all
+  select '506.4 item PO lines, old = new',
+    (public.pr_item_po_lines(pg_temp.item(1)) = public.purchase_request_item_po_lines(pg_temp.item(1)))::text, 'true', 4
+  union all
+  -- 506.5 refusals: old and new refuse alike
+  select '506.5 refusal ' || x.fn || ', old = new',
+    (pg_temp.try(format(x.call, 'pr_' || x.fn)) = pg_temp.try(format(x.call, 'purchase_request_' || x.fn))
+     and pg_temp.try(format(x.call, 'purchase_request_' || x.fn)) <> 'ok')::text, 'true', 5
+  from (values
+    ('take', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid)'),
+    ('set_buyer', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid, null)'),
+    ('set_item_status', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid, ''cancelled'')'),
+    ('add_substitute', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid, ''x'', 1)'),
+    ('item_po_lines', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid)'),
+    ('pick_po_lines', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid, array[1])')
+  ) x(fn, call)
+) s order by o, step;
+
+-- 506.6 write RPCs work under both names (each statement must succeed)
+select status from public.purchase_request_set_item_status(pg_temp.item(1), 'to_order');  -- to_order
+select status from public.pr_set_item_status(pg_temp.item(1), 'canvassing');              -- canvassing
+select public.pr_add_substitute(pg_temp.item(1), '#506 sub old', 1) is not null as old_sub;             -- t
+select public.purchase_request_add_substitute(pg_temp.item(2), '#506 sub new', 1) is not null as new_sub; -- t
+select (public.pr_set_buyer(t.request_id, null)).buyer_id is null as cleared_old from t506 t;           -- t
+select (public.purchase_request_take(t.request_id)).buyer_id = t.buyer_id as taken_new from t506 t;     -- t
+select (public.purchase_request_set_buyer(t.request_id, null)).buyer_id is null as cleared_new from t506 t; -- t
+select (public.pr_take(t.request_id)).buyer_id = t.buyer_id as taken_old from t506 t;                   -- t
+
+rollback;
+```
+
+- [ ] 506.1 All nine `pr_` names still exist (nothing dropped) → `9`
+- [ ] 506.2 Each new name matches its alias: arguments, result, volatility, security definer, search_path, grants; anon can't execute → `true` ×9
+- [ ] 506.3 Each alias is a thin call to its new name → `true` ×9
+- [ ] 506.4 Read RPCs give the same answer under both names (actor side, can add substitute, queue all/one, item PO lines) → `true` ×5
+- [ ] 506.5 Refusals match under both names (take, set Buyer, set status, add substitute, PO lines, pick PO lines) → `true` ×6
+- [ ] 506.6 Write RPCs work under both names: `to_order`, `canvassing`, then `t` ×6

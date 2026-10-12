@@ -30,7 +30,7 @@ const open = (id, type) =>
   })
 
 beforeEach(() => {
-  stubRpc("pr_queue", () => [
+  stubRpc("purchase_request_queue", () => [
     { id: "pr-1", opportunity_id: "o-1", project_title: "Acme CCTV Rollout", client_name: "Acme Corp", opportunity_no: "SOR-1" },
   ])
 })

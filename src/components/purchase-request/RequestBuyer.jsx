@@ -19,8 +19,8 @@ const NO_BUYER = "__none__";
 /**
  * Issue #308 — a Purchase Request's Buyer, and the ways to change it:
  * **Take** for anyone with Purchasing access while there is no Buyer
- * (`pr_take`), and a picker for a purchasing member or Super Admin
- * (`pr_set_buyer`; "No Buyer" sends it back to the queue). `request` is a
+ * (`purchase_request_take`), and a picker for a purchasing member or Super Admin
+ * (`purchase_request_set_buyer`; "No Buyer" sends it back to the queue). `request` is a
  * queue row (`id`, `buyer_id`, `buyer_name`, `buyer_avatar_path`).
  */
 export default function RequestBuyer({ request }) {

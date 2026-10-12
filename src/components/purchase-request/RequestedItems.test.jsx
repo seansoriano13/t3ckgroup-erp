@@ -29,21 +29,21 @@ const lineNamed = async (name) =>
 
 const rows = () => screen.queryAllByTestId("requested-item")
 
+const HOUR = 60 * 60 * 1000
+const hoursAgo = (n) => new Date(Date.now() - n * HOUR).toISOString()
+const STOCK = {
+  products: {
+    101: { type: "product", free: 4, onHand: 6, forecast: 6 },
+    202: { type: "product", free: 5, onHand: 5, forecast: 5 },
+  },
+  warehouses: [],
+}
+
 beforeEach(async () => {
   salesperson = makeEmployee({ name: "Ana Reyes", department: "SALES" })
   opportunity = makeOpportunity({ registered_by: salesperson.id, deal_owner_id: salesperson.id })
   await opportunityService.replaceItems(opportunity.id, PRODUCT_LIST)
-  db.seed("sor_stock_snapshots", {
-    opportunity_id: opportunity.id,
-    fetched_at: "2026-10-07T01:30:00Z",
-    data: {
-      products: {
-        101: { type: "product", free: 4, onHand: 6, forecast: 6 },
-        202: { type: "product", free: 5, onHand: 5, forecast: 5 },
-      },
-      warehouses: [],
-    },
-  })
+  db.seed("sor_stock_snapshots", { opportunity_id: opportunity.id, fetched_at: hoursAgo(2), data: STOCK })
   request = db.seed("purchase_requests", { opportunity_id: opportunity.id, created_by: salesperson.id })
   db.seed("purchase_request_members", { request_id: request.id, employee_id: salesperson.id, side: "sales" })
   stubPurchaseRequestItemRpcs({ actorId: salesperson.id })
@@ -62,7 +62,35 @@ describe("RequestedItems", () => {
     expect(within(row).getByText("Requested")).toBeInTheDocument()
     expect(within(row).getByText("Partial · 4 of 10")).toBeInTheDocument()
     expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
+    expect(within(row).queryByText("Stale")).not.toBeInTheDocument()
     expect(within(row).getByText("SOR line now says 12 pc")).toBeInTheDocument()
+  })
+
+  it("reads stock through the request, so a Buyer without SOR access still sees it (#501)", async () => {
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Rope Access Kit")).id)
+    // The SOR's own snapshot row is hidden from a Buyer; the request hands it over.
+    db.internal.rowsOf("sor_stock_snapshots").splice(0)
+    stubRpc("purchase_request_stock_snapshot", ({ p_request_id }) =>
+      p_request_id === request.id ? { fetched_at: hoursAgo(1), data: STOCK } : null,
+    )
+
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const row = await screen.findByTestId("requested-item")
+    expect(await within(row).findByText("Available")).toBeInTheDocument()
+    expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
+  })
+
+  it("marks stock read more than a day ago Stale (#501)", async () => {
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+    stubRpc("purchase_request_stock_snapshot", () => ({ fetched_at: hoursAgo(72), data: STOCK }))
+
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const row = await screen.findByTestId("requested-item")
+    expect(await within(row).findByText("Partial · 4 of 10")).toBeInTheDocument()
+    expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
+    expect(within(row).getByText("Stale")).toBeInTheDocument()
   })
 
   it("adds an item picked from the SOR's Product List", async () => {
@@ -116,6 +144,7 @@ describe("RequestedItems", () => {
     expect(within(row).getByText(/New product/)).toBeInTheDocument()
     expect(within(row).getByText("Stainless, per the client's drawing")).toBeInTheDocument()
     expect(within(row).queryByText(/Stock as of/)).not.toBeInTheDocument()
+    expect(within(row).queryByText(/Not checked|Not linked to Odoo|Available|Out of stock/)).not.toBeInTheDocument()
 
     const [item] = db.rows("purchase_request_items")
     expect(item.images).toEqual([expect.objectContaining({ name: "bracket.png", url: expect.stringMatching(/^https:\/\//) })])

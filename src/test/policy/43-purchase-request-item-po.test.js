@@ -1,8 +1,8 @@
 /**
  * The PO number and Odoo PO line on Ordered (#312, part of #209).
  *
- * `pr_set_item_status(item, 'ordered', { po_number, po_verification })` takes
- * an optional PO number and its Odoo check; `pr_pick_po_lines` records the PO
+ * `purchase_request_set_item_status(item, 'ordered', { po_number, po_verification })` takes
+ * an optional PO number and its Odoo check; `purchase_request_pick_po_lines` records the PO
  * line(s) the item is bought on, refusing any line not on the PO's IPAS
  * stored Odoo copy. No IPAS exists yet, so the seam `_ipas_po_line_ids`
  * answers '{}' for every PO; the "an IPAS exists" tests swap its body for one
@@ -59,12 +59,12 @@ async function eventsFor(itemId, event) {
 }
 
 const order = async (who, itemId, details) =>
-    (await clientFor(who)).rpc("pr_set_item_status", { p_item_id: itemId, p_status: "ordered", p_details: details })
+    (await clientFor(who)).rpc("purchase_request_set_item_status", { p_item_id: itemId, p_status: "ordered", p_details: details })
 
 const pick = async (who, itemId, lineIds) =>
-    (await clientFor(who)).rpc("pr_pick_po_lines", { p_item_id: itemId, p_line_ids: lineIds })
+    (await clientFor(who)).rpc("purchase_request_pick_po_lines", { p_item_id: itemId, p_line_ids: lineIds })
 
-const poLines = async (who, itemId) => (await clientFor(who)).rpc("pr_item_po_lines", { p_item_id: itemId })
+const poLines = async (who, itemId) => (await clientFor(who)).rpc("purchase_request_item_po_lines", { p_item_id: itemId })
 
 /** Runs `fn` with an IPAS that holds PO P0777's lines 501–503; restores the shipped seam after. */
 async function withIpas(fn) {
@@ -261,8 +261,8 @@ describe("reading the lines", () => {
     })
 
     it.each([
-        ["pr_item_po_lines", { p_item_id: NO_ID }],
-        ["pr_pick_po_lines", { p_item_id: NO_ID, p_line_ids: [1] }],
+        ["purchase_request_item_po_lines", { p_item_id: NO_ID }],
+        ["purchase_request_pick_po_lines", { p_item_id: NO_ID, p_line_ids: [1] }],
     ])("someone not signed in cannot call %s", async (fn, args) => {
         const { error } = await anonymousClient().rpc(fn, args)
         expect(error?.message).toMatch(/permission denied/i)

@@ -20,7 +20,7 @@ const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().t
  *
  * #306's status RPCs (20261005130500_purchase_request_item_status.sql) too:
  * `side` is the actor's side (default: their stored member side, or null),
- * and `canSubstitute` stands in for pr_can_add_substitute. The transition
+ * and `canSubstitute` stands in for purchase_request_can_add_substitute. The transition
  * rule is the client's `allowedTransitions`, the one the SQL mirrors; who may
  * move what is proven in 40-purchase-request-item-status.test.js.
  *
@@ -115,6 +115,14 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       })
   })
 
+  // #501 (20261012100500_purchase_request_stock_snapshot.sql): the request's
+  // SOR stock snapshot, or null. Who may read it is can_read_purchase_request.
+  stubRpc("purchase_request_stock_snapshot", (args) => {
+    const request = findRow("purchase_requests", args.p_request_id)
+    const snapshot = rowsOf("sor_stock_snapshots").find((s) => request?.opportunity_id && s.opportunity_id === request.opportunity_id)
+    return snapshot ? { fetched_at: snapshot.fetched_at, data: snapshot.data } : null
+  })
+
   const sideOf = (requestId) =>
     side !== undefined
       ? side
@@ -152,36 +160,36 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     return updated
   }
 
-  stubRpc("pr_actor_side", (args) => sideOf(args.p_request_id))
-  stubRpc("pr_can_add_substitute", () => canSubstitute)
+  stubRpc("purchase_request_actor_side", (args) => sideOf(args.p_request_id))
+  stubRpc("purchase_request_can_add_substitute", () => canSubstitute)
 
-  stubRpc("pr_set_item_status", (args) => {
+  stubRpc("purchase_request_set_item_status", (args) => {
     const item = findRow("purchase_request_items", args.p_item_id)
-    if (!item) refuse(`pr_set_item_status: item ${args.p_item_id} not found`, "P0002")
+    if (!item) refuse(`purchase_request_set_item_status: item ${args.p_item_id} not found`, "P0002")
     const details = args.p_details || {}
     const po = (details.po_number || "").trim().toUpperCase() || null
     if (Object.keys(details).length && args.p_status !== "ordered") {
-      refuse(`pr_set_item_status: ${ITEM_STATUS_LABELS[args.p_status]} takes no details`, "22023")
+      refuse(`purchase_request_set_item_status: ${ITEM_STATUS_LABELS[args.p_status]} takes no details`, "22023")
     }
-    if (po && !/^P\d+$/.test(po)) refuse(`pr_set_item_status: ${po} isn't an Odoo PO number`, "22023")
+    if (po && !/^P\d+$/.test(po)) refuse(`purchase_request_set_item_status: ${po} isn't an Odoo PO number`, "22023")
     const poFields = po ? { po_number: po, po_verification: details.po_verification || "UNVERIFIED" } : null
-    const moved = move(item, args.p_status, poFields, "pr_set_item_status")
+    const moved = move(item, args.p_status, poFields, "purchase_request_set_item_status")
     return poFields ? updateRow("purchase_request_items", item, poFields) : moved
   })
 
   const ipasOf = (poNumber) => (poNumber && ipasLines[poNumber]) || []
 
-  stubRpc("pr_item_po_lines", (args) => ipasOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
+  stubRpc("purchase_request_item_po_lines", (args) => ipasOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
 
-  stubRpc("pr_pick_po_lines", (args) => {
+  stubRpc("purchase_request_pick_po_lines", (args) => {
     const item = findRow("purchase_request_items", args.p_item_id)
-    if (!item) refuse(`pr_pick_po_lines: item ${args.p_item_id} not found`, "P0002")
-    if (sideOf(item.request_id) !== "purchasing") refuse("pr_pick_po_lines: only Purchasing picks an item's PO line", "42501")
+    if (!item) refuse(`purchase_request_pick_po_lines: item ${args.p_item_id} not found`, "P0002")
+    if (sideOf(item.request_id) !== "purchasing") refuse("purchase_request_pick_po_lines: only Purchasing picks an item's PO line", "42501")
     const ipas = ipasOf(item.po_number)
-    if (!ipas.length) refuse(`pr_pick_po_lines: PO ${item.po_number} has no IPAS yet; pick its line once it does`, "22023")
+    if (!ipas.length) refuse(`purchase_request_pick_po_lines: PO ${item.po_number} has no IPAS yet; pick its line once it does`, "22023")
     const lines = [...new Set(args.p_line_ids || [])].sort((a, b) => a - b)
     const stray = lines.filter((l) => !ipas.includes(l))
-    if (!lines.length || stray.length) refuse(`pr_pick_po_lines: line ${stray.join(", ")} isn't on PO ${item.po_number}'s IPAS copy`, "22023")
+    if (!lines.length || stray.length) refuse(`purchase_request_pick_po_lines: line ${stray.join(", ")} isn't on PO ${item.po_number}'s IPAS copy`, "22023")
     const updated = updateRow("purchase_request_items", item, { odoo_po_line_ids: lines })
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
@@ -192,10 +200,10 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     return updated
   })
 
-  stubRpc("pr_add_substitute", (args) => {
+  stubRpc("purchase_request_add_substitute", (args) => {
     const original = findRow("purchase_request_items", args.p_item_id)
-    if (!original) refuse(`pr_add_substitute: item ${args.p_item_id} not found`, "P0002")
-    if (!canSubstitute) refuse("pr_add_substitute: only the request's Buyer may add a substitute", "42501")
+    if (!original) refuse(`purchase_request_add_substitute: item ${args.p_item_id} not found`, "P0002")
+    if (!canSubstitute) refuse("purchase_request_add_substitute: only the request's Buyer may add a substitute", "42501")
     const item = insertRow("purchase_request_items", {
       request_id: original.request_id,
       source: "new",
@@ -213,7 +221,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       content: `Offered ${item.name} as a substitute for ${original.name}.`,
       metadata: { event: "item_added", item_id: item.id, source: "new", substitute_for_item_id: original.id },
     })
-    move(original, "substituted", { substitute_item_id: item.id }, "pr_add_substitute")
+    move(original, "substituted", { substitute_item_id: item.id }, "purchase_request_add_substitute")
     return item.id
   })
 }

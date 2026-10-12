@@ -9,9 +9,8 @@ import RequestedItemRow from "./RequestedItemRow";
 import RequestedItemActions from "./RequestedItemActions";
 import StatusBadge from "../StatusBadge";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
-import { opportunityService } from "../../services/opportunityService";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME, isClosedStatus } from "../../constants/purchaseRequest";
-import { purchaseRequestKeys, sorStockKey } from "./queryKeys";
+import { purchaseRequestKeys } from "./queryKeys";
 
 /**
  * Issue #305 — a Purchase Request's Requested Items, and the way to add more.
@@ -29,9 +28,9 @@ export default function RequestedItems({ request, renderActions }) {
     enabled: !!requestId,
   });
   const { data: stockSnapshot } = useQuery({
-    queryKey: sorStockKey(request?.opportunity_id),
-    queryFn: () => opportunityService.getStockSnapshot(request.opportunity_id),
-    enabled: !!request?.opportunity_id,
+    queryKey: purchaseRequestKeys.stock(requestId),
+    queryFn: () => purchaseRequestService.stockSnapshot(requestId),
+    enabled: !!requestId && !!request?.opportunity_id,
   });
 
   const { data: actor } = useQuery({
