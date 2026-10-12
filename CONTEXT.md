@@ -898,6 +898,8 @@ Request. There is
 no standalone Chat and no Chat between people — a Chat always belongs to the
 record it discusses, and is reached either from that record or from the chat
 list, which is the set of Chats an employee is currently party to.
+A Chat opens on its newest 30 Messages and loads 30 older ones each time you
+reach the top, so a long Chat costs what is on screen.
 _Avoid_: Thread, Conversation, Discussion, Comments
 
 **Message**:

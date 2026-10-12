@@ -8,6 +8,8 @@ import { taskActivityService } from "../services/tasks/taskActivityService";
 import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { activeChatService } from "../services/tasks/activeChatService";
 import { useAuth } from "../context/AuthContext";
+import ChatScroller from "@/components/ui/ChatScroller";
+import { usePagedChat, patchPagedMessage } from "../hooks/usePagedChat";
 import { supabase } from "../lib/supabase";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -287,7 +289,6 @@ export default function TaskActivityTimeline({
   const { user } = useAuth();
   const avatarMap = useEmployeeAvatarMap();
   const queryClient = useQueryClient();
-  const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [message, setMessage] = useState("");
   const [mentions, setMentions] = useState([]);
@@ -317,25 +318,24 @@ export default function TaskActivityTimeline({
     `-timeline-${Math.random().toString(36).substring(2, 9)}`,
   );
 
-  // Fetch activity
-  const { data: activity = [], isLoading } = useQuery({
-    queryKey: ["taskActivity", taskId, entityType],
-    queryFn: () =>
-      entityType === "GROUP_TASK"
-        ? groupTaskActivityService.getActivityForTask(taskId)
-        : taskActivityService.getActivityForTask(taskId),
+  // The Chat pages in newest-first; the non-comment events are few, so they load whole.
+  const activityService =
+    entityType === "GROUP_TASK" ? groupTaskActivityService : taskActivityService;
+  const commentsKey = ["taskActivity", taskId, entityType, "comments"];
+  const chat = usePagedChat({
+    queryKey: commentsKey,
+    fetchPage: ({ before, limit }) =>
+      activityService.getCommentsPage(taskId, { before, limit }),
+    enabled: !!taskId,
+  });
+  const { messages: comments } = chat;
+  const { data: history = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ["taskActivity", taskId, entityType, "events"],
+    queryFn: () => activityService.getEvents(taskId),
     enabled: !!taskId,
     staleTime: 30_000,
   });
-
-  const comments = useMemo(
-    () => activity.filter(e => e.type === "COMMENT"),
-    [activity],
-  );
-  const history = useMemo(
-    () => activity.filter(e => e.type !== "COMMENT"),
-    [activity],
-  );
+  const isLoading = chat.isLoading || isLoadingHistory;
 
   // Stable primitive for the auto-bump effect below: the array identity changes
   // on every render, the timestamp only when the thread actually moves.
@@ -514,13 +514,6 @@ export default function TaskActivityTimeline({
     };
   }, [taskId, entityType, queryClient]);
 
-  // Auto-scroll on new entries
-  useEffect(() => {
-    if (scrollRef.current && activeTab === "ACTIVITY") {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [activity, activeTab]);
-
 
 
   const handleSend = useCallback(async () => {
@@ -566,10 +559,7 @@ export default function TaskActivityTimeline({
     const table = entityType === "GROUP_TASK" ? "committee_task_activity" : "task_activity";
 
     // Optimistic update
-    queryClient.setQueryData(
-      ["taskActivity", taskId, entityType],
-      (old = []) => old.map(m => m.id === message.id ? { ...m, metadata: newMetadata } : m)
-    );
+    patchPagedMessage(queryClient, commentsKey, message.id, (m) => ({ ...m, metadata: newMetadata }));
 
     try {
       const { error } = await supabase.rpc('toggle_chat_reaction', {
@@ -625,10 +615,17 @@ export default function TaskActivityTimeline({
         />
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 custom-scrollbar px-4 py-4"
-        style={!isSplitScreen ? { maxHeight: "500px", minHeight: "200px" } : {}}
+      <ChatScroller
+        key={activeTab}
+        firstKey={activeTab === "ACTIVITY" ? comments[0]?.id : undefined}
+        lastKey={activeTab === "ACTIVITY" ? comments[comments.length - 1]?.id : undefined}
+        lastIsMine={comments[comments.length - 1]?.authorId === user?.id}
+        hasMore={activeTab === "ACTIVITY" && chat.hasMore}
+        isFetchingMore={chat.isFetchingMore}
+        onLoadMore={chat.loadMore}
+        className="flex-1 min-w-0"
+        scrollClassName="overflow-x-hidden min-w-0 px-4 py-4"
+        scrollStyle={!isSplitScreen ? { maxHeight: "500px", minHeight: "200px" } : {}}
       >
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -666,7 +663,7 @@ export default function TaskActivityTimeline({
         ) : (
           <HistoryTimeline logs={history} type="TASK" />
         )}
-      </div>
+      </ChatScroller>
 
       {activeTab === "ACTIVITY" && !disabled && (
         <form onSubmit={handleSend} className="bg-muted/30 border-t border-border p-3 min-w-0 w-full flex-none">

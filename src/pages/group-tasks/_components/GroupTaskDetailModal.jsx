@@ -36,6 +36,8 @@ import { activeChatService } from "../../../services/tasks/activeChatService";
 import { formatDateOnly, formatDueDate } from "@/utils/formatDate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskActivityService } from "@/services/groupTaskActivityService";
+import ChatScroller from "@/components/ui/ChatScroller";
+import { usePagedChat, patchPagedMessage } from "@/hooks/usePagedChat";
 import { groupTaskService } from "@/services/groupTaskService";
 import { storageService } from "@/services/storageService";
 import { MessageCircle } from "lucide-react";
@@ -119,7 +121,6 @@ export default function GroupTaskDetailModal({
   // --- Inline chat state ---
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const chatScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
@@ -327,11 +328,18 @@ export default function GroupTaskDetailModal({
   }, [isOpen, clearAttachments]);
 
   // --- Inline chat: fetch messages ---
-  const { data: rawMessages = [], isLoading: isLoadingChat } = useQuery({
-    queryKey: ["chatMessages", "GROUP_TASK", task?.id],
-    queryFn: () => groupTaskActivityService.getActivityForTask(task.id),
+  // Pages newest-first. The key extends ["chatMessages", "GROUP_TASK", id] so
+  // prefix invalidations still reach it, yet stays apart from the chat list's
+  // whole-thread query under the bare key.
+  const chatKey = ["chatMessages", "GROUP_TASK", task?.id, "paged"];
+  const chat = usePagedChat({
+    queryKey: chatKey,
+    fetchPage: ({ before, limit }) =>
+      groupTaskActivityService.getCommentsPage(task.id, { before, limit, includeEvents: true }),
     enabled: !!task?.id && isOpen && isSplitScreen,
   });
+  const rawMessages = chat.messages;
+  const isLoadingChat = chat.isLoading;
 
   const { data: readReceipts = [] } = useQuery({
     queryKey: ["chatReadReceipts", "GROUP_TASK", task?.id],
@@ -417,11 +425,9 @@ export default function GroupTaskDetailModal({
       isAdding = true;
     }
     const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
-    const queryKey = ["chatMessages", "GROUP_TASK", task.id];
+    const queryKey = ["chatMessages", "GROUP_TASK", task.id, "paged"];
 
-    queryClient.setQueryData(queryKey, (old = []) =>
-      old.map((m) => (m.id === message.id ? { ...m, metadata: newMetadata } : m)),
-    );
+    patchPagedMessage(queryClient, queryKey, message.id, (m) => ({ ...m, metadata: newMetadata }));
 
     try {
       const { error } = await supabase.rpc("toggle_chat_reaction", {
@@ -447,13 +453,6 @@ export default function GroupTaskDetailModal({
       queryClient.invalidateQueries({ queryKey });
     }
   };
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-    }
-  }, [chatMessages?.length]);
 
   // Real-time subscription for inline chat
   useEffect(() => {
@@ -1354,9 +1353,14 @@ export default function GroupTaskDetailModal({
             </div>
 
             {/* Messages Area */}
-            <div
-              ref={chatScrollRef}
-              className="flex-1 overflow-y-auto custom-scrollbar py-3 space-y-1"
+            <ChatScroller
+              firstKey={chatMessages[0]?.id}
+              lastKey={chatMessages[chatMessages.length - 1]?.id}
+              lastIsMine={chatMessages[chatMessages.length - 1]?.authorId === user?.id}
+              hasMore={chat.hasMore}
+              isFetchingMore={chat.isFetchingMore}
+              onLoadMore={chat.loadMore}
+              scrollClassName="py-3 space-y-1"
             >
               {isLoadingChat ? (
                 <div className="flex items-center justify-center h-full gap-2 text-muted-foreground italic text-xs">
@@ -1487,7 +1491,7 @@ export default function GroupTaskDetailModal({
                   );
                 })
               )}
-            </div>
+            </ChatScroller>
 
             {/* Input Area */}
             <form onSubmit={handleSendMessage} className="p-3 border-t border-border bg-muted/10 shrink-0">

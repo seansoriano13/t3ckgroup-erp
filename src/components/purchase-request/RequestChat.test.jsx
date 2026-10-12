@@ -51,7 +51,7 @@ describe("a member", () => {
     await user.type(box, "@Ben")
     await user.click(await screen.findByText("Ben Cruz"))
     await user.type(box, "can you quote this?")
-    await user.click(screen.getByRole("button", { name: /Post/ }))
+    await user.click(screen.getByRole("button", { name: /Send/ }))
 
     await waitFor(() =>
       expect(db.rows("purchase_request_messages").at(-1)).toMatchObject({

@@ -9,7 +9,6 @@ import SorChatColumn from "./SorChatColumn"
 
 const baseProps = {
   loadingNotes: false,
-  notesContainerRef: { current: null },
   handleMentionClick: () => {},
   note: "",
   setNote: () => {},

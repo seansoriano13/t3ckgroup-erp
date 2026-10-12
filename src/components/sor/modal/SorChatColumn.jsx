@@ -11,6 +11,7 @@ import { Button } from "../../ui/button";
 import TaskCreatedNoteCard from "./TaskCreatedNoteCard";
 import SystemNoteChanges from "./SystemNoteChanges";
 import { withHiddenVisits } from "../../../utils/sorHiddenVisits";
+import ChatScroller from "../../ui/ChatScroller";
 
 function ProcurementLogNoteCard({ metadata }) {
   if (!metadata) return null;
@@ -63,7 +64,10 @@ export default function SorChatColumn({
   notes,
   hiddenVisits = [],
   loadingNotes,
-  notesContainerRef,
+  currentUserId,
+  hasMoreNotes = false,
+  isFetchingMoreNotes = false,
+  onLoadMoreNotes,
   handleMentionClick,
   note,
   setNote,
@@ -77,6 +81,13 @@ export default function SorChatColumn({
   handlePostNote,
 }) {
   const { files, isUploading } = attachments;
+  // While older notes are still unloaded, a hidden visit that began before the
+  // oldest loaded note would float above it with its neighbours missing.
+  const oldestLoaded = notes[0]?.created_at;
+  const shownHidden = hasMoreNotes
+    ? hiddenVisits.filter((v) => oldestLoaded && new Date(v.enteredAt) >= new Date(oldestLoaded))
+    : hiddenVisits;
+  const lastNote = notes[notes.length - 1];
 
   return (
     <div className="flex h-full flex-col">
@@ -85,21 +96,26 @@ export default function SorChatColumn({
           Activity & Log Notes
         </p>
         <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
-          {notes.length} note{notes.length === 1 ? "" : "s"}
+          {notes.length}
+          {hasMoreNotes ? "+" : ""} note{notes.length === 1 && !hasMoreNotes ? "" : "s"}
         </span>
       </div>
 
-      <div
-        ref={notesContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-3"
+      <ChatScroller
+        firstKey={notes[0]?.id}
+        lastKey={lastNote?.id}
+        lastIsMine={!!currentUserId && lastNote?.author?.id === currentUserId}
+        hasMore={hasMoreNotes}
+        isFetchingMore={isFetchingMoreNotes}
+        onLoadMore={onLoadMoreNotes}
       >
         {loadingNotes ? (
           <Spinner size="sm" />
-        ) : notes.length === 0 && hiddenVisits.length === 0 ? (
+        ) : notes.length === 0 && shownHidden.length === 0 ? (
           <p className="text-xs text-muted-foreground/70 italic py-4 text-center">No notes yet.</p>
         ) : (
           <ul className="space-y-3">
-            {withHiddenVisits(notes, hiddenVisits).map(({ kind, note: n, visit }) =>
+            {withHiddenVisits(notes, shownHidden).map(({ kind, note: n, visit }) =>
               kind === "hidden" ? (
                 <HiddenVisitRow key={`hidden-${visit.id}`} visit={visit} />
               ) : (
@@ -160,7 +176,7 @@ export default function SorChatColumn({
             )}
           </ul>
         )}
-      </div>
+      </ChatScroller>
 
       <div className="shrink-0 border-t border-border/50 px-4 py-3">
         <form
