@@ -15,6 +15,7 @@ import { Button } from "../../components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
+import OpenSorButton from "../../components/purchase-request/OpenSorButton";
 import PurchaseRequestView from "../../components/purchase-request/PurchaseRequestView";
 import NewPurchaseRequestDialog from "../../components/purchase-request/NewPurchaseRequestDialog";
 import RequestBuyer from "../../components/purchase-request/RequestBuyer";
@@ -89,6 +90,42 @@ function itemsSummary(row) {
   return `${row.open_count} open of ${row.item_count}`;
 }
 
+// Progress and Age hide below the medium breakpoint so Request and Status stay readable.
+const NARROW_HIDDEN = new Set(["Progress", "Age"]);
+const AGE_STALE_DAYS = 7;
+
+// One segment per item; a closed item is filled, an open one is not.
+function ProgressCell({ row }) {
+  if (!row.item_count) return <span className="text-xs text-muted-foreground">No items yet</span>;
+  const done = row.item_count - row.open_count;
+  return (
+    <div className="w-full min-w-[8rem]">
+      <div className="flex gap-0.5" aria-hidden="true">
+        {Array.from({ length: row.item_count }, (_, i) => (
+          <span key={i} className={`h-1 flex-1 rounded-full ${i < done ? "bg-green-9" : "bg-mauve-5"}`} />
+        ))}
+      </div>
+      <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+        {done} of {row.item_count} done
+      </p>
+    </div>
+  );
+}
+
+function ageDays(row) {
+  return Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000);
+}
+
+function AgeCell({ row }) {
+  const days = ageDays(row);
+  return (
+    <span className={`text-xs font-medium tabular-nums ${days > AGE_STALE_DAYS ? "text-amber-11" : "text-muted-foreground"}`}>
+      {days}d
+    </span>
+  );
+}
+
+
 function TakeButton({ requestId }) {
   const take = useTakeRequest(requestId);
   return (
@@ -136,8 +173,8 @@ function QueueRow({ row, selected, onOpen, canTake }) {
       <TableCell>
         <span className="text-xs text-muted-foreground">{requestStageLabel(row) || "—"}</span>
       </TableCell>
-      <TableCell>
-        <span className="text-xs font-medium tabular-nums text-foreground">{itemsSummary(row)}</span>
+      <TableCell className="hidden md:table-cell">
+        <ProgressCell row={row} />
       </TableCell>
       <TableCell>
         {row.buyer_id ? (
@@ -153,6 +190,9 @@ function QueueRow({ row, selected, onOpen, canTake }) {
       </TableCell>
       <TableCell>
         <span className="text-xs tabular-nums text-muted-foreground">{formatDate(row.last_activity_at || row.created_at)}</span>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <AgeCell row={row} />
       </TableCell>
       <TableCell className="text-right">
         <RequestState row={row} />
@@ -311,8 +351,11 @@ function PurchaseRequests() {
               <Table className="min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["Request", "Stage", "Items", "Buyer", "Last activity", "Status"].map((heading) => (
-                      <TableHead key={heading} className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}>
+                    {["Request", "Stage", "Progress", "Buyer", "Last activity", "Age", "Status"].map((heading) => (
+                      <TableHead
+                        key={heading}
+                        className={`${HEAD} ${heading === "Status" ? "text-right" : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
+                      >
                         {heading}
                       </TableHead>
                     ))}
@@ -358,6 +401,7 @@ function PurchaseRequests() {
           );
         }}
         openFullLabel="Open full screen"
+        headerActions={(row) => <OpenSorButton request={row} compact />}
       >
         {(row) => (
           <>

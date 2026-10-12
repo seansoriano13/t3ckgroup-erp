@@ -10,7 +10,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "./drawer"
  * Header: the record's identity (`icon`, a `crumb` that closes back to the
  * list, `identity(record)` → `{ ref, title, badge, subtitle }`), a position
  * count with previous / next (also J / K), an "Open full" button when
- * `onOpenFull` is given, and Close. `children(record)` renders a
+ * `onOpenFull` is given, optional `headerActions(record)` before it, and Close. `children(record)` renders a
  * `SlideOverBody` and, usually, a `SlideOverFooter`.
  *
  * The last record stays rendered while the panel slides shut, and focus lands
@@ -28,6 +28,7 @@ export default function SlideOver({
   onClose,
   onOpenFull,
   openFullLabel = "Open full",
+  headerActions,
   children,
 }) {
   // A lone record (no list to step through) shows no position count or arrows.
@@ -91,6 +92,7 @@ export default function SlideOver({
                   </Button>
                 </>
               )}
+              {headerActions?.(current)}
               {onOpenFull && (
                 <Button variant="ghost" size="icon-sm" onClick={() => onOpenFull(current)} aria-label={openFullLabel} title={openFullLabel}>
                   <Maximize2 size={14} />

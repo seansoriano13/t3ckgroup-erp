@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { RecordModalContent } from "@/components/ui/record-modal";
 import StatusBadge from "@/components/StatusBadge";
+import OpenSorButton from "./OpenSorButton";
 import PurchaseRequestView from "./PurchaseRequestView";
 import { usePurchaseRequest } from "./requestHooks";
 import { REQUEST_MODAL_LAYER } from "./stacking";
@@ -78,6 +79,7 @@ export default function PurchaseRequestModal({ requestId, onClose }) {
               </DialogDescription>
             )}
           </div>
+          <OpenSorButton request={request} onBeforeOpen={onClose} />
           <Button
             variant="ghost"
             size="icon-sm"

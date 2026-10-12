@@ -61,20 +61,18 @@ export default function PurchaseRequestView({
     </div>
   );
 
-  // Slide-over: items first, members under them in one card, chat below.
+  // Slide-over: items first, chat next, members last (chat matters more).
   if (layout !== "split") {
     return (
       <div className={cn("flex flex-col gap-4", className)}>
         {summary}
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="px-4 py-4">
-            <RequestedItems request={request} />
-          </div>
-          <div className="border-t border-border bg-muted/20 px-3 py-3">
-            <RequestMembers request={request} rail />
-          </div>
+        <div className="overflow-hidden rounded-2xl border border-border bg-card px-4 py-4">
+          <RequestedItems request={request} />
         </div>
         <RequestChat request={request} className="h-[26rem] shrink-0 overflow-hidden rounded-2xl border border-border" />
+        <div className="overflow-hidden rounded-2xl border border-border bg-muted/20 px-3 py-3">
+          <RequestMembers request={request} rail />
+        </div>
       </div>
     );
   }
