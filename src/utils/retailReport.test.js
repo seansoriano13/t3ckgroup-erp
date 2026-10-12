@@ -361,11 +361,12 @@ describe("chaseList", () => {
 })
 
 describe("monthOverMonth", () => {
-  it("compares this calendar month with the last, whatever else is on screen", () => {
+  it("compares this month so far with the same days of the last, whatever else is on screen", () => {
     const orders = [
       order({ order_income: 600, amount: 700, ordered_at: at(2026, 9, 3) }),
-      order({ order_income: 400, amount: 700, ordered_at: at(2026, 8, 20) }),
-      order({ order_income: 999, amount: 999, ordered_at: at(2026, 7, 20) }),
+      order({ order_income: 400, amount: 700, ordered_at: at(2026, 8, 2) }),
+      order({ order_income: 999, amount: 999, ordered_at: at(2026, 8, 31) }),
+      order({ order_income: 999, amount: 999, ordered_at: at(2026, 7, 2) }),
       order({ order_income: null, amount: 5000, ordered_at: at(2026, 9, 4) }),
       order({ order_income: 999, amount: 999, ordered_at: at(2026, 9, 3), odoo_state: "cancel" }),
     ]

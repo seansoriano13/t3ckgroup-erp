@@ -4,9 +4,9 @@ import { formatPHP } from "../../constants/sor";
 import { formatCount } from "../../utils/retailFormat";
 
 function monthOverMonthSubtitle({ lastMonth, deltaPct }) {
-  if (deltaPct === null) return lastMonth === 0 ? "Nothing to compare with last month" : "vs last month";
+  if (deltaPct === null) return lastMonth === 0 ? "Nothing to compare with last month" : "vs same period last month";
   const arrow = deltaPct >= 0 ? "▲" : "▼";
-  return `${arrow} ${Math.abs(deltaPct).toFixed(0)}% vs last month (${formatPHP(lastMonth)})`;
+  return `${arrow} ${Math.abs(deltaPct).toFixed(0)}% vs same period last month (${formatPHP(lastMonth)})`;
 }
 
 const plural = (count) => (count === 1 ? "" : "s");
