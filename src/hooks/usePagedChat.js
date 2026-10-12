@@ -51,3 +51,16 @@ export function usePagedChat({ queryKey, fetchPage, enabled = true, pageSize = C
     loadMore: query.fetchNextPage,
   };
 }
+
+/**
+ * Patches one loaded Message in a paged Chat's cache (an optimistic reaction,
+ * say) without refetching. Pages that don't hold it are left untouched.
+ */
+export function patchPagedMessage(queryClient, queryKey, id, update) {
+  queryClient.setQueryData(queryKey, (old) =>
+    old && {
+      ...old,
+      pages: old.pages.map((page) => page.map((m) => (m.id === id ? update(m) : m))),
+    },
+  );
+}

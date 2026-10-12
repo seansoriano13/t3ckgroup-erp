@@ -23,6 +23,8 @@ export default function ChatScroller({
   isFetchingMore = false,
   onLoadMore,
   className = "",
+  scrollClassName = "px-4 py-3",
+  scrollStyle,
   children,
 }) {
   const scrollRef = useRef(null);
@@ -84,7 +86,8 @@ export default function ChatScroller({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-3"
+        style={scrollStyle}
+        className={cn("min-h-0 flex-1 overflow-y-auto custom-scrollbar", scrollClassName)}
       >
         <div ref={topRef} aria-hidden="true" className="h-px" />
         {isFetchingMore && (
