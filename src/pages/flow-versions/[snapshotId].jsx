@@ -8,6 +8,7 @@ import { salesFlowService } from "@/services/salesFlowService"
 import { formatSnapshotVersion } from "@/constants/flowVersion"
 import FlowVersionViewer from "@/components/sor/FlowVersionViewer"
 import PageShell from "@/components/ui/PageShell"
+import DesktopNotice from "@/components/ui/DesktopNotice";
 
 /**
  * One version of a Sales Flow, read-only.
@@ -72,6 +73,7 @@ export default function FlowVersionPage() {
             }
         >
             <div className="relative flex h-full flex-col">
+                <DesktopNotice className="m-3" />
                 {snapshot?.note && (
                     <p className="border-b border-border px-4 py-2 text-sm italic text-muted-foreground">
                         “{snapshot.note}”

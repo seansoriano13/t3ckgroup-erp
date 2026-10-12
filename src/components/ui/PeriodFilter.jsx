@@ -37,7 +37,7 @@ export default function PeriodFilter({ timeframe, onTimeframeChange, value, onCh
   return (
     <div
       className={cn(
-        "flex h-9 shrink-0 items-center rounded-lg border shadow-sm transition-all",
+        "flex h-9 max-w-full shrink-0 items-center rounded-lg border shadow-sm transition-all",
         value ? "bg-muted ring-1 ring-mauve-4" : "border-border bg-card",
         className,
       )}

@@ -172,6 +172,7 @@ export default function EmployeeLeavesPage() {
         description="Track every leave, offset, overtime and undertime request you've filed, and see where each one stands."
         action={
           <>
+            <FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} />
             {balances}
             <span aria-hidden="true" className="hidden h-8 w-px bg-border sm:block" />
             <Button onClick={() => setIsApplyModalOpen(true)}>
@@ -212,11 +213,6 @@ export default function EmployeeLeavesPage() {
           )
         }
       >
-        {/* Date Picker Overlay */}
-        <FloatingMonthPicker
-          selectedRange={dateRange}
-          onChange={setDateRange}
-        />
 
         {activeTab === 'calendar' && (
           <div className="animate-in fade-in duration-300">

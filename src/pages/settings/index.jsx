@@ -15,6 +15,7 @@ import { canEditFAQ } from "../../utils/faqAccess";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import toast from "react-hot-toast";
 import PageShell from "../../components/ui/PageShell";
+import DesktopNotice from "@/components/ui/DesktopNotice";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
 import LeaveCategoriesConfig from "../../components/hr/LeaveCategoriesConfig";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
@@ -394,6 +395,7 @@ export default function SettingsPage() {
 
       {/* Only the active panel is mounted, so an inactive tab issues no queries. */}
       <div className="space-y-6">
+        {activeTab === "hr" && <DesktopNotice />}
         <ActivePanel />
       </div>
 
