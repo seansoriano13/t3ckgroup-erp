@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
@@ -374,16 +374,21 @@ export default function HrLeavesManagerPage() {
 
   // A shared link lands on the view its record belongs to (the first time one opens).
   const [landed, setLanded] = useState(false);
-  if (!landed && sheet.view) {
-    setLanded(true);
-    if (sheet.view !== activeTab) setActiveTab(sheet.view);
-  }
+  useEffect(() => {
+    if (!landed && sheet.view) {
+      setLanded(true);
+      if (sheet.view !== activeTab) setActiveTab(sheet.view);
+    }
+  }, [landed, sheet.view, activeTab]);
+
   // Otherwise open on the work: Pending when anything waits (else Calendar), once data is in.
   const [picked, setPicked] = useState(false);
-  if (!picked && !landed && !sheet.view && data) {
-    setPicked(true);
-    if (pendingLeaves.length > 0) setActiveTab('pending');
-  }
+  useEffect(() => {
+    if (!picked && !landed && !sheet.view && data) {
+      setPicked(true);
+      if (pendingLeaves.length > 0) setActiveTab('pending');
+    }
+  }, [picked, landed, sheet.view, data, pendingLeaves.length]);
   // Switching view closes the open slide-over, so `?record=` never outlives its list.
   const changeView = (view) => {
     setPicked(true);
