@@ -142,7 +142,7 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     const header = screen.getByRole('heading', { level: 1 }).closest('div').parentElement;
     expect(header).toContainElement(screen.getByRole('button', { name: /apply leave/i }));
 
-    const requestsTab = await screen.findByRole('tab', { name: /^My Requests/ });
+    const requestsTab = await screen.findByRole('tab', { name: /^Requests/ });
     expect(requestsTab).toHaveAttribute('aria-selected', 'true');
     expect(requestsTab.className).toContain('border-b-2');
   });

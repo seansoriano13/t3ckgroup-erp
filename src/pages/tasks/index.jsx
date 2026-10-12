@@ -79,7 +79,8 @@ const COMPANY_SCOPE = { deptFilter: "ALL", subDeptFilter: "ALL", employeeFilter:
 /**
  * The Tasks page's saved-default filter set: its keys and where each starts.
  * Whose tasks to show starts on real values, never a null placeholder: HR
- * company-wide, heads their own department, staff only themselves.
+ * and staff on their own tasks (the sidebar says "My Tasks"), heads their own
+ * department.
  */
 function taskFilterDefaults(user, { isHr, isManagement }) {
   const own = ownScope(user);
@@ -89,7 +90,7 @@ function taskFilterDefaults(user, { isHr, isManagement }) {
     sortBy: "NEWEST",
     timeframe: "YEARLY",
     selectedDateFilter: `${new Date().getFullYear()}`,
-    ...(isHr ? COMPANY_SCOPE : own),
+    ...own,
     ...(isManagement && !isHr && { employeeFilter: "ALL" }),
     reportedToFilter: "ALL",
     crmOnly: false,
@@ -117,9 +118,6 @@ export default function TasksPage() {
 
   const setGroupPage = (key, page) =>
     setGroupPages((prev) => ({ ...prev, [key]: page }));
-
-  // HR Specific Toggle
-  const [hrViewMode, setHrViewMode] = useState("ALL"); // "ALL" or "PERSONAL"
 
   // View Switcher Mode (Table vs Grid). Table is the Register default; the grid
   // stays as a display toggle because a card carries progress a row cannot.
@@ -158,6 +156,11 @@ export default function TasksPage() {
     };
   });
   const { deptFilter, subDeptFilter } = filters;
+  // HR Specific Toggle: opens on "My Tasks" to match the sidebar label; the
+  // company view is one click away. "ALL" or "PERSONAL".
+  const [hrViewMode, setHrViewMode] = useState(() =>
+    filters.employeeFilter === user?.id ? "PERSONAL" : "ALL",
+  );
   const [searchTerm, setSearchTerm] = useState("");
   // Clear nav state so back-nav doesn't re-apply deep-link filters
   useEffect(() => {

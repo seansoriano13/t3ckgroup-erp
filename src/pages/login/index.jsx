@@ -127,7 +127,7 @@ export default function Login() {
           {/* Header */}
           <div>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-mauve-12">
-              Welcome to <span className="text-primary">T3ckgroup</span>
+              Welcome to <span className="text-primary">T3CKGROUP</span>
             </h1>
             <p className="text-mauve-10 mt-2 font-medium">
               Sign in to access the employee portal.
@@ -181,7 +181,7 @@ export default function Login() {
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
                 <Button type="submit" disabled={isSubmitting} className="h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto">
-{isSubmitting ? "Logging in..." : "Log In"}
+{isSubmitting ? "Signing in…" : "Sign in"}
 </Button>
 
                 <div className="w-full sm:w-auto flex justify-center drop-shadow-md hover:scale-105 transition-transform">

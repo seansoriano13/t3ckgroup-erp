@@ -19,7 +19,7 @@ function Heading() {
   return (
     <div>
       <h3 className="text-2xl font-bold tracking-tight text-mauve-12">
-        Welcome to T3ckgroup
+        Welcome to T3CKGROUP
       </h3>
       <p className="mt-1 text-sm font-medium text-mauve-10">Sign in to access the employee portal.</p>
     </div>
@@ -78,7 +78,7 @@ function EmailAndPassword() {
         <p className="mb-4 text-sm font-bold text-mauve-10">Sign in with your email and password, or your corporate Google account.</p>
         <div className="flex flex-col items-center gap-4 sm:flex-row">
           <Button type="submit" className="h-auto w-full bg-red-9 px-12 py-3 text-primary-foreground hover:bg-red-7 sm:w-auto">
-            Log In
+            Sign in
           </Button>
           <GoogleButton />
         </div>

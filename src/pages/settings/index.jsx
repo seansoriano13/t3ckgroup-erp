@@ -185,7 +185,7 @@ function GeneralPanel() {
 
         <div className="p-6">
           <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-            Logging out will clear your current session. You will need to
+            Signing out will clear your current session. You will need to
             re-authenticate with your T3CKGROUP Google account to access the
             portal again.
           </p>
@@ -195,7 +195,7 @@ function GeneralPanel() {
             className="h-auto gap-2 rounded-xl bg-card px-6 py-2.5 font-bold text-destructive shadow-sm border-destructive/30 hover:border-destructive hover:bg-destructive hover:text-mauve-1"
           >
             <LogOut size={18} />
-            Sign Out
+            Sign out
           </Button>
         </div>
       </div>

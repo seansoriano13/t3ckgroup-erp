@@ -110,7 +110,7 @@ function LeaveApprovalsQueue() {
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: all.length || undefined },
             { value: "ACTIVE", label: "Active (<48h)", icon: Clock, badge: active.length || undefined },
-            { value: "STALE", label: "Stale Backlog (>48h)", icon: AlertTriangle, badge: stale.length || undefined },
+            { value: "STALE", label: "Stale Backlog (≥48h)", icon: AlertTriangle, badge: stale.length || undefined },
           ]}
           view={view}
           onViewChange={(v) => {
@@ -153,7 +153,7 @@ function LeaveApprovalsQueue() {
           renderRowAction={(item) => (
             <>
               <Tooltip content="Decline">
-                <Button variant="outline" size="icon-sm" aria-label={`Decline ${item.person.name}'s ${item.typeLabel}`} disabled={decide.isPending} onClick={() => onDecide(item, "REJECTED", "")}>
+                <Button variant="outline" size="icon-sm" aria-label={`Decline ${item.person.name}'s ${item.typeLabel}`} disabled={decide.isPending} onClick={() => openRecord(item.id)}>
                   <X size={14} />
                 </Button>
               </Tooltip>

@@ -37,7 +37,7 @@ const ENTITY_CONFIG = {
 
 const ACTION_OPTIONS = [
   { value: "ALL", label: "All actions" },
-  { value: "APPROVAL", label: "Decisions (Approve/Reject)" },
+  { value: "APPROVAL", label: "Decisions (Approve/Decline)" },
   { value: "SYSTEM", label: "Updates (Apply/Undo/Withdraw)" },
 ];
 

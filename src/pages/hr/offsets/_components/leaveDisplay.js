@@ -40,7 +40,7 @@ const STATUS_META = {
   APPROVED: status('Approved', STATUS_THEME.GREEN),
   APPROVED_OFFSET: status('Approved · Offset', STATUS_THEME.GREEN),
   APPROVED_PAID: status('Approved · Paid OT', STATUS_THEME.BLUE),
-  REJECTED: status('Rejected', STATUS_THEME.RED),
+  REJECTED: status('Declined', STATUS_THEME.RED),
 };
 
 export const todayIso = () => {

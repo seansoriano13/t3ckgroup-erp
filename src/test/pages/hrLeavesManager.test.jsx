@@ -141,6 +141,19 @@ describe('HrLeavesManagerPage', () => {
     });
   });
 
+  it('opens on Pending when requests are waiting, else on Calendar', async () => {
+    const applicant = makeEmployee({ name: 'Waiting Person' });
+    makeOffsetLeave({ employee_id: applicant.id, date: midCurrentMonth(), status: 'PENDING', reason: 'Errand' });
+
+    renderWithProviders(
+      <MemoryRouter>
+        <HrLeavesManagerPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByRole('tab', { name: /^Pending/i })).toHaveAttribute('aria-selected', 'true'));
+  });
+
   it('folds the Timeline into the Calendar tab as a Month | People switch', async () => {
     const user = setupUser();
 
@@ -380,7 +393,7 @@ describe('HrLeavesManagerPage', () => {
       const sheet = await screen.findByRole('dialog');
       expect(within(sheet).getByText('Sheet reason')).toBeInTheDocument();
       expect(within(sheet).getByRole('button', { name: /^Approve/i })).toBeInTheDocument();
-      expect(within(sheet).getByRole('button', { name: /^Reject/i })).toBeInTheDocument();
+      expect(within(sheet).getByRole('button', { name: /^Decline/i })).toBeInTheDocument();
       expect(screen.getByTestId('search')).toHaveTextContent(`record=${key}`);
     });
 

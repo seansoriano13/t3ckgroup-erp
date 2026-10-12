@@ -25,6 +25,7 @@ const ROLES = [
 ];
 import { loadFAQFromDB, saveFAQToDB } from "../../services/faqService";
 import PageShell from "../../components/ui/PageShell";
+import { confirmDeleteToast } from "../../components/ui/CustomToast";
 import { Navigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import { canEditFAQ } from "../../utils/faqAccess";
@@ -395,7 +396,6 @@ export default function FAQEditorPage() {
   const [categories, setCategories] = useState([]);
   const [activeCatId, setActiveCatId] = useState(null);
   const [saved, setSaved] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -497,12 +497,15 @@ export default function FAQEditorPage() {
     }
   };
 
-  const handleReset = async () => {
-    if (!confirmReset) {
-      setConfirmReset(true);
-      setTimeout(() => setConfirmReset(false), 3000);
-      return;
-    }
+  const handleReset = () => {
+    confirmDeleteToast(
+      "Clear all FAQs?",
+      "Every category and question is removed. This cannot be undone.",
+      doReset,
+    );
+  };
+
+  const doReset = async () => {
     try {
       await saveFAQToDB([]);
       setCategories([]);
@@ -511,7 +514,6 @@ export default function FAQEditorPage() {
       toast.error("Failed to reset FAQs");
       console.error("[FAQEditor] reset error:", err);
     }
-    setConfirmReset(false);
   };
 
   const totalItems = categories.reduce((acc, c) => acc + c.items.length, 0);
@@ -530,14 +532,10 @@ export default function FAQEditorPage() {
           <Button
             variant="outline"
             onClick={handleReset}
-            className={`h-auto gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
-              confirmReset
-                ? "border-red-300 bg-red-50 text-red-600 hover:bg-red-50"
-                : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
+            className="h-auto gap-1.5 rounded-lg border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <RotateCcw size={12} />
-            {confirmReset ? "Confirm Reset?" : "Clear all"}
+            Clear all
           </Button>
 
           {/* Save */}

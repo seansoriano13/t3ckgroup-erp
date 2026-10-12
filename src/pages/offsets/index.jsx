@@ -184,7 +184,7 @@ export default function EmployeeLeavesPage() {
           <TabGroup
             variant="underline"
             tabs={[
-              { value: 'requests', label: 'My Requests', badge: requests.length },
+              { value: 'requests', label: 'Requests', badge: requests.length },
               { value: 'calendar', label: 'Calendar' },
             ]}
             activeTab={activeTab}

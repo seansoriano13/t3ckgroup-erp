@@ -56,7 +56,7 @@ export default function BulkDeclineModal({
             <div className="w-[18px] h-[18px] rounded flex items-center justify-center bg-destructive text-primary-foreground font-bold text-[9px] shrink-0">
               <XSquare size={10} />
             </div>
-            <span className="font-bold text-muted-foreground">Bulk Decline</span>
+            <span className="font-bold text-muted-foreground">Bulk return</span>
           </div>
           <Button
             type="button"
@@ -74,15 +74,15 @@ export default function BulkDeclineModal({
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-6">
           <div tabIndex={-1} ref={titleRef} className="outline-none">
             <h2 className="text-xl font-extrabold text-foreground tracking-tight">
-              Decline {pluralize(selectedCount, "Task")}
+              Return {pluralize(selectedCount, "task")}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Provide feedback for declining the {pluralize(selectedCount, "selected task")}. A remark is required.
+              Provide feedback for returning the {pluralize(selectedCount, "selected task")}. A remark is required.
             </p>
           </div>
 
           <div>
-            <FieldBox label="Decline Remarks (Required)" htmlFor="bulk-decline-remarks" className="mb-2 block" />
+            <FieldBox label="Return remarks (required)" htmlFor="bulk-decline-remarks" className="mb-2 block" />
             <Input
               id="bulk-decline-remarks"
               type="text"
@@ -105,7 +105,7 @@ export default function BulkDeclineModal({
             disabled={isSubmitting || !remarks.trim()}
             className="bg-destructive hover:bg-red-700 text-primary-foreground font-bold tracking-wide shadow-sm"
           >
-            {isSubmitting ? "Processing…" : `Decline ${pluralize(selectedCount, "Task")}`}
+            {isSubmitting ? "Processing…" : `Return ${pluralize(selectedCount, "task")}`}
           </Button>
         </div>
       </DialogContent>

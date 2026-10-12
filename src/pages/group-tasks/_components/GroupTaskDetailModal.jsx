@@ -778,7 +778,7 @@ export default function GroupTaskDetailModal({
                     Cancel
                   </Button>
                   <Button type="button" size="sm" onClick={handleSaveTaskEdit} disabled={isUpdatingTask} className="h-8 px-4 text-xs">
-                    {isUpdatingTask ? "Saving…" : "Save Changes"}
+                    {isUpdatingTask ? "Saving…" : "Save changes"}
                   </Button>
                 </div>
               </div>
@@ -966,7 +966,7 @@ export default function GroupTaskDetailModal({
                           {draft.id
                             ? isUpdatingMember
                               ? "Saving…"
-                              : "Save Changes"
+                              : "Save changes"
                             : isAddingMember
                               ? "Adding…"
                               : "Add Member"}
