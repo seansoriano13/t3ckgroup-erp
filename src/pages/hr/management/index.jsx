@@ -276,7 +276,7 @@ export default function EmployeeManagement() {
         {activeTab === "employees" ? (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <Table tableId="hr-employees" className="whitespace-nowrap">
+              <Table scrollCue tableId="hr-employees" className="whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
                     <TableHead id="name">Name</TableHead>

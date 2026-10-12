@@ -414,7 +414,7 @@ export default function SuperAdminActivityLogPage() {
     body = (
       <>
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table tableId="activity-log">
+          <Table scrollCue tableId="activity-log">
             <TableHeader>
               <TableRow>
                 <SortHead id="when" sortKey="when" sort={sort} onSort={toggle}>When</SortHead>
