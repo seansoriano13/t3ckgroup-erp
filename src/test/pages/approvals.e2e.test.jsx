@@ -306,7 +306,7 @@ describe("approval journeys", () => {
             expect(screen.getByText(/manager queue/i)).toBeInTheDocument()
         })
         expect(
-            screen.getByRole("link", { name: "/approvals/hr-verification" }),
+            screen.getByRole("link", { name: "HR Verification" }),
         ).toHaveAttribute("href", "/approvals/hr-verification")
         await waitForNetworkIdle()
     })

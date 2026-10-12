@@ -94,8 +94,9 @@ describe("SettingsPage", () => {
       "System Announcements",
     ]);
 
+    // Tab switches replace history (ui-audit F08) so Back leaves Settings.
     await setupUser().click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
-    expect(screen.getByTestId("loc")).toHaveTextContent("?tab=approvals|PUSH");
+    expect(screen.getByTestId("loc")).toHaveTextContent("?tab=approvals|REPLACE");
     await waitFor(() => expect(screen.getByText("Ops Manager Marketing Approvals")).toBeInTheDocument());
     expect(screen.queryByText("App preferences")).not.toBeInTheDocument();
 

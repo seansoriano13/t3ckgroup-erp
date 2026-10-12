@@ -349,6 +349,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### EmptyState
 `ui/EmptyState.jsx`. The one empty state: muted icon, title, one line. Props: `icon`, `title`, `description`, `className`.
 
+#### QueryError
+`ui/QueryError.jsx`. The one query-failure block: short message plus Retry; never prints a raw error. Props: `title`, `onRetry`, `className`.
+
 #### Spinner
 `ui/Spinner.jsx`. Props: `size`, `text`, `fullScreen`, `className`.
 
