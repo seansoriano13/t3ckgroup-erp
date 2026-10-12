@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router";
-import CrmFormula from "./crm/commission-formula/index";
-import OppFormula from "./opportunities/commission-formula/index";
-import SuperAdmin from "./super-admin/index";
-import LeadSources from "./super-admin/lead-sources/index";
-import NotFound from "./404";
+import CrmFormula from "../../pages/crm/commission-formula/index";
+import OppFormula from "../../pages/opportunities/commission-formula/index";
+import SuperAdmin from "../../pages/super-admin/index";
+import LeadSources from "../../pages/super-admin/lead-sources/index";
+import NotFound from "../../pages/404";
 
 function Where() {
   const l = useLocation();

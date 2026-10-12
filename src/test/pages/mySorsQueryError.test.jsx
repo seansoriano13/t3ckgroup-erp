@@ -8,7 +8,7 @@ vi.mock("../../services/opportunityService", () => ({ opportunityService: { getM
 vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
 vi.mock("../../components/ProtectedRoute", () => ({ default: ({ children }) => children }));
 
-import MySors from "./index";
+import MySors from "../../pages/my-sors/index";
 
 describe("My SORs query failure", () => {
   it("shows the error block (not the empty state) and Retry recovers", async () => {
