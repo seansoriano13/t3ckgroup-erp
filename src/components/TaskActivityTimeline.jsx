@@ -282,7 +282,6 @@ export default function TaskActivityTimeline({
   evaluatedByName,
   grade,
   disabled = false,
-  inputType = "textarea",
   isSplitScreen = false,
 }) {
   const { user } = useAuth();
@@ -698,7 +697,7 @@ export default function TaskActivityTimeline({
             </div>
           )}
 
-          <div className="flex items-start gap-2">
+          <div className="flex w-full min-w-0 max-w-full flex-col rounded-2xl border border-border bg-card p-1.5 ring-mauve-8/20 transition-shadow focus-within:ring-2">
             <MentionTextarea
               value={message}
               onChange={setMessage}
@@ -708,21 +707,12 @@ export default function TaskActivityTimeline({
               mentions={mentions}
               onMentionsChange={setMentions}
               placeholder="Send a message or paste an image..."
-              containerClassName="flex-1"
-              className={`w-full bg-card border border-border rounded-xl px-4 text-sm shadow-sm custom-scrollbar resize-none focus:outline-none focus:ring-1 ring-mauve-7 disabled:opacity-50 ${inputType === "textarea" ? "py-3 min-h-[50px] max-h-[150px]" : "h-11 py-2.5"}`}
+              className="custom-scrollbar block w-full resize-none border-none bg-transparent px-3 py-2.5 text-sm shadow-none outline-none focus-visible:ring-0 disabled:opacity-50"
               rows={1}
               disabled={postCommentMutation.isPending || isUploading}
             />
-            <div className="flex flex-col gap-1 shrink-0">
-              <Button
-                onClick={handleSend}
-                disabled={(!message.trim() && attachments.length === 0) || postCommentMutation.isPending || isUploading}
-                className="w-11 h-11 rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 active:scale-90 transition-all"
-                size="icon"
-              >
-                {isUploading ? <Spinner size="sm" /> : <Send size={18} />}
-              </Button>
-              <div className="w-11 h-11 rounded-xl border border-border flex items-center justify-center gap-1.5">
+            <div className="flex items-center justify-between px-2 pb-0.5 pt-1">
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="ghost"
@@ -735,11 +725,27 @@ export default function TaskActivityTimeline({
                   <Paperclip size={15} />
                 </Button>
                 <EmojiPicker
-                  align="end"
                   onSelect={(emoji) => setMessage((prev) => prev + emoji)}
                   disabled={postCommentMutation.isPending || isUploading}
                 />
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <Clock size={10} /> Enter to send
+                </span>
               </div>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={(!message.trim() && attachments.length === 0) || postCommentMutation.isPending || isUploading}
+                className="h-8 gap-2 rounded-xl px-4 font-bold"
+              >
+                {isUploading ? (
+                  <><Spinner size="sm" /> Uploading</>
+                ) : postCommentMutation.isPending ? (
+                  "..."
+                ) : (
+                  <>Send <Send size={14} /></>
+                )}
+              </Button>
             </div>
           </div>
         </form>

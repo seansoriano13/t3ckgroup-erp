@@ -1,5 +1,6 @@
 import { FileInput } from "@/components/ui/FileInput";
-import { KeyRound, Lock, Paperclip, Send, Sparkles } from "lucide-react";
+import { Clock, KeyRound, Lock, Paperclip, Send, Sparkles } from "lucide-react";
+import EmojiPicker from "../../ui/EmojiPicker";
 import { cn } from "@/lib/utils";
 import Spinner from "../../ui/Spinner";
 import Avatar from "../../Avatar";
@@ -185,39 +186,54 @@ export default function SorChatColumn({
             </div>
           )}
 
-          <div className="flex items-end gap-2">
-            <div className="flex-1 rounded-xl border border-border/80 bg-muted/25 p-3 focus-within:border-mauve-7 focus-within:bg-card">
-              <MentionTextarea
-                rows={2}
-                value={note}
-                onChange={setNote}
-                people={employees}
-                mentions={noteMentions}
-                onMentionsChange={setNoteMentions}
-                onPaste={attachments.addFromPaste}
-                placeholder="Add a note — type @ to mention someone"
-                className="w-full resize-none bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground/50 outline-none"
-              />
+          <div className="flex w-full min-w-0 max-w-full flex-col rounded-2xl border border-border bg-card p-1.5 ring-mauve-8/20 transition-shadow focus-within:ring-2">
+            <MentionTextarea
+              rows={1}
+              value={note}
+              onChange={setNote}
+              people={employees}
+              mentions={noteMentions}
+              onMentionsChange={setNoteMentions}
+              onPaste={attachments.addFromPaste}
+              onEnterSubmit={() => handlePostNote()}
+              disabled={isPosting}
+              placeholder="Add a note — type @ to mention someone"
+              className="custom-scrollbar block w-full resize-none border-none bg-transparent px-3 py-2.5 text-sm shadow-none outline-none focus-visible:ring-0 disabled:opacity-50"
+            />
+            <div className="flex items-center justify-between px-2 pb-0.5 pt-1">
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  title={`Attach files (max ${attachments.max})`}
+                  aria-label="Attach files"
+                  disabled={isPosting || files.length >= attachments.max}
+                  onClick={() => fileInputRef.current?.open()}
+                  className="h-auto w-auto text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground disabled:opacity-40"
+                >
+                  <Paperclip size={15} />
+                </Button>
+                <EmojiPicker onSelect={(emoji) => setNote((prev) => prev + emoji)} disabled={isPosting} />
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <Clock size={10} /> Enter to send
+                </span>
+              </div>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={(!note.trim() && files.length === 0) || isPosting}
+                className="h-8 gap-2 rounded-xl px-4 font-bold"
+              >
+                {isUploading ? (
+                  <><Spinner size="sm" /> Uploading</>
+                ) : isPosting ? (
+                  "..."
+                ) : (
+                  <>Send <Send size={14} /></>
+                )}
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              title={`Attach files (max ${attachments.max})`}
-              disabled={isPosting || files.length >= attachments.max}
-              onClick={() => fileInputRef.current?.open()}
-              className="h-10 w-10 shrink-0 rounded-xl text-muted-foreground"
-            >
-              <Paperclip size={15} />
-            </Button>
-            <Button
-              type="submit"
-              disabled={(!note.trim() && files.length === 0) || isPosting}
-              className="h-10 shrink-0 gap-1.5 rounded-xl px-4 text-[13px]"
-            >
-              {isPosting ? <Spinner size="sm" /> : <Send size={13} />}
-              {isUploading ? "Uploading" : "Post"}
-            </Button>
           </div>
           {mentionAccessHint && (
             <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-foreground" role="status">

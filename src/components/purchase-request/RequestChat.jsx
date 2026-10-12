@@ -3,7 +3,8 @@ import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "@/utils/formatDate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { MessagesSquare, Paperclip, Send, Sparkles } from "lucide-react";
+import { Clock, MessagesSquare, Paperclip, Send, Sparkles } from "lucide-react";
+import EmojiPicker from "@/components/ui/EmojiPicker";
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -181,41 +182,55 @@ export default function RequestChat({ request, className = "" }) {
               <AttachmentPreviews files={files} onRemove={attachments.removeFile} disabled={isPosting} />
             </div>
           )}
-          <div className="flex items-end gap-2">
-            <div className="flex-1 rounded-xl border border-border/80 bg-muted/25 p-3 focus-within:border-mauve-7 focus-within:bg-card">
-              <MentionTextarea
-                rows={2}
-                aria-label="Message"
-                value={text}
-                onChange={setText}
-                people={people}
-                mentions={mentions}
-                onMentionsChange={setMentions}
-                onPaste={attachments.addFromPaste}
-                placeholder="Message the request — type @ to mention a member"
-                className="w-full resize-none bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground/50 outline-none"
-              />
+          <div className="flex w-full min-w-0 max-w-full flex-col rounded-2xl border border-border bg-card p-1.5 ring-mauve-8/20 transition-shadow focus-within:ring-2">
+            <MentionTextarea
+              rows={1}
+              aria-label="Message"
+              value={text}
+              onChange={setText}
+              people={people}
+              mentions={mentions}
+              onMentionsChange={setMentions}
+              onPaste={attachments.addFromPaste}
+              onEnterSubmit={handlePost}
+              disabled={isPosting}
+              placeholder="Message the request — type @ to mention a member"
+              className="custom-scrollbar block w-full resize-none border-none bg-transparent px-3 py-2.5 text-sm shadow-none outline-none focus-visible:ring-0 disabled:opacity-50"
+            />
+            <div className="flex items-center justify-between px-2 pb-0.5 pt-1">
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  title={`Attach files (max ${attachments.max})`}
+                  aria-label="Attach files"
+                  disabled={isPosting || files.length >= attachments.max}
+                  onClick={() => fileInputRef.current?.open()}
+                  className="h-auto w-auto text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground disabled:opacity-40"
+                >
+                  <Paperclip size={15} />
+                </Button>
+                <EmojiPicker onSelect={(emoji) => setText((prev) => prev + emoji)} disabled={isPosting} />
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <Clock size={10} /> Enter to send
+                </span>
+              </div>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={(!text.trim() && files.length === 0) || isPosting}
+                className="h-8 gap-2 rounded-xl px-4 font-bold"
+              >
+                {isUploading ? (
+                  <><Spinner size="sm" /> Uploading</>
+                ) : isPosting ? (
+                  "..."
+                ) : (
+                  <>Send <Send size={14} /></>
+                )}
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              title={`Attach files (max ${attachments.max})`}
-              aria-label="Attach files"
-              disabled={isPosting || files.length >= attachments.max}
-              onClick={() => fileInputRef.current?.open()}
-              className="h-10 w-10 shrink-0 rounded-xl text-muted-foreground"
-            >
-              <Paperclip size={15} />
-            </Button>
-            <Button
-              type="submit"
-              disabled={(!text.trim() && files.length === 0) || isPosting}
-              className="h-10 shrink-0 gap-1.5 rounded-xl px-4 text-[13px]"
-            >
-              {isPosting ? <Spinner size="sm" /> : <Send size={13} />}
-              {isUploading ? "Uploading" : "Post"}
-            </Button>
           </div>
         </form>
       ) : (
