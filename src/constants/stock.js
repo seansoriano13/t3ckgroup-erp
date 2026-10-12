@@ -34,7 +34,7 @@ export const STOCK_BADGE_THEME = {
 /**
  * #501 — a stock reading older than this is stale. Stock moves daily, and a
  * snapshot is only re-read when someone opens or refreshes the SOR, so a
- * figure from before yesterday is marked rather than trusted.
+ * figure read more than 24 hours ago is marked rather than trusted.
  */
 export const STOCK_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 

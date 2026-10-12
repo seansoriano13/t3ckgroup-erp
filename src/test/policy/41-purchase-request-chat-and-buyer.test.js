@@ -23,13 +23,16 @@ async function insert(table, row) {
     return data.id
 }
 
-/** A request with the usual members and one item asked for by the Deal Owner. */
-async function newRequest({ buyer = null } = {}) {
+/**
+ * A request with the usual members and one item asked for by the Deal Owner.
+ * `creator` is whoever opened it (the Stage Action actor); the Deal Owner by default.
+ */
+async function newRequest({ buyer = null, creator = "dealOwner" } = {}) {
     const sorId = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
     sors.push(sorId)
     const requestId = await insert("purchase_requests", {
         opportunity_id: sorId,
-        created_by: ids.dealOwner,
+        created_by: ids[creator],
         buyer_id: buyer ? ids[buyer] : null,
     })
     requests.push(requestId)
@@ -249,6 +252,42 @@ describe("after Take", () => {
             mentions: [{ id: ids.ordinary, name: "Ordinary Employee" }],
         })
         expect((await notified(requestId)).ordinary).toBeUndefined()
+    })
+})
+
+// #502: the Stage Action actor who opened a Project request hears about a
+// plain message only as a requester once it has a Buyer. `hr` opens it here
+// and requests nothing; the Deal Owner requested the one item.
+describe("a creator who requested nothing", () => {
+    it("with a Buyer, a plain message tells the Buyer and the requester, not the creator", async () => {
+        const { requestId } = await newRequest({ buyer: "outsider", creator: "hr" })
+        await post("stageParticipant", requestId, `${MARKER} quote attached`)
+        expect(await notified(requestId)).toEqual({
+            outsider: ["PURCHASE_REQUEST_MESSAGE"],
+            dealOwner: ["PURCHASE_REQUEST_MESSAGE"],
+        })
+    })
+
+    it("with a Buyer, a mention still tells the creator", async () => {
+        const { requestId } = await newRequest({ buyer: "outsider", creator: "hr" })
+        const { error } = await post("stageParticipant", requestId, `${MARKER} @HR Officer, see this`, {
+            mentions: [{ id: ids.hr, name: "HR Officer" }],
+        })
+        expect(error).toBeNull()
+        expect(await notified(requestId)).toEqual({
+            hr: ["PURCHASE_REQUEST_MENTION"],
+            outsider: ["PURCHASE_REQUEST_MESSAGE"],
+            dealOwner: ["PURCHASE_REQUEST_MESSAGE"],
+        })
+    })
+
+    it("before a Buyer, a plain message still tells the creator", async () => {
+        const { requestId } = await newRequest({ creator: "hr" })
+        await post("stageParticipant", requestId, `${MARKER} looking for a supplier`)
+        expect(await notified(requestId)).toEqual({
+            hr: ["PURCHASE_REQUEST_MESSAGE"],
+            dealOwner: ["PURCHASE_REQUEST_MESSAGE"],
+        })
     })
 })
 

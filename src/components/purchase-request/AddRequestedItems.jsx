@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Spinner from "@/components/ui/Spinner";
 import { AttachmentPreviews } from "@/components/ui/Attachments";
 import StatusBadge from "../StatusBadge";
+import StaleStockBadge from "./StaleStockBadge";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
 import { REQUEST_UNITS } from "../../constants/procurement";
@@ -104,9 +105,7 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
 
         <p className="text-[11px] text-muted-foreground">
           {stockSnapshot?.fetched_at ? `Stock as of ${formatDate(stockSnapshot.fetched_at)}` : "Stock not yet checked"}
-          {isStockStale(stockSnapshot?.fetched_at) && (
-            <span className="ml-2 font-medium text-amber-600 dark:text-amber-400">Stale</span>
-          )}
+          {isStockStale(stockSnapshot?.fetched_at) && <StaleStockBadge className="ml-2" />}
         </p>
 
         <div className="max-h-[50vh] overflow-y-auto">

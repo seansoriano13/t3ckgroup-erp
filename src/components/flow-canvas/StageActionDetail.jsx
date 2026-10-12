@@ -74,6 +74,7 @@ export default function StageActionDetail({
     .map((member) => member?.employeeId)
     .filter(Boolean)
     .map(nameOf);
+  const requesters = extraRequesters(config.requesters);
   const subjectLabel =
     action.kind === "open_purchase_request"
       ? "Purchasing members"
@@ -106,9 +107,9 @@ export default function StageActionDetail({
         <>
           <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
           <Field label="Who can request items">
-            {extraRequesters(config.requesters).length === 0
+            {requesters.length === 0
               ? "The Deal Team"
-              : `The Deal Team, plus ${extraRequesters(config.requesters)
+              : `The Deal Team, plus ${requesters
                   .map((s) => deciderLabel(s, nameOf))
                   .join(", ")}`}
           </Field>
