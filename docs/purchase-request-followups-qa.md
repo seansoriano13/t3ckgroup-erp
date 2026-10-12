@@ -196,6 +196,112 @@ ROLLBACK;
 
 ### #504 Open Purchase Request top-up
 
+Finding (verified locally 2026-10-12): already correct, no migration. A second run on an SOR that
+already has a request inserts nothing (`on conflict (opportunity_id) do nothing`), then runs the same
+member loop as a first open with the second action's own config: its leave-out roles, its extras, its
+requesters and its Buyer. A top-up only adds: it fills a missing Buyer or requesters list (an existing
+one is kept) and never removes anyone, so a role the second action leaves out that the first one
+brought in stays a member.
+
+- [ ] 504.1 Two Open Purchase Request runs on one SOR (verified locally 2026-10-12). Picks an open
+  SOR with no request, then run A (every role left out, one extra, no Buyer) and run B (only Deal
+  Owner kept, another extra, a Buyer, a requesters list). Expected: 9 rows, every `ok` = `t`.
+  `504: no suitable SOR` means no SOR fits; pick one by hand.
+
+```sql
+begin;
+create temp table t504 (step int, check_name text, ok boolean) on commit drop;
+do $$
+declare
+  v_opp public.sales_opportunities;
+  v_pick uuid[];
+  v_out uuid[];
+  v_action_a uuid; v_action_b uuid;
+  v_run_a uuid; v_run_b uuid;
+  v_req_a uuid; v_req_b uuid;
+  v_all_roles jsonb := '["registrar","deal_owner","closing_sales","support_sales","sales_director"]';
+begin
+  -- Act as any Super Admin.
+  perform set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'email', (
+    select email from employees
+    where is_super_admin and not coalesce(is_deleted, false) and email is not null limit 1
+  ))::text, true);
+
+  -- An open SOR with no request yet whose Deal Owner and at least one other
+  -- Deal Team member are not Purchasing (so membership comes from the roles).
+  select o.* into v_opp from sales_opportunities o
+  where not coalesce(o.is_deleted, false) and o.flow_stage_id is not null
+    and not exists (select 1 from purchase_requests r where r.opportunity_id = o.id)
+    and not public._sor_closed_for_purchasing(o)
+    and o.deal_owner_id is not null
+    and not public._employee_has_purchasing_access(o.deal_owner_id)
+    and exists (
+      select 1 from public._sor_deal_team_roles(o) t
+      where t.employee_id <> o.deal_owner_id and not public._employee_has_purchasing_access(t.employee_id)
+    )
+  limit 1;
+  if v_opp.id is null then raise exception '504: no suitable SOR'; end if;
+
+  -- The rest of the Deal Team, which run B leaves out.
+  select array_agg(distinct t.employee_id) into v_out
+  from public._sor_deal_team_roles(v_opp) t
+  where t.employee_id <> v_opp.deal_owner_id and not public._employee_has_purchasing_access(t.employee_id);
+
+  -- Four outsiders: extra for A, extra for B, Buyer for B, requester for B.
+  select array_agg(id) into v_pick from (
+    select e.id from employees e
+    where not coalesce(e.is_deleted, false) and not public._employee_has_purchasing_access(e.id)
+      and e.id not in (select t.employee_id from public._sor_deal_team_roles(v_opp) t)
+    order by e.id limit 4
+  ) s;
+
+  -- Run A: leaves out every role, one extra, no Buyer.
+  insert into flow_stage_actions (stage_id, kind, config)
+  values (v_opp.flow_stage_id, 'open_purchase_request', jsonb_build_object(
+    'leaveOutRoles', v_all_roles,
+    'extras', jsonb_build_array(jsonb_build_object('type', 'employee', 'id', v_pick[1]))))
+  returning id into v_action_a;
+  -- Run B: keeps only the Deal Owner role, a new extra, a Buyer, a requesters list.
+  insert into flow_stage_actions (stage_id, kind, config)
+  values (v_opp.flow_stage_id, 'open_purchase_request', jsonb_build_object(
+    'leaveOutRoles', v_all_roles - 'deal_owner',
+    'extras', jsonb_build_array(jsonb_build_object('type', 'employee', 'id', v_pick[2])),
+    'buyer', jsonb_build_object('type', 'employee', 'id', v_pick[3]),
+    'requesters', jsonb_build_array(jsonb_build_object('type', 'employee', 'id', v_pick[4]))))
+  returning id into v_action_b;
+  insert into sor_action_runs (opportunity_id, stage_id, action_id)
+  values (v_opp.id, v_opp.flow_stage_id, v_action_a) returning id into v_run_a;
+  insert into sor_action_runs (opportunity_id, stage_id, action_id)
+  values (v_opp.id, v_opp.flow_stage_id, v_action_b) returning id into v_run_b;
+
+  v_req_a := public.sor_open_purchase_request(v_run_a);
+  insert into t504 values (1, 'A: Deal Owner left out', not exists (
+    select 1 from purchase_request_members where request_id = v_req_a and employee_id = v_opp.deal_owner_id));
+
+  v_req_b := public.sor_open_purchase_request(v_run_b);
+  insert into t504 values
+    (2, 'B: same request, one per SOR', v_req_b = v_req_a
+      and (select count(*) from purchase_requests where opportunity_id = v_opp.id) = 1),
+    (3, 'B: Buyer set', (select buyer_id from purchase_requests where id = v_req_a) = v_pick[3]),
+    (4, 'B: requesters list set', (select requesters from purchase_requests where id = v_req_a)
+      = jsonb_build_array(jsonb_build_object('type', 'employee', 'id', v_pick[4]))),
+    (5, 'A extra + B extra + Buyer + requester are members', (
+      select count(*) from purchase_request_members where request_id = v_req_a and employee_id = any (v_pick)) = 4),
+    (6, 'B: kept role (Deal Owner) now a member', exists (
+      select 1 from purchase_request_members where request_id = v_req_a and employee_id = v_opp.deal_owner_id)),
+    (7, 'B: left-out roles still not members', not exists (
+      select 1 from purchase_request_members where request_id = v_req_a and employee_id = any (v_out))),
+    (8, 'events: one opened, one buyer_set', (
+      select array_agg(metadata->>'event' order by created_at, id) from purchase_request_messages
+      where request_id = v_req_a and metadata->>'event' in ('opened', 'buyer_set')) = array['opened', 'buyer_set']),
+    (9, 'both runs created, linked to the request', (
+      select count(*) from sor_action_runs
+      where id in (v_run_a, v_run_b) and outcome = 'created' and purchase_request_id = v_req_a) = 2);
+end $$;
+select * from t504 order by step;
+rollback;
+```
+
 ### #505 Legacy task-closing notifications
 
 Finding: closing the old purchasing tasks sends no notifications, so nothing was
