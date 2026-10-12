@@ -27,6 +27,7 @@ import { loadFAQFromDB, saveFAQToDB } from "../../services/faqService";
 import PageShell from "../../components/ui/PageShell";
 import { Navigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { canEditFAQ } from "../../utils/faqAccess";
 import { Input } from "@/components/ui/input";
 
@@ -398,6 +399,8 @@ export default function FAQEditorPage() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // JSON of the last loaded / saved categories; edits are "unsaved" when they differ.
+  const [baseline, setBaseline] = useState(null);
 
   // Load FAQ data from Supabase on mount
   useEffect(() => {
@@ -406,6 +409,7 @@ export default function FAQEditorPage() {
       .then((fresh) => {
         if (cancelled) return;
         setCategories(fresh);
+        setBaseline(JSON.stringify(fresh));
         setActiveCatId(fresh[0]?.id ?? null);
       })
       .catch((err) => console.error("[FAQEditor] load error:", err))
@@ -487,6 +491,7 @@ export default function FAQEditorPage() {
     try {
       setSaving(true);
       await saveFAQToDB(categories);
+      setBaseline(JSON.stringify(categories));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -505,6 +510,7 @@ export default function FAQEditorPage() {
     }
     try {
       await saveFAQToDB([]);
+      setBaseline("[]");
       setCategories([]);
       setActiveCatId(null);
     } catch (err) {
@@ -513,6 +519,8 @@ export default function FAQEditorPage() {
     }
     setConfirmReset(false);
   };
+
+  useUnsavedGuard(baseline !== null && !saving && JSON.stringify(categories) !== baseline);
 
   const totalItems = categories.reduce((acc, c) => acc + c.items.length, 0);
 
