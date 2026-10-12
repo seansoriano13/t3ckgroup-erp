@@ -22,6 +22,15 @@ export default function GradeSelector({
     4: "bg-lime-500 text-white shadow-sm",
     5: "bg-green-10 text-white shadow-sm",
   };
+  // The ghost Button's hover:bg-* / hover:text-* beat the plain bg-* above, so a
+  // selected grade went grey on hover. Pin the hover to its own colour.
+  const selectedHoverMap = {
+    1: "hover:bg-destructive hover:text-white",
+    2: "hover:bg-orange-500 hover:text-white",
+    3: "hover:bg-amber-500 hover:text-white",
+    4: "hover:bg-lime-500 hover:text-white",
+    5: "hover:bg-green-10 hover:text-white",
+  };
 
   return (
     <div
@@ -58,7 +67,7 @@ export default function GradeSelector({
               compact ? "w-6 h-7 text-[10px]" : "flex-1 py-2 text-sm"
             } ${!canEvaluate ? "opacity-50 cursor-not-allowed" : ""} ${
               isSelected
-                ? `${activeColorMap[num]} scale-[1.02] z-10 shadow-md hover:opacity-90`
+                ? `${activeColorMap[num]} ${selectedHoverMap[num]} scale-[1.02] z-10 shadow-md hover:opacity-90`
                 : `text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm`
             }`}
           >
