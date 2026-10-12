@@ -153,7 +153,7 @@ function LeaveApprovalsQueue() {
           renderRowAction={(item) => (
             <>
               <Tooltip content="Decline">
-                <Button variant="outline" size="icon-sm" aria-label={`Decline ${item.person.name}'s ${item.typeLabel}`} disabled={decide.isPending} onClick={() => onDecide(item, "REJECTED", "")}>
+                <Button variant="outline" size="icon-sm" aria-label={`Decline ${item.person.name}'s ${item.typeLabel}`} disabled={decide.isPending} onClick={() => openRecord(item.id)}>
                   <X size={14} />
                 </Button>
               </Tooltip>
