@@ -21,6 +21,8 @@ import GroupTaskFilterBar from "../../components/GroupTaskFilterBar";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
 import { useMemo } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 
 const GROUP_TASK_FILTER_DEFAULTS = {
   statusFilter: "ALL",
@@ -149,6 +151,7 @@ export default function GroupTasksPage() {
       crmOnly,
     },
   );
+  const gridPaging = usePaging(filteredTasks);
 
   const currentFilters = {
     statusFilter,
@@ -438,18 +441,21 @@ export default function GroupTasksPage() {
       ) : (
         /* GRID */
         filteredTasks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredTasks.map((task) => (
-              <GroupTaskCard
-                key={task.id}
-                task={task}
-                currentUserId={user?.id}
-                isSuperAdmin={isSuperAdmin}
-                onView={() => setSelectedTaskId(task.id)}
-                searchTerm={searchTerm}
-                // demoProgress={index === 0 ? demoProgress : undefined}
-              />
-            ))}
+          <div className="pb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {gridPaging.rows.map((task) => (
+                <GroupTaskCard
+                  key={task.id}
+                  task={task}
+                  currentUserId={user?.id}
+                  isSuperAdmin={isSuperAdmin}
+                  onView={() => setSelectedTaskId(task.id)}
+                  searchTerm={searchTerm}
+                  // demoProgress={index === 0 ? demoProgress : undefined}
+                />
+              ))}
+            </div>
+            <TablePager {...gridPaging} noun="tasks" className="mt-4 rounded-xl border" />
           </div>
         ) : (
           <EmptyState

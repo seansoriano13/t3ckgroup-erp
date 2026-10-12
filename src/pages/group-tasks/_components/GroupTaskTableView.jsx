@@ -15,8 +15,6 @@ import {
   Clock,
   AlertTriangle,
   Eye,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   Users,
 } from "lucide-react";
@@ -29,7 +27,8 @@ import { formatDueDate } from "../../../utils/formatDate";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
 import { Button } from "@/components/ui/button";
-import { SelectField } from "@/components/ui/SelectField";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 
 export default function GroupTaskTableView({
   tasks = [],
@@ -44,10 +43,6 @@ export default function GroupTaskTableView({
   const [sortField, setSortField] = useState("created_at");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-
   const handleSort = (field) => {
     if (sortField === field) {
       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -55,7 +50,7 @@ export default function GroupTaskTableView({
       setSortField(field);
       setSortOrder("asc");
     }
-    setCurrentPage(1);
+    paging.setPage(1);
   };
 
   const sortedTasks = useMemo(() => {
@@ -93,11 +88,8 @@ export default function GroupTaskTableView({
     });
   }, [tasks, sortField, sortOrder]);
 
-  const totalPages = Math.ceil(sortedTasks.length / pageSize) || 1;
-  const paginatedTasks = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedTasks.slice(start, start + pageSize);
-  }, [sortedTasks, currentPage, pageSize]);
+  const paging = usePaging(sortedTasks);
+  const paginatedTasks = paging.rows;
 
   const ariaSort = (field) =>
     sortField !== field ? "none" : sortOrder === "asc" ? "ascending" : "descending";
@@ -417,72 +409,7 @@ export default function GroupTaskTableView({
         </div>
       </div>
 
-      {/* Pagination Footer */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 py-1 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>
-            Showing{" "}
-            <span className="font-semibold text-foreground">
-              {(currentPage - 1) * pageSize + 1}
-            </span>{" "}
-            to{" "}
-            <span className="font-semibold text-foreground">
-              {Math.min(currentPage * pageSize, sortedTasks.length)}
-            </span>{" "}
-            of{" "}
-            <span className="font-semibold text-foreground">
-              {sortedTasks.length}
-            </span>{" "}
-            tasks
-          </span>
-          <span className="text-border">|</span>
-          <div className="flex items-center gap-1.5">
-            <span>Rows:</span>
-            <SelectField
-              value={pageSize}
-              onChange={(next) => {
-                setPageSize(Number(next));
-                setCurrentPage(1);
-              }}
-              options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
-              size="sm"
-            />
-          </div>
-        </div>
-
-        {/* Page Nav Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="rounded-md bg-card text-foreground disabled:opacity-30 disabled:hover:bg-card"
-              title="Previous Page"
-              aria-label="Previous Page"
-            >
-              <ChevronLeft size={14} />
-            </Button>
-
-            <span className="px-2 text-xs font-semibold text-foreground">
-              Page {currentPage} of {totalPages}
-            </span>
-
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-md bg-card text-foreground disabled:opacity-30 disabled:hover:bg-card"
-              title="Next Page"
-              aria-label="Next Page"
-            >
-              <ChevronRight size={14} />
-            </Button>
-          </div>
-        )}
-      </div>
+      <TablePager {...paging} noun="tasks" className="rounded-xl border" />
     </div>
   );
 }
