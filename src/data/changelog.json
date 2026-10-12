@@ -1,5 +1,19 @@
 [
     {
+        "date": "2026-10-12",
+        "title": "Keyboard access, clearer errors and tidier wording",
+        "version": "1.9.8",
+        "changes": [
+            "Everywhere: rows, cards, filter pills and settings toggles can now be used with the keyboard. Tab to one and press Enter or Space.",
+            "Everywhere: if a list fails to load you now see a message with a Retry button instead of an empty page.",
+            "Registers and approvals: when your search or filters hide everything, the page says so and offers Clear filters.",
+            "Pages: an unknown address now shows a Page not found screen, old links keep their filters, and each page has its own browser tab title.",
+            "SORs: the register now scrolls sideways on small screens instead of squashing its columns. Several other small layout fixes on Profile and Offsets.",
+            "Wording: clearer success and error messages, correct plurals, and proper … and ’ characters. Empty cells show — and dates look the same everywhere.",
+            "Buttons: Approve, Decline and similar buttons can no longer be double-clicked into running twice."
+        ]
+    },
+    {
         "date": "2026-10-09",
         "title": "Consolidated Purchase Request Item Status",
         "version": "1.9.7",
