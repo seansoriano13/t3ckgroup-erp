@@ -238,7 +238,7 @@ export default function GroupTaskApprovalSection({ searchTerm = "", onClearSearc
             Verify
           </Button>
         )}
-        empty={{ title: "No Group Tasks Pending", description: "Graded group tasks awaiting HR verification will appear here." }}
+        empty={{ title: "No group tasks pending", description: "Graded group tasks awaiting HR verification will appear here." }}
       />
 
       <ApprovalSheet

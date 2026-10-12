@@ -1,3 +1,4 @@
+import EmptyState from "@/components/ui/EmptyState";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CircleAlert, MessageSquareReply, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -86,24 +87,23 @@ export function ApprovalTable({
 
   if (items.length === 0 && filtered) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-20 text-center">
-        <p className="text-sm font-bold text-foreground">No results match these filters</p>
-        <p className="max-w-sm text-xs text-muted-foreground">Nothing here fits the current search or filters.</p>
-        {onClearFilters && (
-          <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
-            Clear filters
-          </Button>
-        )}
-      </div>
+      <EmptyState
+        title="No results match these filters"
+        description="Nothing here fits the current search or filters."
+        action={
+          onClearFilters && (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          )
+        }
+      />
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-20 text-center">
-        <p className="text-sm font-bold text-foreground">{empty?.title}</p>
-        <p className="max-w-sm text-xs text-muted-foreground">{empty?.description}</p>
-      </div>
+      <EmptyState title={empty?.title} description={empty?.description} action={empty?.action} />
     );
   }
 

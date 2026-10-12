@@ -2,7 +2,8 @@ import PageLoading from "@/components/ui/PageLoading";
 import { useMemo } from 'react';
 import { CheckCircle2, ChevronRight, History, XCircle } from 'lucide-react';
 import Avatar from '../../../../components/Avatar';
-import { EmptyState, StatusPill } from './LeaveParts';
+import EmptyState from '@/components/ui/EmptyState';
+import { StatusPill } from './LeaveParts';
 import { TYPE_META, fmtDay, fmtRange, hoursOf, recordKey } from './leaveDisplay';
 
 /** Decisions this period, grouped by the day they were made. Read-only; a row opens the record. */
@@ -23,9 +24,7 @@ export default function HistoryView({ rows, loading, onOpen }) {
       {loading ? (
         <PageLoading label="history" />
       ) : days.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border">
-          <EmptyState icon={History} title="No decisions this period">Pick another month with the month picker.</EmptyState>
-        </div>
+        <EmptyState icon={History} title="No decisions this period" description="Pick another month with the month picker." />
       ) : (
         days.map(([day, dayRows]) => (
           <section key={day} className="grid grid-cols-1 gap-4 md:grid-cols-[180px_minmax(0,1fr)]">

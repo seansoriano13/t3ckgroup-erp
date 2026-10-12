@@ -88,7 +88,7 @@ function renderTable(tasks, props = {}) {
     const onOpen = vi.fn()
     const items = tasks.map((t) => taskToItem(t, "tasks"))
     const result = renderWithProviders(
-        <ApprovalTable items={items} queueIcon={() => null} onOpen={onOpen} empty={{ title: "Queue is Clear!", description: "" }} {...props} />,
+        <ApprovalTable items={items} queueIcon={() => null} onOpen={onOpen} empty={{ title: "Queue is clear", description: "" }} {...props} />,
     )
     return { ...result, onOpen, items }
 }

@@ -169,7 +169,7 @@ function LeaveApprovalsQueue() {
               </Tooltip>
             </>
           )}
-          empty={{ title: "Nothing waiting on you right now.", description: "Leave, Offset and overtime requests routed to you as department head show up here." }}
+          empty={{ title: "Nothing waiting on you right now", description: "Leave, Offset and overtime requests routed to you as department head show up here." }}
         />
       </ApprovalCenterLayout>
 

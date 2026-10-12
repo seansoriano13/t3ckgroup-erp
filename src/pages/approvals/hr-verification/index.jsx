@@ -292,10 +292,10 @@ function HrVerificationQueue() {
               }
               empty={
                 view === "STALE"
-                  ? { title: "No Stale Backlog!", description: "Every task graded more than 48 hours ago has been verified." }
+                  ? { title: "No stale backlog", description: "Every task graded more than 48 hours ago has been verified." }
                   : isVerifiedView
-                    ? { title: "No Verified Tasks", description: "Tasks you sign off will appear here." }
-                    : { title: "HR Queue is Clear!", description: "No tasks are awaiting HR verification right now." }
+                    ? { title: "No verified tasks", description: "Tasks you sign off will appear here." }
+                    : { title: "HR queue is clear", description: "No tasks are awaiting HR verification right now." }
               }
             />
           </>

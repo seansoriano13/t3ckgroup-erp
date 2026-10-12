@@ -354,10 +354,10 @@ function TaskApprovalsQueue() {
           }
           empty={
             view === "STALE"
-              ? { title: "No Stale Backlog!", description: "Every task older than 48 hours has been graded." }
+              ? { title: "No stale backlog", description: "Every task older than 48 hours has been graded." }
               : isDecidedView
-                ? { title: "No Approved Tasks", description: "Tasks you grade will appear here." }
-                : { title: "Queue is Clear!", description: "You’re all caught up on approvals." }
+                ? { title: "No approved tasks", description: "Tasks you grade will appear here." }
+                : { title: "Queue is clear", description: "You’re all caught up on approvals." }
           }
         />
       </ApprovalCenterLayout>

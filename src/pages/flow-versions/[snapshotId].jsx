@@ -1,5 +1,6 @@
 import PageLoading from "@/components/ui/PageLoading";
 import { useParams, useSearchParams, Link } from "react-router"
+import EmptyState from "@/components/ui/EmptyState";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "@/utils/formatDate"
 import { useQuery } from "@tanstack/react-query"
@@ -89,13 +90,11 @@ export default function FlowVersionPage() {
                     )}
 
                     {!isLoading && !isError && !snapshot && (
-                        <div className="p-8">
-                            <p className="max-w-md text-sm text-muted-foreground">
-                                No such Sales Flow version. It may belong to a Sale Type that has since
-                                been deleted — the deals pinned to it keep their own copy of the rules
-                                either way.
-                            </p>
-                        </div>
+                        <EmptyState
+                            title="No such Sales Flow version"
+                            description="It may belong to a Sale Type that has since been deleted. The deals pinned to it keep their own copy of the rules either way."
+                            action={<Link to="/sors" className="text-xs font-semibold text-foreground underline underline-offset-2">Open SOR Register</Link>}
+                        />
                     )}
 
                     {snapshot && (

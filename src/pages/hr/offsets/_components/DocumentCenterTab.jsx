@@ -1,3 +1,4 @@
+import EmptyState from '@/components/ui/EmptyState';
 import React from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -73,8 +74,11 @@ export default function DocumentCenterTab(props) {
             );
           })}
           {filteredRecords.length === 0 && (
-            <li className="p-8 text-center text-sm font-medium text-muted-foreground">
-              {approvedRecords.length === 0 ? 'No approved records for the selected period.' : 'No records match your search.'}
+            <li>
+              <EmptyState
+                title={approvedRecords.length === 0 ? 'No approved records for this period' : 'No records match your search'}
+                className="py-10"
+              />
             </li>
           )}
         </ul>

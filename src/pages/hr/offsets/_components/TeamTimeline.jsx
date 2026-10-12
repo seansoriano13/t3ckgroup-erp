@@ -1,6 +1,6 @@
 import { CalendarRange } from 'lucide-react';
 import Avatar from '../../../../components/Avatar';
-import { EmptyState } from './LeaveParts';
+import EmptyState from '@/components/ui/EmptyState';
 import { LABEL, TYPE_META, fmtDay, todayIso } from './leaveDisplay';
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -51,7 +51,7 @@ export default function TeamTimeline({ approvedLeaves, pendingLeaves, monthStart
       </div>
 
       {people.length === 0 ? (
-        <EmptyState icon={CalendarRange} title="No time off this month">Approved and pending Offset and SIL show here as bars.</EmptyState>
+        <EmptyState icon={CalendarRange} title="No time off this month" description="Approved and pending Offset and SIL show here as bars." />
       ) : (
         <div className="custom-scrollbar overflow-x-auto">
           <div className="min-w-[1100px]">

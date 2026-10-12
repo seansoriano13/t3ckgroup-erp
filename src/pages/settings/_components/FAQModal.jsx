@@ -1,3 +1,4 @@
+import EmptyState from "@/components/ui/EmptyState";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
@@ -295,46 +296,29 @@ export default function FAQModal({ isOpen, onClose }) {
                 <p className="text-sm">Loading FAQ…</p>
               </div>
             ) : categories.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                <HelpCircle size={32} className="mb-3 opacity-30" />
-                <p className="text-sm font-semibold">No FAQ content yet</p>
-                {canEditFAQ ? (
-                  <>
-                    <p className="text-xs mt-1 opacity-70">
-                      Click Edit to add categories and questions
-                    </p>
+              <EmptyState
+                icon={HelpCircle}
+                title="No FAQ content yet"
+                description={canEditFAQ ? "Click Edit to add categories and questions." : "Check back later for updates."}
+                action={
+                  canEditFAQ && (
                     <Button
                       onClick={() => {
                         onClose();
                         navigate("/settings/FAQEditor");
                       }}
-                      className="mt-4 h-auto gap-1.5 rounded-lg px-4 py-2 text-xs font-medium hover:opacity-90"
+                      className="mt-2 h-auto gap-1.5 rounded-lg px-4 py-2 text-xs font-medium hover:opacity-90"
                     >
                       <Maximize2 size={12} />
-                      Open Editor
+                      Open editor
                     </Button>
-                  </>
-                ) : (
-                  <p className="text-xs mt-1 opacity-70">
-                    Check back later for updates
-                  </p>
-                )}
-              </div>
+                  )
+                }
+              />
             ) : isSearching ? (
               <div className="space-y-3">
                 {searchResults.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <HelpCircle
-                      size={32}
-                      className="text-muted-foreground/40 mb-3"
-                    />
-                    <p className="text-sm font-semibold text-muted-foreground">
-                      No results found
-                    </p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">
-                      Try different keywords
-                    </p>
-                  </div>
+                  <EmptyState icon={HelpCircle} title="No results found" description="Try different keywords." />
                 ) : (
                   <>
                     <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-widest mb-4">

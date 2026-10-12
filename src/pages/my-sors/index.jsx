@@ -2,6 +2,7 @@ import PageLoading from "@/components/ui/PageLoading";
 import { useMemo, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { Handshake } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
@@ -91,6 +92,7 @@ function MySorsScreen() {
         icon={Handshake}
         title="Nobody has called you into an SOR yet"
         description="When a task, an assignment, a purchase request or a mention pulls you into an SOR, it appears here."
+        action={<Link to="/sors" className="text-xs font-semibold text-foreground underline underline-offset-2">Open SOR Register</Link>}
       />
     );
   } else if (shown.length === 0) {

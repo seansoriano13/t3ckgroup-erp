@@ -87,6 +87,6 @@ describe("GroupTaskTableView", () => {
       <GroupTaskTableView tasks={[]} searchTerm="" onView={vi.fn()} />,
     );
 
-    expect(screen.getByText("No Group Tasks Found")).toBeInTheDocument();
+    expect(screen.getByText("No group tasks found")).toBeInTheDocument();
   });
 });
