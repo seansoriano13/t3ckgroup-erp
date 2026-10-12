@@ -25,7 +25,9 @@
 import { cn } from "@/lib/utils";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
-import { useId } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+const FADE = 24;
 
 export default function TabGroup({
   tabs = [],
@@ -44,6 +46,55 @@ export default function TabGroup({
   const normalised = tabs.map((t) =>
     typeof t === "string" ? { value: t, label: t } : t,
   );
+
+  const scrollerRef = useRef(null);
+  const [fade, setFade] = useState({ left: false, right: false });
+
+  // Edge fade shows only on a side that has more tabs hidden behind it.
+  const measure = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const left = el.scrollLeft > 1;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setFade((f) => (f.left === left && f.right === right ? f : { left, right }));
+  }, []);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return undefined;
+    measure();
+    window.addEventListener("resize", measure);
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(el);
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, [measure, tabs.length]);
+
+  // Keep the active tab visible inside the strip (not the page) when it changes.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    const tab = el?.querySelector('[role="tab"][aria-selected="true"]');
+    if (!el || !tab) return;
+    const pad = FADE + 4;
+    const left = tab.offsetLeft - el.offsetLeft;
+    const right = left + tab.offsetWidth;
+    if (left - pad < el.scrollLeft) {
+      el.scrollLeft = Math.max(0, left - pad);
+    } else if (right + pad > el.scrollLeft + el.clientWidth) {
+      el.scrollLeft = right + pad - el.clientWidth;
+    }
+    measure();
+  }, [activeTab, measure]);
+
+  const mask =
+    fade.left || fade.right
+      ? `linear-gradient(to right, ${fade.left ? "transparent" : "#000"}, #000 ${FADE}px, #000 calc(100% - ${FADE}px), ${fade.right ? "transparent" : "#000"})`
+      : undefined;
 
   const hasActive = normalised.some((t) => t.value === activeTab);
 
@@ -110,6 +161,11 @@ export default function TabGroup({
 
   return (
     <div
+      ref={scrollerRef}
+      onScroll={measure}
+      data-fade-left={fade.left || undefined}
+      data-fade-right={fade.right || undefined}
+      style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}
       className={wrapperCls}
       role="tablist"
       onKeyDown={(e) => {

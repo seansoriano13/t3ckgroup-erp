@@ -135,11 +135,19 @@ export default function SideNav() {
   // its drawer is a full overlay, not a rail — so the toggle only renders and
   // only changes layout at the md breakpoint.
   const getInitialCollapsed = (userId) => {
-    if (!userId) return false;
+    // Below 1024px the rail is the default (UI-167): an expanded 240px sidebar
+    // leaves ~430px of content at 768. A saved choice still wins; one tap on
+    // the rail toggle opens it.
+    const narrow =
+      typeof window !== "undefined" && window.innerWidth < 1024;
+    if (!userId) return narrow;
     try {
-      return localStorage.getItem(`erp_sidebar_collapsed_${userId}`) === "1";
+      const saved = localStorage.getItem(`erp_sidebar_collapsed_${userId}`);
+      if (saved === "1") return true;
+      if (saved === "0") return false;
+      return narrow;
     } catch {
-      return false;
+      return narrow;
     }
   };
   const [isCollapsed, setIsCollapsed] = useState(() => getInitialCollapsed(user?.id));
