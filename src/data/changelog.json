@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-12",
+        "title": "UI Refresh: Responsive queues, cleaner navigation and pagination",
+        "version": "1.9.11",
+        "changes": [
+            "Navigation: tabs scroll smoothly with edge indicators on small screens, and the sidebar collapses to a rail on tablets.",
+            "Queues and lists: phone-friendly table layouts, shared page numbering across registers and queues, and clearer empty states.",
+            "Forms and editing: unsaved edits on Profile and FAQ Editor are protected when navigating away, and sign-in highlights invalid fields inline.",
+            "Approvals: declining a leave request now opens the details sheet to add a reason before confirming."
+        ]
+    },
+    {
+        "date": "2026-10-12",
         "title": "Task fixes: Submit for Review and grade colours",
         "version": "1.9.10",
         "changes": [
