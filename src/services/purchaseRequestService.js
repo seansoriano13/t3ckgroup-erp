@@ -70,6 +70,24 @@ export function filterQueue(
   });
 }
 
+/**
+ * One new product's fields as the item RPCs take them (#500): adding a new
+ * item, adding a substitute and opening a Direct request all build them here,
+ * so a new item field is one edit. `images` go only when given: a Direct
+ * request's items carry none.
+ */
+const itemFields = ({ name, quantity, unit, description, images }) => ({
+  name,
+  quantity: Number(quantity),
+  unit: unit || null,
+  description: description || null,
+  ...(images !== undefined && { images: images || [] }),
+});
+
+/** `itemFields` as an RPC's named arguments: `p_name`, `p_quantity`, … */
+const itemArgs = (item) =>
+  Object.fromEntries(Object.entries(itemFields(item)).map(([key, value]) => [`p_${key}`, value]));
+
 export const purchaseRequestService = {
   // ── The queue and one request (#308) ─────────────────────────────────────
 
@@ -110,12 +128,9 @@ export const purchaseRequestService = {
   async openDirect(title, items) {
     const { data, error } = await supabase.rpc("purchase_request_open", {
       p_title: title,
-      p_items: items.map((item) => ({
-        name: item.name,
-        quantity: Number(item.quantity),
-        unit: item.unit || null,
-        description: item.description || null,
-      })),
+      p_items: items.map(({ name, quantity, unit, description }) =>
+        itemFields({ name, quantity, unit, description }),
+      ),
     });
     if (error) throw error;
     return data;
@@ -207,11 +222,7 @@ export const purchaseRequestService = {
   async addNewItem(requestId, { name, quantity, unit = null, description = null, images = [] }) {
     const { data, error } = await supabase.rpc("purchase_request_add_new_item", {
       p_request_id: requestId,
-      p_name: name,
-      p_quantity: Number(quantity),
-      p_unit: unit || null,
-      p_description: description || null,
-      p_images: images || [],
+      ...itemArgs({ name, quantity, unit, description, images }),
     });
     if (error) throw error;
     return data;
@@ -357,11 +368,7 @@ export const purchaseRequestService = {
   async addSubstitute(itemId, { name, quantity, unit = null, description = null, images = [] }) {
     const { data, error } = await supabase.rpc("pr_add_substitute", {
       p_item_id: itemId,
-      p_name: name,
-      p_quantity: Number(quantity),
-      p_unit: unit || null,
-      p_description: description || null,
-      p_images: images || [],
+      ...itemArgs({ name, quantity, unit, description, images }),
     });
     if (error) throw error;
     return data;
