@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-12",
+        "title": "Purchase Request fixes: stock, chat and who can add items",
+        "version": "1.9.9",
+        "changes": [
+            "Purchase Requests: items you've already added now show their stock and when it was checked, so you don't have to look it up in Odoo. Stock checked more than a day ago is marked Stale. New products show no stock.",
+            "Purchase Requests: once a request has a Buyer, chat messages notify only the Buyer and the people who asked for items. @mentions still notify the person you mention.",
+            "Purchase Requests: the SOR's Deal Team can always add items. The \"who can request items\" setting on a Stage Action now only adds more people; it no longer locks the Deal Team out. The Flow Canvas wording says so.",
+            "Behind the scenes: tidier Purchase Request internals and extra checks. Nothing else changes for you."
+        ]
+    },
+    {
+        "date": "2026-10-12",
         "title": "Keyboard access, clearer errors and tidier wording",
         "version": "1.9.8",
         "changes": [
