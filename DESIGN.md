@@ -400,6 +400,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### PageLoading
 `ui/PageLoading.jsx`. The one page/section loading state: spinner plus sentence-case "Loading X…". Props: `label` (the noun, e.g. "task approvals", not the sentence), `className`.
 
+#### ChatScroller
+`ui/ChatScroller.jsx`. Scrolling body of a Chat that loads older Messages at the top, keeps your place when they arrive, and parks new Messages behind a "New messages" pill unless you were at the bottom. Props: `firstKey`/`lastKey` (ids of oldest/newest loaded Message) plus paging callbacks; drive with `usePagedChat`.
+
 #### TablePager
 `ui/TablePager.jsx`. List footer: "Showing X to Y of N", rows-per-page select, Prev / Next. Drive with `usePaging`: `<TablePager {...paging} noun="tasks" />`. Props: `total`, `page`, `pageSize`, `totalPages`, `setPage`, `setPageSize`, `noun`, `children` (far end of the bar), `className`.
 
