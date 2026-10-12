@@ -189,4 +189,24 @@ describe("EmployeeManagement", () => {
     expect(await screen.findByRole("button", { name: /^Filters/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /add filter/i })).not.toBeInTheDocument();
   });
+
+  it("pages the employee directory with the shared pager", async () => {
+    const user = setupUser();
+    for (let i = 1; i <= 30; i++) makeEmployee({ name: `Emp ${String(i).padStart(2, "0")}` });
+
+    renderWithProviders(
+      <MemoryRouter>
+        <EmployeeManagement />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Emp 01")).toBeInTheDocument();
+    expect(screen.queryByText("Emp 30")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+
+    expect(await screen.findByText("Emp 30")).toBeInTheDocument();
+    expect(screen.queryByText("Emp 01")).not.toBeInTheDocument();
+  });
 });

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "../../utils/formatDate";
@@ -517,6 +519,7 @@ export default function OpportunitiesPage() {
       return (Number(b.serial_no) || 0) - (Number(a.serial_no) || 0);
     });
   }, [filtered, sortField, sortOrder, stageRank, activeLeadSources, stageContext, hasExplicitSort]);
+  const paging = usePaging(sorted);
 
   const totals = useMemo(() => {
     const open = filtered.filter((o) => isOpenPipelineOpportunity(o, stageContext));
@@ -1062,7 +1065,7 @@ export default function OpportunitiesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sorted.map((o) => {
+                  {paging.rows.map((o) => {
                     const deadline = deadlineStatuses[o.id];
                     const leadSourceText = formatLeadSource(
                       o.lead_source,
@@ -1203,6 +1206,7 @@ export default function OpportunitiesPage() {
                 </TableBody>
               </Table>
             </div>
+            <TablePager {...paging} noun="SORs" />
           </div>
         )}
       </PageShell>

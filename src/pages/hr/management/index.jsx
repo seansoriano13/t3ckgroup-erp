@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 import QueryError from "@/components/ui/QueryError";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -142,6 +144,7 @@ export default function EmployeeManagement() {
     roleFlagFilter,
     sortBy,
   ]);
+  const paging = usePaging(filteredEmployees);
 
   const filterSetters = {
     searchTerm: setSearchTerm,
@@ -275,7 +278,8 @@ export default function EmployeeManagement() {
       >
         {activeTab === "employees" ? (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="overflow-x-auto">
               <Table scrollCue tableId="hr-employees" className="whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
@@ -309,7 +313,7 @@ export default function EmployeeManagement() {
                       </TableCell>
                     </TableRow>
                   ) : filteredEmployees.length > 0 ? (
-                    filteredEmployees.map((emp) => (
+                    paging.rows.map((emp) => (
                       <TableRow
                         key={emp.id}
                       >
@@ -474,6 +478,8 @@ export default function EmployeeManagement() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+            {!isError && !isLoading && filteredEmployees.length > 0 && <TablePager {...paging} noun="employees" />}
             </div>
           </div>
         ) : activeTab === "categories" ? (

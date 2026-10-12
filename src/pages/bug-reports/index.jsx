@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bug, CheckCircle2, RotateCcw, SendHorizontal } from "lucide-react";
@@ -366,6 +368,7 @@ function BugReportsList({ isReader, meId }) {
     [reports, showResolved],
   );
   const { sorted: shown, sort, toggle } = useTableSort(unsorted, REPORT_SORT);
+  const paging = usePaging(shown);
   // A deep link (notification) opens its report even when the filter hides it.
   const index = shown.findIndex((r) => String(r.id) === recordId);
   const openReport = index >= 0 ? shown[index] : reports.find((r) => String(r.id) === recordId) || null;
@@ -425,14 +428,12 @@ function BugReportsList({ isReader, meId }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {shown.map((report) => (
+                {paging.rows.map((report) => (
                   <ReportRow key={report.id} report={report} onOpen={open} showSender={isReader} />
                 ))}
               </TableBody>
             </Table>
-            <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-              {shown.length} {shown.length === 1 ? "report" : "reports"}
-            </div>
+            <TablePager {...paging} noun={shown.length === 1 ? "report" : "reports"} />
           </div>
         )}
       </PageShell>
