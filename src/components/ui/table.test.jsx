@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import {
   Table,
   TableBody,
@@ -55,5 +55,42 @@ describe("Table", () => {
     );
     screen.getByText("Sort").click();
     expect(onClick).toHaveBeenCalled();
+  });
+});
+
+describe("Table column resizing", () => {
+  const Resizable = () => (
+    <Table tableId="t">
+      <TableHeader>
+        <TableRow>
+          <TableHead id="a">A</TableHead>
+          <TableHead id="b">B</TableHead>
+          <TableHead>C</TableHead>
+        </TableRow>
+      </TableHeader>
+    </Table>
+  );
+
+  it("only identified headers get a handle, and none without tableId", () => {
+    localStorage.clear();
+    const { unmount } = render(<Resizable />);
+    expect(document.querySelectorAll("[data-slot=table-col-resizer]")).toHaveLength(2);
+    unmount();
+    render(<Sample />);
+    expect(document.querySelector("[data-slot=table-col-resizer]")).toBeNull();
+  });
+
+  it("drag saves width (min 60) and double-click resets", () => {
+    localStorage.clear();
+    render(<Resizable />);
+    const handle = document.querySelector("[data-slot=table-col-resizer]");
+    fireEvent(handle, Object.assign(new Event("pointerdown", { bubbles: true }), { clientX: 100 }));
+    fireEvent(window, Object.assign(new Event("pointermove"), { clientX: 500 }));
+    fireEvent(window, new Event("pointerup"));
+    const key = "erp_colwidths_anon_t";
+    expect(JSON.parse(localStorage.getItem(key)).a).toBeGreaterThanOrEqual(60);
+    fireEvent(window, Object.assign(new Event("pointermove"), { clientX: -9999 }));
+    fireEvent.doubleClick(handle);
+    expect(JSON.parse(localStorage.getItem(key) ?? "{}").a).toBeUndefined();
   });
 });

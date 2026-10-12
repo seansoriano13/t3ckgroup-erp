@@ -396,11 +396,11 @@ function BugReportsList({ isReader, meId }) {
 
         {!isLoading && !isError && shown.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <Table className="min-w-[48rem]">
+            <Table tableId="bug-reports" className="min-w-[48rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {["Report", ...(isReader ? ["Sent by"] : []), "Page", "Files", "Sent", "Status"].map((heading) => (
-                    <TableHead key={heading} className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}>
+                    <TableHead key={heading} id={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")} className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}>
                       {heading}
                     </TableHead>
                   ))}

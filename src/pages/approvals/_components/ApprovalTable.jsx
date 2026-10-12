@@ -101,18 +101,18 @@ export function ApprovalTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <Table>
+      <Table tableId="approvals">
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
             <TableHead className="w-10 pl-4">
               {selectable && <Checkbox checked={allChecked} onCheckedChange={(v) => onToggleAll?.(v, rows)} aria-label="Select all" />}
             </TableHead>
-            <TableHead className={HEAD}>Request</TableHead>
-            <TableHead className={HEAD}>{personLabel}</TableHead>
-            <TableHead className={`${HEAD} hidden lg:table-cell`}>Submitted</TableHead>
-            <TableHead className={`${HEAD} hidden md:table-cell`}>Waiting</TableHead>
-            <TableHead className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
-            <TableHead className={HEAD}>Status</TableHead>
+            <TableHead id="request" className={HEAD}>Request</TableHead>
+            <TableHead id="person" className={HEAD}>{personLabel}</TableHead>
+            <TableHead id="submitted" className={`${HEAD} hidden lg:table-cell`}>Submitted</TableHead>
+            <TableHead id="waiting" className={`${HEAD} hidden md:table-cell`}>Waiting</TableHead>
+            <TableHead id="stage" className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
+            <TableHead id="status" className={HEAD}>Status</TableHead>
             <TableHead className="w-24">
               <span className="sr-only">Actions</span>
             </TableHead>

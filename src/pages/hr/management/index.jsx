@@ -276,19 +276,19 @@ export default function EmployeeManagement() {
         {activeTab === "employees" ? (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <Table className="whitespace-nowrap">
+              <Table tableId="hr-employees" className="whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Sub-Dept</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Balances</TableHead>
-                    <TableHead>Role Flags</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead id="name">Name</TableHead>
+                    <TableHead id="email">Email</TableHead>
+                    <TableHead id="department">Department</TableHead>
+                    <TableHead id="sub-dept">Sub-Dept</TableHead>
+                    <TableHead id="role">Role</TableHead>
+                    <TableHead id="status">Status</TableHead>
+                    <TableHead id="company">Company</TableHead>
+                    <TableHead id="balances">Balances</TableHead>
+                    <TableHead id="role-flags">Role Flags</TableHead>
+                    <TableHead id="actions" className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

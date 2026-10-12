@@ -198,10 +198,11 @@ export default function TaskTableView({
     <div className="space-y-4">
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-          <Table className="min-w-[900px]">
+          <Table tableId="all-tasks" className="min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead
+                  id="title"
                   onClick={() => handleSort("title")}
                   className="cursor-pointer hover:text-foreground transition-colors"
                 >
@@ -210,6 +211,7 @@ export default function TaskTableView({
                   </div>
                 </TableHead>
                 <TableHead
+                  id="assignee"
                   onClick={() => handleSort("assignee")}
                   className="cursor-pointer hover:text-foreground transition-colors w-[180px]"
                 >
@@ -218,6 +220,7 @@ export default function TaskTableView({
                   </div>
                 </TableHead>
                 <TableHead
+                  id="status"
                   onClick={() => handleSort("status")}
                   className="px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
                 >
@@ -226,6 +229,7 @@ export default function TaskTableView({
                   </div>
                 </TableHead>
                 <TableHead
+                  id="priority"
                   onClick={() => handleSort("priority")}
                   className="px-3 cursor-pointer hover:text-foreground transition-colors w-[110px]"
                 >
@@ -234,6 +238,7 @@ export default function TaskTableView({
                   </div>
                 </TableHead>
                 <TableHead
+                  id="dueDate"
                   onClick={() => handleSort("dueDate")}
                   className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
                 >
@@ -241,8 +246,8 @@ export default function TaskTableView({
                     Due Date {renderSortIcon("dueDate")}
                   </div>
                 </TableHead>
-                <TableHead className="px-3 w-[140px]">Progress</TableHead>
-                <TableHead className="text-right w-[80px]">Action</TableHead>
+                <TableHead id="progress" className="px-3 w-[140px]">Progress</TableHead>
+                <TableHead id="action" className="text-right w-[80px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

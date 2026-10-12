@@ -122,13 +122,13 @@ export default function GroupTaskTemplatesPage() {
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table>
+          <Table tableId="task-templates">
             <TableHeader>
               <TableRow>
-                <TableHead>Template</TableHead>
-                <TableHead>Slots</TableHead>
-                <TableHead>Usage</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead id="template">Template</TableHead>
+                <TableHead id="slots">Slots</TableHead>
+                <TableHead id="usage">Usage</TableHead>
+                <TableHead id="actions" className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

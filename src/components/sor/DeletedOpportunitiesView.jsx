@@ -110,15 +110,15 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="overflow-x-auto">
-        <Table>
+        <Table tableId="deleted-opportunities">
           <TableHeader>
             <TableRow>
-              <TableHead>Company</TableHead>
-              <TableHead>Project</TableHead>
-              <TableHead className="text-right">Expected Value</TableHead>
-              <TableHead>Deleted By</TableHead>
-              <TableHead>Deleted At</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead id="company">Company</TableHead>
+              <TableHead id="project">Project</TableHead>
+              <TableHead id="expected-value" className="text-right">Expected Value</TableHead>
+              <TableHead id="deleted-by">Deleted By</TableHead>
+              <TableHead id="deleted-at">Deleted At</TableHead>
+              <TableHead id="actions" className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

@@ -348,12 +348,13 @@ function PurchaseRequests() {
         {!isLoading && !isError && visible.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="overflow-x-auto">
-              <Table className="min-w-[52rem]">
+              <Table tableId="purchasing" className="min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     {["Request", "Stage", "Progress", "Buyer", "Last activity", "Age", "Status"].map((heading) => (
                       <TableHead
                         key={heading}
+                        id={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
                         className={`${HEAD} ${heading === "Status" ? "text-right" : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
                       >
                         {heading}

@@ -40,15 +40,15 @@ const describeWindow = (w) =>
 export default function MySorsTable({ rows, onOpen }) {
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-      <Table className="min-w-[900px]">
+      <Table tableId="my-sors" className="min-w-[900px]">
         <TableHeader>
           <TableRow>
-            <TableHead>SOR</TableHead>
-            <TableHead>Now on</TableHead>
-            <TableHead>Called in at</TableHead>
-            <TableHead>Via</TableHead>
-            <TableHead>Access</TableHead>
-            <TableHead>Since</TableHead>
+            <TableHead id="sor">SOR</TableHead>
+            <TableHead id="now-on">Now on</TableHead>
+            <TableHead id="called-in-at">Called in at</TableHead>
+            <TableHead id="via">Via</TableHead>
+            <TableHead id="access">Access</TableHead>
+            <TableHead id="since">Since</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

@@ -100,6 +100,7 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
 
   return (
     <TableHead
+      id={field}
       scope="col"
       aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
       className={`${cell} px-2.5 py-2.5 whitespace-nowrap hover:text-foreground transition-colors ${className}`}
@@ -1039,7 +1040,7 @@ export default function OpportunitiesPage() {
         ) : (
           <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <Table className="table-fixed min-w-[1100px]">
+              <Table tableId="sor-register" className="table-fixed min-w-[1100px]">
                 <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground

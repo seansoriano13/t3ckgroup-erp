@@ -403,15 +403,15 @@ export default function SuperAdminActivityLogPage() {
     body = (
       <>
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table>
+          <Table tableId="activity-log">
             <TableHeader>
               <TableRow>
-                <TableHead>When</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead>By</TableHead>
-                {showStatus && <TableHead>Status</TableHead>}
+                <TableHead id="when">When</TableHead>
+                <TableHead id="type">Type</TableHead>
+                <TableHead id="subject">Subject</TableHead>
+                <TableHead id="details">Details</TableHead>
+                <TableHead id="by">By</TableHead>
+                {showStatus && <TableHead id="status">Status</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>

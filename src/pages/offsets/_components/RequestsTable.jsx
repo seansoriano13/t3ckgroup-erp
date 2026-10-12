@@ -25,17 +25,17 @@ import { REQUEST_TYPE_BADGE } from './requestTypes';
 export default function RequestsTable({ rows, onWithdraw }) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card animate-in fade-in duration-300">
-      <Table className="whitespace-nowrap">
+      <Table tableId="my-offset-requests" className="whitespace-nowrap">
         <TableHeader>
           <TableRow>
-            <TableHead>Applied On</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Hours</TableHead>
-            <TableHead>Files</TableHead>
-            <TableHead>Stage</TableHead>
-            <TableHead>Note</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead id="applied-on">Applied On</TableHead>
+            <TableHead id="type">Type</TableHead>
+            <TableHead id="date">Date</TableHead>
+            <TableHead id="hours">Hours</TableHead>
+            <TableHead id="files">Files</TableHead>
+            <TableHead id="stage">Stage</TableHead>
+            <TableHead id="note">Note</TableHead>
+            <TableHead id="actions" className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
