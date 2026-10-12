@@ -200,7 +200,7 @@ describe("approval journeys", () => {
         })
 
         // The "Logged by" filter names everyone with work in the queue.
-        await user.click(screen.getByRole("button", { name: /^logged by$/i }))
+        await user.click(screen.getAllByRole("button", { name: /^logged by$/i }).find((b) => !b.closest("table")))
         await user.click(await screen.findByRole("button", { name: "Ana Cruz (1)" }))
 
         await waitFor(() => {
@@ -400,7 +400,7 @@ describe("approval journeys", () => {
         // 2. Bruce Admin has a pending task, so it is in the table and the
         // "Logged by" filter offers him.
         expect(screen.getByText("Admin Task")).toBeInTheDocument()
-        await user.click(screen.getByRole("button", { name: /^logged by$/i }))
+        await user.click(screen.getAllByRole("button", { name: /^logged by$/i }).find((b) => !b.closest("table")))
         expect(await screen.findByRole("button", { name: "Bruce Admin (1)" })).toBeInTheDocument()
         await user.keyboard("{Escape}")
 

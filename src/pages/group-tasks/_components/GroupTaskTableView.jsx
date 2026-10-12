@@ -139,10 +139,11 @@ export default function GroupTaskTableView({
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <Table className="min-w-[900px]">
+          <Table tableId="group-tasks" className="min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead
+                  id="title"
                   aria-sort={ariaSort("title")}
                   className="hover:text-foreground transition-colors"
                 >
@@ -156,6 +157,7 @@ export default function GroupTaskTableView({
                   </Button>
                 </TableHead>
                 <TableHead
+                  id="creator"
                   aria-sort={ariaSort("creator")}
                   className="hover:text-foreground transition-colors w-[170px]"
                 >
@@ -168,8 +170,9 @@ export default function GroupTaskTableView({
                     Creator {renderSortIcon("creator")}
                   </Button>
                 </TableHead>
-                <TableHead className="w-[160px]">Members</TableHead>
+                <TableHead id="members" className="w-[160px]">Members</TableHead>
                 <TableHead
+                  id="status"
                   aria-sort={ariaSort("status")}
                   className="px-3 hover:text-foreground transition-colors w-[150px]"
                 >
@@ -183,6 +186,7 @@ export default function GroupTaskTableView({
                   </Button>
                 </TableHead>
                 <TableHead
+                  id="dueDate"
                   aria-sort={ariaSort("dueDate")}
                   className="px-3 hover:text-foreground transition-colors w-[130px]"
                 >
@@ -196,6 +200,7 @@ export default function GroupTaskTableView({
                   </Button>
                 </TableHead>
                 <TableHead
+                  id="progress"
                   aria-sort={ariaSort("progress")}
                   className="px-3 hover:text-foreground transition-colors w-[140px]"
                 >
@@ -208,7 +213,7 @@ export default function GroupTaskTableView({
                     Progress {renderSortIcon("progress")}
                   </Button>
                 </TableHead>
-                <TableHead className="text-right w-[80px]">Action</TableHead>
+                <TableHead id="action" className="text-right w-[80px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

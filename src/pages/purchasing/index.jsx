@@ -12,7 +12,8 @@ import FilterBar from "../../components/ui/FilterBar";
 import { FilterSelect } from "../../components/ui/FilterDropdown";
 import SlideOver, { SlideOverBody, SlideOverFooter } from "../../components/ui/SlideOver";
 import { Button } from "../../components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import { SortHead, Table, TableBody, TableCell, TableHeader, TableRow } from "../../components/ui/table";
+import { useTableSort } from "../../hooks/useTableSort";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
 import OpenSorButton from "../../components/purchase-request/OpenSorButton";
@@ -92,6 +93,16 @@ function itemsSummary(row) {
 
 // Progress and Age hide below the medium breakpoint so Request and Status stay readable.
 const NARROW_HIDDEN = new Set(["Progress", "Age"]);
+
+const REQUEST_SORT = {
+  request: (r) => requestIdentity(r).title,
+  stage: (r) => requestStageLabel(r),
+  progress: (r) => (r.item_count ? (r.item_count - r.open_count) / r.item_count : null),
+  buyer: (r) => r.buyer_name,
+  "last-activity": (r) => new Date(r.last_activity_at || r.created_at).getTime(),
+  age: (r) => ageDays(r),
+  status: (r) => r.status,
+};
 const AGE_STALE_DAYS = 7;
 
 // One segment per item; a closed item is filled, an open one is not.
@@ -239,7 +250,8 @@ function PurchaseRequests() {
     const term = search.trim().toLowerCase();
     return filterQueue(rows, { state, kind }).filter((r) => !term || matches(r, term));
   }, [rows, state, kind, search]);
-  const visible = useMemo(() => filterQueue(scoped, { buyer }, user?.id), [scoped, buyer, user?.id]);
+  const filtered = useMemo(() => filterQueue(scoped, { buyer }, user?.id), [scoped, buyer, user?.id]);
+  const { sorted: visible, sort, toggle } = useTableSort(filtered, REQUEST_SORT);
   const counts = {
     [QUEUE_BUYER.UNASSIGNED]: filterQueue(scoped, { buyer: QUEUE_BUYER.UNASSIGNED }).length,
     [QUEUE_BUYER.MINE]: filterQueue(scoped, { buyer: QUEUE_BUYER.MINE }, user?.id).length,
@@ -348,16 +360,20 @@ function PurchaseRequests() {
         {!isLoading && !isError && visible.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="overflow-x-auto">
-              <Table className="min-w-[52rem]">
+              <Table tableId="purchasing" className="min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     {["Request", "Stage", "Progress", "Buyer", "Last activity", "Age", "Status"].map((heading) => (
-                      <TableHead
+                      <SortHead
                         key={heading}
+                        id={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+                        sortKey={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+                        sort={sort}
+                        onSort={toggle}
                         className={`${HEAD} ${heading === "Status" ? "text-right" : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
                       >
                         {heading}
-                      </TableHead>
+                      </SortHead>
                     ))}
                   </TableRow>
                 </TableHeader>

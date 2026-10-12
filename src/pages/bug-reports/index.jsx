@@ -13,7 +13,8 @@ import { AttachmentList } from "../../components/ui/Attachments";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import { SortHead, Table, TableBody, TableCell, TableHeader, TableRow } from "../../components/ui/table";
+import { useTableSort } from "../../hooks/useTableSort";
 import { useAuth } from "../../context/AuthContext";
 import { useEmployeeAvatarMap } from "../../hooks/useEmployeeAvatarMap";
 import { useRecordParam } from "../../hooks/useRecordParam";
@@ -22,6 +23,15 @@ import { getPermissionContext } from "../../utils/permissions";
 import { APPROVE_CLASS } from "../approvals/_components/approvalUi";
 import { formatDateWith } from "../../utils/formatDate";
 import { FieldBox } from "@/components/ui/FieldBox";
+
+const REPORT_SORT = {
+  report: (r) => r.description,
+  "sent-by": (r) => r.reporter?.name,
+  page: (r) => r.page_url,
+  files: (r) => r.attachments?.length || 0,
+  sent: (r) => new Date(r.created_at).getTime(),
+  status: (r) => (r.resolved_at ? 1 : 0),
+};
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
 
@@ -351,10 +361,11 @@ function BugReportsList({ isReader, meId }) {
     });
   }, [isReader, isLoading, isError, reports, queryClient]);
 
-  const shown = useMemo(
+  const unsorted = useMemo(
     () => (showResolved ? reports : reports.filter((r) => !r.resolved_at)),
     [reports, showResolved],
   );
+  const { sorted: shown, sort, toggle } = useTableSort(unsorted, REPORT_SORT);
   // A deep link (notification) opens its report even when the filter hides it.
   const index = shown.findIndex((r) => String(r.id) === recordId);
   const openReport = index >= 0 ? shown[index] : reports.find((r) => String(r.id) === recordId) || null;
@@ -396,13 +407,20 @@ function BugReportsList({ isReader, meId }) {
 
         {!isLoading && !isError && shown.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <Table className="min-w-[48rem]">
+            <Table tableId="bug-reports" className="min-w-[48rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {["Report", ...(isReader ? ["Sent by"] : []), "Page", "Files", "Sent", "Status"].map((heading) => (
-                    <TableHead key={heading} className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}>
+                    <SortHead
+                      key={heading}
+                      id={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+                      sortKey={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+                      sort={sort}
+                      onSort={toggle}
+                      className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}
+                    >
                       {heading}
-                    </TableHead>
+                    </SortHead>
                   ))}
                 </TableRow>
               </TableHeader>

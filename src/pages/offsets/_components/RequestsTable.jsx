@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { Trash2, ShieldCheck } from 'lucide-react';
 import {
+  SortHead,
   Table,
   TableBody,
   TableCell,
@@ -8,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/useTableSort";
 import StatusBadge from '../../../components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { AttachmentList } from '../../../components/ui/Attachments';
@@ -22,20 +24,31 @@ import { REQUEST_TYPE_BADGE } from './requestTypes';
  * reached (issue #158, #160). Split from My Requests so Release Notes can
  * show the same table filled with Sample Data (ADR 0030).
  */
-export default function RequestsTable({ rows, onWithdraw }) {
+const REQUEST_SORT = {
+  "applied-on": (r) => new Date(r.created_at).getTime(),
+  type: (r) => r.type,
+  date: (r) => new Date(r.startDate || r.date).getTime(),
+  hours: (r) => Number(r.approved_hours ?? r.hours),
+  files: (r) => r.attachments?.length || 0,
+  stage: (r) => deriveRequestStage(r).label,
+  note: (r) => deriveRequestStage(r).note,
+};
+
+export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
+  const { sorted: rows, sort, toggle } = useTableSort(unsortedRows, REQUEST_SORT);
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card animate-in fade-in duration-300">
-      <Table className="whitespace-nowrap">
+      <Table tableId="my-offset-requests" className="whitespace-nowrap">
         <TableHeader>
           <TableRow>
-            <TableHead>Applied On</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Hours</TableHead>
-            <TableHead>Files</TableHead>
-            <TableHead>Stage</TableHead>
-            <TableHead>Note</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <SortHead id="applied-on" sortKey="applied-on" sort={sort} onSort={toggle}>Applied On</SortHead>
+            <SortHead id="type" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
+            <SortHead id="date" sortKey="date" sort={sort} onSort={toggle}>Date</SortHead>
+            <SortHead id="hours" sortKey="hours" sort={sort} onSort={toggle}>Hours</SortHead>
+            <SortHead id="files" sortKey="files" sort={sort} onSort={toggle}>Files</SortHead>
+            <SortHead id="stage" sortKey="stage" sort={sort} onSort={toggle}>Stage</SortHead>
+            <SortHead id="note" sortKey="note" sort={sort} onSort={toggle}>Note</SortHead>
+            <TableHead id="actions" className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
