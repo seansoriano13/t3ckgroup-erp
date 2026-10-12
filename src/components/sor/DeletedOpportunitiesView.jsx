@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  SortHead,
   Table,
   TableBody,
   TableCell,
@@ -7,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/useTableSort";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Trash2, RotateCcw, AlertTriangle } from "lucide-react";
@@ -34,16 +36,25 @@ function formatWhen(iso) {
  * for a Super Admin only. Nothing here is purged on a timer — a row stays
  * until someone explicitly destroys it.
  */
+const DELETED_SORT = {
+  company: (r) => r.client_name,
+  project: (r) => r.project_title,
+  "expected-value": (r) => Number(r.expected_value),
+  "deleted-by": (r) => r.deleted_by_employee?.name,
+  "deleted-at": (r) => (r.deleted_at ? new Date(r.deleted_at).getTime() : null),
+};
+
 export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }) {
   const queryClient = useQueryClient();
   const [purgeTarget, setPurgeTarget] = useState(null);
   const [confirmText, setConfirmText] = useState("");
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: unsortedRows = [], isLoading } = useQuery({
     queryKey: ["deletedOpportunities", currentUserId, isSuperAdmin],
     queryFn: () => opportunityService.getDeletedOpportunities(currentUserId, { isSuperAdmin }),
     enabled: Boolean(currentUserId),
   });
+  const { sorted: rows, sort, toggle } = useTableSort(unsortedRows, DELETED_SORT);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["deletedOpportunities"] });
@@ -113,11 +124,11 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
         <Table tableId="deleted-opportunities">
           <TableHeader>
             <TableRow>
-              <TableHead id="company">Company</TableHead>
-              <TableHead id="project">Project</TableHead>
-              <TableHead id="expected-value" className="text-right">Expected Value</TableHead>
-              <TableHead id="deleted-by">Deleted By</TableHead>
-              <TableHead id="deleted-at">Deleted At</TableHead>
+              <SortHead id="company" sortKey="company" sort={sort} onSort={toggle}>Company</SortHead>
+              <SortHead id="project" sortKey="project" sort={sort} onSort={toggle}>Project</SortHead>
+              <SortHead id="expected-value" sortKey="expected-value" sort={sort} onSort={toggle} className="text-right">Expected Value</SortHead>
+              <SortHead id="deleted-by" sortKey="deleted-by" sort={sort} onSort={toggle}>Deleted By</SortHead>
+              <SortHead id="deleted-at" sortKey="deleted-at" sort={sort} onSort={toggle}>Deleted At</SortHead>
               <TableHead id="actions" className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>

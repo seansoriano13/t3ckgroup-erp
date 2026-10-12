@@ -3,12 +3,22 @@ import { ChevronLeft, ChevronRight, CircleAlert, MessageSquareReply, Paperclip }
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SelectField } from "@/components/ui/SelectField";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/useTableSort";
 import HighlightText from "../../../components/HighlightText";
 import { shortAge, shortDate } from "../../../utils/approvalItems.js";
 import { neighbourTaskId, resolveNavigationKey } from "../../../utils/approvalQueue.js";
 import { StageMeter, StatusPill } from "./ApprovalParts";
+import { statusOf } from "./approvalUi";
 import { PersonChip } from "@/components/ui/DetailParts";
+
+const APPROVAL_SORT = {
+  request: (i) => i.title,
+  person: (i) => i.person?.name,
+  submitted: (i) => new Date(i.submittedAt).getTime(),
+  waiting: (i) => (i.done ? null : new Date(i.clockAt).getTime()),
+  status: (i) => statusOf(i),
+};
 
 const HEAD = "text-[10px] font-bold uppercase tracking-wider";
 
@@ -20,7 +30,7 @@ const HEAD = "text-[10px] font-bold uppercase tracking-wider";
  * off while the review sheet is open, so the sheet owns the keys then.
  */
 export function ApprovalTable({
-  items,
+  items: unsortedItems,
   queueIcon: QueueIcon,
   personLabel = "Logged by",
   onOpen,
@@ -37,6 +47,7 @@ export function ApprovalTable({
   filtered = false,
   onClearFilters,
 }) {
+  const { sorted: items, sort, toggle } = useTableSort(unsortedItems, APPROVAL_SORT);
   const [cursorId, setCursorId] = useState(null);
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
@@ -107,12 +118,12 @@ export function ApprovalTable({
             <TableHead className="w-10 pl-4">
               {selectable && <Checkbox checked={allChecked} onCheckedChange={(v) => onToggleAll?.(v, rows)} aria-label="Select all" />}
             </TableHead>
-            <TableHead id="request" className={HEAD}>Request</TableHead>
-            <TableHead id="person" className={HEAD}>{personLabel}</TableHead>
-            <TableHead id="submitted" className={`${HEAD} hidden lg:table-cell`}>Submitted</TableHead>
-            <TableHead id="waiting" className={`${HEAD} hidden md:table-cell`}>Waiting</TableHead>
+            <SortHead id="request" sortKey="request" sort={sort} onSort={toggle} className={HEAD}>Request</SortHead>
+            <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={HEAD}>{personLabel}</SortHead>
+            <SortHead id="submitted" sortKey="submitted" sort={sort} onSort={toggle} className={`${HEAD} hidden lg:table-cell`}>Submitted</SortHead>
+            <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>Waiting</SortHead>
             <TableHead id="stage" className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
-            <TableHead id="status" className={HEAD}>Status</TableHead>
+            <SortHead id="status" sortKey="status" sort={sort} onSort={toggle} className={HEAD}>Status</SortHead>
             <TableHead className="w-24">
               <span className="sr-only">Actions</span>
             </TableHead>

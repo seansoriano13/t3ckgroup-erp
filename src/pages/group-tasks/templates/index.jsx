@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "@/utils/formatDate";
 import { Navigate } from "react-router";
@@ -12,7 +12,8 @@ import TabGroup from "../../../components/ui/TabGroup";
 import { confirmActionToast, confirmDeleteToast } from "../../../components/ui/CustomToast";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/useTableSort";
 import toast from "react-hot-toast";
 import { LayoutTemplate, Plus, Pencil, Archive, RotateCcw, Users, Trash2 } from "lucide-react";
 import TemplateEditorModal from "./_components/TemplateEditorModal";
@@ -52,6 +53,16 @@ export default function GroupTaskTemplatesPage() {
     queryFn: () => groupTaskTemplateService.getUsageStats(),
     enabled: canManage,
   });
+
+  const templateSort = useMemo(
+    () => ({
+      template: (t) => t.name,
+      slots: (t) => (t.members || []).length,
+      usage: (t) => usageStats[t.id]?.count ?? 0,
+    }),
+    [usageStats],
+  );
+  const { sorted: sortedTemplates, sort, toggle } = useTableSort(templates, templateSort);
 
   const archiveMutation = useMutation({
     mutationFn: (id) => groupTaskTemplateService.archiveTemplate(id),
@@ -125,14 +136,14 @@ export default function GroupTaskTemplatesPage() {
           <Table tableId="task-templates">
             <TableHeader>
               <TableRow>
-                <TableHead id="template">Template</TableHead>
-                <TableHead id="slots">Slots</TableHead>
-                <TableHead id="usage">Usage</TableHead>
+                <SortHead id="template" sortKey="template" sort={sort} onSort={toggle}>Template</SortHead>
+                <SortHead id="slots" sortKey="slots" sort={sort} onSort={toggle}>Slots</SortHead>
+                <SortHead id="usage" sortKey="usage" sort={sort} onSort={toggle}>Usage</SortHead>
                 <TableHead id="actions" className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {templates.map((t) => {
+              {sortedTemplates.map((t) => {
                 const stats = usageStats[t.id];
                 const slotCount = (t.members || []).length;
                 return (

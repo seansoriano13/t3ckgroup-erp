@@ -18,7 +18,8 @@ import EmptyState from "../../../components/ui/EmptyState";
 import TabGroup from "../../../components/ui/TabGroup";
 import Spinner from "../../../components/ui/Spinner";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/useTableSort";
 
 import { Activity, CheckSquare, Square } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge.jsx";
@@ -169,6 +170,15 @@ function EntryTitle({ title, search }) {
 // ═════════════════════════════════════════════════════════════════════════════
 //  PAGE COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
+const ACTIVITY_SORT = {
+  when: (e) => new Date(e.createdAt).getTime(),
+  type: (e) => e.type,
+  subject: (e) => e.taskDescription,
+  details: (e) => e.content,
+  by: (e) => e.authorName,
+  status: (e) => e.taskStatus,
+};
+
 export default function SuperAdminActivityLogPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -342,6 +352,7 @@ export default function SuperAdminActivityLogPage() {
 
     return consolidated;
   }, [entries, filters.dept, filters.subDept, activeTab]);
+  const { sorted: sortedEntries, sort, toggle } = useTableSort(filteredEntries, ACTIVITY_SORT);
 
   const hasActiveFilters = Object.keys(DEFAULT_LOG_FILTERS).some(
     (k) => filters[k] !== DEFAULT_LOG_FILTERS[k],
@@ -406,16 +417,16 @@ export default function SuperAdminActivityLogPage() {
           <Table tableId="activity-log">
             <TableHeader>
               <TableRow>
-                <TableHead id="when">When</TableHead>
-                <TableHead id="type">Type</TableHead>
-                <TableHead id="subject">Subject</TableHead>
-                <TableHead id="details">Details</TableHead>
-                <TableHead id="by">By</TableHead>
-                {showStatus && <TableHead id="status">Status</TableHead>}
+                <SortHead id="when" sortKey="when" sort={sort} onSort={toggle}>When</SortHead>
+                <SortHead id="type" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
+                <SortHead id="subject" sortKey="subject" sort={sort} onSort={toggle}>Subject</SortHead>
+                <SortHead id="details" sortKey="details" sort={sort} onSort={toggle}>Details</SortHead>
+                <SortHead id="by" sortKey="by" sort={sort} onSort={toggle}>By</SortHead>
+                {showStatus && <SortHead id="status" sortKey="status" sort={sort} onSort={toggle}>Status</SortHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEntries.map((e) => {
+              {sortedEntries.map((e) => {
                 const isClickable =
                   activeTab === "TASKS" ||
                   activeTab === "GROUP" ||

@@ -1,4 +1,5 @@
 import {
+  SortHead,
   Table,
   TableBody,
   TableCell,
@@ -6,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
+import { useTableSort } from "../../hooks/useTableSort";
 import { Tooltip } from "../ui/Tooltip";
 import StatusBadge from "../StatusBadge";
 
@@ -37,18 +39,28 @@ const describeWindow = (w) =>
     w.closedAt ? " (closed)" : ""
   }`;
 
-export default function MySorsTable({ rows, onOpen }) {
+const MY_SORS_SORT = {
+  sor: (r) => r.salesReference || r.sorCode,
+  "now-on": (r) => r.currentStageName,
+  "called-in-at": (r) => r.windows[0]?.calledInAtStageName,
+  via: (r) => VIA_LABEL[r.windows[0]?.source],
+  access: (r) => r.windows[0]?.reachLabel,
+  since: (r) => (r.windows[0]?.createdAt ? new Date(r.windows[0].createdAt).getTime() : null),
+};
+
+export default function MySorsTable({ rows: unsortedRows, onOpen }) {
+  const { sorted: rows, sort, toggle } = useTableSort(unsortedRows, MY_SORS_SORT);
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
       <Table tableId="my-sors" className="min-w-[900px]">
         <TableHeader>
           <TableRow>
-            <TableHead id="sor">SOR</TableHead>
-            <TableHead id="now-on">Now on</TableHead>
-            <TableHead id="called-in-at">Called in at</TableHead>
-            <TableHead id="via">Via</TableHead>
-            <TableHead id="access">Access</TableHead>
-            <TableHead id="since">Since</TableHead>
+            <SortHead id="sor" sortKey="sor" sort={sort} onSort={toggle}>SOR</SortHead>
+            <SortHead id="now-on" sortKey="now-on" sort={sort} onSort={toggle}>Now on</SortHead>
+            <SortHead id="called-in-at" sortKey="called-in-at" sort={sort} onSort={toggle}>Called in at</SortHead>
+            <SortHead id="via" sortKey="via" sort={sort} onSort={toggle}>Via</SortHead>
+            <SortHead id="access" sortKey="access" sort={sort} onSort={toggle}>Access</SortHead>
+            <SortHead id="since" sortKey="since" sort={sort} onSort={toggle}>Since</SortHead>
           </TableRow>
         </TableHeader>
         <TableBody>

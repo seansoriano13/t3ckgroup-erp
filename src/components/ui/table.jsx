@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -82,6 +83,18 @@ function Table({ className, tableId, style, ...props }) {
 
   return (
     <ColumnWidthsContext.Provider value={ctx}>
+      {resized && (
+        <div className="flex justify-end px-3 pt-2">
+          <button
+            type="button"
+            data-slot="table-reset-widths"
+            onClick={() => ctx.reset()}
+            className="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            Reset columns
+          </button>
+        </div>
+      )}
       <div data-slot="table-container" className="overflow-x-auto">
         <table
           ref={tableRef}
@@ -177,10 +190,34 @@ function TableHead({ className, id, style, children, ...props }) {
             e.stopPropagation();
             ctx.reset();
           }}
-          className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none hover:bg-foreground/20"
+          className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none hover:bg-foreground/20 pointer-coarse:w-6"
         />
       )}
     </th>
+  );
+}
+
+// A header you can tap to sort by: a TableHead with a button and the same
+// up/down arrows the Tasks tables use. `sort` and `onSort` come from
+// useTableSort; `sortKey` names this column in its accessors.
+function SortHead({ sortKey, sort, onSort, children, className, ...props }) {
+  const active = sort?.key === sortKey;
+  const Icon = !active ? ArrowUpDown : sort.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+      className={cn("hover:text-foreground transition-colors", className)}
+      {...props}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 uppercase tracking-[inherit] font-[inherit]"
+      >
+        {children}
+        <Icon size={12} className={cn("shrink-0", active ? "text-foreground" : "opacity-40")} />
+      </button>
+    </TableHead>
   );
 }
 
@@ -194,4 +231,4 @@ function TableCell({ className, ...props }) {
   );
 }
 
-export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow };
+export { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow };
