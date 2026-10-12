@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useState, useMemo } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useNavigate } from "react-router";
@@ -10,7 +11,6 @@ import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
 import { UserPlus, Edit, Trash2, Shield, KeyRound, Users } from "lucide-react";
 import { passwordService } from "../../../services/passwordService";
-import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -302,10 +302,9 @@ export default function EmployeeManagement() {
                     <TableRow>
                       <TableCell
                         colSpan={10}
-                        className="p-10 text-center text-muted-foreground font-bold"
+                        className="p-0"
                       >
-                        <Spinner size="md" />
-                        Loading employees…
+                        <PageLoading label="employees" />
                       </TableCell>
                     </TableRow>
                   ) : filteredEmployees.length > 0 ? (

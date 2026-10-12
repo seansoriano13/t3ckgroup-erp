@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useRef, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,7 +9,6 @@ import { useAuth } from "../../../context/AuthContext";
 import { useRecordParam } from "../../../hooks/useRecordParam";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import Spinner from "@/components/ui/Spinner";
 import HighlightText from "../../../components/HighlightText";
 import { formatDate } from "../../../utils/formatDate.js";
 import { relativeAge, shortRef } from "../../../utils/approvalItems.js";
@@ -218,9 +218,7 @@ export default function GroupTaskApprovalSection({ searchTerm = "", onClearSearc
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-20">
-        <Spinner />
-      </div>
+      <PageLoading label="group tasks" />
     );
   }
 

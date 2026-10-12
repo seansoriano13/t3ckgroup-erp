@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useParams, useSearchParams, Link } from "react-router"
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "@/utils/formatDate"
@@ -80,7 +81,7 @@ export default function FlowVersionPage() {
 
                 <div className="min-h-0 flex-1">
                     {isLoading && (
-                        <p role="status" className="p-8 text-sm text-muted-foreground">Loading this version…</p>
+                        <PageLoading label="this version" />
                     )}
 
                     {isError && (

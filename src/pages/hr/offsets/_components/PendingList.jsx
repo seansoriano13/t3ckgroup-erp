@@ -1,8 +1,8 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useMemo, useState } from 'react';
 import { pluralize } from "@/utils/plural";
 import { CheckCircle2, ChevronRight, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import Spinner from '@/components/ui/Spinner';
 import Avatar from '../../../../components/Avatar';
 import { EmptyState, StatusPill } from './LeaveParts';
 import { LABEL, TYPE_META, fmtRange, hoursOf, recordKey, relTime, windowOf } from './leaveDisplay';
@@ -37,10 +37,7 @@ export default function PendingList({ rows, total, loading, availableHoursFor, a
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center gap-3 py-20 text-muted-foreground">
-                <Spinner size="sm" />
-                <span className="text-sm font-medium">Loading pending requests…</span>
-              </div>
+              <PageLoading label="pending requests" />
             ) : shown.length === 0 ? (
               <EmptyState icon={CheckCircle2} title="Nothing waiting on HR">
                 {total > 0

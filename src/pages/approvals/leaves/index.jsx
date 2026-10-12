@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useMemo, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -5,7 +6,6 @@ import { AlertTriangle, Check, Clock, Layers, SlidersHorizontal, X } from "lucid
 import toast from "react-hot-toast";
 import { decideHeadApproval } from "../../../services/headApprovalService";
 import ProtectedRoute from "../../../components/ProtectedRoute";
-import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { leaveToItem } from "../../../utils/approvalItems.js";
@@ -96,9 +96,7 @@ function LeaveApprovalsQueue() {
 
   if (q.isLoadingLeaves) {
     return (
-      <div className="flex justify-center py-16">
-        <Spinner size="md" />
-      </div>
+      <PageLoading label="leave approvals" />
     );
   }
 

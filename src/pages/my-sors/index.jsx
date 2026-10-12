@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useMemo, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query";
@@ -6,7 +7,6 @@ import { Handshake } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
-import Spinner from "../../components/ui/Spinner";
 import MySorsTable from "../../components/sor/MySorsTable";
 import MySorsFilterBar from "../../components/sor/MySorsFilterBar";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
@@ -83,10 +83,7 @@ function MySorsScreen() {
     body = <QueryError title="Your SORs could not be loaded." onRetry={refetch} />;
   } else if (isLoading) {
     body = (
-      <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
-        <Spinner size="sm" />
-        <span className="text-sm font-bold uppercase tracking-widest">Loading…</span>
-      </div>
+      <PageLoading label="your SORs" />
     );
   } else if (rows.length === 0) {
     body = (
