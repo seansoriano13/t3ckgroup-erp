@@ -1,5 +1,5 @@
 /**
- * The Procurement Queue's rows (#308, part of #209): `pr_queue` returns the
+ * The Procurement Queue's rows (#308, part of #209): `purchase_request_queue` returns the
  * requests the caller may read, no more, with the SOR's locked header, the
  * Buyer and item counts — read through the function because a purchaser
  * picking up an unassigned request can't read the SOR itself.
@@ -49,7 +49,7 @@ async function newRequest({ buyer = null, statuses = [] } = {}) {
 }
 
 const queueFor = async (who, args) => {
-    const { data, error } = await (await clientFor(who)).rpc("pr_queue", args)
+    const { data, error } = await (await clientFor(who)).rpc("purchase_request_queue", args)
     if (error) throw error
     return data.filter((r) => requests.includes(r.id))
 }
@@ -74,7 +74,7 @@ afterAll(async () => {
     if (sors.length) await svc().from("sales_opportunities").delete().in("id", sors)
 })
 
-describe("pr_queue", () => {
+describe("purchase_request_queue", () => {
     it("gives a purchaser who isn't a member the unassigned request only, with the SOR's header", async () => {
         const rows = await queueFor("outsider")
         expect(rows.map((r) => r.id)).toEqual([unassigned])
@@ -109,7 +109,7 @@ describe("pr_queue", () => {
     })
 
     it("is refused to the signed-out", async () => {
-        const { error } = await anonymousClient().rpc("pr_queue")
+        const { error } = await anonymousClient().rpc("purchase_request_queue")
         expect(error).not.toBeNull()
     })
 })

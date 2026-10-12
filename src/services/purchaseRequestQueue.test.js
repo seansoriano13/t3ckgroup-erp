@@ -1,6 +1,6 @@
 /**
- * The Procurement Queue's service (#308): `listQueue` reads `pr_queue` and
- * slices it with `filterQueue`; `get` reads one request. What `pr_queue`
+ * The Procurement Queue's service (#308): `listQueue` reads `purchase_request_queue` and
+ * slices it with `filterQueue`; `get` reads one request. What `purchase_request_queue`
  * returns to whom is the policy tier's (44-procurement-queue).
  */
 import { beforeEach, describe, expect, it } from "vitest"
@@ -76,13 +76,13 @@ describe("purchaseRequestService queue reads", () => {
   let calls
   beforeEach(() => {
     calls = []
-    stubRpc("pr_queue", (args) => {
+    stubRpc("purchase_request_queue", (args) => {
       calls.push(args)
       return args?.p_request_id ? rows.filter((r) => r.id === args.p_request_id) : rows
     })
   })
 
-  it("listQueue reads pr_queue and applies the filter", async () => {
+  it("listQueue reads purchase_request_queue and applies the filter", async () => {
     expect(ids(await purchaseRequestService.listQueue())).toEqual(["a", "b", "c", "d", "e"])
     expect(
       ids(await purchaseRequestService.listQueue({ filter: { buyer: QUEUE_BUYER.MINE, state: QUEUE_STATE.OPEN }, userId: ME })),

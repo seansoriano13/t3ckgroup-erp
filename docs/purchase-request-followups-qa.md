@@ -479,3 +479,151 @@ Verified locally 2026-10-12.
   Expected: one `task_id` row, `UPDATE 1`, then `new_notifications` = 0.
 
 ### #506 RPC prefixes unified on `purchase_request_`
+
+Migration `20261012100600_purchase_request_rpc_names.sql`. Every purchasing RPC that was `pr_*` gets a
+`purchase_request_*` name. Its body moves unchanged apart from the name and error prefix (the app strips
+that prefix). The old name stays as a thin alias with the same signature, security and grants. Nothing is
+dropped. The app now calls only the new names.
+
+| Old name (alias, kept) | New name | Called by |
+| --- | --- | --- |
+| `pr_actor_side(uuid)` | `purchase_request_actor_side` | app (`itemActor`) |
+| `pr_can_add_substitute(uuid)` | `purchase_request_can_add_substitute` | app (`itemActor`) |
+| `pr_set_item_status(uuid, text, jsonb)` | `purchase_request_set_item_status` | app |
+| `pr_add_substitute(uuid, text, numeric, text, text, jsonb)` | `purchase_request_add_substitute` | app |
+| `pr_take(uuid)` | `purchase_request_take` | app |
+| `pr_set_buyer(uuid, uuid)` | `purchase_request_set_buyer` | app |
+| `pr_item_po_lines(uuid)` | `purchase_request_item_po_lines` | app |
+| `pr_pick_po_lines(uuid, int[])` | `purchase_request_pick_po_lines` | app |
+| `pr_queue(uuid)` | `purchase_request_queue` | app (list + one request) |
+
+Left alone: internal helpers and trigger functions already named `_purchase_request_*` (not
+client-called), and the SOR-scoped `sor_open_purchase_request`, `sor_purchase_request_overview` and
+`sor_purchase_request_item_states` (`sor_` prefix, not `pr_`). Inside SQL, the moved bodies call the new
+names. One comment in `_purchase_request_purchasing_access_changed` still says `pr_set_buyer`; it was left
+as is, since changing it would mean rewriting the trigger.
+
+The block picks a Project request whose Buyer has Purchasing access, adds two Requested items to it,
+and runs as that Buyer. Every row in the first result should read `pass = true`. After that, each 506.6
+statement should succeed with the value in its trailing comment. Verified locally 2026-10-12.
+
+```sql
+begin;
+
+create temp table t506_pairs (old_fn regprocedure, new_fn regprocedure) on commit drop;
+insert into t506_pairs values
+  ('public.pr_actor_side(uuid)', 'public.purchase_request_actor_side(uuid)'),
+  ('public.pr_can_add_substitute(uuid)', 'public.purchase_request_can_add_substitute(uuid)'),
+  ('public.pr_set_item_status(uuid, text, jsonb)', 'public.purchase_request_set_item_status(uuid, text, jsonb)'),
+  ('public.pr_add_substitute(uuid, text, numeric, text, text, jsonb)', 'public.purchase_request_add_substitute(uuid, text, numeric, text, text, jsonb)'),
+  ('public.pr_take(uuid)', 'public.purchase_request_take(uuid)'),
+  ('public.pr_set_buyer(uuid, uuid)', 'public.purchase_request_set_buyer(uuid, uuid)'),
+  ('public.pr_item_po_lines(uuid)', 'public.purchase_request_item_po_lines(uuid)'),
+  ('public.pr_pick_po_lines(uuid, integer[])', 'public.purchase_request_pick_po_lines(uuid, integer[])'),
+  ('public.pr_queue(uuid)', 'public.purchase_request_queue(uuid)');
+
+-- A Project request whose Buyer has Purchasing access, plus two fresh
+-- Requested items on it (rolled back).
+create temp table t506 on commit drop as
+select r.id as request_id, r.buyer_id, b.email as buyer_email
+from purchase_requests r join employees b on b.id = r.buyer_id
+where r.opportunity_id is not null and public._employee_has_purchasing_access(b.id)
+order by r.created_at desc limit 1;
+create temp table t506_items on commit drop as
+with ins as (
+  insert into purchase_request_items (request_id, source, name, quantity, requested_by)
+  select t.request_id, 'new', '#506 item ' || n, 1, t.buyer_id from t506 t, generate_series(1, 2) n
+  returning id, name
+) select id, name from ins;
+
+create function pg_temp.as_user(p_email text) returns void language sql as $$
+  select set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'email', p_email)::text, true);
+$$;
+-- Runs a statement; 'ok' or the error code and message, prefix stripped the way the app strips it.
+create function pg_temp.try(p_sql text) returns text language plpgsql as $$
+begin
+  execute p_sql;
+  return 'ok';
+exception when others then
+  return sqlstate || ' ' || regexp_replace(sqlerrm, '^[a-z_]+: ', '');
+end $$;
+create function pg_temp.item(p_n int) returns uuid language sql as $$
+  select id from t506_items where name = '#506 item ' || p_n;
+$$;
+
+select pg_temp.as_user(buyer_email) from t506;
+
+select step, got, expected, got is not distinct from expected as pass from (
+  -- 506.1 every old name still exists, and no other pr_ function appeared or went
+  select '506.1 the nine pr_ names all still exist' as step,
+    (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname like 'pr\_%')::text as got,
+    '9' as expected, 1 as o
+  union all
+  -- 506.2 each new name matches its alias: arguments, result, volatility, security, search_path, grants
+  select '506.2 ' || p.new_fn::text || ' matches ' || p.old_fn::text,
+    (n.proargtypes = o.proargtypes and n.prorettype = o.prorettype and n.proretset = o.proretset
+     and n.provolatile = o.provolatile and n.prosecdef and o.prosecdef
+     and n.proconfig = o.proconfig and n.proacl = o.proacl
+     and pg_get_function_arguments(n.oid) = pg_get_function_arguments(o.oid)
+     and pg_get_function_result(n.oid) = pg_get_function_result(o.oid)
+     and not has_function_privilege('anon', n.oid, 'execute')
+     and has_function_privilege('authenticated', n.oid, 'execute'))::text,
+    'true', 2
+  from t506_pairs p join pg_proc n on n.oid = p.new_fn join pg_proc o on o.oid = p.old_fn
+  union all
+  -- 506.3 each alias is a thin call to its new name
+  select '506.3 ' || p.old_fn::text || ' calls ' || n.proname,
+    (o.prosrc like '%public.' || n.proname || '(%' and length(o.prosrc) < 200)::text, 'true', 3
+  from t506_pairs p join pg_proc n on n.oid = p.new_fn join pg_proc o on o.oid = p.old_fn
+  union all
+  -- 506.4 read RPCs: old and new give the Buyer the same answer
+  select '506.4 actor side, old = new', (public.pr_actor_side(t.request_id) = public.purchase_request_actor_side(t.request_id)
+    and public.purchase_request_actor_side(t.request_id) = 'purchasing')::text, 'true', 4 from t506 t
+  union all
+  select '506.4 can add substitute, old = new', (public.pr_can_add_substitute(t.request_id) = public.purchase_request_can_add_substitute(t.request_id)
+    and public.purchase_request_can_add_substitute(t.request_id))::text, 'true', 4 from t506 t
+  union all
+  select '506.4 queue (all), old = new',
+    ((select jsonb_agg(to_jsonb(q)) from public.pr_queue() q) = (select jsonb_agg(to_jsonb(q)) from public.purchase_request_queue() q)
+     and (select count(*) from public.purchase_request_queue()) > 0)::text, 'true', 4
+  union all
+  select '506.4 queue (one request), old = new',
+    ((select jsonb_agg(to_jsonb(q)) from public.pr_queue(t.request_id) q) = (select jsonb_agg(to_jsonb(q)) from public.purchase_request_queue(t.request_id) q)
+     and (select count(*) from public.purchase_request_queue(t.request_id)) = 1)::text, 'true', 4 from t506 t
+  union all
+  select '506.4 item PO lines, old = new',
+    (public.pr_item_po_lines(pg_temp.item(1)) = public.purchase_request_item_po_lines(pg_temp.item(1)))::text, 'true', 4
+  union all
+  -- 506.5 refusals: old and new refuse alike
+  select '506.5 refusal ' || x.fn || ', old = new',
+    (pg_temp.try(format(x.call, 'pr_' || x.fn)) = pg_temp.try(format(x.call, 'purchase_request_' || x.fn))
+     and pg_temp.try(format(x.call, 'purchase_request_' || x.fn)) <> 'ok')::text, 'true', 5
+  from (values
+    ('take', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid)'),
+    ('set_buyer', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid, null)'),
+    ('set_item_status', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid, ''cancelled'')'),
+    ('add_substitute', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid, ''x'', 1)'),
+    ('item_po_lines', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid)'),
+    ('pick_po_lines', 'select public.%s(''00000000-0000-0000-0000-000000000000''::uuid, array[1])')
+  ) x(fn, call)
+) s order by o, step;
+
+-- 506.6 write RPCs work under both names (each statement must succeed)
+select status from public.purchase_request_set_item_status(pg_temp.item(1), 'to_order');  -- to_order
+select status from public.pr_set_item_status(pg_temp.item(1), 'canvassing');              -- canvassing
+select public.pr_add_substitute(pg_temp.item(1), '#506 sub old', 1) is not null as old_sub;             -- t
+select public.purchase_request_add_substitute(pg_temp.item(2), '#506 sub new', 1) is not null as new_sub; -- t
+select (public.pr_set_buyer(t.request_id, null)).buyer_id is null as cleared_old from t506 t;           -- t
+select (public.purchase_request_take(t.request_id)).buyer_id = t.buyer_id as taken_new from t506 t;     -- t
+select (public.purchase_request_set_buyer(t.request_id, null)).buyer_id is null as cleared_new from t506 t; -- t
+select (public.pr_take(t.request_id)).buyer_id = t.buyer_id as taken_old from t506 t;                   -- t
+
+rollback;
+```
+
+- [ ] 506.1 All nine `pr_` names still exist (nothing dropped) → `9`
+- [ ] 506.2 Each new name matches its alias: arguments, result, volatility, security definer, search_path, grants; anon can't execute → `true` ×9
+- [ ] 506.3 Each alias is a thin call to its new name → `true` ×9
+- [ ] 506.4 Read RPCs give the same answer under both names (actor side, can add substitute, queue all/one, item PO lines) → `true` ×5
+- [ ] 506.5 Refusals match under both names (take, set Buyer, set status, add substitute, PO lines, pick PO lines) → `true` ×6
+- [ ] 506.6 Write RPCs work under both names: `to_order`, `canvassing`, then `t` ×6

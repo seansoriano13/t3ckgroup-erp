@@ -166,7 +166,7 @@ describe("purchaseRequestService — a new product's fields, on every path", () 
   const fields = { name: "Bracket", quantity: "3", unit: "", description: "" }
 
   it("sends a substitute's fields as the RPC names them", async () => {
-    const sent = sentTo("pr_add_substitute")
+    const sent = sentTo("purchase_request_add_substitute")
 
     await purchaseRequestService.addSubstitute("item-9", {
       name: "Harness, other brand",
@@ -190,7 +190,7 @@ describe("purchaseRequestService — a new product's fields, on every path", () 
 
   it("sends the same name, quantity, unit and description on all three", async () => {
     const added = sentTo("purchase_request_add_new_item")
-    const substituted = sentTo("pr_add_substitute")
+    const substituted = sentTo("purchase_request_add_substitute")
     const opened = sentTo("purchase_request_open")
 
     await purchaseRequestService.addNewItem("r1", fields)

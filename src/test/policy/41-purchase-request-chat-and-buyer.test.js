@@ -75,7 +75,7 @@ const post = async (who, requestId, content, metadata = {}) =>
         .select("id")
 
 const setStatus = async (who, itemId, status) =>
-    (await clientFor(who)).rpc("pr_set_item_status", { p_item_id: itemId, p_status: status })
+    (await clientFor(who)).rpc("purchase_request_set_item_status", { p_item_id: itemId, p_status: status })
 
 beforeAll(async () => {
     await ensureCastLoaded()
@@ -173,12 +173,12 @@ describe("Take", () => {
     })
 
     it("refuses someone without Purchasing access", async () => {
-        const { error } = await (await clientFor("dealOwner")).rpc("pr_take", { p_request_id: requestId })
+        const { error } = await (await clientFor("dealOwner")).rpc("purchase_request_take", { p_request_id: requestId })
         expect(error?.code).toBe("42501")
     })
 
     it("makes a purchaser the Buyer, and posts it", async () => {
-        const { data, error } = await (await clientFor("outsider")).rpc("pr_take", { p_request_id: requestId })
+        const { data, error } = await (await clientFor("outsider")).rpc("purchase_request_take", { p_request_id: requestId })
         expect(error).toBeNull()
         expect(data.buyer_id).toBe(ids.outsider)
         const { data: events } = await svc()
@@ -192,7 +192,7 @@ describe("Take", () => {
     })
 
     it("is refused once someone has it", async () => {
-        const { error } = await (await clientFor("stageParticipant")).rpc("pr_take", { p_request_id: requestId })
+        const { error } = await (await clientFor("stageParticipant")).rpc("purchase_request_take", { p_request_id: requestId })
         expect(error?.code).toBe("55000")
         expect(error?.message).toMatch(/already the Buyer/)
     })
@@ -202,7 +202,7 @@ describe("after Take", () => {
     let requestId, itemId
     beforeAll(async () => {
         ;({ requestId, itemId } = await newRequest())
-        const { error } = await (await clientFor("outsider")).rpc("pr_take", { p_request_id: requestId })
+        const { error } = await (await clientFor("outsider")).rpc("purchase_request_take", { p_request_id: requestId })
         if (error) throw error
     })
     beforeEach(() => clearNotifications(requestId))
@@ -260,7 +260,7 @@ describe("setting the Buyer", () => {
     beforeEach(() => clearNotifications(requestId))
 
     const setBuyer = async (who, employee) =>
-        (await clientFor(who)).rpc("pr_set_buyer", { p_request_id: requestId, p_employee_id: employee ? ids[employee] : null })
+        (await clientFor(who)).rpc("purchase_request_set_buyer", { p_request_id: requestId, p_employee_id: employee ? ids[employee] : null })
 
     it("is refused to the sales side", async () => {
         const { error } = await setBuyer("dealOwner", "stageParticipant")

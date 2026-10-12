@@ -72,26 +72,26 @@ describe("purchaseRequestService — chat and Buyer", () => {
 
   it("Takes and names the Buyer through the RPCs", async () => {
     const calls = []
-    stubRpc("pr_take", (args) => {
-      calls.push(["pr_take", args])
+    stubRpc("purchase_request_take", (args) => {
+      calls.push(["purchase_request_take", args])
       return { ...request, buyer_id: buyer.id }
     })
-    stubRpc("pr_set_buyer", (args) => {
-      calls.push(["pr_set_buyer", args])
+    stubRpc("purchase_request_set_buyer", (args) => {
+      calls.push(["purchase_request_set_buyer", args])
       return { ...request, buyer_id: args.p_employee_id }
     })
 
     expect((await purchaseRequestService.take(request.id)).buyer_id).toBe(buyer.id)
     expect((await purchaseRequestService.setBuyer(request.id, null)).buyer_id).toBeNull()
     expect(calls).toEqual([
-      ["pr_take", { p_request_id: request.id }],
-      ["pr_set_buyer", { p_request_id: request.id, p_employee_id: null }],
+      ["purchase_request_take", { p_request_id: request.id }],
+      ["purchase_request_set_buyer", { p_request_id: request.id, p_employee_id: null }],
     ])
   })
 
   it("surfaces a Take someone else won", async () => {
-    stubRpc("pr_take", () => {
-      throw pgrstError("55000", "pr_take: Ben Cruz is already the Buyer")
+    stubRpc("purchase_request_take", () => {
+      throw pgrstError("55000", "purchase_request_take: Ben Cruz is already the Buyer")
     })
     await expect(purchaseRequestService.take(request.id)).rejects.toMatchObject({ code: "55000" })
   })
