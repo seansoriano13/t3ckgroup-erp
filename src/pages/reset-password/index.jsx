@@ -288,7 +288,7 @@ export default function ResetPassword() {
         <div>
           <h1 className="text-2xl font-bold text-mauve-12">Set a new password</h1>
           <p className="text-mauve-10 text-sm mt-1">
-            Choose a password for your T3ckgroup account.
+            Choose a password for your T3CKGROUP account.
           </p>
         </div>
 

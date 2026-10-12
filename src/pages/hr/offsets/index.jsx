@@ -184,8 +184,8 @@ export default function HrLeavesManagerPage() {
       return;
     }
 
-    let actionLabel = actionType === 'reject' ? 'Reject' : 'Approve';
-    const pastTense = actionType === 'reject' ? 'rejected' : 'approved';
+    let actionLabel = actionType === 'reject' ? 'Decline' : 'Approve';
+    const pastTense = actionType === 'reject' ? 'declined' : 'approved';
 
     const rangeNote = request.dayCount > 1 ? ` (${request.dayCount} days, ${request.startDate} to ${request.endDate})` : '';
     let title = `${actionLabel} Request`;

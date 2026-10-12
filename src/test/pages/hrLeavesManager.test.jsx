@@ -380,7 +380,7 @@ describe('HrLeavesManagerPage', () => {
       const sheet = await screen.findByRole('dialog');
       expect(within(sheet).getByText('Sheet reason')).toBeInTheDocument();
       expect(within(sheet).getByRole('button', { name: /^Approve/i })).toBeInTheDocument();
-      expect(within(sheet).getByRole('button', { name: /^Reject/i })).toBeInTheDocument();
+      expect(within(sheet).getByRole('button', { name: /^Decline/i })).toBeInTheDocument();
       expect(screen.getByTestId('search')).toHaveTextContent(`record=${key}`);
     });
 

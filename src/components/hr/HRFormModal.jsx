@@ -17,7 +17,7 @@ export default function HRFormModal({
   badge,
   formId,
   isPending,
-  submitLabel = "Save Changes",
+  submitLabel = "Save changes",
   children,
 }) {
   return (

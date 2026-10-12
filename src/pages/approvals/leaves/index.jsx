@@ -110,7 +110,7 @@ function LeaveApprovalsQueue() {
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: all.length || undefined },
             { value: "ACTIVE", label: "Active (<48h)", icon: Clock, badge: active.length || undefined },
-            { value: "STALE", label: "Stale Backlog (>48h)", icon: AlertTriangle, badge: stale.length || undefined },
+            { value: "STALE", label: "Stale Backlog (≥48h)", icon: AlertTriangle, badge: stale.length || undefined },
           ]}
           view={view}
           onViewChange={(v) => {

@@ -280,7 +280,7 @@ function TaskApprovalsQueue() {
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: pending.length || undefined },
             { value: "ACTIVE", label: "Active (<48h)", icon: Clock, badge: active.length || undefined },
-            { value: "STALE", label: "Stale Backlog (>48h)", icon: AlertTriangle, badge: stale.length || undefined },
+            { value: "STALE", label: "Stale Backlog (≥48h)", icon: AlertTriangle, badge: stale.length || undefined },
             { value: "VERIFIED", label: "Recently Approved", icon: History, badge: decided.length || undefined },
           ]}
           view={view}
