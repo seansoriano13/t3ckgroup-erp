@@ -94,6 +94,8 @@ export default function TaskTableView({
   tasks = [],
   searchTerm = "",
   onView,
+  filtered = false,
+  onClearFilters,
 }) {
   const { user } = useAuth();
   const avatarMap = useEmployeeAvatarMap();
@@ -176,7 +178,18 @@ export default function TaskTableView({
       <EmptyState
         icon={ListChecks}
         title="No tasks found"
-        description="Try adjusting your search query or active filters."
+        description={
+          filtered
+            ? "No tasks match these filters."
+            : "Try adjusting your search query or active filters."
+        }
+        action={
+          filtered && onClearFilters ? (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          ) : undefined
+        }
       />
     );
   }

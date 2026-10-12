@@ -482,6 +482,8 @@ export default function TasksPage() {
           <TaskTableView
             tasks={sortedAndFilteredTasks}
             searchTerm={searchTerm}
+            filtered={rawTasks.length > 0}
+            onClearFilters={clearAllFilters}
             onView={(task) => setViewTask(task)}
             onSilentUpdate={(payload) => editTaskMutation.mutateAsync(payload)}
           />
