@@ -110,7 +110,7 @@ export function ApprovalTable({
       <Table tableId="approvals">
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="w-10 pl-4">
+            <TableHead className="hidden w-10 pl-4 md:table-cell">
               {selectable && <Checkbox checked={allChecked} onCheckedChange={(v) => onToggleAll?.(v, rows)} aria-label="Select all" />}
             </TableHead>
             <SortHead id="request" sortKey="request" sort={sort} onSort={toggle} className={HEAD}>Request</SortHead>
@@ -119,7 +119,7 @@ export function ApprovalTable({
             <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>Waiting</SortHead>
             <TableHead id="stage" className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
             <SortHead id="status" sortKey="status" sort={sort} onSort={toggle} className={HEAD}>Status</SortHead>
-            <TableHead className="w-24">
+            <TableHead className="w-12 md:w-24">
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
@@ -148,12 +148,12 @@ export function ApprovalTable({
                 }}
                 className={`group h-14 cursor-pointer outline-none focus-visible:bg-muted ${cursor === item.id && keyboard ? "bg-muted/60" : ""}`}
               >
-                <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
+                <TableCell className="hidden pl-4 md:table-cell" onClick={(e) => e.stopPropagation()}>
                   {selectable && <Checkbox checked={checked} onCheckedChange={() => onToggle?.(item.id)} aria-label={`Select ${item.title}`} />}
                 </TableCell>
-                <TableCell className="max-w-[280px] 2xl:max-w-[360px]">
+                <TableCell className="w-full max-w-0 md:w-auto md:max-w-[280px] 2xl:max-w-[360px]">
                   <div className="flex items-center gap-2.5">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                    <span className="hidden size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground sm:grid">
                       <QueueIcon size={14} />
                     </span>
                     <div className="min-w-0">
@@ -192,7 +192,7 @@ export function ApprovalTable({
                 <TableCell>
                   <StatusPill item={item} />
                 </TableCell>
-                <TableCell className="pr-4 text-right" onClick={(e) => e.stopPropagation()}>
+                <TableCell className="pr-2 text-right md:pr-4" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end gap-1 max-md:opacity-100 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{renderRowAction?.(item)}</div>
                 </TableCell>
               </TableRow>
