@@ -2,6 +2,7 @@ import * as React from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 import { useAuth } from "@/context/AuthContext";
 
@@ -28,7 +29,8 @@ function readWidths(storageKey) {
 
 function writeWidths(storageKey, widths) {
   try {
-    if (Object.keys(widths).length) localStorage.setItem(storageKey, JSON.stringify(widths));
+    if (Object.keys(widths).length)
+      localStorage.setItem(storageKey, JSON.stringify(widths));
     else localStorage.removeItem(storageKey);
   } catch {
     /* ignore */
@@ -45,7 +47,9 @@ function Table({ className, tableId, style, scrollCue = false, ...props }) {
   const userId = useUserId();
   const storageKey = tableId ? `erp_colwidths_${userId}_${tableId}` : null;
   const tableRef = React.useRef(null);
-  const [widths, setWidths] = React.useState(() => (storageKey ? readWidths(storageKey) : {}));
+  const [widths, setWidths] = React.useState(() =>
+    storageKey ? readWidths(storageKey) : {},
+  );
 
   const commit = React.useCallback(
     (next) => {
@@ -66,12 +70,17 @@ function Table({ className, tableId, style, scrollCue = false, ...props }) {
           const id = th.getAttribute("data-col-id");
           const rendered = Math.round(th.getBoundingClientRect().width);
           // A header hidden at this breakpoint measures 0; leave it unpinned.
-          if (frozen[id] == null && rendered >= MIN_COL_WIDTH) frozen[id] = rendered;
+          if (frozen[id] == null && rendered >= MIN_COL_WIDTH)
+            frozen[id] = rendered;
         });
         setWidths(frozen);
         return frozen;
       },
-      set: (id, width, base) => setWidths({ ...base, [id]: Math.max(MIN_COL_WIDTH, Math.round(width)) }),
+      set: (id, width, base) =>
+        setWidths({
+          ...base,
+          [id]: Math.max(MIN_COL_WIDTH, Math.round(width)),
+        }),
       save: (next) => commit(next),
       // Back to the page's own widths. A single column cannot go back alone:
       // the rest stay pinned, so it would collapse to the leftover space.
@@ -90,7 +99,9 @@ function Table({ className, tableId, style, scrollCue = false, ...props }) {
     const update = () => {
       const left = el.scrollLeft > 1;
       const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-      setCue((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+      setCue((prev) =>
+        prev.left === left && prev.right === right ? prev : { left, right },
+      );
     };
     update();
     el.addEventListener("scroll", update, { passive: true });
@@ -107,7 +118,11 @@ function Table({ className, tableId, style, scrollCue = false, ...props }) {
   }, [scrollCue]);
 
   const scroller = (
-    <div ref={containerRef} data-slot="table-container" className="overflow-x-auto">
+    <div
+      ref={containerRef}
+      data-slot="table-container"
+      className="overflow-x-auto"
+    >
       <table
         ref={tableRef}
         data-slot="table"
@@ -118,43 +133,48 @@ function Table({ className, tableId, style, scrollCue = false, ...props }) {
     </div>
   );
 
+  const body = scrollCue ? (
+    <div className="relative">
+      {scroller}
+      {cue.left && (
+        <div
+          aria-hidden="true"
+          data-slot="table-scroll-cue"
+          data-edge="left"
+          className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent"
+        />
+      )}
+      {cue.right && (
+        <div
+          aria-hidden="true"
+          data-slot="table-scroll-cue"
+          data-edge="right"
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent"
+        />
+      )}
+    </div>
+  ) : (
+    scroller
+  );
+
   return (
     <ColumnWidthsContext.Provider value={ctx}>
-      {resized && (
-        <div className="flex justify-end px-3 pt-2">
-          <button
+      {/* Stable wrapper so toggling `resized` never remounts the table mid-drag. */}
+      <div className={resized ? "group/table relative" : undefined}>
+        {body}
+        {resized && (
+          <Button
             type="button"
+            variant="outline"
+            size="xs"
             data-slot="table-reset-widths"
             onClick={() => ctx.reset()}
-            className="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="absolute top-1 right-2 z-10 bg-card text-[11px] text-muted-foreground opacity-0 shadow-sm transition-opacity group-hover/table:opacity-100 group-focus-within/table:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
           >
             Reset columns
-          </button>
-        </div>
-      )}
-      {scrollCue ? (
-        <div className="relative">
-          {scroller}
-          {cue.left && (
-            <div
-              aria-hidden="true"
-              data-slot="table-scroll-cue"
-              data-edge="left"
-              className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent"
-            />
-          )}
-          {cue.right && (
-            <div
-              aria-hidden="true"
-              data-slot="table-scroll-cue"
-              data-edge="right"
-              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent"
-            />
-          )}
-        </div>
-      ) : (
-        scroller
-      )}
+          </Button>
+        )}
+      </div>
     </ColumnWidthsContext.Provider>
   );
 }
@@ -206,7 +226,13 @@ function TableHead({ className, id, style, children, ...props }) {
     const startWidth = base[id] ?? th.getBoundingClientRect().width;
     let latest = base;
     const onMove = (ev) => {
-      latest = { ...base, [id]: Math.max(MIN_COL_WIDTH, Math.round(startWidth + ev.clientX - startX)) };
+      latest = {
+        ...base,
+        [id]: Math.max(
+          MIN_COL_WIDTH,
+          Math.round(startWidth + ev.clientX - startX),
+        ),
+      };
       ctx.set(id, startWidth + ev.clientX - startX, base);
     };
     const onUp = () => {
@@ -256,7 +282,9 @@ function SortHead({ sortKey, sort, onSort, children, className, ...props }) {
   const Icon = !active ? ArrowUpDown : sort.dir === "asc" ? ArrowUp : ArrowDown;
   return (
     <TableHead
-      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+      aria-sort={
+        active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"
+      }
       className={cn("hover:text-foreground transition-colors", className)}
       {...props}
     >
@@ -266,7 +294,10 @@ function SortHead({ sortKey, sort, onSort, children, className, ...props }) {
         className="inline-flex items-center gap-1 uppercase tracking-[inherit] font-[inherit]"
       >
         {children}
-        <Icon size={12} className={cn("shrink-0", active ? "text-foreground" : "opacity-40")} />
+        <Icon
+          size={12}
+          className={cn("shrink-0", active ? "text-foreground" : "opacity-40")}
+        />
       </button>
     </TableHead>
   );
@@ -282,4 +313,12 @@ function TableCell({ className, ...props }) {
   );
 }
 
-export { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow };
+export {
+  SortHead,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+};

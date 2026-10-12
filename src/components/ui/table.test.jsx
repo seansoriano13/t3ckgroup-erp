@@ -31,7 +31,9 @@ describe("Table", () => {
     render(<Sample />);
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getAllByRole("rowgroup")).toHaveLength(2);
-    expect(screen.getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Name" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Ada" })).toBeInTheDocument();
   });
 
@@ -74,7 +76,9 @@ describe("Table column resizing", () => {
   it("only identified headers get a handle, and none without tableId", () => {
     localStorage.clear();
     const { unmount } = render(<Resizable />);
-    expect(document.querySelectorAll("[data-slot=table-col-resizer]")).toHaveLength(2);
+    expect(
+      document.querySelectorAll("[data-slot=table-col-resizer]"),
+    ).toHaveLength(2);
     unmount();
     render(<Sample />);
     expect(document.querySelector("[data-slot=table-col-resizer]")).toBeNull();
@@ -84,40 +88,86 @@ describe("Table column resizing", () => {
     localStorage.clear();
     render(<Resizable />);
     const handle = document.querySelector("[data-slot=table-col-resizer]");
-    fireEvent(handle, Object.assign(new Event("pointerdown", { bubbles: true }), { clientX: 100 }));
-    fireEvent(window, Object.assign(new Event("pointermove"), { clientX: 500 }));
+    fireEvent(
+      handle,
+      Object.assign(new Event("pointerdown", { bubbles: true }), {
+        clientX: 100,
+      }),
+    );
+    fireEvent(
+      window,
+      Object.assign(new Event("pointermove"), { clientX: 500 }),
+    );
     fireEvent(window, new Event("pointerup"));
     const key = "erp_colwidths_anon_t";
     expect(JSON.parse(localStorage.getItem(key)).a).toBeGreaterThanOrEqual(60);
-    fireEvent(window, Object.assign(new Event("pointermove"), { clientX: -9999 }));
+    fireEvent(
+      window,
+      Object.assign(new Event("pointermove"), { clientX: -9999 }),
+    );
     fireEvent.doubleClick(handle);
     expect(JSON.parse(localStorage.getItem(key) ?? "{}").a).toBeUndefined();
   });
 });
 
+describe("Table reset-columns overlay", () => {
+  it("is absolutely positioned inside a hover group, not a layout row", () => {
+    localStorage.setItem("erp_colwidths_anon_t", JSON.stringify({ a: 200 }));
+    const { container } = render(
+      <Table tableId="t">
+        <TableHeader>
+          <TableRow>
+            <TableHead id="a">A</TableHead>
+          </TableRow>
+        </TableHeader>
+      </Table>,
+    );
+    const btn = container.querySelector("[data-slot=table-reset-widths]");
+    expect(btn).toBeInTheDocument();
+    expect(btn.className).toContain("absolute");
+    expect(btn.className).toContain("group-hover/table:opacity-100");
+    expect(btn.parentElement.className).toContain("group/table");
+    localStorage.clear();
+  });
+});
+
 describe("Table scrollCue", () => {
   const setSize = (scrollWidth, clientWidth) => {
-    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(scrollWidth);
-    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(clientWidth);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(
+      scrollWidth,
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(
+      clientWidth,
+    );
   };
   afterEach(() => vi.restoreAllMocks());
 
   it("shows a right-edge cue when the table overflows", () => {
     setSize(900, 300);
     const { container } = render(<Sample scrollCue />);
-    expect(container.querySelector('[data-slot="table-scroll-cue"][data-edge="right"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-edge="left"]')).not.toBeInTheDocument();
+    expect(
+      container.querySelector(
+        '[data-slot="table-scroll-cue"][data-edge="right"]',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector('[data-edge="left"]'),
+    ).not.toBeInTheDocument();
   });
 
   it("shows no cue when the table fits", () => {
     setSize(300, 300);
     const { container } = render(<Sample scrollCue />);
-    expect(container.querySelector('[data-slot="table-scroll-cue"]')).not.toBeInTheDocument();
+    expect(
+      container.querySelector('[data-slot="table-scroll-cue"]'),
+    ).not.toBeInTheDocument();
   });
 
   it("adds no cue without the prop", () => {
     setSize(900, 300);
     const { container } = render(<Sample />);
-    expect(container.querySelector('[data-slot="table-scroll-cue"]')).not.toBeInTheDocument();
+    expect(
+      container.querySelector('[data-slot="table-scroll-cue"]'),
+    ).not.toBeInTheDocument();
   });
 });
