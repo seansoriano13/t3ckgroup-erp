@@ -365,3 +365,39 @@ describe("default sort sinks Terminal Stage SORs", () => {
     expect(rowOrder()).toEqual(["Company 2", "Company 1"])
   })
 })
+
+describe("SOR register paging", () => {
+  const many = Array.from({ length: 60 }, (_, i) => ({
+    ...MOCK_OPP_1,
+    id: `opp-many-${i + 1}`,
+    serial_no: i + 1,
+    sales_reference: `S${String(i + 1).padStart(5, "0")}`,
+    project_title: `Paged project ${i + 1}`,
+  }));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    opportunityService.getOpportunities.mockResolvedValue(many);
+  });
+
+  it("shows one page of rows and pages through the rest", async () => {
+    const user = setupUser();
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/sors"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    );
+
+    // Default sort is newest serial first: 60 down to 36 on page 1.
+    expect(await screen.findByText("Paged project 60")).toBeInTheDocument();
+    expect(screen.queryByText("Paged project 35")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+
+    expect(await screen.findByText("Paged project 35")).toBeInTheDocument();
+    expect(screen.queryByText("Paged project 60")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+  });
+});

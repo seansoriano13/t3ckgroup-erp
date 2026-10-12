@@ -404,7 +404,7 @@ export default function OpportunityFormModal({
       badge="OPP"
       formId={FORM_ID}
       isPending={isPending}
-      submitLabel={isEdit ? "Save Changes" : "Register"}
+      submitLabel={isEdit ? "Save changes" : "Register"}
     >
       <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-4 transition-[padding] duration-300 ease-in-out [&:has([data-state=open])]:pb-64">
         {!isEdit && (

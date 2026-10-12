@@ -22,6 +22,7 @@ import { CONDITION_KIND_META, conditionDetail } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
 import StageChecklistRow from "../sor/StageChecklistRow";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const emptyConfigFor = (kind) => {
   switch (kind) {
@@ -238,7 +239,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
 
       {/* Story 1: Kind comes first. */}
       <div className="rounded-xl border border-border bg-muted/30 p-3">
-        <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <span className={`mb-1 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
           Kind
         </span>
         <Dropdown
@@ -311,7 +312,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
 
       {kind === CONDITION_KINDS.ATTACHMENT && (
         <div className="rounded-xl border border-border bg-muted/30 p-3">
-          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
             Accepts — Any, if none chosen
           </span>
           <div className="flex flex-wrap gap-2">
@@ -345,7 +346,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
 
       {kind === CONDITION_KINDS.ASSIGNMENT && (
         <div className="rounded-xl border border-border bg-muted/30 p-3">
-          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
             Who — a specific employee, an Employee Group, or a Team
           </span>
           <PeoplePicker
@@ -394,7 +395,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
       {/* Story 3: a live preview of the exact row the SOR's checklist
           will show, fed a sample opportunity matching the draft. */}
       <div className="rounded-xl border border-dashed border-mauve-7 p-3">
-        <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
           Preview — how this looks on the SOR
         </span>
         <StageChecklistRow

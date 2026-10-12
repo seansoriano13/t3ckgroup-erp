@@ -25,13 +25,16 @@ const ROLES = [
 ];
 import { loadFAQFromDB, saveFAQToDB } from "../../services/faqService";
 import PageShell from "../../components/ui/PageShell";
+import { confirmDeleteToast } from "../../components/ui/CustomToast";
 import { Navigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { canEditFAQ } from "../../utils/faqAccess";
 import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
   const ref = useRef(null);
@@ -337,7 +340,7 @@ function CategoryStylePicker({ cat, onChange }) {
 
       {open && (
         <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-56 animate-slide-down">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+          <p className={`${CAPTION_BASE} tracking-widest text-muted-foreground mb-2`}>
             Icon
           </p>
           <div className="grid grid-cols-4 gap-1.5 mb-3">
@@ -359,7 +362,7 @@ function CategoryStylePicker({ cat, onChange }) {
             })}
           </div>
 
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+          <p className={`${CAPTION_BASE} tracking-widest text-muted-foreground mb-2`}>
             Color
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -395,9 +398,10 @@ export default function FAQEditorPage() {
   const [categories, setCategories] = useState([]);
   const [activeCatId, setActiveCatId] = useState(null);
   const [saved, setSaved] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // JSON of the last loaded / saved categories; edits are "unsaved" when they differ.
+  const [baseline, setBaseline] = useState(null);
 
   // Load FAQ data from Supabase on mount
   useEffect(() => {
@@ -406,6 +410,7 @@ export default function FAQEditorPage() {
       .then((fresh) => {
         if (cancelled) return;
         setCategories(fresh);
+        setBaseline(JSON.stringify(fresh));
         setActiveCatId(fresh[0]?.id ?? null);
       })
       .catch((err) => console.error("[FAQEditor] load error:", err))
@@ -487,6 +492,7 @@ export default function FAQEditorPage() {
     try {
       setSaving(true);
       await saveFAQToDB(categories);
+      setBaseline(JSON.stringify(categories));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -497,22 +503,27 @@ export default function FAQEditorPage() {
     }
   };
 
-  const handleReset = async () => {
-    if (!confirmReset) {
-      setConfirmReset(true);
-      setTimeout(() => setConfirmReset(false), 3000);
-      return;
-    }
+  const handleReset = () => {
+    confirmDeleteToast(
+      "Clear all FAQs?",
+      "Every category and question is removed. This cannot be undone.",
+      doReset,
+    );
+  };
+
+  const doReset = async () => {
     try {
       await saveFAQToDB([]);
+      setBaseline("[]");
       setCategories([]);
       setActiveCatId(null);
     } catch (err) {
       toast.error("Failed to reset FAQs");
       console.error("[FAQEditor] reset error:", err);
     }
-    setConfirmReset(false);
   };
+
+  useUnsavedGuard(baseline !== null && !saving && JSON.stringify(categories) !== baseline);
 
   const totalItems = categories.reduce((acc, c) => acc + c.items.length, 0);
 
@@ -530,14 +541,10 @@ export default function FAQEditorPage() {
           <Button
             variant="outline"
             onClick={handleReset}
-            className={`h-auto gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
-              confirmReset
-                ? "border-red-300 bg-red-50 text-red-600 hover:bg-red-50"
-                : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
+            className="h-auto gap-1.5 rounded-lg border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <RotateCcw size={12} />
-            {confirmReset ? "Confirm Reset?" : "Clear all"}
+            Clear all
           </Button>
 
           {/* Save */}

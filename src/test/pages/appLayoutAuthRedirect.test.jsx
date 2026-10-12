@@ -76,7 +76,7 @@ describe("AppLayout auth redirect", () => {
   it("does not redirect while the session is still resolving", () => {
     renderAt("/tasks", { user: null, isAuthLoading: true });
     expect(screen.queryByText("Login Screen")).not.toBeInTheDocument();
-    expect(screen.getByText(/Loading Portal/i)).toBeInTheDocument();
+    expect(screen.getByText(/Loading portal/i)).toBeInTheDocument();
   });
 
   it("renders the page for a logged-in visitor", () => {

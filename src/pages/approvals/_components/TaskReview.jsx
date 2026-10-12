@@ -14,6 +14,7 @@ import { checklistProgressLabel, isChecklistDescription, resolveApprovalShortcut
 import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import { APPROVE_CLASS, NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * Reviewing one task inside the sheet: the head grades it (queue "tasks"), or
@@ -226,7 +227,7 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
             {!isHr && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Grade</span>
+                  <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Grade</span>
                   <span className="text-[10px] text-muted-foreground">Keys 1–5</span>
                 </div>
                 <GradeSelector grade={grade} onSelect={setGrade} canEvaluate />

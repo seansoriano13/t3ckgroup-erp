@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import { useAuth } from "../../../context/AuthContext";
@@ -16,7 +17,6 @@ import HrLogsPanel from "../../../components/hr/HrLogsPanel";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
 import TabGroup from "../../../components/ui/TabGroup";
-import Spinner from "../../../components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useTableSort } from "@/hooks/useTableSort";
@@ -24,6 +24,7 @@ import { useTableSort } from "@/hooks/useTableSort";
 import { Activity, CheckSquare, Square } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge.jsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const PAGE_SIZE = 50;
 
@@ -159,7 +160,7 @@ function EntryTitle({ title, search }) {
         </span>
       ))}
       {remaining > 0 && (
-        <span className="block pl-5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+        <span className={`block pl-5 ${CAPTION_BASE} tracking-wider text-muted-foreground/60`}>
           + {remaining} more checklist item{remaining !== 1 ? "s" : ""}
         </span>
       )}
@@ -392,9 +393,7 @@ export default function SuperAdminActivityLogPage() {
     body = <HrLogsPanel />;
   } else if (isLoading) {
     body = (
-      <div className="flex justify-center py-20">
-        <Spinner size="md" />
-      </div>
+      <PageLoading label="activity log" />
     );
   } else if (isError) {
     body = <LogLoadError title="Failed to load activity log" message={error?.message} />;
@@ -414,7 +413,7 @@ export default function SuperAdminActivityLogPage() {
     body = (
       <>
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table tableId="activity-log">
+          <Table scrollCue tableId="activity-log">
             <TableHeader>
               <TableRow>
                 <SortHead id="when" sortKey="when" sort={sort} onSort={toggle}>When</SortHead>
@@ -473,13 +472,13 @@ export default function SuperAdminActivityLogPage() {
                           {humanizeCode(e.type || "SYSTEM")}
                         </span>
                         {e.isGroup && (
-                          <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-11">
+                          <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-violet-11">
                             Group Task
                           </span>
                         )}
                         {(activeTab === "SYSTEM" || activeTab === "SOR") && e.entityType && (
                           <span
-                            className={`rounded-sm border px-1.5 py-0.5 text-[9px] font-black tracking-wider ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
+                            className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-black tracking-wider ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
                           >
                             {humanizeCode(e.entityType)}
                           </span>

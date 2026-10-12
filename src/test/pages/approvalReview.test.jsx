@@ -88,7 +88,7 @@ function renderTable(tasks, props = {}) {
     const onOpen = vi.fn()
     const items = tasks.map((t) => taskToItem(t, "tasks"))
     const result = renderWithProviders(
-        <ApprovalTable items={items} queueIcon={() => null} onOpen={onOpen} empty={{ title: "Queue is Clear!", description: "" }} {...props} />,
+        <ApprovalTable items={items} queueIcon={() => null} onOpen={onOpen} empty={{ title: "Queue is clear", description: "" }} {...props} />,
     )
     return { ...result, onOpen, items }
 }
@@ -455,5 +455,19 @@ describe("TaskReview", () => {
             await waitForNetworkIdle()
             expect(rowOf(task.id).grade).toBe(5)
         })
+    })
+})
+
+describe("ApprovalTable paging", () => {
+    it("pages through rows with the shared pager", async () => {
+        const user = setupUser()
+        const tasks = Array.from({ length: 30 }, (_, i) => seedPending({ task_description: `Paged request ${String(i).padStart(2, "0")}` }))
+        renderTable(tasks, { paginate: true })
+
+        expect(screen.getByText("Page 1 of 2")).toBeInTheDocument()
+        expect(screen.getAllByRole("row")).toHaveLength(26) // header + 25
+        await user.click(screen.getByRole("button", { name: /next page/i }))
+        expect(screen.getByText("Page 2 of 2")).toBeInTheDocument()
+        expect(screen.getAllByRole("row")).toHaveLength(6) // header + 5
     })
 })

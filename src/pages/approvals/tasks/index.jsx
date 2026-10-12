@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
@@ -234,10 +235,7 @@ function TaskApprovalsQueue() {
 
   if (q.isLoadingTasks) {
     return (
-      <div className="flex h-[60vh] flex-col items-center justify-center py-20 text-muted-foreground">
-        <Spinner size="md" />
-        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Task Approvals…</p>
-      </div>
+      <PageLoading label="task approvals" className="h-[60vh]" />
     );
   }
 
@@ -280,7 +278,7 @@ function TaskApprovalsQueue() {
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: pending.length || undefined },
             { value: "ACTIVE", label: "Active (<48h)", icon: Clock, badge: active.length || undefined },
-            { value: "STALE", label: "Stale Backlog (>48h)", icon: AlertTriangle, badge: stale.length || undefined },
+            { value: "STALE", label: "Stale Backlog (≥48h)", icon: AlertTriangle, badge: stale.length || undefined },
             { value: "VERIFIED", label: "Recently Approved", icon: History, badge: decided.length || undefined },
           ]}
           view={view}
@@ -356,10 +354,10 @@ function TaskApprovalsQueue() {
           }
           empty={
             view === "STALE"
-              ? { title: "No Stale Backlog!", description: "Every task older than 48 hours has been graded." }
+              ? { title: "No stale backlog", description: "Every task older than 48 hours has been graded." }
               : isDecidedView
-                ? { title: "No Approved Tasks", description: "Tasks you grade will appear here." }
-                : { title: "Queue is Clear!", description: "You’re all caught up on approvals." }
+                ? { title: "No approved tasks", description: "Tasks you grade will appear here." }
+                : { title: "Queue is clear", description: "You’re all caught up on approvals." }
           }
         />
       </ApprovalCenterLayout>

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import {
   Table,
@@ -92,5 +92,32 @@ describe("Table column resizing", () => {
     fireEvent(window, Object.assign(new Event("pointermove"), { clientX: -9999 }));
     fireEvent.doubleClick(handle);
     expect(JSON.parse(localStorage.getItem(key) ?? "{}").a).toBeUndefined();
+  });
+});
+
+describe("Table scrollCue", () => {
+  const setSize = (scrollWidth, clientWidth) => {
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(scrollWidth);
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(clientWidth);
+  };
+  afterEach(() => vi.restoreAllMocks());
+
+  it("shows a right-edge cue when the table overflows", () => {
+    setSize(900, 300);
+    const { container } = render(<Sample scrollCue />);
+    expect(container.querySelector('[data-slot="table-scroll-cue"][data-edge="right"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-edge="left"]')).not.toBeInTheDocument();
+  });
+
+  it("shows no cue when the table fits", () => {
+    setSize(300, 300);
+    const { container } = render(<Sample scrollCue />);
+    expect(container.querySelector('[data-slot="table-scroll-cue"]')).not.toBeInTheDocument();
+  });
+
+  it("adds no cue without the prop", () => {
+    setSize(900, 300);
+    const { container } = render(<Sample />);
+    expect(container.querySelector('[data-slot="table-scroll-cue"]')).not.toBeInTheDocument();
   });
 });

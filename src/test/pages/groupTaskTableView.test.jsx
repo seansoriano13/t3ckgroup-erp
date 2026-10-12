@@ -87,6 +87,32 @@ describe("GroupTaskTableView", () => {
       <GroupTaskTableView tasks={[]} searchTerm="" onView={vi.fn()} />,
     );
 
-    expect(screen.getByText("No Group Tasks Found")).toBeInTheDocument();
+    expect(screen.getByText("No group tasks found")).toBeInTheDocument();
+  });
+});
+
+describe("GroupTaskTableView paging", () => {
+  it("pages through tasks with the shared pager", async () => {
+    const user = setupUser();
+    const tasks = Array.from({ length: 30 }, (_, i) =>
+      mockGroupTask({
+        id: `g${i}`,
+        title: `Paged task ${String(i).padStart(2, "0")}`,
+        created_at: `2026-03-${String(i + 1).padStart(2, "0")}T00:00:00Z`,
+      }),
+    );
+
+    renderWithProviders(<GroupTaskTableView tasks={tasks} searchTerm="" onView={vi.fn()} />);
+
+    // Newest first: 29 down to 05 on page 1.
+    expect(screen.getByText("Paged task 29")).toBeInTheDocument();
+    expect(screen.queryByText("Paged task 04")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+
+    expect(screen.getByText("Paged task 04")).toBeInTheDocument();
+    expect(screen.queryByText("Paged task 29")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
   });
 });

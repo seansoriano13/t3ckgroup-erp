@@ -302,7 +302,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/FieldBox.jsx`. Form-field Primitive, label plus control. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `bare`, `inline`, `htmlFor`, `className`, `children`. Default: caption above a bordered control box; `bare`: caption above children, no box; no children: caption only (pass `htmlFor`); `inline`: label wraps children, for checkbox and switch rows. A lone child control is associated with the label automatically.
 
 #### Table
-`ui/table.jsx`. Replaces raw `<table>`. Styling-only set: `Table` (wraps in a horizontal scroll container), `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`. Native table props plus `className`. Sorting, pagination and selection stay in feature code. Opt-in column resize: give `Table` a `tableId` and a `TableHead` an `id` and that column gets a drag handle (double-click resets it); widths are saved per user and table in localStorage. Use it on page-level Registers and Queues, not on small embedded tables. `SortHead` is a `TableHead` you tap to sort (up/down arrows, `aria-sort`); pair it with the `useTableSort` hook, which sorts ascending, then descending, then back to the original order. On touch screens the resize handle widens to 24px, and a "Reset columns" button shows once widths are saved.
+`ui/table.jsx`. Replaces raw `<table>`. Styling-only set: `Table` (wraps in a horizontal scroll container), `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`. Native table props plus `className`. Sorting, pagination and selection stay in feature code. Opt-in column resize: give `Table` a `tableId` and a `TableHead` an `id` and that column gets a drag handle (double-click resets it); widths are saved per user and table in localStorage. Use it on page-level Registers and Queues, not on small embedded tables. `SortHead` is a `TableHead` you tap to sort (up/down arrows, `aria-sort`); pair it with the `useTableSort` hook, which sorts ascending, then descending, then back to the original order. On touch screens the resize handle widens to 24px, and a "Reset columns" button shows once widths are saved. Opt-in `scrollCue` fades the edge that still has columns off-screen (none when the table fits); used on the admin tables that stay desktop-width.
 
 #### Dropdown
 `ui/Dropdown.jsx`. Trigger-plus-children popover or menu, no options or value, not a select. Props: `trigger`, `children`, `isOpen`, `onToggle`, `onClose`, `placement`, `className`, `popoverClassName`, `usePortal`, `disabled`. Nested Dropdowns are DOM siblings, handled by its nesting context (`ui/dropdownNesting.js`: `DropdownNestingContext`, `useDropdownNestedPopoverRef`, the hook for any popover portalled out of a Dropdown).
@@ -396,6 +396,18 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 
 #### ExternalLink
 `ui/external-link.jsx`. Anchor for outside URLs; always `target="_blank"` with `rel="noopener noreferrer"` (caller `rel` is merged). Internal links use the router `Link`.
+
+#### PageLoading
+`ui/PageLoading.jsx`. The one page/section loading state: spinner plus sentence-case "Loading X…". Props: `label` (the noun, e.g. "task approvals", not the sentence), `className`.
+
+#### ChatScroller
+`ui/ChatScroller.jsx`. Scrolling body of a Chat that loads older Messages at the top, keeps your place when they arrive, and parks new Messages behind a "New messages" pill unless you were at the bottom. Props: `firstKey`/`lastKey` (ids of oldest/newest loaded Message) plus paging callbacks; drive with `usePagedChat`.
+
+#### TablePager
+`ui/TablePager.jsx`. List footer: "Showing X to Y of N", rows-per-page select, Prev / Next. Drive with `usePaging`: `<TablePager {...paging} noun="tasks" />`. Props: `total`, `page`, `pageSize`, `totalPages`, `setPage`, `setPageSize`, `noun`, `children` (far end of the bar), `className`.
+
+#### DesktopNotice
+`ui/DesktopNotice.jsx`. "Best on desktop" note for admin and config surfaces not built for a phone; visible below `md` only. Props: `children` (default "This page is best on desktop."), `className`.
 
 ## Pages
 

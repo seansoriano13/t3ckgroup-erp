@@ -4,6 +4,7 @@ import { cleanChoiceOptions } from "./choiceOptions";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * How a Stage field will look on the SOR, drawn from the draft being edited.
@@ -13,7 +14,7 @@ import { SelectField } from "@/components/ui/SelectField";
 export default function StageFieldPreview({ draft }) {
   return (
     <div className="rounded-xl border border-dashed border-mauve-7 p-3">
-      <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+      <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
         Preview — how this looks on the SOR
       </span>
       <div className="space-y-1 rounded-lg bg-card/60 p-3 outline outline-1 -outline-offset-1 outline-mauve-5">

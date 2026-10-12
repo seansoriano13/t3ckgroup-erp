@@ -8,7 +8,7 @@ import ChangelogModal from "../components/ChangelogModal";
 import IssuedPasswordBanner from "../components/IssuedPasswordBanner";
 import BugReportButton from "../components/BugReportButton";
 
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 
 export default function AppLayout() {
   const { user, isAuthLoading } = useAuth();
@@ -48,12 +48,7 @@ export default function AppLayout() {
   if (isAuthLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-mauve-2">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Spinner size="md" />
-          <p className="text-sm font-bold uppercase tracking-widest animate-pulse">
-            Loading Portal...
-          </p>
-        </div>
+        <PageLoading label="portal" className="py-0" />
       </div>
     );
   }

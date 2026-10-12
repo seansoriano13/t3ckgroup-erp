@@ -18,6 +18,7 @@ import { formatPHP, isWonCode } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -259,7 +260,7 @@ export default function EmployeeOpportunityMatrix({
                 </div>
 
                 <div className="flex-1 flex flex-col justify-center min-w-0 w-full lg:w-auto">
-                  <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">
+                  <div className={`flex justify-between ${CAPTION_BASE} tracking-widest text-muted-foreground mb-1.5`}>
                     <span>Pipeline</span>
                     <span className="text-foreground">
                       {emp.total} · {formatPHP(emp.value)}
@@ -431,7 +432,7 @@ export default function EmployeeOpportunityMatrix({
 
               {/* Segmented Pipeline Bar */}
               <div className="mt-3.5">
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                <div className={`flex justify-between ${CAPTION_BASE} tracking-wider text-muted-foreground mb-1.5`}>
                   <span>Pipeline</span>
                   <span className="text-foreground">{emp.total} Total</span>
                 </div>

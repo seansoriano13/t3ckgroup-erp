@@ -3,6 +3,7 @@ import { Button } from "./button";
 import Avatar from "../Avatar";
 import { useEmployeeAvatarMap } from "../../hooks/useEmployeeAvatarMap";
 import { formatDate } from "../../utils/formatDate.js";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /** The approval chain as a vertical stepper, the reviewer's own step marked "Now". */
 export function ApprovalChain({ chain }) {
@@ -25,7 +26,7 @@ export function ApprovalChain({ chain }) {
           <div className="min-w-0 pt-0.5">
             <p className={`text-[13px] font-semibold ${s.state === "next" ? "text-muted-foreground" : "text-foreground"}`}>
               {s.label}
-              {s.state === "current" && <span className="ml-2 rounded-full bg-blue-3 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-11">Now</span>}
+              {s.state === "current" && <span className={`ml-2 rounded-full bg-blue-3 px-1.5 py-0.5 ${CAPTION_BASE} tracking-wider text-blue-11`}>Now</span>}
             </p>
             <p className="text-xs text-muted-foreground">
               {s.who}
@@ -62,7 +63,7 @@ export function NotePresets({ presets, onPick }) {
 export function DetailSection({ title, aside, children }) {
   return (
     <section>
-      <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+      <h3 className={`mb-2 flex items-center gap-1.5 ${CAPTION_BASE} tracking-wider text-muted-foreground`}>
         {title}
         {aside}
       </h3>

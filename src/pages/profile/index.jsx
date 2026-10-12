@@ -14,6 +14,7 @@ import {
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../../context/AuthContext";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -325,6 +326,8 @@ export default function ProfilePage() {
     removeQuote ||
     customQuote.trim() !== initialQuote ||
     bannerUrlInput.trim() !== initialBannerUrl;
+
+  useUnsavedGuard(hasChanges && !isSaving);
 
   return (
     <PageShell

@@ -1,4 +1,7 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useState, useMemo } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 import QueryError from "@/components/ui/QueryError";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +13,6 @@ import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
 import { UserPlus, Edit, Trash2, Shield, KeyRound, Users } from "lucide-react";
 import { passwordService } from "../../../services/passwordService";
-import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -142,6 +144,7 @@ export default function EmployeeManagement() {
     roleFlagFilter,
     sortBy,
   ]);
+  const paging = usePaging(filteredEmployees);
 
   const filterSetters = {
     searchTerm: setSearchTerm,
@@ -275,8 +278,9 @@ export default function EmployeeManagement() {
       >
         {activeTab === "employees" ? (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <Table tableId="hr-employees" className="whitespace-nowrap">
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="overflow-x-auto">
+              <Table scrollCue tableId="hr-employees" className="whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
                     <TableHead id="name">Name</TableHead>
@@ -302,14 +306,13 @@ export default function EmployeeManagement() {
                     <TableRow>
                       <TableCell
                         colSpan={10}
-                        className="p-10 text-center text-muted-foreground font-bold"
+                        className="p-0"
                       >
-                        <Spinner size="md" />
-                        Loading employees…
+                        <PageLoading label="employees" />
                       </TableCell>
                     </TableRow>
                   ) : filteredEmployees.length > 0 ? (
-                    filteredEmployees.map((emp) => (
+                    paging.rows.map((emp) => (
                       <TableRow
                         key={emp.id}
                       >
@@ -474,6 +477,8 @@ export default function EmployeeManagement() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+            {!isError && !isLoading && filteredEmployees.length > 0 && <TablePager {...paging} noun="employees" />}
             </div>
           </div>
         ) : activeTab === "categories" ? (

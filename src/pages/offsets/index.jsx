@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import React, { useState, useMemo, useCallback } from 'react';
 import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +13,6 @@ import PageShell from '../../components/ui/PageShell';
 import EmptyState from '../../components/ui/EmptyState';
 import FilterBar from '../../components/ui/FilterBar';
 import { FilterSelect } from '../../components/ui/FilterDropdown';
-import Spinner from '../../components/ui/Spinner';
 import TabGroup from '../../components/ui/TabGroup';
 import { Button } from '@/components/ui/button';
 import FloatingMonthPicker from '../../components/FloatingMonthPicker';
@@ -23,6 +23,7 @@ import { getMonthBoundaries } from '../../utils/dateUtils';
 import { mergeRequestRows } from '../../utils/mergeRequests';
 import RequestsTable from './_components/RequestsTable';
 import { REQUEST_TYPE_BADGE } from './_components/requestTypes';
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 // How each request type withdraws; its label and badge live beside the table.
 const REQUEST_WITHDRAW = {
@@ -154,7 +155,7 @@ export default function EmployeeLeavesPage() {
         const value = parseFloat(hours) || 0;
         return (
           <div key={label} className="flex flex-col">
-            <dt className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</dt>
+            <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>{label}</dt>
             <dd className={`font-mono text-sm font-semibold tabular-nums ${value > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
               {value.toFixed(1)}
               <span className="ml-1 font-sans text-xs font-medium text-muted-foreground">hrs</span>
@@ -172,6 +173,7 @@ export default function EmployeeLeavesPage() {
         description="Track every leave, offset, overtime and undertime request you've filed, and see where each one stands."
         action={
           <>
+            <FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} />
             {balances}
             <span aria-hidden="true" className="hidden h-8 w-px bg-border sm:block" />
             <Button onClick={() => setIsApplyModalOpen(true)}>
@@ -184,7 +186,7 @@ export default function EmployeeLeavesPage() {
           <TabGroup
             variant="underline"
             tabs={[
-              { value: 'requests', label: 'My Requests', badge: requests.length },
+              { value: 'requests', label: 'Requests', badge: requests.length },
               { value: 'calendar', label: 'Calendar' },
             ]}
             activeTab={activeTab}
@@ -212,11 +214,6 @@ export default function EmployeeLeavesPage() {
           )
         }
       >
-        {/* Date Picker Overlay */}
-        <FloatingMonthPicker
-          selectedRange={dateRange}
-          onChange={setDateRange}
-        />
 
         {activeTab === 'calendar' && (
           <div className="animate-in fade-in duration-300">
@@ -233,10 +230,7 @@ export default function EmployeeLeavesPage() {
           isError ? (
             <QueryError title="Your requests could not be loaded." onRetry={refetch} />
           ) : loadingHistory ? (
-            <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
-              <Spinner size="sm" />
-              <span className="text-sm font-bold">Loading requests…</span>
-            </div>
+            <PageLoading label="requests" />
           ) : filteredRequests.length === 0 ? (
             <EmptyState
               icon={CalendarDays}

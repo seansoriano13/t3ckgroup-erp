@@ -103,6 +103,7 @@ import {
   satellitePosition,
   stageBox,
 } from "./flowCanvasLayout";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const nodeTypes = {
   stage: FlowCanvasNode,
@@ -1151,7 +1152,7 @@ function FlowCanvasInner() {
         <div className="pointer-events-none absolute inset-x-0 top-[4.25rem] z-30 flex justify-center px-3 2xl:top-3">
           <div className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-card/95 px-4 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
             <div className="flex items-center gap-2">
-              <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              <span className={`rounded-md bg-blue-500/15 px-1.5 py-0.5 ${CAPTION_BASE} tracking-wider text-blue-600 dark:text-blue-400`}>
                 Preview
               </span>
               <p className="text-sm font-bold text-foreground">
@@ -1328,7 +1329,7 @@ function FlowCanvasInner() {
                 </Dropdown>
 
                 {selectedSaleType?.archived_at && (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                  <span className={`rounded-full bg-muted px-2 py-0.5 ${CAPTION_BASE} tracking-wide text-muted-foreground`}>
                     Archived
                   </span>
                 )}

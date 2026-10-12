@@ -79,14 +79,12 @@ const SPURIOUS = [
 const oldestFirst = (notes) => [...notes].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
 function Notes({ notes }) {
-  const containerRef = useRef(null)
   const fileInputRef = useRef(null)
   return (
     <div className="h-[380px]">
       <SorChatColumn
         notes={notes}
         loadingNotes={false}
-        notesContainerRef={containerRef}
         handleMentionClick={noop}
         note=""
         setNote={noop}

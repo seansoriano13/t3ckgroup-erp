@@ -2,6 +2,7 @@ import { Download, Loader2 } from "lucide-react";
 import { TextField, SelectField } from "./SorField";
 import { isValidSalesReference } from "../../constants/sor";
 import { Button } from "../ui/button";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * One field of the SOR registration form, rendered from its resolved
@@ -132,7 +133,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
                 variant="ghost"
                 onClick={handleUndoCompany}
                 title={`Restore "${displacedCompany}"`}
-                className="h-auto -my-1.5 -mr-1 px-1.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-mauve-12 underline underline-offset-2 decoration-mauve-8 hover:decoration-mauve-11 hover:bg-transparent"
+                className={`h-auto -my-1.5 -mr-1 px-1.5 py-1.5 ${CAPTION_BASE} tracking-widest text-mauve-12 underline underline-offset-2 decoration-mauve-8 hover:decoration-mauve-11 hover:bg-transparent`}
               >
                 Undo
               </Button>

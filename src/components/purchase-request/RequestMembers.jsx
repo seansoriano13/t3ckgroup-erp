@@ -111,7 +111,7 @@ export default function RequestMembers({ request, rail = false }) {
                   aria-label={`Remove ${m.name}`}
                   onClick={() => setRemoving(m)}
                   disabled={remove.isPending}
-                  className="-mr-0.5 size-4 rounded-full p-0 text-muted-foreground/70 hover:bg-muted hover:text-foreground active:scale-95"
+                  className="-mr-0.5 size-6 rounded-full p-0 text-muted-foreground/70 hover:bg-muted hover:text-foreground active:scale-95"
                 >
                   <X size={11} />
                 </Button>

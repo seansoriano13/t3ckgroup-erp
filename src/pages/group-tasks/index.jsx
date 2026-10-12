@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 import { Users, Plus, LayoutGrid, Table as TableIcon } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
 import { Button } from "@/components/ui/button";
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 
 import GroupTaskCard from "./_components/GroupTaskCard";
 import GroupTaskTableView from "./_components/GroupTaskTableView";
@@ -21,6 +21,8 @@ import GroupTaskFilterBar from "../../components/GroupTaskFilterBar";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
 import { useMemo } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 
 const GROUP_TASK_FILTER_DEFAULTS = {
   statusFilter: "ALL",
@@ -149,6 +151,7 @@ export default function GroupTasksPage() {
       crmOnly,
     },
   );
+  const gridPaging = usePaging(filteredTasks);
 
   const currentFilters = {
     statusFilter,
@@ -367,12 +370,7 @@ export default function GroupTasksPage() {
 
   if (isLoading) {
     return (
-      <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
-        <Spinner size="md" />
-        <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Loading Group Tasks…
-        </p>
-      </div>
+      <PageLoading label="group tasks" className="h-[60vh]" />
     );
   }
 
@@ -438,23 +436,26 @@ export default function GroupTasksPage() {
       ) : (
         /* GRID */
         filteredTasks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredTasks.map((task) => (
-              <GroupTaskCard
-                key={task.id}
-                task={task}
-                currentUserId={user?.id}
-                isSuperAdmin={isSuperAdmin}
-                onView={() => setSelectedTaskId(task.id)}
-                searchTerm={searchTerm}
-                // demoProgress={index === 0 ? demoProgress : undefined}
-              />
-            ))}
+          <div className="pb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {gridPaging.rows.map((task) => (
+                <GroupTaskCard
+                  key={task.id}
+                  task={task}
+                  currentUserId={user?.id}
+                  isSuperAdmin={isSuperAdmin}
+                  onView={() => setSelectedTaskId(task.id)}
+                  searchTerm={searchTerm}
+                  // demoProgress={index === 0 ? demoProgress : undefined}
+                />
+              ))}
+            </div>
+            <TablePager {...gridPaging} noun="tasks" className="mt-4 rounded-xl border" />
           </div>
         ) : (
           <EmptyState
             icon={Users}
-            title="No Group Tasks Found"
+            title="No group tasks found"
             description={
               groupTasks.length > 0
                 ? "No group tasks match these filters."

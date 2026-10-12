@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CircleAlert, MessageSquareReply, Paperclip } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
+import { useEffect, useState } from "react";
+import { CircleAlert, MessageSquareReply, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SelectField } from "@/components/ui/SelectField";
+import { TablePager } from "@/components/ui/TablePager";
 import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePaging } from "@/hooks/usePaging";
 import { useTableSort } from "@/hooks/useTableSort";
 import HighlightText from "../../../components/HighlightText";
 import { shortAge, shortDate } from "../../../utils/approvalItems.js";
@@ -11,6 +13,7 @@ import { neighbourTaskId, resolveNavigationKey } from "../../../utils/approvalQu
 import { StageMeter, StatusPill } from "./ApprovalParts";
 import { statusOf } from "./approvalUi";
 import { PersonChip } from "@/components/ui/DetailParts";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const APPROVAL_SORT = {
   request: (i) => i.title,
@@ -20,7 +23,7 @@ const APPROVAL_SORT = {
   status: (i) => statusOf(i),
 };
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const HEAD = `${CAPTION_BASE} tracking-wider`;
 
 /**
  * One dense table for any Approval Center queue.
@@ -49,15 +52,8 @@ export function ApprovalTable({
 }) {
   const { sorted: items, sort, toggle } = useTableSort(unsortedItems, APPROVAL_SORT);
   const [cursorId, setCursorId] = useState(null);
-  const [pageSize, setPageSize] = useState(25);
-  const [page, setPage] = useState(1);
-
-  const totalPages = paginate ? Math.ceil(items.length / pageSize) || 1 : 1;
-  const currentPage = Math.min(page, totalPages);
-  const rows = useMemo(
-    () => (paginate ? items.slice((currentPage - 1) * pageSize, currentPage * pageSize) : items),
-    [paginate, items, currentPage, pageSize],
-  );
+  const paging = usePaging(items);
+  const rows = paginate ? paging.rows : items;
   const cursor = rows.some((i) => i.id === cursorId) ? cursorId : rows[0]?.id;
 
   useEffect(() => {
@@ -86,24 +82,23 @@ export function ApprovalTable({
 
   if (items.length === 0 && filtered) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-20 text-center">
-        <p className="text-sm font-bold text-foreground">No results match these filters</p>
-        <p className="max-w-sm text-xs text-muted-foreground">Nothing here fits the current search or filters.</p>
-        {onClearFilters && (
-          <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
-            Clear filters
-          </Button>
-        )}
-      </div>
+      <EmptyState
+        title="No results match these filters"
+        description="Nothing here fits the current search or filters."
+        action={
+          onClearFilters && (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          )
+        }
+      />
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-20 text-center">
-        <p className="text-sm font-bold text-foreground">{empty?.title}</p>
-        <p className="max-w-sm text-xs text-muted-foreground">{empty?.description}</p>
-      </div>
+      <EmptyState title={empty?.title} description={empty?.description} action={empty?.action} />
     );
   }
 
@@ -115,16 +110,16 @@ export function ApprovalTable({
       <Table tableId="approvals">
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="w-10 pl-4">
+            <TableHead className="hidden w-10 pl-4 md:table-cell">
               {selectable && <Checkbox checked={allChecked} onCheckedChange={(v) => onToggleAll?.(v, rows)} aria-label="Select all" />}
             </TableHead>
             <SortHead id="request" sortKey="request" sort={sort} onSort={toggle} className={HEAD}>Request</SortHead>
-            <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={HEAD}>{personLabel}</SortHead>
+            <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>{personLabel}</SortHead>
             <SortHead id="submitted" sortKey="submitted" sort={sort} onSort={toggle} className={`${HEAD} hidden lg:table-cell`}>Submitted</SortHead>
             <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>Waiting</SortHead>
             <TableHead id="stage" className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
             <SortHead id="status" sortKey="status" sort={sort} onSort={toggle} className={HEAD}>Status</SortHead>
-            <TableHead className="w-24">
+            <TableHead className="w-12 md:w-24">
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
@@ -153,12 +148,12 @@ export function ApprovalTable({
                 }}
                 className={`group h-14 cursor-pointer outline-none focus-visible:bg-muted ${cursor === item.id && keyboard ? "bg-muted/60" : ""}`}
               >
-                <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
+                <TableCell className="hidden pl-4 md:table-cell" onClick={(e) => e.stopPropagation()}>
                   {selectable && <Checkbox checked={checked} onCheckedChange={() => onToggle?.(item.id)} aria-label={`Select ${item.title}`} />}
                 </TableCell>
-                <TableCell className="max-w-[280px] 2xl:max-w-[360px]">
+                <TableCell className="w-full max-w-0 md:w-auto md:max-w-[280px] 2xl:max-w-[360px]">
                   <div className="flex items-center gap-2.5">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                    <span className="hidden size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground sm:grid">
                       <QueueIcon size={14} />
                     </span>
                     <div className="min-w-0">
@@ -168,7 +163,7 @@ export function ApprovalTable({
                           <HighlightText text={item.title} search={searchTerm} />
                         </span>
                         {replied && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-11" title="You replied on this task">
+                          <span className={`inline-flex shrink-0 items-center gap-0.5 ${CAPTION_BASE} tracking-wider text-blue-11`} title="You replied on this task">
                             <MessageSquareReply size={11} /> Replied
                           </span>
                         )}
@@ -184,7 +179,7 @@ export function ApprovalTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="max-w-[180px]">
+                <TableCell className="hidden max-w-[180px] md:table-cell">
                   <PersonChip person={item.person} />
                 </TableCell>
                 <TableCell className="hidden whitespace-nowrap font-mono text-xs text-muted-foreground lg:table-cell">{shortDate(item.submittedAt)}</TableCell>
@@ -197,65 +192,30 @@ export function ApprovalTable({
                 <TableCell>
                   <StatusPill item={item} />
                 </TableCell>
-                <TableCell className="pr-4 text-right" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-end gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{renderRowAction?.(item)}</div>
+                <TableCell className="pr-2 text-right md:pr-4" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-end gap-1 max-md:opacity-100 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{renderRowAction?.(item)}</div>
                 </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
-      <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-        <div className="flex items-center gap-3">
-          <span>
-            {paginate ? (
-              <>
-                Showing <span className="font-semibold text-foreground">{(currentPage - 1) * pageSize + 1}</span> to{" "}
-                <span className="font-semibold text-foreground">{Math.min(currentPage * pageSize, items.length)}</span> of{" "}
-                <span className="font-semibold text-foreground">{items.length}</span> requests
-              </>
-            ) : (
-              <>
-                {items.length} request{items.length === 1 ? "" : "s"}
-              </>
-            )}
+      {paginate ? (
+        <TablePager {...paging} noun="requests">
+          <span className="hidden sm:inline">
+            <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
           </span>
-          {paginate && (
-            <>
-              <span className="text-border">|</span>
-              <div className="flex items-center gap-1.5">
-                <span>Rows:</span>
-                <SelectField
-                  value={pageSize}
-                  onChange={(next) => {
-                    setPageSize(Number(next));
-                    setPage(1);
-                  }}
-                  options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
-                  size="sm"
-                  aria-label="Rows per page"
-                />
-              </div>
-            </>
-          )}
+        </TablePager>
+      ) : (
+        <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+          <span>
+            {items.length} request{items.length === 1 ? "" : "s"}
+          </span>
+          <span className="hidden sm:inline">
+            <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
+          </span>
         </div>
-        {paginate && totalPages > 1 && (
-          <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} title="Previous Page" aria-label="Previous page">
-              <ChevronLeft size={14} />
-            </Button>
-            <span className="px-2 text-xs font-semibold text-foreground">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} title="Next Page" aria-label="Next page">
-              <ChevronRight size={14} />
-            </Button>
-          </div>
-        )}
-        <span className="hidden sm:inline">
-          <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
-        </span>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "@/utils/formatDate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,7 +15,9 @@ import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/FileInput";
 import { AttachmentList, AttachmentPreviews } from "@/components/ui/Attachments";
 import MentionTextarea, { NoteText } from "@/components/ui/MentionTextarea";
+import ChatScroller from "@/components/ui/ChatScroller";
 import { useFileAttachments } from "@/hooks/useFileAttachments";
+import { usePagedChat } from "@/hooks/usePagedChat";
 import { useTableRealtime } from "@/hooks/useTableRealtime";
 import { getPermissionContext } from "@/utils/permissions";
 import { ALLOWED_EXTENSIONS_STRING } from "@/utils/attachments";
@@ -33,7 +35,7 @@ function formatWhen(iso) {
   }, { time: true });
 }
 
-function Message({ message }) {
+const Message = memo(function Message({ message }) {
   const isEvent = !!message.metadata?.event;
   return (
     <li className="flex gap-2.5" data-testid="request-message">
@@ -61,7 +63,7 @@ function Message({ message }) {
       </div>
     </li>
   );
-}
+});
 
 /**
  * Issue #307 — a Purchase Request's own Chat. Self-contained, for the request
@@ -81,7 +83,6 @@ export default function RequestChat({ request, className = "" }) {
   const attachments = useFileAttachments();
   const { files, isUploading } = attachments;
   const fileInputRef = useRef(null);
-  const listRef = useRef(null);
   const [text, setText] = useState("");
   const [mentions, setMentions] = useState([]);
 
@@ -91,9 +92,9 @@ export default function RequestChat({ request, className = "" }) {
     debounceMs: 300,
   });
 
-  const messagesQuery = useQuery({
+  const messagesQuery = usePagedChat({
     queryKey: purchaseRequestKeys.messages(requestId),
-    queryFn: () => purchaseRequestService.listMessages(requestId),
+    fetchPage: ({ before, limit }) => purchaseRequestService.listMessagesPage(requestId, { before, limit }),
     enabled: !!requestId,
   });
   const { data: members = [] } = useQuery({
@@ -102,13 +103,9 @@ export default function RequestChat({ request, className = "" }) {
     enabled: !!requestId,
   });
 
-  const messages = messagesQuery.data || [];
+  const messages = messagesQuery.messages;
   const canPost = isSuperAdmin || members.some((m) => m.id === user?.id);
   const people = members.filter((m) => m.id !== user?.id);
-
-  useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages.length]);
 
   const postMutation = useMutation({
     mutationFn: ({ content, uploaded }) =>
@@ -145,7 +142,14 @@ export default function RequestChat({ request, className = "" }) {
         </span>
       </div>
 
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-3">
+      <ChatScroller
+        firstKey={messages[0]?.id}
+        lastKey={messages[messages.length - 1]?.id}
+        lastIsMine={messages[messages.length - 1]?.author?.id === user?.id}
+        hasMore={messagesQuery.hasMore}
+        isFetchingMore={messagesQuery.isFetchingMore}
+        onLoadMore={messagesQuery.loadMore}
+      >
         {messagesQuery.isLoading ? (
           <div className="flex justify-center py-8">
             <Spinner />
@@ -166,7 +170,7 @@ export default function RequestChat({ request, className = "" }) {
             ))}
           </ul>
         )}
-      </div>
+      </ChatScroller>
 
       {canPost ? (
         <form

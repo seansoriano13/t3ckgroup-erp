@@ -198,7 +198,7 @@ export default function TaskTableView({
     <div className="space-y-4">
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-          <Table tableId="all-tasks" className="min-w-[900px]">
+          <Table tableId="all-tasks" className="md:min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead
@@ -213,7 +213,7 @@ export default function TaskTableView({
                 <TableHead
                   id="assignee"
                   onClick={() => handleSort("assignee")}
-                  className="cursor-pointer hover:text-foreground transition-colors w-[180px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[180px] hidden md:table-cell"
                 >
                   <div className="flex items-center gap-1">
                     Assignee {renderSortIcon("assignee")}
@@ -231,7 +231,7 @@ export default function TaskTableView({
                 <TableHead
                   id="priority"
                   onClick={() => handleSort("priority")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[110px]"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[110px] hidden md:table-cell"
                 >
                   <div className="flex items-center gap-1">
                     Priority {renderSortIcon("priority")}
@@ -240,13 +240,13 @@ export default function TaskTableView({
                 <TableHead
                   id="dueDate"
                   onClick={() => handleSort("dueDate")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px] hidden md:table-cell"
                 >
                   <div className="flex items-center gap-1">
                     Due Date {renderSortIcon("dueDate")}
                   </div>
                 </TableHead>
-                <TableHead id="progress" className="px-3 w-[140px]">Progress</TableHead>
+                <TableHead id="progress" className="px-3 w-[140px] hidden md:table-cell">Progress</TableHead>
                 <TableHead id="action" className="text-right w-[80px]">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -303,7 +303,7 @@ export default function TaskTableView({
                     </TableCell>
 
                     {/* Assignee & Dept */}
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.loggedByName || "User"}
@@ -348,7 +348,7 @@ export default function TaskTableView({
                     </TableCell>
 
                     {/* Priority */}
-                    <TableCell className="px-3">
+                    <TableCell className="px-3 hidden md:table-cell">
                       {task.priority ? (
                         <div className="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider">
                           {task.priority === "HIGH" && (
@@ -382,7 +382,7 @@ export default function TaskTableView({
                     </TableCell>
 
                     {/* Due Date & Overdue */}
-                    <TableCell className="px-3">
+                    <TableCell className="px-3 hidden md:table-cell">
                       <div className="flex flex-col">
                         <span
                           className={`text-[12px] font-medium ${isOverdue
@@ -401,7 +401,7 @@ export default function TaskTableView({
                     </TableCell>
 
                     {/* Progress / Checklist */}
-                    <TableCell className="px-3">
+                    <TableCell className="px-3 hidden md:table-cell">
                       {progress.isChecklist ? (
                         <div
                           className="flex items-center gap-2 w-full max-w-[130px]"

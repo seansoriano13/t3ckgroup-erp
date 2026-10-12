@@ -185,7 +185,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     disabled={isSubmitting}
                     className="h-9 rounded-xl px-4 text-[13px] font-bold border border-red-6 bg-red-3 text-red-11 hover:bg-red-4 hover:text-red-11 shadow-sm gap-1.5"
                   >
-                    <XCircle size={15} /> Not Approve
+                    <XCircle size={15} /> Return
                   </Button>
 
                   <Button
@@ -219,7 +219,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                   ) : (
                     <ShieldCheck size={15} />
                   )}
-                  Verify & Sign
+                  Verify & sign
                 </Button>
               )}
 

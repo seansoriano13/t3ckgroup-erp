@@ -673,7 +673,7 @@ export default function TaskDetails({
                           <span className="bg-muted/50 text-foreground px-1.5 py-0.5 rounded border border-border ml-2">
                             X
                           </span>{" "}
-                          Reject
+                          Return
                         </>
                       ) : (
                         <>
@@ -684,7 +684,7 @@ export default function TaskDetails({
                           <span className="bg-muted/50 text-foreground px-1.5 py-0.5 rounded border border-border ml-2">
                             X
                           </span>{" "}
-                          Reject
+                          Return
                         </>
                       )}
                     </p>

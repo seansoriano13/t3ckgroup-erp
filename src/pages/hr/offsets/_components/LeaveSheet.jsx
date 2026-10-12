@@ -226,7 +226,7 @@ function PendingFooter({ request, decide, overtimeAs, onOvertimeAs }) {
       )}
       <div className="flex gap-2">
         <Button type="button" variant="destructive" className="flex-1" onClick={() => decide(request, 'reject')}>
-          Reject
+          Decline
         </Button>
         <Button type="button" className={`flex-1 ${APPROVE_CLASS}`} onClick={approve}>
           <Check />

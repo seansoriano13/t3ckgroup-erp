@@ -1,6 +1,7 @@
 import { useSearchParams } from "react-router";
 import ProtectedRoute from "../../components/ProtectedRoute.jsx";
 import PageShell from "../../components/ui/PageShell";
+import DesktopNotice from "@/components/ui/DesktopNotice";
 import TabGroup from "../../components/ui/TabGroup";
 import ReleaseNotesSection from "../../components/release-notes/ReleaseNotesView";
 import { RELEASE, SECTIONS } from "../../components/release-notes/content";
@@ -29,6 +30,7 @@ export default function ReleaseNotesPage() {
           />
         }
       >
+        <DesktopNotice className="mb-4">Demo screens are best on desktop.</DesktopNotice>
         <ReleaseNotesSection key={section.key} section={section} />
       </PageShell>
     </ProtectedRoute>

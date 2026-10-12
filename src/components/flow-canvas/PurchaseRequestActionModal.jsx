@@ -14,6 +14,7 @@ import {
   DEFAULT_REQUESTERS,
   LEAVE_OUT_ROLES,
 } from "@/utils/purchaseRequestAction";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const NO_BUYER = "none";
 
@@ -130,7 +131,7 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
             </div>
             {confirmMode === "confirm" && (
               <div className="mt-2 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <span className={`${CAPTION_BASE} tracking-widest text-muted-foreground`}>
                   Decider (defaults to the Deal Owner)
                 </span>
                 <PeoplePicker value={decider} onChange={setDecider} allowRoles placeholder="Add Decider" />

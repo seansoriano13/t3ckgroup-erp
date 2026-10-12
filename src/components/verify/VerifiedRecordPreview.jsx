@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 import { CheckCircle2, XCircle, Clock, SearchX, AlertTriangle, ArrowRight, ShieldCheck, ShieldAlert } from "lucide-react";
 
 function getStatusConfig(status) {
@@ -105,10 +105,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
   if (isAuthLoading || loading) {
     return (
       <div className={`flex items-center justify-center p-8 ${standalone ? 'min-h-screen bg-[#F7F7F5]' : 'min-h-[400px]'}`}>
-        <div className="flex flex-col items-center gap-4 text-[#37352F]">
-          <Spinner size="lg" />
-          <p className="text-xs font-semibold uppercase tracking-widest animate-pulse opacity-60">Verifying Record...</p>
-        </div>
+        <PageLoading label="record" className="py-0 text-[#37352F]" />
       </div>
     );
   }
@@ -319,7 +316,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
               <div className="pt-8 text-center">
                  {!user ? (
                     <Link to="/login" className="text-sm text-[#787774] hover:text-[#37352F] transition-colors underline decoration-[#E9E9E7] underline-offset-4">
-                      T3CK Group Employee Login
+                      T3CKGROUP Employee Login
                     </Link>
                  ) : (
                     <Link to="/" className="text-sm text-[#787774] hover:text-[#37352F] transition-colors underline decoration-[#E9E9E7] underline-offset-4">

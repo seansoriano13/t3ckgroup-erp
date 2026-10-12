@@ -1,3 +1,4 @@
+import EmptyState from '@/components/ui/EmptyState';
 import { CalendarCheck, Clock, Scale, TimerOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Dot from '@/components/ui/Dot';
@@ -28,8 +29,8 @@ export default function ProfileSheet({ person, held, pending, decided, onClose, 
             <BalanceBlock icon={TimerOff} label="Undertime" hours={p.undertime_this_month} note="this month" />
           </div>
 
-          <ProfileList title="Waiting on HR" rows={pending} empty="Nothing pending." onReview={(r) => onReview(r, pending)} />
-          <ProfileList title="Decided this period" rows={decided} empty="No decisions this period." />
+          <ProfileList title="Waiting on HR" rows={pending} empty="Nothing pending" onReview={(r) => onReview(r, pending)} />
+          <ProfileList title="Decided this period" rows={decided} empty="No decisions this period" />
         </SlideOverBody>
       )}
     </SlideOver>
@@ -55,7 +56,7 @@ function ProfileList({ title, rows, empty, onReview }) {
   return (
     <DetailSection title={title}>
       {rows.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">{empty}</p>
+        <EmptyState title={empty} className="py-8" />
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border">
           {rows.map((r) => (

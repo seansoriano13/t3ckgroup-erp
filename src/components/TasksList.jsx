@@ -448,7 +448,7 @@ export default function TasksList({ selectedRange }) {
                       {isEmployee && (
                         <>
                           <InsightBar
-                            label="Action Required (Rejected)"
+                            label="Action required (returned)"
                             count={rejectedCount}
                             total={total}
                             color="bg-red-a7"
@@ -492,7 +492,7 @@ export default function TasksList({ selectedRange }) {
                             color="bg-violet-a7"
                           />
                           <InsightBar
-                            label="Rejected by Me"
+                            label="Returned by me"
                             count={rejectedCount}
                             total={total}
                             color="bg-red-a7"

@@ -49,6 +49,26 @@ describe("Login password form", () => {
     expect(screen.queryByText("(Disabled)")).not.toBeInTheDocument();
   });
 
+  it("flags empty fields inline, sets aria-invalid and focuses the first bad one", async () => {
+    const signIn = vi.spyOn(supabase.auth, "signInWithPassword");
+    renderLoggedOut();
+    const user = setupUser();
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    const email = screen.getByPlaceholderText("name@t3ckgroup.com");
+    const password = screen.getByPlaceholderText("••••••••");
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(email).toHaveAttribute("aria-invalid", "true");
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(email).toHaveFocus();
+    expect(signIn).not.toHaveBeenCalled();
+
+    await user.type(email, "ana@t3ckgroup.test");
+    expect(email).not.toHaveAttribute("aria-invalid");
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+    expect(password).toHaveFocus();
+  });
+
   it("submits with signInWithPassword and proceeds on success", async () => {
     const user = setupUser();
     vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
@@ -59,7 +79,7 @@ describe("Login password form", () => {
     renderLoggedOut();
     await user.type(screen.getByPlaceholderText("name@t3ckgroup.com"), "a@t3ckgroup.test");
     await user.type(screen.getByPlaceholderText("••••••••"), "issued-pass-1");
-    await user.click(screen.getByRole("button", { name: /log in/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() => {
       expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
@@ -81,7 +101,7 @@ describe("Login password form", () => {
     renderLoggedOut();
     await user.type(screen.getByPlaceholderText("name@t3ckgroup.com"), "a@t3ckgroup.test");
     await user.type(screen.getByPlaceholderText("••••••••"), "wrong");
-    await user.click(screen.getByRole("button", { name: /log in/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() => {
       expect(toastSpy).toHaveBeenCalledWith(expect.stringMatching(/incorrect email or password/i));
@@ -114,9 +134,9 @@ describe("Login password form", () => {
     await user.type(screen.getByPlaceholderText("••••••••"), "pw{Enter}{Enter}{Enter}");
 
     expect(signInSpy).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: /logging in/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /signing in/i })).toBeDisabled();
     resolve({ data: null, error: new Error("x") });
-    await waitFor(() => expect(screen.getByRole("button", { name: /log in/i })).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /^sign in$/i })).not.toBeDisabled());
   });
 
   it("sends one reset email on repeated Forgot password? clicks", async () => {

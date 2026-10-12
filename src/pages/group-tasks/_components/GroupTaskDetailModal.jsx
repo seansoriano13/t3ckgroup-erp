@@ -36,6 +36,8 @@ import { activeChatService } from "../../../services/tasks/activeChatService";
 import { formatDateOnly, formatDueDate } from "@/utils/formatDate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskActivityService } from "@/services/groupTaskActivityService";
+import ChatScroller from "@/components/ui/ChatScroller";
+import { usePagedChat, patchPagedMessage } from "@/hooks/usePagedChat";
 import { groupTaskService } from "@/services/groupTaskService";
 import { storageService } from "@/services/storageService";
 import { MessageCircle } from "lucide-react";
@@ -79,6 +81,7 @@ import ReadOnlyTaskBanner from "@/components/ReadOnlyTaskBanner";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 export default function GroupTaskDetailModal({
   isOpen,
   onClose,
@@ -119,7 +122,6 @@ export default function GroupTaskDetailModal({
   // --- Inline chat state ---
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const chatScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
@@ -327,11 +329,18 @@ export default function GroupTaskDetailModal({
   }, [isOpen, clearAttachments]);
 
   // --- Inline chat: fetch messages ---
-  const { data: rawMessages = [], isLoading: isLoadingChat } = useQuery({
-    queryKey: ["chatMessages", "GROUP_TASK", task?.id],
-    queryFn: () => groupTaskActivityService.getActivityForTask(task.id),
+  // Pages newest-first. The key extends ["chatMessages", "GROUP_TASK", id] so
+  // prefix invalidations still reach it, yet stays apart from the chat list's
+  // whole-thread query under the bare key.
+  const chatKey = ["chatMessages", "GROUP_TASK", task?.id, "paged"];
+  const chat = usePagedChat({
+    queryKey: chatKey,
+    fetchPage: ({ before, limit }) =>
+      groupTaskActivityService.getCommentsPage(task.id, { before, limit, includeEvents: true }),
     enabled: !!task?.id && isOpen && isSplitScreen,
   });
+  const rawMessages = chat.messages;
+  const isLoadingChat = chat.isLoading;
 
   const { data: readReceipts = [] } = useQuery({
     queryKey: ["chatReadReceipts", "GROUP_TASK", task?.id],
@@ -417,11 +426,9 @@ export default function GroupTaskDetailModal({
       isAdding = true;
     }
     const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
-    const queryKey = ["chatMessages", "GROUP_TASK", task.id];
+    const queryKey = ["chatMessages", "GROUP_TASK", task.id, "paged"];
 
-    queryClient.setQueryData(queryKey, (old = []) =>
-      old.map((m) => (m.id === message.id ? { ...m, metadata: newMetadata } : m)),
-    );
+    patchPagedMessage(queryClient, queryKey, message.id, (m) => ({ ...m, metadata: newMetadata }));
 
     try {
       const { error } = await supabase.rpc("toggle_chat_reaction", {
@@ -447,13 +454,6 @@ export default function GroupTaskDetailModal({
       queryClient.invalidateQueries({ queryKey });
     }
   };
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-    }
-  }, [chatMessages?.length]);
 
   // Real-time subscription for inline chat
   useEffect(() => {
@@ -778,7 +778,7 @@ export default function GroupTaskDetailModal({
                     Cancel
                   </Button>
                   <Button type="button" size="sm" onClick={handleSaveTaskEdit} disabled={isUpdatingTask} className="h-8 px-4 text-xs">
-                    {isUpdatingTask ? "Saving…" : "Save Changes"}
+                    {isUpdatingTask ? "Saving…" : "Save changes"}
                   </Button>
                 </div>
               </div>
@@ -966,7 +966,7 @@ export default function GroupTaskDetailModal({
                           {draft.id
                             ? isUpdatingMember
                               ? "Saving…"
-                              : "Save Changes"
+                              : "Save changes"
                             : isAddingMember
                               ? "Adding…"
                               : "Add Member"}
@@ -1222,7 +1222,7 @@ export default function GroupTaskDetailModal({
                                 variant="outline"
                                 onClick={() => onRevertDone(member.id)}
                                 disabled={isReverting}
-                                className="ml-auto h-auto gap-1.5 rounded-lg border-amber-500/20 bg-warning/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-amber-10 hover:bg-warning/20"
+                                className={`ml-auto h-auto gap-1.5 rounded-lg border-amber-500/20 bg-warning/10 px-4 py-2 ${CAPTION_BASE} tracking-widest text-amber-10 hover:bg-warning/20`}
                               >
                                 {isReverting ? "…" : "Revert"}
                               </Button>
@@ -1276,7 +1276,7 @@ export default function GroupTaskDetailModal({
               {/* Who set it up — kept, but last: assignees open this to do
                   their part, not to see who filed it. */}
               <dl className="pt-5 border-t border-border">
-                <dt className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
                   Created by
                 </dt>
                 <dd className="mt-1 text-[13px] font-semibold text-foreground">
@@ -1354,9 +1354,14 @@ export default function GroupTaskDetailModal({
             </div>
 
             {/* Messages Area */}
-            <div
-              ref={chatScrollRef}
-              className="flex-1 overflow-y-auto custom-scrollbar py-3 space-y-1"
+            <ChatScroller
+              firstKey={chatMessages[0]?.id}
+              lastKey={chatMessages[chatMessages.length - 1]?.id}
+              lastIsMine={chatMessages[chatMessages.length - 1]?.authorId === user?.id}
+              hasMore={chat.hasMore}
+              isFetchingMore={chat.isFetchingMore}
+              onLoadMore={chat.loadMore}
+              scrollClassName="py-3 space-y-1"
             >
               {isLoadingChat ? (
                 <div className="flex items-center justify-center h-full gap-2 text-muted-foreground italic text-xs">
@@ -1487,7 +1492,7 @@ export default function GroupTaskDetailModal({
                   );
                 })
               )}
-            </div>
+            </ChatScroller>
 
             {/* Input Area */}
             <form onSubmit={handleSendMessage} className="p-3 border-t border-border bg-muted/10 shrink-0">

@@ -139,7 +139,7 @@ export default function BulkVerifyModal({
           >
             {isSubmitting
               ? "Verifying…"
-              : `Verify & Sign ${pluralize(selectedCount, "Task")}`}
+              : `Verify & sign ${pluralize(selectedCount, "task")}`}
           </Button>
         </div>
       </DialogContent>

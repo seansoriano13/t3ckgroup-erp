@@ -1,11 +1,13 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bug, CheckCircle2, RotateCcw, SendHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
-import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
 import SlideOver, { SlideOverBody, SlideOverFooter } from "../../components/ui/SlideOver";
 import Avatar from "../../components/Avatar";
@@ -63,10 +65,10 @@ function ReportRow({ report, onOpen, showSender }) {
       <TableCell className="max-w-[28rem]">
         <span className="block truncate text-sm font-semibold text-foreground">{firstLine(report.description)}</span>
       </TableCell>
-      {showSender && <TableCell className="text-xs text-foreground">{report.reporter?.name || "—"}</TableCell>}
-      <TableCell className="max-w-[12rem] truncate font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
-      <TableCell className="text-xs tabular-nums text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
-      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
+      {showSender && <TableCell className="hidden text-xs md:table-cell text-foreground">{report.reporter?.name || "—"}</TableCell>}
+      <TableCell className="hidden max-w-[12rem] truncate md:table-cell font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
+      <TableCell className="hidden text-xs tabular-nums md:table-cell text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
+      <TableCell className="hidden whitespace-nowrap text-xs md:table-cell text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
       <TableCell className="text-right">
         <Status report={report} />
       </TableCell>
@@ -366,6 +368,7 @@ function BugReportsList({ isReader, meId }) {
     [reports, showResolved],
   );
   const { sorted: shown, sort, toggle } = useTableSort(unsorted, REPORT_SORT);
+  const paging = usePaging(shown);
   // A deep link (notification) opens its report even when the filter hides it.
   const index = shown.findIndex((r) => String(r.id) === recordId);
   const openReport = index >= 0 ? shown[index] : reports.find((r) => String(r.id) === recordId) || null;
@@ -387,9 +390,7 @@ function BugReportsList({ isReader, meId }) {
         }
       >
         {isLoading && (
-          <div className="flex justify-center py-12">
-            <Spinner />
-          </div>
+          <PageLoading label="bug reports" />
         )}
 
         {isError && (
@@ -407,7 +408,7 @@ function BugReportsList({ isReader, meId }) {
 
         {!isLoading && !isError && shown.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <Table tableId="bug-reports" className="min-w-[48rem]">
+            <Table tableId="bug-reports" className="md:min-w-[48rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {["Report", ...(isReader ? ["Sent by"] : []), "Page", "Files", "Sent", "Status"].map((heading) => (
@@ -417,7 +418,7 @@ function BugReportsList({ isReader, meId }) {
                       sortKey={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
                       sort={sort}
                       onSort={toggle}
-                      className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}
+                      className={`${HEAD} ${heading === "Status" ? "text-right" : ""} ${heading !== "Report" && heading !== "Status" ? "hidden md:table-cell" : ""}`}
                     >
                       {heading}
                     </SortHead>
@@ -425,14 +426,12 @@ function BugReportsList({ isReader, meId }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {shown.map((report) => (
+                {paging.rows.map((report) => (
                   <ReportRow key={report.id} report={report} onOpen={open} showSender={isReader} />
                 ))}
               </TableBody>
             </Table>
-            <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-              {shown.length} {shown.length === 1 ? "report" : "reports"}
-            </div>
+            <TablePager {...paging} noun={shown.length === 1 ? "report" : "reports"} />
           </div>
         )}
       </PageShell>

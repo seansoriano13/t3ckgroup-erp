@@ -37,7 +37,7 @@ const ENTITY_CONFIG = {
 
 const ACTION_OPTIONS = [
   { value: "ALL", label: "All actions" },
-  { value: "APPROVAL", label: "Decisions (Approve/Reject)" },
+  { value: "APPROVAL", label: "Decisions (Approve/Decline)" },
   { value: "SYSTEM", label: "Updates (Apply/Undo/Withdraw)" },
 ];
 
@@ -216,12 +216,12 @@ export default function HrLogsPanel() {
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span
-                            className={`rounded-sm border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${cfg.style}`}
+                            className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${cfg.style}`}
                           >
                             {cfg.label}
                           </span>
                           {e.type === "APPROVAL" && (
-                            <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-11">
+                            <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-violet-11">
                               Decision
                             </span>
                           )}
