@@ -51,3 +51,18 @@ Bugs found and fixed:
 Noted, not fixed:
 - Nested dialogs in the modal show without a dimmed backdrop (overlay sits under the modal).
 - Buyer picker label truncates: "No Buyer (back to the q…".
+
+## #499 review follow-ups — staging SQL checks
+
+Run on staging after the migrations land (CI applies them on merge to `staging`).
+Each check runs inside `BEGIN; … ROLLBACK;` unless it says otherwise, so no data is kept.
+
+### #502 Chat notifies only the Buyer and requesters
+
+### #503 Deal Team can always add Requested Items
+
+### #504 Open Purchase Request top-up
+
+### #505 Legacy task-closing notifications
+
+### #506 RPC prefixes unified on `purchase_request_`
