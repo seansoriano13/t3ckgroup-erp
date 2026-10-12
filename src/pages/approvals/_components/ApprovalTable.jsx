@@ -163,7 +163,7 @@ export function ApprovalTable({
                           <HighlightText text={item.title} search={searchTerm} />
                         </span>
                         {replied && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-11" title="You replied on this task">
+                          <span className={`inline-flex shrink-0 items-center gap-0.5 ${CAPTION_BASE} tracking-wider text-blue-11`} title="You replied on this task">
                             <MessageSquareReply size={11} /> Replied
                           </span>
                         )}

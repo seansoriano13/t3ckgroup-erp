@@ -25,6 +25,7 @@ import { REQUEST_UNITS } from "../../constants/procurement";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * Inclusions (issue #43) — the client's specification, broken out.
@@ -554,7 +555,7 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
         {summary.percent !== null && (
           <div className="flex items-center gap-2">
             {summary.substituted > 0 && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-violet-11">
+              <span className={`${CAPTION_BASE} tracking-wider text-violet-11`}>
                 {summary.substituted} substituted
               </span>
             )}

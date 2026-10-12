@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 import { Users, Plus, LayoutGrid, Table as TableIcon } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
 import { Button } from "@/components/ui/button";
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 
 import GroupTaskCard from "./_components/GroupTaskCard";
 import GroupTaskTableView from "./_components/GroupTaskTableView";
@@ -370,12 +370,7 @@ export default function GroupTasksPage() {
 
   if (isLoading) {
     return (
-      <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
-        <Spinner size="md" />
-        <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Loading Group Tasks…
-        </p>
-      </div>
+      <PageLoading label="group tasks" className="h-[60vh]" />
     );
   }
 

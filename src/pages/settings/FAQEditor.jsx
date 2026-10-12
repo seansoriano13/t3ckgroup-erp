@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
   const ref = useRef(null);
@@ -339,7 +340,7 @@ function CategoryStylePicker({ cat, onChange }) {
 
       {open && (
         <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-56 animate-slide-down">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+          <p className={`${CAPTION_BASE} tracking-widest text-muted-foreground mb-2`}>
             Icon
           </p>
           <div className="grid grid-cols-4 gap-1.5 mb-3">
@@ -361,7 +362,7 @@ function CategoryStylePicker({ cat, onChange }) {
             })}
           </div>
 
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+          <p className={`${CAPTION_BASE} tracking-widest text-muted-foreground mb-2`}>
             Color
           </p>
           <div className="flex flex-wrap gap-1.5">

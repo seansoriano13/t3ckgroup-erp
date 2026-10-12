@@ -81,6 +81,7 @@ import ReadOnlyTaskBanner from "@/components/ReadOnlyTaskBanner";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 export default function GroupTaskDetailModal({
   isOpen,
   onClose,
@@ -1221,7 +1222,7 @@ export default function GroupTaskDetailModal({
                                 variant="outline"
                                 onClick={() => onRevertDone(member.id)}
                                 disabled={isReverting}
-                                className="ml-auto h-auto gap-1.5 rounded-lg border-amber-500/20 bg-warning/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-amber-10 hover:bg-warning/20"
+                                className={`ml-auto h-auto gap-1.5 rounded-lg border-amber-500/20 bg-warning/10 px-4 py-2 ${CAPTION_BASE} tracking-widest text-amber-10 hover:bg-warning/20`}
                               >
                                 {isReverting ? "…" : "Revert"}
                               </Button>
@@ -1275,7 +1276,7 @@ export default function GroupTaskDetailModal({
               {/* Who set it up — kept, but last: assignees open this to do
                   their part, not to see who filed it. */}
               <dl className="pt-5 border-t border-border">
-                <dt className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
                   Created by
                 </dt>
                 <dd className="mt-1 text-[13px] font-semibold text-foreground">

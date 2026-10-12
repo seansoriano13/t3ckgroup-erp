@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 /**
  * Canvass (issue #46, Inclusion side #47) — the three-or-more supplier
  * comparison, recorded as structured Offers instead of an ad-hoc sheet nobody
@@ -472,7 +473,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
               )}
 
               <div className="space-y-1.5 border-t border-border/60 pt-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
                   Original canvass sheet
                 </span>
                 {(canvass?.attachments || []).length > 0 && (

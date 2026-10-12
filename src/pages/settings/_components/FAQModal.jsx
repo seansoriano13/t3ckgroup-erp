@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import HighlightText from "../../../components/HighlightText";
 import { canEditFAQ as canEditFAQPredicate } from "../../../utils/faqAccess";
 import { Input } from "@/components/ui/input";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 // ─── Role helpers ──────────────────────────────────────────────────────────────
 const ROLE_LABELS = {
@@ -328,7 +329,7 @@ export default function FAQModal({ isOpen, onClose }) {
                     {searchResults.map((item, idx) => (
                       <div key={idx}>
                         <p
-                          className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
+                          className={`${CAPTION_BASE} tracking-widest mb-1.5`}
                           style={{ color: item.categoryColor }}
                         >
                           {item.categoryLabel}

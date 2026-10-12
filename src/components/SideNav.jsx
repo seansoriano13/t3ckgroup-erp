@@ -53,6 +53,7 @@ import {
   getFilteredQuickActions,
 } from "../constants/navigation";
 import { useNavBadges } from "../hooks/useNavBadges";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 export default function SideNav() {
   const { user } = useAuth();
@@ -157,6 +158,19 @@ export default function SideNav() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsCollapsed(getInitialCollapsed(user.id));
     }
+  }, [user?.id]);
+
+  // With no saved choice the rail follows the viewport across 1024; a saved
+  // choice keeps winning.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const mq = window.matchMedia("(max-width: 1023.98px)");
+    const onChange = () => {
+      if (user?.id) setIsCollapsed(getInitialCollapsed(user.id));
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const toggleCollapsed = () => {
@@ -386,7 +400,7 @@ export default function SideNav() {
                         {groupIdx > 0 && (
                           <div className="h-[1px] bg-border/60 my-1 -mx-0.5" />
                         )}
-                        <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <span className={`px-2.5 py-0.5 ${CAPTION_BASE} tracking-wider text-muted-foreground`}>
                           {catGroup.category}
                         </span>
                         {catGroup.items.map((item) => {

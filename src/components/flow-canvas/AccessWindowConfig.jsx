@@ -3,6 +3,7 @@ import { salesFlowService } from "../../services/salesFlowService";
 import { stagesReachableFrom } from "../../utils/stageGraph";
 import { ACCESS_WINDOW_RULES, NEEDS_LATER_STAGE, accessWindowSummary } from "../../utils/stageAudience";
 import { SelectField } from "@/components/ui/SelectField";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * Issue #294 — the shared `access: {until, stageId}` sub-form used by both an
@@ -52,7 +53,7 @@ export default function AccessWindowConfig({
 
   return (
     <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+      <span className={`mb-0.5 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
         Access window
       </span>
       <p className="mb-2 text-[11px] leading-snug text-foreground">

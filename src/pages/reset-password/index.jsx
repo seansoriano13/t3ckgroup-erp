@@ -8,7 +8,7 @@ import { markRecoveryActive, clearRecoveryActive } from "../../lib/recoveryFlag"
 import { readRecoveryParams } from "../../lib/recoveryLink";
 import { passwordService } from "../../services/passwordService";
 import { Button } from "../../components/ui/button";
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
@@ -250,12 +250,7 @@ export default function ResetPassword() {
   if (phase === "verifying") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-mauve-2 px-4">
-        <div className="flex flex-col items-center gap-3 text-mauve-10">
-          <Spinner size="md" />
-          <p className="text-sm font-bold uppercase tracking-widest animate-pulse">
-            Verifying your reset link…
-          </p>
-        </div>
+        <PageLoading label="your reset link" className="py-0" />
       </div>
     );
   }

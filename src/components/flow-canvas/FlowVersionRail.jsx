@@ -9,6 +9,7 @@ import { employeeService } from "@/services/employeeService";
 import { diffFlowSnapshots, countFlowSnapshotChanges } from "@/constants/salesFlow";
 import { formatSnapshotVersion } from "@/constants/flowVersion";
 import DiffSummary from "./FlowSnapshotDiffSummary";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * The version rail (issue #192) — every Sale Type's Flow Snapshot history,
@@ -144,7 +145,7 @@ export default function FlowVersionRail({
               label={`Draft${versionPreview?.label ? ` · ${versionPreview.label}` : ""}`}
               badge={
                 !viewingSnapshotId ? (
-                  <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                  <span className={`rounded-md bg-amber-500/15 px-1.5 py-0.5 ${CAPTION_BASE} tracking-wider text-amber-600 dark:text-amber-400`}>
                     Editing
                   </span>
                 ) : null
@@ -194,7 +195,7 @@ export default function FlowVersionRail({
                   <span>Flow is Locked</span>
                 </div>
                 {!viewingSnapshotId ? (
-                  <span className="rounded-md bg-green-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
+                  <span className={`rounded-md bg-green-500/15 px-1.5 py-0.5 ${CAPTION_BASE} tracking-wider text-green-600 dark:text-green-400`}>
                     Live
                   </span>
                 ) : (
@@ -236,11 +237,11 @@ export default function FlowVersionRail({
                 label={formatSnapshotVersion(entry.snapshot)}
                 badge={
                   viewingSnapshotId === entry.snapshot.id ? (
-                    <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                    <span className={`rounded-md bg-blue-500/15 px-1.5 py-0.5 ${CAPTION_BASE} tracking-wider text-blue-600 dark:text-blue-400`}>
                       Viewing
                     </span>
                   ) : entry.snapshot.id === latest?.id ? (
-                    <span className="rounded-md bg-green-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
+                    <span className={`rounded-md bg-green-500/15 px-1.5 py-0.5 ${CAPTION_BASE} tracking-wider text-green-600 dark:text-green-400`}>
                       Live
                     </span>
                   ) : null
@@ -277,7 +278,7 @@ export default function FlowVersionRail({
                   ) : null
                 }
               >
-                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <p className={`mb-1.5 ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
                   Changes since previous version
                 </p>
                 <DiffSummary
@@ -289,7 +290,7 @@ export default function FlowVersionRail({
                 {compareTargetId === entry.snapshot.id && (
                   <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
                     <div className="mb-1.5 flex items-center justify-between">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-foreground">
+                      <p className={`${CAPTION_BASE} tracking-widest text-foreground`}>
                         What the draft would change
                       </p>
                       <Button

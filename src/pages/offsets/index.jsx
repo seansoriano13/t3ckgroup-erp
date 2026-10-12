@@ -23,6 +23,7 @@ import { getMonthBoundaries } from '../../utils/dateUtils';
 import { mergeRequestRows } from '../../utils/mergeRequests';
 import RequestsTable from './_components/RequestsTable';
 import { REQUEST_TYPE_BADGE } from './_components/requestTypes';
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 // How each request type withdraws; its label and badge live beside the table.
 const REQUEST_WITHDRAW = {
@@ -154,7 +155,7 @@ export default function EmployeeLeavesPage() {
         const value = parseFloat(hours) || 0;
         return (
           <div key={label} className="flex flex-col">
-            <dt className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</dt>
+            <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>{label}</dt>
             <dd className={`font-mono text-sm font-semibold tabular-nums ${value > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
               {value.toFixed(1)}
               <span className="ml-1 font-sans text-xs font-medium text-muted-foreground">hrs</span>

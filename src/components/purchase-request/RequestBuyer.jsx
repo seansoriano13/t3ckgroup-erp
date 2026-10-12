@@ -13,6 +13,7 @@ import { employeeService } from "@/services/employeeService";
 import { purchaseRequestService } from "@/services/purchaseRequestService";
 import { purchaseRequestKeys } from "./queryKeys";
 import { refusal, useRefreshRequest, useTakeRequest } from "./requestHooks";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const NO_BUYER = "__none__";
 
@@ -66,7 +67,7 @@ export default function RequestBuyer({ request }) {
 
   return (
     <section aria-label="Buyer" className="flex flex-col gap-1.5">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Buyer</p>
+      <p className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Buyer</p>
       <div className="flex items-center gap-2">
         {canManage ? (
           <SelectField

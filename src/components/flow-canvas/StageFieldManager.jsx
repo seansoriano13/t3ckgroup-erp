@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import PageLoading from "@/components/ui/PageLoading";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -18,6 +19,7 @@ import { useAuth } from "../../context/AuthContext";
 import { SOR_STAGE_FIELDS, SOR_STAGE_FIELD_KEYS, CUSTOM_FIELD_TYPE_VALUES } from "../../constants/stageFields";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const emptyDraft = () => ({
   label: "",
@@ -237,7 +239,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
       />
 
       <div className="rounded-xl border border-border bg-muted/30 p-3">
-        <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
           Source
         </span>
         <div className="flex gap-2">
@@ -341,7 +343,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
         )}
 
         {isLoading ? (
-          <p className="animate-pulse py-6 text-center text-sm text-muted-foreground">Loading fields…</p>
+          <PageLoading label="fields" className="py-6" />
         ) : fields?.length === 0 && !isFormOpen ? (
           <div className="rounded-2xl border border-dashed border-mauve-7 px-5 py-8 text-center">
             <ListChecks size={22} className="mx-auto mb-2 text-muted-foreground/60" />

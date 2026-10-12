@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { periodValue } from "@/lib/period";
 import Dropdown from "./Dropdown";
 import { FilterOptionList } from "./FilterDropdown";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const TIMEFRAMES = [
   { value: "DAILY", label: "Daily" },
@@ -52,7 +53,7 @@ export default function PeriodFilter({ timeframe, onTimeframeChange, value, onCh
             aria-label={`Timeframe: ${currentTimeframe}`}
             className="flex h-full min-w-[84px] items-center justify-center gap-2 rounded-l-lg pl-3 pr-2 transition-colors hover:bg-muted/60"
           >
-            <span className="text-[10px] font-bold uppercase tracking-widest text-foreground">{currentTimeframe}</span>
+            <span className={`${CAPTION_BASE} tracking-widest text-foreground`}>{currentTimeframe}</span>
             <ChevronDown size={10} className={cn("text-muted-foreground transition-transform", isOpen && "rotate-180")} />
           </button>
         )}

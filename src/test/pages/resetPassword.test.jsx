@@ -304,7 +304,7 @@ describe("ResetPassword page", () => {
 
     renderPage();
 
-    expect(screen.getByText(/verifying your reset link/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading your reset link/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
 
     resolveSession({ data: { session: { user: { id: "auth-1" } } }, error: null });

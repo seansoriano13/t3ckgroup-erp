@@ -23,7 +23,7 @@ import { employeeService } from "../../services/employeeService.js";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
 import TabGroup from "../../components/ui/TabGroup";
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 import Dot from "../../components/ui/Dot";
 
 // Every mutation and the realtime hook below need the page's own list and the
@@ -159,7 +159,7 @@ export default function TasksPage() {
   // HR Specific Toggle: opens on "My Tasks" to match the sidebar label; the
   // company view is one click away. "ALL" or "PERSONAL".
   const [hrViewMode, setHrViewMode] = useState(() =>
-    filters.employeeFilter === user?.id ? "PERSONAL" : "ALL",
+    (filters.employeeFilter || user?.id) === user?.id ? "PERSONAL" : "ALL",
   );
   const [searchTerm, setSearchTerm] = useState("");
   // Clear nav state so back-nav doesn't re-apply deep-link filters
@@ -373,12 +373,7 @@ export default function TasksPage() {
   // --- LOADING / ERROR STATES ---
   if (isLoading) {
     return (
-      <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
-        <Spinner size="md" />
-        <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Fetching Directory…
-        </p>
-      </div>
+      <PageLoading label="tasks" className="h-[60vh]" />
     );
   }
 

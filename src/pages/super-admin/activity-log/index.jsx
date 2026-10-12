@@ -24,6 +24,7 @@ import { useTableSort } from "@/hooks/useTableSort";
 import { Activity, CheckSquare, Square } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge.jsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const PAGE_SIZE = 50;
 
@@ -159,7 +160,7 @@ function EntryTitle({ title, search }) {
         </span>
       ))}
       {remaining > 0 && (
-        <span className="block pl-5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+        <span className={`block pl-5 ${CAPTION_BASE} tracking-wider text-muted-foreground/60`}>
           + {remaining} more checklist item{remaining !== 1 ? "s" : ""}
         </span>
       )}

@@ -57,6 +57,21 @@ describe("Tasks page on PageShell", () => {
   })
 })
 
+describe("Tasks page HR landing", () => {
+  beforeEach(() => {
+    localStorage.clear()
+    const hr = makeEmployee({ name: "Hana HR", department: "HR" })
+    authUser = { id: hr.id, department: "HR", is_head: false, is_hr: true, isSuperAdmin: false }
+  })
+
+  it("opens HR on My Tasks, also when a saved default holds an empty employee scope", async () => {
+    localStorage.setItem(`erp_saved_filters_tasks_${authUser.id}`, JSON.stringify({ employeeFilter: null }))
+    renderWithProviders(<MemoryRouter><TasksPage /></MemoryRouter>)
+
+    expect(await screen.findByRole("tab", { name: "My Tasks", selected: true })).toBeInTheDocument()
+  })
+})
+
 describe("Group Tasks page on PageShell", () => {
   beforeEach(() => {
     localStorage.clear()

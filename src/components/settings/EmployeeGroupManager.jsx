@@ -5,6 +5,7 @@ import { Plus, Archive, ArchiveRestore, Trash2, Users, ChevronDown, ChevronUp } 
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import PageLoading from "@/components/ui/PageLoading";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { useAuth } from "@/context/AuthContext";
@@ -129,7 +130,7 @@ export default function EmployeeGroupManager() {
       )}
 
       {isLoading ? (
-        <p className="py-6 text-center text-sm text-muted-foreground animate-pulse">Loading Employee Groups...</p>
+        <PageLoading label="employee groups" className="py-6" />
       ) : groups.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">No Employee Groups yet.</p>
       ) : (

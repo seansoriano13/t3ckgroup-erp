@@ -2,6 +2,7 @@ import { CheckCircle2, Clock } from "lucide-react";
 import Dot from "./ui/Dot";
 import { formatDate } from "../utils/formatDate";
 import { TASK_STATUS } from "../constants/status";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const PRIORITY_TONE = {
   HIGH: { text: "text-destructive", dot: "bg-destructive" },
@@ -12,7 +13,7 @@ const PRIORITY_TONE = {
 function Item({ label, children, wide }) {
   return (
     <div className={wide ? "col-span-2" : undefined}>
-      <dt className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+      <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
         {label}
       </dt>
       <dd className="mt-1 text-[13px] font-semibold text-foreground break-words">

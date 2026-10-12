@@ -34,6 +34,7 @@ import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
 import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * The SOR registration form, shown exactly as a salesperson will see it, and
@@ -423,7 +424,7 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
               >
                 {field.isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
               </Button>
-              <FieldBox inline className="flex items-center gap-1 rounded px-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground" title="Required to register">
+              <FieldBox inline className={`flex items-center gap-1 rounded px-1 ${CAPTION_BASE} tracking-wider text-muted-foreground`} title="Required to register">
                 Req
                 <Switch checked={field.isRequired} onCheckedChange={onToggleRequired} />
               </FieldBox>
