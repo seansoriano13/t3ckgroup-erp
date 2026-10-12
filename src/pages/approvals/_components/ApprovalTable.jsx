@@ -13,6 +13,7 @@ import { neighbourTaskId, resolveNavigationKey } from "../../../utils/approvalQu
 import { StageMeter, StatusPill } from "./ApprovalParts";
 import { statusOf } from "./approvalUi";
 import { PersonChip } from "@/components/ui/DetailParts";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const APPROVAL_SORT = {
   request: (i) => i.title,
@@ -22,7 +23,7 @@ const APPROVAL_SORT = {
   status: (i) => statusOf(i),
 };
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const HEAD = `${CAPTION_BASE} tracking-wider`;
 
 /**
  * One dense table for any Approval Center queue.

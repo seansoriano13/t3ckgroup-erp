@@ -19,8 +19,9 @@ import { outgoingStages } from "../../../../constants/salesFlow";
 import { PROJECT_TYPE_LABELS, formatLeadSource, itbGateSatisfiedBy, ITB_EXEMPT_LABEL, formatPHP } from "../../../../constants/sor";
 import DetailsTab from "../DetailsTab";
 import ItemsTab from "../ItemsTab";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
-export const LABEL = "text-[10px] font-bold tracking-widest text-muted-foreground uppercase";
+export const LABEL = `${CAPTION_BASE} tracking-widest text-muted-foreground`;
 
 /** Variants show data the baseline only loads when its tab opens — warm those queries once. */
 export function useWarmTabs(p, tabs) {

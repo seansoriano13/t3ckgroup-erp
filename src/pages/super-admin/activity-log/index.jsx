@@ -471,13 +471,13 @@ export default function SuperAdminActivityLogPage() {
                           {humanizeCode(e.type || "SYSTEM")}
                         </span>
                         {e.isGroup && (
-                          <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-11">
+                          <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-violet-11">
                             Group Task
                           </span>
                         )}
                         {(activeTab === "SYSTEM" || activeTab === "SOR") && e.entityType && (
                           <span
-                            className={`rounded-sm border px-1.5 py-0.5 text-[9px] font-black tracking-wider ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
+                            className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-black tracking-wider ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
                           >
                             {humanizeCode(e.entityType)}
                           </span>

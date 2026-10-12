@@ -89,6 +89,9 @@ export default function ResetPassword() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+  const passwordRef = useRef(null);
+  const confirmRef = useRef(null);
   // Did *this* tab raise the cross-tab hold? The flag lives in localStorage, so
   // every tab can clear it — and a tab that never raised it must not. Opening
   // this route by hand while a real reset runs elsewhere is landing (c), which
@@ -200,13 +203,16 @@ export default function ResetPassword() {
     if (isSubmitting) return;
 
     if (!password) {
-      toast.error("Enter a password.");
+      setErrors({ password: "Enter a password." });
+      passwordRef.current?.focus();
       return;
     }
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match.");
+      setErrors({ confirm: "Passwords do not match." });
+      confirmRef.current?.focus();
       return;
     }
+    setErrors({});
 
     setIsSubmitting(true);
     try {
@@ -257,7 +263,7 @@ export default function ResetPassword() {
   if (phase === "invalid") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-mauve-2 px-4">
-        <div className="bg-white max-w-md w-full rounded-2xl border border-mauve-6 shadow-sm p-8 space-y-4 text-center">
+        <div className="bg-card max-w-md w-full rounded-2xl border border-mauve-6 shadow-sm p-8 space-y-4 text-center">
           <h1 className="text-2xl font-bold text-mauve-12">
             Can&rsquo;t reset your password
           </h1>
@@ -283,7 +289,7 @@ export default function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-mauve-2 px-4">
       <form
         onSubmit={handleSubmit}
-        className="bg-white max-w-md w-full rounded-2xl border border-mauve-6 shadow-sm p-8 space-y-5"
+        className="bg-card max-w-md w-full rounded-2xl border border-mauve-6 shadow-sm p-8 space-y-5"
       >
         <div>
           <h1 className="text-2xl font-bold text-mauve-12">Set a new password</h1>
@@ -296,24 +302,46 @@ export default function ResetPassword() {
           <FieldBox label="New Password" htmlFor="new-password" />
           <Input
             id="new-password"
+            ref={passwordRef}
+            aria-invalid={errors.password ? true : undefined}
+            aria-describedby={errors.password ? "new-password-error" : undefined}
             className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
             type="password"
             autoComplete="new-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setErrors((prev) => ({ ...prev, password: undefined }));
+            }}
           />
+          {errors.password && (
+            <p id="new-password-error" role="alert" className="text-xs font-medium text-destructive">
+              {errors.password}
+            </p>
+          )}
         </div>
 
         <div className="grid gap-2">
           <FieldBox label="Confirm Password" htmlFor="confirm-password" />
           <Input
             id="confirm-password"
+            ref={confirmRef}
+            aria-invalid={errors.confirm ? true : undefined}
+            aria-describedby={errors.confirm ? "confirm-password-error" : undefined}
             className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
             type="password"
             autoComplete="new-password"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              setErrors((prev) => ({ ...prev, confirm: undefined }));
+            }}
           />
+          {errors.confirm && (
+            <p id="confirm-password-error" role="alert" className="text-xs font-medium text-destructive">
+              {errors.confirm}
+            </p>
+          )}
         </div>
 
         <Button type="submit" disabled={isSubmitting} className="h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full">
