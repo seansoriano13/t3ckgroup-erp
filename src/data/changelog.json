@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-10-12",
+        "title": "Task fixes: Submit for Review and grade colours",
+        "version": "1.9.10",
+        "changes": [
+            "Tasks: phased checklists (like Checking and Validation, Release with Payslip) no longer lock Submit for Review, Resubmit or Approve when every item is already ticked.",
+            "Tasks: the selected grade (1 to 5) keeps its colour when you hover it instead of turning grey."
+        ]
+    },
+    {
+        "date": "2026-10-12",
         "title": "Purchase Request fixes: stock, chat and who can add items",
         "version": "1.9.9",
         "changes": [
