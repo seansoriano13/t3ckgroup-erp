@@ -8,8 +8,8 @@ const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
 
 /**
  * Issue #308 — the Procurement Queue's RPCs re-implemented on the fake
- * database's store: `pr_queue` (20261005130900_procurement_queue.sql), and
- * #307's `pr_take` / `pr_set_buyer` with the member they add and the event
+ * database's store: `purchase_request_queue` (20261005130900_procurement_queue.sql), and
+ * #307's `purchase_request_take` / `purchase_request_set_buyer` with the member they add and the event
  * they post. The fake has no signed-in identity or RLS, so `actorId` stands in
  * for get_employee_id(), every request is readable, and `canManage` stands in
  * for purchase_request_can_manage_members. Who may read and take is proven
@@ -44,7 +44,7 @@ export function stubProcurementQueueRpcs({ actorId, canManage = false }) {
     }
   }
 
-  stubRpc("pr_queue", (args) =>
+  stubRpc("purchase_request_queue", (args) =>
     rowsOf("purchase_requests")
       .filter((r) => !args?.p_request_id || r.id === args.p_request_id)
       .map(queueRow)
@@ -74,12 +74,12 @@ export function stubProcurementQueueRpcs({ actorId, canManage = false }) {
       metadata: { event: "buyer_set", buyer_id: buyerId, previous_buyer_id: previous },
     })
 
-  stubRpc("pr_take", (args) => {
+  stubRpc("purchase_request_take", (args) => {
     const request = findRow("purchase_requests", args.p_request_id)
-    if (!request) throw pgrstError("P0002", "pr_take: request not found")
+    if (!request) throw pgrstError("P0002", "purchase_request_take: request not found")
     if (request.buyer_id) {
       const name = findRow("employees", request.buyer_id)?.name || "someone else"
-      throw pgrstError("55000", `pr_take: ${name} is already the Buyer`)
+      throw pgrstError("55000", `purchase_request_take: ${name} is already the Buyer`)
     }
     const updated = updateRow("purchase_requests", request, { buyer_id: actorId })
     ensureMember(request.id, actorId)
@@ -88,9 +88,9 @@ export function stubProcurementQueueRpcs({ actorId, canManage = false }) {
     return updated
   })
 
-  stubRpc("pr_set_buyer", (args) => {
+  stubRpc("purchase_request_set_buyer", (args) => {
     const request = findRow("purchase_requests", args.p_request_id)
-    if (!request) throw pgrstError("P0002", "pr_set_buyer: request not found")
+    if (!request) throw pgrstError("P0002", "purchase_request_set_buyer: request not found")
     const next = args.p_employee_id || null
     const updated = updateRow("purchase_requests", request, { buyer_id: next })
     if (next) ensureMember(request.id, next)

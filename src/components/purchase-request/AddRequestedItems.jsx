@@ -22,14 +22,14 @@ import { Textarea } from "@/components/ui/textarea";
 import Spinner from "@/components/ui/Spinner";
 import { AttachmentPreviews } from "@/components/ui/Attachments";
 import StatusBadge from "../StatusBadge";
+import StaleStockBadge from "./StaleStockBadge";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
-import { opportunityService } from "../../services/opportunityService";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
 import { REQUEST_UNITS } from "../../constants/procurement";
-import { STOCK_BADGE_THEME, stockBadge } from "../../constants/stock";
+import { STOCK_BADGE_THEME, isStockStale, stockBadge } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { formatAmount, isLineRequested } from "../../utils/requestedItem";
-import { purchaseRequestKeys, sorStockKey } from "./queryKeys";
+import { purchaseRequestKeys } from "./queryKeys";
 import { useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
 
@@ -52,8 +52,8 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
     enabled: open,
   });
   const { data: stockSnapshot } = useQuery({
-    queryKey: sorStockKey(opportunityId),
-    queryFn: () => opportunityService.getStockSnapshot(opportunityId),
+    queryKey: purchaseRequestKeys.stock(requestId),
+    queryFn: () => purchaseRequestService.stockSnapshot(requestId),
     enabled: open && !!opportunityId,
   });
 
@@ -105,6 +105,7 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
 
         <p className="text-[11px] text-muted-foreground">
           {stockSnapshot?.fetched_at ? `Stock as of ${formatDate(stockSnapshot.fetched_at)}` : "Stock not yet checked"}
+          {isStockStale(stockSnapshot?.fetched_at) && <StaleStockBadge className="ml-2" />}
         </p>
 
         <div className="max-h-[50vh] overflow-y-auto">

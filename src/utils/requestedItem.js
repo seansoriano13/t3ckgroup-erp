@@ -6,7 +6,7 @@
  * was picked (`sor_line_snapshot`), so a later SOR edit can't rewrite it.
  */
 
-import { stockBadge } from "@/constants/stock";
+import { isStockStale, stockBadge } from "@/constants/stock";
 import { ITEM_STATUS } from "@/constants/purchaseRequest";
 
 export const ITEM_SOURCE = {
@@ -57,17 +57,20 @@ export function sorLineChange(item) {
 
 /**
  * The item's product stock, judged on the SOR's stock snapshot (#202) against
- * the quantity requested, with the time it was read. Null for a new product:
- * there is nothing in Odoo to look up.
+ * the quantity requested, with the time it was read and whether that reading
+ * is stale (#501). Null for a new product: there is nothing in Odoo to look up.
  *
- * `stockSnapshot` is the SOR's `sor_stock_snapshots` row ({ data, fetched_at }).
+ * `stockSnapshot` is the SOR's `sor_stock_snapshots` row ({ data, fetched_at }),
+ * as `purchaseRequestService.stockSnapshot` reads it — the picker's source.
  */
-export function requestedItemStock(item, stockSnapshot) {
+export function requestedItemStock(item, stockSnapshot, now = Date.now()) {
   if (!item || item.source === ITEM_SOURCE.NEW) return null;
   const product = item.odoo_product_id ? stockSnapshot?.data?.products?.[item.odoo_product_id] || null : null;
+  const fetchedAt = product ? stockSnapshot?.fetched_at ?? null : null;
   return {
     badge: stockBadge({ quantity: item.quantity, product, odooProductId: item.odoo_product_id }),
-    fetchedAt: product ? stockSnapshot?.fetched_at ?? null : null,
+    fetchedAt,
+    stale: isStockStale(fetchedAt, now),
   };
 }
 

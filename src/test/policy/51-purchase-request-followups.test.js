@@ -275,7 +275,7 @@ describe("Purchasing access granted and taken away", () => {
 describe("the Procurement Queue", () => {
     const queueRow = async (requestId) => {
         const client = await clientFor("outsider")
-        const rows = await one(client.rpc("pr_queue", { p_request_id: requestId }), "Reading the queue")
+        const rows = await one(client.rpc("purchase_request_queue", { p_request_id: requestId }), "Reading the queue")
         return rows[0]
     }
 

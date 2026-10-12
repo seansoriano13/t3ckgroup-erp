@@ -149,3 +149,59 @@ describe("purchaseRequestService — Requested Items", () => {
     })
   })
 })
+
+/**
+ * Adding a new item, adding a substitute and opening a Direct request build
+ * one new product's fields the same way (#500): what each sends, pinned.
+ */
+describe("purchaseRequestService — a new product's fields, on every path", () => {
+  const sentTo = (fn) => {
+    const calls = []
+    stubRpc(fn, (args) => {
+      calls.push(args)
+      return "id-1"
+    })
+    return calls
+  }
+  const fields = { name: "Bracket", quantity: "3", unit: "", description: "" }
+
+  it("sends a substitute's fields as the RPC names them", async () => {
+    const sent = sentTo("purchase_request_add_substitute")
+
+    await purchaseRequestService.addSubstitute("item-9", {
+      name: "Harness, other brand",
+      quantity: "10",
+      unit: "pc",
+      description: "Same rating",
+      images: null,
+    })
+
+    expect(sent).toEqual([
+      {
+        p_item_id: "item-9",
+        p_name: "Harness, other brand",
+        p_quantity: 10,
+        p_unit: "pc",
+        p_description: "Same rating",
+        p_images: [],
+      },
+    ])
+  })
+
+  it("sends the same name, quantity, unit and description on all three", async () => {
+    const added = sentTo("purchase_request_add_new_item")
+    const substituted = sentTo("purchase_request_add_substitute")
+    const opened = sentTo("purchase_request_open")
+
+    await purchaseRequestService.addNewItem("r1", fields)
+    await purchaseRequestService.addSubstitute("item-9", fields)
+    await purchaseRequestService.openDirect("Office", [fields])
+
+    const expected = { name: "Bracket", quantity: 3, unit: null, description: null }
+    const args = { p_name: "Bracket", p_quantity: 3, p_unit: null, p_description: null, p_images: [] }
+    expect(added).toEqual([{ p_request_id: "r1", ...args }])
+    expect(substituted).toEqual([{ p_item_id: "item-9", ...args }])
+    // A Direct request's items go as one list, and carry no images.
+    expect(opened).toEqual([{ p_title: "Office", p_items: [expected] }])
+  })
+})

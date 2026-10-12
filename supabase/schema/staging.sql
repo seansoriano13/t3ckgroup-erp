@@ -3208,9 +3208,11 @@ begin
     );
 
   elsif v_event is null then
+    -- The creator counts only before a Buyer, or as a Direct request's Requester.
     select array_agg(distinct x) into v_requesters
     from (
       select v_req.created_by as x
+      where v_req.buyer_id is null or v_req.opportunity_id is null
       union
       select i.requested_by from public.purchase_request_items i where i.request_id = v_req.id
     ) q
@@ -4856,92 +4858,16 @@ CREATE OR REPLACE FUNCTION public.pr_actor_side(p_request_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select case
-    when get_employee_id() is null or r.id is null then null
-    when coalesce(is_super_admin(), false) then 'purchasing'
-    when m.employee_id is not null and has_purchasing_access() then 'purchasing'
-    when m.side = 'requester' then 'requester'
-    when m.side = 'sales' or r.buyer_id = get_employee_id() then 'sales'
-    when m.employee_id is not null then 'other'
-    else null
-  end
-  from (select 1) one
-  left join purchase_requests r on r.id = p_request_id
-  left join purchase_request_members m
-    on m.request_id = r.id and m.employee_id = get_employee_id();
+  select public.purchase_request_actor_side(p_request_id);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_add_substitute(p_item_id uuid, p_name text, p_quantity numeric, p_unit text DEFAULT NULL::text, p_description text DEFAULT NULL::text, p_images jsonb DEFAULT '[]'::jsonb)
  RETURNS uuid
- LANGUAGE plpgsql
+ LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare
-  v_actor uuid := public.get_employee_id();
-  v_images jsonb := coalesce(p_images, '[]'::jsonb);
-  v_original public.purchase_request_items;
-  v_req public.purchase_requests;
-  v_side text;
-  v_item public.purchase_request_items;
-  v_amount text;
-begin
-  if v_actor is null then
-    raise exception 'pr_add_substitute: not signed in' using errcode = '42501';
-  end if;
-
-  select * into v_original from public.purchase_request_items where id = p_item_id for update;
-  if v_original.id is null then
-    raise exception 'pr_add_substitute: item % not found', p_item_id using errcode = 'P0002';
-  end if;
-  select * into v_req from public.purchase_requests where id = v_original.request_id;
-
-  v_side := public.pr_actor_side(v_req.id);
-  if not public.pr_can_add_substitute(v_req.id) then
-    raise exception 'pr_add_substitute: only the request''s Buyer may add a substitute' using errcode = '42501';
-  end if;
-  if not public._purchase_request_item_transition_ok(v_original.status, 'substituted', v_side) then
-    raise exception 'pr_add_substitute: % is already closed', v_original.name using errcode = '22023';
-  end if;
-
-  if nullif(btrim(p_name), '') is null then
-    raise exception 'pr_add_substitute: a substitute needs a name' using errcode = '22023';
-  end if;
-  if p_quantity is null or p_quantity <= 0 then
-    raise exception 'pr_add_substitute: the quantity must be more than zero' using errcode = '22023';
-  end if;
-  if jsonb_typeof(v_images) <> 'array'
-     or jsonb_array_length(v_images) > 5
-     or exists (
-       select 1 from jsonb_array_elements(v_images) img
-       where jsonb_typeof(img) <> 'object' or nullif(img->>'url', '') is null
-     ) then
-    raise exception 'pr_add_substitute: images must be up to 5 uploaded files' using errcode = '22023';
-  end if;
-
-  insert into public.purchase_request_items
-    (request_id, source, name, unit, quantity, description, images, substitute_for_item_id, requested_by)
-  values
-    (v_req.id, 'new', btrim(p_name), nullif(btrim(p_unit), ''), p_quantity,
-     nullif(btrim(p_description), ''), v_images, v_original.id, v_actor)
-  returning * into v_item;
-
-  v_amount := trim_scale(v_item.quantity)::text || coalesce(' ' || v_item.unit, '');
-  perform public._purchase_request_post_event(
-    v_req.id,
-    v_actor,
-    format('Offered %s × %s as a substitute for %s.', v_item.name, v_amount, v_original.name),
-    jsonb_build_object('event', 'item_added', 'item_id', v_item.id, 'source', v_item.source,
-                       'substitute_for_item_id', v_original.id)
-  );
-
-  perform public._purchase_request_item_move(
-    v_original, 'substituted', v_side, v_actor,
-    jsonb_build_object('substitute_item_id', v_item.id), 'pr_add_substitute'
-  );
-
-  return v_item.id;
-end;
+  select public.purchase_request_add_substitute(p_item_id, p_name, p_quantity, p_unit, p_description, p_images);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_can_add_substitute(p_request_id uuid)
@@ -4950,101 +4876,25 @@ CREATE OR REPLACE FUNCTION public.pr_can_add_substitute(p_request_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce(is_super_admin(), false)
-      or exists (select 1 from purchase_requests r where r.id = p_request_id and r.buyer_id = get_employee_id());
+  select public.purchase_request_can_add_substitute(p_request_id);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_item_po_lines(p_item_id uuid)
  RETURNS integer[]
- LANGUAGE plpgsql
+ LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare
-  v_item public.purchase_request_items;
-begin
-  if public.get_employee_id() is null then
-    raise exception 'pr_item_po_lines: not signed in' using errcode = '42501';
-  end if;
-  select * into v_item from public.purchase_request_items where id = p_item_id;
-  if v_item.id is null or not public.can_read_purchase_request(v_item.request_id) then
-    raise exception 'pr_item_po_lines: item % not found', p_item_id using errcode = 'P0002';
-  end if;
-  if v_item.po_number is null then
-    return '{}'::int[];
-  end if;
-  return coalesce(public._ipas_po_line_ids(v_item.po_number), '{}'::int[]);
-end;
+  select public.purchase_request_item_po_lines(p_item_id);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_pick_po_lines(p_item_id uuid, p_line_ids integer[])
  RETURNS purchase_request_items
- LANGUAGE plpgsql
+ LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare
-  v_actor uuid := public.get_employee_id();
-  v_item public.purchase_request_items;
-  v_lines int[];
-  v_ipas int[];
-  v_stray int[];
-begin
-  if v_actor is null then
-    raise exception 'pr_pick_po_lines: not signed in' using errcode = '42501';
-  end if;
-
-  select * into v_item from public.purchase_request_items where id = p_item_id for update;
-  if v_item.id is null then
-    raise exception 'pr_pick_po_lines: item % not found', p_item_id using errcode = 'P0002';
-  end if;
-  if coalesce(public.pr_actor_side(v_item.request_id), '') <> 'purchasing' then
-    raise exception 'pr_pick_po_lines: only Purchasing picks an item''s PO line' using errcode = '42501';
-  end if;
-  if v_item.status not in ('ordered', 'received') then
-    raise exception 'pr_pick_po_lines: % is %, not Ordered', v_item.name,
-      public._purchase_request_item_status_label(v_item.status)
-      using errcode = '22023';
-  end if;
-  if v_item.po_number is null then
-    raise exception 'pr_pick_po_lines: % has no PO number', v_item.name using errcode = '22023';
-  end if;
-
-  if p_line_ids is null or cardinality(p_line_ids) = 0 or array_position(p_line_ids, null) is not null then
-    raise exception 'pr_pick_po_lines: pick at least one PO line' using errcode = '22023';
-  end if;
-  select array_agg(distinct l order by l) into v_lines from unnest(p_line_ids) l;
-
-  v_ipas := coalesce(public._ipas_po_line_ids(v_item.po_number), '{}'::int[]);
-  if cardinality(v_ipas) = 0 then
-    raise exception 'pr_pick_po_lines: PO % has no IPAS yet; pick its line once it does', v_item.po_number
-      using errcode = '22023';
-  end if;
-  select array_agg(l order by l) into v_stray from unnest(v_lines) l where not (l = any (v_ipas));
-  if v_stray is not null then
-    raise exception 'pr_pick_po_lines: line % isn''t on PO %''s IPAS copy', array_to_string(v_stray, ', '), v_item.po_number
-      using errcode = '22023';
-  end if;
-
-  update public.purchase_request_items
-     set odoo_po_line_ids = v_lines
-   where id = v_item.id
-  returning * into v_item;
-
-  perform public._purchase_request_post_event(
-    v_item.request_id,
-    v_actor,
-    format('%s: PO line picked on %s.', v_item.name, v_item.po_number),
-    jsonb_build_object(
-      'event', 'item_po_lines_picked',
-      'item_id', v_item.id,
-      'po_number', v_item.po_number,
-      'line_ids', to_jsonb(v_lines)
-    )
-  );
-
-  return v_item;
-end;
+  select * from public.purchase_request_pick_po_lines(p_item_id, p_line_ids);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_queue(p_request_id uuid DEFAULT NULL::uuid)
@@ -5053,224 +4903,34 @@ CREATE OR REPLACE FUNCTION public.pr_queue(p_request_id uuid DEFAULT NULL::uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select
-    r.id,
-    r.opportunity_id,
-    coalesce(nullif(o.sales_reference, ''), o.sor_code, o.opportunity_no),
-    o.project_title,
-    fs.name,
-    case when o.id is not null then public._sor_purchasing_closed_reason(o) end,
-    r.buyer_id,
-    b.name,
-    b.avatar_path,
-    r.created_at,
-    r.updated_at,
-    coalesce(i.item_count, 0)::integer,
-    coalesce(i.open_count, 0)::integer,
-    greatest(r.updated_at, m.last_message_at),
-    o.status,
-    r.title
-  from public.purchase_requests r
-  left join public.sales_opportunities o on o.id = r.opportunity_id
-  left join public.flow_stages fs on fs.id = o.flow_stage_id
-  left join public.employees b on b.id = r.buyer_id
-  left join lateral (
-    select
-      count(*) as item_count,
-      count(*) filter (where not public._purchase_request_item_is_closed(it.status)) as open_count
-    from public.purchase_request_items it
-    where it.request_id = r.id
-  ) i on true
-  left join lateral (
-    select max(msg.created_at) as last_message_at
-    from public.purchase_request_messages msg
-    where msg.request_id = r.id
-  ) m on true
-  where (p_request_id is null or r.id = p_request_id)
-    and public.can_read_purchase_request(r.id)
-  order by greatest(r.updated_at, m.last_message_at) desc nulls last, r.created_at desc;
+  select * from public.purchase_request_queue(p_request_id);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_set_buyer(p_request_id uuid, p_employee_id uuid)
  RETURNS purchase_requests
- LANGUAGE plpgsql
+ LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare
-  v_actor uuid := public.get_employee_id();
-  v_req public.purchase_requests;
-  v_previous uuid;
-  v_name text;
-begin
-  if v_actor is null then
-    raise exception 'pr_set_buyer: not signed in' using errcode = '42501';
-  end if;
-  if not public.purchase_request_can_manage_members(p_request_id) then
-    raise exception 'pr_set_buyer: only a purchasing member or a Super Admin may name the Buyer' using errcode = '42501';
-  end if;
-
-  select * into v_req from public.purchase_requests where id = p_request_id for update;
-  if v_req.id is null then
-    raise exception 'pr_set_buyer: request % not found', p_request_id using errcode = 'P0002';
-  end if;
-  if v_req.buyer_id is not distinct from p_employee_id then
-    raise exception 'pr_set_buyer: nothing to change' using errcode = '22023';
-  end if;
-  if p_employee_id is not null and not public._employee_has_purchasing_access(p_employee_id) then
-    raise exception 'pr_set_buyer: the Buyer must have Purchasing access' using errcode = '22023';
-  end if;
-
-  v_previous := v_req.buyer_id;
-  update public.purchase_requests set buyer_id = p_employee_id where id = p_request_id
-  returning * into v_req;
-
-  if p_employee_id is not null then
-    perform public._purchase_request_add_member(p_request_id, p_employee_id, v_actor);
-    select name into v_name from public.employees where id = p_employee_id;
-  end if;
-
-  perform public._purchase_request_post_event(
-    p_request_id, v_actor,
-    case when p_employee_id is null
-      then 'The request has no Buyer now; it is back in the queue.'
-      else format('%s is the Buyer.', coalesce(v_name, 'Someone'))
-    end,
-    jsonb_build_object('event', 'buyer_set', 'buyer_id', p_employee_id, 'previous_buyer_id', v_previous)
-  );
-
-  return v_req;
-end;
+  select * from public.purchase_request_set_buyer(p_request_id, p_employee_id);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_set_item_status(p_item_id uuid, p_status text, p_details jsonb DEFAULT '{}'::jsonb)
  RETURNS purchase_request_items
- LANGUAGE plpgsql
+ LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare
-  v_actor uuid := public.get_employee_id();
-  v_details jsonb := coalesce(p_details, '{}'::jsonb);
-  v_item public.purchase_request_items;
-  v_side text;
-  v_key text;
-  v_po text;
-  v_verification text;
-begin
-  if v_actor is null then
-    raise exception 'pr_set_item_status: not signed in' using errcode = '42501';
-  end if;
-  if p_status is null or p_status not in (
-    'requested', 'from_stock', 'to_order', 'canvassing', 'ordered', 'received',
-    'substituted', 'cannot_source', 'cancelled'
-  ) then
-    raise exception 'pr_set_item_status: % is not an item status', coalesce(p_status, 'null') using errcode = '22023';
-  end if;
-  if jsonb_typeof(v_details) <> 'object' then
-    raise exception 'pr_set_item_status: details must be an object' using errcode = '22023';
-  end if;
-
-  -- Only Ordered takes details: its PO number and what Odoo said about it.
-  if p_status <> 'ordered' and v_details <> '{}'::jsonb then
-    raise exception 'pr_set_item_status: % takes no details', public._purchase_request_item_status_label(p_status)
-      using errcode = '22023';
-  end if;
-  for v_key in select jsonb_object_keys(v_details) loop
-    if v_key not in ('po_number', 'po_verification') then
-      raise exception 'pr_set_item_status: Ordered takes a PO number and its check, not %', v_key
-        using errcode = '22023';
-    end if;
-  end loop;
-
-  if v_details ? 'po_number' and jsonb_typeof(v_details->'po_number') not in ('string', 'null') then
-    raise exception 'pr_set_item_status: the PO number must be text' using errcode = '22023';
-  end if;
-  v_po := nullif(upper(btrim(v_details->>'po_number')), '');
-  v_verification := nullif(btrim(v_details->>'po_verification'), '');
-  if v_po is not null and v_po !~ '^P[0-9]+$' then
-    raise exception 'pr_set_item_status: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', v_po
-      using errcode = '22023';
-  end if;
-  if v_verification is not null and v_po is null then
-    raise exception 'pr_set_item_status: a PO check needs a PO number' using errcode = '22023';
-  end if;
-  if v_verification is not null
-     and v_verification not in ('UNVERIFIED', 'VERIFIED', 'PENDING_VERIFICATION', 'NOT_FOUND') then
-    raise exception 'pr_set_item_status: % is not a PO check result', v_verification using errcode = '22023';
-  end if;
-  if v_po is not null then
-    v_verification := coalesce(v_verification, 'UNVERIFIED');
-    v_details := jsonb_build_object('po_number', v_po, 'po_verification', v_verification);
-  else
-    v_details := '{}'::jsonb;
-  end if;
-
-  select * into v_item from public.purchase_request_items where id = p_item_id for update;
-  if v_item.id is null then
-    raise exception 'pr_set_item_status: item % not found', p_item_id using errcode = 'P0002';
-  end if;
-
-  v_side := public.pr_actor_side(v_item.request_id);
-  if v_side is null then
-    raise exception 'pr_set_item_status: only the request''s members may change an item' using errcode = '42501';
-  end if;
-
-  v_item := public._purchase_request_item_move(v_item, p_status, v_side, v_actor, v_details, 'pr_set_item_status');
-
-  if v_po is not null then
-    update public.purchase_request_items
-       set po_number = v_po,
-           po_verification = v_verification
-     where id = v_item.id
-    returning * into v_item;
-  end if;
-
-  return v_item;
-end;
+  select * from public.purchase_request_set_item_status(p_item_id, p_status, p_details);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_take(p_request_id uuid)
  RETURNS purchase_requests
- LANGUAGE plpgsql
+ LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare
-  v_actor uuid := public.get_employee_id();
-  v_req public.purchase_requests;
-  v_name text;
-begin
-  if v_actor is null then
-    raise exception 'pr_take: not signed in' using errcode = '42501';
-  end if;
-  if not public.has_purchasing_access() then
-    raise exception 'pr_take: only someone with Purchasing access may take a request' using errcode = '42501';
-  end if;
-
-  select * into v_req from public.purchase_requests where id = p_request_id for update;
-  if v_req.id is null then
-    raise exception 'pr_take: request % not found', p_request_id using errcode = 'P0002';
-  end if;
-  if v_req.buyer_id is not null then
-    select name into v_name from public.employees where id = v_req.buyer_id;
-    raise exception 'pr_take: % is already the Buyer', coalesce(v_name, 'someone else') using errcode = '55000';
-  end if;
-
-  update public.purchase_requests set buyer_id = v_actor where id = p_request_id
-  returning * into v_req;
-
-  perform public._purchase_request_add_member(p_request_id, v_actor, v_actor);
-
-  select name into v_name from public.employees where id = v_actor;
-  perform public._purchase_request_post_event(
-    p_request_id, v_actor,
-    format('%s took the request as Buyer.', coalesce(v_name, 'Someone')),
-    jsonb_build_object('event', 'buyer_set', 'buyer_id', v_actor, 'previous_buyer_id', null, 'taken', true)
-  );
-
-  return v_req;
-end;
+  select * from public.purchase_request_take(p_request_id);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
@@ -5373,6 +5033,27 @@ AS $function$BEGIN
   RETURN NEW;
 END;$function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_actor_side(p_request_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when get_employee_id() is null or r.id is null then null
+    when coalesce(is_super_admin(), false) then 'purchasing'
+    when m.employee_id is not null and has_purchasing_access() then 'purchasing'
+    when m.side = 'requester' then 'requester'
+    when m.side = 'sales' or r.buyer_id = get_employee_id() then 'sales'
+    when m.employee_id is not null then 'other'
+    else null
+  end
+  from (select 1) one
+  left join purchase_requests r on r.id = p_request_id
+  left join purchase_request_members m
+    on m.request_id = r.id and m.employee_id = get_employee_id();
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_add_item_from_line(p_request_id uuid, p_line_id uuid)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -5468,6 +5149,79 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_add_substitute(p_item_id uuid, p_name text, p_quantity numeric, p_unit text DEFAULT NULL::text, p_description text DEFAULT NULL::text, p_images jsonb DEFAULT '[]'::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_images jsonb := coalesce(p_images, '[]'::jsonb);
+  v_original public.purchase_request_items;
+  v_req public.purchase_requests;
+  v_side text;
+  v_item public.purchase_request_items;
+  v_amount text;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_add_substitute: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_original from public.purchase_request_items where id = p_item_id for update;
+  if v_original.id is null then
+    raise exception 'purchase_request_add_substitute: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+  select * into v_req from public.purchase_requests where id = v_original.request_id;
+
+  v_side := public.purchase_request_actor_side(v_req.id);
+  if not public.purchase_request_can_add_substitute(v_req.id) then
+    raise exception 'purchase_request_add_substitute: only the request''s Buyer may add a substitute' using errcode = '42501';
+  end if;
+  if not public._purchase_request_item_transition_ok(v_original.status, 'substituted', v_side) then
+    raise exception 'purchase_request_add_substitute: % is already closed', v_original.name using errcode = '22023';
+  end if;
+
+  if nullif(btrim(p_name), '') is null then
+    raise exception 'purchase_request_add_substitute: a substitute needs a name' using errcode = '22023';
+  end if;
+  if p_quantity is null or p_quantity <= 0 then
+    raise exception 'purchase_request_add_substitute: the quantity must be more than zero' using errcode = '22023';
+  end if;
+  if jsonb_typeof(v_images) <> 'array'
+     or jsonb_array_length(v_images) > 5
+     or exists (
+       select 1 from jsonb_array_elements(v_images) img
+       where jsonb_typeof(img) <> 'object' or nullif(img->>'url', '') is null
+     ) then
+    raise exception 'purchase_request_add_substitute: images must be up to 5 uploaded files' using errcode = '22023';
+  end if;
+
+  insert into public.purchase_request_items
+    (request_id, source, name, unit, quantity, description, images, substitute_for_item_id, requested_by)
+  values
+    (v_req.id, 'new', btrim(p_name), nullif(btrim(p_unit), ''), p_quantity,
+     nullif(btrim(p_description), ''), v_images, v_original.id, v_actor)
+  returning * into v_item;
+
+  v_amount := trim_scale(v_item.quantity)::text || coalesce(' ' || v_item.unit, '');
+  perform public._purchase_request_post_event(
+    v_req.id,
+    v_actor,
+    format('Offered %s × %s as a substitute for %s.', v_item.name, v_amount, v_original.name),
+    jsonb_build_object('event', 'item_added', 'item_id', v_item.id, 'source', v_item.source,
+                       'substitute_for_item_id', v_original.id)
+  );
+
+  perform public._purchase_request_item_move(
+    v_original, 'substituted', v_side, v_actor,
+    jsonb_build_object('substitute_item_id', v_item.id), 'purchase_request_add_substitute'
+  );
+
+  return v_item.id;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_can_add_items(p_request_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -5485,17 +5239,27 @@ AS $function$
           select 1 from purchase_request_members m
           where m.request_id = r.id
             and m.employee_id = get_employee_id()
-            and case
-              when r.requesters is not null then public._purchase_request_may_request(r, m.employee_id)
-              else m.side in ('sales', 'requester')
-                or exists (
-                  select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
-                  where o.id = r.opportunity_id and t.employee_id = m.employee_id
-                )
-            end
+            and (
+              m.side in ('sales', 'requester')
+              or exists (
+                select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
+                where o.id = r.opportunity_id and t.employee_id = m.employee_id
+              )
+              or public._purchase_request_may_request(r, m.employee_id)
+            )
         )
       )
   );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_can_add_substitute(p_request_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(is_super_admin(), false)
+      or exists (select 1 from purchase_requests r where r.id = p_request_id and r.buyer_id = get_employee_id());
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_can_manage_members(p_request_id uuid)
@@ -5538,6 +5302,29 @@ AS $function$
   where i.request_id = p_request_id
     and i.source = 'sor_line'
     and can_read_purchase_request(p_request_id);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_item_po_lines(p_item_id uuid)
+ RETURNS integer[]
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_item public.purchase_request_items;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'purchase_request_item_po_lines: not signed in' using errcode = '42501';
+  end if;
+  select * into v_item from public.purchase_request_items where id = p_item_id;
+  if v_item.id is null or not public.can_read_purchase_request(v_item.request_id) then
+    raise exception 'purchase_request_item_po_lines: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+  if v_item.po_number is null then
+    return '{}'::int[];
+  end if;
+  return coalesce(public._ipas_po_line_ids(v_item.po_number), '{}'::int[]);
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_member_side(p_opportunity_id uuid, p_employee_id uuid)
@@ -5641,6 +5428,76 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_pick_po_lines(p_item_id uuid, p_line_ids integer[])
+ RETURNS purchase_request_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_item public.purchase_request_items;
+  v_lines int[];
+  v_ipas int[];
+  v_stray int[];
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_pick_po_lines: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception 'purchase_request_pick_po_lines: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+  if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
+    raise exception 'purchase_request_pick_po_lines: only Purchasing picks an item''s PO line' using errcode = '42501';
+  end if;
+  if v_item.status not in ('ordered', 'received') then
+    raise exception 'purchase_request_pick_po_lines: % is %, not Ordered', v_item.name,
+      public._purchase_request_item_status_label(v_item.status)
+      using errcode = '22023';
+  end if;
+  if v_item.po_number is null then
+    raise exception 'purchase_request_pick_po_lines: % has no PO number', v_item.name using errcode = '22023';
+  end if;
+
+  if p_line_ids is null or cardinality(p_line_ids) = 0 or array_position(p_line_ids, null) is not null then
+    raise exception 'purchase_request_pick_po_lines: pick at least one PO line' using errcode = '22023';
+  end if;
+  select array_agg(distinct l order by l) into v_lines from unnest(p_line_ids) l;
+
+  v_ipas := coalesce(public._ipas_po_line_ids(v_item.po_number), '{}'::int[]);
+  if cardinality(v_ipas) = 0 then
+    raise exception 'purchase_request_pick_po_lines: PO % has no IPAS yet; pick its line once it does', v_item.po_number
+      using errcode = '22023';
+  end if;
+  select array_agg(l order by l) into v_stray from unnest(v_lines) l where not (l = any (v_ipas));
+  if v_stray is not null then
+    raise exception 'purchase_request_pick_po_lines: line % isn''t on PO %''s IPAS copy', array_to_string(v_stray, ', '), v_item.po_number
+      using errcode = '22023';
+  end if;
+
+  update public.purchase_request_items
+     set odoo_po_line_ids = v_lines
+   where id = v_item.id
+  returning * into v_item;
+
+  perform public._purchase_request_post_event(
+    v_item.request_id,
+    v_actor,
+    format('%s: PO line picked on %s.', v_item.name, v_item.po_number),
+    jsonb_build_object(
+      'event', 'item_po_lines_picked',
+      'item_id', v_item.id,
+      'po_number', v_item.po_number,
+      'line_ids', to_jsonb(v_lines)
+    )
+  );
+
+  return v_item;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_pickable_lines(p_request_id uuid)
  RETURNS TABLE(id uuid, product_name text, quantity numeric, unit text, odoo_product_id integer, sort_order integer)
  LANGUAGE plpgsql
@@ -5656,6 +5513,50 @@ begin
     where l.opportunity_id = v_req.opportunity_id
     order by l.sort_order, l.created_at;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_queue(p_request_id uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone, sor_status text, title text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    r.id,
+    r.opportunity_id,
+    coalesce(nullif(o.sales_reference, ''), o.sor_code, o.opportunity_no),
+    o.project_title,
+    fs.name,
+    case when o.id is not null then public._sor_purchasing_closed_reason(o) end,
+    r.buyer_id,
+    b.name,
+    b.avatar_path,
+    r.created_at,
+    r.updated_at,
+    coalesce(i.item_count, 0)::integer,
+    coalesce(i.open_count, 0)::integer,
+    greatest(r.updated_at, m.last_message_at),
+    o.status,
+    r.title
+  from public.purchase_requests r
+  left join public.sales_opportunities o on o.id = r.opportunity_id
+  left join public.flow_stages fs on fs.id = o.flow_stage_id
+  left join public.employees b on b.id = r.buyer_id
+  left join lateral (
+    select
+      count(*) as item_count,
+      count(*) filter (where not public._purchase_request_item_is_closed(it.status)) as open_count
+    from public.purchase_request_items it
+    where it.request_id = r.id
+  ) i on true
+  left join lateral (
+    select max(msg.created_at) as last_message_at
+    from public.purchase_request_messages msg
+    where msg.request_id = r.id
+  ) m on true
+  where (p_request_id is null or r.id = p_request_id)
+    and public.can_read_purchase_request(r.id)
+  order by greatest(r.updated_at, m.last_message_at) desc nulls last, r.created_at desc;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_remove_member(p_request_id uuid, p_employee_id uuid)
@@ -5692,6 +5593,201 @@ begin
     and employee_id = p_employee_id and closed_at is null;
 
   perform public._purchase_request_member_event(p_request_id, v_actor, p_employee_id, 'member_removed');
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_set_buyer(p_request_id uuid, p_employee_id uuid)
+ RETURNS purchase_requests
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_req public.purchase_requests;
+  v_previous uuid;
+  v_name text;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_set_buyer: not signed in' using errcode = '42501';
+  end if;
+  if not public.purchase_request_can_manage_members(p_request_id) then
+    raise exception 'purchase_request_set_buyer: only a purchasing member or a Super Admin may name the Buyer' using errcode = '42501';
+  end if;
+
+  select * into v_req from public.purchase_requests where id = p_request_id for update;
+  if v_req.id is null then
+    raise exception 'purchase_request_set_buyer: request % not found', p_request_id using errcode = 'P0002';
+  end if;
+  if v_req.buyer_id is not distinct from p_employee_id then
+    raise exception 'purchase_request_set_buyer: nothing to change' using errcode = '22023';
+  end if;
+  if p_employee_id is not null and not public._employee_has_purchasing_access(p_employee_id) then
+    raise exception 'purchase_request_set_buyer: the Buyer must have Purchasing access' using errcode = '22023';
+  end if;
+
+  v_previous := v_req.buyer_id;
+  update public.purchase_requests set buyer_id = p_employee_id where id = p_request_id
+  returning * into v_req;
+
+  if p_employee_id is not null then
+    perform public._purchase_request_add_member(p_request_id, p_employee_id, v_actor);
+    select name into v_name from public.employees where id = p_employee_id;
+  end if;
+
+  perform public._purchase_request_post_event(
+    p_request_id, v_actor,
+    case when p_employee_id is null
+      then 'The request has no Buyer now; it is back in the queue.'
+      else format('%s is the Buyer.', coalesce(v_name, 'Someone'))
+    end,
+    jsonb_build_object('event', 'buyer_set', 'buyer_id', p_employee_id, 'previous_buyer_id', v_previous)
+  );
+
+  return v_req;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_set_item_status(p_item_id uuid, p_status text, p_details jsonb DEFAULT '{}'::jsonb)
+ RETURNS purchase_request_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_details jsonb := coalesce(p_details, '{}'::jsonb);
+  v_item public.purchase_request_items;
+  v_side text;
+  v_key text;
+  v_po text;
+  v_verification text;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_set_item_status: not signed in' using errcode = '42501';
+  end if;
+  if p_status is null or p_status not in (
+    'requested', 'from_stock', 'to_order', 'canvassing', 'ordered', 'received',
+    'substituted', 'cannot_source', 'cancelled'
+  ) then
+    raise exception 'purchase_request_set_item_status: % is not an item status', coalesce(p_status, 'null') using errcode = '22023';
+  end if;
+  if jsonb_typeof(v_details) <> 'object' then
+    raise exception 'purchase_request_set_item_status: details must be an object' using errcode = '22023';
+  end if;
+
+  -- Only Ordered takes details: its PO number and what Odoo said about it.
+  if p_status <> 'ordered' and v_details <> '{}'::jsonb then
+    raise exception 'purchase_request_set_item_status: % takes no details', public._purchase_request_item_status_label(p_status)
+      using errcode = '22023';
+  end if;
+  for v_key in select jsonb_object_keys(v_details) loop
+    if v_key not in ('po_number', 'po_verification') then
+      raise exception 'purchase_request_set_item_status: Ordered takes a PO number and its check, not %', v_key
+        using errcode = '22023';
+    end if;
+  end loop;
+
+  if v_details ? 'po_number' and jsonb_typeof(v_details->'po_number') not in ('string', 'null') then
+    raise exception 'purchase_request_set_item_status: the PO number must be text' using errcode = '22023';
+  end if;
+  v_po := nullif(upper(btrim(v_details->>'po_number')), '');
+  v_verification := nullif(btrim(v_details->>'po_verification'), '');
+  if v_po is not null and v_po !~ '^P[0-9]+$' then
+    raise exception 'purchase_request_set_item_status: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', v_po
+      using errcode = '22023';
+  end if;
+  if v_verification is not null and v_po is null then
+    raise exception 'purchase_request_set_item_status: a PO check needs a PO number' using errcode = '22023';
+  end if;
+  if v_verification is not null
+     and v_verification not in ('UNVERIFIED', 'VERIFIED', 'PENDING_VERIFICATION', 'NOT_FOUND') then
+    raise exception 'purchase_request_set_item_status: % is not a PO check result', v_verification using errcode = '22023';
+  end if;
+  if v_po is not null then
+    v_verification := coalesce(v_verification, 'UNVERIFIED');
+    v_details := jsonb_build_object('po_number', v_po, 'po_verification', v_verification);
+  else
+    v_details := '{}'::jsonb;
+  end if;
+
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception 'purchase_request_set_item_status: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+
+  v_side := public.purchase_request_actor_side(v_item.request_id);
+  if v_side is null then
+    raise exception 'purchase_request_set_item_status: only the request''s members may change an item' using errcode = '42501';
+  end if;
+
+  v_item := public._purchase_request_item_move(v_item, p_status, v_side, v_actor, v_details, 'purchase_request_set_item_status');
+
+  if v_po is not null then
+    update public.purchase_request_items
+       set po_number = v_po,
+           po_verification = v_verification
+     where id = v_item.id
+    returning * into v_item;
+  end if;
+
+  return v_item;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_stock_snapshot(p_request_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object('fetched_at', s.fetched_at, 'data', s.data)
+  from purchase_requests r
+  join sor_stock_snapshots s on s.opportunity_id = r.opportunity_id
+  where r.id = p_request_id
+    and can_read_purchase_request(p_request_id);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_take(p_request_id uuid)
+ RETURNS purchase_requests
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_req public.purchase_requests;
+  v_name text;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_take: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'purchase_request_take: only someone with Purchasing access may take a request' using errcode = '42501';
+  end if;
+
+  select * into v_req from public.purchase_requests where id = p_request_id for update;
+  if v_req.id is null then
+    raise exception 'purchase_request_take: request % not found', p_request_id using errcode = 'P0002';
+  end if;
+  if v_req.buyer_id is not null then
+    select name into v_name from public.employees where id = v_req.buyer_id;
+    raise exception 'purchase_request_take: % is already the Buyer', coalesce(v_name, 'someone else') using errcode = '55000';
+  end if;
+
+  update public.purchase_requests set buyer_id = v_actor where id = p_request_id
+  returning * into v_req;
+
+  perform public._purchase_request_add_member(p_request_id, v_actor, v_actor);
+
+  select name into v_name from public.employees where id = v_actor;
+  perform public._purchase_request_post_event(
+    p_request_id, v_actor,
+    format('%s took the request as Buyer.', coalesce(v_name, 'Someone')),
+    jsonb_build_object('event', 'buyer_set', 'buyer_id', v_actor, 'previous_buyer_id', null, 'taken', true)
+  );
+
+  return v_req;
 end;
 $function$
 ;

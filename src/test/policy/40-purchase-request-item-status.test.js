@@ -1,7 +1,7 @@
 /**
  * The Requested Item status path (#306, part of #209): every change through
- * `pr_set_item_status`, which checks the transition and the caller's side and
- * posts in the request; the Buyer's substitutes through `pr_add_substitute`.
+ * `purchase_request_set_item_status`, which checks the transition and the caller's side and
+ * posts in the request; the Buyer's substitutes through `purchase_request_add_substitute`.
  *
  * `stageParticipant` is the Buyer and `outsider` a purchasing member who isn't
  * (both given Purchasing access here); `dealOwner` is on the sales side; `hr`
@@ -59,11 +59,11 @@ async function eventsFor(itemId, event = "item_status_changed") {
 async function setStatus(who, itemId, status, details) {
     const args = { p_item_id: itemId, p_status: status }
     if (details !== undefined) args.p_details = details
-    return (await clientFor(who)).rpc("pr_set_item_status", args)
+    return (await clientFor(who)).rpc("purchase_request_set_item_status", args)
 }
 
 async function substitute(who, itemId, fields = {}) {
-    return (await clientFor(who)).rpc("pr_add_substitute", {
+    return (await clientFor(who)).rpc("purchase_request_add_substitute", {
         p_item_id: itemId,
         p_name: `${MARKER} Harness, other brand`,
         p_quantity: 10,
@@ -108,7 +108,7 @@ describe("the caller's side", () => {
         ["a member on the other side", "hr", "other"],
         ["a non-member", "ordinary", null],
     ])("%s is %s", async (_, who, side) => {
-        const { data, error } = await (await clientFor(who)).rpc("pr_actor_side", { p_request_id: requestId })
+        const { data, error } = await (await clientFor(who)).rpc("purchase_request_actor_side", { p_request_id: requestId })
         expect(error).toBeNull()
         expect(data).toBe(side)
     })
@@ -120,7 +120,7 @@ describe("the caller's side", () => {
         ["dealOwner", false],
         ["ordinary", false],
     ])("%s may add a substitute: %s", async (who, can) => {
-        const { data, error } = await (await clientFor(who)).rpc("pr_can_add_substitute", { p_request_id: requestId })
+        const { data, error } = await (await clientFor(who)).rpc("purchase_request_can_add_substitute", { p_request_id: requestId })
         expect(error).toBeNull()
         expect(data).toBe(can)
     })
@@ -359,10 +359,10 @@ describe("the Buyer adds a substitute", () => {
 
 describe("someone not signed in", () => {
     it.each([
-        ["pr_actor_side", { p_request_id: NO_ID }],
-        ["pr_can_add_substitute", { p_request_id: NO_ID }],
-        ["pr_set_item_status", { p_item_id: NO_ID, p_status: "cancelled" }],
-        ["pr_add_substitute", { p_item_id: NO_ID, p_name: "x", p_quantity: 1 }],
+        ["purchase_request_actor_side", { p_request_id: NO_ID }],
+        ["purchase_request_can_add_substitute", { p_request_id: NO_ID }],
+        ["purchase_request_set_item_status", { p_item_id: NO_ID, p_status: "cancelled" }],
+        ["purchase_request_add_substitute", { p_item_id: NO_ID, p_name: "x", p_quantity: 1 }],
     ])("cannot call %s at all", async (fn, args) => {
         const { error } = await anonymousClient().rpc(fn, args)
         expect(error?.message).toMatch(/permission denied/i)

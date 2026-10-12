@@ -21,7 +21,7 @@ const MEMBER_SELECT =
  * from an SOR line or described as a new product. Each starts at Requested
  * and posts in the request.
  *
- * Status (#306): every change goes through `pr_set_item_status`, which checks
+ * Status (#306): every change goes through `purchase_request_set_item_status`, which checks
  * the transition and the caller's side (purchasing walks the path; the sales
  * side may only cancel) and posts the change in the request.
  *
@@ -35,7 +35,7 @@ const MEMBER_SELECT =
  * names the Buyer. Who is notified is decided in the database, by a trigger
  * on every message: see 20261005130600_purchase_request_chat_and_buyer.sql.
  *
- * The queue (#308): `pr_queue` returns every request the caller may read,
+ * The queue (#308): `purchase_request_queue` returns every request the caller may read,
  * with the SOR's locked header, the Buyer and item counts; the slices
  * (unassigned / mine, open / closed) are `filterQueue` over those rows.
  */
@@ -70,6 +70,24 @@ export function filterQueue(
   });
 }
 
+/**
+ * One new product's fields as the item RPCs take them (#500): adding a new
+ * item, adding a substitute and opening a Direct request all build them here,
+ * so a new item field is one edit. `images` go only when given: a Direct
+ * request's items carry none.
+ */
+const itemFields = ({ name, quantity, unit, description, images }) => ({
+  name,
+  quantity: Number(quantity),
+  unit: unit || null,
+  description: description || null,
+  ...(images !== undefined && { images: images || [] }),
+});
+
+/** `itemFields` as an RPC's named arguments: `p_name`, `p_quantity`, … */
+const itemArgs = (item) =>
+  Object.fromEntries(Object.entries(itemFields(item)).map(([key, value]) => [`p_${key}`, value]));
+
 export const purchaseRequestService = {
   // ── The queue and one request (#308) ─────────────────────────────────────
 
@@ -83,7 +101,7 @@ export const purchaseRequestService = {
    * `filterQueue`); "mine" needs `userId`.
    */
   async listQueue({ filter, userId = null } = {}) {
-    const { data, error } = await supabase.rpc("pr_queue");
+    const { data, error } = await supabase.rpc("purchase_request_queue");
     if (error) throw error;
     const rows = data || [];
     return filter ? filterQueue(rows, filter, userId) : rows;
@@ -110,12 +128,9 @@ export const purchaseRequestService = {
   async openDirect(title, items) {
     const { data, error } = await supabase.rpc("purchase_request_open", {
       p_title: title,
-      p_items: items.map((item) => ({
-        name: item.name,
-        quantity: Number(item.quantity),
-        unit: item.unit || null,
-        description: item.description || null,
-      })),
+      p_items: items.map(({ name, quantity, unit, description }) =>
+        itemFields({ name, quantity, unit, description }),
+      ),
     });
     if (error) throw error;
     return data;
@@ -124,7 +139,7 @@ export const purchaseRequestService = {
   /** One request, shaped like a `listQueue` row; null when it can't be read. */
   async get(requestId) {
     if (!requestId) return null;
-    const { data, error } = await supabase.rpc("pr_queue", { p_request_id: requestId });
+    const { data, error } = await supabase.rpc("purchase_request_queue", { p_request_id: requestId });
     if (error) throw error;
     return (data || [])[0] ?? null;
   },
@@ -183,6 +198,21 @@ export const purchaseRequestService = {
   },
 
   /**
+   * #501 — the request's SOR stock snapshot (#202), `{ fetched_at, data }`,
+   * or null. Read through the request, not `sor_stock_snapshots`, whose policy
+   * hides it from a Buyer without SOR access; the picker and the saved items
+   * both read this, so they show the same stock.
+   */
+  async stockSnapshot(requestId) {
+    if (!requestId) return null;
+    const { data, error } = await supabase.rpc("purchase_request_stock_snapshot", {
+      p_request_id: requestId,
+    });
+    if (error) throw error;
+    return data || null;
+  },
+
+  /**
    * Adds an item copied from one Product List line: its Odoo product, name,
    * quantity and unit, as they are now. Returns the new item's id.
    *
@@ -207,11 +237,7 @@ export const purchaseRequestService = {
   async addNewItem(requestId, { name, quantity, unit = null, description = null, images = [] }) {
     const { data, error } = await supabase.rpc("purchase_request_add_new_item", {
       p_request_id: requestId,
-      p_name: name,
-      p_quantity: Number(quantity),
-      p_unit: unit || null,
-      p_description: description || null,
-      p_images: images || [],
+      ...itemArgs({ name, quantity, unit, description, images }),
     });
     if (error) throw error;
     return data;
@@ -257,8 +283,8 @@ export const purchaseRequestService = {
   async itemActor(requestId) {
     if (!requestId) return { side: null, canSubstitute: false };
     const [side, substitute] = await Promise.all([
-      supabase.rpc("pr_actor_side", { p_request_id: requestId }),
-      supabase.rpc("pr_can_add_substitute", { p_request_id: requestId }),
+      supabase.rpc("purchase_request_actor_side", { p_request_id: requestId }),
+      supabase.rpc("purchase_request_can_add_substitute", { p_request_id: requestId }),
     ]);
     if (side.error) throw side.error;
     if (substitute.error) throw substitute.error;
@@ -272,7 +298,7 @@ export const purchaseRequestService = {
    * po_verification }` (#312; use `orderItem`). Returns the updated item.
    */
   async setItemStatus(itemId, status, details = {}) {
-    const { data, error } = await supabase.rpc("pr_set_item_status", {
+    const { data, error } = await supabase.rpc("purchase_request_set_item_status", {
       p_item_id: itemId,
       p_status: status,
       p_details: details,
@@ -326,7 +352,7 @@ export const purchaseRequestService = {
    */
   async poLines(itemId) {
     if (!itemId) return [];
-    const { data, error } = await supabase.rpc("pr_item_po_lines", { p_item_id: itemId });
+    const { data, error } = await supabase.rpc("purchase_request_item_po_lines", { p_item_id: itemId });
     if (error) throw error;
     return data || [];
   },
@@ -336,7 +362,7 @@ export const purchaseRequestService = {
    * refuses any line not on the PO's IPAS copy. Returns the updated item.
    */
   async pickPoLines(itemId, lineIds) {
-    const { data, error } = await supabase.rpc("pr_pick_po_lines", {
+    const { data, error } = await supabase.rpc("purchase_request_pick_po_lines", {
       p_item_id: itemId,
       p_line_ids: lineIds,
     });
@@ -355,13 +381,9 @@ export const purchaseRequestService = {
    * new item's id.
    */
   async addSubstitute(itemId, { name, quantity, unit = null, description = null, images = [] }) {
-    const { data, error } = await supabase.rpc("pr_add_substitute", {
+    const { data, error } = await supabase.rpc("purchase_request_add_substitute", {
       p_item_id: itemId,
-      p_name: name,
-      p_quantity: Number(quantity),
-      p_unit: unit || null,
-      p_description: description || null,
-      p_images: images || [],
+      ...itemArgs({ name, quantity, unit, description, images }),
     });
     if (error) throw error;
     return data;
@@ -436,7 +458,7 @@ export const purchaseRequestService = {
    * Refused (55000) once someone else has it. Returns the request.
    */
   async take(requestId) {
-    const { data, error } = await supabase.rpc("pr_take", { p_request_id: requestId });
+    const { data, error } = await supabase.rpc("purchase_request_take", { p_request_id: requestId });
     if (error) throw error;
     return data;
   },
@@ -447,7 +469,7 @@ export const purchaseRequestService = {
    * Returns the request.
    */
   async setBuyer(requestId, employeeId) {
-    const { data, error } = await supabase.rpc("pr_set_buyer", {
+    const { data, error } = await supabase.rpc("purchase_request_set_buyer", {
       p_request_id: requestId,
       p_employee_id: employeeId || null,
     });

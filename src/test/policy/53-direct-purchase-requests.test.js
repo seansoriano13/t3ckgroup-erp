@@ -113,11 +113,11 @@ describe("reading", () => {
         const id = await opened("ordinary")
         for (const key of ["ordinary", "stageParticipant"]) {
             const client = await clientFor(key)
-            const { data } = await client.rpc("pr_queue", { p_request_id: id })
+            const { data } = await client.rpc("purchase_request_queue", { p_request_id: id })
             expect(data, key).toEqual([expect.objectContaining({ id, opportunity_id: null, title: `${MARKER} Office supplies` })])
         }
         const client = await clientFor("outsider")
-        const { data } = await client.rpc("pr_queue", { p_request_id: id })
+        const { data } = await client.rpc("purchase_request_queue", { p_request_id: id })
         expect(data).toEqual([])
         const { data: rows } = await client.from("purchase_requests").select("id").eq("id", id)
         expect(rows).toEqual([])
@@ -128,18 +128,18 @@ describe("the Requester", () => {
     it("adds items, cancels them, and nothing more", async () => {
         const id = await opened("ordinary")
         const client = await clientFor("ordinary")
-        expect((await client.rpc("pr_actor_side", { p_request_id: id })).data).toBe("requester")
+        expect((await client.rpc("purchase_request_actor_side", { p_request_id: id })).data).toBe("requester")
 
         const added = await client.rpc("purchase_request_add_new_item", { p_request_id: id, p_name: `${MARKER} Stapler`, p_quantity: 1 })
         expect(added.error).toBeNull()
 
         const [first] = await items(id)
-        const moved = await client.rpc("pr_set_item_status", { p_item_id: first.id, p_status: "to_order" })
+        const moved = await client.rpc("purchase_request_set_item_status", { p_item_id: first.id, p_status: "to_order" })
         expect(moved.error?.message).toMatch(/can't move/)
-        const cancelled = await client.rpc("pr_set_item_status", { p_item_id: first.id, p_status: "cancelled" })
+        const cancelled = await client.rpc("purchase_request_set_item_status", { p_item_id: first.id, p_status: "cancelled" })
         expect(cancelled.error).toBeNull()
 
-        const take = await client.rpc("pr_take", { p_request_id: id })
+        const take = await client.rpc("purchase_request_take", { p_request_id: id })
         expect(take.error).not.toBeNull()
         const add = await client.rpc("purchase_request_add_member", { p_request_id: id, p_employee_id: ids.outsider })
         expect(add.error).not.toBeNull()
@@ -148,7 +148,7 @@ describe("the Requester", () => {
     it("chats, and the Buyer hears", async () => {
         const id = await opened("ordinary")
         const purchaser = await clientFor("stageParticipant")
-        expect((await purchaser.rpc("pr_take", { p_request_id: id })).error).toBeNull()
+        expect((await purchaser.rpc("purchase_request_take", { p_request_id: id })).error).toBeNull()
 
         const client = await clientFor("ordinary")
         const sent = await client.from("purchase_request_messages").insert({ request_id: id, author_id: ids.ordinary, content: "Any update?" })
@@ -162,11 +162,11 @@ describe("Purchasing", () => {
     it("takes it and buys it through to Received; the Requester hears each step", async () => {
         const id = await opened("ordinary")
         const purchaser = await clientFor("stageParticipant")
-        expect((await purchaser.rpc("pr_take", { p_request_id: id })).error).toBeNull()
+        expect((await purchaser.rpc("purchase_request_take", { p_request_id: id })).error).toBeNull()
 
         const [item] = await items(id)
         for (const status of ["to_order", "ordered", "received"]) {
-            const { error } = await purchaser.rpc("pr_set_item_status", { p_item_id: item.id, p_status: status })
+            const { error } = await purchaser.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: status })
             expect(error, status).toBeNull()
         }
         const client = await clientFor("ordinary")
@@ -177,11 +177,11 @@ describe("Purchasing", () => {
     it("a Requester with Purchasing access may take and buy their own", async () => {
         const id = await opened("hr")
         const client = await clientFor("hr")
-        expect((await client.rpc("pr_actor_side", { p_request_id: id })).data).toBe("purchasing")
+        expect((await client.rpc("purchase_request_actor_side", { p_request_id: id })).data).toBe("purchasing")
         expect((await client.rpc("purchase_request_add_new_item", { p_request_id: id, p_name: `${MARKER} Cable`, p_quantity: 1 })).error).toBeNull()
-        expect((await client.rpc("pr_take", { p_request_id: id })).error).toBeNull()
+        expect((await client.rpc("purchase_request_take", { p_request_id: id })).error).toBeNull()
         const [item] = await items(id)
-        expect((await client.rpc("pr_set_item_status", { p_item_id: item.id, p_status: "from_stock" })).error).toBeNull()
+        expect((await client.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: "from_stock" })).error).toBeNull()
     })
 })
 

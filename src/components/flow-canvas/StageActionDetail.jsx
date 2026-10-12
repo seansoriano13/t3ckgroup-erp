@@ -5,7 +5,7 @@ import AccessWindowConfig from "./AccessWindowConfig";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
 import { Switch } from "../ui/switch";
-import { purchaseRequestSummary } from "../../utils/purchaseRequestAction";
+import { extraRequesters, purchaseRequestSummary } from "../../utils/purchaseRequestAction";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -74,6 +74,7 @@ export default function StageActionDetail({
     .map((member) => member?.employeeId)
     .filter(Boolean)
     .map(nameOf);
+  const requesters = extraRequesters(config.requesters);
   const subjectLabel =
     action.kind === "open_purchase_request"
       ? "Purchasing members"
@@ -106,11 +107,11 @@ export default function StageActionDetail({
         <>
           <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
           <Field label="Who can request items">
-            {!Array.isArray(config.requesters)
+            {requesters.length === 0
               ? "The Deal Team"
-              : config.requesters.length === 0
-                ? "Only the Buyer"
-                : config.requesters.map((s) => deciderLabel(s, nameOf)).join(", ")}
+              : `The Deal Team, plus ${requesters
+                  .map((s) => deciderLabel(s, nameOf))
+                  .join(", ")}`}
           </Field>
         </>
       ) : action.kind === "create_group_task" ? (
