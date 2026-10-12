@@ -408,6 +408,25 @@ export const purchaseRequestService = {
   },
 
   /**
+   * One page of the request's messages, oldest first: the `limit` newest
+   * strictly older than `before` (an ISO timestamp), or the newest overall when
+   * `before` is null. A full page means older ones may remain.
+   */
+  async listMessagesPage(requestId, { before = null, limit = 30 } = {}) {
+    if (!requestId) return [];
+    let query = supabase
+      .from("purchase_request_messages")
+      .select(MESSAGE_SELECT)
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (before) query = query.lt("created_at", before);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).reverse();
+  },
+
+  /**
    * The request's members as `{ id, name, avatar_path, side }`, by name — the
    * roster a mention picks from. Only members can be mentioned: nobody else
    * could open the request.
