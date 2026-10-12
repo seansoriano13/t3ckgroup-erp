@@ -6,6 +6,7 @@ import { RecordModalContent } from "@/components/ui/record-modal";
 import { opportunityService } from "../../../services/opportunityService";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../context/AuthContext";
+import { usePagedChat } from "../../../hooks/usePagedChat";
 import { confirmActionToast } from "../../ui/CustomToast";
 import { useFileAttachments } from "../../../hooks/useFileAttachments";
 import { useMediaQuery } from "../../../hooks/useMediaQuery";
@@ -216,13 +217,16 @@ export default function SorModal({
     setActiveTab(tab);
   };
 
-  const { data: notes = [], isLoading: loadingNotes } = useQuery({
-    queryKey: ["opportunityNotes", id],
-    queryFn: () => opportunityService.getNotes(id),
+  // Pages newest-first. The key extends ["opportunityNotes", id] so the many
+  // invalidations of that prefix still refresh it, but stays distinct from the
+  // whole-list query the checklist's file picker keeps under the bare key.
+  const notesChat = usePagedChat({
+    queryKey: ["opportunityNotes", id, "chat"],
+    fetchPage: ({ before, limit }) => opportunityService.getNotesPage(id, { before, limit }),
     enabled: !!id && isOpen,
   });
-
-  const notesContainerRef = useRef(null);
+  const notes = notesChat.messages;
+  const loadingNotes = notesChat.isLoading;
 
   useEffect(() => {
     if (!id || !isOpen) return;
@@ -236,12 +240,6 @@ export default function SorModal({
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, [id, isOpen, queryClient]);
-
-  useEffect(() => {
-    if (notesContainerRef.current) {
-      notesContainerRef.current.scrollTop = notesContainerRef.current.scrollHeight;
-    }
-  }, [notes.length, loadingNotes, isOpen]);
 
   // The Product List is Items' to load (#301), and edit mode's — the form
   // carries the whole list into Save. `handleEditToggle` fetches it before
@@ -894,7 +892,10 @@ export default function SorModal({
       notes={notes}
       hiddenVisits={hiddenStageVisits}
       loadingNotes={loadingNotes}
-      notesContainerRef={notesContainerRef}
+      currentUserId={user?.id}
+      hasMoreNotes={notesChat.hasMore}
+      isFetchingMoreNotes={notesChat.isFetchingMore}
+      onLoadMoreNotes={notesChat.loadMore}
       handleMentionClick={handleMentionClick}
       note={note}
       setNote={setNote}

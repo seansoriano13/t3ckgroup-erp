@@ -2663,6 +2663,25 @@ export const opportunityService = {
   },
 
   /**
+   * One page of an SOR's notes, oldest first: the `limit` newest strictly older
+   * than `before` (ISO timestamp), or the newest overall when `before` is null.
+   * A full page means older ones may remain.
+   */
+  async getNotesPage(opportunityId, { before = null, limit = 30 } = {}) {
+    if (!opportunityId) return [];
+    let query = supabase
+      .from("sales_opportunity_logs")
+      .select("*, author:employees!sales_opportunity_logs_author_id_fkey(id, name, avatar_path)")
+      .eq("opportunity_id", opportunityId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (before) query = query.lt("created_at", before);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).reverse();
+  },
+
+  /**
    * `attachments` are Cloudinary descriptors ({ url, name, type, bytes }) —
    * uploaded by the caller before the note is written, and stored on the log's
    * existing `metadata` column the same way task comments store theirs. A note
