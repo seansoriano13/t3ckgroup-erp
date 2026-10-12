@@ -72,6 +72,7 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
           <StatusBadge label={stock.badge.label} theme={STOCK_BADGE_THEME[stock.badge.kind]} />
           {stock.fetchedAt && <span>Stock as of {formatDate(stock.fetchedAt)}</span>}
+          {stock.stale && <span className="font-medium text-amber-600 dark:text-amber-400">Stale</span>}
         </div>
       )}
 

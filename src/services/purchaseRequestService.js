@@ -198,6 +198,21 @@ export const purchaseRequestService = {
   },
 
   /**
+   * #501 — the request's SOR stock snapshot (#202), `{ fetched_at, data }`,
+   * or null. Read through the request, not `sor_stock_snapshots`, whose policy
+   * hides it from a Buyer without SOR access; the picker and the saved items
+   * both read this, so they show the same stock.
+   */
+  async stockSnapshot(requestId) {
+    if (!requestId) return null;
+    const { data, error } = await supabase.rpc("purchase_request_stock_snapshot", {
+      p_request_id: requestId,
+    });
+    if (error) throw error;
+    return data || null;
+  },
+
+  /**
    * Adds an item copied from one Product List line: its Odoo product, name,
    * quantity and unit, as they are now. Returns the new item's id.
    *

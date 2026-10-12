@@ -32,6 +32,20 @@ export const STOCK_BADGE_THEME = {
 };
 
 /**
+ * #501 — a stock reading older than this is stale. Stock moves daily, and a
+ * snapshot is only re-read when someone opens or refreshes the SOR, so a
+ * figure from before yesterday is marked rather than trusted.
+ */
+export const STOCK_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
+
+/** Whether a snapshot read at `fetchedAt` is stale at `now`. No reading is not stale: it is Not checked. */
+export function isStockStale(fetchedAt, now = Date.now()) {
+  if (!fetchedAt) return false;
+  const at = new Date(fetchedAt).getTime();
+  return Number.isFinite(at) && now - at > STOCK_STALE_AFTER_MS;
+}
+
+/**
  * Returns `{ kind, label, free }` for a Product List line.
  *
  * Judged on free stock (on hand minus reserved), not on-hand — units already

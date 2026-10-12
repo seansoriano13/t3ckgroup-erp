@@ -115,6 +115,14 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       })
   })
 
+  // #501 (20261012100500_purchase_request_stock_snapshot.sql): the request's
+  // SOR stock snapshot, or null. Who may read it is can_read_purchase_request.
+  stubRpc("purchase_request_stock_snapshot", (args) => {
+    const request = findRow("purchase_requests", args.p_request_id)
+    const snapshot = rowsOf("sor_stock_snapshots").find((s) => request?.opportunity_id && s.opportunity_id === request.opportunity_id)
+    return snapshot ? { fetched_at: snapshot.fetched_at, data: snapshot.data } : null
+  })
+
   const sideOf = (requestId) =>
     side !== undefined
       ? side
