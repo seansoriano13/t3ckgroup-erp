@@ -65,4 +65,81 @@ Each check runs inside `BEGIN; … ROLLBACK;` unless it says otherwise, so no da
 
 ### #505 Legacy task-closing notifications
 
+Finding: closing the old purchasing tasks sends no notifications, so nothing was
+changed. `tasks` has two triggers (HR-verification guard, realtime broadcast of
+the row id); neither writes `notifications`. `TASK_COMPLETED` is only sent by the
+frontend on HR verification (`taskMutationService.js`), which a migration never
+runs. The migration (`20261005131000`) already ran on staging; on prod it runs
+with the #209 block at the manual `migrate-prod` dispatch, and needs nothing extra.
+Verified locally 2026-10-12.
+
+- [ ] 505.1 No trigger on `tasks`, `task_activity` or `notifications` sends a notification.
+
+  ```sql
+  begin;
+  select c.relname as table_name, t.tgname, p.proname as function_name
+  from pg_trigger t
+  join pg_class c on c.oid = t.tgrelid
+  join pg_proc p on p.oid = t.tgfoid
+  where not t.tgisinternal
+    and c.relnamespace = 'public'::regnamespace
+    and c.relname in ('tasks', 'task_activity', 'notifications')
+  order by 1, 2;
+  rollback;
+  ```
+
+  Expected: exactly 2 rows, both on `tasks`: `enforce_task_verification_security`
+  (`protect_task_verification`) and `tasks_broadcast_change_trigger`
+  (`tasks_broadcast_change`). Any other row: stop and check it.
+
+- [ ] 505.2 The tasks the migration closed on staging are closed, noted, and sent no notification.
+
+  ```sql
+  begin;
+  select count(*) as migrated_tasks,
+         count(*) filter (where coalesce(t.status, '') not in ('COMPLETED', 'DELETED', 'CANCELLED')) as not_closed,
+         (select count(*)
+          from public.notifications n
+          join public.task_activity a2
+            on a2.task_id::text = n.reference_id::text
+           and a2.metadata->>'event' = 'PURCHASE_REQUEST_MIGRATED'
+          where n.created_at between a2.created_at and a2.created_at + interval '5 minutes'
+         ) as notifications_at_migration
+  from public.task_activity a
+  join public.tasks t on t.id = a.task_id
+  where a.metadata->>'event' = 'PURCHASE_REQUEST_MIGRATED';
+  rollback;
+  ```
+
+  Expected: `migrated_tasks` ≥ 0 (one per old purchasing task), `not_closed` = 0,
+  `notifications_at_migration` = 0.
+
+- [ ] 505.3 The migration's closing step, replayed on a seeded task, sends no notification.
+
+  ```sql
+  begin;
+  create temp table c505 as select count(*) as before from public.notifications;
+  with t as (
+    insert into public.tasks (logged_by, task_description, project_title)
+    select id, '#505 legacy purchasing task', '#505'
+    from public.employees where not coalesce(is_deleted, false) limit 1
+    returning id
+  ), note as (
+    insert into public.task_activity (task_id, author_id, type, content, metadata)
+    select id, null, 'SYSTEM', 'Moved to the Purchase Request for #505. Purchasing continues there.',
+           jsonb_build_object('event', 'PURCHASE_REQUEST_MIGRATED')
+    from t
+    returning task_id
+  )
+  select task_id from note;
+  update public.tasks
+  set status = 'COMPLETED', end_at = coalesce(end_at, now())
+  where task_description = '#505 legacy purchasing task'
+    and coalesce(status, '') not in ('COMPLETED', 'DELETED', 'CANCELLED');
+  select (select count(*) from public.notifications) - before as new_notifications from c505;
+  rollback;
+  ```
+
+  Expected: one `task_id` row, `UPDATE 1`, then `new_notifications` = 0.
+
 ### #506 RPC prefixes unified on `purchase_request_`
