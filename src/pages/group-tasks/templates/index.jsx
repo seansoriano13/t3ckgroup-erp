@@ -68,7 +68,7 @@ export default function GroupTaskTemplatesPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTaskTemplates"] });
       toast.success("Template restored.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not restore the template."),
   });
 
   const deleteMutation = useMutation({
@@ -77,7 +77,7 @@ export default function GroupTaskTemplatesPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTaskTemplates"] });
       toast.success("Template deleted permanently.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not delete the template."),
   });
 
   if (!user) return null;

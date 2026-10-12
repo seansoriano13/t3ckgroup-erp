@@ -239,7 +239,7 @@ function ThreadComposer({ report, isReader, onSent }) {
       await queryClient.invalidateQueries({ queryKey: ["bugReportNotes", report.id] });
       onSent();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Could not update the report.");
     } finally {
       setSaving(false);
     }

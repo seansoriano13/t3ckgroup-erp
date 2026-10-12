@@ -383,10 +383,10 @@ export default function EmployeeManagement() {
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                              SIL: <span className="text-foreground">{emp.sil_hours_balance || 0} hrs</span>
+                              SIL: <span className="text-foreground">{emp.sil_hours_balance || 0}h</span>
                             </span>
                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                              OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0} hrs</span>
+                              OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0}h</span>
                             </span>
                           </div>
                         </TableCell>

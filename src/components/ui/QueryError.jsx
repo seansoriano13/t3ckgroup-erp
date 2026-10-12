@@ -11,7 +11,7 @@ export default function QueryError({ title = "Could not load this", onRetry, cla
       className={`rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center ${className}`}
     >
       <p className="text-sm font-semibold text-red-11">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Check your connection and try again.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Could not load this. Try again.</p>
       {onRetry && (
         <Button variant="outline" size="sm" className="mt-4" onClick={() => onRetry()}>
           Retry
