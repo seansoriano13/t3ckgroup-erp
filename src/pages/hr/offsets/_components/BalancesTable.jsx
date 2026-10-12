@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown, Scale } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { SelectField } from '@/components/ui/SelectField';
 import Avatar from '../../../../components/Avatar';
-import { EmptyState } from './LeaveParts';
+import EmptyState from '@/components/ui/EmptyState';
 import { TYPE_META, num, usePendingByEmployee } from './leaveDisplay';
 
 const COLS = 'grid-cols-[minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_90px_120px_16px]';
@@ -111,7 +111,7 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
                 ))}
               </div>
             ))}
-            {employees.length === 0 && <EmptyState icon={Scale} title="No employees match">Clear the search or company filter.</EmptyState>}
+            {employees.length === 0 && <EmptyState icon={Scale} title="No employees match" description="Clear the search or company filter." />}
           </div>
         </div>
       </div>

@@ -460,7 +460,7 @@ export default function GroupTasksPage() {
         ) : (
           <EmptyState
             icon={Users}
-            title="No Group Tasks Found"
+            title="No group tasks found"
             description={
               groupTasks.length > 0
                 ? "No group tasks match these filters."

@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
@@ -28,7 +29,7 @@ export default function Login() {
   // If the user is already authenticated (e.g. swiped back to /login, or
   // the session was restored on reload), redirect immediately.
   // Show nothing while auth is still resolving to prevent a flash of the form.
-  if (isAuthLoading) return null;
+  if (isAuthLoading) return <PageLoading className="min-h-screen" />;
   if (user) {
     return <Navigate to={redirectTo} replace />;
   }

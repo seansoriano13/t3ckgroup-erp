@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import { useAuth } from "../../../context/AuthContext";
@@ -16,7 +17,6 @@ import HrLogsPanel from "../../../components/hr/HrLogsPanel";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
 import TabGroup from "../../../components/ui/TabGroup";
-import Spinner from "../../../components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useTableSort } from "@/hooks/useTableSort";
@@ -392,9 +392,7 @@ export default function SuperAdminActivityLogPage() {
     body = <HrLogsPanel />;
   } else if (isLoading) {
     body = (
-      <div className="flex justify-center py-20">
-        <Spinner size="md" />
-      </div>
+      <PageLoading label="activity log" />
     );
   } else if (isError) {
     body = <LogLoadError title="Failed to load activity log" message={error?.message} />;

@@ -109,7 +109,7 @@ export default function GroupTaskTableView({
     return (
       <EmptyState
         icon={Users}
-        title="No Group Tasks Found"
+        title="No group tasks found"
         description={
           hasAnyTasks
             ? "No group tasks match these filters."

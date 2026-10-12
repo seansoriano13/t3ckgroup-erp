@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePaging } from "@/hooks/usePaging";
 import { TablePager } from "@/components/ui/TablePager";
@@ -7,7 +8,6 @@ import { Bug, CheckCircle2, RotateCcw, SendHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
-import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
 import SlideOver, { SlideOverBody, SlideOverFooter } from "../../components/ui/SlideOver";
 import Avatar from "../../components/Avatar";
@@ -390,9 +390,7 @@ function BugReportsList({ isReader, meId }) {
         }
       >
         {isLoading && (
-          <div className="flex justify-center py-12">
-            <Spinner />
-          </div>
+          <PageLoading label="bug reports" />
         )}
 
         {isError && (

@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
@@ -189,10 +190,7 @@ function HrVerificationQueue() {
 
   if (q.isLoadingTasks) {
     return (
-      <div className="flex h-[60vh] flex-col items-center justify-center py-20 text-muted-foreground">
-        <Spinner size="md" />
-        <p className="mt-3 animate-pulse text-sm font-bold uppercase tracking-wider">Loading Verification Queue…</p>
-      </div>
+      <PageLoading label="verification queue" className="h-[60vh]" />
     );
   }
 
@@ -294,10 +292,10 @@ function HrVerificationQueue() {
               }
               empty={
                 view === "STALE"
-                  ? { title: "No Stale Backlog!", description: "Every task graded more than 48 hours ago has been verified." }
+                  ? { title: "No stale backlog", description: "Every task graded more than 48 hours ago has been verified." }
                   : isVerifiedView
-                    ? { title: "No Verified Tasks", description: "Tasks you sign off will appear here." }
-                    : { title: "HR Queue is Clear!", description: "No tasks are awaiting HR verification right now." }
+                    ? { title: "No verified tasks", description: "Tasks you sign off will appear here." }
+                    : { title: "HR queue is clear", description: "No tasks are awaiting HR verification right now." }
               }
             />
           </>

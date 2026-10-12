@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import React, { useState, useMemo, useCallback } from 'react';
 import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +13,6 @@ import PageShell from '../../components/ui/PageShell';
 import EmptyState from '../../components/ui/EmptyState';
 import FilterBar from '../../components/ui/FilterBar';
 import { FilterSelect } from '../../components/ui/FilterDropdown';
-import Spinner from '../../components/ui/Spinner';
 import TabGroup from '../../components/ui/TabGroup';
 import { Button } from '@/components/ui/button';
 import FloatingMonthPicker from '../../components/FloatingMonthPicker';
@@ -229,10 +229,7 @@ export default function EmployeeLeavesPage() {
           isError ? (
             <QueryError title="Your requests could not be loaded." onRetry={refetch} />
           ) : loadingHistory ? (
-            <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
-              <Spinner size="sm" />
-              <span className="text-sm font-bold">Loading requests…</span>
-            </div>
+            <PageLoading label="requests" />
           ) : filteredRequests.length === 0 ? (
             <EmptyState
               icon={CalendarDays}
