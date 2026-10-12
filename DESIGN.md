@@ -397,6 +397,15 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### ExternalLink
 `ui/external-link.jsx`. Anchor for outside URLs; always `target="_blank"` with `rel="noopener noreferrer"` (caller `rel` is merged). Internal links use the router `Link`.
 
+#### PageLoading
+`ui/PageLoading.jsx`. The one page/section loading state: spinner plus sentence-case "Loading X…". Props: `label` (the noun, e.g. "task approvals", not the sentence), `className`.
+
+#### TablePager
+`ui/TablePager.jsx`. List footer: "Showing X to Y of N", rows-per-page select, Prev / Next. Drive with `usePaging`: `<TablePager {...paging} noun="tasks" />`. Props: `total`, `page`, `pageSize`, `totalPages`, `setPage`, `setPageSize`, `noun`, `children` (far end of the bar), `className`.
+
+#### DesktopNotice
+`ui/DesktopNotice.jsx`. "Best on desktop" note for admin and config surfaces not built for a phone; visible below `md` only. Props: `children` (default "This page is best on desktop."), `className`.
+
 ## Pages
 
 Every routed screen is built from one skeleton (ADR 0029). This section is the rulebook; the Primitive catalog above lists the parts.
