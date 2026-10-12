@@ -378,8 +378,15 @@ export default function HrLeavesManagerPage() {
     setLanded(true);
     if (sheet.view !== activeTab) setActiveTab(sheet.view);
   }
+  // Otherwise open on the work: Pending when anything waits (else Calendar), once data is in.
+  const [picked, setPicked] = useState(false);
+  if (!picked && !landed && !sheet.view && data) {
+    setPicked(true);
+    if (pendingLeaves.length > 0) setActiveTab('pending');
+  }
   // Switching view closes the open slide-over, so `?record=` never outlives its list.
   const changeView = (view) => {
+    setPicked(true);
     sheet.close();
     setActiveTab(view);
   };

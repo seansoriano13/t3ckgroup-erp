@@ -99,6 +99,14 @@ describe("TasksPage — saved default filters", () => {
     expect(queryControl("Update default")).not.toBeInTheDocument()
   })
 
+  it("opens HR on the My Tasks scope, matching the sidebar label", async () => {
+    const hr = makeHrEmployee({ name: "Hera HR", department: "HR" })
+    authUser = { id: hr.id, department: "HR", is_head: false, is_hr: true, isSuperAdmin: false }
+    renderPage()
+
+    expect(await screen.findByText("Manage and filter your own personal tasks.")).toBeInTheDocument()
+  })
+
   it("does not call a default saved before every filter was remembered changed", async () => {
     // The shape stored before the page saved its whole filter set.
     localStorage.setItem(`erp_saved_filters_tasks_${authUser.id}`, JSON.stringify({ crmOnly: true }))
