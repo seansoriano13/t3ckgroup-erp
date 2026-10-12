@@ -41,7 +41,7 @@ function writeWidths(storageKey, widths) {
 // column is drag-resizable; widths are remembered per user, per table, in
 // this browser only. The first drag freezes every identified column at its
 // current width so only the dragged column moves.
-function Table({ className, tableId, style, ...props }) {
+function Table({ className, tableId, style, scrollCue = false, ...props }) {
   const userId = useUserId();
   const storageKey = tableId ? `erp_colwidths_${userId}_${tableId}` : null;
   const tableRef = React.useRef(null);
@@ -81,6 +81,43 @@ function Table({ className, tableId, style, ...props }) {
 
   const resized = Object.keys(widths).length > 0;
 
+  // Opt-in: fade the edge that still has content off-screen. Nothing shows when the table fits.
+  const containerRef = React.useRef(null);
+  const [cue, setCue] = React.useState({ left: false, right: false });
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!scrollCue || !el) return undefined;
+    const update = () => {
+      const left = el.scrollLeft > 1;
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setCue((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(update);
+      ro.observe(el);
+      if (el.firstElementChild) ro.observe(el.firstElementChild);
+    }
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro?.disconnect();
+    };
+  }, [scrollCue]);
+
+  const scroller = (
+    <div ref={containerRef} data-slot="table-container" className="overflow-x-auto">
+      <table
+        ref={tableRef}
+        data-slot="table"
+        className={cn("w-full border-collapse text-left text-xs", className)}
+        style={resized ? { tableLayout: "fixed", ...style } : style}
+        {...props}
+      />
+    </div>
+  );
+
   return (
     <ColumnWidthsContext.Provider value={ctx}>
       {resized && (
@@ -95,15 +132,29 @@ function Table({ className, tableId, style, ...props }) {
           </button>
         </div>
       )}
-      <div data-slot="table-container" className="overflow-x-auto">
-        <table
-          ref={tableRef}
-          data-slot="table"
-          className={cn("w-full border-collapse text-left text-xs", className)}
-          style={resized ? { tableLayout: "fixed", ...style } : style}
-          {...props}
-        />
-      </div>
+      {scrollCue ? (
+        <div className="relative">
+          {scroller}
+          {cue.left && (
+            <div
+              aria-hidden="true"
+              data-slot="table-scroll-cue"
+              data-edge="left"
+              className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent"
+            />
+          )}
+          {cue.right && (
+            <div
+              aria-hidden="true"
+              data-slot="table-scroll-cue"
+              data-edge="right"
+              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent"
+            />
+          )}
+        </div>
+      ) : (
+        scroller
+      )}
     </ColumnWidthsContext.Provider>
   );
 }

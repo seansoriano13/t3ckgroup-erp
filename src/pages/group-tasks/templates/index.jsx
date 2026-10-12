@@ -133,7 +133,7 @@ export default function GroupTaskTemplatesPage() {
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table tableId="task-templates">
+          <Table scrollCue tableId="task-templates">
             <TableHeader>
               <TableRow>
                 <SortHead id="template" sortKey="template" sort={sort} onSort={toggle}>Template</SortHead>

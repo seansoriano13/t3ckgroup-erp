@@ -139,7 +139,7 @@ export default function GroupTaskTableView({
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <Table tableId="group-tasks" className="min-w-[900px]">
+          <Table tableId="group-tasks" className="md:min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead
@@ -159,7 +159,7 @@ export default function GroupTaskTableView({
                 <TableHead
                   id="creator"
                   aria-sort={ariaSort("creator")}
-                  className="hover:text-foreground transition-colors w-[170px]"
+                  className="hover:text-foreground transition-colors w-[170px] hidden md:table-cell"
                 >
                   <Button
                     type="button"
@@ -170,7 +170,7 @@ export default function GroupTaskTableView({
                     Creator {renderSortIcon("creator")}
                   </Button>
                 </TableHead>
-                <TableHead id="members" className="w-[160px]">Members</TableHead>
+                <TableHead id="members" className="w-[160px] hidden md:table-cell">Members</TableHead>
                 <TableHead
                   id="status"
                   aria-sort={ariaSort("status")}
@@ -188,7 +188,7 @@ export default function GroupTaskTableView({
                 <TableHead
                   id="dueDate"
                   aria-sort={ariaSort("dueDate")}
-                  className="px-3 hover:text-foreground transition-colors w-[130px]"
+                  className="px-3 hover:text-foreground transition-colors w-[130px] hidden md:table-cell"
                 >
                   <Button
                     type="button"
@@ -202,7 +202,7 @@ export default function GroupTaskTableView({
                 <TableHead
                   id="progress"
                   aria-sort={ariaSort("progress")}
-                  className="px-3 hover:text-foreground transition-colors w-[140px]"
+                  className="px-3 hover:text-foreground transition-colors w-[140px] hidden md:table-cell"
                 >
                   <Button
                     type="button"
@@ -283,7 +283,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Creator */}
-                    <TableCell className="align-middle">
+                    <TableCell className="align-middle hidden md:table-cell">
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.creator?.name || "Unknown"}
@@ -298,7 +298,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Members Avatar Group */}
-                    <TableCell className="align-middle">
+                    <TableCell className="align-middle hidden md:table-cell">
                       <div className="flex items-center gap-1.5">
                         {memberPeople.length > 0 ? (
                           <div className="flex items-center gap-2">
@@ -349,7 +349,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Due Date */}
-                    <TableCell className="align-middle">
+                    <TableCell className="align-middle hidden md:table-cell">
                       {task.due_date ? (
                         <div className="flex flex-col">
                           <span
@@ -374,7 +374,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Progress Bar */}
-                    <TableCell className="align-middle">
+                    <TableCell className="align-middle hidden md:table-cell">
                       {totalMembers > 0 ? (
                         <div className="flex items-center gap-2 w-full max-w-[120px]">
                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">

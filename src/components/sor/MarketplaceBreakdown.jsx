@@ -29,7 +29,7 @@ export default function MarketplaceBreakdown({ orders }) {
         {rows.length === 0 ? (
           <EmptyState icon={ShoppingBag} title="No orders to break down in this range" className="py-8" />
         ) : (
-          <Table aria-label="Marketplace breakdown">
+          <Table scrollCue aria-label="Marketplace breakdown">
             <TableHeader>
               <TableRow>
                 <TableHead className="py-1.5">Marketplace</TableHead>
