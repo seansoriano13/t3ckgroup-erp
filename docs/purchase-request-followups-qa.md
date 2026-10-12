@@ -59,6 +59,139 @@ Each check runs inside `BEGIN; … ROLLBACK;` unless it says otherwise, so no da
 
 ### #502 Chat notifies only the Buyer and requesters
 
+Paste the blocks in order into one session (psql, or the SQL editor as one run). Steps share the 502.0 fixture; any failure raises `502.x FAIL: notified {…}` and aborts the rest. Verified locally 2026-10-12 (fails 502.1 before the migration, all pass after).
+
+502.0 Fixture (no check): a Project request with a Buyer and items. All its items are re-pointed to one requester; the Stage Action actor (creator), the requester, an author and a bystander are members, all distinct.
+
+```sql
+BEGIN;
+
+create temp table f502 on commit drop as
+with r as (
+  select r.id, r.buyer_id, r.created_by from public.purchase_requests r
+  where r.opportunity_id is not null and r.buyer_id is not null and r.created_by <> r.buyer_id
+    and exists (select 1 from public.purchase_request_items i where i.request_id = r.id)
+  limit 1
+), e as (
+  select e.id, row_number() over (order by e.id) n
+  from public.employees e, r
+  where not coalesce(e.is_deleted, false) and e.id not in (r.buyer_id, r.created_by)
+  limit 3
+)
+select r.id req, r.buyer_id buyer, r.created_by actor,
+  (select id from e where n = 1) requester,
+  (select id from e where n = 2) author,
+  (select id from e where n = 3) bystander
+from r;
+
+update public.purchase_request_items set requested_by = (select requester from f502)
+where request_id = (select req from f502);
+
+insert into public.purchase_request_members (request_id, employee_id, side)
+select req, x, 'other' from f502, unnest(array[buyer, actor, requester, author, bystander]) x
+on conflict (request_id, employee_id) do nothing;
+
+create function pg_temp.got502(p_type text, p_tag text) returns uuid[] language sql as $$
+  select coalesce(array_agg(n.recipient_id order by n.recipient_id), '{}')
+  from public.notifications n, f502
+  where n.reference_id = f502.req::text and n.type = p_type and n.message like '%' || p_tag || '%';
+$$;
+create function pg_temp.set502(variadic p uuid[]) returns uuid[] language sql as $$
+  select coalesce(array_agg(x order by x), '{}') from unnest(p) x;
+$$;
+```
+
+- [ ] 502.1 A plain message notifies the Buyer and the requester only. Expected: NOTICE `502.1 pass`: the Buyer and the requester are told, no one else.
+
+```sql
+do $$
+declare f f502; got uuid[];
+begin
+  select * into f from f502;
+  if f.req is null then raise exception '502: no Project request with a Buyer and items'; end if;
+  insert into public.purchase_request_messages (request_id, author_id, content)
+  values (f.req, f.author, 'QA 502.1 plain');
+  got := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.1');
+  if got is distinct from pg_temp.set502(f.buyer, f.requester) then
+    raise exception '502.1 FAIL: notified %', got;
+  end if;
+  raise notice '502.1 pass';
+end $$;
+```
+
+- [ ] 502.2 The Stage Action actor (neither Buyer nor requester) and a bystander member are not notified. Expected: NOTICE `502.2 pass`: the Stage Action actor and the bystander got nothing.
+
+```sql
+do $$
+declare f f502; got uuid[];
+begin
+  select * into f from f502;
+  got := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.1');
+  if f.actor = any (got) or f.bystander = any (got) then
+    raise exception '502.2 FAIL: notified %', got;
+  end if;
+  raise notice '502.2 pass';
+end $$;
+```
+
+- [ ] 502.3 A mentioned member is still notified (once, as a mention). Expected: NOTICE `502.3 pass`: the bystander gets one mention; the message still goes to the Buyer and the requester only.
+
+```sql
+do $$
+declare f f502; men uuid[]; msg uuid[];
+begin
+  select * into f from f502;
+  insert into public.purchase_request_messages (request_id, author_id, content, metadata)
+  values (f.req, f.author, 'QA 502.3 mention',
+          jsonb_build_object('mentions', jsonb_build_array(jsonb_build_object('id', f.bystander))));
+  men := pg_temp.got502('PURCHASE_REQUEST_MENTION', 'QA 502.3');
+  msg := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.3');
+  if men is distinct from array[f.bystander] or msg is distinct from pg_temp.set502(f.buyer, f.requester) then
+    raise exception '502.3 FAIL: mention %, message %', men, msg;
+  end if;
+  raise notice '502.3 pass';
+end $$;
+```
+
+- [ ] 502.4 With no Buyer, behaviour is unchanged: the creator and the requester are notified. Expected: NOTICE `502.4 pass`: with no Buyer, the creator and the requester are told, as before.
+
+```sql
+do $$
+declare f f502; got uuid[];
+begin
+  select * into f from f502;
+  update public.purchase_requests set buyer_id = null where id = f.req;
+  insert into public.purchase_request_messages (request_id, author_id, content)
+  values (f.req, f.author, 'QA 502.4 no buyer');
+  got := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.4');
+  if got is distinct from pg_temp.set502(f.actor, f.requester) then
+    raise exception '502.4 FAIL: notified %', got;
+  end if;
+  raise notice '502.4 pass';
+end $$;
+```
+
+- [ ] 502.5 A Direct request's creator is its Requester, so stays notified with a Buyer. Expected: NOTICE `502.5 pass`: a Direct request's creator (its Requester) is still told alongside the Buyer.
+
+```sql
+do $$
+declare f f502; got uuid[];
+begin
+  select * into f from f502;
+  update public.purchase_requests set buyer_id = f.buyer, opportunity_id = null, title = 'QA 502 direct'
+  where id = f.req;
+  insert into public.purchase_request_messages (request_id, author_id, content)
+  values (f.req, f.author, 'QA 502.5 direct');
+  got := pg_temp.got502('PURCHASE_REQUEST_MESSAGE', 'QA 502.5');
+  if got is distinct from pg_temp.set502(f.buyer, f.actor, f.requester) then
+    raise exception '502.5 FAIL: notified %', got;
+  end if;
+  raise notice '502.5 pass';
+end $$;
+
+ROLLBACK;
+```
+
 ### #503 Deal Team can always add Requested Items
 
 ### #504 Open Purchase Request top-up
