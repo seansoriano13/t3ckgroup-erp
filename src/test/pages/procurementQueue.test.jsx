@@ -80,7 +80,7 @@ describe("Procurement Queue", () => {
     expect(await rowFor("S01001")).toBeInTheDocument()
     expect(await rowFor("S01002")).toBeInTheDocument()
     expect(screen.queryByText("S01003")).not.toBeInTheDocument()
-    expect(within(await rowFor("S01001")).getByText("1 open of 1")).toBeInTheDocument()
+    expect(within(await rowFor("S01001")).getByText("0 of 1 done")).toBeInTheDocument()
 
     const user = setupUser()
     await user.click(within(screen.getByTestId("page-toolbar")).getByRole("button", { name: "Open" }))
