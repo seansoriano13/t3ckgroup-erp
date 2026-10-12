@@ -10,6 +10,7 @@ import { FilterOptionList } from "../ui/FilterDropdown";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 // Split so a field can swap its resting border colour out. Two border-colour
 // utilities on one element resolve by stylesheet order rather than by the
 // order they appear in the class attribute, so appending a highlight colour
@@ -17,8 +18,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 const BOX_BASE =
   "bg-muted/30 border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all";
 const BOX = `${BOX_BASE} border-border`;
-const LABEL =
-  "text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block";
+const LABEL = `${CAPTION_BASE} text-muted-foreground tracking-widest mb-1 block`;
 const CONTROL =
   "w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium";
 

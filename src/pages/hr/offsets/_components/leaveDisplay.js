@@ -3,6 +3,7 @@ import { CalendarDays, History, Inbox, Printer, Scale } from 'lucide-react';
 import { formatWindow } from '../../../../utils/time';
 import { STATUS_THEME } from '../../../../constants/statusTheme';
 import { recordKey } from './useDocumentCenter';
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /** Formatting and small derived views shared by the Leaves Manager's views. */
 
@@ -121,4 +122,4 @@ export function useWhoIsOut(approvedLeaves) {
   }, [approvedLeaves]);
 }
 
-export const LABEL = 'text-[10px] font-bold uppercase tracking-wider text-muted-foreground';
+export const LABEL = `${CAPTION_BASE} tracking-wider text-muted-foreground`;
