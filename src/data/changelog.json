@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: summary on the SOR",
+        "version": "1.9.20",
+        "changes": [
+            "SOR: an IPAS section lists each Project IPAS that names the SOR, with its number, PO, supplier, state, buyer track, computation status and how far each section's sign-offs have got. Anyone who can read the SOR sees it, without Purchasing or Finance access.",
+            "SOR: the summary never shows payments, charges, bank details or Landed Cost. People with IPAS access get an Open IPAS button on each row; everyone else reads the summary only.",
+            "SOR: an IPAS that names two SORs appears on both, and an Inventory, Supplies or Events IPAS never appears on an SOR."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: section 7 and Filing",
         "version": "1.9.19",
         "changes": [

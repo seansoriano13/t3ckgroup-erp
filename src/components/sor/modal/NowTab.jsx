@@ -7,6 +7,7 @@ import FollowUpPanel from "../FollowUpPanel";
 import PendingActionDecisions from "../PendingActionDecisions";
 import TaskRow from "./TaskRow";
 import PurchaseRequestCard from "./PurchaseRequestCard";
+import IpasSorSection from "../../ipas/IpasSorSection";
 import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
 import { Button } from "../../ui/button";
@@ -229,6 +230,9 @@ export default function NowTab({ ctx }) {
 
       {/* #310: renders nothing for an SOR with no Purchase Request. */}
       <PurchaseRequestCard opportunityId={id} />
+
+      {/* #249: renders nothing when no IPAS names this SOR (or the viewer cannot read it). */}
+      <IpasSorSection opportunityId={id} />
     </div>
   );
 }

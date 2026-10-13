@@ -71,6 +71,11 @@ const refuse = (code, message) => {
  * The fake has no signed-in identity, so `actorId` stands in for
  * get_employee_id(). `purchasing: false` is a caller without Purchasing access;
  * `reader: false` one who can't read IPAS.
+ *
+ * #249 adds `ipas_summaries_for_sor`. `sorReader: false` is a caller who can't
+ * read the SOR (the database's gate is `sor_access_level = 'full'`), so it
+ * answers with no rows. It is independent of `reader`: a Deal Team member sees
+ * the summary without being able to read any IPAS.
  */
 export function stubIpasRpcs({
   actorId,
@@ -80,6 +85,7 @@ export function stubIpasRpcs({
   bankReader = true,
   finance = undefined,
   superAdmin = false,
+  sorReader = true,
 } = {}) {
   const hasFinance = finance ?? money === true
   const requirePurchasing = (fn) => {
@@ -340,6 +346,62 @@ export function stubIpasRpcs({
 
   const liveSignoffs = (ipasId) =>
     rowsOf("ipas_signoffs").filter((s) => s.ipas_id === ipasId && !s.cleared_at)
+
+  // #249: the SOR's summary. The database gates it on the SOR read rule, which
+  // the fake has no identity for, so `sorReader: false` is a caller who can't
+  // read the SOR. It returns exactly the columns the real function does and
+  // never a money or bank column.
+  stubRpc("ipas_summaries_for_sor", (args) => {
+    if (!sorReader) return []
+    const sorId = args.p_opportunity_id
+    const wanted = new Set(rowsOf("ipas_sors").filter((s) => s.opportunity_id === sorId).map((s) => s.ipas_id))
+    const num = (value) => (/^[0-9]+(\.[0-9]+)?$/.test(String(value ?? "")) ? Number(value) : 0)
+    const rank = { open: 0, filed: 1, cancelled: 2 }
+
+    return rowsOf("ipas")
+      .filter((row) => wanted.has(row.id) && row.purpose === "project")
+      .sort((a, b) => (rank[a.state] ?? 2) - (rank[b.state] ?? 2) || String(a.number).localeCompare(String(b.number)))
+      .map((row) => {
+        const copy = row.odoo_copy ?? {}
+        const live = new Set(liveSignoffs(row.id).map((s) => `${s.section}:${s.role}`))
+        const hasProof = rowsOf("ipas_payments").some((p) => p.ipas_id === row.id && (p.proof_url ?? "") !== "")
+        const total = num(copy.receipts?.total)
+        const done = num(copy.receipts?.done)
+        const status = copy.receipts?.status
+        let received = "none"
+        if (status === "partial") received = "partial"
+        else if (status === "full" || (total > 0 && done >= total)) received = "received"
+        else if (done > 0) received = "partial"
+
+        const item = (key, ticked, partial = false) => ({ key, ticked: Boolean(ticked), partial })
+        const track = [
+          item("purchase_order", ["purchase", "done"].includes(copy.po?.state)),
+          item("with_pop", hasProof),
+          ...(row.source === "import" ? [item("import_clearance", row.import_clearance_on)] : []),
+          item("delivered", row.delivered_on),
+          item("received_in_odoo", received === "received", received === "partial"),
+          item("create_bill", num(copy.bills?.count) > 0),
+          item("actual_checking", row.actual_checking_by),
+        ]
+        const roles = (section, names) => Object.fromEntries(names.map((r) => [r, live.has(`${section}:${r}`)]))
+
+        return {
+          ipas_id: row.id,
+          number: row.number,
+          po_number: row.po_number,
+          supplier: (copy.supplier?.name ?? "").trim() || null,
+          purpose: row.purpose,
+          state: row.state,
+          buyer_track: track,
+          computation_status: row.computation_status ?? "encoding",
+          signoffs: {
+            1: roles(1, ["prepared", "approved"]),
+            3: roles(3, ["prepared", "approved"]),
+            7: roles(7, ["received", "noted", "checked", "approved"]),
+          },
+        }
+      })
+  })
 
   /** The helper both resets share: clears the live section 1 and 3 approvals, returns { sections, preparers }. */
   const clearApprovals = (ipasId, reason) => {

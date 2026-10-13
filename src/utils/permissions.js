@@ -63,3 +63,15 @@ export function isNavEntryVisible(ctx, entry) {
   if (!entry.key) return true;
   return !ctx.hiddenNavKeys?.includes(entry.key);
 }
+
+/**
+ * Whether the person `ctx` describes may read every IPAS (the database's
+ * `ipas_can_read`): Purchasing access, Finance access, a Super Admin, or
+ * anyone on a sign-off list (`isIpasSigner` is the list members with no other
+ * access, `isIpasApprover` any list member). The SOR's IPAS summary opens the
+ * full IPAS only for these; everyone else it only informs. A screen's
+ * convenience: the database refuses a non-reader whatever this says.
+ */
+export function canReadIpas(ctx) {
+  return !!(ctx?.isSuperAdmin || ctx?.hasPurchasingFlow || ctx?.hasFinanceFlow || ctx?.isIpasSigner || ctx?.isIpasApprover);
+}

@@ -313,6 +313,20 @@ export const IPAS_STATUS_SOURCE = {
   STAMPED: "stamped",
 };
 
+/**
+ * The buyer track's items by key, as the SOR's IPAS summary names them
+ * (`ipas_summaries_for_sor` returns the key and the tick, never a label).
+ */
+export const IPAS_BUYER_TRACK_LABELS = {
+  purchase_order: "Purchase Order",
+  with_pop: "With P.O.P",
+  import_clearance: "Import Clearance",
+  delivered: "Delivered",
+  received_in_odoo: "Received in Odoo",
+  create_bill: "Create Bill",
+  actual_checking: "Actual Checking",
+};
+
 export const IPAS_OPTION_LIST_LABELS = {
   [IPAS_OPTION_LIST.PAYMENT_METHOD]: "Payment methods",
   [IPAS_OPTION_LIST.CHARGE_KIND]: "Charge kinds",

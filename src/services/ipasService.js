@@ -45,6 +45,7 @@ import {
 import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isCostsComplete, shapeSignoff } from "../utils/ipasSignoffs";
+import { shapeIpasSummaries } from "../utils/ipasSummary";
 
 const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
@@ -1166,6 +1167,27 @@ export const ipasService = {
     }
 
     return (await ipasService.getSignerLists())[listKey];
+  },
+
+  // ── The SOR's summary ────────────────────────────────────────────────────
+
+  /**
+   * The Project IPAS naming an SOR, as a summary, for anyone who can read the
+   * SOR (#249). Each row: `{ id, number, poNumber, supplier, purpose, state,
+   * buyerTrack[{ key, label, ticked, partial }], computationStatus,
+   * signoffs[{ section, name, steps[{ role, label, done }] }] }`. It carries no
+   * payments, charges, bank details or Landed Cost: the database's function
+   * returns none, so a Deal Team member with no Purchasing or Finance access
+   * can be shown it. No SOR access, or no IPAS, is an empty list.
+   *
+   * Whether the caller may open the full IPAS is the screen's to say
+   * (`canReadIpas`); the full IPAS is gated by the database either way.
+   */
+  async summariesForSor(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("ipas_summaries_for_sor", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return shapeIpasSummaries(data);
   },
 
   // ── Changes ──────────────────────────────────────────────────────────────

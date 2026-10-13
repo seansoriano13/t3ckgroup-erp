@@ -7401,6 +7401,97 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_summaries_for_sor(p_opportunity_id uuid)
+ RETURNS TABLE(ipas_id uuid, number text, po_number text, supplier text, purpose text, state text, buyer_track jsonb, computation_status text, signoffs jsonb)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    i.id,
+    i.number,
+    i.po_number,
+    nullif(btrim(i.odoo_copy #>> '{supplier,name}'), ''),
+    i.purpose,
+    i.state,
+    case when i.source = 'import'
+      then jsonb_build_array(
+        jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
+        jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
+        jsonb_build_object('key', 'import_clearance', 'ticked', i.import_clearance_on is not null, 'partial', false),
+        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null, 'partial', false),
+        jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
+        jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
+        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null, 'partial', false)
+      )
+      else jsonb_build_array(
+        jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
+        jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
+        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null, 'partial', false),
+        jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
+        jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
+        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null, 'partial', false)
+      )
+    end,
+    i.computation_status,
+    jsonb_build_object(
+      '1', jsonb_build_object(
+        'prepared', '1:prepared' = any (lv.live),
+        'approved', '1:approved' = any (lv.live)
+      ),
+      '3', jsonb_build_object(
+        'prepared', '3:prepared' = any (lv.live),
+        'approved', '3:approved' = any (lv.live)
+      ),
+      '7', jsonb_build_object(
+        'received', '7:received' = any (lv.live),
+        'noted', '7:noted' = any (lv.live),
+        'checked', '7:checked' = any (lv.live),
+        'approved', '7:approved' = any (lv.live)
+      )
+    )
+  from public.ipas i
+  cross join lateral (
+    select
+      i.odoo_copy #>> '{po,state}' as po_state,
+      i.odoo_copy #>> '{receipts,status}' as receipts_status,
+      case when (i.odoo_copy #>> '{receipts,total}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{receipts,total}')::numeric else 0 end as receipts_total,
+      case when (i.odoo_copy #>> '{receipts,done}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{receipts,done}')::numeric else 0 end as receipts_done,
+      case when (i.odoo_copy #>> '{bills,count}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{bills,count}')::numeric else 0 end as bill_count
+  ) o
+  cross join lateral (
+    select case
+      when o.receipts_status = 'partial' then 'partial'
+      when o.receipts_status = 'full' or (o.receipts_total > 0 and o.receipts_done >= o.receipts_total) then 'received'
+      when o.receipts_done > 0 then 'partial'
+      else 'none'
+    end as received_state
+  ) rs
+  cross join lateral (
+    select exists (
+      select 1 from public.ipas_payments p
+      where p.ipas_id = i.id and coalesce(p.proof_url, '') <> ''
+    ) as has_proof
+  ) pop
+  cross join lateral (
+    select coalesce(array_agg(so.section::text || ':' || so.role), '{}'::text[]) as live
+    from public.ipas_signoffs so
+    where so.ipas_id = i.id and so.cleared_at is null
+  ) lv
+  where (select public.sor_access_level(p_opportunity_id)) = 'full'
+    and i.purpose = 'project'
+    and exists (
+      select 1 from public.ipas_sors s
+      where s.ipas_id = i.id and s.opportunity_id = p_opportunity_id
+    )
+  order by
+    case i.state when 'open' then 0 when 'filed' then 1 else 2 end,
+    i.number;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_tick_document(p_document_id uuid, p_side text, p_value boolean)
  RETURNS ipas_documents
  LANGUAGE plpgsql

@@ -676,6 +676,10 @@ every order, and never without an order, though the order may still be an
 unconfirmed RFQ. A Project purchase names the SOR or SORs it buys for and
 appears in each one's PMS; an Inventory, Supplies or Events purchase names none.
 Numbered in one series across all four entities, carrying on from the sheet's.
+Anyone who can read an SOR sees a summary of each Project IPAS naming it on
+that SOR (number, PO, supplier, state, buyer track, costing and sign-off
+progress) and never its payments, charges, bank details or Landed Cost; the full
+IPAS opens only for its own readers.
 Its fields are defined by the company's own IPAS sheet, not by this glossary.
 _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getPermissionContext, isNavEntryVisible } from "./permissions";
+import { canReadIpas, getPermissionContext, isNavEntryVisible } from "./permissions";
 
 describe("getPermissionContext", () => {
   it("returns every flag false for a user with no capabilities", () => {
@@ -123,5 +123,23 @@ describe("isNavEntryVisible", () => {
   it("treats an entry with no key as never hidden by the override", () => {
     const ctx = getPermissionContext({ hiddenNavKeys: ["anything"] });
     expect(isNavEntryVisible(ctx, { isPermitted: () => true })).toBe(true);
+  });
+});
+
+describe("canReadIpas", () => {
+  it.each([
+    ["Purchasing access", { hasPurchasingFlow: true }],
+    ["Finance access", { hasFinanceFlow: true }],
+    ["a Super Admin", { isSuperAdmin: true }],
+    ["a sign-off list member with no other access", { isIpasSigner: true }],
+    ["a section 1 or 3 approver", { isIpasApprover: true }],
+  ])("reads every IPAS with %s", (_, flags) => {
+    expect(canReadIpas(getPermissionContext(flags))).toBe(true);
+  });
+
+  it("does not for a Deal Team member or anyone else without those", () => {
+    expect(canReadIpas(getPermissionContext({ id: "u1", hasSalesFlow: true, isHead: true, isHr: true }))).toBe(false);
+    expect(canReadIpas(getPermissionContext(null))).toBe(false);
+    expect(canReadIpas(null)).toBe(false);
   });
 });
