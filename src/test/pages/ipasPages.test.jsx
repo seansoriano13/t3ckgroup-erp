@@ -264,4 +264,140 @@ describe("IPAS pages", () => {
       expect(await screen.findByText("IPAS not found")).toBeInTheDocument();
     });
   });
+
+  // #243: opening an IPAS refreshes it from Odoo, and Purchasing corrects what
+  // Odoo gets wrong without losing sight of Odoo.
+  describe("keeping the Odoo copy current", () => {
+    const answer = (po, over = {}) => ({ success: true, found: true, ...copy(po, over) });
+    const withLines = (...lines) => lines.map((l, i) => ({ line_id: 100 + i, brand: null, unit: "Unit", taxes: [], analytic: [], ...l }));
+
+    it("shows the lines Odoo has now, with a note of each addition and removal", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      stubEdgeFunction(
+        "odoo-po-ipas",
+        answer("P02552", {
+          lines: [
+            { line_id: 11, name: "Greenspirit 2 Cutter", brand: "SCORPE", quantity: 9, unit: "Unit", price_unit: 1250, price_subtotal: 11250, taxes: [], analytic: [] },
+            ...withLines({ name: "Replacement blades", quantity: 1, price_unit: 80, price_subtotal: 80 }),
+          ],
+        }),
+      );
+
+      renderDetail(row.id);
+
+      expect(await screen.findByText("Replacement blades", { selector: "td, td *" })).toBeInTheDocument();
+      const note = await screen.findByText(/PO changed in Odoo ·/);
+      expect(note).toBeInTheDocument();
+      expect(screen.getByText("1 line added, 1 quantity or price changed")).toBeInTheDocument();
+      expect(screen.getByText(/Added/)).toBeInTheDocument();
+    });
+
+    it("shows the last copy with its fetch time when Odoo doesn't answer", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" });
+
+      renderDetail(row.id);
+
+      expect(await screen.findByText("Odoo didn't answer")).toBeInTheDocument();
+      expect(screen.getByText(/Showing the last copy, fetched/)).toBeInTheDocument();
+      expect(screen.getByText("Greenspirit 2 Cutter")).toBeInTheDocument();
+    });
+
+    it("overrides Entity with Odoo's value beside it, and resets in one action", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      stubEdgeFunction("odoo-po-ipas", answer("P02552"));
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      await user.click(await screen.findByRole("button", { name: "Override Entity" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText("T3ck Trading")).toBeInTheDocument();
+      const field = within(dialog).getByRole("textbox");
+      await user.clear(field);
+      await user.type(field, "TG Enterprise");
+      await user.click(within(dialog).getByRole("button", { name: "Override" }));
+
+      expect(await screen.findByText("Odoo: T3ck Trading")).toBeInTheDocument();
+      expect(screen.getByText("Overridden")).toBeInTheDocument();
+      expect(db.rows("ipas")[0].entity_override).toBe("TG Enterprise");
+
+      await user.click(screen.getByRole("button", { name: "Reset Entity to Odoo" }));
+
+      await waitFor(() => expect(screen.queryByText("Overridden")).not.toBeInTheDocument());
+      expect(db.rows("ipas")[0].entity_override).toBeNull();
+      expect(screen.queryByText("Odoo: T3ck Trading")).not.toBeInTheDocument();
+    });
+
+    it("types the contact, which Odoo then leaves alone", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id, supplier_contact: null });
+      stubEdgeFunction("odoo-po-ipas", answer("P02552"));
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      await user.click(await screen.findByRole("button", { name: "Edit Contact" }));
+      const dialog = await screen.findByRole("dialog");
+      const field = within(dialog).getByRole("textbox");
+      await user.clear(field);
+      await user.type(field, "Mr. R. Cruz");
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+      expect(await screen.findByText("Mr. R. Cruz")).toBeInTheDocument();
+      expect(db.rows("ipas")[0].supplier_contact).toBe("Mr. R. Cruz");
+    });
+
+    it("says PO cancelled in Odoo and leaves the IPAS open to cancel by hand", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      stubEdgeFunction("odoo-po-ipas", answer("P02552", { po: { id: 1, name: "P02552", state: "cancel", company: "T3ck Trading", currency: "Php", origin: null, partner_ref: null } }));
+
+      renderDetail(row.id);
+
+      expect(await screen.findByText("PO cancelled in Odoo")).toBeInTheDocument();
+      expect(screen.getByText(/stays open until Purchasing cancels it/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Cancel IPAS/ })).toBeInTheDocument();
+      expect(db.rows("ipas")[0].state).toBe("open");
+    });
+
+    it("warns when Odoo's S numbers differ from the SORs", async () => {
+      const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" });
+      const row = ipas({ po_number: "P02552", purpose: "project", created_by: purchaser.id });
+      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: sor.id });
+      stubEdgeFunction(
+        "odoo-po-ipas",
+        answer("P02552", { po: { id: 1, name: "P02552", state: "purchase", company: "T3ck Trading", currency: "Php", origin: "S07920 Capas and S06070 Las Nieves", partner_ref: null } }),
+      );
+
+      renderDetail(row.id);
+
+      expect(await screen.findByText("Odoo's S numbers differ from this IPAS's SORs")).toBeInTheDocument();
+      expect(screen.getByText(/Odoo also names S06070/)).toBeInTheDocument();
+    });
+
+    it("stamps the three Odoo statuses, with Partly received, and gives no way to tick them", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      stubEdgeFunction(
+        "odoo-po-ipas",
+        answer("P02552", { receipts: { status: "partial", done: 1, total: 2 }, bills: { count: 1, draft: 1 } }),
+      );
+
+      renderDetail(row.id);
+
+      expect(await screen.findByText(/Partly received · 1 of 2 receipts done/)).toBeInTheDocument();
+      expect(screen.getByText("1 draft bill")).toBeInTheDocument();
+      expect(screen.getAllByText("stamped from Odoo")).toHaveLength(3);
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    });
+
+    it("gives Finance the page without any override or edit control", async () => {
+      mockUser.current = finance;
+      const row = ipas({ po_number: "P02552" });
+      stubEdgeFunction("odoo-po-ipas", answer("P02552"));
+
+      renderDetail(row.id);
+
+      expect(await screen.findByRole("heading", { name: "TGIPAS_049" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Override / })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Reset / })).not.toBeInTheDocument();
+    });
+  });
 });

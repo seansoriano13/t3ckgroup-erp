@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: the Odoo copy stays current, with overrides",
+        "version": "1.9.13",
+        "changes": [
+            "IPAS: opening an IPAS refreshes it from Odoo and notes what changed since the last copy: lines added or removed, and new quantities or prices. When Odoo doesn't answer, the last copy shows with its fetch time.",
+            "IPAS: Purchasing can override Entity, Source Doc. and Analytic Dist., with Odoo's value shown beside the override and one click to go back to it. Currency, Supplier, item lines and Brand stay as Odoo has them.",
+            "IPAS: the supplier contact and P.I # fill from Odoo only while blank, and what you type is kept.",
+            "IPAS: Purchase Order, Received in Odoo (with Partly received) and Create Bill are stamped from Odoo and marked as such. A PO cancelled in Odoo shows a banner and leaves the IPAS open, and a mismatch between Odoo's S numbers and the IPAS's SORs warns."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: raise and track an IPAS from an Odoo purchase order",
         "version": "1.9.12",
         "changes": [

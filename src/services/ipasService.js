@@ -1,10 +1,14 @@
 import { supabase } from "../lib/supabase";
+import { notificationService } from "./notificationService";
 import {
   IPAS_ERROR,
+  IPAS_NOTIFICATION,
+  IPAS_OVERRIDE_FIELDS,
   IPAS_PRIORITIES,
   IPAS_PURPOSE,
   IPAS_PURPOSES,
   IPAS_SOURCES,
+  IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
 } from "../constants/ipas";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
@@ -32,9 +36,9 @@ export class IpasError extends Error {
 /**
  * IPAS (spec #241, issue #242): the one seam the app uses for the IPAS.
  *
- * Reads and lifecycle land here first; payments, charges, documents,
- * sign-offs, the Odoo refresh and the rest extend this object in their own
- * tickets. Every write is an RPC: the database decides who may make it and
+ * Reads and lifecycle land here first (#242); the Odoo refresh, overrides and
+ * the typed header values follow (#243). Payments, charges, documents and
+ * sign-offs extend this object in their own tickets. Every write is an RPC: the database decides who may make it and
  * writes the history row (ADR 0013).
  *
  * The Odoo read is `odoo-po-ipas` (read-only). Creating reads the PO first and
@@ -181,9 +185,17 @@ export const ipasService = {
    * One IPAS with its stored Odoo copy and fetch time, its SORs and its
    * history (oldest first). Null when it doesn't exist or the caller can't
    * read it.
+   *
+   * Opening an IPAS refreshes the copy first (`refresh`), so what comes back is
+   * as current as Odoo allows; when Odoo doesn't answer it is the last copy,
+   * and `refresh.ok` is false with the reason. `{ refresh: false }` reads what
+   * is stored without asking Odoo (the page does this to paint at once, and
+   * refreshes beside it).
    */
-  async get(id) {
+  async get(id, { refresh = true } = {}) {
     if (!id) return null;
+    const outcome = refresh ? await ipasService.refresh(id) : null;
+
     const { data: row, error } = await supabase.from("ipas").select(IPAS_SELECT).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!row) return null;
@@ -198,7 +210,124 @@ export const ipasService = {
     ]);
     if (events.error) throw events.error;
 
-    return { ...shapeIpas(row, sorsByIpas.get(id) ?? []), events: events.data || [] };
+    return { ...shapeIpas(row, sorsByIpas.get(id) ?? []), events: events.data || [], refresh: outcome };
+  },
+
+  // ── The Odoo copy ────────────────────────────────────────────────────────
+
+  /**
+   * Refreshes an IPAS's stored copy from Odoo: reads the PO (`odoo-po-ipas`) and
+   * hands it to `ipas_record_odoo_copy`, which stores it with its fetch time
+   * and a change note, fills a blank contact and P.I #, and, when lines or the
+   * total changed, clears the live section 1 and 3 approvals. The preparers of
+   * those sections are notified here.
+   *
+   * Never throws for a refresh that couldn't happen. It answers
+   *   { ok: true,  changed, filed, approvalsCleared, fetchedAt }
+   *   { ok: true,  skipped: true, fetchedAt }       cancelled IPAS: no refresh
+   *   { ok: false, reason, message, fetchedAt }     the last copy stands; reason
+   *        is IPAS_ODOO_UNAVAILABLE, IPAS_PO_NOT_FOUND or IPAS_REFRESH_FAILED
+   * `fetchedAt` is when the copy now held was fetched. A filed IPAS keeps its
+   * frozen copy: only "Odoo has changed since filing" can move.
+   */
+  async refresh(id) {
+    if (!id) return { ok: false, reason: IPAS_ERROR.INVALID, message: "No IPAS.", fetchedAt: null };
+
+    const { data: row, error } = await supabase
+      .from("ipas")
+      .select("id, po_number, state, odoo_fetched_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) return failedRefresh(IPAS_ERROR.REFRESH_FAILED, error.message, null);
+    if (!row) return failedRefresh(IPAS_ERROR.INVALID, "That IPAS isn't there.", null);
+    if (row.state === IPAS_STATE.CANCELLED) {
+      return { ok: true, skipped: true, changed: false, fetchedAt: row.odoo_fetched_at };
+    }
+
+    let copy;
+    try {
+      copy = await ipasService.readPurchaseOrder(row.po_number);
+    } catch (failure) {
+      return failedRefresh(
+        failure?.code ?? IPAS_ERROR.ODOO_UNAVAILABLE,
+        failure?.message || "Odoo didn't answer.",
+        row.odoo_fetched_at,
+      );
+    }
+
+    const { data, error: rpcError } = await supabase.rpc("ipas_record_odoo_copy", {
+      p_ipas_id: id,
+      p_odoo_copy: copy,
+    });
+    if (rpcError) return failedRefresh(IPAS_ERROR.REFRESH_FAILED, rpcError.message, row.odoo_fetched_at);
+
+    const preparerIds = data?.preparer_ids ?? [];
+    if (preparerIds.length > 0) {
+      const number = data?.ipas?.number ?? "An IPAS";
+      await Promise.all(
+        preparerIds.map((recipient_id) =>
+          notificationService.createNotification({
+            recipient_id,
+            type: IPAS_NOTIFICATION.PO_CHANGED,
+            title: "PO changed in Odoo",
+            message: `${number} (${row.po_number}): the PO's lines or total changed in Odoo, so its approvals were cleared.`,
+            reference_id: id,
+          }),
+        ),
+      );
+    }
+
+    return {
+      ok: true,
+      changed: Boolean(data?.changed),
+      filed: Boolean(data?.filed),
+      approvalsCleared: data?.approvals_cleared ?? [],
+      fetchedAt: data?.ipas?.odoo_fetched_at ?? row.odoo_fetched_at,
+    };
+  },
+
+  /**
+   * Overrides Entity (`entity`), Source Doc. (`source_doc`) or Analytic Dist.
+   * (`analytic`) on an open IPAS. The override survives every refresh until it
+   * is reset, and Odoo's own value stays beside it. Currency, Supplier, item
+   * lines and Brand can't be overridden by anyone. Returns the row.
+   */
+  async overrideField(id, field, value) {
+    requireOverridable(field);
+    const text = (value || "").trim();
+    if (!text) throw new IpasError(IPAS_ERROR.INVALID, "Type a value, or reset the field to Odoo.");
+    const { data, error } = await supabase.rpc("ipas_override_field", {
+      p_ipas_id: id,
+      p_field: field,
+      p_value: text,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Resets an overridden field to Odoo's value in one action. Returns the row. */
+  async resetOverride(id, field) {
+    requireOverridable(field);
+    const { data, error } = await supabase.rpc("ipas_reset_override", { p_ipas_id: id, p_field: field });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Types the supplier contact and/or P.I # (`{ supplierContact, piNumber }`;
+   * only the keys given are set, blank clears). A typed value is never
+   * overwritten by Odoo; a blank one fills from the next copy. Returns the row.
+   */
+  async setHeader(id, { supplierContact, piNumber } = {}) {
+    const fields = {};
+    if (supplierContact !== undefined) fields.supplier_contact = supplierContact ?? "";
+    if (piNumber !== undefined) fields.pi_number = piNumber ?? "";
+    if (Object.keys(fields).length === 0) {
+      throw new IpasError(IPAS_ERROR.INVALID, "Nothing to change.");
+    }
+    const { data, error } = await supabase.rpc("ipas_set_header", { p_ipas_id: id, p_fields: fields });
+    if (error) throw error;
+    return data;
   },
 
   // ── Changes ──────────────────────────────────────────────────────────────
@@ -239,6 +368,19 @@ function unavailable(po) {
     IPAS_ERROR.ODOO_UNAVAILABLE,
     `Couldn't check ${po} against Odoo just now. The PO may well exist — try again in a moment.`,
   );
+}
+
+function failedRefresh(reason, message, fetchedAt) {
+  return { ok: false, reason, message, fetchedAt };
+}
+
+function requireOverridable(field) {
+  if (!Object.hasOwn(IPAS_OVERRIDE_FIELDS, field)) {
+    throw new IpasError(
+      IPAS_ERROR.INVALID,
+      "Only Entity, Source Doc. and Analytic Dist. can be overridden. Fix anything else on the PO in Odoo.",
+    );
+  }
 }
 
 function requireOneOf(value, allowed, message) {

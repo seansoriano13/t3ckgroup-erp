@@ -361,6 +361,18 @@ describe("handleNotificationRoute", () => {
     expect(navigate).toHaveBeenCalledWith("/bug-reports?record=bug-1")
   })
 
+  it("opens the IPAS a PO-changed notification names", () => {
+    handleNotificationRoute(
+      { type: "IPAS_PO_CHANGED", reference_id: "ipas-1" },
+      employee,
+      navigate,
+      onClose,
+    )
+
+    expect(navigate).toHaveBeenCalledWith("/purchasing/ipas/ipas-1")
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it("closes the drawer after every successful route", () => {
     handleNotificationRoute(
       { type: "TASK_SUBMITTED", reference_id: "task-9" },

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { ipasService } from "./ipasService"
 import { db } from "@/test/db/store"
-import { stubEdgeFunction } from "@/test/msw/server"
+import { supabase } from "@/lib/supabase"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
+import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubIpasRpcs } from "@/test/stubs/ipasRpc"
-import { IPAS_ERROR } from "@/constants/ipas"
+import { IPAS_ERROR, IPAS_NOTIFICATION, IPAS_WARNING } from "@/constants/ipas"
 
 /**
  * IPAS raise, list and cancel (#242) through the service, against the fake
@@ -347,6 +349,513 @@ describe("ipasService", () => {
     it("returns null for an IPAS that isn't there", async () => {
       expect(await ipasService.get(db.nextUuid())).toBeNull()
       expect(await ipasService.get(null)).toBeNull()
+    })
+  })
+
+  /**
+   * #243: opening an IPAS refreshes the stored copy. `odoo` is the PO as Odoo
+   * answers right now; a test changes it between opens, as Odoo would.
+   */
+  describe("keeping the Odoo copy current", () => {
+    const line = (id, over = {}) => ({
+      line_id: id,
+      product_id: id * 10,
+      name: `Item ${id}`,
+      quantity: 2,
+      unit: "Unit",
+      price_unit: 100,
+      price_subtotal: 200,
+      taxes: [],
+      analytic: [],
+      brand: null,
+      ...over,
+    })
+
+    let odoo
+    let row
+    const setOdoo = (over = {}) => {
+      odoo = { ...odooPo({ lines: [line(1), line(2)] }), ...over }
+      return odoo
+    }
+    const stored = () => db.internal.rowsOf("ipas").find((r) => r.id === row.id)
+    const kinds = () => db.rows("ipas_events").map((e) => e.kind)
+
+    beforeEach(async () => {
+      setOdoo()
+      stubEdgeFunction("odoo-po-ipas", () => odoo)
+      row = await raise({ poNumber: "P02552" })
+    })
+
+    describe("refreshing", () => {
+      it("shows new lines and a note listing each addition, removal and quantity or price change", async () => {
+        odoo = {
+          ...odoo,
+          lines: [
+            line(1, { quantity: 5, price_subtotal: 500 }), // quantity changed
+            line(3, { price_unit: 40, price_subtotal: 80 }), // added; line 2 removed
+          ],
+        }
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.lines.map((l) => l.line_id)).toEqual([1, 3])
+        expect(read.refresh).toMatchObject({ ok: true, changed: true })
+        expect(read.changeNote.added).toEqual([expect.objectContaining({ line_id: 3, name: "Item 3" })])
+        expect(read.changeNote.removed).toEqual([expect.objectContaining({ line_id: 2 })])
+        expect(read.changeNote.changed).toEqual([
+          expect.objectContaining({ line_id: 1, quantity_from: 2, quantity_to: 5, price_unit_from: 100, price_unit_to: 100 }),
+        ])
+        expect(read.changeNote).toMatchObject({ totalFrom: 400, totalTo: 580 })
+        expect(kinds()).toEqual(["created", "odoo_copy_changed"])
+      })
+
+      it("notes a price change on a line that kept its quantity", async () => {
+        odoo = { ...odoo, lines: [line(1, { price_unit: 120, price_subtotal: 240 }), line(2)] }
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.changeNote.changed).toEqual([
+          expect.objectContaining({ line_id: 1, price_unit_from: 100, price_unit_to: 120 }),
+        ])
+        expect(read.changeNote.added).toEqual([])
+        expect(read.changeNote.removed).toEqual([])
+      })
+
+      it("stores nothing new and writes no note when the PO hasn't changed", async () => {
+        const read = await ipasService.get(row.id)
+
+        expect(read.refresh).toMatchObject({ ok: true, changed: false })
+        expect(read.changeNote).toBeNull()
+        expect(kinds()).toEqual(["created"])
+      })
+
+      it("keeps the last note until a newer change replaces it", async () => {
+        odoo = { ...odoo, lines: [line(1), line(2), line(3)] }
+        await ipasService.get(row.id)
+        const first = (await ipasService.get(row.id)).changeNote
+        expect(first.added.map((l) => l.line_id)).toEqual([3])
+
+        odoo = { ...odoo, lines: [line(1), line(2)] }
+        const second = (await ipasService.get(row.id)).changeNote
+        expect(second.removed.map((l) => l.line_id)).toEqual([3])
+        expect(second.added).toEqual([])
+      })
+
+      it("moves the fetch time forward on every successful refresh", async () => {
+        const before = stored().odoo_fetched_at
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.refresh.fetchedAt).toBe(stored().odoo_fetched_at)
+        expect(stored().odoo_fetched_at >= before).toBe(true)
+      })
+
+      it("returns the last copy with its fetch time when Odoo doesn't answer", async () => {
+        const fetchedAt = stored().odoo_fetched_at
+        stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" })
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.refresh).toMatchObject({ ok: false, reason: IPAS_ERROR.ODOO_UNAVAILABLE, fetchedAt })
+        expect(read.odoo_fetched_at).toBe(fetchedAt)
+        expect(read.lines.map((l) => l.line_id)).toEqual([1, 2])
+        expect(kinds()).toEqual(["created"])
+      })
+
+      it("also falls back when Odoo no longer finds the PO", async () => {
+        const fetchedAt = stored().odoo_fetched_at
+        stubEdgeFunction("odoo-po-ipas", { success: true, found: false })
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.refresh).toMatchObject({ ok: false, reason: IPAS_ERROR.PO_NOT_FOUND, fetchedAt })
+        expect(read.lines).toHaveLength(2)
+      })
+
+      it("reads the stored copy without asking Odoo when told not to refresh", async () => {
+        let asked = 0
+        stubEdgeFunction("odoo-po-ipas", () => {
+          asked += 1
+          return odoo
+        })
+
+        const read = await ipasService.get(row.id, { refresh: false })
+
+        expect(asked).toBe(0)
+        expect(read.refresh).toBeNull()
+        expect(read.lines).toHaveLength(2)
+      })
+
+      it("leaves a cancelled IPAS with the copy it had", async () => {
+        await ipasService.cancel(row.id, "Dropped")
+        let asked = 0
+        stubEdgeFunction("odoo-po-ipas", () => {
+          asked += 1
+          return odooPo({ lines: [line(9)] })
+        })
+
+        const read = await ipasService.get(row.id)
+
+        expect(asked).toBe(0)
+        expect(read.refresh).toMatchObject({ ok: true, skipped: true })
+        expect(read.lines.map((l) => l.line_id)).toEqual([1, 2])
+      })
+
+      it("refuses a refresh by someone who can't read IPAS", async () => {
+        stubIpasRpcs({ actorId: salesperson.id, reader: false })
+        odoo = { ...odoo, lines: [line(1)] }
+
+        const outcome = await ipasService.refresh(row.id)
+
+        expect(outcome).toMatchObject({ ok: false, reason: IPAS_ERROR.REFRESH_FAILED })
+        expect(stored().odoo_copy.lines).toHaveLength(2)
+      })
+    })
+
+    describe("overrides", () => {
+      it("survives a refresh, shows Odoo's value beside it, and resets in one action", async () => {
+        await ipasService.overrideField(row.id, "entity", " TG Enterprise ")
+        odoo = { ...odoo, po: { ...odoo.po, company: "T3ck Trading Inc" } }
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.entity).toBe("TG Enterprise")
+        expect(read.overrides.entity).toMatchObject({
+          overridden: true,
+          override: "TG Enterprise",
+          odoo: "T3ck Trading Inc",
+          value: "TG Enterprise",
+        })
+
+        await ipasService.resetOverride(row.id, "entity")
+        const reset = await ipasService.get(row.id)
+
+        expect(reset.entity).toBe("T3ck Trading Inc")
+        expect(reset.overrides.entity).toMatchObject({ overridden: false, override: null, value: "T3ck Trading Inc" })
+      })
+
+      it("overrides Source Doc. and Analytic Dist. the same way", async () => {
+        odoo = { ...odoo, po: { ...odoo.po, origin: "S07920 Capas" }, lines: [line(1, { analytic: ["S07920 Capas", "Ops"] }), line(2)] }
+        await ipasService.get(row.id)
+
+        await ipasService.overrideField(row.id, "source_doc", "S07920 Capas LGU")
+        await ipasService.overrideField(row.id, "analytic", "S07920 Capas LGU · Ops")
+        const read = await ipasService.get(row.id)
+
+        expect(read.overrides.source_doc).toMatchObject({ override: "S07920 Capas LGU", odoo: "S07920 Capas" })
+        expect(read.overrides.analytic).toMatchObject({
+          override: "S07920 Capas LGU · Ops",
+          odoo: "S07920 Capas · Ops",
+        })
+      })
+
+      it("keeps every override and reset in history, with Odoo's value at the time", async () => {
+        await ipasService.overrideField(row.id, "entity", "TG Enterprise")
+        await ipasService.overrideField(row.id, "entity", "TG Marine")
+        await ipasService.resetOverride(row.id, "entity")
+
+        const events = db.rows("ipas_events").filter((e) => e.kind.startsWith("override"))
+
+        expect(events.map((e) => [e.kind, e.detail.field, e.detail.from ?? null, e.detail.to ?? null])).toEqual([
+          ["override_set", "entity", null, "TG Enterprise"],
+          ["override_set", "entity", "TG Enterprise", "TG Marine"],
+          ["override_reset", "entity", "TG Marine", null],
+        ])
+        expect(events.every((e) => e.detail.odoo === "T3ck Trading")).toBe(true)
+        expect(events.every((e) => e.actor_id === buyer.id)).toBe(true)
+      })
+
+      it("writes no history for an override that changes nothing, or a reset of a field that isn't overridden", async () => {
+        await ipasService.overrideField(row.id, "entity", "TG Enterprise")
+        await ipasService.overrideField(row.id, "entity", "TG Enterprise")
+        await ipasService.resetOverride(row.id, "source_doc")
+
+        expect(kinds()).toEqual(["created", "override_set"])
+      })
+
+      it.each(["currency", "supplier", "lines", "brand", "purchase_order", "received_in_odoo", "create_bill"])(
+        "refuses to override %s, in the service and at the database",
+        async (field) => {
+          await expect(ipasService.overrideField(row.id, field, "Anything")).rejects.toMatchObject({
+            code: IPAS_ERROR.INVALID,
+          })
+          await expect(ipasService.resetOverride(row.id, field)).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
+
+          const direct = await supabase.rpc("ipas_override_field", { p_ipas_id: row.id, p_field: field, p_value: "x" })
+          expect(direct.error?.code).toBe("22023")
+          expect(stored().odoo_copy.po.currency).toBe("Php")
+        },
+      )
+
+      it("needs a value to override, and is refused to a caller without Purchasing access", async () => {
+        await expect(ipasService.overrideField(row.id, "entity", "   ")).rejects.toMatchObject({
+          code: IPAS_ERROR.INVALID,
+        })
+
+        stubIpasRpcs({ actorId: salesperson.id, purchasing: false })
+        await expect(ipasService.overrideField(row.id, "entity", "TG Enterprise")).rejects.toMatchObject({ code: "42501" })
+        await expect(ipasService.resetOverride(row.id, "entity")).rejects.toMatchObject({ code: "42501" })
+        expect(stored().entity_override ?? null).toBeNull()
+      })
+
+      it("refuses an override on a filed or cancelled IPAS", async () => {
+        stored().state = "filed"
+        await expect(ipasService.overrideField(row.id, "entity", "TG")).rejects.toMatchObject({ code: "55000" })
+        stored().state = "cancelled"
+        await expect(ipasService.overrideField(row.id, "entity", "TG")).rejects.toMatchObject({ code: "55000" })
+      })
+
+      it("filters the list by the entity in force, override included", async () => {
+        await ipasService.overrideField(row.id, "entity", "TG Enterprise")
+
+        expect((await ipasService.list({ entity: "TG Enterprise" })).map((r) => r.id)).toEqual([row.id])
+        expect(await ipasService.list({ entity: "T3ck Trading" })).toEqual([])
+      })
+    })
+
+    describe("contact and P.I #", () => {
+      it("fill from Odoo while blank, on raising and on refresh", async () => {
+        // Raised with Odoo's contact, and no vendor reference yet.
+        expect(stored()).toMatchObject({ supplier_contact: "Ms. K. Tan", pi_number: null })
+
+        odoo = { ...odoo, po: { ...odoo.po, partner_ref: "PI-2026-77" } }
+        const read = await ipasService.get(row.id)
+
+        expect(read).toMatchObject({ contact: "Ms. K. Tan", piNumber: "PI-2026-77", contactFromOdoo: true, piNumberFromOdoo: true })
+        expect(db.rows("ipas_events").find((e) => e.kind === "filled_from_odoo").detail.fields).toEqual(["pi_number"])
+      })
+
+      it("are never overwritten once typed", async () => {
+        await ipasService.setHeader(row.id, { supplierContact: "Mr. R. Cruz", piNumber: "PI-TYPED" })
+        odoo = {
+          ...odoo,
+          po: { ...odoo.po, partner_ref: "PI-FROM-ODOO" },
+          supplier: { ...odoo.supplier, contact: "Someone Else" },
+        }
+
+        const read = await ipasService.get(row.id)
+
+        expect(read).toMatchObject({ contact: "Mr. R. Cruz", piNumber: "PI-TYPED", contactFromOdoo: false, piNumberFromOdoo: false })
+      })
+
+      it("fill again from the next copy once cleared", async () => {
+        await ipasService.setHeader(row.id, { supplierContact: "   " })
+        expect(stored().supplier_contact).toBeNull()
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.contact).toBe("Ms. K. Tan")
+      })
+
+      it("keep a typed change in history, and refuse anything else in the header", async () => {
+        await ipasService.setHeader(row.id, { piNumber: "PI-1" })
+        expect(db.rows("ipas_events").at(-1)).toMatchObject({
+          kind: "header_changed",
+          detail: { fields: { pi_number: { from: null, to: "PI-1" } } },
+        })
+
+        const direct = await supabase.rpc("ipas_set_header", { p_ipas_id: row.id, p_fields: { remarks: "x" } })
+        expect(direct.error?.code).toBe("22023")
+        await expect(ipasService.setHeader(row.id, {})).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
+      })
+    })
+
+    describe("statuses and warnings", () => {
+      it("stamps Purchase Order, Received in Odoo and Create Bill from the copy, marked as from Odoo", async () => {
+        odoo = { ...odoo, receipts: { status: "full", done: 2, total: 2 }, bills: { count: 1, draft: 0 } }
+
+        const { statuses } = await ipasService.get(row.id)
+
+        expect(statuses.purchaseOrder).toMatchObject({ ticked: true, stampedFromOdoo: true })
+        expect(statuses.receivedInOdoo).toMatchObject({ ticked: true, partial: false, stampedFromOdoo: true })
+        expect(statuses.createBill).toMatchObject({ ticked: true, draftsOnly: false, stampedFromOdoo: true })
+      })
+
+      it("says Partly received while only some receipts are done", async () => {
+        odoo = { ...odoo, receipts: { status: "partial", done: 1, total: 2 } }
+
+        const { statuses } = await ipasService.get(row.id)
+
+        expect(statuses.receivedInOdoo).toMatchObject({ ticked: false, partial: true, receiptsDone: 1, receiptsTotal: 2 })
+      })
+
+      it("counts draft bills for Create Bill", async () => {
+        odoo = { ...odoo, bills: { count: 1, draft: 1 } }
+
+        const { statuses } = await ipasService.get(row.id)
+
+        expect(statuses.createBill).toMatchObject({ ticked: true, count: 1, drafts: 1, draftsOnly: true })
+      })
+
+      it("leaves them unticked for an RFQ with no receipt or bill", async () => {
+        odoo = { ...odoo, po: { ...odoo.po, state: "draft" }, receipts: { status: "pending", done: 0, total: 0 }, bills: { count: 0, draft: 0 } }
+
+        const { statuses } = await ipasService.get(row.id)
+
+        expect(statuses.purchaseOrder.ticked).toBe(false)
+        expect(statuses.receivedInOdoo).toMatchObject({ ticked: false, partial: false })
+        expect(statuses.createBill.ticked).toBe(false)
+      })
+
+      it("can't be ticked by hand: the service offers no way, and the database ignores the columns", async () => {
+        expect(Object.keys(ipasService).filter((name) => /status|tick|stamp|received|bill/i.test(name))).toEqual([])
+        const direct = await supabase.rpc("ipas_set_header", {
+          p_ipas_id: row.id,
+          p_fields: { received_in_odoo: true },
+        })
+        expect(direct.error?.code).toBe("22023")
+      })
+
+      it("shows 'PO cancelled in Odoo' and leaves the IPAS open", async () => {
+        odoo = { ...odoo, po: { ...odoo.po, state: "cancel" } }
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.state).toBe("open")
+        expect(read.poCancelledInOdoo).toBe(true)
+        expect(read.warnings.map((w) => w.code)).toContain(IPAS_WARNING.PO_CANCELLED_IN_ODOO)
+        expect(read.warnings.find((w) => w.code === IPAS_WARNING.PO_CANCELLED_IN_ODOO).message).toBe("PO cancelled in Odoo")
+        expect(stored().state).toBe("open")
+        expect(stored().cancelled_at ?? null).toBeNull()
+        expect(read.statuses.purchaseOrder.ticked).toBe(false)
+      })
+
+      it("warns when Odoo's S numbers differ from the SORs, and changes nothing", async () => {
+        const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920" })
+
+        odoo = { ...odoo, po: { ...odoo.po, name: "P04000", origin: "S07920 Capas" } }
+        const project = await raise({ poNumber: "P04000", purpose: "project", sorIds: [sor.id] })
+        expect((await ipasService.get(project.id)).warnings.map((w) => w.code)).not.toContain(IPAS_WARNING.SOR_MISMATCH)
+
+        odoo = { ...odoo, po: { ...odoo.po, origin: "S07920 Capas & S06070 Las Nieves" } }
+        const read = await ipasService.get(project.id)
+
+        const warning = read.warnings.find((w) => w.code === IPAS_WARNING.SOR_MISMATCH)
+        expect(warning).toMatchObject({ onlyInOdoo: ["S06070"], onlyInIpas: [] })
+        expect(read.purpose).toBe("project")
+        expect(read.sors.map((s) => s.salesReference)).toEqual(["S07920"])
+        expect(db.rows("ipas_sors").filter((s) => s.ipas_id === project.id)).toHaveLength(1)
+      })
+
+      it("says nothing when Odoo names no S number to compare", async () => {
+        const read = await ipasService.get(row.id)
+        expect(read.warnings).toEqual([])
+      })
+    })
+
+    describe("when the lines or total change", () => {
+      it("clears the live section 1 and 3 approvals and notifies the preparer", async () => {
+        const preparer = makeEmployee({ name: "Prepared It" })
+        const approver = makeEmployee({ name: "Approved It" })
+        const signoffs = [
+          { ipas_id: row.id, section: 1, role: "prepared", signed_by: preparer.id, cleared_at: null },
+          { ipas_id: row.id, section: 1, role: "approved", signed_by: approver.id, cleared_at: null },
+          { ipas_id: row.id, section: 3, role: "prepared", signed_by: preparer.id, cleared_at: null },
+          { ipas_id: row.id, section: 3, role: "approved", signed_by: approver.id, cleared_at: null },
+          // Section 7 isn't undone by an Odoo change.
+          { ipas_id: row.id, section: 7, role: "received", signed_by: approver.id, cleared_at: null },
+        ]
+        stubIpasRpcs({ actorId: buyer.id, signoffs })
+        odoo = { ...odoo, lines: [line(1), line(2), line(3)] }
+
+        const read = await ipasService.get(row.id)
+        await waitForNetworkIdle()
+
+        expect(read.refresh).toMatchObject({ ok: true, changed: true, approvalsCleared: [1, 3] })
+        expect(signoffs.filter((s) => s.cleared_at).map((s) => [s.section, s.role])).toEqual([
+          [1, "approved"],
+          [3, "approved"],
+        ])
+        expect(signoffs.find((s) => s.section === 7).cleared_at).toBeNull()
+        expect(signoffs.filter((s) => s.cleared_reason).every((s) => s.cleared_reason === "PO changed in Odoo")).toBe(true)
+        expect(kinds()).toContain("approvals_cleared")
+
+        const sent = db.rows("notifications").filter((n) => n.type === IPAS_NOTIFICATION.PO_CHANGED)
+        expect(sent).toHaveLength(1)
+        expect(sent[0]).toMatchObject({ recipient_id: preparer.id, reference_id: row.id })
+        expect(sent[0].message).toContain(row.number)
+      })
+
+      it("clears nothing, and notifies nobody, when nothing had been approved", async () => {
+        const signoffs = []
+        stubIpasRpcs({ actorId: buyer.id, signoffs })
+        odoo = { ...odoo, lines: [line(1)] }
+
+        const read = await ipasService.get(row.id)
+        await waitForNetworkIdle()
+
+        expect(read.refresh).toMatchObject({ ok: true, changed: true, approvalsCleared: [] })
+        expect(db.rows("notifications").filter((n) => n.type === IPAS_NOTIFICATION.PO_CHANGED)).toEqual([])
+        expect(kinds()).not.toContain("approvals_cleared")
+      })
+
+      it("leaves approvals alone when only the receipts and bills moved", async () => {
+        const preparer = makeEmployee({ name: "Prepared It" })
+        const signoffs = [
+          { ipas_id: row.id, section: 1, role: "prepared", signed_by: preparer.id, cleared_at: null },
+          { ipas_id: row.id, section: 1, role: "approved", signed_by: preparer.id, cleared_at: null },
+        ]
+        stubIpasRpcs({ actorId: buyer.id, signoffs })
+        odoo = { ...odoo, receipts: { status: "full", done: 1, total: 1 }, bills: { count: 1, draft: 1 } }
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.refresh.changed).toBe(false)
+        expect(signoffs.every((s) => !s.cleared_at)).toBe(true)
+      })
+    })
+
+    describe("after filing", () => {
+      beforeEach(() => {
+        stored().state = "filed"
+        stored().filed_at = "2026-10-14T00:00:00.000Z"
+      })
+
+      it("stores no new copy, and says 'Odoo has changed since filing' when the PO differs", async () => {
+        const frozen = stored().odoo_copy
+        const fetchedAt = stored().odoo_fetched_at
+        odoo = { ...odoo, lines: [line(1), line(2, { quantity: 9, price_subtotal: 900 })] }
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.refresh).toMatchObject({ ok: true, filed: true, changed: false })
+        expect(stored().odoo_copy).toEqual(frozen)
+        expect(stored().odoo_fetched_at).toBe(fetchedAt)
+        expect(read.lines.map((l) => l.quantity)).toEqual([2, 2])
+        expect(read.odoo_changed_since_filing).toBe(true)
+        expect(read.warnings.map((w) => w.code)).toEqual([IPAS_WARNING.ODOO_CHANGED_SINCE_FILING])
+        expect(kinds()).toEqual(["created", "odoo_changed_since_filing"])
+      })
+
+      it("shows no banner while the PO still matches the frozen copy", async () => {
+        const read = await ipasService.get(row.id)
+
+        expect(read.odoo_changed_since_filing).toBe(false)
+        expect(read.warnings).toEqual([])
+        expect(kinds()).toEqual(["created"])
+      })
+
+      it("doesn't fill a blank contact or P.I # on a frozen copy", async () => {
+        stored().supplier_contact = null
+        odoo = { ...odoo, po: { ...odoo.po, partner_ref: "PI-LATE" } }
+
+        const read = await ipasService.get(row.id)
+
+        expect(read.contact).toBeNull()
+        expect(read.piNumber).toBeNull()
+      })
+    })
+
+    it("keeps working through the one RPC the page calls, with a stubbed failure", async () => {
+      stubRpc("ipas_record_odoo_copy", () => {
+        throw new Error("boom")
+      })
+      odoo = { ...odoo, lines: [line(1)] }
+
+      const read = await ipasService.get(row.id)
+
+      expect(read.refresh).toMatchObject({ ok: false, reason: IPAS_ERROR.REFRESH_FAILED })
+      expect(read.lines).toHaveLength(2)
     })
   })
 })
