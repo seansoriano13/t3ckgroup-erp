@@ -2,6 +2,10 @@ import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import {
   IPAS_COMPUTATION_STATUSES,
+  IPAS_DOCUMENT_APPLIES_TO,
+  IPAS_DOCUMENT_APPLIES_TO_VALUES,
+  IPAS_DOCUMENT_USED_FOR,
+  IPAS_DOCUMENT_USED_FOR_VALUES,
   IPAS_ERROR,
   IPAS_LANDED_COST_SPLITS,
   IPAS_NOTIFICATION,
@@ -15,13 +19,19 @@ import {
   IPAS_SOURCES,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
+  IPAS_SUPPLIER_ORIGIN_FIELDS,
+  IPAS_TICK_SIDES,
+  IPAS_TYPED_STATUSES,
 } from "../constants/ipas";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
 import { ipasEntity, salesReferencesIn, shapeBankDetails, shapeIpas } from "../utils/ipas";
 import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
 
 const IPAS_SELECT =
-  "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)";
+  "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
+  " import_clearance_typer:employees!ipas_import_clearance_typed_by_fkey(id, name)," +
+  " delivered_typer:employees!ipas_delivered_typed_by_fkey(id, name)," +
+  " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)";
 const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, avatar_path)";
 const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
@@ -46,9 +56,9 @@ export class IpasError extends Error {
  *
  * Reads and lifecycle land here first (#242); the Odoo refresh, overrides and
  * the typed header values follow (#243); payments, charges, the option lists
- * and Landed Cost (#244); bank details and the changed-account flag (#245).
- * Documents and sign-offs extend this object in their
- * own tickets. Every IPAS write is an RPC: the database decides who may make it
+ * and Landed Cost (#244); bank details and the changed-account flag (#245);
+ * documents, Supplier Origin and the buyer track (#246). Sign-offs extend this
+ * object in their own ticket. Every IPAS write is an RPC: the database decides who may make it
  * and writes the history row (ADR 0013). The option lists are plain rows under
  * row level security (nobody deletes one).
  *
@@ -215,7 +225,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, bank] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, documents, bank] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -235,9 +245,10 @@ export const ipasService = {
         .order("charged_on", { ascending: true })
         .order("created_at", { ascending: true }),
       supabase.from("ipas_options").select("*"),
+      supabase.from("ipas_documents").select("*").eq("ipas_id", id).order("created_at", { ascending: true }),
       readBankDetails(id),
     ]);
-    for (const result of [events, payments, charges, options]) {
+    for (const result of [events, payments, charges, options, documents]) {
       if (result.error) throw result.error;
     }
 
@@ -245,6 +256,7 @@ export const ipasService = {
       ...shapeIpas(row, sorsByIpas.get(id) ?? [], {
         payments: payments.data || [],
         charges: charges.data || [],
+        documents: documents.data || [],
         options: options.data || [],
       }),
       // Every option row, inactive ones too: a row that holds a deactivated
@@ -519,6 +531,145 @@ export const ipasService = {
     return data;
   },
 
+  // ── Documents (#246) ─────────────────────────────────────────────────────
+
+  /**
+   * Adds a row for every active document kind matching the IPAS's Source that it
+   * doesn't have yet (Purchasing). A new IPAS already got these when it was
+   * raised; this catches kinds added to the list since. Rows already there are
+   * left as they are. Returns the labels added.
+   */
+  async suggestDocuments(id) {
+    const { data, error } = await supabase.rpc("ipas_suggest_documents", { p_ipas_id: id });
+    if (error) throw error;
+    return data?.added ?? [];
+  },
+
+  /**
+   * Adds a document to an open IPAS (Purchasing): a document kind (`kindId`) or
+   * a hand-added one with its own name (`label`), never both. `attachmentUrl`
+   * is the uploaded file's link, optional. A kind or a name appears once per
+   * IPAS. Returns the row.
+   */
+  async addDocument(id, { kindId = null, label = "", attachmentUrl = "" } = {}) {
+    const name = (label || "").trim();
+    if (kindId && name) throw new IpasError(IPAS_ERROR.INVALID, "Pick a document kind or type a name, not both.");
+    if (!kindId && !name) throw new IpasError(IPAS_ERROR.INVALID, "Pick a document kind or type the document's name.");
+    const { data, error } = await supabase.rpc("ipas_add_document", {
+      p_ipas_id: id,
+      p_kind_id: kindId || null,
+      p_label: name || null,
+      p_attachment_url: (attachmentUrl || "").trim() || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Attaches a file to a document (Purchasing), or removes it with a blank
+   * `attachmentUrl`. The link comes from the Cloudinary upload, as a payment's
+   * proof does. Returns the row.
+   */
+  async setDocument(documentId, { attachmentUrl = "" } = {}) {
+    const { data, error } = await supabase.rpc("ipas_set_document_attachment", {
+      p_document_id: documentId,
+      p_attachment_url: (attachmentUrl || "").trim() || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Ticks (or, with `value: false`, unticks) one side of a document. `side` is
+   * "purchasing" (Purchasing has it: Purchasing access) or "finance" (Finance
+   * has it: Finance access). Neither flag ticks for the other; the database
+   * refuses it (42501), and the tick is kept in history with who made it.
+   * Returns the row.
+   */
+  async tickDocument(documentId, side, value = true) {
+    requireOneOf(side, IPAS_TICK_SIDES, "Tick Purchasing has it or Finance has it.");
+    const { data, error } = await supabase.rpc("ipas_tick_document", {
+      p_document_id: documentId,
+      p_side: side,
+      p_value: Boolean(value),
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Removes a document row (Purchasing), unless Finance has ticked it. History keeps what was removed. */
+  async removeDocument(documentId) {
+    const { data, error } = await supabase.rpc("ipas_remove_document", { p_document_id: documentId });
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Supplier Origin, the buyer track and Item Location (#246) ───────────
+
+  /**
+   * Types the Supplier Origin dates of an Import IPAS (Purchasing): any of
+   * `{ shippedOut, onboard, arrivedInPh, arrivedInWhs }`, each `YYYY-MM-DD` or
+   * blank to clear; keys left out are untouched. A Local IPAS refuses them (the
+   * database does, twice over). Half-typed dates are refused with a sentence.
+   * Returns the row.
+   */
+  async setSupplierOrigin(id, dates = {}) {
+    const fields = {};
+    for (const { field, column, label } of IPAS_SUPPLIER_ORIGIN_FIELDS) {
+      const value = dates[field];
+      if (value === undefined) continue;
+      const text = (value ?? "").trim();
+      if (text !== "" && !isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, `${label} must be a date.`);
+      fields[column] = text === "" ? null : text;
+    }
+    if (Object.keys(fields).length === 0) throw new IpasError(IPAS_ERROR.INVALID, "Nothing to change.");
+    const { data, error } = await supabase.rpc("ipas_set_supplier_origin", { p_ipas_id: id, p_fields: fields });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Types a buyer-track status (Purchasing): `status` is "import_clearance"
+   * (Import IPAS only) or "delivered"; `date` is `YYYY-MM-DD`, or blank to
+   * clear. Who typed it and when is kept with it and in history. Returns the row.
+   */
+  async setTypedStatus(id, status, date) {
+    requireOneOf(status, IPAS_TYPED_STATUSES, "Import Clearance and Delivered are the statuses you type.");
+    const text = (date ?? "").trim();
+    if (text !== "" && !isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
+    const { data, error } = await supabase.rpc("ipas_set_typed_status", {
+      p_ipas_id: id,
+      p_status: status,
+      p_date: text === "" ? null : text,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Stamps Actual Checking (Purchasing), or clears the stamp with
+   * `{ stamped: false }`. The stamp is who and when, and is kept in history.
+   * Stamping twice changes nothing. Returns the row.
+   */
+  async stampActualChecking(id, { stamped = true } = {}) {
+    const { data, error } = await supabase.rpc("ipas_stamp_actual_checking", {
+      p_ipas_id: id,
+      p_stamped: Boolean(stamped),
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** The typed Item Location (an active `item_location` option), or null to clear it. Returns the row. */
+  async setItemLocation(id, optionId) {
+    const { data, error } = await supabase.rpc("ipas_set_item_location", {
+      p_ipas_id: id,
+      p_option_id: optionId || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
   // ── Option lists (#244) ──────────────────────────────────────────────────
 
   /**
@@ -546,11 +697,25 @@ export const ipasService = {
    * Purchasing access and Super Admins only (row level security). A label is
    * unique within its list, ignoring case.
    */
-  async saveOption({ id = null, list, label }) {
+  async saveOption({ id = null, list, label, appliesTo, usedFor }) {
     requireOneOf(list, Object.values(IPAS_OPTION_LIST), "Pick a list.");
     const name = (label || "").trim();
     if (!name) {
       throw new IpasError(IPAS_ERROR.INVALID, `Type the ${IPAS_OPTION_LIST_NOUNS[list] ?? "option"}'s name.`);
+    }
+
+    // A document kind is always marked: which Source it is suggested for, and
+    // whether it is documentation, filing or both. Other lists carry neither.
+    const marks = {};
+    if (list === IPAS_OPTION_LIST.DOCUMENT_KIND) {
+      if (appliesTo !== undefined) {
+        requireOneOf(appliesTo, IPAS_DOCUMENT_APPLIES_TO_VALUES, "Pick Import, Local or both for the document kind.");
+        marks.applies_to = appliesTo;
+      }
+      if (usedFor !== undefined) {
+        requireOneOf(usedFor, IPAS_DOCUMENT_USED_FOR_VALUES, "Pick documentation, filing or both for the document kind.");
+        marks.used_for = usedFor;
+      }
     }
 
     const current = await ipasService.listOptions(list);
@@ -558,7 +723,12 @@ export const ipasService = {
     if (clash) throw new IpasError(IPAS_ERROR.INVALID, `"${clash.label}" is already on the list.`);
 
     if (id) {
-      const { data, error } = await supabase.from("ipas_options").update({ label: name }).eq("id", id).select().single();
+      const { data, error } = await supabase
+        .from("ipas_options")
+        .update({ label: name, ...marks })
+        .eq("id", id)
+        .select()
+        .single();
       if (error) throw error;
       return data;
     }
@@ -566,7 +736,18 @@ export const ipasService = {
     const sort = current.reduce((max, o) => Math.max(max, o.sort ?? 0), 0) + 10;
     const { data, error } = await supabase
       .from("ipas_options")
-      .insert({ list, label: name, sort, active: true })
+      .insert({
+        list,
+        label: name,
+        sort,
+        active: true,
+        ...(list === IPAS_OPTION_LIST.DOCUMENT_KIND
+          ? {
+              applies_to: marks.applies_to ?? IPAS_DOCUMENT_APPLIES_TO.BOTH,
+              used_for: marks.used_for ?? IPAS_DOCUMENT_USED_FOR.DOCUMENTATION,
+            }
+          : {}),
+      })
       .select()
       .single();
     if (error) throw error;

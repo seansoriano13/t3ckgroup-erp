@@ -6,18 +6,40 @@ import { ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
+import { SelectField } from "../ui/SelectField";
 import Spinner from "../ui/Spinner";
 import QueryError from "../ui/QueryError";
 import StatusBadge from "../StatusBadge";
 import EditValueDialog from "./EditValueDialog";
 import { ipasService } from "../../services/ipasService";
-import { IPAS_OPTION_LIST_LABELS, IPAS_OPTION_LIST_NOUNS } from "../../constants/ipas";
+import {
+  IPAS_DOCUMENT_APPLIES_TO,
+  IPAS_DOCUMENT_APPLIES_TO_LABELS,
+  IPAS_DOCUMENT_APPLIES_TO_VALUES,
+  IPAS_DOCUMENT_USED_FOR,
+  IPAS_DOCUMENT_USED_FOR_LABELS,
+  IPAS_DOCUMENT_USED_FOR_VALUES,
+  IPAS_OPTION_LIST,
+  IPAS_OPTION_LIST_LABELS,
+  IPAS_OPTION_LIST_NOUNS,
+} from "../../constants/ipas";
 import { ipasErrorMessage } from "../../utils/ipas";
 import { ipasOptionsKey } from "./ipasKeys";
 
+const APPLIES_TO_OPTIONS = IPAS_DOCUMENT_APPLIES_TO_VALUES.map((value) => ({
+  value,
+  label: IPAS_DOCUMENT_APPLIES_TO_LABELS[value],
+}));
+const USED_FOR_OPTIONS = IPAS_DOCUMENT_USED_FOR_VALUES.map((value) => ({
+  value,
+  label: IPAS_DOCUMENT_USED_FOR_LABELS[value],
+}));
+
 /**
  * One option list of the IPAS settings (#244): add, rename, reorder and
- * deactivate. Options are never deleted. A deactivated option is no longer
+ * deactivate. A document kind (#246) is also marked: which Source it is
+ * suggested for (Import, Local or both) and whether it is documentation, filing
+ * or both. Options are never deleted. A deactivated option is no longer
  * offered for new rows and stays on the rows that already use it. Writable by
  * Purchasing access and Super Admins (the database decides).
  */
@@ -26,6 +48,9 @@ export default function IpasOptionListEditor({ list }) {
   const noun = IPAS_OPTION_LIST_NOUNS[list] ?? "option";
   const [label, setLabel] = useState("");
   const [renaming, setRenaming] = useState(null);
+  const isDocumentKind = list === IPAS_OPTION_LIST.DOCUMENT_KIND;
+  const [appliesTo, setAppliesTo] = useState(IPAS_DOCUMENT_APPLIES_TO.BOTH);
+  const [usedFor, setUsedFor] = useState(IPAS_DOCUMENT_USED_FOR.DOCUMENTATION);
 
   const { data: options = [], isLoading, isError, refetch } = useQuery({
     queryKey: ipasOptionsKey(list),
@@ -40,7 +65,8 @@ export default function IpasOptionListEditor({ list }) {
   const failed = (error) => toast.error(ipasErrorMessage(error));
 
   const add = useMutation({
-    mutationFn: () => ipasService.saveOption({ list, label }),
+    mutationFn: () =>
+      ipasService.saveOption({ list, label, ...(isDocumentKind ? { appliesTo, usedFor } : {}) }),
     onSuccess: (row) => {
       toast.success(`${row.label} added.`);
       setLabel("");
@@ -53,6 +79,15 @@ export default function IpasOptionListEditor({ list }) {
     mutationFn: ({ id, value }) => ipasService.saveOption({ id, list, label: value }),
     onSuccess: () => {
       toast.success("Renamed.");
+      changed();
+    },
+    onError: failed,
+  });
+
+  const mark = useMutation({
+    mutationFn: ({ option, ...marks }) => ipasService.saveOption({ id: option.id, list, label: option.label, ...marks }),
+    onSuccess: () => {
+      toast.success("Saved.");
       changed();
     },
     onError: failed,
@@ -80,7 +115,7 @@ export default function IpasOptionListEditor({ list }) {
     onError: failed,
   });
 
-  const busy = add.isPending || toggle.isPending || move.isPending || rename.isPending;
+  const busy = add.isPending || toggle.isPending || move.isPending || rename.isPending || mark.isPending;
 
   if (isLoading) {
     return (
@@ -108,6 +143,24 @@ export default function IpasOptionListEditor({ list }) {
             aria-label={`New ${noun}`}
           />
         </div>
+        {isDocumentKind && (
+          <>
+            <SelectField
+              options={APPLIES_TO_OPTIONS}
+              value={appliesTo}
+              onChange={setAppliesTo}
+              className="w-auto"
+              aria-label="New document kind: Source"
+            />
+            <SelectField
+              options={USED_FOR_OPTIONS}
+              value={usedFor}
+              onChange={setUsedFor}
+              className="w-auto"
+              aria-label="New document kind: used for"
+            />
+          </>
+        )}
         <Button type="submit" className="gap-1.5" disabled={busy || label.trim() === ""}>
           <Plus size={14} />
           Add
@@ -155,6 +208,29 @@ export default function IpasOptionListEditor({ list }) {
                 {option.label}
               </span>
               {!option.active && <StatusBadge theme="mauve" label="Deactivated" />}
+
+              {isDocumentKind && (
+                <>
+                  <SelectField
+                    size="sm"
+                    options={APPLIES_TO_OPTIONS}
+                    value={option.applies_to ?? IPAS_DOCUMENT_APPLIES_TO.BOTH}
+                    disabled={busy}
+                    onChange={(value) => mark.mutate({ option, appliesTo: value })}
+                    className="w-auto"
+                    aria-label={`${option.label}: Source`}
+                  />
+                  <SelectField
+                    size="sm"
+                    options={USED_FOR_OPTIONS}
+                    value={option.used_for ?? IPAS_DOCUMENT_USED_FOR.DOCUMENTATION}
+                    disabled={busy}
+                    onChange={(value) => mark.mutate({ option, usedFor: value })}
+                    className="w-auto"
+                    aria-label={`${option.label}: used for`}
+                  />
+                </>
+              )}
 
               <Button
                 variant="ghost"

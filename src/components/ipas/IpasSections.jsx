@@ -8,6 +8,10 @@ import {
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_ERROR,
   IPAS_EVENT_LABELS,
+  IPAS_STATUS_SOURCE,
+  IPAS_SUPPLIER_ORIGIN_FIELDS,
+  IPAS_TICK_SIDE_LABELS,
+  IPAS_TYPED_STATUS_LABELS,
   IPAS_LANDED_COST_SPLIT_LABELS,
   IPAS_OVERRIDE,
   IPAS_PAYMENT_KIND_LABELS,
@@ -18,6 +22,8 @@ import {
   ODOO_PO_STATE_LABELS,
 } from "../../constants/ipas";
 import { changeNoteSummary, formatAmount } from "../../utils/ipas";
+import { buildBuyerTrack } from "../../utils/ipasDocuments";
+import { formatDay } from "../../utils/ipasPayments";
 import { formatDate } from "../../utils/formatDate.js";
 
 /** One numbered section of the IPAS, as the sheet draws it. */
@@ -430,9 +436,40 @@ export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onRe
   );
 }
 
-function StampedStatus({ label, ticked, partial = false, detail }) {
+/** One buyer-track row's own mark: where the status came from. */
+function SourceNote({ item }) {
+  switch (item.source) {
+    case IPAS_STATUS_SOURCE.ODOO:
+      return <OdooMark>stamped from Odoo</OdooMark>;
+    case IPAS_STATUS_SOURCE.DERIVED:
+      return <span className="text-[11px] font-medium text-muted-foreground">derived from payments</span>;
+    case IPAS_STATUS_SOURCE.TYPED:
+      return (
+        <span className="text-[11px] font-medium text-muted-foreground">
+          {item.ticked
+            ? `typed${item.by?.name ? ` by ${item.by.name}` : ""}${item.at ? ` · ${formatDate(item.at)}` : ""}`
+            : "typed by Purchasing"}
+        </span>
+      );
+    case IPAS_STATUS_SOURCE.STAMPED:
+      return (
+        <span className="text-[11px] font-medium text-muted-foreground">
+          {item.ticked
+            ? `stamped${item.by?.name ? ` by ${item.by.name}` : ""}${item.at ? ` · ${formatDate(item.at)}` : ""}`
+            : "stamped by Purchasing"}
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
+function TrackStatus({ item, canChange, onEdit, onStamp, onClearStamp }) {
+  const { ticked, partial } = item;
+  const detail = item.on ? formatDay(item.on) : item.detail;
+
   return (
-    <li className="flex items-center gap-3 py-2 text-[13px]">
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-[13px]" data-testid={`ipas-track-${item.key}`}>
       <span
         className={`grid size-5 shrink-0 place-items-center rounded-full border ${
           ticked
@@ -445,64 +482,120 @@ function StampedStatus({ label, ticked, partial = false, detail }) {
       >
         <Check size={12} strokeWidth={3} />
       </span>
-      <span className="font-medium text-foreground">{label}</span>
+      <span className="font-medium text-foreground">{item.label}</span>
       {detail && <span className="text-xs text-muted-foreground">{detail}</span>}
-      <span className="ml-auto">
-        <OdooMark>stamped from Odoo</OdooMark>
+      <span className="ml-auto inline-flex flex-wrap items-center gap-2">
+        {canChange && item.source === IPAS_STATUS_SOURCE.TYPED && (
+          <Button variant="ghost" size="xs" className="gap-1 text-muted-foreground" onClick={() => onEdit(item.key)}>
+            <Pencil size={12} />
+            {ticked ? "Edit date" : "Type date"}
+          </Button>
+        )}
+        {canChange && item.source === IPAS_STATUS_SOURCE.STAMPED && (
+          <Button
+            variant="ghost"
+            size="xs"
+            className="gap-1 text-muted-foreground"
+            onClick={ticked ? onClearStamp : onStamp}
+          >
+            {ticked ? <Undo2 size={12} /> : <Check size={12} />}
+            {ticked ? "Clear stamp" : "Stamp"}
+          </Button>
+        )}
+        <SourceNote item={item} />
       </span>
     </li>
   );
 }
 
-/**
- * Section 6, the Odoo-stamped part of the buyer track: Purchase Order, Received
- * in Odoo ("Partly received" while only some receipts are done) and Create Bill
- * (drafts count). They are read from the copy and can't be ticked by hand. The
- * typed and other stamped statuses join them in the buyer-track ticket.
- */
-export function IpasStatusSection({ ipas }) {
-  const { purchaseOrder, receivedInOdoo, createBill } = ipas.statuses;
+/** What Odoo says beside each Odoo-stamped status. */
+function odooDetail(key, statuses) {
+  const { purchaseOrder, receivedInOdoo, createBill } = statuses;
+  if (key === "purchase_order") return ODOO_PO_STATE_LABELS[purchaseOrder.state] ?? null;
+  if (key === "received_in_odoo") {
+    const received = receivedInOdoo.ticked
+      ? "Received"
+      : receivedInOdoo.partial
+        ? "Partly received"
+        : receivedInOdoo.receiptsTotal > 0
+          ? "Not received"
+          : null;
+    if (!received) return null;
+    return receivedInOdoo.receiptsTotal > 0
+      ? `${received} · ${receivedInOdoo.receiptsDone} of ${receivedInOdoo.receiptsTotal} receipts done`
+      : received;
+  }
+  if (key === "create_bill") {
+    if (!createBill.ticked) return null;
+    return createBill.draftsOnly
+      ? `${createBill.count} draft ${createBill.count === 1 ? "bill" : "bills"}`
+      : `${createBill.count} ${createBill.count === 1 ? "bill" : "bills"}${createBill.drafts ? `, ${createBill.drafts} in draft` : ""}`;
+  }
+  return null;
+}
 
-  const received = receivedInOdoo.ticked
-    ? "Received"
-    : receivedInOdoo.partial
-      ? "Partly received"
-      : receivedInOdoo.receiptsTotal > 0
-        ? "Not received"
-        : null;
+/**
+ * Supplier Origin: four typed dates, shown only on an Import IPAS (a Local
+ * IPAS has no such block, and the database refuses the dates there).
+ */
+function SupplierOrigin({ ipas, canChange, onEdit }) {
+  const origin = ipas.supplierOrigin;
+  if (!origin) return null;
 
   return (
-    <IpasSection title="6 · Status" aside="Read from the copy of the Odoo PO; never ticked by hand.">
-      <ul className="divide-y divide-border">
-        <StampedStatus
-          label="Purchase Order"
-          ticked={purchaseOrder.ticked}
-          detail={ODOO_PO_STATE_LABELS[purchaseOrder.state] ?? null}
-        />
-        <StampedStatus
-          label="Received in Odoo"
-          ticked={receivedInOdoo.ticked}
-          partial={receivedInOdoo.partial}
-          detail={
-            received
-              ? receivedInOdoo.receiptsTotal > 0
-                ? `${received} · ${receivedInOdoo.receiptsDone} of ${receivedInOdoo.receiptsTotal} receipts done`
-                : received
-              : null
-          }
-        />
-        <StampedStatus
-          label="Create Bill"
-          ticked={createBill.ticked}
-          detail={
-            createBill.ticked
-              ? createBill.draftsOnly
-                ? `${createBill.count} draft ${createBill.count === 1 ? "bill" : "bills"}`
-                : `${createBill.count} ${createBill.count === 1 ? "bill" : "bills"}${createBill.drafts ? `, ${createBill.drafts} in draft` : ""}`
-              : null
-          }
-        />
-      </ul>
+    <div className="space-y-2" data-testid="ipas-supplier-origin">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Supplier Origin</h3>
+        {canChange && (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
+            <Pencil size={14} />
+            Edit dates
+          </Button>
+        )}
+      </div>
+      <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
+        {IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, label }) => (
+          <DetailRow key={field} label={label}>
+            {origin[field] ? formatDay(origin[field]) : null}
+          </DetailRow>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+/**
+ * Section 6, Status: Supplier Origin (Import only) and the buyer track. Each
+ * status says where it came from: the three Odoo ones are stamped from Odoo and
+ * can't be ticked by hand, With P.O.P is derived from the payments, Import
+ * Clearance (Import only) and Delivered are typed, and Actual Checking is
+ * stamped by Purchasing, the last three showing who and when.
+ *
+ *   canChange   Purchasing on an open IPAS: types the dates and stamps
+ */
+export function IpasStatusSection({ ipas, canChange = false, onEditOrigin, onEditStatus, onStamp, onClearStamp }) {
+  const track = ipas.buyerTrack ?? buildBuyerTrack(ipas, ipas.statuses);
+
+  return (
+    <IpasSection title="6 · Status" aside="Each status shows where it came from.">
+      <div className="space-y-4">
+        <SupplierOrigin ipas={ipas} canChange={canChange} onEdit={onEditOrigin} />
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Buyer track</h3>
+          <ul className="mt-1 divide-y divide-border">
+            {track.map((item) => (
+              <TrackStatus
+                key={item.key}
+                item={{ ...item, detail: item.source === IPAS_STATUS_SOURCE.ODOO ? odooDetail(item.key, ipas.statuses) : item.detail }}
+                canChange={canChange}
+                onEdit={onEditStatus}
+                onStamp={onStamp}
+                onClearStamp={onClearStamp}
+              />
+            ))}
+          </ul>
+        </div>
+      </div>
     </IpasSection>
   );
 }
@@ -626,6 +719,32 @@ function eventDetail(event) {
     }
     case "account_flagged":
       return "Differs from this supplier's last IPAS";
+    case "documents_suggested":
+      return (detail.labels ?? []).join(", ") || null;
+    case "document_added":
+      return [detail.label, detail.by_hand ? "added by hand" : null].filter(Boolean).join(" · ");
+    case "document_ticked": {
+      const side = IPAS_TICK_SIDE_LABELS[detail.side] ?? detail.side;
+      return `${detail.label}: ${side} ${detail.value ? "ticked" : "unticked"}`;
+    }
+    case "document_attachment_set":
+    case "document_attachment_removed":
+    case "document_removed":
+      return detail.label ?? null;
+    case "supplier_origin_changed":
+      return Object.entries(detail.fields ?? {})
+        .map(([column, change]) => {
+          const name = IPAS_SUPPLIER_ORIGIN_FIELDS.find((f) => f.column === column)?.label ?? column;
+          return change?.to ? `${name}: ${formatDay(change.to)}` : `${name}: cleared`;
+        })
+        .join("; ");
+    case "status_typed":
+    case "status_cleared": {
+      const name = IPAS_TYPED_STATUS_LABELS[detail.status] ?? detail.status;
+      return detail.to ? `${name}: ${formatDay(detail.to)}` : `${name}: cleared`;
+    }
+    case "item_location_changed":
+      return detail.to ? `Item Location: ${detail.to}` : "Item Location: cleared";
     case "payment_added":
     case "payment_changed":
     case "payment_removed":

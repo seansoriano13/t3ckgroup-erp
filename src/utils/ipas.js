@@ -4,6 +4,7 @@
 
 import { computeLandedCost, finiteNumber } from "./landedCost";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
+import { buildBuyerTrack, missingSuggestions, shapeDocuments, supplierOriginOf } from "./ipasDocuments";
 import {
   IPAS_COMPUTATION_STATUS,
   IPAS_LANDED_COST_SPLIT,
@@ -192,10 +193,11 @@ export function changeNoteSummary(note) {
  * An IPAS row as the screens read it: the stored row plus what comes out of its
  * Odoo copy and its SORs. `sors` is `ipas_sor_headers` rows for this IPAS.
  *
- * `extras` ({ payments, charges, options }: raw ipas_payments and ipas_charges
- * rows and every ipas_options row) adds the money: the shaped rows, the header
- * amounts derived from them and Landed Cost. The list passes none and skips the
- * work.
+ * `extras` ({ payments, charges, documents, options }: raw ipas_payments,
+ * ipas_charges and ipas_documents rows and every ipas_options row) adds the
+ * money (the shaped rows, the header amounts derived from them and Landed Cost),
+ * the documents with the kinds still to suggest, the Item Location and the buyer
+ * track. The list passes none and skips the work.
  */
 export function shapeIpas(row, sors = [], extras = null) {
   if (!row) return null;
@@ -229,11 +231,15 @@ export function shapeIpas(row, sors = [], extras = null) {
   const contact = clean(row.supplier_contact);
   const piNumber = clean(row.pi_number);
 
+  const statuses = odooStatuses(copy);
   const money = extras ? shapeMoney(row, extras) : {};
+  const sections = extras ? shapeDocumentsAndTrack(row, extras, statuses, money.paymentSummary) : {};
 
   return {
     ...row,
     ...money,
+    ...sections,
+    supplierOrigin: supplierOriginOf(row),
     entity: ipasEntity(row),
     supplier: ipasSupplier(row),
     currency: ipasCurrency(row),
@@ -246,7 +252,7 @@ export function shapeIpas(row, sors = [], extras = null) {
     contactFromOdoo: contact !== null && contact === clean(copy.supplier?.contact),
     piNumberFromOdoo: piNumber !== null && piNumber === clean(copy.po?.partner_ref),
     changeNote: shapeChangeNote(row.odoo_change_note),
-    statuses: odooStatuses(copy),
+    statuses,
     mismatch,
     warnings,
     sors: shapedSors,
@@ -335,6 +341,22 @@ function shapeMoney(row, { payments = [], charges = [], options = [] }) {
       computationStatus,
       filed: row.state === IPAS_STATE.FILED,
     }),
+  };
+}
+
+/**
+ * Section 3's documents, section 5's Item Location and section 6's buyer track.
+ * With P.O.P is derived from the payments (any carries proof of payment), so it
+ * appears when a payment gets a proof and goes when the proof is removed.
+ */
+function shapeDocumentsAndTrack(row, { documents = [], options = [], payments = [] }, statuses, paymentSummary) {
+  const shapedDocuments = shapeDocuments(documents, options);
+  const proofCount = payments.filter((payment) => Boolean(payment?.proof_url)).length;
+  return {
+    documents: shapedDocuments,
+    suggestedDocuments: missingSuggestions(options, documents, row.source),
+    itemLocation: row.item_location_id ? (options.find((option) => option.id === row.item_location_id) ?? null) : null,
+    buyerTrack: buildBuyerTrack(row, statuses, { hasProof: Boolean(paymentSummary?.hasProof), proofCount }),
   };
 }
 

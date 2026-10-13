@@ -217,8 +217,8 @@ export function IpasPaymentsBlock({
 }
 
 /**
- * Section 3's charges: a list of kind, date and PHP amount. Bank details (#245)
- * arrive as `children`, below the charges; documents join in their own ticket.
+ * Section 3's charges: a list of kind, date and PHP amount. The documents (#246)
+ * and bank details (#245) arrive as `children`, below the charges.
  */
 export function IpasChargesSection({
   ipas,

@@ -44,6 +44,14 @@ const refuse = (code, message) => {
  * `ipas_bank_details` table; a test seeds a supplier's earlier IPAS and its bank
  * details there to exercise the flag.
  *
+ * #246 adds documents (`ipas_suggest_documents`, `ipas_add_document`,
+ * `ipas_set_document_attachment`, `ipas_tick_document`, `ipas_remove_document`),
+ * Supplier Origin, the typed statuses, Actual Checking and Item Location. A new
+ * IPAS gets a row for every active document kind matching its Source, as the
+ * database's insert trigger does. `finance: true` is a caller with Finance
+ * access (it defaults to `money === true`): only that caller ticks Finance has
+ * it, and only `purchasing` ticks Purchasing has it.
+ *
  * The fake has no signed-in identity, so `actorId` stands in for
  * get_employee_id(). `purchasing: false` is a caller without Purchasing access;
  * `reader: false` one who can't read IPAS.
@@ -55,7 +63,9 @@ export function stubIpasRpcs({
   signoffs = [],
   money = null,
   bankReader = true,
+  finance = undefined,
 } = {}) {
+  const hasFinance = finance ?? money === true
   const requirePurchasing = (fn) => {
     if (!purchasing) refuse("42501", `${fn}: only Purchasing may do this`)
   }
@@ -75,6 +85,26 @@ export function stubIpasRpcs({
 
   const event = (ipasId, kind, detail) =>
     insertRow("ipas_events", { ipas_id: ipasId, actor_id: actorId, kind, detail })
+
+  /** The insert trigger: a row for every active document kind matching the Source, if missing. Returns the labels added. */
+  const suggestDocuments = (ipasId, source) => {
+    const held = new Set(rowsOf("ipas_documents").filter((d) => d.ipas_id === ipasId).map((d) => d.kind_id))
+    const added = rowsOf("ipas_options")
+      .filter((o) => o.list === "document_kind" && o.active !== false && [source, "both"].includes(o.applies_to) && !held.has(o.id))
+      .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
+    for (const kind of added) {
+      insertRow("ipas_documents", {
+        ipas_id: ipasId,
+        kind_id: kind.id,
+        label: null,
+        attachment_url: null,
+        purchasing_has: false,
+        finance_has: false,
+        created_by: actorId,
+      })
+    }
+    return added.map((o) => o.label)
+  }
 
   const cleanSors = (fn, purpose, sorIds) => {
     const ids = [...new Set(sorIds || [])]
@@ -201,6 +231,7 @@ export function stubIpasRpcs({
       ...filledFromCopy({}, copy),
     })
     for (const opportunityId of sors) insertRow("ipas_sors", { ipas_id: row.id, opportunity_id: opportunityId })
+    suggestDocuments(row.id, row.source)
     event(row.id, "created", {
       number: row.number,
       po_number: po,
@@ -792,6 +823,212 @@ export function stubIpasRpcs({
     })
     return row
   })
+
+  // ── Documents, Supplier Origin, the buyer track, Item Location (#246) ───
+
+  const documentLabel = (doc) => doc.label ?? optionOf(doc.kind_id)?.label ?? null
+
+  const lockDocument = (fn, id) => {
+    const doc = findRow("ipas_documents", id)
+    if (!doc) refuse("P0002", `${fn}: document ${id} not found`)
+    requireOpenIpas(fn, doc.ipas_id)
+    return doc
+  }
+
+  stubRpc("ipas_suggest_documents", (args) => {
+    requirePurchasing("ipas_suggest_documents")
+    const ipas = requireOpenIpas("ipas_suggest_documents", args.p_ipas_id)
+    const labels = suggestDocuments(ipas.id, ipas.source)
+    if (labels.length) event(ipas.id, "documents_suggested", { source: ipas.source, labels })
+    return { added: labels }
+  })
+
+  stubRpc("ipas_add_document", (args) => {
+    requirePurchasing("ipas_add_document")
+    const ipas = requireOpenIpas("ipas_add_document", args.p_ipas_id)
+    const label = clean(args.p_label)
+    const url = clean(args.p_attachment_url)
+    if (args.p_kind_id && label) refuse("22023", "ipas_add_document: pick a document kind or type a name, not both")
+    if (!args.p_kind_id && !label) refuse("22023", "ipas_add_document: pick a document kind or type the document's name")
+    if (label && label.length > 200) refuse("22023", "ipas_add_document: a document's name is 200 characters at most")
+    if (url && !/^https?:\/\//i.test(url)) {
+      refuse("22023", "ipas_add_document: the attachment must be a link to the uploaded file")
+    }
+    const kindLabel = args.p_kind_id ? checkOption("ipas_add_document", args.p_kind_id, "document_kind", null, "document kind") : null
+
+    const mine = rowsOf("ipas_documents").filter((d) => d.ipas_id === ipas.id)
+    const clash = args.p_kind_id
+      ? mine.some((d) => d.kind_id === args.p_kind_id)
+      : mine.some((d) => !d.kind_id && String(d.label).trim().toLowerCase() === label.toLowerCase())
+    if (clash) refuse("23505", `ipas_add_document: ${kindLabel ?? label} is already on ${ipas.number}`)
+
+    const row = insertRow("ipas_documents", {
+      ipas_id: ipas.id,
+      kind_id: args.p_kind_id || null,
+      label: args.p_kind_id ? null : label,
+      attachment_url: url,
+      purchasing_has: false,
+      finance_has: false,
+      created_by: actorId,
+    })
+    event(ipas.id, "document_added", {
+      document_id: row.id,
+      kind_id: row.kind_id,
+      label: kindLabel ?? label,
+      by_hand: !row.kind_id,
+      has_attachment: row.attachment_url !== null,
+    })
+    return row
+  })
+
+  stubRpc("ipas_set_document_attachment", (args) => {
+    requirePurchasing("ipas_set_document_attachment")
+    const doc = lockDocument("ipas_set_document_attachment", args.p_document_id)
+    const url = clean(args.p_attachment_url)
+    if (url && !/^https?:\/\//i.test(url)) {
+      refuse("22023", "ipas_set_document_attachment: the attachment must be a link to the uploaded file")
+    }
+    if ((url ?? null) === (doc.attachment_url ?? null)) return doc
+    const updated = updateRow("ipas_documents", doc, { attachment_url: url })
+    event(doc.ipas_id, url ? "document_attachment_set" : "document_attachment_removed", {
+      document_id: doc.id,
+      label: documentLabel(updated),
+    })
+    return updated
+  })
+
+  stubRpc("ipas_tick_document", (args) => {
+    if (!["purchasing", "finance"].includes(args.p_side)) {
+      refuse("22023", "ipas_tick_document: tick Purchasing has it or Finance has it")
+    }
+    if (typeof args.p_value !== "boolean") refuse("22023", "ipas_tick_document: tick it or untick it")
+    // Each tick belongs to its own department; neither flag ticks for the other.
+    if (args.p_side === "purchasing" && !purchasing) {
+      refuse("42501", "ipas_tick_document: only Purchasing ticks Purchasing has it")
+    }
+    if (args.p_side === "finance" && !hasFinance) {
+      refuse("42501", "ipas_tick_document: only Finance ticks Finance has it")
+    }
+    const doc = lockDocument("ipas_tick_document", args.p_document_id)
+    const column = args.p_side === "purchasing" ? "purchasing_has" : "finance_has"
+    if (doc[column] === args.p_value) return doc
+    const updated = updateRow("ipas_documents", doc, { [column]: args.p_value })
+    event(doc.ipas_id, "document_ticked", {
+      document_id: doc.id,
+      label: documentLabel(updated),
+      side: args.p_side,
+      value: args.p_value,
+    })
+    return updated
+  })
+
+  stubRpc("ipas_remove_document", (args) => {
+    requirePurchasing("ipas_remove_document")
+    const doc = lockDocument("ipas_remove_document", args.p_document_id)
+    if (doc.finance_has) {
+      refuse("55000", "ipas_remove_document: Finance has ticked this document; ask Finance to untick it first")
+    }
+    const rows = rowsOf("ipas_documents")
+    rows.splice(rows.indexOf(doc), 1)
+    event(doc.ipas_id, "document_removed", {
+      document_id: doc.id,
+      label: documentLabel(doc),
+      purchasing_has: doc.purchasing_has,
+      had_attachment: doc.attachment_url !== null && doc.attachment_url !== undefined,
+    })
+    return doc
+  })
+
+  const ORIGIN_KEYS = ["shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on"]
+
+  const readDate = (fn, fields, key, label, current) => {
+    if (!(key in fields)) return current ?? null
+    const raw = fields[key]
+    if (raw === null) return null
+    if (typeof raw !== "string") refuse("22023", `${fn}: ${label} must be a date`)
+    const text = raw.trim()
+    if (text === "") return null
+    const real = /^\d{4}-\d{2}-\d{2}$/.test(text) && new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) === text
+    if (!real) refuse("22023", `${fn}: ${label} must be a date`)
+    return text
+  }
+
+  stubRpc("ipas_set_supplier_origin", (args) => {
+    requirePurchasing("ipas_set_supplier_origin")
+    const fields = args.p_fields
+    if (!fields || typeof fields !== "object" || Array.isArray(fields)) {
+      refuse("22023", "ipas_set_supplier_origin: the fields must be an object")
+    }
+    for (const key of Object.keys(fields)) {
+      if (!ORIGIN_KEYS.includes(key)) refuse("22023", `ipas_set_supplier_origin: ${key} isn't a Supplier Origin date`)
+    }
+    const row = requireOpenIpas("ipas_set_supplier_origin", args.p_ipas_id)
+    if (row.source !== "import") {
+      refuse("22023", `ipas_set_supplier_origin: ${row.number} is a Local IPAS; Supplier Origin is for Import only`)
+    }
+    const names = { shipped_out_on: "Shipped Out", onboard_on: "Onboard", arrived_in_ph_on: "Arrived in PH", arrived_in_whs_on: "Arrived in Whs." }
+    const next = {}
+    const changes = {}
+    for (const key of ORIGIN_KEYS) {
+      next[key] = readDate("ipas_set_supplier_origin", fields, key, names[key], row[key])
+      if (next[key] !== (row[key] ?? null)) changes[key] = { from: row[key] ?? null, to: next[key] }
+    }
+    if (!Object.keys(changes).length) return row
+    const updated = updateRow("ipas", row, next)
+    event(row.id, "supplier_origin_changed", { fields: changes })
+    return updated
+  })
+
+  stubRpc("ipas_set_typed_status", (args) => {
+    requirePurchasing("ipas_set_typed_status")
+    if (!["import_clearance", "delivered"].includes(args.p_status)) {
+      refuse("22023", "ipas_set_typed_status: Import Clearance and Delivered are the typed statuses")
+    }
+    const row = requireOpenIpas("ipas_set_typed_status", args.p_ipas_id)
+    if (args.p_status === "import_clearance" && row.source !== "import") {
+      refuse("22023", `ipas_set_typed_status: ${row.number} is a Local IPAS; Import Clearance is for Import only`)
+    }
+    const column = args.p_status === "import_clearance" ? "import_clearance" : "delivered"
+    const from = row[`${column}_on`] ?? null
+    const to = args.p_date ?? null
+    if (from === to) return row
+    const updated = updateRow("ipas", row, {
+      [`${column}_on`]: to,
+      [`${column}_typed_by`]: to === null ? null : actorId,
+      [`${column}_typed_at`]: to === null ? null : new Date().toISOString(),
+    })
+    event(row.id, to === null ? "status_cleared" : "status_typed", { status: args.p_status, from, to })
+    return updated
+  })
+
+  stubRpc("ipas_stamp_actual_checking", (args) => {
+    requirePurchasing("ipas_stamp_actual_checking")
+    const stamped = args.p_stamped === undefined ? true : args.p_stamped
+    if (stamped === null) refuse("22023", "ipas_stamp_actual_checking: stamp it or clear it")
+    const row = requireOpenIpas("ipas_stamp_actual_checking", args.p_ipas_id)
+    if (stamped) {
+      if (row.actual_checking_by) return row
+      const updated = updateRow("ipas", row, { actual_checking_by: actorId, actual_checking_at: new Date().toISOString() })
+      event(row.id, "actual_checking_stamped", { by: actorId, at: updated.actual_checking_at })
+      return updated
+    }
+    if (!row.actual_checking_by) return row
+    const updated = updateRow("ipas", row, { actual_checking_by: null, actual_checking_at: null })
+    event(row.id, "actual_checking_cleared", { was_by: row.actual_checking_by, was_at: row.actual_checking_at })
+    return updated
+  })
+
+  stubRpc("ipas_set_item_location", (args) => {
+    requirePurchasing("ipas_set_item_location")
+    const row = requireOpenIpas("ipas_set_item_location", args.p_ipas_id)
+    const to = args.p_option_id ?? null
+    const toLabel = to ? checkOption("ipas_set_item_location", to, "item_location", row.item_location_id, "item location") : null
+    if (to === (row.item_location_id ?? null)) return row
+    const fromLabel = row.item_location_id ? (optionOf(row.item_location_id)?.label ?? null) : null
+    const updated = updateRow("ipas", row, { item_location_id: to })
+    event(row.id, "item_location_changed", { from: fromLabel, to: toLabel })
+    return updated
+  })
 }
 
 /**
@@ -829,5 +1066,39 @@ export function seedIpasOptions(seed) {
       out[list][label] = seed("ipas_options", { list, label, sort: (index + 1) * 10, active: true })
     })
   }
+
+  // Document kinds (#246): label, the Source it is suggested for, documentation / filing / both.
+  const kinds = [
+    ["Quotation", "local", "documentation"],
+    ["Signed Purchase Order", "both", "documentation"],
+    ["Proforma Invoice", "import", "documentation"],
+    ["Commercial Invoice", "import", "both"],
+    ["Packing List", "import", "both"],
+    ["Bill of Lading (BL)", "import", "both"],
+    ["Waybill", "import", "both"],
+    ["Certificate of Origin", "import", "documentation"],
+    ["Customs Import Entry", "import", "filing"],
+    ["Brokerage Billing Statement", "import", "filing"],
+    ["Supplier Sales Invoice", "local", "both"],
+    ["Delivery Receipt", "local", "both"],
+    ["Official Receipt", "both", "filing"],
+    ["BIR 2307", "both", "filing"],
+  ]
+  out.document_kind = {}
+  kinds.forEach(([label, applies_to, used_for], index) => {
+    out.document_kind[label] = seed("ipas_options", {
+      list: "document_kind",
+      label,
+      sort: (index + 1) * 10,
+      active: true,
+      applies_to,
+      used_for,
+    })
+  })
+
+  out.item_location = {}
+  ;["Main Warehouse", "Showroom", "Office", "Project Site", "Customer Site", "Other"].forEach((label, index) => {
+    out.item_location[label] = seed("ipas_options", { list: "item_location", label, sort: (index + 1) * 10, active: true })
+  })
   return out
 }

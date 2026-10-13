@@ -103,6 +103,8 @@ export const SEED_TABLES = [
   "ipas_events",
   "ipas_payments",
   "ipas_charges",
+  // Documents (#246) point at ipas and at the document_kind options above.
+  "ipas_documents",
   "ipas_signer_lists",
   "odoo_retail_queue",
 ]

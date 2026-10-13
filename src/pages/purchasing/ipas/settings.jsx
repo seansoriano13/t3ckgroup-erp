@@ -12,8 +12,9 @@ import { IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../../constants/i
  * IPAS settings (issue #244, spec #241): the option lists the business edits,
  * each starting from the sheet's values. Purchasing access and Super Admins add,
  * rename, reorder and deactivate; options are never deleted, and a deactivated
- * one stays on the rows that used it. The signer lists (Super Admins) join
- * this screen in the sign-off ticket.
+ * one stays on the rows that used it. Document kinds (#246) are also marked
+ * Import, Local or both and documentation, filing or both. The signer lists
+ * (Super Admins) join this screen in the sign-off ticket.
  */
 function IpasSettings() {
   const [list, setList] = useState(IPAS_OPTION_LISTS[0]);
@@ -21,7 +22,7 @@ function IpasSettings() {
   return (
     <PageShell
       title="IPAS settings"
-      description="The lists payments, charges and freight pick from. Changes apply to new rows; existing rows keep their option."
+      description="The lists payments, charges, freight, documents and Item Location pick from. Changes apply to new rows; existing rows keep their option."
       frame="narrow"
       action={
         <Link

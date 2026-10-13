@@ -20,6 +20,10 @@ import PaymentDialog from "../../../components/ipas/PaymentDialog";
 import ChargeDialog from "../../../components/ipas/ChargeDialog";
 import BankDetailsDialog from "../../../components/ipas/BankDetailsDialog";
 import { IpasBankDetails } from "../../../components/ipas/IpasBankDetails";
+import DocumentDialog from "../../../components/ipas/DocumentDialog";
+import DatesDialog from "../../../components/ipas/DatesDialog";
+import { IpasDocuments } from "../../../components/ipas/IpasDocuments";
+import { IpasLogisticsSection } from "../../../components/ipas/IpasLogistics";
 import {
   IpasChargesSection,
   IpasCostingSection,
@@ -39,7 +43,14 @@ import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage } from "../../../utils/ipas";
 import { formatDate } from "../../../utils/formatDate.js";
-import { IPAS_HEADER_FIELD, IPAS_OVERRIDE_FIELDS, IPAS_STATE } from "../../../constants/ipas";
+import {
+  IPAS_HEADER_FIELD,
+  IPAS_OVERRIDE_FIELDS,
+  IPAS_STATE,
+  IPAS_SUPPLIER_ORIGIN_FIELDS,
+  IPAS_TYPED_STATUS,
+  IPAS_TYPED_STATUS_LABELS,
+} from "../../../constants/ipas";
 
 const HEADER_LABELS = {
   [IPAS_HEADER_FIELD.SUPPLIER_CONTACT]: "Contact",
@@ -81,6 +92,11 @@ function typingInitialValue(field, ipas) {
  * #245 adds bank details to section 3, with the changed-account flag beside the
  * Account #. Purchasing types them; Finance and the section 1 and 3 approvers
  * read them; anyone else the database refuses never sees the block.
+ *
+ * #246 adds the documents (section 3: two ticks per row, Purchasing's and
+ * Finance's own), the typed Item Location (section 5) and, in section 6,
+ * Supplier Origin (Import only) and the buyer track with the source of each
+ * status.
  */
 function IpasPage() {
   const { id } = useParams();
@@ -97,6 +113,10 @@ function IpasPage() {
   const [reason, setReason] = useState("");
   const [overriding, setOverriding] = useState(null);
   const [typing, setTyping] = useState(null);
+  const [documentDialog, setDocumentDialog] = useState(false);
+  const [removingDocument, setRemovingDocument] = useState(null);
+  // The typed dates being edited: "origin" (Supplier Origin) or a typed status key.
+  const [dates, setDates] = useState(null);
 
   // The stored copy, at once. The refresh below catches it up.
   const { data: ipas, isLoading, isError, refetch } = useQuery({
@@ -179,6 +199,73 @@ function IpasPage() {
     onError: (error) => toast.error(ipasErrorMessage(error)),
   });
 
+  // Documents (#246). Each tick is its own department's: the database refuses
+  // the other's, and the page only offers each person their own box.
+  const tick = useMutation({
+    mutationFn: ({ document, side, value }) => ipasService.tickDocument(document.id, side, value),
+    onSuccess: changed,
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  const attach = useMutation({
+    mutationFn: ({ document, url }) => ipasService.setDocument(document.id, { attachmentUrl: url }),
+    onSuccess: (_, { url }) => {
+      toast.success(url ? "File attached." : "Attachment removed.");
+      changed();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  const suggest = useMutation({
+    mutationFn: () => ipasService.suggestDocuments(id),
+    onSuccess: (added) => {
+      toast.success(added.length === 1 ? `${added[0]} added.` : `${added.length} documents added.`);
+      changed();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  const removeDocument = useMutation({
+    mutationFn: (document) => ipasService.removeDocument(document.id),
+    onSuccess: () => {
+      toast.success("Document removed.");
+      setRemovingDocument(null);
+      changed();
+    },
+    onError: (error) => {
+      toast.error(ipasErrorMessage(error));
+      setRemovingDocument(null);
+    },
+  });
+
+  // Supplier Origin, the typed statuses, Actual Checking and Item Location.
+  const saveDates = useMutation({
+    mutationFn: (values) =>
+      dates === "origin"
+        ? ipasService.setSupplierOrigin(id, values)
+        : ipasService.setTypedStatus(id, dates, Object.values(values)[0] ?? ""),
+    onSuccess: () => {
+      toast.success(dates === "origin" ? "Supplier Origin saved." : `${IPAS_TYPED_STATUS_LABELS[dates]} saved.`);
+      changed();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  const stamp = useMutation({
+    mutationFn: (stamped) => ipasService.stampActualChecking(id, { stamped }),
+    onSuccess: (_, stamped) => {
+      toast.success(stamped ? "Actual Checking stamped." : "Actual Checking stamp cleared.");
+      changed();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  const locate = useMutation({
+    mutationFn: (optionId) => ipasService.setItemLocation(id, optionId),
+    onSuccess: changed,
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
   const cancel = useMutation({
     mutationFn: () => ipasService.cancel(id, reason),
     onSuccess: () => {
@@ -227,6 +314,26 @@ function IpasPage() {
   const canChange = hasPurchasingFlow && open;
   // Payments and charges: Purchasing or Finance, until Filing.
   const canRecord = (hasPurchasingFlow || hasFinanceFlow) && open;
+  // Finance has it: Finance access alone ticks it, until Filing.
+  const canTickFinance = hasFinanceFlow && open;
+
+  // What the dates dialog edits: the four Supplier Origin dates, or one typed status.
+  const dateFields =
+    dates === "origin"
+      ? IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, column, label }) => ({
+          key: field,
+          label,
+          value: ipas.supplierOrigin?.[field] ?? ipas[column] ?? "",
+        }))
+      : dates
+        ? [
+            {
+              key: dates,
+              label: IPAS_TYPED_STATUS_LABELS[dates],
+              value: (dates === IPAS_TYPED_STATUS.IMPORT_CLEARANCE ? ipas.import_clearance_on : ipas.delivered_on) ?? "",
+            },
+          ]
+        : [];
 
   return (
     <>
@@ -304,9 +411,28 @@ function IpasPage() {
             onEditCharge={(charge) => setChargeDialog({ charge })}
             onRemoveCharge={(charge) => setRemoving({ type: "charge", row: charge })}
           >
+            <IpasDocuments
+              ipas={ipas}
+              canChange={canChange}
+              canTickFinance={canTickFinance}
+              onTick={(document, side, value) => tick.mutate({ document, side, value })}
+              onAttach={(document, url) => attach.mutateAsync({ document, url })}
+              onRemoveAttachment={(document) => attach.mutate({ document, url: "" })}
+              onAdd={() => setDocumentDialog(true)}
+              onSuggest={() => suggest.mutate()}
+              onRemove={setRemovingDocument}
+            />
             <IpasBankDetails ipas={ipas} canChange={canChange} onEdit={() => setBankDialog(true)} />
           </IpasChargesSection>
-          <IpasStatusSection ipas={ipas} />
+          <IpasLogisticsSection ipas={ipas} canChange={canChange} onPick={(optionId) => locate.mutate(optionId)} />
+          <IpasStatusSection
+            ipas={ipas}
+            canChange={canChange}
+            onEditOrigin={() => setDates("origin")}
+            onEditStatus={setDates}
+            onStamp={() => stamp.mutate(true)}
+            onClearStamp={() => stamp.mutate(false)}
+          />
           <IpasCostingSection
             ipas={ipas}
             canChange={canChange}
@@ -334,6 +460,32 @@ function IpasPage() {
       />
 
       <BankDetailsDialog open={bankDialog} onOpenChange={setBankDialog} ipas={ipas} />
+
+      <DocumentDialog open={documentDialog} onOpenChange={setDocumentDialog} ipas={ipas} onAdded={changed} />
+
+      <DatesDialog
+        open={dates !== null}
+        onOpenChange={(next) => !next && setDates(null)}
+        title={dates === "origin" ? "Supplier Origin" : `Type ${IPAS_TYPED_STATUS_LABELS[dates] ?? "the date"}`}
+        description={
+          dates === "origin"
+            ? "When the goods shipped, went onboard and arrived. Import only."
+            : "Who typed it and when is kept with the date and in history."
+        }
+        fields={dateFields}
+        onSubmit={(values) => saveDates.mutateAsync(values)}
+      />
+
+      <ConfirmDialog
+        open={removingDocument !== null}
+        onOpenChange={(next) => !next && setRemovingDocument(null)}
+        title={`Remove ${removingDocument?.label ?? "this document"}?`}
+        description="The row leaves the IPAS, with its attachment. The history keeps what was removed."
+        confirmLabel="Remove"
+        cancelLabel="Keep it"
+        tone="destructive"
+        onConfirm={() => removingDocument && removeDocument.mutate(removingDocument)}
+      />
 
       <ConfirmDialog
         open={removing !== null}

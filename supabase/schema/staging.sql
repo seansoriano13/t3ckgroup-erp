@@ -473,7 +473,20 @@ create table if not exists public."ipas" (
   "pi_qt_amount" numeric(14,2),
   "freight_service_id" uuid,
   "landed_cost_split" text not null default 'value'::text,
-  "computation_status" text not null default 'encoding'::text
+  "computation_status" text not null default 'encoding'::text,
+  "shipped_out_on" date,
+  "onboard_on" date,
+  "arrived_in_ph_on" date,
+  "arrived_in_whs_on" date,
+  "import_clearance_on" date,
+  "import_clearance_typed_by" uuid,
+  "import_clearance_typed_at" timestamp with time zone,
+  "delivered_on" date,
+  "delivered_typed_by" uuid,
+  "delivered_typed_at" timestamp with time zone,
+  "actual_checking_by" uuid,
+  "actual_checking_at" timestamp with time zone,
+  "item_location_id" uuid
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -493,6 +506,19 @@ create table if not exists public."ipas_charges" (
   "kind_id" uuid not null,
   "charged_on" date not null,
   "amount_php" numeric(14,2) not null,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."ipas_documents" (
+  "id" uuid not null default gen_random_uuid(),
+  "ipas_id" uuid not null,
+  "kind_id" uuid,
+  "label" text,
+  "attachment_url" text,
+  "purchasing_has" boolean not null default false,
+  "finance_has" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now()
@@ -1253,6 +1279,7 @@ alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMAR
 alter table ipas add constraint "ipas_pkey" PRIMARY KEY (id);
 alter table ipas_bank_details add constraint "ipas_bank_details_pkey" PRIMARY KEY (ipas_id);
 alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
+alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
@@ -1357,9 +1384,11 @@ alter table flow_stages add constraint "flow_stages_color_check" CHECK (((color 
 alter table flow_stages add constraint "flow_stages_name_not_blank" CHECK ((btrim(name) <> ''::text));
 alter table flow_stages add constraint "flow_stages_terminal_outcome_chk" CHECK (((terminal_outcome IS NULL) OR (is_terminal AND (terminal_outcome = ANY (ARRAY['won'::text, 'lost'::text])))));
 alter table hr_day_shift_config add constraint "hr_day_shift_config_weekday_check" CHECK (((weekday >= 0) AND (weekday <= 6)));
+alter table ipas add constraint "ipas_actual_checking_pair_chk" CHECK (((actual_checking_by IS NULL) = (actual_checking_at IS NULL)));
 alter table ipas add constraint "ipas_cancelled_chk" CHECK (((state <> 'cancelled'::text) OR ((cancelled_at IS NOT NULL) AND (cancel_reason IS NOT NULL) AND (length(btrim(cancel_reason)) > 0))));
 alter table ipas add constraint "ipas_change_note_chk" CHECK (((odoo_change_note IS NULL) OR (jsonb_typeof(odoo_change_note) = 'object'::text)));
 alter table ipas add constraint "ipas_computation_status_chk" CHECK ((computation_status = ANY (ARRAY['encoding'::text, 'encoded'::text, 'costs_complete'::text, 'checked'::text])));
+alter table ipas add constraint "ipas_import_clearance_import_chk" CHECK (((source = 'import'::text) OR (import_clearance_on IS NULL)));
 alter table ipas add constraint "ipas_landed_cost_split_chk" CHECK ((landed_cost_split = ANY (ARRAY['value'::text, 'quantity'::text, 'equal'::text])));
 alter table ipas add constraint "ipas_odoo_copy_chk" CHECK ((jsonb_typeof(odoo_copy) = 'object'::text));
 alter table ipas add constraint "ipas_overrides_chk" CHECK ((((entity_override IS NULL) OR (length(btrim(entity_override)) > 0)) AND ((source_doc_override IS NULL) OR (length(btrim(source_doc_override)) > 0)) AND ((analytic_override IS NULL) OR (length(btrim(analytic_override)) > 0))));
@@ -1369,14 +1398,18 @@ alter table ipas add constraint "ipas_priority_chk" CHECK ((priority = ANY (ARRA
 alter table ipas add constraint "ipas_purpose_chk" CHECK ((purpose = ANY (ARRAY['project'::text, 'inventory'::text, 'supplies'::text, 'events'::text])));
 alter table ipas add constraint "ipas_source_chk" CHECK ((source = ANY (ARRAY['import'::text, 'local'::text])));
 alter table ipas add constraint "ipas_state_chk" CHECK ((state = ANY (ARRAY['open'::text, 'filed'::text, 'cancelled'::text])));
+alter table ipas add constraint "ipas_supplier_origin_import_chk" CHECK (((source = 'import'::text) OR ((shipped_out_on IS NULL) AND (onboard_on IS NULL) AND (arrived_in_ph_on IS NULL) AND (arrived_in_whs_on IS NULL))));
 alter table ipas_bank_details add constraint "ipas_bank_details_account_name_chk" CHECK (((account_name IS NULL) OR (length(account_name) <= 200)));
 alter table ipas_bank_details add constraint "ipas_bank_details_account_number_chk" CHECK (((account_number IS NULL) OR (length(account_number) <= 100)));
 alter table ipas_bank_details add constraint "ipas_bank_details_bank_name_chk" CHECK (((bank_name IS NULL) OR (length(bank_name) <= 200)));
 alter table ipas_charges add constraint "ipas_charges_amount_chk" CHECK ((amount_php > (0)::numeric));
+alter table ipas_documents add constraint "ipas_documents_attachment_url_chk" CHECK (((attachment_url IS NULL) OR (attachment_url ~* '^https?://'::text)));
+alter table ipas_documents add constraint "ipas_documents_kind_or_label_chk" CHECK ((((kind_id IS NOT NULL) AND (label IS NULL)) OR ((kind_id IS NULL) AND (label IS NOT NULL) AND (length(btrim(label)) > 0) AND (length(label) <= 200))));
 alter table ipas_events add constraint "ipas_events_detail_chk" CHECK ((jsonb_typeof(detail) = 'object'::text));
 alter table ipas_events add constraint "ipas_events_kind_chk" CHECK ((length(btrim(kind)) > 0));
 alter table ipas_options add constraint "ipas_options_applies_to_chk" CHECK (((applies_to IS NULL) OR (applies_to = ANY (ARRAY['import'::text, 'local'::text, 'both'::text]))));
 alter table ipas_options add constraint "ipas_options_document_columns_chk" CHECK (((list = 'document_kind'::text) OR ((applies_to IS NULL) AND (used_for IS NULL))));
+alter table ipas_options add constraint "ipas_options_document_kind_marked_chk" CHECK (((list <> 'document_kind'::text) OR ((applies_to IS NOT NULL) AND (used_for IS NOT NULL))));
 alter table ipas_options add constraint "ipas_options_label_chk" CHECK ((length(btrim(label)) > 0));
 alter table ipas_options add constraint "ipas_options_list_chk" CHECK ((list = ANY (ARRAY['payment_method'::text, 'charge_kind'::text, 'document_kind'::text, 'freight_service'::text, 'item_location'::text])));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
@@ -1477,14 +1510,21 @@ alter table flow_stages add constraint "flow_stages_flow_id_fkey" FOREIGN KEY (f
 alter table group_task_template_members add constraint "group_task_template_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table group_task_template_members add constraint "group_task_template_members_template_id_fkey" FOREIGN KEY (template_id) REFERENCES group_task_templates(id) ON DELETE CASCADE;
 alter table group_task_templates add constraint "group_task_templates_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas add constraint "ipas_actual_checking_by_fkey" FOREIGN KEY (actual_checking_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_cancelled_by_fkey" FOREIGN KEY (cancelled_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas add constraint "ipas_delivered_typed_by_fkey" FOREIGN KEY (delivered_typed_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_freight_service_id_fkey" FOREIGN KEY (freight_service_id) REFERENCES ipas_options(id);
+alter table ipas add constraint "ipas_import_clearance_typed_by_fkey" FOREIGN KEY (import_clearance_typed_by) REFERENCES employees(id);
+alter table ipas add constraint "ipas_item_location_id_fkey" FOREIGN KEY (item_location_id) REFERENCES ipas_options(id);
 alter table ipas_bank_details add constraint "ipas_bank_details_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_bank_details add constraint "ipas_bank_details_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
 alter table ipas_charges add constraint "ipas_charges_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_charges add constraint "ipas_charges_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_charges add constraint "ipas_charges_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
+alter table ipas_documents add constraint "ipas_documents_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas_documents add constraint "ipas_documents_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_documents add constraint "ipas_documents_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
 alter table ipas_events add constraint "ipas_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table ipas_events add constraint "ipas_events_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
@@ -1671,14 +1711,22 @@ CREATE UNIQUE INDEX flow_stages_name_per_flow_key ON public.flow_stages USING bt
 CREATE INDEX group_task_template_members_template_idx ON public.group_task_template_members USING btree (template_id);
 CREATE INDEX group_task_templates_active_idx ON public.group_task_templates USING btree (created_at DESC) WHERE (archived_at IS NULL);
 CREATE UNIQUE INDEX hr_leave_categories_sort_order_key ON public.hr_leave_categories USING btree (sort_order);
+CREATE INDEX ipas_actual_checking_by_idx ON public.ipas USING btree (actual_checking_by);
 CREATE INDEX ipas_created_by_idx ON public.ipas USING btree (created_by);
+CREATE INDEX ipas_delivered_typed_by_idx ON public.ipas USING btree (delivered_typed_by);
 CREATE INDEX ipas_freight_service_id_idx ON public.ipas USING btree (freight_service_id);
+CREATE INDEX ipas_import_clearance_typed_by_idx ON public.ipas USING btree (import_clearance_typed_by);
+CREATE INDEX ipas_item_location_id_idx ON public.ipas USING btree (item_location_id);
 CREATE UNIQUE INDEX ipas_live_po_number_key ON public.ipas USING btree (po_number) WHERE (state <> 'cancelled'::text);
 CREATE INDEX ipas_state_idx ON public.ipas USING btree (state, created_at DESC);
 CREATE INDEX ipas_bank_details_updated_by_idx ON public.ipas_bank_details USING btree (updated_by);
 CREATE INDEX ipas_charges_created_by_idx ON public.ipas_charges USING btree (created_by);
 CREATE INDEX ipas_charges_ipas_id_idx ON public.ipas_charges USING btree (ipas_id, charged_on);
 CREATE INDEX ipas_charges_kind_id_idx ON public.ipas_charges USING btree (kind_id);
+CREATE INDEX ipas_documents_created_by_idx ON public.ipas_documents USING btree (created_by);
+CREATE INDEX ipas_documents_kind_id_idx ON public.ipas_documents USING btree (kind_id);
+CREATE UNIQUE INDEX ipas_documents_kind_key ON public.ipas_documents USING btree (ipas_id, kind_id) WHERE (kind_id IS NOT NULL);
+CREATE UNIQUE INDEX ipas_documents_label_key ON public.ipas_documents USING btree (ipas_id, lower(btrim(label))) WHERE (kind_id IS NULL);
 CREATE INDEX ipas_events_actor_id_idx ON public.ipas_events USING btree (actor_id);
 CREATE INDEX ipas_events_ipas_id_idx ON public.ipas_events USING btree (ipas_id, created_at);
 CREATE UNIQUE INDEX ipas_options_list_label_key ON public.ipas_options USING btree (list, lower(btrim(label)));
@@ -1794,6 +1842,7 @@ alter table public."hr_leave_categories" enable row level security;
 alter table public."ipas" enable row level security;
 alter table public."ipas_bank_details" enable row level security;
 alter table public."ipas_charges" enable row level security;
+alter table public."ipas_documents" enable row level security;
 alter table public."ipas_events" enable row level security;
 alter table public."ipas_options" enable row level security;
 alter table public."ipas_payments" enable row level security;
@@ -2390,6 +2439,11 @@ create policy "ipas_bank_details_read" on public."ipas_bank_details"
   to authenticated
   using (ipas_can_read_bank_details());
 create policy "ipas_charges_read" on public."ipas_charges"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
+create policy "ipas_documents_read" on public."ipas_documents"
   as permissive
   for select
   to authenticated
@@ -3285,6 +3339,18 @@ AS $function$
   ) l;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_document_label(p_document ipas_documents)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    p_document.label,
+    (select o.label from public.ipas_options o where o.id = p_document.kind_id)
+  );
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
  RETURNS boolean
  LANGUAGE sql
@@ -3302,6 +3368,28 @@ AS $function$
     nullif(p_line->>'line_id', ''),
     'p' || coalesce(p_line->>'product_id', '') || ':' || coalesce(p_line->>'name', '')
   );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_lock_document(p_fn text, p_document_id uuid)
+ RETURNS ipas_documents
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.ipas_documents;
+begin
+  select * into v_row from public.ipas_documents where id = p_document_id;
+  if v_row.id is null then
+    raise exception '%: document % not found', p_fn, p_document_id using errcode = 'P0002';
+  end if;
+  perform public._ipas_lock_open(p_fn, v_row.ipas_id);
+  select * into v_row from public.ipas_documents where id = p_document_id for update;
+  if v_row.id is null then
+    raise exception '%: document % not found', p_fn, p_document_id using errcode = 'P0002';
+  end if;
+  return v_row;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_lock_open(p_fn text, p_ipas_id uuid)
@@ -3406,6 +3494,95 @@ AS $function$
     when 'done' then 'ordered'
     else 'rfq'
   end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_purchasing_writer(p_fn text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+begin
+  if v_actor is null then
+    raise exception '%: not signed in', p_fn using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception '%: only Purchasing changes an IPAS', p_fn using errcode = '42501';
+  end if;
+  return v_actor;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_read_date(p_fn text, p_fields jsonb, p_key text, p_label text, p_current date)
+ RETURNS date
+ LANGUAGE plpgsql
+ IMMUTABLE
+AS $function$
+declare
+  v_raw jsonb;
+  v_text text;
+begin
+  if not jsonb_exists(p_fields, p_key) then
+    return p_current;
+  end if;
+  v_raw := p_fields->p_key;
+  if jsonb_typeof(v_raw) = 'null' then
+    return null;
+  end if;
+  if jsonb_typeof(v_raw) <> 'string' then
+    raise exception '%: % must be a date', p_fn, p_label using errcode = '22023';
+  end if;
+  v_text := btrim(p_fields->>p_key);
+  if v_text = '' then
+    return null;
+  end if;
+  if v_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+    raise exception '%: % must be a date', p_fn, p_label using errcode = '22023';
+  end if;
+  begin
+    return v_text::date;
+  exception when others then
+    raise exception '%: % must be a real date', p_fn, p_label using errcode = '22023';
+  end;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_suggest_documents(p_ipas_id uuid, p_actor uuid)
+ RETURNS text[]
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_source text;
+  v_labels text[];
+begin
+  select source into v_source from public.ipas where id = p_ipas_id;
+  if v_source is null then
+    return '{}';
+  end if;
+
+  with added as (
+    insert into public.ipas_documents (ipas_id, kind_id, created_by)
+    select p_ipas_id, o.id, p_actor
+      from public.ipas_options o
+     where o.list = 'document_kind'
+       and o.active
+       and o.applies_to in (v_source, 'both')
+       and not exists (
+         select 1 from public.ipas_documents d where d.ipas_id = p_ipas_id and d.kind_id = o.id
+       )
+    returning kind_id
+  )
+  select coalesce(array_agg(o.label order by o.sort, o.label), '{}')
+    into v_labels
+    from added a
+    join public.ipas_options o on o.id = a.kind_id;
+
+  return v_labels;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_write_event(p_ipas_id uuid, p_actor uuid, p_kind text, p_detail jsonb DEFAULT '{}'::jsonb)
@@ -5261,6 +5438,59 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_add_document(p_ipas_id uuid, p_kind_id uuid, p_label text, p_attachment_url text)
+ RETURNS ipas_documents
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_add_document');
+  v_ipas public.ipas;
+  v_label text := nullif(btrim(p_label), '');
+  v_url text := nullif(btrim(p_attachment_url), '');
+  v_kind_label text;
+  v_row public.ipas_documents;
+begin
+  v_ipas := public._ipas_lock_open('ipas_add_document', p_ipas_id);
+
+  if p_kind_id is not null and v_label is not null then
+    raise exception 'ipas_add_document: pick a document kind or type a name, not both' using errcode = '22023';
+  end if;
+  if p_kind_id is null and v_label is null then
+    raise exception 'ipas_add_document: pick a document kind or type the document''s name' using errcode = '22023';
+  end if;
+  if v_label is not null and length(v_label) > 200 then
+    raise exception 'ipas_add_document: a document''s name is 200 characters at most' using errcode = '22023';
+  end if;
+  if v_url is not null and v_url !~* '^https?://' then
+    raise exception 'ipas_add_document: the attachment must be a link to the uploaded file' using errcode = '22023';
+  end if;
+  if p_kind_id is not null then
+    v_kind_label := public._ipas_check_option('ipas_add_document', p_kind_id, 'document_kind', null, 'document kind');
+  end if;
+
+  begin
+    insert into public.ipas_documents (ipas_id, kind_id, label, attachment_url, created_by)
+    values (v_ipas.id, p_kind_id, v_label, v_url, v_actor)
+    returning * into v_row;
+  exception when unique_violation then
+    raise exception 'ipas_add_document: % is already on %', coalesce(v_kind_label, v_label), v_ipas.number
+      using errcode = '23505';
+  end;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'document_added', jsonb_build_object(
+    'document_id', v_row.id,
+    'kind_id', v_row.kind_id,
+    'label', coalesce(v_kind_label, v_label),
+    'by_hand', v_row.kind_id is null,
+    'has_attachment', v_row.attachment_url is not null
+  ));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_add_payment(p_ipas_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text)
  RETURNS ipas_payments
  LANGUAGE plpgsql
@@ -5874,6 +6104,37 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_remove_document(p_document_id uuid)
+ RETURNS ipas_documents
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_remove_document');
+  v_row public.ipas_documents;
+  v_label text;
+begin
+  v_row := public._ipas_lock_document('ipas_remove_document', p_document_id);
+  if v_row.finance_has then
+    raise exception 'ipas_remove_document: Finance has ticked this document; ask Finance to untick it first'
+      using errcode = '55000';
+  end if;
+  v_label := public._ipas_document_label(v_row);
+
+  delete from public.ipas_documents where id = v_row.id;
+
+  perform public._ipas_write_event(v_row.ipas_id, v_actor, 'document_removed', jsonb_build_object(
+    'document_id', v_row.id,
+    'label', v_label,
+    'purchasing_has', v_row.purchasing_has,
+    'had_attachment', v_row.attachment_url is not null
+  ));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_remove_payment(p_payment_id uuid)
  RETURNS ipas_payments
  LANGUAGE plpgsql
@@ -6135,6 +6396,37 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_document_attachment(p_document_id uuid, p_attachment_url text)
+ RETURNS ipas_documents
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_set_document_attachment');
+  v_row public.ipas_documents;
+  v_url text := nullif(btrim(p_attachment_url), '');
+begin
+  v_row := public._ipas_lock_document('ipas_set_document_attachment', p_document_id);
+
+  if v_url is not null and v_url !~* '^https?://' then
+    raise exception 'ipas_set_document_attachment: the attachment must be a link to the uploaded file'
+      using errcode = '22023';
+  end if;
+  if v_url is not distinct from v_row.attachment_url then
+    return v_row;
+  end if;
+
+  update public.ipas_documents set attachment_url = v_url where id = v_row.id returning * into v_row;
+
+  perform public._ipas_write_event(v_row.ipas_id, v_actor,
+    case when v_url is null then 'document_attachment_removed' else 'document_attachment_set' end,
+    jsonb_build_object('document_id', v_row.id, 'label', public._ipas_document_label(v_row)));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_header(p_ipas_id uuid, p_fields jsonb)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -6287,6 +6579,41 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_item_location(p_ipas_id uuid, p_option_id uuid)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_set_item_location');
+  v_row public.ipas;
+  v_from_label text;
+  v_to_label text;
+begin
+  v_row := public._ipas_lock_open('ipas_set_item_location', p_ipas_id);
+
+  if p_option_id is not null then
+    v_to_label := public._ipas_check_option(
+      'ipas_set_item_location', p_option_id, 'item_location', v_row.item_location_id, 'item location'
+    );
+  end if;
+  if p_option_id is not distinct from v_row.item_location_id then
+    return v_row;
+  end if;
+  select o.label into v_from_label from public.ipas_options o where o.id = v_row.item_location_id;
+
+  update public.ipas set item_location_id = p_option_id where id = v_row.id returning * into v_row;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'item_location_changed', jsonb_build_object(
+    'from', v_from_label,
+    'to', v_to_label
+  ));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_purpose_and_sors(p_ipas_id uuid, p_purpose text, p_sor_ids uuid[])
  RETURNS ipas
  LANGUAGE plpgsql
@@ -6348,6 +6675,122 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_supplier_origin(p_ipas_id uuid, p_fields jsonb)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_set_supplier_origin');
+  v_row public.ipas;
+  v_key text;
+  v_shipped date;
+  v_onboard date;
+  v_ph date;
+  v_whs date;
+  v_changes jsonb := '{}'::jsonb;
+begin
+  if p_fields is null or jsonb_typeof(p_fields) <> 'object' then
+    raise exception 'ipas_set_supplier_origin: the fields must be an object' using errcode = '22023';
+  end if;
+  for v_key in select jsonb_object_keys(p_fields) loop
+    if v_key not in ('shipped_out_on', 'onboard_on', 'arrived_in_ph_on', 'arrived_in_whs_on') then
+      raise exception 'ipas_set_supplier_origin: % isn''t a Supplier Origin date', v_key using errcode = '22023';
+    end if;
+  end loop;
+
+  v_row := public._ipas_lock_open('ipas_set_supplier_origin', p_ipas_id);
+  if v_row.source <> 'import' then
+    raise exception 'ipas_set_supplier_origin: % is a Local IPAS; Supplier Origin is for Import only', v_row.number
+      using errcode = '22023';
+  end if;
+
+  v_shipped := public._ipas_read_date('ipas_set_supplier_origin', p_fields, 'shipped_out_on', 'Shipped Out', v_row.shipped_out_on);
+  v_onboard := public._ipas_read_date('ipas_set_supplier_origin', p_fields, 'onboard_on', 'Onboard', v_row.onboard_on);
+  v_ph := public._ipas_read_date('ipas_set_supplier_origin', p_fields, 'arrived_in_ph_on', 'Arrived in PH', v_row.arrived_in_ph_on);
+  v_whs := public._ipas_read_date('ipas_set_supplier_origin', p_fields, 'arrived_in_whs_on', 'Arrived in Whs.', v_row.arrived_in_whs_on);
+
+  if v_shipped is distinct from v_row.shipped_out_on then
+    v_changes := v_changes || jsonb_build_object('shipped_out_on', jsonb_build_object('from', v_row.shipped_out_on, 'to', v_shipped));
+  end if;
+  if v_onboard is distinct from v_row.onboard_on then
+    v_changes := v_changes || jsonb_build_object('onboard_on', jsonb_build_object('from', v_row.onboard_on, 'to', v_onboard));
+  end if;
+  if v_ph is distinct from v_row.arrived_in_ph_on then
+    v_changes := v_changes || jsonb_build_object('arrived_in_ph_on', jsonb_build_object('from', v_row.arrived_in_ph_on, 'to', v_ph));
+  end if;
+  if v_whs is distinct from v_row.arrived_in_whs_on then
+    v_changes := v_changes || jsonb_build_object('arrived_in_whs_on', jsonb_build_object('from', v_row.arrived_in_whs_on, 'to', v_whs));
+  end if;
+  if v_changes = '{}'::jsonb then
+    return v_row;
+  end if;
+
+  update public.ipas
+     set shipped_out_on = v_shipped,
+         onboard_on = v_onboard,
+         arrived_in_ph_on = v_ph,
+         arrived_in_whs_on = v_whs
+   where id = v_row.id
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'supplier_origin_changed', jsonb_build_object('fields', v_changes));
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_set_typed_status(p_ipas_id uuid, p_status text, p_date date)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_set_typed_status');
+  v_row public.ipas;
+  v_from date;
+begin
+  if p_status is null or p_status not in ('import_clearance', 'delivered') then
+    raise exception 'ipas_set_typed_status: Import Clearance and Delivered are the typed statuses' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_lock_open('ipas_set_typed_status', p_ipas_id);
+  if p_status = 'import_clearance' and v_row.source <> 'import' then
+    raise exception 'ipas_set_typed_status: % is a Local IPAS; Import Clearance is for Import only', v_row.number
+      using errcode = '22023';
+  end if;
+
+  v_from := case p_status when 'import_clearance' then v_row.import_clearance_on else v_row.delivered_on end;
+  if v_from is not distinct from p_date then
+    return v_row;
+  end if;
+
+  if p_status = 'import_clearance' then
+    update public.ipas
+       set import_clearance_on = p_date,
+           import_clearance_typed_by = case when p_date is null then null else v_actor end,
+           import_clearance_typed_at = case when p_date is null then null else now() end
+     where id = v_row.id
+    returning * into v_row;
+  else
+    update public.ipas
+       set delivered_on = p_date,
+           delivered_typed_by = case when p_date is null then null else v_actor end,
+           delivered_typed_at = case when p_date is null then null else now() end
+     where id = v_row.id
+    returning * into v_row;
+  end if;
+
+  perform public._ipas_write_event(v_row.id, v_actor,
+    case when p_date is null then 'status_cleared' else 'status_typed' end,
+    jsonb_build_object('status', p_status, 'from', v_from, 'to', p_date));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_sor_headers(p_ipas_ids uuid[] DEFAULT NULL::uuid[])
  RETURNS TABLE(ipas_id uuid, opportunity_id uuid, sales_reference text, project_title text, client_name text)
  LANGUAGE plpgsql
@@ -6368,6 +6811,143 @@ begin
       join public.sales_opportunities o on o.id = s.opportunity_id
      where p_ipas_ids is null or s.ipas_id = any (p_ipas_ids)
      order by o.sales_reference;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_stamp_actual_checking(p_ipas_id uuid, p_stamped boolean DEFAULT true)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_stamp_actual_checking');
+  v_row public.ipas;
+  v_was_by uuid;
+  v_was_at timestamptz;
+begin
+  if p_stamped is null then
+    raise exception 'ipas_stamp_actual_checking: stamp it or clear it' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_lock_open('ipas_stamp_actual_checking', p_ipas_id);
+  v_was_by := v_row.actual_checking_by;
+  v_was_at := v_row.actual_checking_at;
+
+  if p_stamped then
+    if v_was_by is not null then
+      return v_row;
+    end if;
+    update public.ipas
+       set actual_checking_by = v_actor, actual_checking_at = now()
+     where id = v_row.id
+    returning * into v_row;
+    perform public._ipas_write_event(v_row.id, v_actor, 'actual_checking_stamped', jsonb_build_object(
+      'by', v_actor, 'at', v_row.actual_checking_at
+    ));
+  else
+    if v_was_by is null then
+      return v_row;
+    end if;
+    update public.ipas
+       set actual_checking_by = null, actual_checking_at = null
+     where id = v_row.id
+    returning * into v_row;
+    perform public._ipas_write_event(v_row.id, v_actor, 'actual_checking_cleared', jsonb_build_object(
+      'was_by', v_was_by, 'was_at', v_was_at
+    ));
+  end if;
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_suggest_documents(p_ipas_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_suggest_documents');
+  v_ipas public.ipas;
+  v_labels text[];
+begin
+  v_ipas := public._ipas_lock_open('ipas_suggest_documents', p_ipas_id);
+  v_labels := public._ipas_suggest_documents(v_ipas.id, v_actor);
+
+  if cardinality(v_labels) > 0 then
+    perform public._ipas_write_event(v_ipas.id, v_actor, 'documents_suggested', jsonb_build_object(
+      'source', v_ipas.source,
+      'labels', to_jsonb(v_labels)
+    ));
+  end if;
+
+  return jsonb_build_object('added', to_jsonb(v_labels));
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_suggest_documents_on_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public._ipas_suggest_documents(new.id, new.created_by);
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_tick_document(p_document_id uuid, p_side text, p_value boolean)
+ RETURNS ipas_documents
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.ipas_documents;
+  v_before boolean;
+begin
+  if v_actor is null then
+    raise exception 'ipas_tick_document: not signed in' using errcode = '42501';
+  end if;
+  if p_side is null or p_side not in ('purchasing', 'finance') then
+    raise exception 'ipas_tick_document: tick Purchasing has it or Finance has it' using errcode = '22023';
+  end if;
+  if p_value is null then
+    raise exception 'ipas_tick_document: tick it or untick it' using errcode = '22023';
+  end if;
+
+  -- Each tick belongs to its own department. One flag never ticks for the other.
+  if p_side = 'purchasing' and not public.has_purchasing_access() then
+    raise exception 'ipas_tick_document: only Purchasing ticks Purchasing has it' using errcode = '42501';
+  end if;
+  if p_side = 'finance' and not public.has_finance_access() then
+    raise exception 'ipas_tick_document: only Finance ticks Finance has it' using errcode = '42501';
+  end if;
+
+  v_row := public._ipas_lock_document('ipas_tick_document', p_document_id);
+  v_before := case p_side when 'purchasing' then v_row.purchasing_has else v_row.finance_has end;
+  if v_before = p_value then
+    return v_row;
+  end if;
+
+  if p_side = 'purchasing' then
+    update public.ipas_documents set purchasing_has = p_value where id = v_row.id returning * into v_row;
+  else
+    update public.ipas_documents set finance_has = p_value where id = v_row.id returning * into v_row;
+  end if;
+
+  perform public._ipas_write_event(v_row.ipas_id, v_actor, 'document_ticked', jsonb_build_object(
+    'document_id', v_row.id,
+    'label', public._ipas_document_label(v_row),
+    'side', p_side,
+    'value', p_value
+  ));
+
+  return v_row;
 end;
 $function$
 ;
@@ -11381,9 +11961,11 @@ CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task
 CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_fill_from_odoo_copy();
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
+CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_suggest_documents_on_insert();
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_bank_details_updated_at BEFORE UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();

@@ -213,12 +213,105 @@ export const IPAS_OPTION_LIST = {
   ITEM_LOCATION: "item_location",
 };
 
-/** The lists IPAS settings edits today, in tab order. Later tickets add theirs. */
+/** The lists IPAS settings edits, in tab order. */
 export const IPAS_OPTION_LISTS = [
   IPAS_OPTION_LIST.PAYMENT_METHOD,
   IPAS_OPTION_LIST.CHARGE_KIND,
   IPAS_OPTION_LIST.FREIGHT_SERVICE,
+  IPAS_OPTION_LIST.DOCUMENT_KIND,
+  IPAS_OPTION_LIST.ITEM_LOCATION,
 ];
+
+/**
+ * Which Source a document kind is suggested for (ipas_options.applies_to), and
+ * whether it is documentation, filing or both (used_for). #246.
+ */
+export const IPAS_DOCUMENT_APPLIES_TO = {
+  IMPORT: "import",
+  LOCAL: "local",
+  BOTH: "both",
+};
+
+export const IPAS_DOCUMENT_APPLIES_TO_VALUES = [
+  IPAS_DOCUMENT_APPLIES_TO.IMPORT,
+  IPAS_DOCUMENT_APPLIES_TO.LOCAL,
+  IPAS_DOCUMENT_APPLIES_TO.BOTH,
+];
+
+export const IPAS_DOCUMENT_APPLIES_TO_LABELS = {
+  [IPAS_DOCUMENT_APPLIES_TO.IMPORT]: "Import",
+  [IPAS_DOCUMENT_APPLIES_TO.LOCAL]: "Local",
+  [IPAS_DOCUMENT_APPLIES_TO.BOTH]: "Import and Local",
+};
+
+export const IPAS_DOCUMENT_USED_FOR = {
+  DOCUMENTATION: "documentation",
+  FILING: "filing",
+  BOTH: "both",
+};
+
+export const IPAS_DOCUMENT_USED_FOR_VALUES = [
+  IPAS_DOCUMENT_USED_FOR.DOCUMENTATION,
+  IPAS_DOCUMENT_USED_FOR.FILING,
+  IPAS_DOCUMENT_USED_FOR.BOTH,
+];
+
+export const IPAS_DOCUMENT_USED_FOR_LABELS = {
+  [IPAS_DOCUMENT_USED_FOR.DOCUMENTATION]: "Documentation",
+  [IPAS_DOCUMENT_USED_FOR.FILING]: "Filing",
+  [IPAS_DOCUMENT_USED_FOR.BOTH]: "Documentation and filing",
+};
+
+/** The two ticks on a document row: each belongs to one department. */
+export const IPAS_TICK_SIDE = {
+  PURCHASING: "purchasing",
+  FINANCE: "finance",
+};
+
+export const IPAS_TICK_SIDES = [IPAS_TICK_SIDE.PURCHASING, IPAS_TICK_SIDE.FINANCE];
+
+export const IPAS_TICK_SIDE_LABELS = {
+  [IPAS_TICK_SIDE.PURCHASING]: "Purchasing has it",
+  [IPAS_TICK_SIDE.FINANCE]: "Finance has it",
+};
+
+/**
+ * Supplier Origin (#246): four typed dates, Import only. `column` is the ipas
+ * column and the RPC key, `field` the camelCase name the service takes.
+ */
+export const IPAS_SUPPLIER_ORIGIN_FIELDS = [
+  { field: "shippedOut", column: "shipped_out_on", label: "Shipped Out" },
+  { field: "onboard", column: "onboard_on", label: "Onboard" },
+  { field: "arrivedInPh", column: "arrived_in_ph_on", label: "Arrived in PH" },
+  { field: "arrivedInWhs", column: "arrived_in_whs_on", label: "Arrived in Whs." },
+];
+
+/** The buyer-track statuses a person types (ipas_set_typed_status). */
+export const IPAS_TYPED_STATUS = {
+  IMPORT_CLEARANCE: "import_clearance",
+  DELIVERED: "delivered",
+};
+
+export const IPAS_TYPED_STATUSES = [IPAS_TYPED_STATUS.IMPORT_CLEARANCE, IPAS_TYPED_STATUS.DELIVERED];
+
+export const IPAS_TYPED_STATUS_LABELS = {
+  [IPAS_TYPED_STATUS.IMPORT_CLEARANCE]: "Import Clearance",
+  [IPAS_TYPED_STATUS.DELIVERED]: "Delivered",
+};
+
+/**
+ * Where a buyer-track status came from, so the page and the print can say so:
+ *   odoo     read from the Odoo PO ("stamped from Odoo")
+ *   derived  worked out from other rows (With P.O.P: a payment carries proof)
+ *   typed    a person typed the date
+ *   stamped  a person stamped it (Actual Checking, by Purchasing)
+ */
+export const IPAS_STATUS_SOURCE = {
+  ODOO: "odoo",
+  DERIVED: "derived",
+  TYPED: "typed",
+  STAMPED: "stamped",
+};
 
 export const IPAS_OPTION_LIST_LABELS = {
   [IPAS_OPTION_LIST.PAYMENT_METHOD]: "Payment methods",
@@ -285,4 +378,16 @@ export const IPAS_EVENT_LABELS = {
   bank_details_set: "Bank details typed",
   bank_details_changed: "Bank details changed",
   account_flagged: "Account # flagged",
+  documents_suggested: "Documents suggested",
+  document_added: "Document added",
+  document_ticked: "Document ticked",
+  document_attachment_set: "Document attached",
+  document_attachment_removed: "Attachment removed",
+  document_removed: "Document removed",
+  supplier_origin_changed: "Supplier Origin changed",
+  status_typed: "Status typed",
+  status_cleared: "Status cleared",
+  actual_checking_stamped: "Actual Checking stamped",
+  actual_checking_cleared: "Actual Checking cleared",
+  item_location_changed: "Item Location changed",
 };

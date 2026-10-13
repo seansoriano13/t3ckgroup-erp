@@ -1,6 +1,19 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: documents, Supplier Origin and the buyer track",
+        "version": "1.9.17",
+        "changes": [
+            "IPAS: section 3 lists the documents a purchase needs. An Import IPAS starts with the Import documents and a Local IPAS with the Local ones, plus the documents both need. Purchasing can add any other document by hand and attach the file.",
+            "IPAS: every document has two ticks. Purchasing ticks Purchasing has it and Finance ticks Finance has it; neither can tick the other's box, and each tick is kept in History with who made it. Filing documents such as BIR 2307 are the same rows, so one ticked here is already ticked at Filing.",
+            "IPAS: section 5 shows the Item Location, picked from a list. TG03 Location is gone.",
+            "IPAS: an Import IPAS carries the Supplier Origin dates (Shipped Out, Onboard, Arrived in PH, Arrived in Whs.). A Local IPAS doesn't show or accept them.",
+            "IPAS: the buyer track adds With P.O.P (shown while any payment carries proof of payment), Import Clearance (Import only), Delivered and Actual Checking. Each status says whether it was stamped from Odoo, derived or typed, and who typed or stamped it and when.",
+            "IPAS settings: Purchasing and Super Admins edit the document kinds (Import, Local or both; documentation, filing or both) and the Item Location list."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: bank details and the changed-account flag",
         "version": "1.9.16",
         "changes": [
