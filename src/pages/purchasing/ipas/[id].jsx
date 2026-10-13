@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Ban, Pencil, ReceiptText } from "lucide-react";
+import { ArrowLeft, Ban, FileLock2, Pencil, Printer, ReceiptText } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import PageShell from "../../../components/ui/PageShell";
@@ -49,6 +49,7 @@ import {
   ipasSignerListsKey,
 } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
+import { openPrintWindow, printIpas } from "../../../lib/pdf/ipasPrinter";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage } from "../../../utils/ipas";
@@ -364,6 +365,23 @@ function IpasPage() {
     onError: (error) => toast.error(ipasErrorMessage(error)),
   });
 
+  // Printing (#250): two A4 pages through the browser's print dialog. The window
+  // opens in the click (a popup blocker allows it there); the refresh from Odoo,
+  // unless filed, and the signatures are fetched while it says "Preparing".
+  const print = useMutation({
+    mutationFn: ({ filingCopy, printWindow }) =>
+      printIpas(id, { printWindow, filingCopy, printedBy: user?.name ?? null }),
+    onError: (error) => toast.error(error?.message || "The IPAS couldn't be printed."),
+  });
+  const startPrint = (filingCopy) => {
+    const printWindow = openPrintWindow();
+    if (!printWindow) {
+      toast.error("Popup blocked. Allow popups for this site to print.");
+      return;
+    }
+    print.mutate({ filingCopy, printWindow });
+  };
+
   const back = (
     <Link
       to="/purchasing/ipas"
@@ -464,6 +482,26 @@ function IpasPage() {
         action={
           <>
             <IpasStateBadge state={ipas.state} />
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={print.isPending}
+              onClick={() => startPrint(false)}
+            >
+              <Printer size={14} />
+              {print.isPending ? "Preparing…" : "Print"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={print.isPending}
+              onClick={() => startPrint(true)}
+            >
+              <FileLock2 size={14} />
+              Print filing copy
+            </Button>
             {canChange && (
               <>
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditing(true)}>

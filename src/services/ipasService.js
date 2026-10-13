@@ -298,6 +298,33 @@ export const ipasService = {
     };
   },
 
+  /**
+   * An IPAS for printing (#250): what `get` returns, caught up with Odoo first
+   * unless the IPAS is filed. A filed IPAS prints its frozen copy and never
+   * asks Odoo, so printing it can't move "Odoo has changed since filing" or
+   * hold the print on Odoo. A cancelled IPAS has no refresh (`refresh` skips
+   * it). When Odoo doesn't answer, the last copy prints and `refresh` says so.
+   *
+   * `refresh` is the outcome, as in `get`: `{ ok, … }`, or for a filed IPAS
+   * `{ ok: true, skipped: true, filed: true, fetchedAt }`.
+   */
+  async getForPrint(id) {
+    if (!id) return null;
+    const { data: row, error } = await supabase.from("ipas").select("id, state").eq("id", id).maybeSingle();
+    if (error) throw error;
+    if (!row) return null;
+
+    const filed = row.state === IPAS_STATE.FILED;
+    const outcome = filed ? null : await ipasService.refresh(id);
+    const ipas = await ipasService.get(id, { refresh: false });
+    if (!ipas) return null;
+
+    return {
+      ...ipas,
+      refresh: filed ? { ok: true, skipped: true, filed: true, changed: false, fetchedAt: ipas.odoo_fetched_at } : outcome,
+    };
+  },
+
   // ── The Odoo copy ────────────────────────────────────────────────────────
 
   /**

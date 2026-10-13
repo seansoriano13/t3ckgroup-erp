@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: printed IPAS",
+        "version": "1.9.21",
+        "changes": [
+            "IPAS: Print puts an IPAS on two A4 portrait pages in the sheet's own order: the header and sections 1, 2 and 3, then sections 5, 6 and 7. Each section's sign-offs print beside it: a stored signature prints as the signature, a signer with none or who chose not to sign prints as the name only, and a box still waiting prints Signature required.",
+            "IPAS: Landed Cost prints per unit and in total with its provisional or final mark, and a filed IPAS always prints final. Statuses read from Odoo carry a mark with the legend stamped from Odoo, and the footer shows when the Odoo copy was read.",
+            "IPAS: bank account numbers print as the last four digits. Print filing copy prints them in full. Bank details print only for people who can read them, the filing copy included.",
+            "IPAS: printing refreshes an open IPAS from Odoo first. A filed IPAS prints its frozen copy and doesn't ask Odoo."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: summary on the SOR",
         "version": "1.9.20",
         "changes": [

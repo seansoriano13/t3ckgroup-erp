@@ -851,6 +851,81 @@ describe("ipasService", () => {
       })
     })
 
+    /**
+     * #250: printing refreshes the copy first, and doesn't on a filed IPAS,
+     * which prints the frozen copy and never asks Odoo.
+     */
+    describe("printing", () => {
+      const asked = () => {
+        const calls = { count: 0 }
+        stubEdgeFunction("odoo-po-ipas", () => {
+          calls.count += 1
+          return odoo
+        })
+        return calls
+      }
+
+      it("refreshes an unfiled IPAS's Odoo copy first, so the print is as current as Odoo allows", async () => {
+        const calls = asked()
+        odoo = { ...odoo, lines: [line(1), line(2), line(3, { quantity: 4, price_subtotal: 400 })] }
+
+        const read = await ipasService.getForPrint(row.id)
+
+        expect(calls.count).toBe(1)
+        expect(read.lines.map((l) => l.line_id)).toEqual([1, 2, 3])
+        expect(stored().odoo_copy.lines).toHaveLength(3)
+        expect(read.refresh).toMatchObject({ ok: true, changed: true })
+        expect(read.odoo_fetched_at).toBe(stored().odoo_fetched_at)
+        expect(kinds()).toEqual(["created", "odoo_copy_changed"])
+      })
+
+      it("doesn't refresh a filed IPAS: it prints the frozen copy and never asks Odoo", async () => {
+        stored().state = "filed"
+        stored().filed_at = "2026-10-14T00:00:00.000Z"
+        const frozen = stored().odoo_copy
+        const fetchedAt = stored().odoo_fetched_at
+        const calls = asked()
+        odoo = { ...odoo, lines: [line(1, { quantity: 9, price_subtotal: 900 })] }
+
+        const read = await ipasService.getForPrint(row.id)
+
+        expect(calls.count).toBe(0)
+        expect(stored().odoo_copy).toEqual(frozen)
+        expect(stored().odoo_fetched_at).toBe(fetchedAt)
+        expect(read.lines.map((l) => l.quantity)).toEqual([2, 2])
+        expect(read.refresh).toMatchObject({ ok: true, skipped: true, filed: true, fetchedAt })
+        // Printing didn't open a "changed since filing" question either.
+        expect(read.odoo_changed_since_filing).toBe(false)
+        expect(kinds()).toEqual(["created"])
+      })
+
+      it("prints the last copy, and says Odoo didn't answer, when the refresh can't happen", async () => {
+        const fetchedAt = stored().odoo_fetched_at
+        stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" })
+
+        const read = await ipasService.getForPrint(row.id)
+
+        expect(read.refresh).toMatchObject({ ok: false, reason: IPAS_ERROR.ODOO_UNAVAILABLE, fetchedAt })
+        expect(read.lines.map((l) => l.line_id)).toEqual([1, 2])
+      })
+
+      it("leaves a cancelled IPAS alone", async () => {
+        await ipasService.cancel(row.id, "Dropped")
+        const calls = asked()
+
+        const read = await ipasService.getForPrint(row.id)
+
+        expect(calls.count).toBe(0)
+        expect(read.state).toBe("cancelled")
+        expect(read.refresh).toMatchObject({ ok: true, skipped: true })
+      })
+
+      it("answers null for an IPAS that isn't there", async () => {
+        expect(await ipasService.getForPrint(db.nextUuid())).toBeNull()
+        expect(await ipasService.getForPrint(null)).toBeNull()
+      })
+    })
+
     it("keeps working through the one RPC the page calls, with a stubbed failure", async () => {
       stubRpc("ipas_record_odoo_copy", () => {
         throw new Error("boom")
