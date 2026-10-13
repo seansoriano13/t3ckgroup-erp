@@ -2,7 +2,7 @@
     {
         "date": "2026-10-13",
         "title": "IPAS: bank details and the changed-account flag",
-        "version": "1.9.15",
+        "version": "1.9.16",
         "changes": [
             "IPAS: Purchasing types the supplier's Bank Name, Account Name and Account # in section 3. Finance, Super Admins and the section 1 and 3 approvers can read them; Finance can't change them, and a section 7 Noted or Checked signer without those roles reads the IPAS but not the bank details.",
             "IPAS: an Account # that differs from the same supplier's most recent IPAS is flagged beside the account. Spaces and dashes don't count as a difference, and a supplier's first IPAS is never flagged.",
@@ -12,7 +12,7 @@
     {
         "date": "2026-10-13",
         "title": "IPAS: payments, charges and Landed Cost",
-        "version": "1.9.14",
+        "version": "1.9.15",
         "changes": [
             "IPAS: Purchasing and Finance record any number of payments (down payment, payment, full payment, shipping fee) and importation charges. Each has its date and amount, a payment its charge fee, method, Check No. and optional proof of payment. Edit or remove them until the IPAS is filed; every change is kept in History.",
             "IPAS: on a foreign-currency PO each payment records the PHP actually debited, so costs use the rate really paid. DP and FP come from the payment rows, P.I/QT Amount is typed, and no balance is worked out.",
@@ -24,7 +24,7 @@
     {
         "date": "2026-10-13",
         "title": "IPAS: the Odoo copy stays current, with overrides",
-        "version": "1.9.13",
+        "version": "1.9.14",
         "changes": [
             "IPAS: opening an IPAS refreshes it from Odoo and notes what changed since the last copy: lines added or removed, and new quantities or prices. When Odoo doesn't answer, the last copy shows with its fetch time.",
             "IPAS: Purchasing can override Entity, Source Doc. and Analytic Dist., with Odoo's value shown beside the override and one click to go back to it. Currency, Supplier, item lines and Brand stay as Odoo has them.",
@@ -35,12 +35,20 @@
     {
         "date": "2026-10-13",
         "title": "IPAS: raise and track an IPAS from an Odoo purchase order",
-        "version": "1.9.12",
+        "version": "1.9.13",
         "changes": [
             "IPAS: Purchasing can raise an IPAS from an Odoo PO number. The ERP checks the PO in Odoo, gives it a TGIPAS number, and brings in the supplier, currency and item lines.",
             "IPAS: a Project IPAS names its SORs, suggested from the PO's Source Document and analytic accounts. Inventory, Supplies and Events name none.",
             "IPAS: the new IPAS page in the Purchasing menu lists every IPAS by open, filed or cancelled, and by entity and purpose. Purchasing can change the purpose and SORs, or cancel with a reason. The number is kept.",
             "Employees: a new Finance access switch sits beside Purchasing, for Finance staff who read every IPAS."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "Simpler Offset Request Form",
+        "version": "1.9.12",
+        "changes": [
+            "Leaves & Overtime: the Offset tab is now titled \"Request Offset\", the date field is labelled \"Offset Date\", and you no longer need to pick a category when requesting an offset."
         ]
     },
     {
