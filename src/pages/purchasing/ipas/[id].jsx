@@ -18,6 +18,8 @@ import EditPurposeSorsDialog from "../../../components/ipas/EditPurposeSorsDialo
 import EditValueDialog from "../../../components/ipas/EditValueDialog";
 import PaymentDialog from "../../../components/ipas/PaymentDialog";
 import ChargeDialog from "../../../components/ipas/ChargeDialog";
+import BankDetailsDialog from "../../../components/ipas/BankDetailsDialog";
+import { IpasBankDetails } from "../../../components/ipas/IpasBankDetails";
 import {
   IpasChargesSection,
   IpasCostingSection,
@@ -75,6 +77,10 @@ function typingInitialValue(field, ipas) {
  * (Purchasing or Finance), the typed P.I/QT Amount and the freight service,
  * and, in section 6, the computation status and Landed Cost with its
  * provisional or final mark.
+ *
+ * #245 adds bank details to section 3, with the changed-account flag beside the
+ * Account #. Purchasing types them; Finance and the section 1 and 3 approvers
+ * read them; anyone else the database refuses never sees the block.
  */
 function IpasPage() {
   const { id } = useParams();
@@ -85,6 +91,7 @@ function IpasPage() {
   const [editing, setEditing] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(null); // { payment | null }
   const [chargeDialog, setChargeDialog] = useState(null); // { charge | null }
+  const [bankDialog, setBankDialog] = useState(false);
   const [removing, setRemoving] = useState(null); // { type: "payment" | "charge", row }
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
@@ -296,7 +303,9 @@ function IpasPage() {
             onAddCharge={() => setChargeDialog({ charge: null })}
             onEditCharge={(charge) => setChargeDialog({ charge })}
             onRemoveCharge={(charge) => setRemoving({ type: "charge", row: charge })}
-          />
+          >
+            <IpasBankDetails ipas={ipas} canChange={canChange} onEdit={() => setBankDialog(true)} />
+          </IpasChargesSection>
           <IpasStatusSection ipas={ipas} />
           <IpasCostingSection
             ipas={ipas}
@@ -323,6 +332,8 @@ function IpasPage() {
         ipas={ipas}
         charge={chargeDialog?.charge ?? null}
       />
+
+      <BankDetailsDialog open={bankDialog} onOpenChange={setBankDialog} ipas={ipas} />
 
       <ConfirmDialog
         open={removing !== null}

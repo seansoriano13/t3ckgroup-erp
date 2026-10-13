@@ -121,6 +121,8 @@ export const SEED_EXCLUDED_TABLES = {
     "Reports point at files in the remote environment's private bug-reports bucket, which a local stack cannot read, and carry each sender's browser details. Send a fresh one locally with the bug button.",
   bug_report_notes:
     "The thread on a Bug Report, and bug_reports itself is not seeded, so there is nothing for a note to hang on.",
+  ipas_bank_details:
+    "Suppliers' bank account numbers (#245). Narrow read policy by design (Purchasing, Finance, Super Admins and the section 1 and 3 approvers), and a local stack or a colleague's seed has no business carrying real account numbers. Type fresh ones locally on an IPAS.",
   sor_action_runs:
     "A fire-once ledger derived from Stage Actions actually firing (issue #204), not a fact to seed — a local stack regenerates it the first time a seeded deal moves through a Flow Stage.",
 }

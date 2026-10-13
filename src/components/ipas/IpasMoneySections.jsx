@@ -217,10 +217,17 @@ export function IpasPaymentsBlock({
 }
 
 /**
- * Section 3's charges: a list of kind, date and PHP amount. Documents and bank
- * details join this section in their own tickets.
+ * Section 3's charges: a list of kind, date and PHP amount. Bank details (#245)
+ * arrive as `children`, below the charges; documents join in their own ticket.
  */
-export function IpasChargesSection({ ipas, canRecord = false, onAddCharge, onEditCharge, onRemoveCharge }) {
+export function IpasChargesSection({
+  ipas,
+  canRecord = false,
+  onAddCharge,
+  onEditCharge,
+  onRemoveCharge,
+  children = null,
+}) {
   const { charges, paymentSummary: sum } = ipas;
 
   return (
@@ -294,6 +301,7 @@ export function IpasChargesSection({ ipas, canRecord = false, onAddCharge, onEdi
           </div>
         </div>
       )}
+      {children}
     </IpasSection>
   );
 }

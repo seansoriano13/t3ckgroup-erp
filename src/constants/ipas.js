@@ -251,6 +251,7 @@ export const IPAS_WARNING = {
 /** Notification type written when a PO change clears section 1 and 3 approvals. */
 export const IPAS_NOTIFICATION = {
   PO_CHANGED: "IPAS_PO_CHANGED",
+  ACCOUNT_FLAGGED: "IPAS_ACCOUNT_FLAGGED",
 };
 
 /** The Odoo PO's own state, as the page words it. */
@@ -281,4 +282,7 @@ export const IPAS_EVENT_LABELS = {
   charge_added: "Charge added",
   charge_changed: "Charge changed",
   charge_removed: "Charge removed",
+  bank_details_set: "Bank details typed",
+  bank_details_changed: "Bank details changed",
+  account_flagged: "Account # flagged",
 };

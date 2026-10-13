@@ -37,11 +37,25 @@ const refuse = (code, message) => {
  * test seeds the options it uses (`seedIpasOptions`). `money: false` is a caller
  * with neither Purchasing nor Finance access.
  *
+ * #245 adds bank details (`ipas_set_bank_details`, `ipas_can_read_bank_details`).
+ * The fake runs no row level security, so `bankReader: false` is a caller the
+ * database would refuse bank details (a section 7 signer without flags); the
+ * stub answers `ipas_can_read_bank_details` with it. The rows live in the fake
+ * `ipas_bank_details` table; a test seeds a supplier's earlier IPAS and its bank
+ * details there to exercise the flag.
+ *
  * The fake has no signed-in identity, so `actorId` stands in for
  * get_employee_id(). `purchasing: false` is a caller without Purchasing access;
  * `reader: false` one who can't read IPAS.
  */
-export function stubIpasRpcs({ actorId, purchasing = true, reader = true, signoffs = [], money = null } = {}) {
+export function stubIpasRpcs({
+  actorId,
+  purchasing = true,
+  reader = true,
+  signoffs = [],
+  money = null,
+  bankReader = true,
+} = {}) {
   const requirePurchasing = (fn) => {
     if (!purchasing) refuse("42501", `${fn}: only Purchasing may do this`)
   }
@@ -478,6 +492,108 @@ export function stubIpasRpcs({ actorId, purchasing = true, reader = true, signof
     const updated = updateRow("ipas", row, next)
     event(row.id, "header_changed", { fields: changes })
     return updated
+  })
+
+  // ── Bank details (#245) ──────────────────────────────────────────────────
+
+  stubRpc("ipas_can_read_bank_details", () => bankReader)
+
+  /** _ipas_account_key: spaces and dashes stripped. */
+  const accountKey = (value) => String(value ?? "").replace(/[\s-]/g, "")
+
+  stubRpc("ipas_set_bank_details", (args) => {
+    requirePurchasing("ipas_set_bank_details")
+    const ipas = findRow("ipas", args.p_ipas_id)
+    requireOpen("ipas_set_bank_details", ipas)
+
+    const bank = clean(args.p_bank_name)
+    const name = clean(args.p_account_name)
+    const number = clean(args.p_account_number)
+    const key = accountKey(number)
+    const partner = ipas.odoo_copy?.supplier?.id == null ? null : String(ipas.odoo_copy.supplier.id)
+
+    // The supplier's most recent other IPAS, not cancelled, with an Account # typed.
+    let previous = null
+    if (key !== "" && partner !== null) {
+      const candidates = rowsOf("ipas_bank_details")
+        .filter((b) => b.ipas_id !== ipas.id && accountKey(b.account_number) !== "")
+        .map((b) => ({ bank: b, ipas: findRow("ipas", b.ipas_id) }))
+        .filter(
+          ({ ipas: other }) =>
+            other && other.state !== "cancelled" && String(other.odoo_copy?.supplier?.id ?? "") === partner,
+        )
+        // Newest first; rows created in the same millisecond go by insertion order.
+        .sort(
+          (a, b) =>
+            String(b.ipas.created_at).localeCompare(String(a.ipas.created_at)) ||
+            rowsOf("ipas").indexOf(b.ipas) - rowsOf("ipas").indexOf(a.ipas),
+        )
+      previous = candidates[0] ?? null
+    }
+    const flagged = previous ? accountKey(previous.bank.account_number) !== key : false
+
+    const before = rowsOf("ipas_bank_details").find((b) => b.ipas_id === ipas.id) ?? null
+    const accountChanged = accountKey(before?.account_number) !== key
+    const fields = []
+    if (before) {
+      if (bank !== (before.bank_name ?? null)) fields.push("bank_name")
+      if (name !== (before.account_name ?? null)) fields.push("account_name")
+      if (number !== (before.account_number ?? null)) fields.push("account_number")
+      if (!fields.length && flagged === Boolean(before.account_flagged)) {
+        return {
+          bank_details: before,
+          flagged: Boolean(before.account_flagged),
+          account_changed: false,
+          approvals_cleared: [],
+          preparer_ids: [],
+        }
+      }
+    } else {
+      if (bank) fields.push("bank_name")
+      if (name) fields.push("account_name")
+      if (number) fields.push("account_number")
+    }
+
+    const values = {
+      bank_name: bank,
+      account_name: name,
+      account_number: number,
+      account_flagged: flagged,
+      updated_by: actorId,
+    }
+    const wasFlagged = before ? Boolean(before.account_flagged) : false
+    const row = before
+      ? updateRow("ipas_bank_details", before, values)
+      : insertRow("ipas_bank_details", { ipas_id: ipas.id, ...values })
+
+    // What changed, never the values.
+    event(ipas.id, before ? "bank_details_changed" : "bank_details_set", {
+      fields,
+      account_changed: accountChanged,
+      flagged,
+      was_flagged: wasFlagged,
+    })
+
+    let sections = []
+    let preparers = []
+    if (flagged && accountChanged) {
+      event(ipas.id, "account_flagged", { previous_ipas_id: previous.ipas.id, previous_number: previous.ipas.number })
+      const live = signoffs.filter((s) => s.ipas_id === ipas.id && !s.cleared_at)
+      const approved = live.filter((s) => [1, 3].includes(s.section) && s.role === "approved")
+      sections = [...new Set(approved.map((s) => s.section))].sort()
+      for (const s of approved) {
+        s.cleared_at = new Date().toISOString()
+        s.cleared_reason = "Account # flagged"
+      }
+      preparers = [
+        ...new Set(
+          live.filter((s) => sections.includes(s.section) && s.role === "prepared" && s.signed_by).map((s) => s.signed_by),
+        ),
+      ]
+      if (sections.length) event(ipas.id, "approvals_cleared", { reason: "Account # flagged", sections })
+    }
+
+    return { bank_details: row, flagged, account_changed: accountChanged, approvals_cleared: sections, preparer_ids: preparers }
   })
 
   // ── Payments and charges (#244) ──────────────────────────────────────────

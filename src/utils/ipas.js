@@ -337,3 +337,20 @@ function shapeMoney(row, { payments = [], charges = [], options = [] }) {
     }),
   };
 }
+
+/**
+ * An `ipas_bank_details` row as the page uses it, or null when none is typed
+ * (or the caller may not read it: the database returns no row, and the
+ * service says which of the two it was). Account # is sensitive; this only
+ * reshapes it.
+ */
+export function shapeBankDetails(row) {
+  if (!row) return null;
+  return {
+    bankName: clean(row.bank_name),
+    accountName: clean(row.account_name),
+    accountNumber: clean(row.account_number),
+    flagged: Boolean(row.account_flagged),
+    updatedAt: row.updated_at ?? null,
+  };
+}

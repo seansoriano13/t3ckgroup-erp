@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: bank details and the changed-account flag",
+        "version": "1.9.15",
+        "changes": [
+            "IPAS: Purchasing types the supplier's Bank Name, Account Name and Account # in section 3. Finance, Super Admins and the section 1 and 3 approvers can read them; Finance can't change them, and a section 7 Noted or Checked signer without those roles reads the IPAS but not the bank details.",
+            "IPAS: an Account # that differs from the same supplier's most recent IPAS is flagged beside the account. Spaces and dashes don't count as a difference, and a supplier's first IPAS is never flagged.",
+            "IPAS: a flagged account clears the approvals given on sections 1 and 3 and notifies whoever prepared them. History records that the bank details changed, never the account number itself."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: payments, charges and Landed Cost",
         "version": "1.9.14",
         "changes": [

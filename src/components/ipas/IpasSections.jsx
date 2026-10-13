@@ -522,6 +522,12 @@ const HEADER_FIELD_NAMES = {
   computation_status: "Computation status",
 };
 
+const BANK_FIELD_NAMES = {
+  bank_name: "Bank Name",
+  account_name: "Account Name",
+  account_number: "Account #",
+};
+
 const PAYMENT_FIELD_NAMES = {
   kind: "kind",
   paid_on: "date",
@@ -609,6 +615,17 @@ function eventDetail(event) {
     }
     case "approvals_cleared":
       return detail.reason ?? null;
+    case "bank_details_set":
+    case "bank_details_changed": {
+      // Which fields, never the values: the history is wider than bank details.
+      const names = (detail.fields ?? []).map((field) => BANK_FIELD_NAMES[field] ?? field);
+      const parts = [names.length ? `${event.kind === "bank_details_set" ? "typed" : "changed"} ${names.join(", ")}` : null];
+      if (detail.flagged) parts.push("flagged");
+      else if (detail.was_flagged) parts.push("flag cleared");
+      return parts.filter(Boolean).join(" · ") || null;
+    }
+    case "account_flagged":
+      return "Differs from this supplier's last IPAS";
     case "payment_added":
     case "payment_changed":
     case "payment_removed":

@@ -17,7 +17,7 @@ import {
   IPAS_STATE_FILTER_ALL,
 } from "../constants/ipas";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
-import { ipasEntity, salesReferencesIn, shapeIpas } from "../utils/ipas";
+import { ipasEntity, salesReferencesIn, shapeBankDetails, shapeIpas } from "../utils/ipas";
 import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
 
 const IPAS_SELECT =
@@ -46,7 +46,8 @@ export class IpasError extends Error {
  *
  * Reads and lifecycle land here first (#242); the Odoo refresh, overrides and
  * the typed header values follow (#243); payments, charges, the option lists
- * and Landed Cost (#244). Documents and sign-offs extend this object in their
+ * and Landed Cost (#244); bank details and the changed-account flag (#245).
+ * Documents and sign-offs extend this object in their
  * own tickets. Every IPAS write is an RPC: the database decides who may make it
  * and writes the history row (ADR 0013). The option lists are plain rows under
  * row level security (nobody deletes one).
@@ -214,7 +215,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, bank] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -234,6 +235,7 @@ export const ipasService = {
         .order("charged_on", { ascending: true })
         .order("created_at", { ascending: true }),
       supabase.from("ipas_options").select("*"),
+      readBankDetails(id),
     ]);
     for (const result of [events, payments, charges, options]) {
       if (result.error) throw result.error;
@@ -249,6 +251,11 @@ export const ipasService = {
       // option still resolves it, and the pickers filter it out for new rows.
       options: options.data || [],
       events: events.data || [],
+      // Bank details (#245): null when none is typed OR the caller may not read
+      // them; canReadBankDetails says which, so the page shows the section only
+      // to people the database lets read it.
+      bankDetails: bank.bankDetails,
+      canReadBankDetails: bank.canRead,
       refresh: outcome,
     };
   },
@@ -410,6 +417,53 @@ export const ipasService = {
   /** The IPAS's one freight service (an active option), or null to clear it. */
   setFreightService(id, optionId) {
     return ipasService.setHeader(id, { freightServiceId: optionId });
+  },
+
+  // ── Bank details (#245) ──────────────────────────────────────────────────
+
+  /**
+   * Types or changes the supplier's bank details on an open IPAS (Purchasing
+   * access only; Finance can read but not type them). Blank clears a value.
+   * The database compares the Account # (spaces and dashes stripped) with the
+   * same supplier's most recent other IPAS: a difference flags the account,
+   * clears the live section 1 and 3 approvals and records an event, and the
+   * preparers of those sections are notified here. The notification names the
+   * IPAS and the PO, never an account number.
+   *
+   * Returns { bankDetails, flagged, accountChanged, approvalsCleared }.
+   */
+  async setBankDetails(id, { bankName, accountName, accountNumber } = {}) {
+    const { data, error } = await supabase.rpc("ipas_set_bank_details", {
+      p_ipas_id: id,
+      p_bank_name: (bankName || "").trim() || null,
+      p_account_name: (accountName || "").trim() || null,
+      p_account_number: (accountNumber || "").trim() || null,
+    });
+    if (error) throw error;
+
+    const preparerIds = data?.preparer_ids ?? [];
+    if (preparerIds.length > 0) {
+      const { data: ipas } = await supabase.from("ipas").select("number, po_number").eq("id", id).maybeSingle();
+      const label = ipas?.number ? `${ipas.number} (${ipas.po_number})` : "An IPAS";
+      await Promise.all(
+        preparerIds.map((recipient_id) =>
+          notificationService.createNotification({
+            recipient_id,
+            type: IPAS_NOTIFICATION.ACCOUNT_FLAGGED,
+            title: "Account # flagged",
+            message: `${label}: the supplier's account number differs from their last IPAS, so its approvals were cleared.`,
+            reference_id: id,
+          }),
+        ),
+      );
+    }
+
+    return {
+      bankDetails: shapeBankDetails(data?.bank_details),
+      flagged: Boolean(data?.flagged),
+      accountChanged: Boolean(data?.account_changed),
+      approvalsCleared: data?.approvals_cleared ?? [],
+    };
   },
 
   // ── Payments and charges (#244) ──────────────────────────────────────────
@@ -646,6 +700,22 @@ function chargeArgs(charge) {
     throw new IpasError(IPAS_ERROR.INVALID, "The amount must be a number more than zero.");
   }
   return { p_kind_id: kindId, p_charged_on: chargedOn, p_amount_php: read.value };
+}
+
+/**
+ * An IPAS's bank details, and whether the caller may read them. A caller the
+ * database refuses gets no row (row level security), never an error, so
+ * `ipas_can_read_bank_details` is what tells "none typed" from "not yours". If
+ * it can't be asked, the section stays hidden rather than guessing.
+ */
+async function readBankDetails(id) {
+  const [rows, allowed] = await Promise.all([
+    supabase.from("ipas_bank_details").select("*").eq("ipas_id", id).maybeSingle(),
+    supabase.rpc("ipas_can_read_bank_details"),
+  ]);
+  if (rows.error) throw rows.error;
+  const canRead = allowed.error ? false : allowed.data === true;
+  return { canRead, bankDetails: canRead ? shapeBankDetails(rows.data) : null };
 }
 
 function failedRefresh(reason, message, fetchedAt) {

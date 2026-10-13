@@ -373,6 +373,18 @@ describe("handleNotificationRoute", () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it("opens the IPAS an account-flagged notification names", () => {
+    handleNotificationRoute(
+      { type: "IPAS_ACCOUNT_FLAGGED", reference_id: "ipas-2" },
+      employee,
+      navigate,
+      onClose,
+    )
+
+    expect(navigate).toHaveBeenCalledWith("/purchasing/ipas/ipas-2")
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it("closes the drawer after every successful route", () => {
     handleNotificationRoute(
       { type: "TASK_SUBMITTED", reference_id: "task-9" },
