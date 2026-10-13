@@ -7,9 +7,16 @@ name: Deploy edge functions
 # workflows push schema: from CI, never a developer machine, always naming the
 # target project explicitly.
 #
-# Manual only. Press the button in the Actions tab.
+# Staging deploys itself: a push to staging that touches supabase/functions
+# deploys just the functions that changed (everything, when _shared changed),
+# the same way migrate-staging.yml applies migrations. Prod stays manual: press
+# the button in the Actions tab and type "deploy".
 
 on:
+  push:
+    branches: [staging]
+    paths:
+      - "supabase/functions/**"
   workflow_dispatch:
     inputs:
       environment:
@@ -32,12 +39,12 @@ on:
         default: ""
 
 concurrency:
-  group: deploy-edge-functions-${{ github.event.inputs.environment }}
+  group: deploy-edge-functions-${{ github.event.inputs.environment || 'staging' }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: supabase functions deploy (${{ github.event.inputs.environment }})
+    name: supabase functions deploy (${{ github.event.inputs.environment || 'staging' }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -49,6 +56,9 @@ jobs:
           exit 1
 
       - uses: actions/checkout@v4
+        with:
+          # The push path diffs before..sha to find the changed functions.
+          fetch-depth: 0
 
       - uses: supabase/setup-cli@v1
         with:
@@ -57,8 +67,11 @@ jobs:
       - name: Resolve target project and function list
         id: plan
         env:
-          TARGET: ${{ github.event.inputs.environment }}
+          # A push has no inputs: it is always staging.
+          TARGET: ${{ github.event.inputs.environment || 'staging' }}
           REQUESTED: ${{ github.event.inputs.functions }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
           # Same project refs as migrate-staging.yml / migrate-prod.yml.
@@ -85,6 +98,20 @@ jobs:
             done
           else
             list=$(grep -vx 'sor-follow-up-reminders' <<< "$available" | tr '\n' ' ')
+            # On a push, narrow to what changed. A change under _shared, or a
+            # diff we cannot take (new branch, force push), keeps the full list.
+            if [ "$EVENT" = "push" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+              changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- supabase/functions)
+              if ! grep -q '^supabase/functions/_' <<< "$changed"; then
+                narrowed=""
+                for fn in $list; do
+                  if grep -q "^supabase/functions/$fn/" <<< "$changed"; then
+                    narrowed="$narrowed $fn"
+                  fi
+                done
+                list="$narrowed"
+              fi
+            fi
           fi
 
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
@@ -93,7 +120,7 @@ jobs:
           echo "Functions:"; for fn in $list; do echo "  - $fn"; done
 
       - name: Deploy
-        if: github.event.inputs.dry_run != 'true'
+        if: github.event.inputs.dry_run != 'true' && steps.plan.outputs.list != ''
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           REF: ${{ steps.plan.outputs.ref }}
