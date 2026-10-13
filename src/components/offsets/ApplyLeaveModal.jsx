@@ -119,7 +119,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   // Offset Leave State
   const [offsetApplyMode, setOffsetApplyMode] = useState('single'); // 'single' | 'range'
   const [offsetDate, setOffsetDate] = useState('');
-  const [offsetCategoryId, setOffsetCategoryId] = useState('');
   const [offsetStartTime, setOffsetStartTime] = useState('');
   const [offsetEndTime, setOffsetEndTime] = useState('');
   const [offsetRangeStart, setOffsetRangeStart] = useState('');
@@ -294,7 +293,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
     if (offsetApplyMode === 'range') {
       const days = enumerateDateRange(offsetRangeStart, offsetRangeEnd);
-      if (days.length === 0 || !offsetReason || !offsetCategoryId) {
+      if (days.length === 0 || !offsetReason) {
         toast.error('Please fill in all fields.');
         return;
       }
@@ -306,7 +305,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           employeeId,
           days: days.map((date) => ({ date, hours: parseFloat(offsetDayHours[date] ?? DEFAULT_DAY_HOURS) })),
           reason: offsetReason,
-          categoryId: offsetCategoryId,
           employeeName,
           attachments,
           headId: offsetHeadId,
@@ -315,7 +313,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         setOffsetRangeStart('');
         setOffsetRangeEnd('');
         setOffsetDayHours({});
-        setOffsetCategoryId('');
         setOffsetReason('');
         setOffsetHeadId('');
         offsetFiles.clear();
@@ -329,7 +326,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       return;
     }
 
-    if (!offsetDate || !offsetStartTime || !offsetEndTime || !offsetReason || !offsetCategoryId) {
+    if (!offsetDate || !offsetStartTime || !offsetEndTime || !offsetReason) {
       toast.error('Please fill in all fields.');
       return;
     }
@@ -343,14 +340,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         startTime: offsetStartTime,
         endTime: offsetEndTime,
         reason: offsetReason,
-        categoryId: offsetCategoryId,
         employeeName,
         attachments,
         headId: offsetHeadId,
       });
       toast.success('Offset leave application submitted!');
       setOffsetDate('');
-      setOffsetCategoryId('');
       setOffsetStartTime('');
       setOffsetEndTime('');
       setOffsetReason('');
@@ -628,7 +623,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <div className="flex items-center space-x-2">
                   <Calendar size={16} className="text-blue-11" />
                   <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                    Request Offset Leave
+                    Request Offset
                   </h3>
                 </div>
                 <TabGroup
@@ -648,16 +643,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   {pendingOffsetHours > 0 && ` (${pendingOffsetHours} hrs already committed to pending applications)`}
                 </div>
               )}
-              <div>
-                <FieldBox label="Category" className="block mb-1.5" />
-                <SelectField
-                value={offsetCategoryId}
-                onChange={setOffsetCategoryId}
-                options={categories.map((x) => ({ value: x.id, label: x.label }))}
-                placeholder="Select category..."
-                className="w-full"
-              />
-              </div>
               {offsetApplyMode === 'range' ? (
                 <RangeDayEditor
                   startDate={offsetRangeStart}
@@ -670,7 +655,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               ) : (
                 <>
                   <div>
-                    <FieldBox label="Leave Date (Mon-Fri)" className="block mb-1.5" />
+                    <FieldBox label="Offset Date" className="block mb-1.5" />
                     <Input
                       type="date"
                       value={offsetDate}
