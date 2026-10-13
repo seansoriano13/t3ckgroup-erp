@@ -345,21 +345,25 @@ export const IPAS_WARNING = {
  * Notification types: PO_CHANGED and ACCOUNT_FLAGGED when a change clears the
  * section 1 and 3 approvals (#243, #245); SIGNOFF_READY when a section is
  * Prepared and waits for its approval list, SENT_BACK when a signer returns a
- * section to its preparer (#247). All route to the IPAS (notificationRouter).
+ * section to its preparer (#247). SECTION_7_READY goes to the next section 7
+ * list as each step is given (#248). All route to the IPAS (notificationRouter).
  */
 export const IPAS_NOTIFICATION = {
   PO_CHANGED: "IPAS_PO_CHANGED",
   ACCOUNT_FLAGGED: "IPAS_ACCOUNT_FLAGGED",
   SIGNOFF_READY: "IPAS_SIGNOFF_READY",
   SENT_BACK: "IPAS_SENT_BACK",
+  SECTION_7_READY: "IPAS_SECTION_7_READY",
 };
 
 /**
- * Sign-offs (#247, spec #241). A sign-off is a section and a role. Sections 1
- * and 3 are Prepared, then Approved, and are signed in the ERP before Filing;
- * section 7's Received, Noted, Checked and Approved belong to Filing (#248).
- * `IPAS_SIGNOFF_SECTIONS` is the sections the service's `sign` and
- * `sendBack` take today.
+ * Sign-offs (#247, #248, spec #241). A sign-off is a section and a role.
+ * Sections 1 and 3 are Prepared, then Approved; section 7 is Received, then
+ * Noted and Checked in any order, then Approved, which files the IPAS.
+ * `IPAS_SIGNOFF_SECTIONS` is the sections the service's `sign` takes;
+ * `IPAS_SEND_BACK_SECTIONS` the ones that can be sent back (section 7 has no
+ * Prepared to return: a signer who finds it unready doesn't sign, and a Super
+ * Admin reopens a filed one).
  */
 export const IPAS_SIGNOFF_ROLE = {
   PREPARED: "prepared",
@@ -377,7 +381,34 @@ export const IPAS_SIGNOFF_ROLE_LABELS = {
   [IPAS_SIGNOFF_ROLE.CHECKED]: "Checked",
 };
 
-export const IPAS_SIGNOFF_SECTIONS = [1, 3];
+/** What the button says for each sign-off a person gives (section 7's Approved files the IPAS). */
+export const IPAS_SIGNOFF_ROLE_ACTIONS = {
+  [IPAS_SIGNOFF_ROLE.PREPARED]: "Prepare",
+  [IPAS_SIGNOFF_ROLE.APPROVED]: "Approve",
+  [IPAS_SIGNOFF_ROLE.RECEIVED]: "Receive",
+  [IPAS_SIGNOFF_ROLE.NOTED]: "Note",
+  [IPAS_SIGNOFF_ROLE.CHECKED]: "Check",
+};
+
+export const IPAS_SIGNOFF_SECTIONS = [1, 3, 7];
+export const IPAS_SEND_BACK_SECTIONS = [1, 3];
+
+/** Section 7's sign-offs in the order they are given (Noted and Checked in either order). */
+export const IPAS_SECTION_7_ROLES = [
+  IPAS_SIGNOFF_ROLE.RECEIVED,
+  IPAS_SIGNOFF_ROLE.NOTED,
+  IPAS_SIGNOFF_ROLE.CHECKED,
+  IPAS_SIGNOFF_ROLE.APPROVED,
+];
+
+/** What `ipas_sign` says became ready (its `stage`), for the notification that follows. */
+export const IPAS_SIGNOFF_STAGE = {
+  SECTION_PREPARED: "section_prepared",
+  RECEIVED_READY: "received_ready",
+  NOTED_CHECKED_READY: "noted_checked_ready",
+  APPROVE_READY: "approve_ready",
+  FILED: "filed",
+};
 
 /** The roles of a section 1 or 3 sign-off, in order. */
 export const IPAS_SIGNOFF_ROLES_FIRST_SECTIONS = [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED];
@@ -443,6 +474,8 @@ export const IPAS_EVENT_LABELS = {
   approvals_cleared: "Approvals cleared",
   signed: "Signed off",
   sent_back: "Sent back",
+  filed: "Filed",
+  reopened: "Reopened",
   payment_added: "Payment added",
   payment_changed: "Payment changed",
   payment_removed: "Payment removed",

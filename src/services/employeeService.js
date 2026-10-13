@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
+import { IPAS_SIGNER_LISTS } from "../constants/ipas";
 
 async function prepareEmailForSave(email, currentEmployeeId = null) {
   if (!email) return null;
@@ -48,7 +49,8 @@ async function prepareEmailForSave(email, currentEmployeeId = null) {
  *   isIpasSigner    on any list and no other access reads the IPAS for them
  *                   (Purchasing access, Finance access or Super Admin already
  *                   do), so the navigation shows IPAS
- *   isIpasApprover  on the section 1 or 3 approval list, whatever else they
+ *   isIpasApprover  on any sign-off list (section 1 or 3 Approved, section 7's
+ *                   Received, Noted, Checked or Approved), whatever else they
  *                   hold: a Super Admin signs only when on a list, so this is
  *                   what puts the Approval Center's IPAS queue in front of them
  * A failure reads as "no": the lists are a convenience for the navigation, never
@@ -63,7 +65,7 @@ async function ipasListMembership(employee) {
     const readsAnyway = employee.has_purchasing_flow || employee.has_finance_flow || employee.is_super_admin;
     return {
       isIpasSigner: !readsAnyway && keys.length > 0,
-      isIpasApprover: keys.includes("s1_approved") || keys.includes("s3_approved"),
+      isIpasApprover: keys.some((key) => IPAS_SIGNER_LISTS.includes(key)),
     };
   } catch {
     return none;

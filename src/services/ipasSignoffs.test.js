@@ -143,9 +143,9 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       expect(out.signoff).toMatchObject({ signatureDeclined: true, signatureVersion: null })
     })
 
-    it("only takes sections 1 and 3 and the roles Prepared and Approved, before asking the database", async () => {
+    it("only takes the sections and roles of the sheet, before asking the database", async () => {
       const ipas = await raise()
-      for (const [section, role] of [[2, "prepared"], [7, "received"], [1, "received"], [3, "noted"], [1, undefined]]) {
+      for (const [section, role] of [[2, "prepared"], [7, "prepared"], [1, "received"], [3, "noted"], [1, undefined], [7, undefined]]) {
         await expect(ipasService.sign(ipas.id, section, role), `${section}/${role}`).rejects.toMatchObject({
           code: IPAS_ERROR.INVALID,
         })

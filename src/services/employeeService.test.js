@@ -87,6 +87,18 @@ describe("employeeService", () => {
       expect((await employeeService.getEmployeeByEmail("bystander@t3ckgroup.test")).isIpasSigner).toBe(false)
     })
 
+    it("marks anyone on a sign-off list as an IPAS approver, section 7's lists included", async () => {
+      const received = makeEmployee({ email: "received@t3ckgroup.test" })
+      const approver = makeEmployee({ email: "approver@t3ckgroup.test" })
+      makeEmployee({ email: "nobody@t3ckgroup.test" })
+      db.seed("ipas_signer_lists", { list_key: "s7_received", employee_id: received.id })
+      db.seed("ipas_signer_lists", { list_key: "s3_approved", employee_id: approver.id })
+
+      expect((await employeeService.getEmployeeByEmail("received@t3ckgroup.test")).isIpasApprover).toBe(true)
+      expect((await employeeService.getEmployeeByEmail("approver@t3ckgroup.test")).isIpasApprover).toBe(true)
+      expect((await employeeService.getEmployeeByEmail("nobody@t3ckgroup.test")).isIpasApprover).toBe(false)
+    })
+
     it("maps hidden_nav_keys onto hiddenNavKeys, defaulting to empty", async () => {
       makeEmployee({ email: "hidden@t3ckgroup.test", hidden_nav_keys: ["sales.commissionDashboard"] })
       makeEmployee({ email: "unhidden@t3ckgroup.test" })

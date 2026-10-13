@@ -61,6 +61,13 @@ const refuse = (code, message) => {
  * uniqueness index, so a live sign-off per section and role is enforced here
  * by hand; the real ones are proven in 61-ipas-signoffs.
  *
+ * #248 adds section 7 to `ipas_sign` (sections 1 and 3 approved first, Received,
+ * then Noted and Checked, then Approved, which needs Costs complete and files the
+ * IPAS) and `ipas_reopen` (`superAdmin: true` is a Super Admin). It names who
+ * to notify next as the real function does (`stage`, `notify_ids`). The fake
+ * can't run the freeze trigger, so what a filed IPAS refuses is proven in
+ * 62-ipas-filing.
+ *
  * The fake has no signed-in identity, so `actorId` stands in for
  * get_employee_id(). `purchasing: false` is a caller without Purchasing access;
  * `reader: false` one who can't read IPAS.
@@ -72,6 +79,7 @@ export function stubIpasRpcs({
   money = null,
   bankReader = true,
   finance = undefined,
+  superAdmin = false,
 } = {}) {
   const hasFinance = finance ?? money === true
   const requirePurchasing = (fn) => {
@@ -1019,13 +1027,31 @@ export function stubIpasRpcs({
 
   // ── Sign-offs (#247) ─────────────────────────────────────────────────────
 
-  const LIST_KEY = { 1: "s1_approved", 3: "s3_approved" }
+  const LIST_KEY = {
+    "1/approved": "s1_approved",
+    "3/approved": "s3_approved",
+    "7/received": "s7_received",
+    "7/noted": "s7_noted",
+    "7/checked": "s7_checked",
+    "7/approved": "s7_approved",
+  }
+  const SEND_BACK_LIST = { 1: "s1_approved", 3: "s3_approved" }
   const onList = (listKey, employeeId) => {
     const member = rowsOf("ipas_signer_lists").some((l) => l.list_key === listKey && l.employee_id === employeeId)
     return member && !findRow("employees", employeeId)?.is_deleted
   }
+  const membersOf = (listKeys) => [
+    ...new Set(
+      rowsOf("ipas_signer_lists")
+        .filter(
+          (l) =>
+            listKeys.includes(l.list_key) && l.employee_id !== actorId && !findRow("employees", l.employee_id)?.is_deleted,
+        )
+        .map((l) => l.employee_id),
+    ),
+  ]
   const requireSection = (fn, section) => {
-    if (![1, 3].includes(section)) refuse("22023", `${fn}: only sections 1 and 3 are signed before Filing`)
+    if (![1, 3].includes(section)) refuse("22023", `${fn}: only sections 1 and 3 can be sent back`)
   }
 
   stubRpc("ipas_sign", (args) => {
@@ -1034,12 +1060,11 @@ export function stubIpasRpcs({
       ([1, 3].includes(section) && ["prepared", "approved"].includes(role)) ||
       (section === 7 && ["received", "noted", "checked", "approved"].includes(role))
     if (!sheetHasIt) refuse("22023", `ipas_sign: section ${section} has no ${role} sign-off`)
-    if (section === 7) refuse("22023", "ipas_sign: section 7 is signed at Filing")
     const ipas = requireOpenIpas("ipas_sign", args.p_ipas_id)
 
     if (role === "prepared") {
       if (!purchasing) refuse("42501", "ipas_sign: only Purchasing prepares a section")
-    } else if (!onList(LIST_KEY[section], actorId)) {
+    } else if (!onList(LIST_KEY[`${section}/${role}`], actorId)) {
       refuse("42501", "ipas_sign: you are not on the list that may give this sign-off")
     }
 
@@ -1047,11 +1072,32 @@ export function stubIpasRpcs({
     if (liveHere.some((s) => s.role === role)) {
       refuse("55000", `ipas_sign: section ${section} is already ${role} on ${ipas.number}`)
     }
-    if (role === "approved") {
+    if (role === "approved" && section !== 7) {
       const prepared = liveHere.find((s) => s.role === "prepared")
       if (!prepared) refuse("55000", `ipas_sign: section ${section} hasn't been prepared yet`)
       if (prepared.signed_by === actorId) {
         refuse("42501", `ipas_sign: you prepared section ${section}, so someone else approves it`)
+      }
+    }
+    if (section === 7) {
+      const live = liveSignoffs(ipas.id)
+      const has = (sec, r) => live.some((s) => s.section === sec && s.role === r)
+      if (!has(1, "approved") || !has(3, "approved")) {
+        refuse("55000", "ipas_sign: section 7 opens once sections 1 and 3 are approved")
+      }
+      if (["noted", "checked"].includes(role) && !has(7, "received")) {
+        refuse("55000", `ipas_sign: Received comes first; ${role[0].toUpperCase()}${role.slice(1)} can only be given after it`)
+      }
+      if (role === "approved") {
+        if (!has(7, "received") || !has(7, "noted") || !has(7, "checked")) {
+          refuse("55000", "ipas_sign: Approved needs Received, Noted and Checked first")
+        }
+        if (!["costs_complete", "checked"].includes(ipas.computation_status)) {
+          refuse(
+            "55000",
+            `ipas_sign: ${ipas.number} can't be filed until Costs complete: Landed Cost is still provisional, and Filing freezes it as final`,
+          )
+        }
       }
     }
 
@@ -1066,18 +1112,63 @@ export function stubIpasRpcs({
     })
     event(ipas.id, "signed", { section, role, signoff_id: signoff.id, signature_declined: declined })
 
-    const notify =
-      role === "prepared"
-        ? rowsOf("ipas_signer_lists")
-            .filter(
-              (l) =>
-                l.list_key === LIST_KEY[section] &&
-                l.employee_id !== actorId &&
-                !findRow("employees", l.employee_id)?.is_deleted,
-            )
-            .map((l) => l.employee_id)
-        : []
-    return { signoff, ipas, section, role, notify_ids: notify }
+    let stage = null
+    let notify = []
+    let filedIpas = ipas
+    if (section === 7 && role === "approved") {
+      filedIpas = updateRow("ipas", ipas, { state: "filed", filed_at: new Date().toISOString() })
+      event(ipas.id, "filed", { computation_status: ipas.computation_status, signoff_id: signoff.id })
+      stage = "filed"
+    } else if (role === "prepared") {
+      stage = "section_prepared"
+      notify = membersOf([LIST_KEY[`${section}/approved`]])
+    } else if (section === 1 || section === 3) {
+      const other = section === 1 ? 3 : 1
+      const live = liveSignoffs(ipas.id)
+      if (live.some((s) => s.section === other && s.role === "approved") && !live.some((s) => s.section === 7)) {
+        stage = "received_ready"
+        notify = membersOf(["s7_received"])
+      }
+    } else if (role === "received") {
+      stage = "noted_checked_ready"
+      notify = membersOf(["s7_noted", "s7_checked"])
+    } else {
+      const counterpart = role === "noted" ? "checked" : "noted"
+      if (liveSignoffs(ipas.id).some((s) => s.section === 7 && s.role === counterpart)) {
+        stage = "approve_ready"
+        notify = membersOf(["s7_approved"])
+      }
+    }
+    return {
+      signoff,
+      ipas: filedIpas,
+      section,
+      role,
+      stage,
+      filed: stage === "filed",
+      notify_ids: notify,
+    }
+  })
+
+  stubRpc("ipas_reopen", (args) => {
+    if (!superAdmin) refuse("42501", "ipas_reopen: only a Super Admin reopens a filed IPAS")
+    const reason = String(args.p_reason || "").trim()
+    if (!reason) refuse("22023", "ipas_reopen: give the reason this IPAS is being reopened")
+    const row = findRow("ipas", args.p_ipas_id)
+    if (!row) refuse("P0002", `ipas_reopen: IPAS ${args.p_ipas_id} not found`)
+    if (row.state !== "filed") refuse("55000", `ipas_reopen: ${row.number} isn't filed`)
+    const updated = updateRow("ipas", row, { state: "open", filed_at: null, odoo_changed_since_filing: false })
+    const live = liveSignoffs(row.id).filter((s) => s.section === 7)
+    for (const s of live) {
+      updateRow("ipas_signoffs", s, {
+        cleared_at: new Date().toISOString(),
+        cleared_by: actorId,
+        cleared_reason: `Reopened: ${reason}`,
+      })
+    }
+    const roles = live.map((s) => s.role).sort()
+    event(row.id, "reopened", { reason, cleared: roles })
+    return { ipas: updated, actor_id: actorId, cleared_roles: roles }
   })
 
   stubRpc("ipas_send_back", (args) => {
@@ -1085,7 +1176,7 @@ export function stubIpasRpcs({
     if (!reason) refuse("22023", "ipas_send_back: give a reason, so the preparer knows what to fix")
     requireSection("ipas_send_back", args.p_section)
     const ipas = requireOpenIpas("ipas_send_back", args.p_ipas_id)
-    if (!onList(LIST_KEY[args.p_section], actorId)) {
+    if (!onList(SEND_BACK_LIST[args.p_section], actorId)) {
       refuse("42501", `ipas_send_back: only a signer of section ${args.p_section} sends it back`)
     }
     const live = liveSignoffs(ipas.id).filter((s) => s.section === args.p_section && ["prepared", "approved"].includes(s.role))

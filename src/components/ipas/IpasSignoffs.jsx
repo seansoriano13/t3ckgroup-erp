@@ -17,7 +17,7 @@ const WHY_NOT = {
 };
 
 /** One box of the sign-off pair: who gave it and when, or that it is waiting. */
-function SignoffBox({ section, role, signoff, waiting }) {
+export function SignoffBox({ section, role, signoff, waiting }) {
   return (
     <div
       className="rounded-lg border border-border bg-muted/20 px-3 py-2.5"

@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: section 7 and Filing",
+        "version": "1.9.19",
+        "changes": [
+            "IPAS: section 7 files the IPAS. It opens once sections 1 and 3 are approved. Received comes first, then Noted and Checked in either order, then Approved, which files it. Each step tells the next list, and the Approval Center queue shows the step waiting on you.",
+            "IPAS: Approved is refused until the computation status reaches Costs complete, because Filing freezes Landed Cost as final.",
+            "IPAS: required documents that nobody has ticked only warn. The Approve dialog lists them and the IPAS files when you confirm.",
+            "IPAS: a filed IPAS is frozen. Its payments, charges, documents, bank details, SORs, Purpose and overrides no longer change, and Landed Cost reads final. If the PO changes in Odoo afterwards, the page shows Odoo has changed since filing and the filed copy stays as it was.",
+            "IPAS: a Super Admin can reopen a filed IPAS with a reason. It clears section 7's sign-offs (kept in History), leaves sections 1 and 3 approved and makes it editable again. A filed IPAS can't be cancelled until it is reopened."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: sections 1 and 3 sign-offs in the Approval Center",
         "version": "1.9.18",
         "changes": [

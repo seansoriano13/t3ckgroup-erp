@@ -4,8 +4,14 @@
 
 import { computeLandedCost, finiteNumber } from "./landedCost";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
-import { buildBuyerTrack, missingSuggestions, shapeDocuments, supplierOriginOf } from "./ipasDocuments";
-import { sectionSignoffs, shapeSignoffs } from "./ipasSignoffs";
+import {
+  buildBuyerTrack,
+  missingSuggestions,
+  shapeDocuments,
+  supplierOriginOf,
+  unfiledRequiredDocuments,
+} from "./ipasDocuments";
+import { section7Signoffs, sectionSignoffs, shapeSignoffs } from "./ipasSignoffs";
 import {
   IPAS_COMPUTATION_STATUS,
   IPAS_LANDED_COST_SPLIT,
@@ -244,7 +250,9 @@ export function shapeIpas(row, sors = [], extras = null) {
     ...money,
     ...sections,
     signoffs,
-    signoffSections: { 1: sectionSignoffs(signoffs, 1), 3: sectionSignoffs(signoffs, 3) },
+    signoffSections: { 1: sectionSignoffs(signoffs, 1), 3: sectionSignoffs(signoffs, 3), 7: section7Signoffs(signoffs) },
+    // The required documents nobody has ticked: what Approving section 7 warns about.
+    filingWarnings: unfiledRequiredDocuments(sections.documents ?? [], row.source),
     supplierOrigin: supplierOriginOf(row),
     entity: ipasEntity(row),
     supplier: ipasSupplier(row),

@@ -487,15 +487,12 @@ describe("ipas_sign: Approved", () => {
 })
 
 describe("ipas_sign: what it refuses", () => {
-    it("a pair the sheet doesn't have, and section 7 until Filing", async () => {
+    it("a pair the sheet doesn't have", async () => {
         const ipas = await raise()
         for (const [section, role] of [[1, "received"], [3, "noted"], [2, "prepared"], [7, "prepared"], [1, "checked"]]) {
             const { error } = await sign("outsider", ipas.id, section, role)
             expect(error?.code, `${section}/${role}`).toBe("22023")
         }
-        const seven = await sign("outsider", ipas.id, 7, "received")
-        expect(seven.error?.code).toBe("22023")
-        expect(seven.error?.message).toMatch(/section 7/)
         expect(await live(ipas.id)).toEqual([])
     })
 

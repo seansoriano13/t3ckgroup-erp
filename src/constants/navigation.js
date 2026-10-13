@@ -208,7 +208,8 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
-        // IPAS sections 1 and 3 (#247): for the people on those approval
+        // IPAS sign-offs (#247, #248): sections 1 and 3, and section 7's
+        // Received, Noted, Checked and Approved, for the people on those
         // lists. A Super Admin signs only when on a list, so no pass here.
         key: "approvals.ipas",
         label: "IPAS Sign-offs",

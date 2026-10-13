@@ -13,10 +13,12 @@ import { FieldBox } from "@/components/ui/FieldBox";
 import { Textarea } from "@/components/ui/textarea";
 
 /**
- * Sending a section back (#247): the reason is required, because it is what the
- * preparer reads to know what to fix. `onSubmit(reason)` returns a promise; the
- * dialog closes when it resolves, and the caller words a failure (a toast). It
- * is mounted only while open, so it always starts empty.
+ * Sending a section back (#247) or reopening a filed IPAS (#248): the reason is
+ * required, because it is what the preparer (or whoever reads the history)
+ * reads to know why. `onSubmit(reason)` returns a promise; the dialog closes
+ * when it resolves, and the caller words a failure (a toast). It is mounted
+ * only while open, so it always starts empty. The wording defaults to sending
+ * back; `placeholder`, `submitLabel` and `busyLabel` change it.
  */
 export default function SendBackDialog({ open, onOpenChange, ...body }) {
   return (
@@ -26,7 +28,15 @@ export default function SendBackDialog({ open, onOpenChange, ...body }) {
   );
 }
 
-function Body({ title, description, onSubmit, onClose }) {
+function Body({
+  title,
+  description,
+  onSubmit,
+  onClose,
+  placeholder = "What does the preparer need to fix?",
+  submitLabel = "Send back",
+  busyLabel = "Sending back…",
+}) {
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const trimmed = reason.trim();
@@ -56,7 +66,7 @@ function Body({ title, description, onSubmit, onClose }) {
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           maxLength={500}
-          placeholder="What does the preparer need to fix?"
+          placeholder={placeholder}
           autoFocus
         />
       </FieldBox>
@@ -66,7 +76,7 @@ function Body({ title, description, onSubmit, onClose }) {
           Cancel
         </Button>
         <Button size="lg" variant="destructive" disabled={trimmed === "" || saving} onClick={submit}>
-          {saving ? "Sending back…" : "Send back"}
+          {saving ? busyLabel : submitLabel}
         </Button>
       </DialogFooter>
     </DialogContent>

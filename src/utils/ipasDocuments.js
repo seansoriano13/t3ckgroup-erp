@@ -106,9 +106,30 @@ export function filingChecklist(documents = []) {
   return documents.filter((doc) => doc.isFiling).map((doc) => ({ ...doc, ticked: doc.purchasingHas || doc.financeHas }));
 }
 
-/** The filing items still unticked, which Filing warns about. */
+/** The filing items still unticked (section 7's checklist reads these). */
 export function unfiledDocuments(documents = []) {
   return filingChecklist(documents).filter((doc) => !doc.ticked);
+}
+
+/**
+ * The documents Filing expects for a Source: the kind rows whose kind matches it
+ * (Import, Local or Both), whether the kind is for documentation, filing or
+ * both. A hand-added row isn't a kind, so nothing says it is required; a kind
+ * the preparer removed isn't either (they judged it not to apply).
+ */
+export function requiredDocuments(documents = [], source) {
+  return documents.filter((doc) => !doc.byHand && doc.kind && kindMatchesSource(doc.kind, source));
+}
+
+/**
+ * The required documents nobody has ticked: what Filing warns about, each as
+ * { id, label, usedFor, appliesTo } and nothing more, so a warning never carries
+ * a file or an attachment link.
+ */
+export function unfiledRequiredDocuments(documents = [], source) {
+  return requiredDocuments(documents, source)
+    .filter((doc) => !(doc.purchasingHas || doc.financeHas))
+    .map((doc) => ({ id: doc.id, label: doc.label, usedFor: doc.usedFor, appliesTo: doc.appliesTo }));
 }
 
 /**

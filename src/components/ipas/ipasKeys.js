@@ -8,3 +8,5 @@ export const ipasSignerListsKey = ["ipas", "signer-lists"];
 /** The IPAS awaiting one person's signature (the Approval Center queue and its badge). */
 export const ipasPendingPrefix = ["ipas", "pending-signoffs"];
 export const ipasPendingKey = (employeeId) => [...ipasPendingPrefix, employeeId];
+/** The required documents nobody has ticked, read when the Approve (files the IPAS) dialog opens. */
+export const ipasFilingWarningsKey = (id) => ["ipas", "filing-warnings", id];

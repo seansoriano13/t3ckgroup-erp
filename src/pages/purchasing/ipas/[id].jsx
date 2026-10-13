@@ -25,6 +25,8 @@ import DatesDialog from "../../../components/ipas/DatesDialog";
 import { IpasDocuments } from "../../../components/ipas/IpasDocuments";
 import { IpasSignoffs } from "../../../components/ipas/IpasSignoffs";
 import SendBackDialog from "../../../components/ipas/SendBackDialog";
+import FilingDialog from "../../../components/ipas/FilingDialog";
+import { IpasFiledNotice, IpasFilingSection } from "../../../components/ipas/IpasFiling";
 import { IpasLogisticsSection } from "../../../components/ipas/IpasLogistics";
 import {
   IpasChargesSection,
@@ -50,12 +52,13 @@ import { ipasService } from "../../../services/ipasService";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage } from "../../../utils/ipas";
-import { signoffRights } from "../../../utils/ipasSignoffs";
+import { isCostsComplete, section7Rights, signoffRights } from "../../../utils/ipasSignoffs";
 import { formatDate } from "../../../utils/formatDate.js";
 import {
   IPAS_HEADER_FIELD,
   IPAS_OVERRIDE_FIELDS,
   IPAS_SIGNOFF_ROLE,
+  IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_STATE,
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TYPED_STATUS,
@@ -112,13 +115,20 @@ function typingInitialValue(field, ipas) {
  * (Purchasing access), Approved (the section's list, never the preparer) and
  * Send back with a reason (the section's list). Each person is offered only
  * what the database will let them do; it refuses the rest.
+ *
+ * #248 adds section 7 (Received, Noted and Checked, then Approved, which files
+ * the IPAS after a confirmation that lists the required documents nobody has
+ * ticked) and the filed state: a banner, every edit control gone, and a Super
+ * Admin's Reopen with a reason.
  */
 function IpasPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { hasPurchasingFlow, hasFinanceFlow } = getPermissionContext(user);
+  const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
   const [sendingBack, setSendingBack] = useState(null); // the section being sent back
+  const [filing, setFiling] = useState(false); // the Approve (files the IPAS) dialog
+  const [reopening, setReopening] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(null); // { payment | null }
@@ -190,6 +200,27 @@ function IpasPage() {
       } else {
         toast.success(`Section ${section} approved.`);
       }
+      signoffChanged();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  // Section 7's steps. Approved files the IPAS and goes through the dialog that
+  // lists the required documents nobody has ticked; `confirm` is the user's yes.
+  const give = useMutation({
+    mutationFn: ({ role, confirm }) => ipasService.sign(id, 7, role, { confirm }),
+    onSuccess: (result, { role }) => {
+      if (result.filed) toast.success(`${ipas.number} is filed.`);
+      else toast.success(`Section 7 ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()}.`);
+      signoffChanged();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  const reopen = useMutation({
+    mutationFn: (reason) => ipasService.reopen(id, reason),
+    onSuccess: () => {
+      toast.success(`${ipas.number} is open again. Section 7's sign-offs were cleared.`);
       signoffChanged();
     },
     onError: (error) => toast.error(ipasErrorMessage(error)),
@@ -367,6 +398,7 @@ function IpasPage() {
 
   const open = ipas.state === IPAS_STATE.OPEN;
   const cancelled = ipas.state === IPAS_STATE.CANCELLED;
+  const filed = ipas.state === IPAS_STATE.FILED;
   const canChange = hasPurchasingFlow && open;
   // Payments and charges: Purchasing or Finance, until Filing.
   const canRecord = (hasPurchasingFlow || hasFinanceFlow) && open;
@@ -392,6 +424,19 @@ function IpasPage() {
       onSendBack={() => setSendingBack(section)}
     />
   );
+
+  // Section 7: what this person may give, from where it stands.
+  const filingRights = section7Rights({
+    state: ipas.signoffSections[7],
+    userId: user?.id,
+    lists: signerLists,
+    ipasState: ipas.state,
+    costsComplete: isCostsComplete(ipas.computationStatus),
+  });
+  const giveSignoff = (role) => {
+    if (role === IPAS_SIGNOFF_ROLE.APPROVED) setFiling(true);
+    else give.mutate({ role, confirm: false });
+  };
 
   // What the dates dialog edits: the four Supplier Origin dates, or one typed status.
   const dateFields =
@@ -448,6 +493,8 @@ function IpasPage() {
               </p>
             </div>
           )}
+
+          <IpasFiledNotice ipas={ipas} canReopen={isSuperAdmin && filed} onReopen={() => setReopening(true)} />
 
           <IpasWarnings ipas={ipas} refresh={refresh.data} />
 
@@ -517,6 +564,12 @@ function IpasPage() {
             onSetStatus={(computationStatus) => pick.mutate({ computationStatus })}
             onSetSplit={(landedCostSplit) => pick.mutate({ landedCostSplit })}
           />
+          <IpasFilingSection
+            ipas={ipas}
+            rights={filingRights}
+            busy={give.isPending}
+            onGive={giveSignoff}
+          />
           <IpasHistorySection events={ipas.events} />
         </div>
       </PageShell>
@@ -545,6 +598,25 @@ function IpasPage() {
         title={`Send section ${sendingBack ?? ""} back?`}
         description="It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
         onSubmit={(reason) => sendBack.mutateAsync({ section: sendingBack, reason })}
+      />
+
+      <FilingDialog
+        open={filing}
+        onOpenChange={setFiling}
+        ipasId={id}
+        number={ipas.number}
+        onConfirm={() => give.mutateAsync({ role: IPAS_SIGNOFF_ROLE.APPROVED, confirm: true })}
+      />
+
+      <SendBackDialog
+        open={reopening}
+        onOpenChange={setReopening}
+        title={`Reopen ${ipas.number}?`}
+        description="It returns to open and section 7's sign-offs are cleared (the history keeps them). Sections 1 and 3 stay approved. Filing it again takes section 7 from Received."
+        placeholder="Why is this filed IPAS being reopened?"
+        submitLabel="Reopen"
+        busyLabel="Reopening…"
+        onSubmit={(reason) => reopen.mutateAsync(reason)}
       />
 
       <DocumentDialog open={documentDialog} onOpenChange={setDocumentDialog} ipas={ipas} onAdded={changed} />

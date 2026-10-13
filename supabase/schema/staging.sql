@@ -3459,6 +3459,24 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_list_members(p_list_keys text[], p_exclude uuid)
+ RETURNS uuid[]
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(array_agg(x.employee_id order by x.first_added), '{}'::uuid[])
+    from (
+      select l.employee_id, min(l.created_at) as first_added
+        from public.ipas_signer_lists l
+        join public.employees e on e.id = l.employee_id
+       where l.list_key = any (p_list_keys)
+         and not coalesce(e.is_deleted, false)
+         and l.employee_id is distinct from p_exclude
+       group by l.employee_id
+    ) x;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_lock_document(p_fn text, p_document_id uuid)
  RETURNS ipas_documents
  LANGUAGE plpgsql
@@ -5761,6 +5779,39 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_children_freeze_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ids uuid[];
+  v_number text;
+begin
+  if tg_op = 'INSERT' then
+    v_ids := array[new.ipas_id];
+  elsif tg_op = 'DELETE' then
+    v_ids := array[old.ipas_id];
+  else
+    v_ids := array[old.ipas_id, new.ipas_id];
+  end if;
+
+  select i.number into v_number
+    from public.ipas i
+   where i.id = any (v_ids) and i.state = 'filed'
+   limit 1
+     for share;
+
+  if v_number is not null then
+    raise exception '%: % is filed and frozen; a Super Admin reopens it first', tg_table_name, v_number
+      using errcode = '55000';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_create(p_po_number text, p_priority text, p_source text, p_purpose text, p_sor_ids uuid[], p_remarks text, p_odoo_copy jsonb)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -5950,6 +6001,34 @@ begin
        )
      order by o.sales_reference desc
      limit 25;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_freeze_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if old.state is distinct from 'filed' then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' then
+    raise exception 'ipas: % is filed and frozen; it can''t be deleted', old.number using errcode = '55000';
+  end if;
+
+  if coalesce(current_setting('ipas.reopening', true), '') = 'on' then
+    return new;
+  end if;
+
+  -- "Odoo has changed since filing" moves both ways; updated_at moves with it.
+  if (to_jsonb(new) - 'odoo_changed_since_filing' - 'updated_at')
+     = (to_jsonb(old) - 'odoo_changed_since_filing' - 'updated_at') then
+    return new;
+  end if;
+
+  raise exception 'ipas: % is filed and frozen; a Super Admin reopens it first', old.number using errcode = '55000';
 end;
 $function$
 ;
@@ -6298,6 +6377,71 @@ begin
   ));
 
   return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_reopen(p_ipas_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_reason text := nullif(btrim(p_reason), '');
+  v_row public.ipas;
+  v_roles text[];
+begin
+  if v_actor is null then
+    raise exception 'ipas_reopen: not signed in' using errcode = '42501';
+  end if;
+  if not coalesce(public.is_super_admin(), false) then
+    raise exception 'ipas_reopen: only a Super Admin reopens a filed IPAS' using errcode = '42501';
+  end if;
+  if v_reason is null then
+    raise exception 'ipas_reopen: give the reason this IPAS is being reopened' using errcode = '22023';
+  end if;
+  if length(v_reason) > 500 then
+    raise exception 'ipas_reopen: the reason is 500 characters at most' using errcode = '22023';
+  end if;
+
+  select * into v_row from public.ipas where id = p_ipas_id for update;
+  if v_row.id is null then
+    raise exception 'ipas_reopen: IPAS % not found', p_ipas_id using errcode = 'P0002';
+  end if;
+  if v_row.state <> 'filed' then
+    raise exception 'ipas_reopen: % isn''t filed', v_row.number using errcode = '55000';
+  end if;
+
+  -- The freeze lets this one update through; the setting lasts for this
+  -- transaction and is switched off again straight after.
+  perform set_config('ipas.reopening', 'on', true);
+  update public.ipas
+     set state = 'open', filed_at = null, odoo_changed_since_filing = false
+   where id = v_row.id
+  returning * into v_row;
+  perform set_config('ipas.reopening', 'off', true);
+
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Reopened: ' || v_reason
+     where s.ipas_id = v_row.id
+       and s.section = 7
+       and s.cleared_at is null
+    returning s.role
+  )
+  select coalesce(array_agg(role order by role), '{}'::text[]) into v_roles from cleared;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'reopened', jsonb_build_object(
+    'reason', v_reason,
+    'cleared', to_jsonb(v_roles)
+  ));
+
+  return jsonb_build_object(
+    'ipas', to_jsonb(v_row),
+    'actor_id', v_actor,
+    'cleared_roles', to_jsonb(v_roles)
+  );
 end;
 $function$
 ;
@@ -6970,6 +7114,9 @@ declare
   v_list_key text;
   v_signature text;
   v_notify uuid[] := '{}';
+  v_stage text;
+  v_filed boolean := false;
+  v_other integer;
 begin
   if v_actor is null then
     raise exception 'ipas_sign: not signed in' using errcode = '42501';
@@ -6977,12 +7124,6 @@ begin
   if p_section is null or p_role is null or not public._ipas_signoff_pair_ok(p_section, p_role) then
     raise exception 'ipas_sign: section % has no % sign-off', coalesce(p_section::text, 'null'), coalesce(p_role, 'null')
       using errcode = '22023';
-  end if;
-  -- #248: section 7's rules (sections 1 and 3 approved first; Received, then
-  -- Noted and Checked; Approved needs all three and Costs complete, and files
-  -- the IPAS) replace this refusal when Filing lands.
-  if p_section = 7 then
-    raise exception 'ipas_sign: section 7 is signed at Filing' using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_sign', p_ipas_id);
@@ -7017,6 +7158,41 @@ begin
     end if;
   end if;
 
+  if p_section = 7 then
+    -- Section 7 opens once sections 1 and 3 are approved (checked at every step:
+    -- an approval undone by an Odoo change closes it again).
+    if not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = v_ipas.id and s.section = 1 and s.role = 'approved' and s.cleared_at is null
+    ) or not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
+    ) then
+      raise exception 'ipas_sign: section 7 opens once sections 1 and 3 are approved' using errcode = '55000';
+    end if;
+
+    -- Received first; Noted and Checked after it, in any order.
+    if p_role in ('noted', 'checked') and not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = v_ipas.id and s.section = 7 and s.role = 'received' and s.cleared_at is null
+    ) then
+      raise exception 'ipas_sign: Received comes first; % can only be given after it', initcap(p_role) using errcode = '55000';
+    end if;
+
+    if p_role = 'approved' then
+      if (
+        select count(*) from public.ipas_signoffs s
+         where s.ipas_id = v_ipas.id and s.section = 7 and s.role in ('received', 'noted', 'checked') and s.cleared_at is null
+      ) < 3 then
+        raise exception 'ipas_sign: Approved needs Received, Noted and Checked first' using errcode = '55000';
+      end if;
+      if v_ipas.computation_status not in ('costs_complete', 'checked') then
+        raise exception 'ipas_sign: % can''t be filed until Costs complete: Landed Cost is still provisional, and Filing freezes it as final', v_ipas.number
+          using errcode = '55000';
+      end if;
+    end if;
+  end if;
+
   if p_decline_signature then
     v_signature := null;
   else
@@ -7034,16 +7210,54 @@ begin
     'signature_declined', v_row.signature_declined
   ));
 
-  -- Prepared is ready for approval: tell that section's approval list (never
-  -- the person who just prepared it).
-  if p_role = 'prepared' then
-    select coalesce(array_agg(l.employee_id order by l.created_at), '{}'::uuid[])
-      into v_notify
-      from public.ipas_signer_lists l
-      join public.employees e on e.id = l.employee_id
-     where l.list_key = public._ipas_signoff_list_key(p_section, 'approved')
-       and not coalesce(e.is_deleted, false)
-       and l.employee_id <> v_actor;
+  if p_section = 7 and p_role = 'approved' then
+    -- The one point that locks the IPAS. The freeze lets this update through:
+    -- the row is still open until it is made.
+    update public.ipas
+       set state = 'filed', filed_at = now()
+     where id = v_ipas.id
+    returning * into v_ipas;
+    v_filed := true;
+    v_stage := 'filed';
+
+    perform public._ipas_write_event(v_ipas.id, v_actor, 'filed', jsonb_build_object(
+      'computation_status', v_ipas.computation_status,
+      'signoff_id', v_row.id
+    ));
+  elsif p_role = 'prepared' then
+    -- Prepared is ready for approval: tell that section's approval list (never
+    -- the person who just prepared it).
+    v_stage := 'section_prepared';
+    v_notify := public._ipas_list_members(array[public._ipas_signoff_list_key(p_section, 'approved')], v_actor);
+  elsif p_section in (1, 3) then
+    -- This section is approved. When the other is too and section 7 hasn't
+    -- started, section 7 is ready for Received.
+    v_other := case p_section when 1 then 3 else 1 end;
+    if exists (
+         select 1 from public.ipas_signoffs s
+          where s.ipas_id = v_ipas.id and s.section = v_other and s.role = 'approved' and s.cleared_at is null
+       )
+       and not exists (
+         select 1 from public.ipas_signoffs s
+          where s.ipas_id = v_ipas.id and s.section = 7 and s.cleared_at is null
+       ) then
+      v_stage := 'received_ready';
+      v_notify := public._ipas_list_members(array['s7_received'], v_actor);
+    end if;
+  elsif p_role = 'received' then
+    v_stage := 'noted_checked_ready';
+    v_notify := public._ipas_list_members(array['s7_noted', 's7_checked'], v_actor);
+  elsif p_role in ('noted', 'checked') then
+    -- Noted and Checked both given: Approved is ready.
+    if exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = v_ipas.id and s.section = 7
+         and s.role = case p_role when 'noted' then 'checked' else 'noted' end
+         and s.cleared_at is null
+    ) then
+      v_stage := 'approve_ready';
+      v_notify := public._ipas_list_members(array['s7_approved'], v_actor);
+    end if;
   end if;
 
   return jsonb_build_object(
@@ -7051,6 +7265,8 @@ begin
     'ipas', to_jsonb(v_ipas),
     'section', p_section,
     'role', p_role,
+    'stage', v_stage,
+    'filed', v_filed,
     'notify_ids', to_jsonb(v_notify)
   );
 end;
@@ -12253,21 +12469,27 @@ CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
 CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_fill_from_odoo_copy();
+CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_suggest_documents_on_insert();
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_bank_details_updated_at BEFORE UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_documents_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_payments_paid_before_approval BEFORE INSERT OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_payments_paid_before_approval();
 CREATE TRIGGER ipas_payments_updated_at BEFORE UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_signoffs_guard BEFORE UPDATE ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_guard();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
+CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_sors FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER overtime_requests_guard_head_status BEFORE UPDATE ON public.overtime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();

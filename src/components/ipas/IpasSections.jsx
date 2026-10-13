@@ -720,6 +720,26 @@ function eventDetail(event) {
         .join(" · ");
     case "sent_back":
       return [`Section ${detail.section}`, detail.reason ? `“${detail.reason}”` : null].filter(Boolean).join(" · ");
+    case "filed":
+      return `Section 7 approved · ${IPAS_COMPUTATION_STATUS_LABELS[detail.computation_status] ?? "Costs complete"}`;
+    case "reopened": {
+      const cleared = (detail.cleared ?? []).map((role) => IPAS_SIGNOFF_ROLE_LABELS[role]?.toLowerCase() ?? role);
+      return [
+        detail.reason ? `“${detail.reason}”` : null,
+        cleared.length ? `cleared section 7: ${cleared.join(", ")}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    case "odoo_changed_since_filing": {
+      const note = detail.note;
+      if (!note) return null;
+      const parts = [];
+      if (note.added?.length) parts.push(`${note.added.length} added`);
+      if (note.removed?.length) parts.push(`${note.removed.length} removed`);
+      if (note.changed?.length) parts.push(`${note.changed.length} changed`);
+      return parts.join(", ") || null;
+    }
     case "bank_details_set":
     case "bank_details_changed": {
       // Which fields, never the values: the history is wider than bank details.

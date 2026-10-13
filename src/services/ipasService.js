@@ -17,11 +17,15 @@ import {
   IPAS_PRIORITIES,
   IPAS_PURPOSE,
   IPAS_PURPOSES,
+  IPAS_SEND_BACK_SECTIONS,
+  IPAS_SECTION_7_ROLES,
   IPAS_SECTION_NAMES,
+  IPAS_SIGNER_LIST,
   IPAS_SIGNER_LISTS,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_SIGNOFF_SECTIONS,
+  IPAS_SIGNOFF_STAGE,
   IPAS_SOURCES,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
@@ -39,7 +43,8 @@ import {
   shapeIpas,
 } from "../utils/ipas";
 import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
-import { shapeSignoff } from "../utils/ipasSignoffs";
+import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
+import { isCostsComplete, shapeSignoff } from "../utils/ipasSignoffs";
 
 const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
@@ -75,9 +80,9 @@ export class IpasError extends Error {
  * the typed header values follow (#243); payments, charges, the option lists
  * and Landed Cost (#244); bank details and the changed-account flag (#245);
  * documents, Supplier Origin and the buyer track (#246); the sign-offs of
- * sections 1 and 3 and the signer lists behind them (#247). Section 7's sign-offs
- * extend `sign` and `sendBack` in their own ticket. Every IPAS write is an RPC: the database decides who may make it
- * and writes the history row (ADR 0013). The option lists are plain rows under
+ * sections 1 and 3 and the signer lists behind them (#247); section 7 and
+ * Filing, the freeze and reopening (#248). Every IPAS write is an RPC: the
+ * database decides who may make it and writes the history row (ADR 0013). The option lists are plain rows under
  * row level security (nobody deletes one).
  *
  * Landed Cost is not stored: `get` works it out from the Odoo copy, the payment
@@ -819,24 +824,56 @@ export const ipasService = {
   // ── Sign-offs (#247) ─────────────────────────────────────────────────────
 
   /**
-   * Gives a sign-off on section 1 or 3 of an open IPAS: `role` is "prepared"
+   * Gives a sign-off on an open IPAS. Sections 1 and 3: `role` is "prepared"
    * (Purchasing access) or "approved" (the section's list, someone other than
-   * the preparer, after Prepared). The database decides and refuses with its
-   * own sentence (42501 not yours to give, 55000 wrong state). Signing as
-   * Prepared notifies exactly the section's approval list, never the signer.
+   * the preparer, after Prepared). Section 7 (#248): "received", then "noted"
+   * and "checked" in either order, then "approved", which files the IPAS; each
+   * is its own list's, and section 7 opens once sections 1 and 3 are approved.
+   * The database decides and refuses with its own sentence (42501 not yours to
+   * give, 55000 wrong state, Approved before Costs complete included).
    * `declineSignature` signs without the stored signature, so the printed form
-   * shows the name only. Section 7 is signed at Filing, not here.
+   * shows the name only.
    *
-   * Returns { signoff, notified } — the shaped sign-off and how many people
-   * were told.
+   * Filing only warns about documents. Before section 7's Approved files, this
+   * works out the required documents nobody has ticked (`filingWarnings`); when
+   * there are any it signs nothing and answers
+   *   { signoff: null, notified: 0, filed: false, warnings: [...], needsConfirm: true }
+   * and files only when called again with `{ confirm: true }`. Nothing is
+   * checked for a call that couldn't file anyway (costs not complete, a step
+   * not given): the database's refusal is the answer there.
+   *
+   * Each step tells exactly the next list, never the signer:
+   *   Prepared                        that section's approval list
+   *   sections 1 and 3 both approved  the Received list
+   *   Received                        the Noted and Checked lists
+   *   Noted and Checked both given    the section 7 Approved list
+   *
+   * Returns { signoff, notified, filed, warnings } — the shaped sign-off, how
+   * many people were told, whether this filed the IPAS.
    */
-  async sign(id, section, role, { declineSignature = false } = {}) {
+  async sign(id, section, role, { declineSignature = false, confirm = false } = {}) {
     requireSignoffSection(section);
-    requireOneOf(
-      role,
-      [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED],
-      "A section is Prepared, then Approved.",
-    );
+    if (section === 7) {
+      requireOneOf(
+        role,
+        IPAS_SECTION_7_ROLES,
+        "Section 7 is Received, then Noted and Checked, then Approved.",
+      );
+    } else {
+      requireOneOf(
+        role,
+        [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED],
+        "A section is Prepared, then Approved.",
+      );
+    }
+
+    if (section === 7 && role === IPAS_SIGNOFF_ROLE.APPROVED && !confirm) {
+      const { ready, warnings } = await readFilingState(id);
+      if (ready && warnings.length > 0) {
+        return { signoff: null, notified: 0, filed: false, warnings, needsConfirm: true };
+      }
+    }
+
     const { data, error } = await supabase.rpc("ipas_sign", {
       p_ipas_id: id,
       p_section: section,
@@ -847,22 +884,54 @@ export const ipasService = {
 
     const recipients = data?.notify_ids ?? [];
     if (recipients.length > 0) {
-      const ipas = await readIpasLabel(id, data?.ipas);
+      const stage = data?.stage ?? IPAS_SIGNOFF_STAGE.SECTION_PREPARED;
+      const label = await readIpasLabel(id, data?.ipas);
+      const note = stageNotification(stage, { label, section, role });
       await Promise.all(
         recipients.map((recipient_id) =>
           notificationService.createNotification({
             recipient_id,
             sender_id: data?.signoff?.signed_by ?? null,
-            type: IPAS_NOTIFICATION.SIGNOFF_READY,
-            title: "IPAS ready for approval",
-            message: `${ipas}: section ${section} (${IPAS_SECTION_NAMES[section]}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
+            type: note.type,
+            title: note.title,
+            message: note.message,
             reference_id: id,
           }),
         ),
       );
     }
 
-    return { signoff: data?.signoff ? shapeSignoff(data.signoff) : null, notified: recipients.length };
+    return {
+      signoff: data?.signoff ? shapeSignoff(data.signoff) : null,
+      notified: recipients.length,
+      filed: Boolean(data?.filed),
+      warnings: [],
+    };
+  },
+
+  /**
+   * The required documents nobody has ticked on an IPAS: the document kinds that
+   * match its Source (Import, Local or Both; documentation, filing or both) whose
+   * row neither Purchasing nor Finance has ticked. Each is
+   * { id, label, usedFor, appliesTo }. Filing warns about these and goes ahead on
+   * confirm; the Approve dialog shows them.
+   */
+  async filingWarnings(id) {
+    return (await readFilingState(id)).warnings;
+  },
+
+  /**
+   * Reopens a filed IPAS (Super Admin only: the database refuses everyone else),
+   * with a reason that is kept in history. Clears section 7's sign-offs and
+   * returns the IPAS to open; sections 1 and 3 stay approved. Returns
+   * { ipas, clearedRoles }.
+   */
+  async reopen(id, reason) {
+    const why = (reason || "").trim();
+    if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give the reason this IPAS is being reopened.");
+    const { data, error } = await supabase.rpc("ipas_reopen", { p_ipas_id: id, p_reason: why });
+    if (error) throw error;
+    return { ipas: data?.ipas ?? null, clearedRoles: data?.cleared_roles ?? [] };
   },
 
   /**
@@ -874,7 +943,7 @@ export const ipasService = {
    * Returns { clearedRoles, notified }.
    */
   async sendBack(id, section, reason) {
-    requireSignoffSection(section);
+    requireSendBackSection(section);
     const why = (reason || "").trim();
     if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give a reason, so the preparer knows what to fix.");
 
@@ -907,13 +976,22 @@ export const ipasService = {
   },
 
   /**
-   * The IPAS waiting on this person's signature: for each section 1 or 3 whose
-   * approval list they are on, an open IPAS that is Prepared but not Approved
-   * and wasn't prepared by them (they can't approve their own). Oldest waiting
-   * first, each as
+   * The IPAS waiting on this person's signature, oldest waiting first, each as
    *   { id, ipasId, number, poNumber, supplier, purpose, priority, total,
-   *     section, role, preparedBy: { id, name, avatarPath }, preparedAt }
-   * `id` is unique per IPAS and section. Section 7's sign-offs join the list at Filing.
+   *     currency, section, role, preparedBy: { id, name, avatarPath },
+   *     preparedAt, readyAt, steps }
+   *
+   * Sections 1 and 3: for each whose approval list they are on, an open IPAS
+   * that is Prepared but not Approved and wasn't prepared by them (they can't
+   * approve their own). `role` is "approved"; `id` is "<ipas>:<section>".
+   *
+   * Section 7 (#248): an open IPAS whose sections 1 and 3 are approved and whose
+   * next step is one they are on the list for: Received first; Noted and Checked
+   * once it is given (a person on both lists gets one row for each); Approved
+   * once all three are. `role` is that step and `id` is "<ipas>:7:<role>".
+   * `preparedBy` and `preparedAt` (and `readyAt`, the same moment) are who
+   * made it ready and when, which is what the queue's clock runs from; `steps`
+   * is section 7's four sign-offs for the review sheet's chain.
    */
   async pendingSignoffsFor(employeeId) {
     if (!employeeId) return [];
@@ -925,27 +1003,68 @@ export const ipasService = {
     if (listError) throw listError;
 
     const keys = new Set((memberships || []).map((m) => m.list_key));
-    const sections = IPAS_SIGNOFF_SECTIONS.filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
-    if (sections.length === 0) return [];
+    const firstSections = [1, 3].filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
+    const sevenRoles = IPAS_SECTION_7_ROLES.filter((role) => keys.has(SECTION_7_LIST[role]));
+    if (firstSections.length === 0 && sevenRoles.length === 0) return [];
 
+    // Section 7 reads sections 1 and 3 too: it opens on their approvals.
+    const sections = sevenRoles.length > 0 ? [1, 3, 7] : firstSections;
     const { data: rows, error } = await supabase
       .from("ipas_signoffs")
       .select(SIGNOFF_SELECT)
       .is("cleared_at", null)
-      .in("section", sections)
-      .in("role", [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED]);
+      .in("section", sections);
     if (error) throw error;
 
-    const bySection = new Map();
+    const byIpas = new Map();
     for (const row of rows || []) {
-      const key = `${row.ipas_id}:${row.section}`;
-      const entry = bySection.get(key) ?? { ipasId: row.ipas_id, section: Number(row.section) };
-      entry[row.role] = row;
-      bySection.set(key, entry);
+      const entry = byIpas.get(row.ipas_id) ?? new Map();
+      entry.set(`${Number(row.section)}/${row.role}`, row);
+      byIpas.set(row.ipas_id, entry);
     }
-    const waiting = [...bySection.values()].filter(
-      (entry) => entry.prepared && !entry.approved && entry.prepared.signed_by !== employeeId,
-    );
+
+    const waiting = [];
+    for (const [ipasId, live] of byIpas) {
+      for (const section of firstSections) {
+        const prepared = live.get(`${section}/prepared`);
+        if (prepared && !live.get(`${section}/approved`) && prepared.signed_by !== employeeId) {
+          waiting.push({
+            ipasId,
+            id: `${ipasId}:${section}`,
+            section,
+            role: IPAS_SIGNOFF_ROLE.APPROVED,
+            madeReady: prepared,
+          });
+        }
+      }
+
+      if (sevenRoles.length > 0) {
+        const sections1and3 = [live.get("1/approved"), live.get("3/approved")];
+        if (sections1and3.every(Boolean) && !live.get("7/approved")) {
+          const received = live.get("7/received");
+          const noted = live.get("7/noted");
+          const checked = live.get("7/checked");
+          const latest = (...signoffs) =>
+            signoffs.reduce((a, b) => (String(a.signed_at) >= String(b.signed_at) ? a : b));
+          const ready = [];
+          if (!received) ready.push([IPAS_SIGNOFF_ROLE.RECEIVED, latest(...sections1and3)]);
+          else {
+            if (!noted) ready.push([IPAS_SIGNOFF_ROLE.NOTED, received]);
+            if (!checked) ready.push([IPAS_SIGNOFF_ROLE.CHECKED, received]);
+            if (noted && checked) ready.push([IPAS_SIGNOFF_ROLE.APPROVED, latest(noted, checked)]);
+          }
+          const steps = IPAS_SECTION_7_ROLES.map((role) => ({
+            role,
+            label: IPAS_SIGNOFF_ROLE_LABELS[role],
+            signoff: live.get(`7/${role}`) ? shapeSignoff(live.get(`7/${role}`)) : null,
+          }));
+          for (const [role, madeReady] of ready) {
+            if (!sevenRoles.includes(role)) continue;
+            waiting.push({ ipasId, id: `${ipasId}:7:${role}`, section: 7, role, madeReady, steps });
+          }
+        }
+      }
+    }
     if (waiting.length === 0) return [];
 
     const { data: ipasRows, error: ipasError } = await supabase
@@ -960,9 +1079,9 @@ export const ipasService = {
       .filter((entry) => ipasById.has(entry.ipasId))
       .map((entry) => {
         const ipas = ipasById.get(entry.ipasId);
-        const prepared = shapeSignoff(entry.prepared);
+        const madeReady = shapeSignoff(entry.madeReady);
         return {
-          id: `${ipas.id}:${entry.section}`,
+          id: entry.id,
           ipasId: ipas.id,
           number: ipas.number,
           poNumber: ipas.po_number,
@@ -972,12 +1091,14 @@ export const ipasService = {
           total: (ipas.odoo_copy?.lines ?? []).reduce((sum, line) => sum + (Number(line?.price_subtotal) || 0), 0),
           currency: ipasCurrency(ipas),
           section: entry.section,
-          role: IPAS_SIGNOFF_ROLE.APPROVED,
-          preparedBy: prepared.signedBy,
-          preparedAt: prepared.signedAt,
+          role: entry.role,
+          preparedBy: madeReady.signedBy,
+          preparedAt: madeReady.signedAt,
+          readyAt: madeReady.signedAt,
+          steps: entry.steps ?? null,
         };
       })
-      .sort((a, b) => String(a.preparedAt).localeCompare(String(b.preparedAt)));
+      .sort((a, b) => String(a.readyAt).localeCompare(String(b.readyAt)));
   },
 
   // ── The signer lists (#247) ──────────────────────────────────────────────
@@ -1082,11 +1203,83 @@ export const ipasService = {
 
 function requireSignoffSection(section) {
   if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {
-    throw new IpasError(
-      IPAS_ERROR.INVALID,
-      "Sections 1 and 3 are signed here. Section 7 is signed when the IPAS is filed.",
-    );
+    throw new IpasError(IPAS_ERROR.INVALID, "Sections 1, 3 and 7 are signed off.");
   }
+}
+
+/** Only sections 1 and 3 are sent back: section 7 has no Prepared to return. */
+function requireSendBackSection(section) {
+  if (!IPAS_SEND_BACK_SECTIONS.includes(section)) {
+    throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1 and 3 can be sent back.");
+  }
+}
+
+const SECTION_7_LIST = {
+  [IPAS_SIGNOFF_ROLE.RECEIVED]: IPAS_SIGNER_LIST.S7_RECEIVED,
+  [IPAS_SIGNOFF_ROLE.NOTED]: IPAS_SIGNER_LIST.S7_NOTED,
+  [IPAS_SIGNOFF_ROLE.CHECKED]: IPAS_SIGNER_LIST.S7_CHECKED,
+  [IPAS_SIGNOFF_ROLE.APPROVED]: IPAS_SIGNER_LIST.S7_APPROVED,
+};
+
+/** The notification a stage of `ipas_sign` sends to the next list. */
+function stageNotification(stage, { label, section, role }) {
+  switch (stage) {
+    case IPAS_SIGNOFF_STAGE.RECEIVED_READY:
+      return {
+        type: IPAS_NOTIFICATION.SECTION_7_READY,
+        title: "IPAS ready to receive",
+        message: `${label}: sections 1 and 3 are approved. Section 7 is ready for Received.`,
+      };
+    case IPAS_SIGNOFF_STAGE.NOTED_CHECKED_READY:
+      return {
+        type: IPAS_NOTIFICATION.SECTION_7_READY,
+        title: "IPAS ready to note and check",
+        message: `${label}: received. Section 7 is ready for Noted and Checked.`,
+      };
+    case IPAS_SIGNOFF_STAGE.APPROVE_READY:
+      return {
+        type: IPAS_NOTIFICATION.SECTION_7_READY,
+        title: "IPAS ready to approve and file",
+        message: `${label}: noted and checked. Approved in section 7 files the IPAS.`,
+      };
+    default:
+      return {
+        type: IPAS_NOTIFICATION.SIGNOFF_READY,
+        title: "IPAS ready for approval",
+        message: `${label}: section ${section} (${IPAS_SECTION_NAMES[section]}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
+      };
+  }
+}
+
+/**
+ * What Filing looks at on one IPAS: whether its Approved could file (costs
+ * complete, Received, Noted and Checked given) and the required documents nobody
+ * has ticked. One read each; nothing is written.
+ */
+async function readFilingState(id) {
+  const [ipas, documents, options, signoffs] = await Promise.all([
+    supabase.from("ipas").select("id, source, state, computation_status").eq("id", id).maybeSingle(),
+    supabase.from("ipas_documents").select("*").eq("ipas_id", id),
+    supabase.from("ipas_options").select("*"),
+    supabase
+      .from("ipas_signoffs")
+      .select("section, role")
+      .eq("ipas_id", id)
+      .eq("section", 7)
+      .is("cleared_at", null),
+  ]);
+  for (const result of [ipas, documents, options, signoffs]) {
+    if (result.error) throw result.error;
+  }
+  if (!ipas.data) throw new IpasError(IPAS_ERROR.INVALID, "That IPAS isn't there.");
+
+  const given = new Set((signoffs.data || []).map((row) => row.role));
+  const ready =
+    ipas.data.state === IPAS_STATE.OPEN &&
+    isCostsComplete(ipas.data.computation_status) &&
+    [IPAS_SIGNOFF_ROLE.RECEIVED, IPAS_SIGNOFF_ROLE.NOTED, IPAS_SIGNOFF_ROLE.CHECKED].every((role) => given.has(role));
+  const shaped = shapeDocuments(documents.data || [], options.data || []);
+  return { ready, warnings: unfiledRequiredDocuments(shaped, ipas.data.source) };
 }
 
 /** "TGIPAS_052 (P02552)" for a notification, from the RPC's row or one read. */

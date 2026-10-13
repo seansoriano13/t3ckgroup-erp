@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/Tooltip";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import SendBackDialog from "../../../components/ipas/SendBackDialog";
+import FilingDialog from "../../../components/ipas/FilingDialog";
 import { ipasKey, ipasListKey, ipasPendingKey, ipasPendingPrefix } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
+import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_ACTIONS, IPAS_SIGNOFF_ROLE_LABELS } from "../../../constants/ipas";
 import { ipasToItem } from "../../../utils/approvalItems.js";
 import { ipasErrorMessage } from "../../../utils/ipas";
 import { useRecordParam } from "../../../hooks/useRecordParam";
@@ -24,11 +26,14 @@ import { IpasSignoffReview } from "../_components/IpasSignoffReview";
 const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "ipas");
 
 /**
- * IPAS Sign-offs (#247, spec #241) in the Approval Center: every IPAS section 1
- * or 3 that Purchasing has prepared and that waits on the signed-in person, who
- * is on that section's approval list and didn't prepare it. Approve signs it;
- * Send back returns it to its preparer with a reason. The IPAS itself is one
- * click from the review sheet.
+ * IPAS Sign-offs (#247, #248, spec #241) in the Approval Center: every IPAS
+ * section 1 or 3 that Purchasing has prepared and that waits on the signed-in
+ * person (on that section's approval list, and not its preparer), and every
+ * section 7 step that is theirs to give once the one before it is. Approve signs
+ * it; Send back returns a section 1 or 3 to its preparer with a reason; section
+ * 7's Approved goes through the dialog that lists the required documents
+ * nobody has ticked and files the IPAS. The IPAS itself is one click from the
+ * review sheet.
  */
 export default function IpasSignoffsPage() {
   return (
@@ -47,6 +52,7 @@ function IpasSignoffsQueue() {
   const [search, setSearch] = useState("");
   const [person, setPerson] = useState("ALL");
   const [sendingBack, setSendingBack] = useState(null);
+  const [filing, setFiling] = useState(null); // the section 7 Approved being filed
   const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
 
   const pendingQuery = useQuery({
@@ -92,14 +98,27 @@ function IpasSignoffsQueue() {
   };
 
   const approve = useMutation({
-    mutationFn: (item) => ipasService.sign(item.source.ipasId, item.source.section, "approved"),
-    onSuccess: (_, item) => {
-      toast.success(`${item.ref} section ${item.source.section} approved.`);
+    mutationFn: ({ item, confirm }) =>
+      ipasService.sign(item.source.ipasId, item.source.section, item.source.role, { confirm }),
+    onSuccess: (result, { item }) => {
+      if (result.filed) toast.success(`${item.ref} is filed.`);
+      else if (item.source.section === 7) {
+        toast.success(`${item.ref} section 7 ${IPAS_SIGNOFF_ROLE_LABELS[item.source.role].toLowerCase()}.`);
+      } else toast.success(`${item.ref} section ${item.source.section} approved.`);
       advance(item);
       settled(item);
     },
     onError: (error) => toast.error(ipasErrorMessage(error)),
   });
+
+  // Section 7's Approved files the IPAS, so it asks first (the dialog lists the
+  // required documents nobody has ticked); every other step is one click.
+  const give = (item) => {
+    if (item.source.section === 7 && item.source.role === IPAS_SIGNOFF_ROLE.APPROVED) setFiling(item);
+    else approve.mutate({ item, confirm: false });
+  };
+  const verbOf = (item) =>
+    item.source.section === 7 ? IPAS_SIGNOFF_ROLE_ACTIONS[item.source.role] : "Approve";
 
   const sendBack = useMutation({
     mutationFn: ({ item, reason }) => ipasService.sendBack(item.source.ipasId, item.source.section, reason),
@@ -141,7 +160,7 @@ function IpasSignoffsQueue() {
             people={people}
             person={person}
             onPersonChange={setPerson}
-            personLabel="Prepared by"
+            personLabel="Handed over by"
             search={search}
             onSearchChange={setSearch}
           />
@@ -155,31 +174,39 @@ function IpasSignoffsQueue() {
             setPerson("ALL");
           }}
           queueIcon={QUEUE.icon}
-          personLabel="Prepared by"
+          personLabel="Handed over by"
           onOpen={(item) => openRecord(item.id)}
           searchTerm={search}
           keyboard={!open}
           renderRowAction={(item) => (
             <>
-              <Tooltip content="Send back">
+              {item.source.section !== 7 && (
+                <Tooltip content="Send back">
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label={`Send back ${item.ref} section ${item.source.section}`}
+                    disabled={busy}
+                    onClick={() => setSendingBack(item)}
+                  >
+                    <CornerUpLeft size={14} />
+                  </Button>
+                </Tooltip>
+              )}
+              <Tooltip
+                content={
+                  item.source.section === 7 && item.source.role === IPAS_SIGNOFF_ROLE.APPROVED
+                    ? "Approve and file"
+                    : verbOf(item)
+                }
+              >
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  aria-label={`Send back ${item.ref} section ${item.source.section}`}
-                  disabled={busy}
-                  onClick={() => setSendingBack(item)}
-                >
-                  <CornerUpLeft size={14} />
-                </Button>
-              </Tooltip>
-              <Tooltip content="Approve">
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label={`Approve ${item.ref} section ${item.source.section}`}
+                  aria-label={`${verbOf(item)} ${item.ref} section ${item.source.section}`}
                   disabled={busy}
                   className="hover:border-green-7 hover:bg-green-3 hover:text-green-11"
-                  onClick={() => approve.mutate(item)}
+                  onClick={() => give(item)}
                 >
                   <Check size={14} />
                 </Button>
@@ -188,7 +215,8 @@ function IpasSignoffsQueue() {
           )}
           empty={{
             title: "Nothing waiting on you right now",
-            description: "IPAS sections that Purchasing has prepared for your approval show up here.",
+            description:
+              "IPAS sign-offs that are ready for you show up here: prepared sections for approval, and section 7's steps as each one before it is given.",
           }}
         />
       </ApprovalCenterLayout>
@@ -211,11 +239,19 @@ function IpasSignoffsQueue() {
             key={item.id}
             item={item}
             isSubmitting={busy}
-            onApprove={(it) => approve.mutate(it)}
+            onApprove={give}
             onSendBack={setSendingBack}
           />
         )}
       </ApprovalSheet>
+
+      <FilingDialog
+        open={filing !== null}
+        onOpenChange={(next) => !next && setFiling(null)}
+        ipasId={filing?.source.ipasId}
+        number={filing?.ref}
+        onConfirm={() => approve.mutateAsync({ item: filing, confirm: true })}
+      />
 
       <SendBackDialog
         open={sendingBack !== null}
