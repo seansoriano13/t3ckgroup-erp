@@ -91,3 +91,23 @@ describe("EmployeeForm Bug Reports access right", () => {
     expect(submitted[0].has_bug_report_access).toBe(true)
   })
 })
+
+describe("EmployeeForm Finance access right", () => {
+  it("saves the Finance switch beside Purchasing", async () => {
+    const { submitted, user } = await renderForm({ initialData: { has_finance_flow: false } })
+
+    await user.click(screen.getByText("Finance", { selector: "p" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_finance_flow).toBe(true)
+    expect(submitted[0].has_purchasing_flow).toBe(false)
+  })
+
+  it("starts a new employee without Finance access", async () => {
+    const { submitted, user } = await renderForm()
+
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_finance_flow).toBe(false)
+  })
+})

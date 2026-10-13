@@ -288,7 +288,8 @@ create table if not exists public."employees" (
   "is_issued_password" boolean not null default false,
   "can_edit_sales_flows" boolean not null default false,
   "has_retail_access" boolean not null default false,
-  "has_bug_report_access" boolean not null default false
+  "has_bug_report_access" boolean not null default false,
+  "has_finance_flow" boolean not null default false
 );
 
 create table if not exists public."faq_data" (
@@ -441,6 +442,50 @@ create table if not exists public."hr_leave_categories" (
   "sort_order" integer not null,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."ipas" (
+  "id" uuid not null default gen_random_uuid(),
+  "number" text not null default ('TGIPAS_'::text || lpad((nextval('ipas_number_seq'::regclass))::text, 3, '0'::text)),
+  "po_number" text not null,
+  "odoo_po_id" integer,
+  "priority" text not null,
+  "source" text not null,
+  "purpose" text not null,
+  "remarks" text,
+  "odoo_copy" jsonb not null,
+  "odoo_fetched_at" timestamp with time zone not null default now(),
+  "state" text not null default 'open'::text,
+  "cancel_reason" text,
+  "cancelled_by" uuid,
+  "cancelled_at" timestamp with time zone,
+  "filed_at" timestamp with time zone,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."ipas_events" (
+  "id" uuid not null default gen_random_uuid(),
+  "ipas_id" uuid not null,
+  "actor_id" uuid,
+  "kind" text not null,
+  "detail" jsonb not null default '{}'::jsonb,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."ipas_signer_lists" (
+  "id" uuid not null default gen_random_uuid(),
+  "list_key" text not null,
+  "employee_id" uuid not null,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."ipas_sors" (
+  "id" uuid not null default gen_random_uuid(),
+  "ipas_id" uuid not null,
+  "opportunity_id" uuid not null,
+  "created_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."notifications" (
@@ -1143,6 +1188,10 @@ alter table group_task_template_members add constraint "group_task_template_memb
 alter table group_task_templates add constraint "group_task_templates_pkey" PRIMARY KEY (id);
 alter table hr_day_shift_config add constraint "hr_day_shift_config_pkey" PRIMARY KEY (weekday);
 alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMARY KEY (id);
+alter table ipas add constraint "ipas_pkey" PRIMARY KEY (id);
+alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
+alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
+alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
 alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_pkey" PRIMARY KEY (id);
 alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
@@ -1196,6 +1245,9 @@ alter table flow_edges add constraint "flow_edges_unique" UNIQUE (flow_id, from_
 alter table flow_form_fields add constraint "flow_form_fields_default_unique" UNIQUE (flow_id, default_key);
 alter table flow_snapshots add constraint "flow_snapshots_version_unique" UNIQUE (flow_id, version, version_minor);
 alter table flow_stages add constraint "flow_stages_flow_scoped_key" UNIQUE (flow_id, id);
+alter table ipas add constraint "ipas_number_key" UNIQUE (number);
+alter table ipas_signer_lists add constraint "ipas_signer_lists_key_employee_key" UNIQUE (list_key, employee_id);
+alter table ipas_sors add constraint "ipas_sors_ipas_opportunity_key" UNIQUE (ipas_id, opportunity_id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_odoo_so_number_key" UNIQUE (odoo_so_number);
 alter table offset_leaves add constraint "offset_leaves_verification_token_key" UNIQUE (verification_token);
 alter table overtime_requests add constraint "overtime_requests_verification_token_key" UNIQUE (verification_token);
@@ -1239,6 +1291,16 @@ alter table flow_stages add constraint "flow_stages_color_check" CHECK (((color 
 alter table flow_stages add constraint "flow_stages_name_not_blank" CHECK ((btrim(name) <> ''::text));
 alter table flow_stages add constraint "flow_stages_terminal_outcome_chk" CHECK (((terminal_outcome IS NULL) OR (is_terminal AND (terminal_outcome = ANY (ARRAY['won'::text, 'lost'::text])))));
 alter table hr_day_shift_config add constraint "hr_day_shift_config_weekday_check" CHECK (((weekday >= 0) AND (weekday <= 6)));
+alter table ipas add constraint "ipas_cancelled_chk" CHECK (((state <> 'cancelled'::text) OR ((cancelled_at IS NOT NULL) AND (cancel_reason IS NOT NULL) AND (length(btrim(cancel_reason)) > 0))));
+alter table ipas add constraint "ipas_odoo_copy_chk" CHECK ((jsonb_typeof(odoo_copy) = 'object'::text));
+alter table ipas add constraint "ipas_po_number_chk" CHECK ((po_number ~ '^P[0-9]+$'::text));
+alter table ipas add constraint "ipas_priority_chk" CHECK ((priority = ANY (ARRAY['very_high'::text, 'high'::text, 'medium'::text])));
+alter table ipas add constraint "ipas_purpose_chk" CHECK ((purpose = ANY (ARRAY['project'::text, 'inventory'::text, 'supplies'::text, 'events'::text])));
+alter table ipas add constraint "ipas_source_chk" CHECK ((source = ANY (ARRAY['import'::text, 'local'::text])));
+alter table ipas add constraint "ipas_state_chk" CHECK ((state = ANY (ARRAY['open'::text, 'filed'::text, 'cancelled'::text])));
+alter table ipas_events add constraint "ipas_events_detail_chk" CHECK ((jsonb_typeof(detail) = 'object'::text));
+alter table ipas_events add constraint "ipas_events_kind_chk" CHECK ((length(btrim(kind)) > 0));
+alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text])));
 alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
@@ -1329,6 +1391,13 @@ alter table flow_stages add constraint "flow_stages_flow_id_fkey" FOREIGN KEY (f
 alter table group_task_template_members add constraint "group_task_template_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table group_task_template_members add constraint "group_task_template_members_template_id_fkey" FOREIGN KEY (template_id) REFERENCES group_task_templates(id) ON DELETE CASCADE;
 alter table group_task_templates add constraint "group_task_templates_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas add constraint "ipas_cancelled_by_fkey" FOREIGN KEY (cancelled_by) REFERENCES employees(id);
+alter table ipas add constraint "ipas_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas_events add constraint "ipas_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
+alter table ipas_events add constraint "ipas_events_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_signer_lists add constraint "ipas_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+alter table ipas_sors add constraint "ipas_sors_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_sors add constraint "ipas_sors_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
 alter table notifications add constraint "notifications_recipient_id_fkey" FOREIGN KEY (recipient_id) REFERENCES employees(id);
 alter table notifications add constraint "notifications_sender_id_fkey" FOREIGN KEY (sender_id) REFERENCES employees(id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_deal_owner_id_fkey" FOREIGN KEY (deal_owner_id) REFERENCES employees(id);
@@ -1473,6 +1542,8 @@ alter table undertime_requests add constraint "undertime_requests_employee_id_fk
 alter table undertime_requests add constraint "undertime_requests_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table undertime_requests add constraint "undertime_requests_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table undertime_requests add constraint "undertime_requests_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
+alter table ipas add constraint "ipas_sor_rule_on_ipas" TRIGGER DEFERRABLE INITIALLY DEFERRED;
+alter table ipas_sors add constraint "ipas_sor_rule_on_sors" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 
 -- ============================================================
 -- Indexes (excluding those backing constraints)
@@ -1505,6 +1576,13 @@ CREATE UNIQUE INDEX flow_stages_name_per_flow_key ON public.flow_stages USING bt
 CREATE INDEX group_task_template_members_template_idx ON public.group_task_template_members USING btree (template_id);
 CREATE INDEX group_task_templates_active_idx ON public.group_task_templates USING btree (created_at DESC) WHERE (archived_at IS NULL);
 CREATE UNIQUE INDEX hr_leave_categories_sort_order_key ON public.hr_leave_categories USING btree (sort_order);
+CREATE INDEX ipas_created_by_idx ON public.ipas USING btree (created_by);
+CREATE UNIQUE INDEX ipas_live_po_number_key ON public.ipas USING btree (po_number) WHERE (state <> 'cancelled'::text);
+CREATE INDEX ipas_state_idx ON public.ipas USING btree (state, created_at DESC);
+CREATE INDEX ipas_events_actor_id_idx ON public.ipas_events USING btree (actor_id);
+CREATE INDEX ipas_events_ipas_id_idx ON public.ipas_events USING btree (ipas_id, created_at);
+CREATE INDEX ipas_signer_lists_employee_id_idx ON public.ipas_signer_lists USING btree (employee_id);
+CREATE INDEX ipas_sors_opportunity_id_idx ON public.ipas_sors USING btree (opportunity_id);
 CREATE INDEX odoo_retail_queue_created_at_idx ON public.odoo_retail_queue USING btree (created_at DESC);
 CREATE INDEX odoo_retail_queue_status_idx ON public.odoo_retail_queue USING btree (status);
 CREATE INDEX offset_leaves_company_id_idx ON public.offset_leaves USING btree (company_id);
@@ -1608,6 +1686,10 @@ alter table public."group_task_template_members" enable row level security;
 alter table public."group_task_templates" enable row level security;
 alter table public."hr_day_shift_config" enable row level security;
 alter table public."hr_leave_categories" enable row level security;
+alter table public."ipas" enable row level security;
+alter table public."ipas_events" enable row level security;
+alter table public."ipas_signer_lists" enable row level security;
+alter table public."ipas_sors" enable row level security;
 alter table public."notifications" enable row level security;
 alter table public."odoo_retail_queue" enable row level security;
 alter table public."offset_leaves" enable row level security;
@@ -2188,6 +2270,32 @@ create policy "hr_leave_categories_write" on public."hr_leave_categories"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))));
+create policy "ipas_read" on public."ipas"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
+create policy "ipas_events_read" on public."ipas_events"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
+create policy "ipas_signer_lists_read" on public."ipas_signer_lists"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
+create policy "ipas_signer_lists_write" on public."ipas_signer_lists"
+  as permissive
+  for all
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
+create policy "ipas_sors_read" on public."ipas_sors"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
 create policy "Authenticated users can dispatch a notification as themselves" on public."notifications"
   as permissive
   for insert
@@ -2822,13 +2930,67 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_clean_sor_ids(p_fn text, p_purpose text, p_sor_ids uuid[])
+ RETURNS uuid[]
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ids uuid[];
+  v_found integer;
+begin
+  if p_sor_ids is not null and array_position(p_sor_ids, null) is not null then
+    raise exception '%: an SOR id is missing', p_fn using errcode = '22023';
+  end if;
+  select coalesce(array_agg(distinct s), '{}'::uuid[]) into v_ids from unnest(coalesce(p_sor_ids, '{}'::uuid[])) s;
+
+  if p_purpose = 'project' and cardinality(v_ids) = 0 then
+    raise exception '%: a Project IPAS needs at least one SOR', p_fn using errcode = '22023';
+  end if;
+  if p_purpose <> 'project' and cardinality(v_ids) > 0 then
+    raise exception '%: an Inventory, Supplies or Events IPAS can''t name an SOR; put the note in Remarks', p_fn
+      using errcode = '22023';
+  end if;
+
+  if cardinality(v_ids) > 0 then
+    select count(*) into v_found
+      from public.sales_opportunities o
+     where o.id = any (v_ids) and not coalesce(o.is_deleted, false);
+    if v_found <> cardinality(v_ids) then
+      raise exception '%: one of those SORs no longer exists', p_fn using errcode = 'P0002';
+    end if;
+  end if;
+  return v_ids;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_po_line_ids(p_po_number text)
  RETURNS integer[]
  LANGUAGE sql
- STABLE
+ STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select '{}'::int[];
+  select coalesce((
+    select array_agg(distinct (l.line->>'line_id')::int order by (l.line->>'line_id')::int)
+    from public.ipas i
+    cross join lateral jsonb_array_elements(
+      case when jsonb_typeof(i.odoo_copy->'lines') = 'array' then i.odoo_copy->'lines' else '[]'::jsonb end
+    ) as l(line)
+    where i.po_number = upper(btrim(p_po_number))
+      and i.state <> 'cancelled'
+      and (l.line->>'line_id') ~ '^[0-9]+$'
+  ), '{}'::int[]);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_write_event(p_ipas_id uuid, p_actor uuid, p_kind text, p_detail jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.ipas_events (ipas_id, actor_id, kind, detail)
+  values (p_ipas_id, p_actor, p_kind, coalesce(p_detail, '{}'::jsonb));
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._purchase_request_add_member(p_request_id uuid, p_employee_id uuid, p_actor uuid)
@@ -4556,6 +4718,20 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.has_finance_access()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from employees e
+    where e.id = get_employee_id()
+      and e.has_finance_flow
+      and not coalesce(e.is_deleted, false)
+  );
+$function$
+;
 CREATE OR REPLACE FUNCTION public.has_purchasing_access()
  RETURNS boolean
  LANGUAGE sql
@@ -4620,6 +4796,349 @@ CREATE OR REPLACE FUNCTION public.invoke_sor_follow_up_reminders()
  SET search_path TO ''
 AS $function$
   select public.invoke_cron_edge_function('sor-follow-up-reminders');
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_can_read()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from employees e
+    where e.id = get_employee_id()
+      and not coalesce(e.is_deleted, false)
+      and (
+        coalesce(e.has_purchasing_flow, false)
+        or coalesce(e.has_finance_flow, false)
+        or coalesce(e.is_super_admin, false)
+        or exists (select 1 from ipas_signer_lists l where l.employee_id = e.id)
+      )
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_cancel(p_ipas_id uuid, p_reason text)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_reason text := nullif(btrim(p_reason), '');
+  v_row public.ipas;
+begin
+  if v_actor is null then
+    raise exception 'ipas_cancel: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'ipas_cancel: only Purchasing cancels an IPAS' using errcode = '42501';
+  end if;
+  if v_reason is null then
+    raise exception 'ipas_cancel: a cancelled IPAS needs a reason' using errcode = '22023';
+  end if;
+
+  select * into v_row from public.ipas where id = p_ipas_id for update;
+  if v_row.id is null then
+    raise exception 'ipas_cancel: IPAS % not found', p_ipas_id using errcode = 'P0002';
+  end if;
+  if v_row.state = 'filed' then
+    raise exception 'ipas_cancel: % is filed; a Super Admin reopens it before it can be cancelled', v_row.number
+      using errcode = '55000';
+  end if;
+  if v_row.state = 'cancelled' then
+    raise exception 'ipas_cancel: % is already cancelled', v_row.number using errcode = '55000';
+  end if;
+
+  update public.ipas
+     set state = 'cancelled',
+         cancel_reason = v_reason,
+         cancelled_by = v_actor,
+         cancelled_at = now()
+   where id = v_row.id
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'cancelled', jsonb_build_object('reason', v_reason));
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_create(p_po_number text, p_priority text, p_source text, p_purpose text, p_sor_ids uuid[], p_remarks text, p_odoo_copy jsonb)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_po text := upper(btrim(p_po_number));
+  v_sors uuid[];
+  v_existing text;
+  v_row public.ipas;
+begin
+  if v_actor is null then
+    raise exception 'ipas_create: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'ipas_create: only Purchasing raises an IPAS' using errcode = '42501';
+  end if;
+
+  if v_po is null or v_po !~ '^P[0-9]+$' then
+    raise exception 'ipas_create: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', coalesce(p_po_number, 'null')
+      using errcode = '22023';
+  end if;
+  if p_priority is null or p_priority not in ('very_high', 'high', 'medium') then
+    raise exception 'ipas_create: % isn''t a Priority', coalesce(p_priority, 'null') using errcode = '22023';
+  end if;
+  if p_source is null or p_source not in ('import', 'local') then
+    raise exception 'ipas_create: % isn''t a Source', coalesce(p_source, 'null') using errcode = '22023';
+  end if;
+  if p_purpose is null or p_purpose not in ('project', 'inventory', 'supplies', 'events') then
+    raise exception 'ipas_create: % isn''t a Purpose', coalesce(p_purpose, 'null') using errcode = '22023';
+  end if;
+
+  -- The copy is what the service read from Odoo for exactly this PO.
+  if p_odoo_copy is null
+     or jsonb_typeof(p_odoo_copy) <> 'object'
+     or jsonb_typeof(p_odoo_copy->'po') is distinct from 'object'
+     or jsonb_typeof(p_odoo_copy->'lines') is distinct from 'array' then
+    raise exception 'ipas_create: the Odoo copy is missing' using errcode = '22023';
+  end if;
+  if upper(btrim(p_odoo_copy->'po'->>'name')) is distinct from v_po then
+    raise exception 'ipas_create: the Odoo copy is for %, not %', coalesce(p_odoo_copy->'po'->>'name', 'no PO'), v_po
+      using errcode = '22023';
+  end if;
+
+  v_sors := public._ipas_clean_sor_ids('ipas_create', p_purpose, p_sor_ids);
+
+  select i.number into v_existing
+    from public.ipas i
+   where i.po_number = v_po and i.state <> 'cancelled';
+  if v_existing is not null then
+    raise exception 'ipas_create: % already has a live IPAS (%); cancel it to raise a new one', v_po, v_existing
+      using errcode = '23505';
+  end if;
+
+  insert into public.ipas (
+    po_number, odoo_po_id, priority, source, purpose, remarks, odoo_copy, created_by
+  ) values (
+    v_po,
+    case when (p_odoo_copy->'po'->>'id') ~ '^[0-9]+$' then (p_odoo_copy->'po'->>'id')::integer end,
+    p_priority,
+    p_source,
+    p_purpose,
+    nullif(btrim(p_remarks), ''),
+    p_odoo_copy,
+    v_actor
+  )
+  returning * into v_row;
+
+  insert into public.ipas_sors (ipas_id, opportunity_id)
+  select v_row.id, s from unnest(v_sors) s;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'created', jsonb_build_object(
+    'number', v_row.number,
+    'po_number', v_row.po_number,
+    'priority', v_row.priority,
+    'source', v_row.source,
+    'purpose', v_row.purpose,
+    'sor_ids', to_jsonb(v_sors)
+  ));
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_enforce_sor_rule()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_ids uuid[];
+  v_id uuid;
+  v_purpose text;
+  v_number text;
+  v_count integer;
+begin
+  if tg_table_name = 'ipas' then
+    v_ids := array[new.id];
+  elsif tg_op = 'DELETE' then
+    v_ids := array[old.ipas_id];
+  elsif tg_op = 'UPDATE' and new.ipas_id is distinct from old.ipas_id then
+    v_ids := array[new.ipas_id, old.ipas_id];
+  else
+    v_ids := array[new.ipas_id];
+  end if;
+
+  foreach v_id in array v_ids loop
+    select i.purpose, i.number into v_purpose, v_number from public.ipas i where i.id = v_id;
+    -- The IPAS itself is gone (a cascade): nothing left to hold to the rule.
+    if v_purpose is null then
+      continue;
+    end if;
+    select count(*) into v_count from public.ipas_sors s where s.ipas_id = v_id;
+    if v_purpose = 'project' and v_count = 0 then
+      raise exception '% is a Project IPAS and needs at least one SOR', v_number using errcode = '23514';
+    end if;
+    if v_purpose <> 'project' and v_count > 0 then
+      raise exception '% is not a Project IPAS and can''t name an SOR', v_number using errcode = '23514';
+    end if;
+  end loop;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_events_append_only()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  raise exception 'ipas_events is append-only: history can''t be changed (% refused)', tg_op
+    using errcode = '42501';
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_find_sors(p_refs text[] DEFAULT NULL::text[], p_search text DEFAULT NULL::text)
+ RETURNS TABLE(opportunity_id uuid, sales_reference text, project_title text, client_name text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_refs text[];
+  v_term text := lower(nullif(btrim(p_search), ''));
+begin
+  if public.get_employee_id() is null then
+    raise exception 'ipas_find_sors: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'ipas_find_sors: only Purchasing picks an IPAS''s SORs' using errcode = '42501';
+  end if;
+
+  select coalesce(array_agg(distinct upper(btrim(r))), '{}'::text[]) into v_refs
+    from unnest(coalesce(p_refs, '{}'::text[])) r;
+
+  return query
+    select o.id, o.sales_reference, o.project_title, o.client_name
+      from public.sales_opportunities o
+     where not coalesce(o.is_deleted, false)
+       and not coalesce(o.is_scratch, false)
+       and o.sales_reference is not null
+       and (
+         o.sales_reference = any (v_refs)
+         or (
+           v_term is not null
+           and (
+             position(v_term in lower(o.sales_reference)) > 0
+             or position(v_term in lower(o.project_title)) > 0
+             or position(v_term in lower(o.client_name)) > 0
+           )
+         )
+       )
+     order by o.sales_reference desc
+     limit 25;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.number is distinct from old.number then
+    raise exception 'ipas: the number of % can''t change', old.number using errcode = '42501';
+  end if;
+  if new.po_number is distinct from old.po_number then
+    raise exception 'ipas: the PO of % can''t change; cancel it and raise a new IPAS', old.number
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_set_purpose_and_sors(p_ipas_id uuid, p_purpose text, p_sor_ids uuid[])
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.ipas;
+  v_before uuid[];
+  v_after uuid[];
+  v_from text;
+begin
+  if v_actor is null then
+    raise exception 'ipas_set_purpose_and_sors: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'ipas_set_purpose_and_sors: only Purchasing changes an IPAS' using errcode = '42501';
+  end if;
+  if p_purpose is null or p_purpose not in ('project', 'inventory', 'supplies', 'events') then
+    raise exception 'ipas_set_purpose_and_sors: % isn''t a Purpose', coalesce(p_purpose, 'null') using errcode = '22023';
+  end if;
+
+  select * into v_row from public.ipas where id = p_ipas_id for update;
+  if v_row.id is null then
+    raise exception 'ipas_set_purpose_and_sors: IPAS % not found', p_ipas_id using errcode = 'P0002';
+  end if;
+  if v_row.state = 'filed' then
+    raise exception 'ipas_set_purpose_and_sors: % is filed; a Super Admin reopens it first', v_row.number
+      using errcode = '55000';
+  end if;
+  if v_row.state = 'cancelled' then
+    raise exception 'ipas_set_purpose_and_sors: % is cancelled', v_row.number using errcode = '55000';
+  end if;
+
+  v_after := public._ipas_clean_sor_ids('ipas_set_purpose_and_sors', p_purpose, p_sor_ids);
+  select coalesce(array_agg(s.opportunity_id order by s.opportunity_id), '{}'::uuid[]) into v_before
+    from public.ipas_sors s where s.ipas_id = v_row.id;
+  select coalesce(array_agg(x order by x), '{}'::uuid[]) into v_after from unnest(v_after) x;
+
+  if v_row.purpose = p_purpose and v_before = v_after then
+    return v_row;
+  end if;
+
+  v_from := v_row.purpose;
+  delete from public.ipas_sors where ipas_id = v_row.id;
+  update public.ipas set purpose = p_purpose where id = v_row.id returning * into v_row;
+  insert into public.ipas_sors (ipas_id, opportunity_id)
+  select v_row.id, s from unnest(v_after) s;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'purpose_sors_changed', jsonb_build_object(
+    'purpose_from', v_from,
+    'purpose_to', v_row.purpose,
+    'sor_ids_from', to_jsonb(v_before),
+    'sor_ids_to', to_jsonb(v_after)
+  ));
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_sor_headers(p_ipas_ids uuid[] DEFAULT NULL::uuid[])
+ RETURNS TABLE(ipas_id uuid, opportunity_id uuid, sales_reference text, project_title text, client_name text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.get_employee_id() is null then
+    raise exception 'ipas_sor_headers: not signed in' using errcode = '42501';
+  end if;
+  if not public.ipas_can_read() then
+    return;
+  end if;
+
+  return query
+    select s.ipas_id, s.opportunity_id, o.sales_reference, o.project_title, o.client_name
+      from public.ipas_sors s
+      join public.sales_opportunities o on o.id = s.opportunity_id
+     where p_ipas_ids is null or s.ipas_id = any (p_ipas_ids)
+     order by o.sales_reference;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.is_head()
@@ -4992,6 +5511,23 @@ BEGIN
     RAISE EXCEPTION
       'Insufficient privileges: only a super-admin can change Flow editor access.'
       USING ERRCODE = '42501';
+  END IF;
+
+  -- Purchasing and Finance access (#242). Only a Super Admin or HR grants
+  -- them, and HR cannot grant themselves (a Super Admin may). A caller with no
+  -- employee row is the service role or a migration, and is trusted.
+  IF v_caller_id IS NOT NULL
+     AND (
+       NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+       OR (OLD.id = v_caller_id AND NOT (v_caller_is_super_admin IS TRUE))
+     )
+  THEN
+    IF NEW.has_purchasing_flow IS DISTINCT FROM OLD.has_purchasing_flow THEN
+      NEW.has_purchasing_flow := OLD.has_purchasing_flow;
+    END IF;
+    IF NEW.has_finance_flow IS DISTINCT FROM OLD.has_finance_flow THEN
+      NEW.has_finance_flow := OLD.has_finance_flow;
+    END IF;
   END IF;
 
   -- Nobody edits their own hidden-navigation override — server-side, not by
@@ -6418,6 +6954,16 @@ begin
     insert into bug_report_notes (report_id, author_id, kind)
     values (p_id, get_employee_id(), case when p_resolved then 'resolved' else 'reopened' end);
   end if;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.set_ipas_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  new.updated_at = now();
+  return new;
 end;
 $function$
 ;
@@ -9442,6 +9988,12 @@ CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_fl
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
+CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
+CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
+CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION ipas_events_append_only();
+CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
+CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER overtime_requests_guard_head_status BEFORE UPDATE ON public.overtime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();

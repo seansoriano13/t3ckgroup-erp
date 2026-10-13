@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-10-13",
+        "title": "IPAS: raise and track an IPAS from an Odoo purchase order",
+        "version": "1.9.12",
+        "changes": [
+            "IPAS: Purchasing can raise an IPAS from an Odoo PO number. The ERP checks the PO in Odoo, gives it a TGIPAS number, and brings in the supplier, currency and item lines.",
+            "IPAS: a Project IPAS names its SORs, suggested from the PO's Source Document and analytic accounts. Inventory, Supplies and Events name none.",
+            "IPAS: the new IPAS page in the Purchasing menu lists every IPAS by open, filed or cancelled, and by entity and purpose. Purchasing can change the purpose and SORs, or cancel with a reason. The number is kept.",
+            "Employees: a new Finance access switch sits beside Purchasing, for Finance staff who read every IPAS."
+        ]
+    },
+    {
         "date": "2026-10-12",
         "title": "UI Refresh: Responsive queues, cleaner navigation and pagination",
         "version": "1.9.11",

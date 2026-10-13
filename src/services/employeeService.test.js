@@ -57,6 +57,25 @@ describe("employeeService", () => {
       expect(found.has_bug_report_access).toBe(true)
     })
 
+    it("maps Finance access, defaulting to off", async () => {
+      makeEmployee({ email: "fin@t3ckgroup.test", has_finance_flow: true })
+      makeEmployee({ email: "plain@t3ckgroup.test" })
+
+      expect((await employeeService.getEmployeeByEmail("fin@t3ckgroup.test")).has_finance_flow).toBe(true)
+      expect((await employeeService.getEmployeeByEmail("plain@t3ckgroup.test")).has_finance_flow).toBe(false)
+      const all = await employeeService.getAllEmployees()
+      expect(all.find((e) => e.email === "fin@t3ckgroup.test").has_finance_flow).toBe(true)
+    })
+
+    it("marks an employee who is on an IPAS sign-off list, and nobody else", async () => {
+      const signer = makeEmployee({ email: "signer@t3ckgroup.test" })
+      makeEmployee({ email: "bystander@t3ckgroup.test" })
+      db.seed("ipas_signer_lists", { list_key: "s1_approved", employee_id: signer.id })
+
+      expect((await employeeService.getEmployeeByEmail("signer@t3ckgroup.test")).isIpasSigner).toBe(true)
+      expect((await employeeService.getEmployeeByEmail("bystander@t3ckgroup.test")).isIpasSigner).toBe(false)
+    })
+
     it("maps hidden_nav_keys onto hiddenNavKeys, defaulting to empty", async () => {
       makeEmployee({ email: "hidden@t3ckgroup.test", hidden_nav_keys: ["sales.commissionDashboard"] })
       makeEmployee({ email: "unhidden@t3ckgroup.test" })
@@ -319,6 +338,18 @@ describe("employeeService", () => {
       )
 
       expect(db.rows("employees").find((e) => e.id === employee.id).has_bug_report_access).toBe(true)
+    })
+
+    it("saves a grant of Finance access", async () => {
+      const employee = makeEmployee({ name: "Fe", has_finance_flow: false })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Fe", email: null, has_finance_flow: true },
+        actor.id,
+      )
+
+      expect(db.rows("employees").find((e) => e.id === employee.id).has_finance_flow).toBe(true)
     })
 
     it("saves a grant of the leave-management capability", async () => {

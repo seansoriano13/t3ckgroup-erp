@@ -43,6 +43,25 @@ async function prepareEmailForSave(email, currentEmployeeId = null) {
   return cleanEmail;
 }
 
+/**
+ * Whether the employee is on any IPAS sign-off list (#242). Only asked for
+ * someone Purchasing access, Finance access or Super Admin doesn't already
+ * answer for. A failure reads as "no": the list is a convenience for the
+ * navigation, never the gate (the database is).
+ */
+async function isOnIpasSignerList(employee) {
+  if (employee.has_purchasing_flow || employee.has_finance_flow || employee.is_super_admin) return false;
+  try {
+    const { count, error } = await supabase
+      .from("ipas_signer_lists")
+      .select("id", { count: "exact", head: true })
+      .eq("employee_id", employee.id);
+    return !error && (count ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
 export const employeeService = {
   async getEmployeeByEmail(email) {
     const { data, error } = await supabase
@@ -65,6 +84,8 @@ export const employeeService = {
       isHr: data.is_hr,
       isSuperAdmin: data.is_super_admin,
       isRoleSimulator: data.is_role_simulator,
+      // On an IPAS sign-off list: reads every IPAS, so the nav shows the list.
+      isIpasSigner: await isOnIpasSignerList(data),
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,
@@ -77,6 +98,7 @@ export const employeeService = {
       // Coerced: a frontend running ahead of 0054 gets undefined from `select("*")`,
       // and the flag grants nothing until a Super Admin turns it on anyway.
       has_purchasing_flow: !!data.has_purchasing_flow,
+      has_finance_flow: !!data.has_finance_flow,
       has_retail_access: !!data.has_retail_access,
       has_bug_report_access: !!data.has_bug_report_access,
       offset_hours_balance: data.offset_hours_balance || 0,
@@ -115,6 +137,7 @@ export const employeeService = {
       has_sales_flow: employee.has_sales_flow,
       has_task_flow: employee.has_task_flow,
       has_purchasing_flow: !!employee.has_purchasing_flow,
+      has_finance_flow: !!employee.has_finance_flow,
       has_retail_access: !!employee.has_retail_access,
       has_bug_report_access: !!employee.has_bug_report_access,
       offset_hours_balance: employee.offset_hours_balance || 0,
@@ -233,6 +256,7 @@ export const employeeService = {
           has_sales_flow: employeeData.has_sales_flow,
           has_task_flow: employeeData.has_task_flow,
           has_purchasing_flow: employeeData.has_purchasing_flow,
+          has_finance_flow: employeeData.has_finance_flow ?? false,
           // Open for Sales by default; an explicit choice from the form wins.
           has_retail_access:
             employeeData.has_retail_access ??
@@ -289,6 +313,7 @@ export const employeeService = {
         has_sales_flow: employeeData.has_sales_flow,
         has_task_flow: employeeData.has_task_flow,
         has_purchasing_flow: employeeData.has_purchasing_flow,
+        has_finance_flow: employeeData.has_finance_flow,
         has_retail_access: employeeData.has_retail_access,
         has_bug_report_access: employeeData.has_bug_report_access,
         hidden_nav_keys: employeeData.hiddenNavKeys !== undefined ? employeeData.hiddenNavKeys : undefined,

@@ -17,6 +17,7 @@ import {
   Sparkles,
   Handshake,
   Bug,
+  ReceiptText,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -152,6 +153,19 @@ export const NAV_MODULES = {
         icon: ShoppingCart,
         isPermitted: () => true,
         exactMatch: true,
+      },
+      // The IPAS (#241): one per purchase order that needs one. Read by
+      // Purchasing access, Finance access, Super Admins and the sign-off
+      // lists; the database refuses everyone else, so this only spares the
+      // rest an empty screen. Not an exact match: an open IPAS is a child
+      // route.
+      {
+        key: "purchasing.ipas",
+        label: "IPAS",
+        link: "/purchasing/ipas",
+        icon: ReceiptText,
+        isPermitted: (ctx) =>
+          ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow || ctx.isIpasSigner,
       },
     ],
   },

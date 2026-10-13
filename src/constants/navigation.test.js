@@ -269,7 +269,33 @@ describe("navigation registry", () => {
       expect(purchasingGroup).toBeDefined();
       expect(purchasingGroup.links.map((l) => l.label)).toEqual([
         "Purchase Requests",
+        "IPAS",
       ]);
+    });
+
+    // IPAS (#242): reached by Purchasing access, Finance access, Super Admins
+    // and the sign-off lists. Nobody else sees the entry (the database refuses
+    // them anyway); the group still shows Purchase Requests to everyone.
+    it.each([
+      ["Finance access", { has_finance_flow: true }],
+      ["a sign-off list", { isIpasSigner: true }],
+      ["a Super Admin", { isSuperAdmin: true }],
+    ])("offers IPAS to someone with %s", (_, flags) => {
+      const groups = getFilteredNavigationGroups({ id: "reader", ...flags });
+      const purchasing = groups.find((g) => g.key === "purchasing");
+      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests", "IPAS"]);
+    });
+
+    it("keeps IPAS off the navigation of an employee who can't read one", () => {
+      const groups = getFilteredNavigationGroups({
+        id: "plain",
+        has_task_flow: true,
+        is_head: true,
+        is_hr: true,
+        has_sales_flow: true,
+      });
+      const purchasing = groups.find((g) => g.key === "purchasing");
+      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests"]);
     });
 
     // Purchase Requests is open to everyone (#179), so the Purchasing group

@@ -1,0 +1,267 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router";
+import IpasListPage from "@/pages/purchasing/ipas/index";
+import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
+import { renderWithProviders } from "@/test/support";
+import { makeEmployee, makeOpportunity } from "@/test/factories";
+import { db } from "@/test/db/store";
+import { stubEdgeFunction } from "@/test/msw/server";
+import { stubIpasRpcs } from "@/test/stubs/ipasRpc";
+
+const mockUser = vi.hoisted(() => ({ current: null }));
+
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: () => ({ user: mockUser.current, isAuthLoading: false }),
+}));
+
+const copy = (po, over = {}) => ({
+  po: { id: 1, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: "S07920 Capas", partner_ref: null },
+  supplier: { id: 5, name: "Scorpe Technologies", contact: "Ms. K. Tan" },
+  lines: [
+    { line_id: 11, name: "Greenspirit 2 Cutter", brand: "SCORPE", quantity: 6, unit: "Unit", price_unit: 1250, price_subtotal: 7500, taxes: ["12% VAT"], analytic: ["S07920 Capas"] },
+  ],
+  receipts: { status: "pending", done: 0, total: 1 },
+  bills: { count: 0, draft: 0 },
+  ...over,
+});
+
+let counter = 48;
+function ipas(overrides = {}) {
+  counter += 1;
+  const po = overrides.po_number ?? `P0${2000 + counter}`;
+  return db.seed("ipas", {
+    number: `TGIPAS_${String(counter).padStart(3, "0")}`,
+    po_number: po,
+    priority: "high",
+    source: "local",
+    purpose: "inventory",
+    odoo_copy: copy(po),
+    odoo_fetched_at: "2026-10-13T02:00:00.000Z",
+    state: "open",
+    ...overrides,
+  });
+}
+
+function renderList() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/purchasing/ipas"]}>
+      <Routes>
+        <Route path="/purchasing/ipas" element={<IpasListPage />} />
+        <Route path="/purchasing/ipas/:id" element={<p>The IPAS page</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function renderDetail(id) {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}`]}>
+      <Routes>
+        <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
+        <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("IPAS pages", () => {
+  let purchaser, finance, salesperson;
+
+  beforeEach(() => {
+    counter = 48;
+    purchaser = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
+    finance = makeEmployee({ name: "Fe", has_finance_flow: true });
+    salesperson = makeEmployee({ name: "Sales Person" });
+    mockUser.current = purchaser;
+    stubIpasRpcs({ actorId: purchaser.id });
+  });
+
+  describe("the list", () => {
+    it("lists the open IPAS with number, PO, supplier, entity and Purpose, and counts each state", async () => {
+      ipas({ po_number: "P02552", purpose: "supplies", created_by: purchaser.id });
+      ipas({ state: "cancelled", cancel_reason: "Dropped", cancelled_at: "2026-10-13T03:00:00.000Z" });
+      const user = userEvent.setup();
+
+      renderList();
+
+      const row = (await screen.findAllByTestId("ipas-row"))[0];
+      expect(within(row).getByText("TGIPAS_049")).toBeInTheDocument();
+      expect(within(row).getByText("P02552")).toBeInTheDocument();
+      expect(within(row).getByText("Scorpe Technologies")).toBeInTheDocument();
+      expect(within(row).getByText("T3ck Trading")).toBeInTheDocument();
+      expect(within(row).getByText("Supplies")).toBeInTheDocument();
+      expect(screen.getAllByTestId("ipas-row")).toHaveLength(1);
+
+      await user.click(screen.getByRole("tab", { name: /Cancelled/ }));
+      await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+      expect(within(screen.getByTestId("ipas-row")).getByText("TGIPAS_050")).toBeInTheDocument();
+    });
+
+    it("shows a Project IPAS's SORs", async () => {
+      const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" });
+      const row = ipas({ purpose: "project" });
+      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: sor.id });
+
+      renderList();
+
+      expect(await screen.findByText("S07920")).toBeInTheDocument();
+    });
+
+    it("says there are none yet", async () => {
+      renderList();
+      expect(await screen.findByText("No IPAS yet")).toBeInTheDocument();
+    });
+
+    it("offers Raise IPAS to Purchasing and not to Finance", async () => {
+      renderList();
+      expect(await screen.findByRole("button", { name: /Raise IPAS/ })).toBeInTheDocument();
+    });
+
+    it("keeps Raise IPAS from Finance, who read but don't raise", async () => {
+      mockUser.current = finance;
+      ipas({ po_number: "P02552" });
+
+      renderList();
+
+      await screen.findAllByTestId("ipas-row");
+      expect(screen.queryByRole("button", { name: /Raise IPAS/ })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("raising one", () => {
+    const openDialog = async (user) => {
+      renderList();
+      await user.click(await screen.findByRole("button", { name: /Raise IPAS/ }));
+      return screen.findByRole("dialog");
+    };
+
+    const check = async (user, dialog, po = "P02552") => {
+      await user.type(within(dialog).getByPlaceholderText("e.g. P02552"), po);
+      await user.click(within(dialog).getByRole("button", { name: /Check in Odoo/ }));
+    };
+
+    it("says Odoo has no such PO, apart from Odoo not answering", async () => {
+      const user = userEvent.setup();
+      stubEdgeFunction("odoo-po-ipas", { success: true, found: false });
+      const dialog = await openDialog(user);
+
+      await check(user, dialog);
+
+      expect(await within(dialog).findByText("Not found in Odoo")).toBeInTheDocument();
+      expect(within(dialog).queryByText("Odoo couldn't be checked")).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Raise IPAS" })).toBeDisabled();
+    });
+
+    it("says it couldn't check when Odoo doesn't answer", async () => {
+      const user = userEvent.setup();
+      stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" });
+      const dialog = await openDialog(user);
+
+      await check(user, dialog);
+
+      expect(await within(dialog).findByText("Odoo couldn't be checked")).toBeInTheDocument();
+      expect(within(dialog).queryByText("Not found in Odoo")).not.toBeInTheDocument();
+    });
+
+    it("refuses a number that isn't an Odoo PO without asking Odoo", async () => {
+      const user = userEvent.setup();
+      let asked = false;
+      stubEdgeFunction("odoo-po-ipas", () => {
+        asked = true;
+        return { success: true, found: false };
+      });
+      const dialog = await openDialog(user);
+
+      await check(user, dialog, "PO-12");
+
+      expect(await within(dialog).findByText("Not an Odoo PO number")).toBeInTheDocument();
+      expect(within(dialog).queryByText("Not found in Odoo")).not.toBeInTheDocument();
+      expect(asked).toBe(false);
+    });
+
+    it("shows the PO Odoo found and asks for the header", async () => {
+      const user = userEvent.setup();
+      stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...copy("P02552", { po: { id: 1, name: "P02552", state: "draft", company: "TG Enterprise", currency: "USD", origin: null } }) });
+      const dialog = await openDialog(user);
+
+      await check(user, dialog);
+
+      expect(await within(dialog).findByText("Scorpe Technologies")).toBeInTheDocument();
+      expect(within(dialog).getByText("RFQ")).toBeInTheDocument();
+      expect(within(dialog).getByText("TG Enterprise")).toBeInTheDocument();
+      expect(within(dialog).getByText("Priority")).toBeInTheDocument();
+      expect(within(dialog).getByText("Purpose")).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Raise IPAS" })).toBeDisabled();
+    });
+
+    it("blocks a PO that already has a live IPAS, and names it", async () => {
+      const user = userEvent.setup();
+      ipas({ po_number: "P02552" });
+      stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...copy("P02552") });
+      const dialog = await openDialog(user);
+
+      await check(user, dialog);
+
+      expect(await within(dialog).findByText(/already has a live IPAS \(TGIPAS_049\)/)).toBeInTheDocument();
+      expect(within(dialog).queryByText("Priority")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("one IPAS", () => {
+    it("shows the header, the item lines with their fetch time, and the SORs", async () => {
+      const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" });
+      const row = ipas({ po_number: "P02552", purpose: "project", remarks: "For the Capas deal", created_by: purchaser.id });
+      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: sor.id });
+      db.seed("ipas_events", { ipas_id: row.id, actor_id: purchaser.id, kind: "created", detail: {} });
+
+      renderDetail(row.id);
+
+      expect(await screen.findByRole("heading", { name: "TGIPAS_049" })).toBeInTheDocument();
+      expect(screen.getByText("Greenspirit 2 Cutter")).toBeInTheDocument();
+      expect(screen.getByText("SCORPE")).toBeInTheDocument();
+      expect(screen.getByText(/Copy from Odoo, fetched/)).toBeInTheDocument();
+      expect(screen.getByText("For the Capas deal")).toBeInTheDocument();
+      expect(screen.getAllByText("S07920").length).toBeGreaterThan(0);
+      expect(screen.getByText("Raised")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Cancel IPAS/ })).toBeInTheDocument();
+    });
+
+    it("cancels with a reason and keeps the IPAS readable with its number", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      await user.click(await screen.findByRole("button", { name: /Cancel IPAS/ }));
+      const dialog = await screen.findByRole("dialog");
+      const confirm = within(dialog).getByRole("button", { name: "Cancel IPAS" });
+      expect(confirm).toBeDisabled();
+
+      await user.type(within(dialog).getByPlaceholderText(/Why is this IPAS/), "Supplier withdrew");
+      await user.click(confirm);
+
+      await waitFor(() => expect(db.rows("ipas")[0]).toMatchObject({ state: "cancelled", cancel_reason: "Supplier withdrew" }));
+      // The reason shows in the banner and again in the history.
+      expect((await screen.findAllByText(/Supplier withdrew/)).length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText(/won't be used again/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Cancel IPAS/ })).not.toBeInTheDocument();
+    });
+
+    it("gives a reader without Purchasing access no way to change it", async () => {
+      mockUser.current = finance;
+      const row = ipas({ po_number: "P02552" });
+
+      renderDetail(row.id);
+
+      expect(await screen.findByRole("heading", { name: "TGIPAS_049" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Cancel IPAS/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Purpose and SORs/ })).not.toBeInTheDocument();
+    });
+
+    it("says not found for an IPAS the database doesn't return", async () => {
+      renderDetail(db.nextUuid());
+      expect(await screen.findByText("IPAS not found")).toBeInTheDocument();
+    });
+  });
+});

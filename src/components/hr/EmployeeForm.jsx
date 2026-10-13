@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, ChevronDown, Clock, EyeOff, X } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, Landmark, ChevronDown, Clock, EyeOff, X } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ export default function EmployeeForm({
     has_sales_flow: false,
     has_task_flow: true,
     has_purchasing_flow: false,
+    has_finance_flow: false,
     has_retail_access: false,
     has_bug_report_access: false,
     employment_status: "",
@@ -59,6 +60,7 @@ export default function EmployeeForm({
       has_sales_flow: false,
       has_task_flow: true,
       has_purchasing_flow: false,
+      has_finance_flow: false,
       has_retail_access: false,
       has_bug_report_access: false,
       hiddenNavKeys: [],
@@ -465,6 +467,19 @@ export default function EmployeeForm({
             }
             activeColor="bg-amber-3 text-amber-10"
             hoverColor="group-hover:bg-amber-2"
+          />
+
+          {/* Finance — IPAS (#242): bank details, payments, charges, filing */}
+          <AccessSwitch
+            label="Finance"
+            description="Read every IPAS, record payments and charges, see bank details"
+            icon={Landmark}
+            checked={formData.has_finance_flow}
+            onChange={(val) =>
+              setFormData((prev) => ({ ...prev, has_finance_flow: val }))
+            }
+            activeColor="bg-blue-3 text-blue-10"
+            hoverColor="group-hover:bg-blue-2"
           />
 
           {/* Task Flow */}

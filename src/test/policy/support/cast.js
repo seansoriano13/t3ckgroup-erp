@@ -14,6 +14,7 @@
  */
 import { createClient } from "@supabase/supabase-js"
 import { API_URL, ANON_KEY, serviceClient, sql } from "./stack.js"
+import { purgeFixtureIpas } from "./ipas.js"
 
 /** Shared by every cast member. Local stack only; nothing here is a secret. */
 export const CAST_PASSWORD = "policy-tier-fixture-password"
@@ -36,7 +37,7 @@ const slug = (key) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
 const email = (key) => `${slug(key)}@${FIXTURE_DOMAIN}`
 
 /**
- * Ten identities, covering every distinct shape the policies discriminate on.
+ * Fifteen identities, covering every distinct shape the policies discriminate on.
  * `deleted` is soft-deleted rather than absent, because `is_deleted` is a
  * column the application filters on and a policy mostly does not.
  */
@@ -130,6 +131,25 @@ export const CAST = {
         sub_department: "PROCUREMENT",
         role: "PURCHASER",
     },
+    finance: {
+        // Finance access on its own (#242) — deliberately not has_purchasing_flow
+        // and not a Super Admin, so a pass on an IPAS read can only be the
+        // flag doing the work.
+        name: "Finance Officer",
+        department: "FINANCE",
+        sub_department: null,
+        role: "ACCOUNTING OFFICER",
+        has_finance_flow: true,
+    },
+    ipasSigner: {
+        // A plain employee who is put on an IPAS sign-off list by the test
+        // that needs it (#242): no flag of any kind, so reading an IPAS can
+        // only be list membership doing the work.
+        name: "IPAS Signer",
+        department: "ADMINISTRATION",
+        sub_department: null,
+        role: "GENERAL MANAGER",
+    },
     superAdmin: {
         name: "Super Admin",
         department: "ADMINISTRATION",
@@ -208,6 +228,7 @@ function employeeRow(key, id) {
         has_sales_flow: spec.has_sales_flow ?? false,
         has_task_flow: spec.has_task_flow ?? false,
         has_purchasing_flow: spec.has_purchasing_flow ?? false,
+        has_finance_flow: spec.has_finance_flow ?? false,
         has_retail_access: spec.has_retail_access ?? false,
         is_deleted: spec.is_deleted ?? false,
         offset_hours_balance: 0,
@@ -221,6 +242,10 @@ function employeeRow(key, id) {
  */
 export async function teardownCast() {
     const svc = serviceClient()
+
+    // IPAS history can't be deleted by anyone, so IPAS go by the one route
+    // that switches the triggers off (support/ipas.js), before their employees.
+    await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)
 
     // Rows this tier creates reference employees, so they go first. Each entry
     // names the column that points back at an employee; the order is

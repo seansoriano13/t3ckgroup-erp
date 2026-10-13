@@ -91,6 +91,12 @@ export const SEED_TABLES = [
   "purchase_request_members",
   "purchase_request_items",
   "purchase_request_messages",
+  // IPAS (#242). After sales_opportunities and employees, which they point at;
+  // ipas_sors and ipas_events point at ipas.
+  "ipas",
+  "ipas_sors",
+  "ipas_events",
+  "ipas_signer_lists",
   "odoo_retail_queue",
 ]
 
