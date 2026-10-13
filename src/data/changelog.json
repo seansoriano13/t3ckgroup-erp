@@ -1,5 +1,13 @@
 [
     {
+        "date": "2026-10-13",
+        "title": "Simpler Offset Request Form",
+        "version": "1.9.12",
+        "changes": [
+            "Leaves & Overtime: the Offset tab is now titled \"Request Offset\", the date field is labelled \"Offset Date\", and you no longer need to pick a category when requesting an offset."
+        ]
+    },
+    {
         "date": "2026-10-12",
         "title": "UI Refresh: Responsive queues, cleaner navigation and pagination",
         "version": "1.9.11",
