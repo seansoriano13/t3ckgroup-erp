@@ -563,6 +563,15 @@ create table if not exists public."ipas_payments" (
   "updated_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."ipas_signer_list_log" (
+  "id" uuid not null default gen_random_uuid(),
+  "list_key" text not null,
+  "employee_id" uuid not null,
+  "action" text not null,
+  "actor_id" uuid not null,
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."ipas_signer_lists" (
   "id" uuid not null default gen_random_uuid(),
   "list_key" text not null,
@@ -1298,6 +1307,7 @@ alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id)
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIMARY KEY (id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
 alter table ipas_signoffs add constraint "ipas_signoffs_pkey" PRIMARY KEY (id);
 alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
@@ -1436,6 +1446,8 @@ alter table ipas_payments add constraint "ipas_payments_check_no_chk" CHECK (((c
 alter table ipas_payments add constraint "ipas_payments_kind_chk" CHECK ((kind = ANY (ARRAY['down_payment'::text, 'payment'::text, 'full_payment'::text, 'shipping_fee'::text])));
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_action_chk" CHECK ((action = ANY (ARRAY['added'::text, 'removed'::text])));
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text])));
 alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL) AND (cleared_by IS NULL)) OR ((cleared_at IS NOT NULL) AND (cleared_reason IS NOT NULL) AND (length(btrim(cleared_reason)) > 0))));
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
@@ -1551,6 +1563,8 @@ alter table ipas_events add constraint "ipas_events_ipas_id_fkey" FOREIGN KEY (i
 alter table ipas_payments add constraint "ipas_payments_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_payments add constraint "ipas_payments_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_method_id_fkey" FOREIGN KEY (method_id) REFERENCES ipas_options(id);
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_by_fkey" FOREIGN KEY (cleared_by) REFERENCES employees(id);
 alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
@@ -1759,6 +1773,9 @@ CREATE INDEX ipas_options_list_sort_idx ON public.ipas_options USING btree (list
 CREATE INDEX ipas_payments_created_by_idx ON public.ipas_payments USING btree (created_by);
 CREATE INDEX ipas_payments_ipas_id_idx ON public.ipas_payments USING btree (ipas_id, paid_on);
 CREATE INDEX ipas_payments_method_id_idx ON public.ipas_payments USING btree (method_id);
+CREATE INDEX ipas_signer_list_log_actor_id_idx ON public.ipas_signer_list_log USING btree (actor_id);
+CREATE INDEX ipas_signer_list_log_created_at_idx ON public.ipas_signer_list_log USING btree (created_at DESC);
+CREATE INDEX ipas_signer_list_log_employee_id_idx ON public.ipas_signer_list_log USING btree (employee_id);
 CREATE INDEX ipas_signer_lists_employee_id_idx ON public.ipas_signer_lists USING btree (employee_id);
 CREATE INDEX ipas_signoffs_cleared_by_idx ON public.ipas_signoffs USING btree (cleared_by);
 CREATE INDEX ipas_signoffs_ipas_id_idx ON public.ipas_signoffs USING btree (ipas_id, section);
@@ -1875,6 +1892,7 @@ alter table public."ipas_documents" enable row level security;
 alter table public."ipas_events" enable row level security;
 alter table public."ipas_options" enable row level security;
 alter table public."ipas_payments" enable row level security;
+alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
 alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
@@ -2504,17 +2522,16 @@ create policy "ipas_payments_read" on public."ipas_payments"
   for select
   to authenticated
   using (ipas_can_read());
+create policy "ipas_signer_list_log_read" on public."ipas_signer_list_log"
+  as permissive
+  for select
+  to authenticated
+  using (COALESCE(is_super_admin(), false));
 create policy "ipas_signer_lists_read" on public."ipas_signer_lists"
   as permissive
   for select
   to authenticated
   using (ipas_can_read());
-create policy "ipas_signer_lists_write" on public."ipas_signer_lists"
-  as permissive
-  for all
-  to authenticated
-  using (COALESCE(is_super_admin(), false))
-  with check (COALESCE(is_super_admin(), false));
 create policy "ipas_signoffs_read" on public."ipas_signoffs"
   as permissive
   for select
@@ -6330,6 +6347,10 @@ declare
   v_label text;
 begin
   v_row := public._ipas_lock_document('ipas_remove_document', p_document_id);
+  if v_row.kind_id is not null then
+    raise exception 'ipas_remove_document: % is a listed document kind; only a document added by hand can be removed', public._ipas_document_label(v_row)
+      using errcode = '55000';
+  end if;
   if v_row.finance_has then
     raise exception 'ipas_remove_document: Finance has ticked this document; ask Finance to untick it first'
       using errcode = '55000';
@@ -6524,41 +6545,77 @@ declare
   v_ipas public.ipas;
   v_roles text[];
   v_preparers uuid[];
+  v_notify uuid[];
 begin
   if v_actor is null then
     raise exception 'ipas_send_back: not signed in' using errcode = '42501';
   end if;
   if v_reason is null then
-    raise exception 'ipas_send_back: give a reason, so the preparer knows what to fix' using errcode = '22023';
+    raise exception 'ipas_send_back: give a reason, so the people who signed know what to fix' using errcode = '22023';
   end if;
   if length(v_reason) > 500 then
     raise exception 'ipas_send_back: the reason is 500 characters at most' using errcode = '22023';
   end if;
-  -- #248: section 7 is sent back by its own lists and clears its own sign-offs;
-  -- it joins here when Filing lands.
-  if p_section is null or p_section not in (1, 3) then
-    raise exception 'ipas_send_back: only sections 1 and 3 can be sent back' using errcode = '22023';
+  if p_section is null or p_section not in (1, 3, 7) then
+    raise exception 'ipas_send_back: only sections 1, 3 and 7 can be sent back' using errcode = '22023';
   end if;
 
+  -- Refuses a filed or cancelled IPAS (55000): a filed one is reopened, not sent back.
   v_ipas := public._ipas_lock_open('ipas_send_back', p_ipas_id);
 
-  if not public._ipas_can_sign_section(p_section, v_actor) then
-    raise exception 'ipas_send_back: only a signer of section % sends it back', p_section using errcode = '42501';
-  end if;
+  if p_section = 7 then
+    -- Anyone on a section 7 list, whichever sign-off they give.
+    if not public._ipas_can_sign_section(7, v_actor) then
+      raise exception 'ipas_send_back: only a signer of section 7 sends it back' using errcode = '42501';
+    end if;
 
-  with cleared as (
-    update public.ipas_signoffs s
-       set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Sent back: ' || v_reason
-     where s.ipas_id = v_ipas.id
-       and s.section = p_section
-       and s.role in ('prepared', 'approved')
-       and s.cleared_at is null
-    returning s.role, s.signed_by
-  )
-  select coalesce(array_agg(role order by role), '{}'::text[]),
-         coalesce(array_agg(distinct signed_by) filter (where role = 'prepared'), '{}'::uuid[])
-    into v_roles, v_preparers
-    from cleared;
+    -- Section 7 is open once sections 1 and 3 are approved.
+    if not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = v_ipas.id and s.section = 1 and s.role = 'approved' and s.cleared_at is null
+    ) or not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
+    ) then
+      raise exception 'ipas_send_back: section 7 isn''t open yet; sections 1 and 3 must be approved first' using errcode = '55000';
+    end if;
+
+    with cleared as (
+      update public.ipas_signoffs s
+         set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Sent back: ' || v_reason
+       where s.ipas_id = v_ipas.id
+         and s.section = 7
+         and s.role in ('received', 'noted', 'checked')
+         and s.cleared_at is null
+      returning s.role, s.signed_by
+    )
+    select coalesce(array_agg(role order by role), '{}'::text[]),
+           coalesce(array_agg(distinct signed_by) filter (where signed_by is distinct from v_actor), '{}'::uuid[])
+      into v_roles, v_notify
+      from cleared;
+
+    v_preparers := '{}'::uuid[];
+  else
+    if not public._ipas_can_sign_section(p_section, v_actor) then
+      raise exception 'ipas_send_back: only a signer of section % sends it back', p_section using errcode = '42501';
+    end if;
+
+    with cleared as (
+      update public.ipas_signoffs s
+         set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Sent back: ' || v_reason
+       where s.ipas_id = v_ipas.id
+         and s.section = p_section
+         and s.role in ('prepared', 'approved')
+         and s.cleared_at is null
+      returning s.role, s.signed_by
+    )
+    select coalesce(array_agg(role order by role), '{}'::text[]),
+           coalesce(array_agg(distinct signed_by) filter (where role = 'prepared'), '{}'::uuid[])
+      into v_roles, v_preparers
+      from cleared;
+
+    v_notify := v_preparers;
+  end if;
 
   if cardinality(v_roles) = 0 then
     raise exception 'ipas_send_back: section % has nothing to send back', p_section using errcode = '55000';
@@ -6575,7 +6632,8 @@ begin
     'section', p_section,
     'actor_id', v_actor,
     'cleared_roles', to_jsonb(v_roles),
-    'preparer_ids', to_jsonb(v_preparers)
+    'preparer_ids', to_jsonb(v_preparers),
+    'notify_ids', to_jsonb(v_notify)
   );
 end;
 $function$
@@ -6993,6 +7051,81 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_signer_list(p_list_key text, p_employee_ids uuid[])
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_wanted uuid[];
+  v_have uuid[];
+  v_added uuid[];
+  v_removed uuid[];
+  v_missing uuid;
+begin
+  if v_actor is null then
+    raise exception 'ipas_set_signer_list: not signed in' using errcode = '42501';
+  end if;
+  if not coalesce(public.is_super_admin(), false) then
+    raise exception 'ipas_set_signer_list: only a Super Admin changes who is on a sign-off list' using errcode = '42501';
+  end if;
+  if p_list_key is null or p_list_key not in ('s1_approved', 's3_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved') then
+    raise exception 'ipas_set_signer_list: % isn''t a sign-off list', coalesce(p_list_key, 'null') using errcode = '22023';
+  end if;
+
+  select coalesce(array_agg(distinct x), '{}'::uuid[])
+    into v_wanted
+    from unnest(coalesce(p_employee_ids, '{}'::uuid[])) as x
+   where x is not null;
+
+  -- One change to a list at a time.
+  perform pg_advisory_xact_lock(hashtext('ipas_signer_list:' || p_list_key));
+
+  select coalesce(array_agg(l.employee_id), '{}'::uuid[])
+    into v_have
+    from public.ipas_signer_lists l
+   where l.list_key = p_list_key;
+
+  -- Everyone newly added must be a live employee. Someone already on the list
+  -- who has since left can still be taken off it.
+  select x into v_missing
+    from unnest(v_wanted) as x
+   where x <> all (v_have)
+     and not exists (
+       select 1 from public.employees e where e.id = x and not coalesce(e.is_deleted, false)
+     )
+   limit 1;
+  if v_missing is not null then
+    raise exception 'ipas_set_signer_list: employee % isn''t an active employee', v_missing using errcode = 'P0002';
+  end if;
+
+  select coalesce(array_agg(x), '{}'::uuid[]) into v_added from unnest(v_wanted) as x where x <> all (v_have);
+  select coalesce(array_agg(x), '{}'::uuid[]) into v_removed from unnest(v_have) as x where x <> all (v_wanted);
+
+  if cardinality(v_removed) > 0 then
+    delete from public.ipas_signer_lists
+     where list_key = p_list_key and employee_id = any (v_removed);
+  end if;
+  if cardinality(v_added) > 0 then
+    insert into public.ipas_signer_lists (list_key, employee_id)
+    select p_list_key, x from unnest(v_added) as x;
+  end if;
+
+  insert into public.ipas_signer_list_log (list_key, employee_id, action, actor_id)
+  select p_list_key, x, 'removed', v_actor from unnest(v_removed) as x
+  union all
+  select p_list_key, x, 'added', v_actor from unnest(v_added) as x;
+
+  return jsonb_build_object(
+    'list_key', p_list_key,
+    'added', to_jsonb(v_added),
+    'removed', to_jsonb(v_removed)
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_supplier_origin(p_ipas_id uuid, p_fields jsonb)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -7278,6 +7411,32 @@ begin
     'filed', v_filed,
     'notify_ids', to_jsonb(v_notify)
   );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_signature_readable(p_name text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select p_name is not null
+     and public.ipas_can_read()
+     and exists (
+       select 1
+         from public.ipas_signoffs s
+        where s.signature_version = p_name
+          and not s.signature_declined
+     );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_signer_list_log_append_only()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  raise exception 'ipas_signer_list_log is append-only: history can''t be changed (% refused)', tg_op
+    using errcode = '42501';
 end;
 $function$
 ;
@@ -12591,6 +12750,8 @@ CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR 
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_payments_paid_before_approval BEFORE INSERT OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_payments_paid_before_approval();
 CREATE TRIGGER ipas_payments_updated_at BEFORE UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_signer_list_log_no_change BEFORE DELETE OR UPDATE ON public.ipas_signer_list_log FOR EACH ROW EXECUTE FUNCTION ipas_signer_list_log_append_only();
+CREATE TRIGGER ipas_signer_list_log_no_truncate BEFORE TRUNCATE ON public.ipas_signer_list_log FOR EACH STATEMENT EXECUTE FUNCTION ipas_signer_list_log_append_only();
 CREATE TRIGGER ipas_signoffs_guard BEFORE UPDATE ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_guard();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_sors FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();

@@ -5,6 +5,8 @@ export const ipasRefreshKey = (id) => ["ipas", "refresh", id];
 export const ipasSorSearchKey = (term) => ["ipas", "sor-search", term];
 export const ipasOptionsKey = (list) => ["ipas", "options", list];
 export const ipasSignerListsKey = ["ipas", "signer-lists"];
+/** Who changed the sign-off lists (Super Admins). */
+export const ipasSignerListLogKey = ["ipas", "signer-list-log"];
 /** The IPAS awaiting one person's signature (the Approval Center queue and its badge). */
 export const ipasPendingPrefix = ["ipas", "pending-signoffs"];
 export const ipasPendingKey = (employeeId) => [...ipasPendingPrefix, employeeId];

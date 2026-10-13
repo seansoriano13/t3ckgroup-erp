@@ -256,12 +256,10 @@ describe("section 7: the order", () => {
         expect(await liveKeys(ipas.id)).not.toContain("7/received")
     })
 
-    it("has no Prepared, and isn't sent back (that stays with sections 1 and 3)", async () => {
+    it("has no Prepared", async () => {
         const ipas = await raise()
         await approvedThrough(ipas)
         expect((await sign("outsider", ipas.id, 7, "prepared")).error?.code).toBe("22023")
-        const back = await rpc("finance", "ipas_send_back", { p_ipas_id: ipas.id, p_section: 7, p_reason: "No" })
-        expect(back.error?.code).toBe("22023")
     })
 })
 

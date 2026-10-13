@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { ipasService } from "./ipasService"
-import { db } from "@/test/db/store"
+import { db, updateRow } from "@/test/db/store"
 import { stubEdgeFunction } from "@/test/msw/server"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee } from "@/test/factories"
@@ -120,8 +120,8 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       await expect(ipasService.sign(ipas.id, 1, "approved")).rejects.toMatchObject({ code: "42501" })
       expect(live()).toEqual(["1/prepared"])
 
+      as(superAdmin, { superAdmin: true })
       await ipasService.setSignerList("s1_approved", [approver.id, superAdmin.id])
-      as(superAdmin)
       await ipasService.sign(ipas.id, 1, "approved")
       expect(live()).toEqual(["1/approved", "1/prepared"])
     })
@@ -150,7 +150,9 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
           code: IPAS_ERROR.INVALID,
         })
       }
-      await expect(ipasService.sendBack(ipas.id, 7, "x")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
+      for (const section of [2, 4, undefined]) {
+        await expect(ipasService.sendBack(ipas.id, section, "x"), `send back ${section}`).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
+      }
       expect(events("signed", "sent_back")).toEqual([])
     })
   })
@@ -286,6 +288,90 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
 
       expect(out.notified).toBe(0)
       expect(sent(IPAS_NOTIFICATION.SENT_BACK)).toEqual([])
+    })
+  })
+
+  describe("sending back section 7", () => {
+    let receiver, noter, checker
+
+    async function opened() {
+      receiver = makeEmployee({ name: "Rita Receiver" })
+      noter = makeEmployee({ name: "Nina Noter" })
+      checker = makeEmployee({ name: "Carl Checker" })
+      addToList("s1_approved", approver)
+      addToList("s3_approved", approver)
+      addToList("s7_received", receiver)
+      addToList("s7_noted", noter)
+      addToList("s7_checked", checker)
+      const ipas = await raise()
+      await ipasService.sign(ipas.id, 1, "prepared")
+      await ipasService.sign(ipas.id, 3, "prepared")
+      as(approver)
+      await ipasService.sign(ipas.id, 1, "approved")
+      await ipasService.sign(ipas.id, 3, "approved")
+      as(receiver)
+      await ipasService.sign(ipas.id, 7, "received")
+      as(noter)
+      await ipasService.sign(ipas.id, 7, "noted")
+      return ipas
+    }
+
+    it("clears Received, Noted and Checked for any section 7 signer, and tells the others with the reason", async () => {
+      const ipas = await opened()
+      as(checker)
+      await ipasService.sign(ipas.id, 7, "checked")
+      await waitForNetworkIdle()
+      const before = sent(IPAS_NOTIFICATION.SENT_BACK).length
+
+      const out = await ipasService.sendBack(ipas.id, 7, "  Landed cost is off ")
+      await waitForNetworkIdle()
+
+      expect(out).toMatchObject({ clearedRoles: ["checked", "noted", "received"], notified: 2 })
+      expect(live()).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared"])
+
+      const seven = (await read(ipas.id)).signoffSections[7]
+      expect(seven.received).toBeNull()
+      expect(seven.history.map((s) => [s.role, s.clearedReason])).toEqual(
+        expect.arrayContaining([
+          ["received", "Sent back: Landed cost is off"],
+          ["noted", "Sent back: Landed cost is off"],
+          ["checked", "Sent back: Landed cost is off"],
+        ]),
+      )
+      expect(events("sent_back").at(-1).detail).toMatchObject({ section: 7, reason: "Landed cost is off" })
+
+      const notices = sent(IPAS_NOTIFICATION.SENT_BACK).slice(before)
+      expect(notices.map((n) => n.recipient_id).sort()).toEqual([receiver.id, noter.id].sort())
+      expect(notices.every((n) => n.sender_id === checker.id && n.reference_id === ipas.id)).toBe(true)
+      expect(notices[0].message).toContain("section 7")
+      expect(notices[0].message).toContain("Landed cost is off")
+    })
+
+    it("is for someone on a section 7 list: the purchaser, the section 1 approver and a Super Admin off the lists are refused", async () => {
+      const ipas = await opened()
+      for (const person of [buyer, approver, superAdmin]) {
+        as(person)
+        await expect(ipasService.sendBack(ipas.id, 7, "No")).rejects.toMatchObject({ code: "42501" })
+      }
+      expect(live()).toEqual(expect.arrayContaining(["7/noted", "7/received"]))
+    })
+
+    it("refuses when nothing in section 7 is signed, and a filed IPAS", async () => {
+      addToList("s1_approved", approver)
+      addToList("s3_approved", approver)
+      addToList("s7_received", approver)
+      const ipas = await raise()
+      await ipasService.sign(ipas.id, 1, "prepared")
+      await ipasService.sign(ipas.id, 3, "prepared")
+      as(approver)
+      await ipasService.sign(ipas.id, 1, "approved")
+      await ipasService.sign(ipas.id, 3, "approved")
+      await expect(ipasService.sendBack(ipas.id, 7, "Nothing yet")).rejects.toMatchObject({ code: "55000" })
+
+      await ipasService.sign(ipas.id, 7, "received")
+      updateRow("ipas", db.internal.rowsOf("ipas").find((r) => r.id === ipas.id), { state: "filed", filed_at: new Date().toISOString() })
+      await expect(ipasService.sendBack(ipas.id, 7, "Too late")).rejects.toMatchObject({ code: "55000" })
+      expect(live()).toContain("7/received")
     })
   })
 
@@ -475,9 +561,12 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       ])
     })
 
+    const asAdmin = () => as(superAdmin, { superAdmin: true })
+
     it("sets a list to exactly the people given, adding and removing, and leaves the others alone", async () => {
       addToList("s1_approved", approver, otherApprover)
       addToList("s3_approved", approver)
+      asAdmin()
 
       const after = await ipasService.setSignerList("s1_approved", [otherApprover.id, bystander.id])
 
@@ -488,6 +577,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
     })
 
     it("ignores duplicates and blanks, and refuses a list that doesn't exist", async () => {
+      asAdmin()
       const after = await ipasService.setSignerList("s7_noted", [approver.id, approver.id, "", null])
       expect(after.map((m) => m.employeeId)).toEqual([approver.id])
       await expect(ipasService.setSignerList("s2_approved", [approver.id])).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
@@ -500,10 +590,54 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       as(approver)
       await ipasService.sign(ipas.id, 1, "approved")
 
+      asAdmin()
       await ipasService.setSignerList("s1_approved", [])
+      as(approver)
 
       expect(live()).toEqual(["1/approved", "1/prepared"])
       await expect(ipasService.sign(ipas.id, 3, "approved")).rejects.toMatchObject({ code: "42501" })
+    })
+
+    it("is for a Super Admin only: anyone else is refused and nothing changes", async () => {
+      addToList("s1_approved", approver)
+      as(buyer)
+      await expect(ipasService.setSignerList("s1_approved", [bystander.id])).rejects.toMatchObject({ code: "42501" })
+      as(approver)
+      await expect(ipasService.setSignerList("s1_approved", [])).rejects.toMatchObject({ code: "42501" })
+
+      expect((await ipasService.getSignerLists()).s1_approved.map((m) => m.employeeId)).toEqual([approver.id])
+      expect(db.rows("ipas_signer_list_log")).toEqual([])
+    })
+
+    it("writes each person added and removed to the log, and reads it back newest first with names", async () => {
+      addToList("s1_approved", approver)
+      asAdmin()
+
+      await ipasService.setSignerList("s1_approved", [otherApprover.id, bystander.id])
+      await ipasService.setSignerList("s1_approved", [otherApprover.id, bystander.id])
+      await ipasService.setSignerList("s7_noted", [approver.id])
+
+      const log = await ipasService.getSignerListLog()
+      expect(log).toHaveLength(4)
+      expect(log.map((row) => [row.listKey, row.action, row.employeeName, row.actorName])).toEqual(
+        expect.arrayContaining([
+          ["s1_approved", "added", "Co Approver", "Super Admin"],
+          ["s1_approved", "added", "Bystander", "Super Admin"],
+          ["s1_approved", "removed", "Boss Lito", "Super Admin"],
+          ["s7_noted", "added", "Boss Lito", "Super Admin"],
+        ]),
+      )
+      expect(new Date(log[0].at) >= new Date(log[3].at)).toBe(true)
+      expect(await ipasService.getSignerListLog({ limit: 2 })).toHaveLength(2)
+    })
+
+    it("writes nothing for a list left as it was", async () => {
+      addToList("s1_approved", approver)
+      asAdmin()
+
+      await ipasService.setSignerList("s1_approved", [approver.id])
+
+      expect(await ipasService.getSignerListLog()).toEqual([])
     })
   })
 })

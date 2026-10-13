@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { SIGNOFF_STATUS, sectionSignoffs, shapeSignoff, shapeSignoffs, signoffRights } from "./ipasSignoffs"
+import {
+  SIGNOFF_STATUS,
+  canSendBackItem,
+  canSendBackSection7,
+  sectionSignoffs,
+  shapeSignoff,
+  shapeSignoffs,
+  signoffRights,
+} from "./ipasSignoffs"
 
 const row = (over = {}) => ({
   id: "s1",
@@ -99,5 +107,37 @@ describe("what the viewer is offered", () => {
   it("reads missing lists and a missing user as nobody", () => {
     expect(rights({ lists: undefined, userId: "boss", sectionState: prepared }).canApprove).toBe(false)
     expect(rights({ userId: null, sectionState: prepared }).onList).toBe(false)
+  })
+})
+
+describe("sending section 7 back", () => {
+  const lists = {
+    s7_received: [{ employeeId: "rita" }],
+    s7_noted: [{ employeeId: "nina" }],
+    s7_checked: [{ employeeId: "carl" }],
+    s7_approved: [{ employeeId: "boss" }],
+  }
+  const live = { opened: true, received: { id: "r" }, noted: null, checked: null }
+
+  it("is offered to anyone on a section 7 list while Received, Noted or Checked is live", () => {
+    for (const userId of ["rita", "nina", "carl", "boss"]) {
+      expect(canSendBackSection7({ state: live, userId, lists, ipasState: "open" }), userId).toBe(true)
+    }
+  })
+
+  it("isn't offered to someone on no section 7 list, before section 7 opens, with nothing live, or off an open IPAS", () => {
+    expect(canSendBackSection7({ state: live, userId: "buyer", lists, ipasState: "open" })).toBe(false)
+    expect(canSendBackSection7({ state: live, userId: null, lists, ipasState: "open" })).toBe(false)
+    expect(canSendBackSection7({ state: { ...live, opened: false }, userId: "rita", lists, ipasState: "open" })).toBe(false)
+    expect(canSendBackSection7({ state: { opened: true, received: null, noted: null, checked: null }, userId: "rita", lists, ipasState: "open" })).toBe(false)
+    expect(canSendBackSection7({ state: live, userId: "rita", lists, ipasState: "filed" })).toBe(false)
+    expect(canSendBackSection7({ state: live, userId: "rita", lists: undefined, ipasState: "open" })).toBe(false)
+  })
+
+  it("is offered on a queue item for every section 7 step after Received, and for sections 1 and 3", () => {
+    expect(canSendBackItem({ section: 1, role: "approved" })).toBe(true)
+    expect(canSendBackItem({ section: 3, role: "approved" })).toBe(true)
+    expect(canSendBackItem({ section: 7, role: "received" })).toBe(false)
+    for (const role of ["noted", "checked", "approved"]) expect(canSendBackItem({ section: 7, role }), role).toBe(true)
   })
 })

@@ -161,7 +161,7 @@ function IpasList() {
                 size="sm"
                 variant="outline"
                 className="gap-1.5"
-                onClick={() => navigate("/purchasing/ipas/settings")}
+                onClick={() => navigate("/settings?tab=purchasing")}
               >
                 <Settings2 size={14} />
                 IPAS settings

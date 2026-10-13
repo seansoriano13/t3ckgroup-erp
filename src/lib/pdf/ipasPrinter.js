@@ -76,7 +76,13 @@ export async function hydrateIpasSignatures(vm) {
 export async function prepareIpasForPrint(id, { filingCopy = false, printedBy = null, now = new Date() } = {}) {
   const ipas = await ipasService.getForPrint(id);
   if (!ipas) throw new Error("That IPAS isn't there, or you don't have access to it.");
-  const vm = buildIpasViewModel(ipas, { filingCopy, printedAt: now.toISOString(), printedBy });
+  // The filing copy (full account number) exists only for a filed IPAS; on an
+  // open or cancelled one the request is ignored and the ordinary, masked copy prints.
+  const vm = buildIpasViewModel(ipas, {
+    filingCopy: filingCopy && ipas.state === 'filed',
+    printedAt: now.toISOString(),
+    printedBy,
+  });
   return hydrateIpasSignatures(vm);
 }
 

@@ -3,7 +3,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import IpasSettingsPage from "@/pages/purchasing/ipas/settings";
+import SettingsPage from "@/pages/settings";
+import IpasSettingsRedirect from "@/pages/purchasing/ipas/settings";
 import { renderWithProviders } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
@@ -65,9 +66,9 @@ function renderDetail(id) {
 
 function renderSettings() {
   return renderWithProviders(
-    <MemoryRouter initialEntries={["/purchasing/ipas/settings"]}>
+    <MemoryRouter initialEntries={["/settings?tab=purchasing"]}>
       <Routes>
-        <Route path="/purchasing/ipas/settings" element={<IpasSettingsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
         <Route path="/" element={<p>Home</p>} />
       </Routes>
@@ -502,14 +503,44 @@ describe("IPAS settings", () => {
     await waitFor(() => expect(db.rows("ipas_options").find((o) => o.id === id).label).toBe("Corporate Card"));
   });
 
-  it("is open to Super Admins, and sends everyone else home", async () => {
+  it("is the Purchasing tab of Settings: open to Super Admins and Purchasing access, absent for everyone else", async () => {
     mockUser.current = superAdmin;
     const first = renderSettings();
+    expect(await screen.findByRole("tab", { name: "Payment methods" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Purchasing" })).toHaveAttribute("aria-selected", "true");
+    first.unmount();
+
+    mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
+    const second = renderSettings();
+    expect(await screen.findByRole("tab", { name: "Payment methods" })).toBeInTheDocument();
+    second.unmount();
+
+    mockUser.current = employee;
+    renderSettings();
+    expect(await screen.findByText("App preferences")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Purchasing" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Payment methods" })).not.toBeInTheDocument();
+  });
+
+  it("keeps /purchasing/ipas/settings working: it lands on the Purchasing tab, and sends everyone else home", async () => {
+    const renderOld = () =>
+      renderWithProviders(
+        <MemoryRouter initialEntries={["/purchasing/ipas/settings"]}>
+          <Routes>
+            <Route path="/purchasing/ipas/settings" element={<IpasSettingsRedirect />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/" element={<p>Home</p>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+    mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
+    const first = renderOld();
     expect(await screen.findByRole("tab", { name: "Payment methods" })).toBeInTheDocument();
     first.unmount();
 
     mockUser.current = employee;
-    renderSettings();
+    renderOld();
     expect(await screen.findByText("Home")).toBeInTheDocument();
   });
 });

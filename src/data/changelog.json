@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: follow-ups",
+        "version": "1.9.23",
+        "changes": [
+            "IPAS: everyone who can read an IPAS now sees signers' signatures on the printed form. The filing copy of a printed IPAS is offered on filed IPAS only.",
+            "IPAS: section 7 can be sent back with a reason by anyone who signs it; the people who had signed are told. A suggested document can no longer be removed, only one added by hand.",
+            "Settings: the IPAS lists and sign-off lists moved into a new Purchasing tab, and Super Admins can see who changed the sign-off lists."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: review fixes",
         "version": "1.9.22",
         "changes": [

@@ -21,6 +21,7 @@ import LeaveCategoriesConfig from "../../components/hr/LeaveCategoriesConfig";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
 import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
+import PurchasingSettings from "../../components/settings/PurchasingSettings";
 import SystemUpdateBanner from "../../components/SystemUpdateBanner";
 import SystemUpdateManager from "../../components/SystemUpdateManager";
 import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications } from "../../utils/pushNotifications";
@@ -310,6 +311,17 @@ function SalesPanel() {
   );
 }
 
+/**
+ * Purchasing (IPAS) lists: Purchasing access and Super Admins edit the option
+ * lists; the sign-off lists are Super Admins only (#241). Replaces the old
+ * /purchasing/ipas/settings page, which now redirects here.
+ */
+function PurchasingPanel() {
+  const { user } = useAuth();
+  const { isSuperAdmin } = getPermissionContext(user);
+  return <PurchasingSettings isSuperAdmin={isSuperAdmin} />;
+}
+
 function EmployeeGroupsPanel() {
   return (
     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
@@ -349,6 +361,7 @@ const TAB_DEFS = [
   { value: "approvals", label: "Approval Rules", isPermitted: (c) => c.isSuperAdmin, Panel: ApprovalRulesPanel },
   { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: HrPanel },
   { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
+  { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow, Panel: PurchasingPanel },
   { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin, Panel: EmployeeGroupsPanel },
   { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin, Panel: AnnouncementsPanel },
 ];

@@ -112,6 +112,8 @@ export const SEED_TABLES = [
   // signature_version column holds a storage path, never the image.
   "ipas_signoffs",
   "ipas_signer_lists",
+  // Who changed those lists (#241): history about employees, no sensitive data.
+  "ipas_signer_list_log",
   "odoo_retail_queue",
 ]
 

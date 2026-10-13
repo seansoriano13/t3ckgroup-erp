@@ -1,4 +1,4 @@
-import { Check, Circle, FileCheck2 } from "lucide-react";
+import { Check, Circle, CornerUpLeft, FileCheck2 } from "lucide-react";
 
 import { Button } from "../ui/button";
 import SectionHeader from "../ui/SectionHeader";
@@ -48,8 +48,11 @@ const WHY_NOT = {
  *
  *   rights     section7Rights(...) for the signed-in person
  *   onGive     (role) => void; the page owns the mutation (and the filing dialog)
+ *   canSendBack / onSendBack
+ *              a section 7 signer returns Received, Noted and Checked with a
+ *              reason (canSendBackSection7); the page owns the dialog
  */
-export function IpasFilingSection({ ipas, rights, busy = false, onGive }) {
+export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendBack = false, onSendBack }) {
   const state = ipas.signoffSections[7];
   const badge = STATUS_BADGE[state.status];
   const checklist = filingChecklist(ipas.documents ?? []);
@@ -117,6 +120,19 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive }) {
                   : `${IPAS_SIGNOFF_ROLE_ACTIONS[role]} (${IPAS_SIGNOFF_ROLE_LABELS[role]})`}
               </Button>
             ))}
+            {canSendBack && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={busy}
+                onClick={onSendBack}
+                data-testid="ipas-send-back-7"
+              >
+                <CornerUpLeft size={14} />
+                Send back
+              </Button>
+            )}
           </SectionHeader>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

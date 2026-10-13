@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import IpasSettingsPage from "@/pages/purchasing/ipas/settings";
+import SettingsPage from "@/pages/settings";
 import { renderWithProviders } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
@@ -147,6 +147,26 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
       await waitFor(() => expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).finance_has).toBe(true));
       expect(db.rows("ipas_events").at(-1)).toMatchObject({ kind: "document_ticked", actor_id: finance.id, detail: { side: "finance", value: true } });
+    });
+
+    it("offers Remove on a hand-added row only, never on a suggested one", async () => {
+      const row = ipas({ source: "import", created_by: purchaser.id });
+      giveDocuments(row);
+      db.seed("ipas_documents", { ipas_id: row.id, kind_id: null, label: "Warranty card", attachment_url: null, purchasing_has: false, finance_has: false });
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      const waybill = await documentRow("Waybill");
+      expect(within(waybill).queryByRole("button", { name: /Remove Waybill/ })).not.toBeInTheDocument();
+      const bir = await documentRow("BIR 2307");
+      expect(within(bir).queryByRole("button", { name: /Remove BIR 2307/ })).not.toBeInTheDocument();
+
+      const warranty = await documentRow("Warranty card");
+      await user.click(within(warranty).getByRole("button", { name: "Remove Warranty card" }));
+      await user.click(await screen.findByRole("button", { name: "Remove" }));
+
+      await waitFor(() => expect(db.rows("ipas_documents").some((d) => d.label === "Warranty card")).toBe(false));
+      expect(await documentRow("Waybill")).toBeTruthy();
     });
 
     it("adds a document by hand, with its own name", async () => {
@@ -344,9 +364,9 @@ describe("IPAS settings: document kinds and Item Locations", () => {
 
   function renderSettings() {
     return renderWithProviders(
-      <MemoryRouter initialEntries={["/purchasing/ipas/settings"]}>
+      <MemoryRouter initialEntries={["/settings?tab=purchasing"]}>
         <Routes>
-          <Route path="/purchasing/ipas/settings" element={<IpasSettingsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </MemoryRouter>,
     );

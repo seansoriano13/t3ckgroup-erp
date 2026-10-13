@@ -14,6 +14,8 @@ const doc = (ipasOptions, printOptions, tweak) => {
   return buildIpasDocument(vm)
 }
 
+const FILED = { state: "filed", filed_at: "2026-09-16T02:00:00.000Z" }
+
 const IMAGE = "data:image/png;base64,iVBORw0KGgo="
 
 describe("the two A4 pages", () => {
@@ -58,7 +60,7 @@ describe("the two A4 pages", () => {
 
   it("marks the filing copy on both pages and in the window title", () => {
     const ordinary = doc()
-    const filing = doc({}, { filingCopy: true })
+    const filing = doc({ row: FILED }, { filingCopy: true })
 
     expect(ordinary).not.toContain("Filing copy")
     expect(filing.match(/copy-mark">Filing copy/g)).toHaveLength(2)
@@ -158,7 +160,7 @@ describe("marks and the legend", () => {
 describe("account numbers and bank details", () => {
   it("prints the masked number on an ordinary print and the whole number only on the filing copy", () => {
     const ordinary = doc()
-    const filing = doc({}, { filingCopy: true })
+    const filing = doc({ row: FILED }, { filingCopy: true })
 
     expect(ordinary).toContain("•••• 4417")
     expect(ordinary).not.toContain("0012 3456 7890 4417")
@@ -168,7 +170,7 @@ describe("account numbers and bank details", () => {
 
   it("prints no bank block at all for someone who can't read bank details, filing copy included", () => {
     for (const filingCopy of [false, true]) {
-      const html = doc({ canReadBankDetails: false }, { filingCopy })
+      const html = doc({ canReadBankDetails: false, row: FILED }, { filingCopy })
 
       expect(html).not.toContain("Account #")
       expect(html).not.toContain("BDO Unibank")

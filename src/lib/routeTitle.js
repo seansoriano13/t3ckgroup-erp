@@ -20,7 +20,6 @@ const TITLES = [
   ["/my-sors", "My SORs"],
   ["/offsets", "Offsets"],
   ["/profile", "Profile"],
-  ["/purchasing/ipas/settings", "IPAS settings"],
   ["/purchasing/ipas", "IPAS"],
   ["/purchasing", "Purchasing"],
   ["/release-notes", "Release Notes"],

@@ -15,6 +15,7 @@ import { ipasService } from "../../../services/ipasService";
 import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_ACTIONS, IPAS_SIGNOFF_ROLE_LABELS } from "../../../constants/ipas";
 import { ipasToItem } from "../../../utils/approvalItems.js";
 import { ipasErrorMessage } from "../../../utils/ipas";
+import { canSendBackItem } from "../../../utils/ipasSignoffs";
 import { useRecordParam } from "../../../hooks/useRecordParam";
 import { APPROVAL_QUEUES, useApprovalRoles } from "../_components/useApprovalQueues";
 import { ApprovalCenterLayout } from "../_components/ApprovalCenterLayout";
@@ -30,8 +31,9 @@ const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "ipas");
  * section 1 or 3 that Purchasing has prepared and that waits on the signed-in
  * person (on that section's approval list, and not its preparer), and every
  * section 7 step that is theirs to give once the one before it is. Approve signs
- * it; Send back returns a section 1 or 3 to its preparer with a reason; section
- * 7's Approved goes through the dialog that lists the required documents
+ * it; Send back returns a section 1 or 3 to its preparer with a reason, and
+ * returns section 7 (Received, Noted and Checked) from any step after Received;
+ * section 7's Approved goes through the dialog that lists the required documents
  * nobody has ticked and files the IPAS. The IPAS itself is one click from the
  * review sheet.
  */
@@ -123,7 +125,11 @@ function IpasSignoffsQueue() {
   const sendBack = useMutation({
     mutationFn: ({ item, reason }) => ipasService.sendBack(item.source.ipasId, item.source.section, reason),
     onSuccess: (_, { item }) => {
-      toast.success(`${item.ref} section ${item.source.section} sent back to its preparer.`);
+      toast.success(
+        item.source.section === 7
+          ? `${item.ref} section 7 sent back. The people who had signed it were told.`
+          : `${item.ref} section ${item.source.section} sent back to its preparer.`,
+      );
       advance(item);
       settled(item);
     },
@@ -180,7 +186,7 @@ function IpasSignoffsQueue() {
           keyboard={!open}
           renderRowAction={(item) => (
             <>
-              {item.source.section !== 7 && (
+              {canSendBackItem(item.source) && (
                 <Tooltip content="Send back">
                   <Button
                     variant="outline"
@@ -257,7 +263,12 @@ function IpasSignoffsQueue() {
         open={sendingBack !== null}
         onOpenChange={(next) => !next && setSendingBack(null)}
         title={sendingBack ? `Send ${sendingBack.ref} section ${sendingBack.source.section} back?` : "Send back?"}
-        description="It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
+        description={
+          sendingBack?.source.section === 7
+            ? "It clears Received, Noted and Checked and tells the people who gave them. Sections 1 and 3 stay approved. The history keeps what was cleared."
+            : "It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
+        }
+        placeholder={sendingBack?.source.section === 7 ? "What needs fixing before it is filed?" : undefined}
         onSubmit={(reason) => sendBack.mutateAsync({ item: sendingBack, reason })}
       />
     </>

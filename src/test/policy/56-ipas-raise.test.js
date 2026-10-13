@@ -612,13 +612,21 @@ describe("the sign-off lists", () => {
         const byHr = await tryInsert(await clientFor("hr"), "ipas_signer_lists", rowFor("ordinary"))
         expect(byHr.ok).toBe(false)
 
+        // Not even a Super Admin writes the table directly: ipas_set_signer_list
+        // is the one way in, so every change is logged.
         const bySuperAdmin = await tryInsert(await clientFor("superAdmin"), "ipas_signer_lists", rowFor("ordinary"))
-        expect(bySuperAdmin.ok, bySuperAdmin.message).toBe(true)
+        expect(bySuperAdmin.ok).toBe(false)
+
+        const viaRpc = await (await clientFor("superAdmin")).rpc("ipas_set_signer_list", {
+            p_list_key: "s7_noted",
+            p_employee_ids: [ids.ordinary],
+        })
+        expect(viaRpc.error).toBeNull()
         try {
             // Membership alone makes someone a reader.
             expect((await (await clientFor("ordinary")).rpc("ipas_can_read")).data).toBe(true)
         } finally {
-            await svc().from("ipas_signer_lists").delete().eq("id", bySuperAdmin.id)
+            await (await clientFor("superAdmin")).rpc("ipas_set_signer_list", { p_list_key: "s7_noted", p_employee_ids: [] })
         }
         expect((await (await clientFor("ordinary")).rpc("ipas_can_read")).data).toBe(false)
     })

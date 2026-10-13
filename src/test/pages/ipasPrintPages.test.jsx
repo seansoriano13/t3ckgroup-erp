@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import { renderWithProviders } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
-import { db } from "@/test/db/store";
+import { db, updateRow } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 
@@ -39,6 +39,9 @@ const copy = (po) => ({
   receipts: { status: "pending", done: 0, total: 1 },
   bills: { count: 0, draft: 0 },
 });
+
+const patchIpas = (id, patch) =>
+  updateRow("ipas", db.internal.rowsOf("ipas").find((r) => r.id === id), patch);
 
 const renderDetail = (id) =>
   renderWithProviders(
@@ -93,10 +96,11 @@ describe("IPAS page: print", () => {
     });
   });
 
-  it("prints the filing copy from its own action", async () => {
+  it("offers the filing copy only on a filed IPAS, and prints it from its own action", async () => {
     const win = { name: "print-window" };
     printer.openPrintWindow.mockReturnValue(win);
     printer.printIpas.mockResolvedValue(undefined);
+    patchIpas(row.id, { state: "filed", filed_at: "2026-10-13T03:00:00.000Z" });
     const user = userEvent.setup();
 
     renderDetail(row.id);
@@ -104,6 +108,32 @@ describe("IPAS page: print", () => {
 
     await waitFor(() => expect(printer.printIpas).toHaveBeenCalledTimes(1));
     expect(printer.printIpas.mock.calls[0][1]).toMatchObject({ filingCopy: true, printWindow: win });
+  });
+
+  it("offers only the plain Print on an open IPAS", async () => {
+    renderDetail(row.id);
+
+    expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Print filing copy" })).not.toBeInTheDocument();
+  });
+
+  it("offers only the plain Print on a cancelled IPAS", async () => {
+    patchIpas(row.id, { state: "cancelled", cancelled_at: "2026-10-13T03:00:00.000Z", cancel_reason: "Duplicate" });
+
+    renderDetail(row.id);
+
+    expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Print filing copy" })).not.toBeInTheDocument();
+  });
+
+  it("offers no filing copy on a filed IPAS to someone who can't read bank details", async () => {
+    patchIpas(row.id, { state: "filed", filed_at: "2026-10-13T03:00:00.000Z" });
+    stubIpasRpcs({ actorId: finance.id, bankReader: false });
+
+    renderDetail(row.id);
+
+    expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Print filing copy" })).not.toBeInTheDocument();
   });
 
   it("prints nothing, and says why, when the popup is blocked", async () => {

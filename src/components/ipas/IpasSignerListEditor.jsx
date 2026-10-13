@@ -8,7 +8,10 @@ import { ipasService } from "../../services/ipasService";
 import { IPAS_SIGNER_LISTS, IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS } from "../../constants/ipas";
 import { SELECTOR_TYPES } from "../../utils/resolvePeople";
 import { ipasErrorMessage } from "../../utils/ipas";
-import { ipasPendingPrefix, ipasSignerListsKey } from "./ipasKeys";
+import { formatDate } from "../../utils/formatDate.js";
+import { ipasPendingPrefix, ipasSignerListLogKey, ipasSignerListsKey } from "./ipasKeys";
+
+const LOG_LIMIT = 20;
 
 const WHO = {
   [IPAS_SIGNER_LIST.S1_APPROVED]: "Approves section 1: buying from and paying the supplier. Never the person who prepared it.",
@@ -40,12 +43,19 @@ export default function IpasSignerListEditor() {
     onSuccess: () => {
       toast.success("Sign-off list saved.");
       queryClient.invalidateQueries({ queryKey: ipasSignerListsKey });
+      queryClient.invalidateQueries({ queryKey: ipasSignerListLogKey });
       queryClient.invalidateQueries({ queryKey: ipasPendingPrefix });
     },
     onError: (error) => {
       toast.error(ipasErrorMessage(error));
       queryClient.invalidateQueries({ queryKey: ipasSignerListsKey });
     },
+  });
+
+  // The last few changes, so a Super Admin can see who edited the lists and when.
+  const log = useQuery({
+    queryKey: ipasSignerListLogKey,
+    queryFn: () => ipasService.getSignerListLog({ limit: LOG_LIMIT }),
   });
 
   if (isLoading) return <PageLoading label="sign-off lists" />;
@@ -76,6 +86,28 @@ export default function IpasSignerListEditor() {
           )}
         </section>
       ))}
+
+      <section className="rounded-xl border border-border bg-card p-4" data-testid="ipas-signer-list-log">
+        <h3 className="text-sm font-semibold text-foreground">Who changed the lists</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">The last {LOG_LIMIT} changes, newest first.</p>
+        {log.isError ? (
+          <p className="mt-2 text-xs text-muted-foreground">The history could not be loaded.</p>
+        ) : (log.data ?? []).length === 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">{log.isLoading ? "Loading…" : "No changes yet."}</p>
+        ) : (
+          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {log.data.map((entry) => (
+              <li key={entry.id} data-testid="ipas-signer-list-log-entry">
+                <span className="font-medium text-foreground">{entry.actorName ?? "Someone"}</span>{" "}
+                {entry.action === "added" ? "added" : "removed"}{" "}
+                <span className="font-medium text-foreground">{entry.employeeName ?? "someone"}</span>{" "}
+                {entry.action === "added" ? "to" : "from"} {IPAS_SIGNER_LIST_LABELS[entry.listKey] ?? entry.listKey} ·{" "}
+                {formatDate(entry.at)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

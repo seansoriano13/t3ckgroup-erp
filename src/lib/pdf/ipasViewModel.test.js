@@ -7,6 +7,8 @@ import { BAUTISTA, CRUZ, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipa
  * `ipasService.get`'s result. The fixture goes through the real `shapeIpas`.
  */
 
+const FILED = { state: "filed", filed_at: "2026-09-16T02:00:00.000Z" }
+
 const vm = (ipasOptions, printOptions) => buildIpasViewModel(makePrintableIpas(ipasOptions), printOptions)
 
 describe("formatting", () => {
@@ -52,16 +54,26 @@ describe("bank details and account numbers", () => {
     expect(JSON.stringify(vm())).not.toContain("0012 3456 7890")
   })
 
-  it("prints the number in full only on the filing copy", () => {
-    const model = vm({}, { filingCopy: true })
+  it("prints the number in full only on the filing copy of a filed IPAS", () => {
+    const model = vm({ row: FILED }, { filingCopy: true })
 
     expect(model.filingCopy).toBe(true)
     expect(model.section3.bank).toMatchObject({ accountNumber: "0012 3456 7890 4417", masked: false })
   })
 
+  it("ignores a filing copy request on an open or cancelled IPAS and prints it masked", () => {
+    for (const state of ["open", "cancelled"]) {
+      const model = vm({ row: { state } }, { filingCopy: true })
+
+      expect(model.filingCopy).toBe(false)
+      expect(model.section3.bank).toMatchObject({ accountNumber: "•••• 4417", masked: true })
+      expect(JSON.stringify(model)).not.toContain("0012 3456 7890")
+    }
+  })
+
   it("prints no bank details for someone who can't read them, filing copy included", () => {
     const ordinary = vm({ canReadBankDetails: false })
-    const filing = vm({ canReadBankDetails: false }, { filingCopy: true })
+    const filing = vm({ canReadBankDetails: false, row: FILED }, { filingCopy: true })
 
     expect(ordinary.section3.bank).toBeNull()
     expect(filing.section3.bank).toBeNull()
@@ -69,7 +81,7 @@ describe("bank details and account numbers", () => {
   })
 
   it("drops bank details even if a caller hands over a row the person may not read", () => {
-    const ipas = { ...makePrintableIpas({ canReadBankDetails: false }), bankDetails: { bankName: "BDO", accountName: "X", accountNumber: "9999 8888 7777", flagged: false } }
+    const ipas = { ...makePrintableIpas({ canReadBankDetails: false, row: FILED }), bankDetails: { bankName: "BDO", accountName: "X", accountNumber: "9999 8888 7777", flagged: false } }
 
     expect(buildIpasViewModel(ipas, { filingCopy: true }).section3.bank).toBeNull()
   })

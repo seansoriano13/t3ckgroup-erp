@@ -257,19 +257,31 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       ])
     })
 
-    it("removes a row, unless Finance has ticked it", async () => {
+    it("removes a hand-added row, unless Finance has ticked it", async () => {
       const ipas = await raise("import", "P03031")
       const memo = await ipasService.addDocument(ipas.id, { label: "Memo" })
-      const waybill = doc(await read(ipas.id), "Waybill")
+      const ticked = await ipasService.addDocument(ipas.id, { label: "Cover letter" })
       asFinance()
-      await ipasService.tickDocument(waybill.id, "finance", true)
+      await ipasService.tickDocument(ticked.id, "finance", true)
       asBuyer()
 
-      await expect(ipasService.removeDocument(waybill.id)).rejects.toMatchObject({ code: "55000" })
+      await expect(ipasService.removeDocument(ticked.id)).rejects.toMatchObject({ code: "55000" })
       await ipasService.removeDocument(memo.id)
 
-      expect(labels((await read(ipas.id)).documents)).not.toContain("Memo")
+      const left = labels((await read(ipas.id)).documents)
+      expect(left).not.toContain("Memo")
+      expect(left).toContain("Cover letter")
       expect(eventsOf("document_removed")).toHaveLength(1)
+    })
+
+    it("refuses to remove a suggested row (one with a document kind)", async () => {
+      const ipas = await raise("import", "P03033")
+      const waybill = doc(await read(ipas.id), "Waybill")
+
+      await expect(ipasService.removeDocument(waybill.id)).rejects.toMatchObject({ code: "55000" })
+
+      expect(labels((await read(ipas.id)).documents)).toContain("Waybill")
+      expect(eventsOf("document_removed")).toHaveLength(0)
     })
 
     it("reads the filing checklist off the same rows: a document ticked in section 3 is ticked at Filing", async () => {

@@ -288,22 +288,24 @@ describe("call signs", () => {
 })
 
 describe("the signer lists", () => {
-    it("are written by a Super Admin only: add, change and remove", async () => {
-        const rowFor = (who) => ({ list_key: "s7_checked", employee_id: ids[who] })
+    it("are changed through ipas_set_signer_list by a Super Admin only: add and remove", async () => {
+        const set = (who, employeeIds) =>
+            rpc(who, "ipas_set_signer_list", { p_list_key: "s7_checked", p_employee_ids: employeeIds })
         for (const who of ["outsider", "finance", "hr", "ipasSigner"]) {
-            const inserted = await tryInsert(await clientFor(who), "ipas_signer_lists", rowFor("ordinary"))
-            expect(inserted.ok, `${who} added to a list`).toBe(false)
+            expect((await set(who, [ids.ordinary])).error?.code, `${who} changed a list`).toBe("42501")
         }
+        expect((await svc().from("ipas_signer_lists").select("id").eq("list_key", "s7_checked").eq("employee_id", ids.ordinary)).data).toHaveLength(0)
 
-        const added = await tryInsert(await clientFor("superAdmin"), "ipas_signer_lists", rowFor("ordinary"))
-        expect(added.ok, added.message).toBe(true)
+        const added = await set("superAdmin", [ids.ordinary])
+        expect(added.error).toBeNull()
+        const [row] = (await svc().from("ipas_signer_lists").select("id").eq("list_key", "s7_checked").eq("employee_id", ids.ordinary)).data
 
         for (const who of ["outsider", "finance", "hr", "ipasSigner"]) {
-            const del = await tryDelete(await clientFor(who), "ipas_signer_lists", added.id)
+            const del = await tryDelete(await clientFor(who), "ipas_signer_lists", row.id)
             expect(del.affected, `${who} removed from a list`).toBe(0)
         }
-        const removed = await tryDelete(await clientFor("superAdmin"), "ipas_signer_lists", added.id)
-        expect(removed.affected).toBe(1)
+        expect((await set("superAdmin", [])).error).toBeNull()
+        expect((await svc().from("ipas_signer_lists").select("id").eq("list_key", "s7_checked")).data).toHaveLength(0)
     })
 })
 
@@ -424,8 +426,11 @@ describe("ipas_sign: Approved", () => {
         expect(await liveKeys(ipas.id)).toEqual(["1/prepared"])
 
         // A Super Admin writes the lists, so can add themselves.
-        const added = await tryInsert(await clientFor("superAdmin"), "ipas_signer_lists", { list_key: "s1_approved", employee_id: ids.superAdmin })
-        expect(added.ok, added.message).toBe(true)
+        const added = await rpc("superAdmin", "ipas_set_signer_list", {
+            p_list_key: "s1_approved",
+            p_employee_ids: [ids.ipasSigner, ids.superAdmin],
+        })
+        expect(added.error).toBeNull()
         const { error } = await sign("superAdmin", ipas.id, 1, "approved")
         expect(error).toBeNull()
         expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared"])
@@ -579,10 +584,10 @@ describe("ipas_send_back", () => {
         expect((await sendBack("superAdmin", ipas.id, 1, "Not the right supplier")).error).toBeNull()
     })
 
-    it("refuses a section with nothing signed, section 7 and others, and a filed or cancelled IPAS", async () => {
+    it("refuses a section with nothing signed, a section that can't be sent back, and a filed or cancelled IPAS", async () => {
         const ipas = await raise()
         expect((await sendBack("ipasSigner", ipas.id, 1, "Nothing here")).error?.code).toBe("55000")
-        expect((await sendBack("ipasSigner", ipas.id, 7, "x")).error?.code).toBe("22023")
+        expect((await sendBack("ipasSigner", ipas.id, 7, "x")).error?.code).toBe("42501") // on no section 7 list
         expect((await sendBack("ipasSigner", ipas.id, 2, "x")).error?.code).toBe("22023")
 
         const filed = await approved()

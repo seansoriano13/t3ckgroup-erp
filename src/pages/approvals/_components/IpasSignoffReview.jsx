@@ -11,6 +11,7 @@ import {
   IPAS_SIGNOFF_ROLE_LABELS,
 } from "../../../constants/ipas";
 import { formatAmount } from "../../../utils/ipas";
+import { canSendBackItem } from "../../../utils/ipasSignoffs";
 import { relativeAge } from "../../../utils/approvalItems.js";
 import { APPROVE_CLASS, whyYouSeeThis } from "./approvalUi";
 
@@ -21,7 +22,8 @@ import { APPROVE_CLASS, whyYouSeeThis } from "./approvalUi";
  * details) is one click away, and the signer is expected to read it there.
  * `onApprove(item)` gives the sign-off (section 7's Approved opens the filing
  * dialog the page owns); `onSendBack(item)` opens the reason dialog the page
- * owns, and only sections 1 and 3 have one.
+ * owns: sections 1 and 3 always have one; section 7 only once Received is
+ * given (there is nothing to return before it).
  */
 export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting }) {
   const pending = item.source;
@@ -70,7 +72,7 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
 
       <SlideOverFooter>
         <div className="flex gap-2">
-          {!isFiling && (
+          {canSendBackItem(pending) && (
             <Button variant="outline" className="flex-1" disabled={isSubmitting} onClick={() => onSendBack(item)}>
               Send back
             </Button>

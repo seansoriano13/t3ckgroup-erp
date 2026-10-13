@@ -652,7 +652,12 @@ export const ipasService = {
     return data;
   },
 
-  /** Removes a document row (Purchasing), unless Finance has ticked it. History keeps what was removed. */
+  /**
+   * Removes a document row that was added by hand (Purchasing), unless Finance
+   * has ticked it. A row with a document kind (suggested, or picked from the
+   * list) can't be removed: the database refuses it. History keeps what was
+   * removed.
+   */
   async removeDocument(documentId) {
     const { data, error } = await supabase.rpc("ipas_remove_document", { p_document_id: documentId });
     if (error) throw error;
@@ -982,17 +987,20 @@ export const ipasService = {
   },
 
   /**
-   * Returns section 1 or 3 with a reason: clears its live Prepared and Approved
-   * (kept as history) and notifies whoever prepared it. Only a signer of that
-   * section may (the database refuses anyone else, a Super Admin off the list
-   * included). The reason is required and is in the notification.
+   * Returns a section with a reason. Section 1 or 3: clears its live Prepared
+   * and Approved (kept as history) and notifies whoever prepared it. Section 7:
+   * while it is open and the IPAS isn't filed, clears the live Received, Noted
+   * and Checked and notifies whoever gave them. Only a signer of that section
+   * may (section 7: anyone on a section 7 list); the database refuses anyone
+   * else, a Super Admin off the list included, and a section with nothing
+   * signed. The reason is required and is in the notification.
    *
    * Returns { clearedRoles, notified }.
    */
   async sendBack(id, section, reason) {
     requireSendBackSection(section);
     const why = (reason || "").trim();
-    if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give a reason, so the preparer knows what to fix.");
+    if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give a reason, so the people who signed know what to fix.");
 
     const { data, error } = await supabase.rpc("ipas_send_back", {
       p_ipas_id: id,
@@ -1002,7 +1010,7 @@ export const ipasService = {
     if (error) throw error;
 
     const senderId = data?.actor_id ?? null;
-    const recipients = (data?.preparer_ids ?? []).filter((recipient) => recipient !== senderId);
+    const recipients = (data?.notify_ids ?? data?.preparer_ids ?? []).filter((recipient) => recipient !== senderId);
     if (recipients.length > 0) {
       const ipas = await readIpasLabel(id, data?.ipas);
       await Promise.all(
@@ -1177,42 +1185,49 @@ export const ipasService = {
   },
 
   /**
-   * Replaces one signer list with exactly the given employees (Super Admins
-   * only: the database refuses everyone else). Adds the new ones first and
-   * removes the others after, so a failure never leaves a list emptier than it
-   * was. Nobody's past sign-offs change. Returns the list as `getSignerLists`
-   * gives it.
+   * Replaces one signer list with exactly the given employees, in one step
+   * (`ipas_set_signer_list`): Super Admins only, the database refuses everyone
+   * else. Each person added or removed is written to the signer-list log.
+   * Nobody's past sign-offs change. Returns the list as `getSignerLists` gives it.
    */
   async setSignerList(listKey, employeeIds = []) {
     requireOneOf(listKey, IPAS_SIGNER_LISTS, "That isn't a sign-off list.");
     const wanted = [...new Set((employeeIds || []).filter(Boolean))];
 
-    const current = (await ipasService.getSignerLists())[listKey];
-    const have = new Set(current.map((member) => member.employeeId));
-
-    const toAdd = wanted.filter((employeeId) => !have.has(employeeId));
-    if (toAdd.length > 0) {
-      const { error } = await supabase
-        .from("ipas_signer_lists")
-        .insert(toAdd.map((employee_id) => ({ list_key: listKey, employee_id })));
-      if (error) throw error;
-    }
-
-    const toRemove = current.filter((member) => !wanted.includes(member.employeeId));
-    if (toRemove.length > 0) {
-      const { data, error } = await supabase
-        .from("ipas_signer_lists")
-        .delete()
-        .in("id", toRemove.map((member) => member.id))
-        .select("id");
-      if (error) throw error;
-      // Row level security refuses a delete by returning no rows, not an error.
-      if ((data || []).length !== toRemove.length) {
-        throw new IpasError(IPAS_ERROR.INVALID, "Only a Super Admin can change who is on a sign-off list.");
-      }
-    }
+    const { error } = await supabase.rpc("ipas_set_signer_list", {
+      p_list_key: listKey,
+      p_employee_ids: wanted,
+    });
+    if (error) throw error;
 
     return (await ipasService.getSignerLists())[listKey];
+  },
+
+  /**
+   * Who changed the sign-off lists, newest first (Super Admins read it):
+   * `[{ id, listKey, action: "added" | "removed", employeeId, employeeName,
+   * actorId, actorName, at }]`. `limit` defaults to the last 20 changes.
+   */
+  async getSignerListLog({ limit = 20 } = {}) {
+    const { data, error } = await supabase
+      .from("ipas_signer_list_log")
+      .select(
+        "id, list_key, action, employee_id, actor_id, created_at, employee:employees!ipas_signer_list_log_employee_id_fkey(name), actor:employees!ipas_signer_list_log_actor_id_fkey(name)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+
+    return (data || []).map((row) => ({
+      id: row.id,
+      listKey: row.list_key,
+      action: row.action,
+      employeeId: row.employee_id,
+      employeeName: row.employee?.name ?? null,
+      actorId: row.actor_id,
+      actorName: row.actor?.name ?? null,
+      at: row.created_at,
+    }));
   },
 
   // ── The SOR's summary ────────────────────────────────────────────────────
@@ -1275,10 +1290,10 @@ function requireSignoffSection(section) {
   }
 }
 
-/** Only sections 1 and 3 are sent back: section 7 has no Prepared to return. */
+/** Sections 1, 3 and 7 are sent back. */
 function requireSendBackSection(section) {
   if (!IPAS_SEND_BACK_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1 and 3 can be sent back.");
+    throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1, 3 and 7 can be sent back.");
   }
 }
 

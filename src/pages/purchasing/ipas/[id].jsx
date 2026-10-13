@@ -53,7 +53,7 @@ import { openPrintWindow, printIpas } from "../../../lib/pdf/ipasPrinter";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage } from "../../../utils/ipas";
-import { isCostsComplete, section7Rights, signoffRights } from "../../../utils/ipasSignoffs";
+import { canSendBackSection7, isCostsComplete, section7Rights, signoffRights } from "../../../utils/ipasSignoffs";
 import { formatDate } from "../../../utils/formatDate.js";
 import {
   IPAS_HEADER_FIELD,
@@ -230,7 +230,11 @@ function IpasPage() {
   const sendBack = useMutation({
     mutationFn: ({ section, reason }) => ipasService.sendBack(id, section, reason),
     onSuccess: (_, { section }) => {
-      toast.success(`Section ${section} sent back to its preparer.`);
+      toast.success(
+        section === 7
+          ? "Section 7 sent back. Received, Noted and Checked were cleared and the people who gave them were told."
+          : `Section ${section} sent back to its preparer.`,
+      );
       signoffChanged();
     },
     onError: (error) => toast.error(ipasErrorMessage(error)),
@@ -451,6 +455,12 @@ function IpasPage() {
     ipasState: ipas.state,
     costsComplete: isCostsComplete(ipas.computationStatus),
   });
+  const canReturnSection7 = canSendBackSection7({
+    state: ipas.signoffSections[7],
+    userId: user?.id,
+    lists: signerLists,
+    ipasState: ipas.state,
+  });
   const giveSignoff = (role) => {
     if (role === IPAS_SIGNOFF_ROLE.APPROVED) setFiling(true);
     else give.mutate({ role, confirm: false });
@@ -492,16 +502,18 @@ function IpasPage() {
               <Printer size={14} />
               {print.isPending ? "Preparing…" : "Print"}
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              disabled={print.isPending}
-              onClick={() => startPrint(true)}
-            >
-              <FileLock2 size={14} />
-              Print filing copy
-            </Button>
+            {ipas.state === IPAS_STATE.FILED && ipas.canReadBankDetails && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={print.isPending}
+                onClick={() => startPrint(true)}
+              >
+                <FileLock2 size={14} />
+                Print filing copy
+              </Button>
+            )}
             {canChange && (
               <>
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditing(true)}>
@@ -606,8 +618,10 @@ function IpasPage() {
           <IpasFilingSection
             ipas={ipas}
             rights={filingRights}
-            busy={give.isPending}
+            busy={give.isPending || sendBack.isPending}
             onGive={giveSignoff}
+            canSendBack={canReturnSection7}
+            onSendBack={() => setSendingBack(7)}
           />
           <IpasHistorySection events={ipas.events} />
         </div>
@@ -635,7 +649,12 @@ function IpasPage() {
         open={sendingBack !== null}
         onOpenChange={(next) => !next && setSendingBack(null)}
         title={`Send section ${sendingBack ?? ""} back?`}
-        description="It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
+        description={
+          sendingBack === 7
+            ? "It clears Received, Noted and Checked and tells the people who gave them. Sections 1 and 3 stay approved. The history keeps what was cleared."
+            : "It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
+        }
+        placeholder={sendingBack === 7 ? "What needs fixing before it is filed?" : undefined}
         onSubmit={(reason) => sendBack.mutateAsync({ section: sendingBack, reason })}
       />
 

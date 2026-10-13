@@ -197,12 +197,12 @@ describe("ipasService: section 7 and Filing", () => {
       expect(live(ipas.id)).not.toContain("7/received")
     })
 
-    it("only takes section 7's four roles, and section 7 isn't sent back", async () => {
+    it("only takes section 7's four roles, and only sections 1, 3 and 7 are sent back", async () => {
       const ipas = await raise()
       await expect(ipasService.sign(ipas.id, 7, "prepared")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
       await expect(ipasService.sign(ipas.id, 7, "bogus")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
       await expect(ipasService.sign(ipas.id, 5, "received")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
-      await expect(ipasService.sendBack(ipas.id, 7, "No")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
+      await expect(ipasService.sendBack(ipas.id, 5, "No")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
       expect(events("signed")).toEqual([])
     })
   })

@@ -477,23 +477,40 @@ describe("attachments and removal", () => {
         expect((await docByLabel(ipas.id, "BIR 2307")).attachment_url).toBeNull()
     })
 
-    it("lets Purchasing remove a row, unless Finance has ticked it", async () => {
+    it("lets Purchasing remove a hand-added row, unless Finance has ticked it", async () => {
         const ipas = await raise("import")
         const memo = (await addDocument("outsider", ipas.id, { p_label: "Memo" })).data
-        const waybill = await docByLabel(ipas.id, "Waybill")
-        await tick("finance", waybill.id, "finance", true)
+        const ticked = (await addDocument("outsider", ipas.id, { p_label: "Cover letter" })).data
+        await tick("finance", ticked.id, "finance", true)
 
-        const refused = await rpc("outsider", "ipas_remove_document", { p_document_id: waybill.id })
+        const refused = await rpc("outsider", "ipas_remove_document", { p_document_id: ticked.id })
         expect(refused.error?.code).toBe("55000")
-        expect(await docByLabel(ipas.id, "Waybill")).toBeTruthy()
+        expect(refused.error?.message).toMatch(/Finance has ticked/)
+        expect(await docByLabel(ipas.id, "Cover letter")).toBeTruthy()
 
         const removed = await rpc("outsider", "ipas_remove_document", { p_document_id: memo.id })
         expect(removed.error).toBeNull()
         expect(await docByLabel(ipas.id, "Memo")).toBeUndefined()
         expect((await events(ipas.id, "document_removed")).at(-1).detail).toMatchObject({ label: "Memo" })
 
-        const financeTries = await rpc("finance", "ipas_remove_document", { p_document_id: waybill.id })
+        const financeTries = await rpc("finance", "ipas_remove_document", { p_document_id: ticked.id })
         expect(financeTries.error?.code).toBe("42501")
+    })
+
+    it("refuses to remove a suggested row, ticked or not: only a hand-added row can go", async () => {
+        const ipas = await raise("import")
+        const waybill = await docByLabel(ipas.id, "Waybill")
+
+        const refused = await rpc("outsider", "ipas_remove_document", { p_document_id: waybill.id })
+        expect(refused.error?.code).toBe("55000")
+        expect(refused.error?.message).toMatch(/only a document added by hand/)
+        expect(await docByLabel(ipas.id, "Waybill")).toBeTruthy()
+        expect(await events(ipas.id, "document_removed")).toHaveLength(0)
+
+        // A row picked from the list (it has a kind) is the same.
+        const kindId = (await svc().from("ipas_options").select("id").eq("list", "document_kind").eq("label", "Quotation").single()).data.id
+        const picked = (await addDocument("outsider", ipas.id, { p_kind_id: kindId })).data
+        expect((await rpc("outsider", "ipas_remove_document", { p_document_id: picked.id })).error?.code).toBe("55000")
     })
 })
 

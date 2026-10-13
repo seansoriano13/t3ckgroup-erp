@@ -187,6 +187,31 @@ export function section7Rights({ state, userId, lists = {}, ipasState, costsComp
   return out;
 }
 
+/**
+ * Whether the signed-in person may send section 7 back: they are on any
+ * section 7 list, the IPAS is open, section 7 has opened, and Received, Noted
+ * or Checked is live to clear. `state` is `signoffSections[7]`; `lists` is
+ * `ipasService.getSignerLists()`. The database decides; this spares a button
+ * that would be refused.
+ */
+export function canSendBackSection7({ state, userId, lists = {}, ipasState }) {
+  if (ipasState !== IPAS_STATE.OPEN || !userId || !state?.opened) return false;
+  const onAnyList = IPAS_SECTION_7_ROLES.some((role) =>
+    (lists?.[IPAS_SECTION_7_LIST[role]] ?? []).some((member) => member.employeeId === userId),
+  );
+  return onAnyList && Boolean(state.received || state.noted || state.checked);
+}
+
+/**
+ * Whether a queue item (`pendingSignoffsFor`'s `{ section, role }`) can be sent
+ * back from the Approval Center: section 1 and 3 items always (Prepared is
+ * live); a section 7 item once Received is given, which every step after it
+ * means. The Received step itself has nothing live to return.
+ */
+export function canSendBackItem({ section, role }) {
+  return section !== 7 || role !== IPAS_SIGNOFF_ROLE.RECEIVED;
+}
+
 /** Whether a computation status is Costs complete or later (what Filing needs). */
 export function isCostsComplete(status) {
   return status === IPAS_COMPUTATION_STATUS.COSTS_COMPLETE || status === IPAS_COMPUTATION_STATUS.CHECKED;

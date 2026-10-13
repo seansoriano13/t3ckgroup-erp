@@ -236,7 +236,7 @@ function landedCostOf(ipas, filed) {
 /**
  * @param {object} ipas    `ipasService.get`'s result (or `getForPrint`'s)
  * @param {object} [options]
- * @param {boolean} [options.filingCopy]  print account numbers in full
+ * @param {boolean} [options.filingCopy]  print account numbers in full (honoured only when the IPAS is filed)
  * @param {string}  [options.printedAt]   when it was printed (ISO), for the footer
  * @param {string}  [options.printedBy]   who printed it, for the footer
  */
@@ -244,6 +244,8 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   if (!ipas) throw new Error('An IPAS is needed to print.');
 
   const filed = ipas.state === IPAS_STATE.FILED;
+  // The filing copy exists only for a filed IPAS; anything else prints masked.
+  filingCopy = Boolean(filingCopy) && filed;
   const currency = ipas.currency ?? null;
   const isPhp = isPhpCurrency(currency);
   const overrides = ipas.overrides ?? {};

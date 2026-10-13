@@ -42,6 +42,13 @@ export async function purgeIpas(ids) {
  */
 export async function purgeFixtureIpas(emailLike) {
     await withoutTriggers(async (client) => {
+        // The signer-list log is append-only and points at employees twice.
+        await client.query(
+            `delete from public.ipas_signer_list_log
+              where employee_id in (select id from public.employees where email like $1)
+                 or actor_id in (select id from public.employees where email like $1)`,
+            [emailLike],
+        )
         const { rows } = await client.query(
             `with mine as (select id from public.employees where email like $1)
              select id from public.ipas

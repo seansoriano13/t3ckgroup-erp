@@ -184,15 +184,18 @@ export function IpasDocuments({
                   </TableCell>
                   {canChange && (
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className="text-muted-foreground hover:text-red-11"
-                        aria-label={`Remove ${document.label}`}
-                        onClick={() => onRemove(document)}
-                      >
-                        <Trash2 />
-                      </Button>
+                      {/* Only a document added by hand can be removed; a suggested one is ticked or left. */}
+                      {document.byHand && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          className="text-muted-foreground hover:text-red-11"
+                          aria-label={`Remove ${document.label}`}
+                          onClick={() => onRemove(document)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>

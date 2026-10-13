@@ -174,11 +174,66 @@ describe("IPAS section 7 and Filing", () => {
         expect(within(screen.getByTestId("ipas-signoff-7-received")).getByText("Rita Receiver")).toBeInTheDocument(),
       );
       // Received is given; this person has nothing further. Noted and Checked now wait on their lists.
-      expect(within(screen.getByTestId("ipas-filing")).queryByRole("button")).not.toBeInTheDocument();
+      expect(within(screen.getByTestId("ipas-filing")).queryByRole("button", { name: /Receive|Note|Check|Approve/ })).not.toBeInTheDocument();
       await waitForNetworkIdle();
       expect(db.rows("notifications").filter((n) => n.type === "IPAS_SECTION_7_READY").map((n) => n.recipient_id).sort()).toEqual(
         [noter.id, checker.id].sort(),
       );
+    });
+
+    it("lets a section 7 signer send Received, Noted and Checked back with a reason, and tells the others", async () => {
+      const row = ipas();
+      approvedFirstSections(row);
+      givenThroughChecked(row);
+      signIn(noter);
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      await user.click(await within(await screen.findByTestId("ipas-filing")).findByTestId("ipas-send-back-7"));
+
+      const dialog = await screen.findByRole("dialog");
+      const submit = within(dialog).getByRole("button", { name: "Send back" });
+      expect(submit).toBeDisabled();
+      await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Landed cost is off");
+      await user.click(submit);
+
+      await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.section === 7 && !s.cleared_at)).toHaveLength(0));
+      const cleared = db.rows("ipas_signoffs").filter((s) => s.section === 7);
+      expect(cleared.map((s) => s.role).sort()).toEqual(["checked", "noted", "received"]);
+      expect(cleared.every((s) => s.cleared_reason === "Sent back: Landed cost is off")).toBe(true);
+      expect(await screen.findByTestId("ipas-signoff-history-7")).toBeInTheDocument();
+      await waitForNetworkIdle();
+      expect(
+        db.rows("notifications").filter((n) => n.type === "IPAS_SENT_BACK").map((n) => n.recipient_id).sort(),
+      ).toEqual([receiver.id, checker.id].sort());
+    });
+
+    it("offers no Send back before Received, to someone on no list, or on a filed IPAS", async () => {
+      const early = ipas();
+      approvedFirstSections(early);
+      signIn(noter);
+      const { unmount } = renderDetail(early.id);
+      await screen.findByTestId("ipas-filing");
+      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
+      unmount();
+
+      const given = ipas();
+      approvedFirstSections(given);
+      signoff(given.id, 7, "received", receiver);
+      signIn(superAdmin, { superAdmin: true });
+      const second = renderDetail(given.id);
+      await screen.findByTestId("ipas-filing");
+      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
+      second.unmount();
+
+      const filed = ipas({ state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
+      approvedFirstSections(filed);
+      givenThroughChecked(filed);
+      signoff(filed.id, 7, "approved", boss);
+      signIn(noter);
+      renderDetail(filed.id);
+      await screen.findByTestId("ipas-filed-notice");
+      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
     });
 
     it("offers a person on neither list nothing, and a Super Admin off the lists the same", async () => {
@@ -399,6 +454,27 @@ describe("IPAS section 7 and Filing", () => {
       expect(screen.queryByRole("button", { name: /Send back/ })).not.toBeInTheDocument();
     });
 
+    it("offers Send back on a section 7 step once Received is given, and returns the section", async () => {
+      const row = ipas();
+      approvedFirstSections(row);
+      signoff(row.id, 7, "received", receiver);
+      signIn(noter);
+      const user = userEvent.setup();
+
+      renderQueue();
+      await user.click(await screen.findByRole("button", { name: `Send back ${row.number} section 7` }));
+
+      const dialog = await screen.findByRole("dialog");
+      await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Wrong supplier");
+      await user.click(within(dialog).getByRole("button", { name: "Send back" }));
+
+      await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.section === 7 && !s.cleared_at)).toHaveLength(0));
+      expect(db.rows("ipas_signoffs").find((s) => s.role === "received")).toMatchObject({
+        cleared_reason: "Sent back: Wrong supplier",
+        cleared_by: noter.id,
+      });
+    });
+
     it("asks before filing from the row, listing what isn't ticked", async () => {
       const row = ipas();
       approvedFirstSections(row);
@@ -419,7 +495,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("filed");
     });
 
-    it("opens a review sheet that names the step and has no Send back", async () => {
+    it("opens a review sheet that names the step and has no Send back before Received", async () => {
       const row = ipas();
       approvedFirstSections(row);
       signIn(receiver);

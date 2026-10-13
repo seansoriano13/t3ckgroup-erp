@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import IpasSettingsPage from "@/pages/purchasing/ipas/settings";
+import SettingsPage from "@/pages/settings";
 import IpasSignoffsQueuePage from "@/pages/approvals/ipas";
 import { renderWithProviders } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
@@ -256,9 +256,9 @@ describe("IPAS sign-offs", () => {
   describe("the sign-off lists in settings", () => {
     const renderSettings = () =>
       renderWithProviders(
-        <MemoryRouter initialEntries={["/purchasing/ipas/settings"]}>
+        <MemoryRouter initialEntries={["/settings?tab=purchasing"]}>
           <Routes>
-            <Route path="/purchasing/ipas/settings" element={<IpasSettingsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
             <Route path="/" element={<p>Home</p>} />
           </Routes>
@@ -280,7 +280,7 @@ describe("IPAS sign-offs", () => {
     it("shows who is on each list, and takes someone off one", async () => {
       onList("s1_approved", approver, other);
       onList("s3_approved", approver);
-      signIn(superAdmin);
+      signIn(superAdmin, { superAdmin: true });
       const user = userEvent.setup();
 
       renderSettings();
@@ -296,6 +296,38 @@ describe("IPAS sign-offs", () => {
       await waitFor(() => expect(within(screen.getByTestId("ipas-signer-list-s1_approved")).queryByText("Co Approver")).not.toBeInTheDocument());
       expect(db.rows("ipas_signer_lists").filter((l) => l.list_key === "s1_approved").map((l) => l.employee_id)).toEqual([approver.id]);
       expect(db.rows("ipas_signer_lists").filter((l) => l.list_key === "s3_approved")).toHaveLength(1);
+    });
+
+    it("shows who changed the lists, newest first, and adds to it as lists change", async () => {
+      onList("s1_approved", approver);
+      db.seed("ipas_signer_list_log", { list_key: "s7_noted", employee_id: other.id, action: "added", actor_id: superAdmin.id, created_at: "2026-10-12T02:00:00.000Z" });
+      signIn(superAdmin, { superAdmin: true });
+      const user = userEvent.setup();
+
+      renderSettings();
+      await user.click(await screen.findByRole("tab", { name: "Sign-off lists" }));
+
+      const history = await screen.findByTestId("ipas-signer-list-log");
+      const first = await within(history).findAllByTestId("ipas-signer-list-log-entry");
+      expect(first).toHaveLength(1);
+      expect(first[0]).toHaveTextContent("Super Admin added Co Approver to");
+
+      await user.click(within(await screen.findByTestId("ipas-signer-list-s1_approved")).getByRole("button", { name: "Remove Boss Lito" }));
+
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signer-list-log")).getAllByTestId("ipas-signer-list-log-entry")).toHaveLength(2));
+      expect(within(screen.getByTestId("ipas-signer-list-log")).getAllByTestId("ipas-signer-list-log-entry")[0]).toHaveTextContent(
+        "Super Admin removed Boss Lito from",
+      );
+    });
+
+    it("says there are no changes yet when the log is empty", async () => {
+      signIn(superAdmin, { superAdmin: true });
+      const user = userEvent.setup();
+
+      renderSettings();
+      await user.click(await screen.findByRole("tab", { name: "Sign-off lists" }));
+
+      expect(await within(await screen.findByTestId("ipas-signer-list-log")).findByText("No changes yet.")).toBeInTheDocument();
     });
   });
 

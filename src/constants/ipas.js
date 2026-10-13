@@ -372,9 +372,9 @@ export const IPAS_NOTIFICATION = {
  * Sections 1 and 3 are Prepared, then Approved; section 7 is Received, then
  * Noted and Checked in any order, then Approved, which files the IPAS.
  * `IPAS_SIGNOFF_SECTIONS` is the sections the service's `sign` takes;
- * `IPAS_SEND_BACK_SECTIONS` the ones that can be sent back (section 7 has no
- * Prepared to return: a signer who finds it unready doesn't sign, and a Super
- * Admin reopens a filed one).
+ * `IPAS_SEND_BACK_SECTIONS` the ones that can be sent back: 1 and 3 return their
+ * Prepared and Approved; 7 returns Received, Noted and Checked (a filed IPAS is
+ * reopened by a Super Admin instead).
  */
 export const IPAS_SIGNOFF_ROLE = {
   PREPARED: "prepared",
@@ -402,7 +402,7 @@ export const IPAS_SIGNOFF_ROLE_ACTIONS = {
 };
 
 export const IPAS_SIGNOFF_SECTIONS = [1, 3, 7];
-export const IPAS_SEND_BACK_SECTIONS = [1, 3];
+export const IPAS_SEND_BACK_SECTIONS = [1, 3, 7];
 
 /** Section 7's sign-offs in the order they are given (Noted and Checked in either order). */
 export const IPAS_SECTION_7_ROLES = [

@@ -68,6 +68,11 @@ const refuse = (code, message) => {
  * can't run the freeze trigger, so what a filed IPAS refuses is proven in
  * 62-ipas-filing.
  *
+ * The #241 follow-ups: `ipas_send_back` takes section 7 (any list member, once
+ * 1 and 3 are approved, clears Received/Noted/Checked), `ipas_remove_document`
+ * refuses a row with a kind, and `ipas_set_signer_list` (`superAdmin: true`)
+ * replaces a list and writes `ipas_signer_list_log`.
+ *
  * The fake has no signed-in identity, so `actorId` stands in for
  * get_employee_id(). `purchasing: false` is a caller without Purchasing access;
  * `reader: false` one who can't read IPAS.
@@ -996,6 +1001,12 @@ export function stubIpasRpcs({
   stubRpc("ipas_remove_document", (args) => {
     requirePurchasing("ipas_remove_document")
     const doc = lockDocument("ipas_remove_document", args.p_document_id)
+    if (doc.kind_id) {
+      refuse(
+        "55000",
+        `ipas_remove_document: ${documentLabel(doc)} is a listed document kind; only a document added by hand can be removed`,
+      )
+    }
     if (doc.finance_has) {
       refuse("55000", "ipas_remove_document: Finance has ticked this document; ask Finance to untick it first")
     }
@@ -1100,6 +1111,7 @@ export function stubIpasRpcs({
     "7/approved": "s7_approved",
   }
   const SEND_BACK_LIST = { 1: "s1_approved", 3: "s3_approved" }
+  const SECTION_7_LISTS = ["s7_received", "s7_noted", "s7_checked", "s7_approved"]
   const onList = (listKey, employeeId) => {
     const member = rowsOf("ipas_signer_lists").some((l) => l.list_key === listKey && l.employee_id === employeeId)
     return member && !findRow("employees", employeeId)?.is_deleted
@@ -1115,7 +1127,7 @@ export function stubIpasRpcs({
     ),
   ]
   const requireSection = (fn, section) => {
-    if (![1, 3].includes(section)) refuse("22023", `${fn}: only sections 1 and 3 can be sent back`)
+    if (![1, 3, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 3 and 7 can be sent back`)
   }
 
   stubRpc("ipas_sign", (args) => {
@@ -1237,14 +1249,28 @@ export function stubIpasRpcs({
 
   stubRpc("ipas_send_back", (args) => {
     const reason = String(args.p_reason || "").trim()
-    if (!reason) refuse("22023", "ipas_send_back: give a reason, so the preparer knows what to fix")
+    if (!reason) refuse("22023", "ipas_send_back: give a reason, so the people who signed know what to fix")
     requireSection("ipas_send_back", args.p_section)
     const ipas = requireOpenIpas("ipas_send_back", args.p_ipas_id)
-    if (!onList(SEND_BACK_LIST[args.p_section], actorId)) {
-      refuse("42501", `ipas_send_back: only a signer of section ${args.p_section} sends it back`)
+    const section = args.p_section
+    const sectionSeven = section === 7
+
+    const mayReturn = sectionSeven
+      ? SECTION_7_LISTS.some((listKey) => onList(listKey, actorId))
+      : onList(SEND_BACK_LIST[section], actorId)
+    if (!mayReturn) refuse("42501", `ipas_send_back: only a signer of section ${section} sends it back`)
+
+    if (sectionSeven) {
+      const everything = liveSignoffs(ipas.id)
+      const approved = (sec) => everything.some((s) => s.section === sec && s.role === "approved")
+      if (!approved(1) || !approved(3)) {
+        refuse("55000", "ipas_send_back: section 7 isn't open yet; sections 1 and 3 must be approved first")
+      }
     }
-    const live = liveSignoffs(ipas.id).filter((s) => s.section === args.p_section && ["prepared", "approved"].includes(s.role))
-    if (live.length === 0) refuse("55000", `ipas_send_back: section ${args.p_section} has nothing to send back`)
+
+    const returned = sectionSeven ? ["received", "noted", "checked"] : ["prepared", "approved"]
+    const live = liveSignoffs(ipas.id).filter((s) => s.section === section && returned.includes(s.role))
+    if (live.length === 0) refuse("55000", `ipas_send_back: section ${section} has nothing to send back`)
     for (const s of live) {
       updateRow("ipas_signoffs", s, {
         cleared_at: new Date().toISOString(),
@@ -1253,14 +1279,46 @@ export function stubIpasRpcs({
       })
     }
     const roles = live.map((s) => s.role).sort()
-    event(ipas.id, "sent_back", { section: args.p_section, reason, cleared: roles })
+    event(ipas.id, "sent_back", { section, reason, cleared: roles })
+    const preparers = sectionSeven ? [] : [...new Set(live.filter((s) => s.role === "prepared").map((s) => s.signed_by))]
+    const notify = sectionSeven ? [...new Set(live.map((s) => s.signed_by).filter((id) => id !== actorId))] : preparers
     return {
       ipas,
-      section: args.p_section,
+      section,
       actor_id: actorId,
       cleared_roles: roles,
-      preparer_ids: [...new Set(live.filter((s) => s.role === "prepared").map((s) => s.signed_by))],
+      preparer_ids: preparers,
+      notify_ids: notify,
     }
+  })
+
+  // ── The signer lists and their log (#241 follow-up) ──────────────────────
+
+  stubRpc("ipas_set_signer_list", (args) => {
+    if (!superAdmin) refuse("42501", "ipas_set_signer_list: only a Super Admin changes who is on a sign-off list")
+    const listKey = args.p_list_key
+    if (!["s1_approved", "s3_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved"].includes(listKey)) {
+      refuse("22023", `ipas_set_signer_list: ${listKey} isn't a sign-off list`)
+    }
+    const wanted = [...new Set((args.p_employee_ids || []).filter(Boolean))]
+    const have = rowsOf("ipas_signer_lists").filter((l) => l.list_key === listKey)
+    const haveIds = have.map((l) => l.employee_id)
+    const added = wanted.filter((id) => !haveIds.includes(id))
+    const removed = haveIds.filter((id) => !wanted.includes(id))
+    for (const id of added) {
+      const person = findRow("employees", id)
+      if (!person || person.is_deleted) refuse("P0002", `ipas_set_signer_list: employee ${id} isn't an active employee`)
+    }
+    const rows = rowsOf("ipas_signer_lists")
+    for (const id of removed) rows.splice(rows.findIndex((l) => l.list_key === listKey && l.employee_id === id), 1)
+    for (const id of added) insertRow("ipas_signer_lists", { list_key: listKey, employee_id: id })
+    for (const id of removed) {
+      insertRow("ipas_signer_list_log", { list_key: listKey, employee_id: id, action: "removed", actor_id: actorId })
+    }
+    for (const id of added) {
+      insertRow("ipas_signer_list_log", { list_key: listKey, employee_id: id, action: "added", actor_id: actorId })
+    }
+    return { list_key: listKey, added, removed }
   })
 
   stubRpc("ipas_set_item_location", (args) => {
