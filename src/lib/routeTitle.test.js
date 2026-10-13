@@ -5,6 +5,7 @@ describe("routeTitle", () => {
   it("titles routes distinctly", () => {
     expect(routeTitle("/bug-reports")).toContain("Bug Reports · T3CKGROUP ERP");
     expect(routeTitle("/sors/commission")).toContain("Commission");
+    expect(routeTitle("/approvals/ipas")).toContain("IPAS Sign-offs · T3CKGROUP ERP");
     expect(routeTitle("/nope")).toContain("Page not found");
     expect(routeTitle("/")).toContain("Dashboard");
   });

@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import {
+  IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUSES,
   IPAS_DOCUMENT_APPLIES_TO,
   IPAS_DOCUMENT_APPLIES_TO_VALUES,
@@ -16,6 +17,11 @@ import {
   IPAS_PRIORITIES,
   IPAS_PURPOSE,
   IPAS_PURPOSES,
+  IPAS_SECTION_NAMES,
+  IPAS_SIGNER_LISTS,
+  IPAS_SIGNOFF_ROLE,
+  IPAS_SIGNOFF_ROLE_LABELS,
+  IPAS_SIGNOFF_SECTIONS,
   IPAS_SOURCES,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
@@ -24,8 +30,16 @@ import {
   IPAS_TYPED_STATUSES,
 } from "../constants/ipas";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
-import { ipasEntity, salesReferencesIn, shapeBankDetails, shapeIpas } from "../utils/ipas";
+import {
+  ipasCurrency,
+  ipasEntity,
+  ipasSupplier,
+  salesReferencesIn,
+  shapeBankDetails,
+  shapeIpas,
+} from "../utils/ipas";
 import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
+import { shapeSignoff } from "../utils/ipasSignoffs";
 
 const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
@@ -35,6 +49,9 @@ const IPAS_SELECT =
 const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, avatar_path)";
 const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
+const SIGNOFF_SELECT =
+  "*, signer:employees!ipas_signoffs_signed_by_fkey(id, name, avatar_path)," +
+  " clearer:employees!ipas_signoffs_cleared_by_fkey(id, name)";
 
 /**
  * An IPAS error the screen can word: `code` is one of IPAS_ERROR.
@@ -57,8 +74,9 @@ export class IpasError extends Error {
  * Reads and lifecycle land here first (#242); the Odoo refresh, overrides and
  * the typed header values follow (#243); payments, charges, the option lists
  * and Landed Cost (#244); bank details and the changed-account flag (#245);
- * documents, Supplier Origin and the buyer track (#246). Sign-offs extend this
- * object in their own ticket. Every IPAS write is an RPC: the database decides who may make it
+ * documents, Supplier Origin and the buyer track (#246); the sign-offs of
+ * sections 1 and 3 and the signer lists behind them (#247). Section 7's sign-offs
+ * extend `sign` and `sendBack` in their own ticket. Every IPAS write is an RPC: the database decides who may make it
  * and writes the history row (ADR 0013). The option lists are plain rows under
  * row level security (nobody deletes one).
  *
@@ -225,7 +243,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, documents, bank] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, documents, bank, signoffs] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -247,8 +265,9 @@ export const ipasService = {
       supabase.from("ipas_options").select("*"),
       supabase.from("ipas_documents").select("*").eq("ipas_id", id).order("created_at", { ascending: true }),
       readBankDetails(id),
+      supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
     ]);
-    for (const result of [events, payments, charges, options, documents]) {
+    for (const result of [events, payments, charges, options, documents, signoffs]) {
       if (result.error) throw result.error;
     }
 
@@ -258,6 +277,7 @@ export const ipasService = {
         charges: charges.data || [],
         documents: documents.data || [],
         options: options.data || [],
+        signoffs: signoffs.data || [],
       }),
       // Every option row, inactive ones too: a row that holds a deactivated
       // option still resolves it, and the pickers filter it out for new rows.
@@ -796,6 +816,237 @@ export const ipasService = {
     return order;
   },
 
+  // ── Sign-offs (#247) ─────────────────────────────────────────────────────
+
+  /**
+   * Gives a sign-off on section 1 or 3 of an open IPAS: `role` is "prepared"
+   * (Purchasing access) or "approved" (the section's list, someone other than
+   * the preparer, after Prepared). The database decides and refuses with its
+   * own sentence (42501 not yours to give, 55000 wrong state). Signing as
+   * Prepared notifies exactly the section's approval list, never the signer.
+   * `declineSignature` signs without the stored signature, so the printed form
+   * shows the name only. Section 7 is signed at Filing, not here.
+   *
+   * Returns { signoff, notified } — the shaped sign-off and how many people
+   * were told.
+   */
+  async sign(id, section, role, { declineSignature = false } = {}) {
+    requireSignoffSection(section);
+    requireOneOf(
+      role,
+      [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED],
+      "A section is Prepared, then Approved.",
+    );
+    const { data, error } = await supabase.rpc("ipas_sign", {
+      p_ipas_id: id,
+      p_section: section,
+      p_role: role,
+      p_decline_signature: Boolean(declineSignature),
+    });
+    if (error) throw error;
+
+    const recipients = data?.notify_ids ?? [];
+    if (recipients.length > 0) {
+      const ipas = await readIpasLabel(id, data?.ipas);
+      await Promise.all(
+        recipients.map((recipient_id) =>
+          notificationService.createNotification({
+            recipient_id,
+            sender_id: data?.signoff?.signed_by ?? null,
+            type: IPAS_NOTIFICATION.SIGNOFF_READY,
+            title: "IPAS ready for approval",
+            message: `${ipas}: section ${section} (${IPAS_SECTION_NAMES[section]}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
+            reference_id: id,
+          }),
+        ),
+      );
+    }
+
+    return { signoff: data?.signoff ? shapeSignoff(data.signoff) : null, notified: recipients.length };
+  },
+
+  /**
+   * Returns section 1 or 3 with a reason: clears its live Prepared and Approved
+   * (kept as history) and notifies whoever prepared it. Only a signer of that
+   * section may (the database refuses anyone else, a Super Admin off the list
+   * included). The reason is required and is in the notification.
+   *
+   * Returns { clearedRoles, notified }.
+   */
+  async sendBack(id, section, reason) {
+    requireSignoffSection(section);
+    const why = (reason || "").trim();
+    if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give a reason, so the preparer knows what to fix.");
+
+    const { data, error } = await supabase.rpc("ipas_send_back", {
+      p_ipas_id: id,
+      p_section: section,
+      p_reason: why,
+    });
+    if (error) throw error;
+
+    const senderId = data?.actor_id ?? null;
+    const recipients = (data?.preparer_ids ?? []).filter((recipient) => recipient !== senderId);
+    if (recipients.length > 0) {
+      const ipas = await readIpasLabel(id, data?.ipas);
+      await Promise.all(
+        recipients.map((recipient_id) =>
+          notificationService.createNotification({
+            recipient_id,
+            sender_id: senderId,
+            type: IPAS_NOTIFICATION.SENT_BACK,
+            title: "IPAS sent back",
+            message: `${ipas}: section ${section} (${IPAS_SECTION_NAMES[section]}) was sent back. ${why}`,
+            reference_id: id,
+          }),
+        ),
+      );
+    }
+
+    return { clearedRoles: data?.cleared_roles ?? [], notified: recipients.length };
+  },
+
+  /**
+   * The IPAS waiting on this person's signature: for each section 1 or 3 whose
+   * approval list they are on, an open IPAS that is Prepared but not Approved
+   * and wasn't prepared by them (they can't approve their own). Oldest waiting
+   * first, each as
+   *   { id, ipasId, number, poNumber, supplier, purpose, priority, total,
+   *     section, role, preparedBy: { id, name, avatarPath }, preparedAt }
+   * `id` is unique per IPAS and section. Section 7's sign-offs join the list at Filing.
+   */
+  async pendingSignoffsFor(employeeId) {
+    if (!employeeId) return [];
+
+    const { data: memberships, error: listError } = await supabase
+      .from("ipas_signer_lists")
+      .select("list_key")
+      .eq("employee_id", employeeId);
+    if (listError) throw listError;
+
+    const keys = new Set((memberships || []).map((m) => m.list_key));
+    const sections = IPAS_SIGNOFF_SECTIONS.filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
+    if (sections.length === 0) return [];
+
+    const { data: rows, error } = await supabase
+      .from("ipas_signoffs")
+      .select(SIGNOFF_SELECT)
+      .is("cleared_at", null)
+      .in("section", sections)
+      .in("role", [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED]);
+    if (error) throw error;
+
+    const bySection = new Map();
+    for (const row of rows || []) {
+      const key = `${row.ipas_id}:${row.section}`;
+      const entry = bySection.get(key) ?? { ipasId: row.ipas_id, section: Number(row.section) };
+      entry[row.role] = row;
+      bySection.set(key, entry);
+    }
+    const waiting = [...bySection.values()].filter(
+      (entry) => entry.prepared && !entry.approved && entry.prepared.signed_by !== employeeId,
+    );
+    if (waiting.length === 0) return [];
+
+    const { data: ipasRows, error: ipasError } = await supabase
+      .from("ipas")
+      .select("id, number, po_number, purpose, priority, state, odoo_copy")
+      .in("id", [...new Set(waiting.map((entry) => entry.ipasId))])
+      .eq("state", IPAS_STATE.OPEN);
+    if (ipasError) throw ipasError;
+    const ipasById = new Map((ipasRows || []).map((ipas) => [ipas.id, ipas]));
+
+    return waiting
+      .filter((entry) => ipasById.has(entry.ipasId))
+      .map((entry) => {
+        const ipas = ipasById.get(entry.ipasId);
+        const prepared = shapeSignoff(entry.prepared);
+        return {
+          id: `${ipas.id}:${entry.section}`,
+          ipasId: ipas.id,
+          number: ipas.number,
+          poNumber: ipas.po_number,
+          supplier: ipasSupplier(ipas),
+          purpose: ipas.purpose,
+          priority: ipas.priority,
+          total: (ipas.odoo_copy?.lines ?? []).reduce((sum, line) => sum + (Number(line?.price_subtotal) || 0), 0),
+          currency: ipasCurrency(ipas),
+          section: entry.section,
+          role: IPAS_SIGNOFF_ROLE.APPROVED,
+          preparedBy: prepared.signedBy,
+          preparedAt: prepared.signedAt,
+        };
+      })
+      .sort((a, b) => String(a.preparedAt).localeCompare(String(b.preparedAt)));
+  },
+
+  // ── The signer lists (#247) ──────────────────────────────────────────────
+
+  /**
+   * Who may give each sign-off after Prepared: `{ [list_key]: [{ id, employeeId,
+   * name, avatarPath, callSign }] }`, every key present (empty when nobody is
+   * on it), in the order people were added. Readable by anyone who reads IPAS.
+   */
+  async getSignerLists() {
+    const { data, error } = await supabase
+      .from("ipas_signer_lists")
+      .select("id, list_key, employee_id, created_at, employee:employees!ipas_signer_lists_employee_id_fkey(id, name, avatar_path, call_sign)")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+
+    const lists = Object.fromEntries(IPAS_SIGNER_LISTS.map((key) => [key, []]));
+    for (const row of data || []) {
+      if (!lists[row.list_key]) continue;
+      lists[row.list_key].push({
+        id: row.id,
+        employeeId: row.employee_id,
+        name: row.employee?.name ?? null,
+        avatarPath: row.employee?.avatar_path ?? null,
+        callSign: row.employee?.call_sign ?? null,
+      });
+    }
+    return lists;
+  },
+
+  /**
+   * Replaces one signer list with exactly the given employees (Super Admins
+   * only: the database refuses everyone else). Adds the new ones first and
+   * removes the others after, so a failure never leaves a list emptier than it
+   * was. Nobody's past sign-offs change. Returns the list as `getSignerLists`
+   * gives it.
+   */
+  async setSignerList(listKey, employeeIds = []) {
+    requireOneOf(listKey, IPAS_SIGNER_LISTS, "That isn't a sign-off list.");
+    const wanted = [...new Set((employeeIds || []).filter(Boolean))];
+
+    const current = (await ipasService.getSignerLists())[listKey];
+    const have = new Set(current.map((member) => member.employeeId));
+
+    const toAdd = wanted.filter((employeeId) => !have.has(employeeId));
+    if (toAdd.length > 0) {
+      const { error } = await supabase
+        .from("ipas_signer_lists")
+        .insert(toAdd.map((employee_id) => ({ list_key: listKey, employee_id })));
+      if (error) throw error;
+    }
+
+    const toRemove = current.filter((member) => !wanted.includes(member.employeeId));
+    if (toRemove.length > 0) {
+      const { data, error } = await supabase
+        .from("ipas_signer_lists")
+        .delete()
+        .in("id", toRemove.map((member) => member.id))
+        .select("id");
+      if (error) throw error;
+      // Row level security refuses a delete by returning no rows, not an error.
+      if ((data || []).length !== toRemove.length) {
+        throw new IpasError(IPAS_ERROR.INVALID, "Only a Super Admin can change who is on a sign-off list.");
+      }
+    }
+
+    return (await ipasService.getSignerLists())[listKey];
+  },
+
   // ── Changes ──────────────────────────────────────────────────────────────
 
   /**
@@ -828,6 +1079,25 @@ export const ipasService = {
     return data;
   },
 };
+
+function requireSignoffSection(section) {
+  if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {
+    throw new IpasError(
+      IPAS_ERROR.INVALID,
+      "Sections 1 and 3 are signed here. Section 7 is signed when the IPAS is filed.",
+    );
+  }
+}
+
+/** "TGIPAS_052 (P02552)" for a notification, from the RPC's row or one read. */
+async function readIpasLabel(id, row) {
+  let ipas = row;
+  if (!ipas?.number) {
+    const { data } = await supabase.from("ipas").select("number, po_number").eq("id", id).maybeSingle();
+    ipas = data;
+  }
+  return ipas?.number ? `${ipas.number} (${ipas.po_number})` : "An IPAS";
+}
 
 function unavailable(po) {
   return new IpasError(

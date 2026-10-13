@@ -5,6 +5,7 @@
 import { computeLandedCost, finiteNumber } from "./landedCost";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { buildBuyerTrack, missingSuggestions, shapeDocuments, supplierOriginOf } from "./ipasDocuments";
+import { sectionSignoffs, shapeSignoffs } from "./ipasSignoffs";
 import {
   IPAS_COMPUTATION_STATUS,
   IPAS_LANDED_COST_SPLIT,
@@ -193,8 +194,10 @@ export function changeNoteSummary(note) {
  * An IPAS row as the screens read it: the stored row plus what comes out of its
  * Odoo copy and its SORs. `sors` is `ipas_sor_headers` rows for this IPAS.
  *
- * `extras` ({ payments, charges, documents, options }: raw ipas_payments,
- * ipas_charges and ipas_documents rows and every ipas_options row) adds the
+ * `extras` ({ payments, charges, documents, options, signoffs }: raw
+ * ipas_payments, ipas_charges, ipas_documents and ipas_signoffs rows and every
+ * ipas_options row) adds the sign-offs (`signoffs`, and `signoffSections` by
+ * section 1 and 3), the
  * money (the shaped rows, the header amounts derived from them and Landed Cost),
  * the documents with the kinds still to suggest, the Item Location and the buyer
  * track. The list passes none and skips the work.
@@ -234,11 +237,14 @@ export function shapeIpas(row, sors = [], extras = null) {
   const statuses = odooStatuses(copy);
   const money = extras ? shapeMoney(row, extras) : {};
   const sections = extras ? shapeDocumentsAndTrack(row, extras, statuses, money.paymentSummary) : {};
+  const signoffs = shapeSignoffs(extras?.signoffs ?? []);
 
   return {
     ...row,
     ...money,
     ...sections,
+    signoffs,
+    signoffSections: { 1: sectionSignoffs(signoffs, 1), 3: sectionSignoffs(signoffs, 3) },
     supplierOrigin: supplierOriginOf(row),
     entity: ipasEntity(row),
     supplier: ipasSupplier(row),

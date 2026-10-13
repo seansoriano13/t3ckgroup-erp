@@ -7,6 +7,7 @@ export type Path =
   | `/`
   | `/approvals`
   | `/approvals/hr-verification`
+  | `/approvals/ipas`
   | `/approvals/leaves`
   | `/approvals/tasks`
   | `/bug-reports`

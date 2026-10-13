@@ -12,9 +12,7 @@
  * `ipas_bank_details` has no `id` column (the IPAS id is its key), so the read
  * and write probes below are written for it rather than reusing support/access.js.
  *
- * Sign-offs (`ipas_signoffs`) arrive with #247, so the approval reset is
- * exercised against a scratch table, as 57-ipas-odoo-copy does, and dropped
- * after. #247 must re-point this at the real table.
+ * The approval reset runs against the real `ipas_signoffs` (#247).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -100,8 +98,6 @@ async function readsBank(who, ipasId) {
 
 const file = (id) => sql().query(`update public.ipas set state = 'filed', filed_at = now() where id = $1`, [id])
 
-let createdSignoffs = false
-
 const addToList = async (listKey, who = "ipasSigner") => {
     const { error } = await svc().from("ipas_signer_lists").insert({ list_key: listKey, employee_id: ids[who] })
     if (error) throw error
@@ -114,28 +110,9 @@ beforeAll(async () => {
     if (flag.error) throw flag.error
     await clearLists()
 
-    const { rows } = await sql().query(`select to_regclass('public.ipas_signoffs') as t`)
-    if (!rows[0].t) {
-        await sql().query(`
-            create table public.ipas_signoffs (
-              id uuid primary key default gen_random_uuid(),
-              ipas_id uuid not null references public.ipas (id),
-              section smallint not null,
-              role text not null,
-              signed_by uuid references public.employees (id),
-              signed_at timestamptz not null default now(),
-              signature_declined boolean not null default false,
-              cleared_at timestamptz,
-              cleared_reason text
-            )`)
-        await sql().query(`alter table public.ipas_signoffs enable row level security`)
-        createdSignoffs = true
-    }
 })
 
 afterAll(async () => {
-    // The scratch table first: it references ipas, which the purge removes.
-    if (createdSignoffs) await sql().query(`drop table if exists public.ipas_signoffs`)
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
     await clearLists()
     await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)

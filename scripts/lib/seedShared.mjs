@@ -105,6 +105,12 @@ export const SEED_TABLES = [
   "ipas_charges",
   // Documents (#246) point at ipas and at the document_kind options above.
   "ipas_documents",
+  // Sign-offs (#247) point at ipas and employees. Seeded with the lists beside
+  // them: an approval and who gave it are facts about the work, and the restore
+  // runs in replica mode, so the paid-before-approval flags it carries are kept
+  // as written rather than recomputed from the rows loaded so far. The
+  // signature_version column holds a storage path, never the image.
+  "ipas_signoffs",
   "ipas_signer_lists",
   "odoo_retail_queue",
 ]

@@ -14,6 +14,7 @@ import { sql } from "./stack.js"
 
 const CHILDREN = [
     ["ipas_events", "ipas_id"],
+    ["ipas_signoffs", "ipas_id"],
     ["ipas_payments", "ipas_id"],
     ["ipas_charges", "ipas_id"],
     ["ipas_bank_details", "ipas_id"],

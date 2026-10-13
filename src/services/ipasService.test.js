@@ -752,27 +752,28 @@ describe("ipasService", () => {
       it("clears the live section 1 and 3 approvals and notifies the preparer", async () => {
         const preparer = makeEmployee({ name: "Prepared It" })
         const approver = makeEmployee({ name: "Approved It" })
-        const signoffs = [
-          { ipas_id: row.id, section: 1, role: "prepared", signed_by: preparer.id, cleared_at: null },
-          { ipas_id: row.id, section: 1, role: "approved", signed_by: approver.id, cleared_at: null },
-          { ipas_id: row.id, section: 3, role: "prepared", signed_by: preparer.id, cleared_at: null },
-          { ipas_id: row.id, section: 3, role: "approved", signed_by: approver.id, cleared_at: null },
+        db.seed("ipas_signoffs", [
+          { ipas_id: row.id, section: 1, role: "prepared", signed_by: preparer.id },
+          { ipas_id: row.id, section: 1, role: "approved", signed_by: approver.id },
+          { ipas_id: row.id, section: 3, role: "prepared", signed_by: preparer.id },
+          { ipas_id: row.id, section: 3, role: "approved", signed_by: approver.id },
           // Section 7 isn't undone by an Odoo change.
-          { ipas_id: row.id, section: 7, role: "received", signed_by: approver.id, cleared_at: null },
-        ]
-        stubIpasRpcs({ actorId: buyer.id, signoffs })
+          { ipas_id: row.id, section: 7, role: "received", signed_by: approver.id },
+        ])
+        const signoffs = () => db.rows("ipas_signoffs")
+        stubIpasRpcs({ actorId: buyer.id })
         odoo = { ...odoo, lines: [line(1), line(2), line(3)] }
 
         const read = await ipasService.get(row.id)
         await waitForNetworkIdle()
 
         expect(read.refresh).toMatchObject({ ok: true, changed: true, approvalsCleared: [1, 3] })
-        expect(signoffs.filter((s) => s.cleared_at).map((s) => [s.section, s.role])).toEqual([
+        expect(signoffs().filter((s) => s.cleared_at).map((s) => [s.section, s.role])).toEqual([
           [1, "approved"],
           [3, "approved"],
         ])
-        expect(signoffs.find((s) => s.section === 7).cleared_at).toBeNull()
-        expect(signoffs.filter((s) => s.cleared_reason).every((s) => s.cleared_reason === "PO changed in Odoo")).toBe(true)
+        expect(signoffs().find((s) => s.section === 7).cleared_at).toBeNull()
+        expect(signoffs().filter((s) => s.cleared_reason).every((s) => s.cleared_reason === "PO changed in Odoo")).toBe(true)
         expect(kinds()).toContain("approvals_cleared")
 
         const sent = db.rows("notifications").filter((n) => n.type === IPAS_NOTIFICATION.PO_CHANGED)
@@ -782,8 +783,7 @@ describe("ipasService", () => {
       })
 
       it("clears nothing, and notifies nobody, when nothing had been approved", async () => {
-        const signoffs = []
-        stubIpasRpcs({ actorId: buyer.id, signoffs })
+        stubIpasRpcs({ actorId: buyer.id })
         odoo = { ...odoo, lines: [line(1)] }
 
         const read = await ipasService.get(row.id)
@@ -796,17 +796,17 @@ describe("ipasService", () => {
 
       it("leaves approvals alone when only the receipts and bills moved", async () => {
         const preparer = makeEmployee({ name: "Prepared It" })
-        const signoffs = [
-          { ipas_id: row.id, section: 1, role: "prepared", signed_by: preparer.id, cleared_at: null },
-          { ipas_id: row.id, section: 1, role: "approved", signed_by: preparer.id, cleared_at: null },
-        ]
-        stubIpasRpcs({ actorId: buyer.id, signoffs })
+        db.seed("ipas_signoffs", [
+          { ipas_id: row.id, section: 1, role: "prepared", signed_by: preparer.id },
+          { ipas_id: row.id, section: 1, role: "approved", signed_by: preparer.id },
+        ])
+        stubIpasRpcs({ actorId: buyer.id })
         odoo = { ...odoo, receipts: { status: "full", done: 1, total: 1 }, bills: { count: 1, draft: 1 } }
 
         const read = await ipasService.get(row.id)
 
         expect(read.refresh.changed).toBe(false)
-        expect(signoffs.every((s) => !s.cleared_at)).toBe(true)
+        expect(db.rows("ipas_signoffs").every((s) => !s.cleared_at)).toBe(true)
       })
     })
 

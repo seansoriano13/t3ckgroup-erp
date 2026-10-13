@@ -111,3 +111,30 @@ describe("EmployeeForm Finance access right", () => {
     expect(submitted[0].has_finance_flow).toBe(false)
   })
 })
+
+describe("EmployeeForm Call Sign", () => {
+  const callSignInput = () => screen.getByPlaceholderText("e.g. 101 (unique, optional)")
+
+  it("saves the call sign typed beside the role", async () => {
+    const { submitted, user } = await renderForm({ initialData: {} })
+
+    await user.type(callSignInput(), "1203")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].call_sign).toBe("1203")
+  })
+
+  it("shows the call sign an employee already has", async () => {
+    await renderForm({ initialData: { call_sign: "101" } })
+    expect(callSignInput()).toHaveValue("101")
+  })
+
+  it("starts a new employee with no call sign, and a null one reads as blank", async () => {
+    const { submitted, user } = await renderForm({ initialData: { call_sign: null } })
+    expect(callSignInput()).toHaveValue("")
+
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].call_sign ?? "").toBe("")
+  })
+})

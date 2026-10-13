@@ -1,6 +1,20 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: sections 1 and 3 sign-offs in the Approval Center",
+        "version": "1.9.18",
+        "changes": [
+            "IPAS: sections 1 and 3 are signed in the ERP. Anyone with Purchasing access marks a section Prepared; the people on that section's approval list approve it. Whoever prepared a section can't approve it, and a Super Admin approves only when they are on the list.",
+            "IPAS: an approver can send a section back with a reason. It clears Prepared and Approved for that section, keeps them in History and tells whoever prepared it.",
+            "IPAS: a changed PO in Odoo (lines or total) or a flagged Account # clears the approvals on sections 1 and 3 and notifies the preparer. Payments, charges, overrides, Purpose and SORs never do.",
+            "IPAS: a payment recorded before section 1 is approved shows Paid before approval.",
+            "Approval Center: a new IPAS Sign-offs queue lists the sections waiting on you, with a count in the sidebar. A notification tells the approvers when a section is prepared.",
+            "IPAS settings: Super Admins keep the sign-off lists, who may approve each section.",
+            "Employees: HR and Super Admins can give someone a Call Sign, the code they go by (for example 101). Each Call Sign is unique."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: documents, Supplier Origin and the buyer track",
         "version": "1.9.17",
         "changes": [

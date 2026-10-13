@@ -23,6 +23,8 @@ import { IpasBankDetails } from "../../../components/ipas/IpasBankDetails";
 import DocumentDialog from "../../../components/ipas/DocumentDialog";
 import DatesDialog from "../../../components/ipas/DatesDialog";
 import { IpasDocuments } from "../../../components/ipas/IpasDocuments";
+import { IpasSignoffs } from "../../../components/ipas/IpasSignoffs";
+import SendBackDialog from "../../../components/ipas/SendBackDialog";
 import { IpasLogisticsSection } from "../../../components/ipas/IpasLogistics";
 import {
   IpasChargesSection,
@@ -37,15 +39,23 @@ import {
   IpasStatusSection,
   IpasWarnings,
 } from "../../../components/ipas/IpasSections";
-import { ipasKey, ipasListKey, ipasRefreshKey } from "../../../components/ipas/ipasKeys";
+import {
+  ipasKey,
+  ipasListKey,
+  ipasPendingPrefix,
+  ipasRefreshKey,
+  ipasSignerListsKey,
+} from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage } from "../../../utils/ipas";
+import { signoffRights } from "../../../utils/ipasSignoffs";
 import { formatDate } from "../../../utils/formatDate.js";
 import {
   IPAS_HEADER_FIELD,
   IPAS_OVERRIDE_FIELDS,
+  IPAS_SIGNOFF_ROLE,
   IPAS_STATE,
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TYPED_STATUS,
@@ -97,12 +107,18 @@ function typingInitialValue(field, ipas) {
  * Finance's own), the typed Item Location (section 5) and, in section 6,
  * Supplier Origin (Import only) and the buyer track with the source of each
  * status.
+ *
+ * #247 adds the sign-offs of sections 1 and 3 at the foot of each: Prepared
+ * (Purchasing access), Approved (the section's list, never the preparer) and
+ * Send back with a reason (the section's list). Each person is offered only
+ * what the database will let them do; it refuses the rest.
  */
 function IpasPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { hasPurchasingFlow, hasFinanceFlow } = getPermissionContext(user);
+  const [sendingBack, setSendingBack] = useState(null); // the section being sent back
 
   const [editing, setEditing] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(null); // { payment | null }
@@ -137,6 +153,14 @@ function IpasPage() {
     refetchOnWindowFocus: false,
   });
 
+  // Who is on each sign-off list, so the page offers Approve and Send back only
+  // to people on one. It never fails the page: no lists reads as nobody.
+  const { data: signerLists } = useQuery({
+    queryKey: ipasSignerListsKey,
+    queryFn: () => ipasService.getSignerLists(),
+    enabled: Boolean(id),
+  });
+
   useEffect(() => {
     if (!refresh.dataUpdatedAt) return;
     queryClient.invalidateQueries({ queryKey: ipasKey(id) });
@@ -147,6 +171,38 @@ function IpasPage() {
     queryClient.invalidateQueries({ queryKey: ipasKey(id) });
     queryClient.invalidateQueries({ queryKey: ipasListKey });
   };
+
+  // A sign-off moves the Approval Center queue and its badge too.
+  const signoffChanged = () => {
+    changed();
+    queryClient.invalidateQueries({ queryKey: ipasPendingPrefix });
+  };
+
+  const signoff = useMutation({
+    mutationFn: ({ section, role }) => ipasService.sign(id, section, role),
+    onSuccess: ({ notified }, { section, role }) => {
+      if (role === IPAS_SIGNOFF_ROLE.PREPARED) {
+        toast.success(
+          notified > 0
+            ? `Section ${section} prepared. The approvers were told.`
+            : `Section ${section} prepared. Nobody is on its approval list yet.`,
+        );
+      } else {
+        toast.success(`Section ${section} approved.`);
+      }
+      signoffChanged();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  const sendBack = useMutation({
+    mutationFn: ({ section, reason }) => ipasService.sendBack(id, section, reason),
+    onSuccess: (_, { section }) => {
+      toast.success(`Section ${section} sent back to its preparer.`);
+      signoffChanged();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
 
   const override = useMutation({
     mutationFn: ({ field, value }) => ipasService.overrideField(id, field, value),
@@ -317,6 +373,26 @@ function IpasPage() {
   // Finance has it: Finance access alone ticks it, until Filing.
   const canTickFinance = hasFinanceFlow && open;
 
+  // The sign-offs of sections 1 and 3: what this person may do on each.
+  const signoffBlock = (section) => (
+    <IpasSignoffs
+      section={section}
+      state={ipas.signoffSections[section]}
+      rights={signoffRights({
+        section,
+        sectionState: ipas.signoffSections[section],
+        userId: user?.id,
+        hasPurchasingFlow,
+        lists: signerLists,
+        ipasState: ipas.state,
+      })}
+      busy={signoff.isPending || sendBack.isPending}
+      onPrepare={() => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.PREPARED })}
+      onApprove={() => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.APPROVED })}
+      onSendBack={() => setSendingBack(section)}
+    />
+  );
+
   // What the dates dialog edits: the four Supplier Origin dates, or one typed status.
   const dateFields =
     dates === "origin"
@@ -397,6 +473,7 @@ function IpasPage() {
               onEditPayment={(payment) => setPaymentDialog({ payment })}
               onRemovePayment={(payment) => setRemoving({ type: "payment", row: payment })}
             />
+            {signoffBlock(1)}
           </IpasPurchasingSection>
           <IpasSalesSection
             ipas={ipas}
@@ -423,6 +500,7 @@ function IpasPage() {
               onRemove={setRemovingDocument}
             />
             <IpasBankDetails ipas={ipas} canChange={canChange} onEdit={() => setBankDialog(true)} />
+            {signoffBlock(3)}
           </IpasChargesSection>
           <IpasLogisticsSection ipas={ipas} canChange={canChange} onPick={(optionId) => locate.mutate(optionId)} />
           <IpasStatusSection
@@ -460,6 +538,14 @@ function IpasPage() {
       />
 
       <BankDetailsDialog open={bankDialog} onOpenChange={setBankDialog} ipas={ipas} />
+
+      <SendBackDialog
+        open={sendingBack !== null}
+        onOpenChange={(next) => !next && setSendingBack(null)}
+        title={`Send section ${sendingBack ?? ""} back?`}
+        description="It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
+        onSubmit={(reason) => sendBack.mutateAsync({ section: sendingBack, reason })}
+      />
 
       <DocumentDialog open={documentDialog} onOpenChange={setDocumentDialog} ipas={ipas} onAdded={changed} />
 

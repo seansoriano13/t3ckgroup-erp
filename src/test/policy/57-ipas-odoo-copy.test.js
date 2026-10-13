@@ -8,10 +8,8 @@
  * and `dealOwner` are nobody to the IPAS.
  *
  * Everything runs through the real `ipas_record_odoo_copy`, `ipas_override_field`,
- * `ipas_reset_override` and `ipas_set_header`. Sign-offs (`ipas_signoffs`)
- * arrive with #247, so the approval reset is exercised against a scratch table
- * of the spec's shape, created for this file and dropped after it; if #247 has
- * landed, its real table is used and left alone.
+ * `ipas_reset_override` and `ipas_set_header`. The approval reset runs against the
+ * real `ipas_signoffs` (#247).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -103,8 +101,6 @@ async function eventsOf(id, kind) {
 
 const file = (id) => sql().query(`update public.ipas set state = 'filed', filed_at = now() where id = $1`, [id])
 
-let createdSignoffs = false
-
 beforeAll(async () => {
     await ensureCastLoaded()
     const flag = await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider)
@@ -112,28 +108,9 @@ beforeAll(async () => {
     const member = await svc().from("ipas_signer_lists").insert({ list_key: "s1_approved", employee_id: ids.ipasSigner })
     if (member.error) throw member.error
 
-    const { rows } = await sql().query(`select to_regclass('public.ipas_signoffs') as t`)
-    if (!rows[0].t) {
-        await sql().query(`
-            create table public.ipas_signoffs (
-              id uuid primary key default gen_random_uuid(),
-              ipas_id uuid not null references public.ipas (id),
-              section smallint not null,
-              role text not null,
-              signed_by uuid references public.employees (id),
-              signed_at timestamptz not null default now(),
-              signature_declined boolean not null default false,
-              cleared_at timestamptz,
-              cleared_reason text
-            )`)
-        await sql().query(`alter table public.ipas_signoffs enable row level security`)
-        createdSignoffs = true
-    }
 })
 
 afterAll(async () => {
-    // The scratch table first: it references ipas, which the purge removes.
-    if (createdSignoffs) await sql().query(`drop table if exists public.ipas_signoffs`)
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
     await svc().from("ipas_signer_lists").delete().eq("employee_id", ids.ipasSigner)
     await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)

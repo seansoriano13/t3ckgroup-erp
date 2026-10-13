@@ -120,7 +120,9 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       // DP is read off the rows; there is no balance anywhere.
       expect(screen.getByText("DP").closest("div")).toHaveTextContent(/3,000\.00/);
       expect(screen.queryByText(/balance/i)).not.toBeInTheDocument();
-    });
+      // Four dialog interactions on a full page: close to the 5s default when the
+      // whole suite runs in parallel, so it gets room.
+    }, 20_000);
 
     it("keeps Record payment disabled and explains why while a number is half typed, without breaking", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });

@@ -227,7 +227,8 @@ describe("recording payments", () => {
                 created_by: ids[who],
                 check_no: "CHK-0042",
                 php_debited: null,
-                paid_before_approval: false,
+                // Nothing approves section 1 here, so the insert trigger (#247) flags it.
+                paid_before_approval: true,
             })
             expect(Number(peso.data.amount)).toBe(500)
 

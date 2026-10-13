@@ -1,0 +1,396 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router";
+import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
+import IpasSettingsPage from "@/pages/purchasing/ipas/settings";
+import IpasSignoffsQueuePage from "@/pages/approvals/ipas";
+import { renderWithProviders } from "@/test/support";
+import { makeEmployee } from "@/test/factories";
+import { db } from "@/test/db/store";
+import { waitForNetworkIdle } from "@/test/network";
+import { stubEdgeFunction } from "@/test/msw/server";
+import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+
+const mockUser = vi.hoisted(() => ({ current: null }));
+const toastError = vi.hoisted(() => vi.fn());
+
+vi.mock("react-hot-toast", async (importOriginal) => {
+  const actual = await importOriginal();
+  const toast = Object.assign((...args) => actual.default(...args), actual.default, { error: toastError });
+  return { ...actual, default: toast };
+});
+
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: () => ({ user: mockUser.current, isAuthLoading: false }),
+}));
+
+/**
+ * IPAS sign-offs (#247) as the people at the screens meet them: the IPAS page's
+ * Prepare, Approve and Send back, the Super Admin's signer lists in settings,
+ * and the Approval Center's IPAS queue. The database decides who may sign
+ * (policy tier 61); this proves each screen offers only what it will let a
+ * person do, and that what they do lands.
+ */
+
+const poCopy = (po) => ({
+  po: { id: 1, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
+  supplier: { id: 5, name: "Scorpe Technologies", contact: "Ms. K. Tan" },
+  lines: [
+    { line_id: 11, name: "Greenspirit 2 Cutter", brand: "SCORPE", quantity: 6, unit: "Unit", price_unit: 1250, price_subtotal: 7500, taxes: [], analytic: [] },
+  ],
+  receipts: { status: "pending", done: 0, total: 1 },
+  bills: { count: 0, draft: 0 },
+});
+
+let counter = 48;
+function ipas(overrides = {}) {
+  counter += 1;
+  const po = overrides.po_number ?? `P0${3000 + counter}`;
+  return db.seed("ipas", {
+    number: `TGIPAS_${String(counter).padStart(3, "0")}`,
+    po_number: po,
+    priority: "high",
+    source: "local",
+    purpose: "inventory",
+    odoo_copy: poCopy(po),
+    odoo_fetched_at: "2026-10-13T02:00:00.000Z",
+    state: "open",
+    landed_cost_split: "value",
+    computation_status: "encoding",
+    ...overrides,
+  });
+}
+
+const signoff = (ipasId, section, role, signedBy, over = {}) =>
+  db.seed("ipas_signoffs", { ipas_id: ipasId, section, role, signed_by: signedBy.id, ...over });
+const onList = (listKey, ...people) => people.forEach((p) => db.seed("ipas_signer_lists", { list_key: listKey, employee_id: p.id }));
+
+function renderDetail(id) {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}`]}>
+      <Routes>
+        <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
+        <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("IPAS sign-offs", () => {
+  let purchaser, approver, other, superAdmin;
+
+  /** Signs in as someone: the page's identity and the stubbed database's. */
+  const signIn = (person, opts = {}) => {
+    mockUser.current = person;
+    stubIpasRpcs({ actorId: person.id, purchasing: Boolean(person.has_purchasing_flow), ...opts });
+  };
+
+  beforeEach(() => {
+    counter = 48;
+    toastError.mockClear();
+    purchaser = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
+    approver = makeEmployee({ name: "Boss Lito" });
+    other = makeEmployee({ name: "Co Approver" });
+    superAdmin = makeEmployee({ name: "Super Admin", is_super_admin: true });
+    seedIpasOptions((table, row) => db.seed(table, row));
+    signIn(purchaser);
+    stubEdgeFunction("odoo-po-ipas", (body) => ({ success: true, found: true, ...poCopy(body.poNumber) }));
+  });
+
+  describe("on the IPAS page", () => {
+    it("lets Purchasing prepare a section, which then waits for approval and tells the approvers", async () => {
+      onList("s1_approved", approver, other);
+      const row = ipas({ created_by: purchaser.id });
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      const one = await screen.findByTestId("ipas-signoffs-1");
+      expect(within(one).getByText("Not prepared")).toBeInTheDocument();
+      expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
+
+      await user.click(within(one).getByRole("button", { name: "Prepare section 1" }));
+
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Awaiting approval")).toBeInTheDocument());
+      expect(within(screen.getByTestId("ipas-signoff-1-prepared")).getByText("Buyer")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Prepare section 1" })).not.toBeInTheDocument();
+      await waitForNetworkIdle();
+      expect(db.rows("notifications").map((n) => n.recipient_id).sort()).toEqual([approver.id, other.id].sort());
+      // Section 3 is its own.
+      expect(screen.getByRole("button", { name: "Prepare section 3" })).toBeInTheDocument();
+    });
+
+    it("offers Approve to a list member after Prepared, and shows who approved", async () => {
+      onList("s1_approved", approver);
+      const row = ipas();
+      signoff(row.id, 1, "prepared", purchaser);
+      signIn(approver);
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      const one = await screen.findByTestId("ipas-signoffs-1");
+      expect(within(one).queryByRole("button", { name: /Prepare section/ })).not.toBeInTheDocument();
+      await user.click(within(one).getByRole("button", { name: "Approve section 1" }));
+
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument());
+      expect(within(screen.getByTestId("ipas-signoff-1-approved")).getByText("Boss Lito")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Approve section 1" })).not.toBeInTheDocument();
+    });
+
+    it("doesn't offer Approve to the preparer, and says why", async () => {
+      onList("s1_approved", purchaser, approver);
+      const row = ipas();
+      signoff(row.id, 1, "prepared", purchaser);
+
+      renderDetail(row.id);
+
+      const one = await screen.findByTestId("ipas-signoffs-1");
+      expect(within(one).queryByRole("button", { name: "Approve section 1" })).not.toBeInTheDocument();
+      expect(within(one).getByText(/You prepared this section, so someone else approves it/)).toBeInTheDocument();
+      // They are on the list, so they may still send it back.
+      expect(within(one).getByRole("button", { name: "Send back" })).toBeInTheDocument();
+    });
+
+    it("offers nothing to someone off the list, a Super Admin included", async () => {
+      onList("s1_approved", approver);
+      const row = ipas();
+      signoff(row.id, 1, "prepared", purchaser);
+      signIn(superAdmin);
+
+      renderDetail(row.id);
+
+      const one = await screen.findByTestId("ipas-signoffs-1");
+      expect(within(one).getByText("Awaiting approval")).toBeInTheDocument();
+      expect(within(one).queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("sends a section back with a reason that is required, and shows what was cleared and why", async () => {
+      onList("s3_approved", approver);
+      const row = ipas();
+      signoff(row.id, 3, "prepared", purchaser);
+      signoff(row.id, 3, "approved", approver);
+      signIn(approver);
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      const three = await screen.findByTestId("ipas-signoffs-3");
+      await user.click(within(three).getByRole("button", { name: "Send back" }));
+
+      const dialog = await screen.findByRole("dialog");
+      const send = within(dialog).getByRole("button", { name: "Send back" });
+      expect(send).toBeDisabled();
+      await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "  Freight is missing ");
+      expect(send).toBeEnabled();
+      await user.click(send);
+
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-3")).getByText("Not prepared")).toBeInTheDocument());
+      const history = screen.getByTestId("ipas-signoff-history-3");
+      expect(within(history).getAllByText(/Sent back: Freight is missing/)).toHaveLength(2);
+      await waitForNetworkIdle();
+      const notice = db.rows("notifications").find((n) => n.type === "IPAS_SENT_BACK");
+      expect(notice).toMatchObject({ recipient_id: purchaser.id, reference_id: row.id });
+    });
+
+    it("shows what an Odoo change cleared, and awaiting approval again", async () => {
+      onList("s1_approved", approver);
+      const row = ipas();
+      signoff(row.id, 1, "prepared", purchaser);
+      signoff(row.id, 1, "approved", approver, {
+        cleared_at: "2026-10-13T05:00:00.000Z",
+        cleared_reason: "PO changed in Odoo",
+      });
+
+      renderDetail(row.id);
+
+      const one = await screen.findByTestId("ipas-signoffs-1");
+      expect(within(one).getByText("Awaiting approval")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ipas-signoff-history-1")).getByText(/PO changed in Odoo/)).toBeInTheDocument();
+    });
+
+    it("writes the sign-offs, send-backs and clearings into History in words", async () => {
+      const row = ipas();
+      db.seed("ipas_events", [
+        { ipas_id: row.id, actor_id: purchaser.id, kind: "signed", detail: { section: 1, role: "prepared", signature_declined: false } },
+        { ipas_id: row.id, actor_id: approver.id, kind: "signed", detail: { section: 1, role: "approved", signature_declined: true } },
+        { ipas_id: row.id, actor_id: approver.id, kind: "sent_back", detail: { section: 3, reason: "Freight is missing", cleared: ["prepared"] } },
+        { ipas_id: row.id, actor_id: purchaser.id, kind: "approvals_cleared", detail: { reason: "PO changed in Odoo", sections: [1, 3] } },
+      ]);
+
+      renderDetail(row.id);
+
+      expect(await screen.findByText("Section 1 prepared")).toBeInTheDocument();
+      expect(screen.getByText("Section 1 approved · without a signature")).toBeInTheDocument();
+      expect(screen.getByText("Section 3 · “Freight is missing”")).toBeInTheDocument();
+      expect(screen.getByText("PO changed in Odoo · section 1 and section 3 back to awaiting approval")).toBeInTheDocument();
+    });
+
+    it("offers no sign-off action on a filed IPAS", async () => {
+      onList("s1_approved", approver);
+      const row = ipas({ state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
+      signoff(row.id, 1, "prepared", purchaser);
+      signIn(approver);
+
+      renderDetail(row.id);
+
+      const one = await screen.findByTestId("ipas-signoffs-1");
+      expect(within(one).queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("words the database's refusal in a sentence, not a code", async () => {
+      onList("s1_approved", approver);
+      const row = ipas();
+      signoff(row.id, 1, "prepared", purchaser);
+      // The page thinks the viewer is on the list; the database disagrees.
+      signIn(approver, { actorId: other.id });
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      await user.click(within(await screen.findByTestId("ipas-signoffs-1")).getByRole("button", { name: "Approve section 1" }));
+
+      await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/^you are not on the list that may give this sign-off/i)));
+      expect(toastError.mock.calls.at(-1)[0]).not.toMatch(/ipas_sign|42501/);
+      expect(db.rows("ipas_signoffs").filter((s) => s.role === "approved")).toEqual([]);
+    });
+  });
+
+  describe("the sign-off lists in settings", () => {
+    const renderSettings = () =>
+      renderWithProviders(
+        <MemoryRouter initialEntries={["/purchasing/ipas/settings"]}>
+          <Routes>
+            <Route path="/purchasing/ipas/settings" element={<IpasSettingsPage />} />
+            <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
+            <Route path="/" element={<p>Home</p>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+    it("offers the lists to a Super Admin only", async () => {
+      signIn(superAdmin);
+      const first = renderSettings();
+      expect(await screen.findByRole("tab", { name: "Sign-off lists" })).toBeInTheDocument();
+      first.unmount();
+
+      signIn(purchaser);
+      renderSettings();
+      expect(await screen.findByRole("tab", { name: "Payment methods" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "Sign-off lists" })).not.toBeInTheDocument();
+    });
+
+    it("shows who is on each list, and takes someone off one", async () => {
+      onList("s1_approved", approver, other);
+      onList("s3_approved", approver);
+      signIn(superAdmin);
+      const user = userEvent.setup();
+
+      renderSettings();
+      await user.click(await screen.findByRole("tab", { name: "Sign-off lists" }));
+
+      const one = await screen.findByTestId("ipas-signer-list-s1_approved");
+      expect(await within(one).findByText("Boss Lito")).toBeInTheDocument();
+      expect(within(one).getByText("Co Approver")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ipas-signer-list-s7_noted")).getByText("Nobody yet.")).toBeInTheDocument();
+
+      await user.click(within(one).getByRole("button", { name: "Remove Co Approver" }));
+
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signer-list-s1_approved")).queryByText("Co Approver")).not.toBeInTheDocument());
+      expect(db.rows("ipas_signer_lists").filter((l) => l.list_key === "s1_approved").map((l) => l.employee_id)).toEqual([approver.id]);
+      expect(db.rows("ipas_signer_lists").filter((l) => l.list_key === "s3_approved")).toHaveLength(1);
+    });
+  });
+
+  describe("the Approval Center queue", () => {
+    const renderQueue = (initial = "/approvals/ipas") =>
+      renderWithProviders(
+        <MemoryRouter initialEntries={[initial]}>
+          <Routes>
+            <Route path="/approvals/ipas" element={<IpasSignoffsQueuePage />} />
+            <Route path="/purchasing/ipas/:id" element={<p>The IPAS page</p>} />
+            <Route path="/" element={<p>Home</p>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+    it("lists the IPAS waiting on the approver, with the preparer", async () => {
+      onList("s1_approved", approver);
+      const row = ipas({ created_by: purchaser.id });
+      signoff(row.id, 1, "prepared", purchaser);
+      const mine = ipas({ created_by: purchaser.id });
+      signoff(mine.id, 1, "prepared", approver);
+      signIn(approver, { purchasing: false });
+      mockUser.current = { ...approver, isIpasApprover: true };
+
+      renderQueue();
+
+      const rows = await screen.findAllByRole("row");
+      expect(rows.some((r) => within(r).queryByText(row.number))).toBe(true);
+      expect(screen.getByText("Scorpe Technologies")).toBeInTheDocument();
+      expect(screen.getByText("Buyer")).toBeInTheDocument();
+      // What they prepared themselves isn't theirs to approve.
+      expect(screen.queryByText(mine.number)).not.toBeInTheDocument();
+    });
+
+    it("approves from the row, and the IPAS leaves the queue", async () => {
+      onList("s1_approved", approver);
+      const row = ipas({ created_by: purchaser.id });
+      signoff(row.id, 1, "prepared", purchaser);
+      signIn(approver);
+      mockUser.current = { ...approver, isIpasApprover: true };
+      const user = userEvent.setup();
+
+      renderQueue();
+      await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 1` }));
+
+      await waitFor(() => expect(screen.getByText("Nothing waiting on you right now")).toBeInTheDocument());
+      expect(db.rows("ipas_signoffs").filter((s) => !s.cleared_at).map((s) => s.role).sort()).toEqual(["approved", "prepared"]);
+    });
+
+    it("sends back from the row with a reason, and tells the preparer", async () => {
+      onList("s3_approved", approver);
+      const row = ipas({ created_by: purchaser.id });
+      signoff(row.id, 3, "prepared", purchaser);
+      signIn(approver);
+      mockUser.current = { ...approver, isIpasApprover: true };
+      const user = userEvent.setup();
+
+      renderQueue();
+      await user.click(await screen.findByRole("button", { name: `Send back ${row.number} section 3` }));
+      const dialog = await screen.findByRole("dialog");
+      await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "Wrong supplier");
+      await user.click(within(dialog).getByRole("button", { name: "Send back" }));
+
+      await waitFor(() => expect(screen.getByText("Nothing waiting on you right now")).toBeInTheDocument());
+      await waitForNetworkIdle();
+      expect(db.rows("ipas_signoffs")[0]).toMatchObject({ cleared_reason: "Sent back: Wrong supplier", cleared_by: approver.id });
+      expect(db.rows("notifications").find((n) => n.type === "IPAS_SENT_BACK")).toMatchObject({ recipient_id: purchaser.id });
+    });
+
+    it("opens a review sheet that links to the IPAS", async () => {
+      onList("s1_approved", approver);
+      const row = ipas({ created_by: purchaser.id });
+      signoff(row.id, 1, "prepared", purchaser);
+      signIn(approver);
+      mockUser.current = { ...approver, isIpasApprover: true };
+      const user = userEvent.setup();
+
+      renderQueue();
+      await user.click(await screen.findByText("Scorpe Technologies"));
+
+      const sheet = await screen.findByRole("dialog");
+      expect(within(sheet).getByText("Prepared it")).toBeInTheDocument();
+      expect(within(sheet).getByText(row.po_number)).toBeInTheDocument();
+      expect(within(sheet).getByRole("link", { name: "Open the IPAS" })).toHaveAttribute("href", `/purchasing/ipas/${row.id}`);
+      expect(within(sheet).getByRole("button", { name: "Approve" })).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: "Send back" })).toBeInTheDocument();
+    });
+
+    it("sends someone who isn't on an approval list away", async () => {
+      signIn(superAdmin);
+      mockUser.current = { ...superAdmin, isSuperAdmin: true, isIpasApprover: false };
+
+      renderQueue();
+
+      expect(await screen.findByText("Home")).toBeInTheDocument();
+    });
+  });
+});

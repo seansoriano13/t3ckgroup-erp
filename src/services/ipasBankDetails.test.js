@@ -232,25 +232,26 @@ describe("ipasService: bank details and the changed-account flag", () => {
       const first = await raise("P02201")
       await ipasService.setBankDetails(first.id, details())
       const second = await raise("P02202")
-      const signoffs = [
-        { ipas_id: second.id, section: 1, role: "prepared", signed_by: preparer.id, cleared_at: null },
-        { ipas_id: second.id, section: 1, role: "approved", signed_by: approver.id, cleared_at: null },
-        { ipas_id: second.id, section: 3, role: "prepared", signed_by: preparer.id, cleared_at: null },
-        { ipas_id: second.id, section: 3, role: "approved", signed_by: approver.id, cleared_at: null },
-        { ipas_id: second.id, section: 7, role: "received", signed_by: approver.id, cleared_at: null },
-      ]
-      stubIpasRpcs({ actorId: buyer.id, signoffs })
+      db.seed("ipas_signoffs", [
+        { ipas_id: second.id, section: 1, role: "prepared", signed_by: preparer.id },
+        { ipas_id: second.id, section: 1, role: "approved", signed_by: approver.id },
+        { ipas_id: second.id, section: 3, role: "prepared", signed_by: preparer.id },
+        { ipas_id: second.id, section: 3, role: "approved", signed_by: approver.id },
+        { ipas_id: second.id, section: 7, role: "received", signed_by: approver.id },
+      ])
+      const signoffs = () => db.rows("ipas_signoffs")
+      stubIpasRpcs({ actorId: buyer.id })
 
       const result = await ipasService.setBankDetails(second.id, details({ accountNumber: "9999 0000" }))
       await waitForNetworkIdle()
 
       expect(result).toMatchObject({ flagged: true, approvalsCleared: [1, 3] })
-      expect(signoffs.filter((s) => s.cleared_at).map((s) => [s.section, s.role])).toEqual([
+      expect(signoffs().filter((s) => s.cleared_at).map((s) => [s.section, s.role])).toEqual([
         [1, "approved"],
         [3, "approved"],
       ])
-      expect(signoffs.filter((s) => s.cleared_reason).every((s) => s.cleared_reason === "Account # flagged")).toBe(true)
-      expect(signoffs.find((s) => s.section === 7).cleared_at).toBeNull()
+      expect(signoffs().filter((s) => s.cleared_reason).every((s) => s.cleared_reason === "Account # flagged")).toBe(true)
+      expect(signoffs().find((s) => s.section === 7).cleared_at).toBeNull()
       expect(events("approvals_cleared")[0].detail).toMatchObject({ reason: "Account # flagged", sections: [1, 3] })
 
       const sent = db.rows("notifications").filter((n) => n.type === IPAS_NOTIFICATION.ACCOUNT_FLAGGED)
@@ -278,15 +279,15 @@ describe("ipasService: bank details and the changed-account flag", () => {
       await ipasService.setBankDetails(first.id, details())
       const second = await raise("P02222")
       await ipasService.setBankDetails(second.id, details({ accountNumber: "9999" }))
-      const signoffs = [
-        { ipas_id: second.id, section: 1, role: "prepared", signed_by: preparer.id, cleared_at: null },
-        { ipas_id: second.id, section: 1, role: "approved", signed_by: preparer.id, cleared_at: null },
-      ]
-      stubIpasRpcs({ actorId: buyer.id, signoffs })
+      db.seed("ipas_signoffs", [
+        { ipas_id: second.id, section: 1, role: "prepared", signed_by: preparer.id },
+        { ipas_id: second.id, section: 1, role: "approved", signed_by: preparer.id },
+      ])
+      stubIpasRpcs({ actorId: buyer.id })
 
       await ipasService.setBankDetails(second.id, details({ accountNumber: "9999", bankName: "BPI" }))
 
-      expect(signoffs.every((s) => !s.cleared_at)).toBe(true)
+      expect(db.rows("ipas_signoffs").every((s) => !s.cleared_at)).toBe(true)
     })
   })
 
@@ -296,11 +297,11 @@ describe("ipasService: bank details and the changed-account flag", () => {
       const first = await raise("P02301")
       await ipasService.setBankDetails(first.id, details({ accountNumber: "5550001111" }))
       const second = await raise("P02302")
-      const signoffs = [
-        { ipas_id: second.id, section: 1, role: "prepared", signed_by: preparer.id, cleared_at: null },
-        { ipas_id: second.id, section: 1, role: "approved", signed_by: preparer.id, cleared_at: null },
-      ]
-      stubIpasRpcs({ actorId: buyer.id, signoffs })
+      db.seed("ipas_signoffs", [
+        { ipas_id: second.id, section: 1, role: "prepared", signed_by: preparer.id },
+        { ipas_id: second.id, section: 1, role: "approved", signed_by: preparer.id },
+      ])
+      stubIpasRpcs({ actorId: buyer.id })
 
       await ipasService.setBankDetails(second.id, details({ accountNumber: "7770002222", accountName: "Secret Holder" }))
       await waitForNetworkIdle()

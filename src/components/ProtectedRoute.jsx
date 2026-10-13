@@ -7,6 +7,7 @@ export default function ProtectedRoute({
   requireHr = false,
   requireSuperAdmin = false,
   requirePurchasing = false,
+  requireIpasApprover = false,
   excludeSuperAdmin = false,
   allowLeaveManagers = false,
 }) {
@@ -57,6 +58,13 @@ export default function ProtectedRoute({
   // same as doing the sourcing.
   const hasPurchasing = user.has_purchasing_flow || user.hasPurchasingFlow;
   if (requirePurchasing && !hasPurchasing && !isSA) {
+    return <Navigate to="/" replace />;
+  }
+
+  // The IPAS sign-offs queue (#247): on the section 1 or 3 approval list. A
+  // Super Admin gets no pass: they sign only when they are on a list.
+  const isIpasApprover = user.isIpasApprover || user.is_ipas_approver;
+  if (requireIpasApprover && !isIpasApprover) {
     return <Navigate to="/" replace />;
   }
 

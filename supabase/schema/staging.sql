@@ -289,7 +289,8 @@ create table if not exists public."employees" (
   "can_edit_sales_flows" boolean not null default false,
   "has_retail_access" boolean not null default false,
   "has_bug_report_access" boolean not null default false,
-  "has_finance_flow" boolean not null default false
+  "has_finance_flow" boolean not null default false,
+  "call_sign" text
 );
 
 create table if not exists public."faq_data" (
@@ -567,6 +568,20 @@ create table if not exists public."ipas_signer_lists" (
   "list_key" text not null,
   "employee_id" uuid not null,
   "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."ipas_signoffs" (
+  "id" uuid not null default gen_random_uuid(),
+  "ipas_id" uuid not null,
+  "section" smallint not null,
+  "role" text not null,
+  "signed_by" uuid not null,
+  "signed_at" timestamp with time zone not null default now(),
+  "signature_declined" boolean not null default false,
+  "signature_version" text,
+  "cleared_at" timestamp with time zone,
+  "cleared_by" uuid,
+  "cleared_reason" text
 );
 
 create table if not exists public."ipas_sors" (
@@ -1284,6 +1299,7 @@ alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
+alter table ipas_signoffs add constraint "ipas_signoffs_pkey" PRIMARY KEY (id);
 alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
 alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_pkey" PRIMARY KEY (id);
@@ -1367,6 +1383,7 @@ alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_ch
 alter table commission_rates add constraint "commission_rates_rate_type_chk" CHECK ((rate_type = ANY (ARRAY['VAT'::text, 'WITHHOLDING'::text, 'POOL'::text, 'RETENTION'::text])));
 alter table commission_splits add constraint "commission_splits_project_type_chk" CHECK ((project_type = ANY (ARRAY['SSP'::text, 'CP'::text, 'STRATEGIC'::text])));
 alter table commission_splits add constraint "commission_splits_share_role_chk" CHECK ((share_role = ANY (ARRAY['deal_owner'::text, 'supporting_salesperson'::text, 'closing_salesperson'::text, 'sales_director'::text])));
+alter table employees add constraint "employees_call_sign_chk" CHECK (((call_sign IS NULL) OR ((length(btrim(call_sign)) > 0) AND (call_sign = btrim(call_sign)))));
 alter table faq_data add constraint "faq_data_id_check" CHECK ((id = 1));
 alter table flow_edges add constraint "flow_edges_no_self_loop" CHECK ((from_stage_id <> to_stage_id));
 alter table flow_form_fields add constraint "flow_form_fields_custom_shape_chk" CHECK (((source <> 'custom'::text) OR ((label IS NOT NULL) AND (btrim(label) <> ''::text) AND (field_type IS NOT NULL))));
@@ -1420,6 +1437,10 @@ alter table ipas_payments add constraint "ipas_payments_kind_chk" CHECK ((kind =
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
 alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text])));
+alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL) AND (cleared_by IS NULL)) OR ((cleared_at IS NOT NULL) AND (cleared_reason IS NOT NULL) AND (length(btrim(cleared_reason)) > 0))));
+alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
+alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
+alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 7])));
 alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
@@ -1531,6 +1552,9 @@ alter table ipas_payments add constraint "ipas_payments_created_by_fkey" FOREIGN
 alter table ipas_payments add constraint "ipas_payments_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_method_id_fkey" FOREIGN KEY (method_id) REFERENCES ipas_options(id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+alter table ipas_signoffs add constraint "ipas_signoffs_cleared_by_fkey" FOREIGN KEY (cleared_by) REFERENCES employees(id);
+alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_signoffs add constraint "ipas_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
 alter table ipas_sors add constraint "ipas_sors_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_sors add constraint "ipas_sors_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
 alter table notifications add constraint "notifications_recipient_id_fkey" FOREIGN KEY (recipient_id) REFERENCES employees(id);
@@ -1701,6 +1725,7 @@ CREATE UNIQUE INDEX crm_pipeline_stages_one_won ON public.crm_pipeline_stages US
 CREATE UNIQUE INDEX crm_pipeline_stages_sort_order_key ON public.crm_pipeline_stages USING btree (sort_order);
 CREATE INDEX employee_group_members_employee_idx ON public.employee_group_members USING btree (employee_id);
 CREATE UNIQUE INDEX employee_groups_active_name_key ON public.employee_groups USING btree (lower(TRIM(BOTH FROM name))) WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX employees_call_sign_key ON public.employees USING btree (call_sign) WHERE (call_sign IS NOT NULL);
 CREATE INDEX employees_company_id_idx ON public.employees USING btree (company_id);
 CREATE INDEX flow_edges_from_idx ON public.flow_edges USING btree (flow_id, from_stage_id);
 CREATE INDEX flow_form_fields_flow_id_idx ON public.flow_form_fields USING btree (flow_id);
@@ -1735,6 +1760,10 @@ CREATE INDEX ipas_payments_created_by_idx ON public.ipas_payments USING btree (c
 CREATE INDEX ipas_payments_ipas_id_idx ON public.ipas_payments USING btree (ipas_id, paid_on);
 CREATE INDEX ipas_payments_method_id_idx ON public.ipas_payments USING btree (method_id);
 CREATE INDEX ipas_signer_lists_employee_id_idx ON public.ipas_signer_lists USING btree (employee_id);
+CREATE INDEX ipas_signoffs_cleared_by_idx ON public.ipas_signoffs USING btree (cleared_by);
+CREATE INDEX ipas_signoffs_ipas_id_idx ON public.ipas_signoffs USING btree (ipas_id, section);
+CREATE UNIQUE INDEX ipas_signoffs_live_key ON public.ipas_signoffs USING btree (ipas_id, section, role) WHERE (cleared_at IS NULL);
+CREATE INDEX ipas_signoffs_signed_by_idx ON public.ipas_signoffs USING btree (signed_by);
 CREATE INDEX ipas_sors_opportunity_id_idx ON public.ipas_sors USING btree (opportunity_id);
 CREATE INDEX odoo_retail_queue_created_at_idx ON public.odoo_retail_queue USING btree (created_at DESC);
 CREATE INDEX odoo_retail_queue_status_idx ON public.odoo_retail_queue USING btree (status);
@@ -1847,6 +1876,7 @@ alter table public."ipas_events" enable row level security;
 alter table public."ipas_options" enable row level security;
 alter table public."ipas_payments" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
+alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
 alter table public."notifications" enable row level security;
 alter table public."odoo_retail_queue" enable row level security;
@@ -2485,6 +2515,11 @@ create policy "ipas_signer_lists_write" on public."ipas_signer_lists"
   to authenticated
   using (COALESCE(is_super_admin(), false))
   with check (COALESCE(is_super_admin(), false));
+create policy "ipas_signoffs_read" on public."ipas_signoffs"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
 create policy "ipas_sors_read" on public."ipas_sors"
   as permissive
   for select
@@ -3132,6 +3167,24 @@ AS $function$
   select regexp_replace(coalesce(p_account, ''), '[[:space:]-]', '', 'g');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_can_sign_section(p_section integer, p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when p_section = 1 then public._ipas_on_list('s1_approved', p_employee_id)
+    when p_section = 3 then public._ipas_on_list('s3_approved', p_employee_id)
+    when p_section = 7 then
+      public._ipas_on_list('s7_received', p_employee_id)
+      or public._ipas_on_list('s7_noted', p_employee_id)
+      or public._ipas_on_list('s7_checked', p_employee_id)
+      or public._ipas_on_list('s7_approved', p_employee_id)
+    else false
+  end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_change_note(p_old jsonb, p_new jsonb, p_previous_fetched_at timestamp with time zone)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -3301,6 +3354,42 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_clear_approvals(p_ipas_id uuid, p_actor uuid, p_reason text, OUT sections integer[], OUT preparer_ids uuid[])
+ RETURNS record
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = p_actor, cleared_reason = p_reason
+     where s.ipas_id = p_ipas_id
+       and s.section in (1, 3)
+       and s.role = 'approved'
+       and s.cleared_at is null
+    returning s.section
+  )
+  select coalesce(array_agg(distinct section::integer), '{}'::integer[]) into sections from cleared;
+
+  preparer_ids := '{}'::uuid[];
+  if cardinality(sections) > 0 then
+    select coalesce(array_agg(distinct s.signed_by), '{}'::uuid[])
+      into preparer_ids
+      from public.ipas_signoffs s
+     where s.ipas_id = p_ipas_id
+       and s.section = any (sections)
+       and s.role = 'prepared'
+       and s.cleared_at is null;
+
+    perform public._ipas_write_event(p_ipas_id, p_actor, 'approvals_cleared', jsonb_build_object(
+      'reason', p_reason,
+      'sections', to_jsonb(sections)
+    ));
+  end if;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_copy_digest(p_copy jsonb)
  RETURNS jsonb
  LANGUAGE sql
@@ -3465,6 +3554,22 @@ AS $function$
   end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_on_list(p_list_key text, p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1
+      from ipas_signer_lists l
+      join employees e on e.id = l.employee_id
+     where l.list_key = p_list_key
+       and l.employee_id = p_employee_id
+       and not coalesce(e.is_deleted, false)
+  );
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_po_line_ids(p_po_number text)
  RETURNS integer[]
  LANGUAGE sql
@@ -3547,6 +3652,31 @@ begin
     raise exception '%: % must be a real date', p_fn, p_label using errcode = '22023';
   end;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_signoff_list_key(p_section integer, p_role text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select case
+    when p_section = 1 and p_role = 'approved' then 's1_approved'
+    when p_section = 3 and p_role = 'approved' then 's3_approved'
+    when p_section = 7 and p_role = 'received' then 's7_received'
+    when p_section = 7 and p_role = 'noted' then 's7_noted'
+    when p_section = 7 and p_role = 'checked' then 's7_checked'
+    when p_section = 7 and p_role = 'approved' then 's7_approved'
+    else null
+  end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_signoff_pair_ok(p_section integer, p_role text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select (p_section in (1, 3) and p_role in ('prepared', 'approved'))
+      or (p_section = 7 and p_role in ('received', 'noted', 'checked', 'approved'));
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_suggest_documents(p_ipas_id uuid, p_actor uuid)
@@ -5916,6 +6046,28 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_payments_paid_before_approval()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'INSERT' then
+    new.paid_before_approval := not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = new.ipas_id
+         and s.section = 1
+         and s.role = 'approved'
+         and s.cleared_at is null
+    );
+  else
+    new.paid_before_approval := old.paid_before_approval;
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_record_odoo_copy(p_ipas_id uuid, p_odoo_copy jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -6026,38 +6178,12 @@ begin
   end if;
 
   -- Lines or the total changed: the live section 1 and 3 approvals no longer
-  -- approve what is being bought. #247 creates ipas_signoffs; until then there
-  -- is nothing to clear.
-  if v_lines_changed and to_regclass('public.ipas_signoffs') is not null then
-    execute $q$
-      with cleared as (
-        update public.ipas_signoffs s
-           set cleared_at = now(), cleared_reason = 'PO changed in Odoo'
-         where s.ipas_id = $1
-           and s.section in (1, 3)
-           and s.role = 'approved'
-           and s.cleared_at is null
-        returning s.section
-      )
-      select coalesce(array_agg(distinct section::integer), '{}'::integer[]) from cleared
-    $q$ into v_sections using v_row.id;
-
-    if cardinality(v_sections) > 0 then
-      execute $q$
-        select coalesce(array_agg(distinct s.signed_by), '{}'::uuid[])
-          from public.ipas_signoffs s
-         where s.ipas_id = $1
-           and s.section = any ($2)
-           and s.role = 'prepared'
-           and s.cleared_at is null
-           and s.signed_by is not null
-      $q$ into v_preparers using v_row.id, v_sections;
-
-      perform public._ipas_write_event(v_row.id, v_actor, 'approvals_cleared', jsonb_build_object(
-        'reason', 'PO changed in Odoo',
-        'sections', to_jsonb(v_sections)
-      ));
-    end if;
+  -- approve what is being bought. Prepared stays, so the section goes back to
+  -- awaiting approval.
+  if v_lines_changed then
+    select c.sections, c.preparer_ids
+      into v_sections, v_preparers
+      from public._ipas_clear_approvals(v_row.id, v_actor, 'PO changed in Odoo') c;
   end if;
 
   return jsonb_build_object(
@@ -6233,6 +6359,74 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_send_back(p_ipas_id uuid, p_section integer, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_reason text := nullif(btrim(p_reason), '');
+  v_ipas public.ipas;
+  v_roles text[];
+  v_preparers uuid[];
+begin
+  if v_actor is null then
+    raise exception 'ipas_send_back: not signed in' using errcode = '42501';
+  end if;
+  if v_reason is null then
+    raise exception 'ipas_send_back: give a reason, so the preparer knows what to fix' using errcode = '22023';
+  end if;
+  if length(v_reason) > 500 then
+    raise exception 'ipas_send_back: the reason is 500 characters at most' using errcode = '22023';
+  end if;
+  -- #248: section 7 is sent back by its own lists and clears its own sign-offs;
+  -- it joins here when Filing lands.
+  if p_section is null or p_section not in (1, 3) then
+    raise exception 'ipas_send_back: only sections 1 and 3 can be sent back' using errcode = '22023';
+  end if;
+
+  v_ipas := public._ipas_lock_open('ipas_send_back', p_ipas_id);
+
+  if not public._ipas_can_sign_section(p_section, v_actor) then
+    raise exception 'ipas_send_back: only a signer of section % sends it back', p_section using errcode = '42501';
+  end if;
+
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Sent back: ' || v_reason
+     where s.ipas_id = v_ipas.id
+       and s.section = p_section
+       and s.role in ('prepared', 'approved')
+       and s.cleared_at is null
+    returning s.role, s.signed_by
+  )
+  select coalesce(array_agg(role order by role), '{}'::text[]),
+         coalesce(array_agg(distinct signed_by) filter (where role = 'prepared'), '{}'::uuid[])
+    into v_roles, v_preparers
+    from cleared;
+
+  if cardinality(v_roles) = 0 then
+    raise exception 'ipas_send_back: section % has nothing to send back', p_section using errcode = '55000';
+  end if;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'sent_back', jsonb_build_object(
+    'section', p_section,
+    'reason', v_reason,
+    'cleared', to_jsonb(v_roles)
+  ));
+
+  return jsonb_build_object(
+    'ipas', to_jsonb(v_ipas),
+    'section', p_section,
+    'actor_id', v_actor,
+    'cleared_roles', to_jsonb(v_roles),
+    'preparer_ids', to_jsonb(v_preparers)
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_bank_details(p_ipas_id uuid, p_bank_name text, p_account_name text, p_account_number text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -6352,38 +6546,9 @@ begin
     ));
 
     -- The live section 1 and 3 approvals no longer approve this account.
-    -- #247 creates ipas_signoffs; until then there is nothing to clear.
-    if to_regclass('public.ipas_signoffs') is not null then
-      execute $q$
-        with cleared as (
-          update public.ipas_signoffs s
-             set cleared_at = now(), cleared_reason = 'Account # flagged'
-           where s.ipas_id = $1
-             and s.section in (1, 3)
-             and s.role = 'approved'
-             and s.cleared_at is null
-          returning s.section
-        )
-        select coalesce(array_agg(distinct section::integer), '{}'::integer[]) from cleared
-      $q$ into v_sections using v_ipas.id;
-
-      if cardinality(v_sections) > 0 then
-        execute $q$
-          select coalesce(array_agg(distinct s.signed_by), '{}'::uuid[])
-            from public.ipas_signoffs s
-           where s.ipas_id = $1
-             and s.section = any ($2)
-             and s.role = 'prepared'
-             and s.cleared_at is null
-             and s.signed_by is not null
-        $q$ into v_preparers using v_ipas.id, v_sections;
-
-        perform public._ipas_write_event(v_ipas.id, v_actor, 'approvals_cleared', jsonb_build_object(
-          'reason', 'Account # flagged',
-          'sections', to_jsonb(v_sections)
-        ));
-      end if;
-    end if;
+    select c.sections, c.preparer_ids
+      into v_sections, v_preparers
+      from public._ipas_clear_approvals(v_ipas.id, v_actor, 'Account # flagged') c;
   end if;
 
   return jsonb_build_object(
@@ -6788,6 +6953,127 @@ begin
     jsonb_build_object('status', p_status, 'from', v_from, 'to', p_date));
 
   return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_sign(p_ipas_id uuid, p_section integer, p_role text, p_decline_signature boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_ipas public.ipas;
+  v_prepared public.ipas_signoffs;
+  v_row public.ipas_signoffs;
+  v_list_key text;
+  v_signature text;
+  v_notify uuid[] := '{}';
+begin
+  if v_actor is null then
+    raise exception 'ipas_sign: not signed in' using errcode = '42501';
+  end if;
+  if p_section is null or p_role is null or not public._ipas_signoff_pair_ok(p_section, p_role) then
+    raise exception 'ipas_sign: section % has no % sign-off', coalesce(p_section::text, 'null'), coalesce(p_role, 'null')
+      using errcode = '22023';
+  end if;
+  -- #248: section 7's rules (sections 1 and 3 approved first; Received, then
+  -- Noted and Checked; Approved needs all three and Costs complete, and files
+  -- the IPAS) replace this refusal when Filing lands.
+  if p_section = 7 then
+    raise exception 'ipas_sign: section 7 is signed at Filing' using errcode = '22023';
+  end if;
+
+  v_ipas := public._ipas_lock_open('ipas_sign', p_ipas_id);
+  v_list_key := public._ipas_signoff_list_key(p_section, p_role);
+
+  if p_role = 'prepared' then
+    if not public.has_purchasing_access() then
+      raise exception 'ipas_sign: only Purchasing prepares a section' using errcode = '42501';
+    end if;
+  elsif not public._ipas_on_list(v_list_key, v_actor) then
+    -- Every other sign-off belongs to its list, and a Super Admin is no
+    -- exception: they sign when they are on it.
+    raise exception 'ipas_sign: you are not on the list that may give this sign-off' using errcode = '42501';
+  end if;
+
+  if exists (
+    select 1 from public.ipas_signoffs s
+     where s.ipas_id = v_ipas.id and s.section = p_section and s.role = p_role and s.cleared_at is null
+  ) then
+    raise exception 'ipas_sign: section % is already % on %', p_section, p_role, v_ipas.number using errcode = '55000';
+  end if;
+
+  if p_role = 'approved' and p_section in (1, 3) then
+    select * into v_prepared
+      from public.ipas_signoffs s
+     where s.ipas_id = v_ipas.id and s.section = p_section and s.role = 'prepared' and s.cleared_at is null;
+    if v_prepared.id is null then
+      raise exception 'ipas_sign: section % hasn''t been prepared yet', p_section using errcode = '55000';
+    end if;
+    if v_prepared.signed_by = v_actor then
+      raise exception 'ipas_sign: you prepared section %, so someone else approves it', p_section using errcode = '42501';
+    end if;
+  end if;
+
+  if p_decline_signature then
+    v_signature := null;
+  else
+    select e.signature_path into v_signature from public.employees e where e.id = v_actor;
+  end if;
+
+  insert into public.ipas_signoffs (ipas_id, section, role, signed_by, signature_declined, signature_version)
+  values (v_ipas.id, p_section, p_role, v_actor, coalesce(p_decline_signature, false), v_signature)
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'signed', jsonb_build_object(
+    'section', p_section,
+    'role', p_role,
+    'signoff_id', v_row.id,
+    'signature_declined', v_row.signature_declined
+  ));
+
+  -- Prepared is ready for approval: tell that section's approval list (never
+  -- the person who just prepared it).
+  if p_role = 'prepared' then
+    select coalesce(array_agg(l.employee_id order by l.created_at), '{}'::uuid[])
+      into v_notify
+      from public.ipas_signer_lists l
+      join public.employees e on e.id = l.employee_id
+     where l.list_key = public._ipas_signoff_list_key(p_section, 'approved')
+       and not coalesce(e.is_deleted, false)
+       and l.employee_id <> v_actor;
+  end if;
+
+  return jsonb_build_object(
+    'signoff', to_jsonb(v_row),
+    'ipas', to_jsonb(v_ipas),
+    'section', p_section,
+    'role', p_role,
+    'notify_ids', to_jsonb(v_notify)
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_signoffs_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if old.cleared_at is not null then
+    raise exception 'ipas_signoffs: a cleared sign-off is history and doesn''t change' using errcode = '42501';
+  end if;
+  if new.ipas_id is distinct from old.ipas_id
+     or new.section is distinct from old.section
+     or new.role is distinct from old.role
+     or new.signed_by is distinct from old.signed_by
+     or new.signed_at is distinct from old.signed_at
+     or new.signature_declined is distinct from old.signature_declined
+     or new.signature_version is distinct from old.signature_version then
+    raise exception 'ipas_signoffs: a signature can only be cleared, never changed' using errcode = '42501';
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -7498,6 +7784,14 @@ BEGIN
     IF NEW.has_finance_flow IS DISTINCT FROM OLD.has_finance_flow THEN
       NEW.has_finance_flow := OLD.has_finance_flow;
     END IF;
+  END IF;
+
+  -- Call sign (#247). Only HR and Super Admins set one, their own included.
+  IF v_caller_id IS NOT NULL
+     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NEW.call_sign IS DISTINCT FROM OLD.call_sign
+  THEN
+    NEW.call_sign := OLD.call_sign;
   END IF;
 
   -- Nobody edits their own hidden-navigation override — server-side, not by
@@ -11970,7 +12264,9 @@ CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_even
 CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_payments_paid_before_approval BEFORE INSERT OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_payments_paid_before_approval();
 CREATE TRIGGER ipas_payments_updated_at BEFORE UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_signoffs_guard BEFORE UPDATE ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_guard();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();

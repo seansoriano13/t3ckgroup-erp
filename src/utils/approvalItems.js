@@ -64,6 +64,44 @@ export function leaveChain(request) {
     ];
 }
 
+/** IPAS sections 1 and 3: Prepared by Purchasing, then waiting on this approver. */
+export function ipasChain(pending) {
+    return [
+        { label: "Prepared", who: pending?.preparedBy?.name || "Purchasing", state: "done", at: pending?.preparedAt || null },
+        { label: "Approved", who: "You", state: "current", at: null },
+    ];
+}
+
+/**
+ * An IPAS section waiting on the signed-in approver (ipasService.pendingSignoffsFor)
+ * as an ApprovalItem. The clock runs from when Purchasing prepared it, and the
+ * "person" is the preparer. A very high priority IPAS reads as high priority.
+ */
+export function ipasToItem(pending, now = Date.now()) {
+    const clockAt = pending.preparedAt;
+    return {
+        id: pending.id,
+        queue: "ipas",
+        ref: pending.number,
+        title: pending.supplier || pending.poNumber,
+        typeLabel: `${pending.poNumber} · Section ${pending.section}`,
+        person: {
+            id: pending.preparedBy?.id,
+            name: pending.preparedBy?.name || "Unknown",
+            avatarPath: pending.preparedBy?.avatarPath || null,
+            dept: "Purchasing",
+        },
+        submittedAt: clockAt,
+        clockAt,
+        isStale: isStaleSince(clockAt, now),
+        done: false,
+        isHighPriority: pending.priority === "very_high",
+        attachmentCount: 0,
+        chain: ipasChain(pending),
+        source: pending,
+    };
+}
+
 /**
  * A task as an ApprovalItem. `queue` is "tasks" (the head grades it) or "hr"
  * (HR signs it off); the HR clock runs from the grade, the head's from logging.

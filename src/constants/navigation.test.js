@@ -286,6 +286,22 @@ describe("navigation registry", () => {
       expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests", "IPAS"]);
     });
 
+    // IPAS sign-offs (#247): the Approval Center link is for the people on a
+    // section 1 or 3 approval list, and a Super Admin gets no pass.
+    it("offers IPAS Sign-offs to someone on an approval list, and to no one else", () => {
+      const links = (flags) =>
+        getFilteredNavigationGroups({ id: "u", ...flags })
+          .find((g) => g.key === "approvals")
+          ?.links.map((l) => l.label) ?? [];
+
+      expect(links({ isIpasApprover: true })).toEqual(["IPAS Sign-offs"]);
+      expect(links({ isIpasApprover: true, isHr: true })).toEqual(["HR Verifications", "IPAS Sign-offs"]);
+      expect(links({ isIpasApprover: true, isHead: true })).toContain("IPAS Sign-offs");
+      expect(links({ isSuperAdmin: true })).not.toContain("IPAS Sign-offs");
+      expect(links({ isIpasSigner: true })).not.toContain("IPAS Sign-offs");
+      expect(links({})).toEqual([]);
+    });
+
     it("keeps IPAS off the navigation of an employee who can't read one", () => {
       const groups = getFilteredNavigationGroups({
         id: "plain",

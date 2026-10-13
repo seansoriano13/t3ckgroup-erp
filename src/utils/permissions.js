@@ -17,6 +17,8 @@ export function getPermissionContext(user) {
   const hasFinanceFlow = !!(user?.has_finance_flow ?? user?.hasFinanceFlow);
   // On a sign-off list (ipas_signer_lists); derived by employeeService.
   const isIpasSigner = !!(user?.is_ipas_signer ?? user?.isIpasSigner);
+  // On the section 1 or 3 approval list (the Approval Center's IPAS queue).
+  const isIpasApprover = !!(user?.is_ipas_approver ?? user?.isIpasApprover);
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
@@ -35,6 +37,7 @@ export function getPermissionContext(user) {
     hasPurchasingFlow,
     hasFinanceFlow,
     isIpasSigner,
+    isIpasApprover,
     hasRetailAccess,
     hasBugReportAccess,
     isRoleSimulator,

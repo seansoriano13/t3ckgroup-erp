@@ -207,6 +207,17 @@ export const NAV_MODULES = {
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead,
         exactMatch: true,
       },
+      {
+        // IPAS sections 1 and 3 (#247): for the people on those approval
+        // lists. A Super Admin signs only when on a list, so no pass here.
+        key: "approvals.ipas",
+        label: "IPAS Sign-offs",
+        link: "/approvals/ipas",
+        icon: ReceiptText,
+        badgeKey: "ipasSignoffs",
+        isPermitted: (ctx) => ctx.isIpasApprover,
+        exactMatch: true,
+      },
     ],
   },
   human_resources: {

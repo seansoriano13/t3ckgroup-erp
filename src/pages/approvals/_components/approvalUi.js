@@ -17,6 +17,9 @@ export const NOTE_PRESETS = {
 export function whyYouSeeThis(item) {
   const first = (item.person?.name || "They").split(" ")[0];
   if (item.queue === "hr") return "You hold HR verification: graded work needs your sign-off before it counts for payroll.";
+  if (item.queue === "ipas") {
+    return `You are on the section ${item.source?.section} approval list, and ${first} prepared it. Whoever prepares a section can't approve it.`;
+  }
   if (item.queue === "leaves") return `You are ${first}’s department head, the first approver for leave and overtime.`;
   return item.source?.reportedTo
     ? `${first} reported this task to you, so it comes to you for a grade.`

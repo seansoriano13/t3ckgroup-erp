@@ -341,10 +341,82 @@ export const IPAS_WARNING = {
   ODOO_CHANGED_SINCE_FILING: "odoo_changed_since_filing",
 };
 
-/** Notification type written when a PO change clears section 1 and 3 approvals. */
+/**
+ * Notification types: PO_CHANGED and ACCOUNT_FLAGGED when a change clears the
+ * section 1 and 3 approvals (#243, #245); SIGNOFF_READY when a section is
+ * Prepared and waits for its approval list, SENT_BACK when a signer returns a
+ * section to its preparer (#247). All route to the IPAS (notificationRouter).
+ */
 export const IPAS_NOTIFICATION = {
   PO_CHANGED: "IPAS_PO_CHANGED",
   ACCOUNT_FLAGGED: "IPAS_ACCOUNT_FLAGGED",
+  SIGNOFF_READY: "IPAS_SIGNOFF_READY",
+  SENT_BACK: "IPAS_SENT_BACK",
+};
+
+/**
+ * Sign-offs (#247, spec #241). A sign-off is a section and a role. Sections 1
+ * and 3 are Prepared, then Approved, and are signed in the ERP before Filing;
+ * section 7's Received, Noted, Checked and Approved belong to Filing (#248).
+ * `IPAS_SIGNOFF_SECTIONS` is the sections the service's `sign` and
+ * `sendBack` take today.
+ */
+export const IPAS_SIGNOFF_ROLE = {
+  PREPARED: "prepared",
+  APPROVED: "approved",
+  RECEIVED: "received",
+  NOTED: "noted",
+  CHECKED: "checked",
+};
+
+export const IPAS_SIGNOFF_ROLE_LABELS = {
+  [IPAS_SIGNOFF_ROLE.PREPARED]: "Prepared",
+  [IPAS_SIGNOFF_ROLE.APPROVED]: "Approved",
+  [IPAS_SIGNOFF_ROLE.RECEIVED]: "Received",
+  [IPAS_SIGNOFF_ROLE.NOTED]: "Noted",
+  [IPAS_SIGNOFF_ROLE.CHECKED]: "Checked",
+};
+
+export const IPAS_SIGNOFF_SECTIONS = [1, 3];
+
+/** The roles of a section 1 or 3 sign-off, in order. */
+export const IPAS_SIGNOFF_ROLES_FIRST_SECTIONS = [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED];
+
+export const IPAS_SECTION_NAMES = {
+  1: "Purchasing",
+  3: "Purchasing & Finance",
+  7: "Filing",
+};
+
+/**
+ * The signer lists (ipas_signer_lists.list_key): who may give each sign-off
+ * after Prepared. Super Admins edit them; Prepared needs Purchasing access.
+ */
+export const IPAS_SIGNER_LIST = {
+  S1_APPROVED: "s1_approved",
+  S3_APPROVED: "s3_approved",
+  S7_RECEIVED: "s7_received",
+  S7_NOTED: "s7_noted",
+  S7_CHECKED: "s7_checked",
+  S7_APPROVED: "s7_approved",
+};
+
+export const IPAS_SIGNER_LISTS = Object.values(IPAS_SIGNER_LIST);
+
+export const IPAS_SIGNER_LIST_LABELS = {
+  [IPAS_SIGNER_LIST.S1_APPROVED]: "Section 1 · Approved",
+  [IPAS_SIGNER_LIST.S3_APPROVED]: "Section 3 · Approved",
+  [IPAS_SIGNER_LIST.S7_RECEIVED]: "Section 7 · Received",
+  [IPAS_SIGNER_LIST.S7_NOTED]: "Section 7 · Noted",
+  [IPAS_SIGNER_LIST.S7_CHECKED]: "Section 7 · Checked",
+  [IPAS_SIGNER_LIST.S7_APPROVED]: "Section 7 · Approved (files the IPAS)",
+};
+
+/** The list that approves a section: section 1 and 3's Approved. */
+export const IPAS_APPROVAL_LIST = {
+  1: IPAS_SIGNER_LIST.S1_APPROVED,
+  3: IPAS_SIGNER_LIST.S3_APPROVED,
+  7: IPAS_SIGNER_LIST.S7_APPROVED,
 };
 
 /** The Odoo PO's own state, as the page words it. */
@@ -369,6 +441,8 @@ export const IPAS_EVENT_LABELS = {
   odoo_copy_changed: "PO changed in Odoo",
   odoo_changed_since_filing: "Odoo has changed since filing",
   approvals_cleared: "Approvals cleared",
+  signed: "Signed off",
+  sent_back: "Sent back",
   payment_added: "Payment added",
   payment_changed: "Payment changed",
   payment_removed: "Payment removed",

@@ -32,6 +32,7 @@ export default function EmployeeForm({
     has_task_flow: true,
     has_purchasing_flow: false,
     has_finance_flow: false,
+    call_sign: "",
     has_retail_access: false,
     has_bug_report_access: false,
     employment_status: "",
@@ -61,6 +62,7 @@ export default function EmployeeForm({
       has_task_flow: true,
       has_purchasing_flow: false,
       has_finance_flow: false,
+      call_sign: "",
       has_retail_access: false,
       has_bug_report_access: false,
       hiddenNavKeys: [],
@@ -156,7 +158,7 @@ export default function EmployeeForm({
         />
       </div>
 
-      {/* 2. ROLE & EMAIL */}
+      {/* 2. ROLE, EMAIL & CALL SIGN */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         <Input
           required
@@ -177,6 +179,18 @@ export default function EmployeeForm({
             setFormData((prev) => ({ ...prev, role: e.target.value }))
           }
           placeholder="e.g. Marketing Assistant"
+        />
+
+        <Input
+          type="text"
+          inputMode="numeric"
+          label="Call Sign"
+          value={formData.call_sign ?? ""}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, call_sign: e.target.value }))
+          }
+          placeholder="e.g. 101 (unique, optional)"
+          autoComplete="off"
         />
       </div>
 

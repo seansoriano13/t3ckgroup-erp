@@ -17,6 +17,7 @@ import {
   IPAS_PAYMENT_KIND_LABELS,
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
+  IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_SOURCE_LABELS,
   IPAS_WARNING,
   ODOO_PO_STATE_LABELS,
@@ -706,8 +707,19 @@ function eventDetail(event) {
       if (note.changed?.length) parts.push(`${note.changed.length} changed`);
       return parts.join(", ") || null;
     }
-    case "approvals_cleared":
-      return detail.reason ?? null;
+    case "approvals_cleared": {
+      const sections = (detail.sections ?? []).map((s) => `section ${s}`).join(" and ");
+      return [detail.reason, sections ? `${sections} back to awaiting approval` : null].filter(Boolean).join(" · ") || null;
+    }
+    case "signed":
+      return [
+        `Section ${detail.section} ${IPAS_SIGNOFF_ROLE_LABELS[detail.role]?.toLowerCase() ?? detail.role}`,
+        detail.signature_declined ? "without a signature" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    case "sent_back":
+      return [`Section ${detail.section}`, detail.reason ? `“${detail.reason}”` : null].filter(Boolean).join(" · ");
     case "bank_details_set":
     case "bank_details_changed": {
       // Which fields, never the values: the history is wider than bank details.
