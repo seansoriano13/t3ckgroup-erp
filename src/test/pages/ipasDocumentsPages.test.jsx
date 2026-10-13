@@ -102,8 +102,8 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       renderDetail(row.id);
 
       const section = await screen.findByTestId("ipas-documents");
-      expect(within(section).getByText("Bill of Lading (BL)")).toBeInTheDocument();
-      expect(within(section).queryByText("Quotation")).not.toBeInTheDocument();
+      expect(within(section).getByText("BL or Waybill")).toBeInTheDocument();
+      expect(within(section).queryByText("Quotation (Local)")).not.toBeInTheDocument();
       const bir = await documentRow("BIR 2307");
       expect(within(bir).getByText("Filing item")).toBeInTheDocument();
       expect(within(bir).getByRole("checkbox", { name: /Purchasing has it: BIR 2307/ })).toBeInTheDocument();
@@ -220,20 +220,20 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       renderDetail(row.id);
       expect(await screen.findByText("5 · Logistics")).toBeInTheDocument();
       await user.click(screen.getByRole("combobox", { name: "Item Location" }));
-      await user.click(await screen.findByRole("option", { name: "Main Warehouse" }));
+      await user.click(await screen.findByRole("option", { name: "BM Office" }));
 
-      await waitFor(() => expect(db.rows("ipas")[0].item_location_id).toBe(options.item_location["Main Warehouse"].id));
+      await waitFor(() => expect(db.rows("ipas")[0].item_location_id).toBe(options.item_location["BM Office"].id));
       expect(screen.queryByText(/TG03/)).not.toBeInTheDocument();
     });
 
     it("shows the location read-only to Finance", async () => {
       mockUser.current = finance;
       stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
-      const row = ipas({ source: "local", created_by: purchaser.id, item_location_id: options.item_location.Showroom.id });
+      const row = ipas({ source: "local", created_by: purchaser.id, item_location_id: options.item_location["Marikina Warehouse"].id });
 
       renderDetail(row.id);
 
-      expect(await screen.findByText("Showroom")).toBeInTheDocument();
+      expect(await screen.findByText("Marikina Warehouse")).toBeInTheDocument();
       expect(screen.queryByRole("combobox", { name: "Item Location" })).not.toBeInTheDocument();
     });
   });
@@ -286,7 +286,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
     it("shows With P.O.P once a payment carries proof", async () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
-      const method = options.payment_method.Check;
+      const method = options.payment_method["Dated Check"];
 
       db.seed("ipas_payments", { ipas_id: row.id, kind: "payment", paid_on: "2026-10-01", amount: 1000, php_debited: null, charge_fee_php: 0, method_id: method.id, proof_url: "https://res.cloudinary.com/demo/image/upload/pop.jpg" });
       renderDetail(row.id);
@@ -382,7 +382,7 @@ describe("IPAS settings: document kinds and Item Locations", () => {
     expect(screen.getByRole("combobox", { name: "BIR 2307: used for" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Item locations" }));
-    expect(await screen.findByText("Main Warehouse")).toBeInTheDocument();
+    expect(await screen.findByText("BM Office")).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /Source/ })).not.toBeInTheDocument();
   });
 

@@ -249,9 +249,9 @@ describe("ipasService: section 7 and Filing", () => {
       const first = await ipasService.sign(ipas.id, 7, "approved")
       expect(first).toMatchObject({ signoff: null, filed: false, notified: 0, needsConfirm: true })
       const labels = first.warnings.map((w) => w.label)
-      expect(labels).toEqual(expect.arrayContaining(["Commercial Invoice", "Packing List", "Bill of Lading (BL)"]))
+      expect(labels).toEqual(expect.arrayContaining(["Commercial Invoice", "Packing List", "BL or Waybill"]))
       // Import's kinds only: a Local document isn't asked for.
-      expect(labels).not.toContain("Quotation")
+      expect(labels).not.toContain("Quotation (Local)")
       for (const warning of first.warnings) {
         expect(Object.keys(warning).sort()).toEqual(["appliesTo", "id", "label", "usedFor"])
       }
@@ -269,7 +269,7 @@ describe("ipasService: section 7 and Filing", () => {
     it("stops warning about a document once either department ticks it", async () => {
       const ipas = await raise({ source: "local" })
       const before = (await ipasService.filingWarnings(ipas.id)).map((w) => w.label)
-      expect(before).toContain("Supplier Sales Invoice")
+      expect(before).toContain("Compliance (Local)")
 
       const row = db.internal.rowsOf("ipas_documents").find((d) => d.ipas_id === ipas.id && !d.purchasing_has)
       const kind = db.rows("ipas_options").find((o) => o.id === row.kind_id)

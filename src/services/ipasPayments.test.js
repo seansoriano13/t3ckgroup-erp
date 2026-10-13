@@ -68,7 +68,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
     paidOn: "2026-10-01",
     amount: "8325",
     chargeFeePhp: "",
-    methodId: options.payment_method.Check.id,
+    methodId: options.payment_method["Dated Check"].id,
     ...over,
   })
 
@@ -88,9 +88,9 @@ describe("ipasService: payments, charges and Landed Cost", () => {
 
       const opened = await read(ipas.id)
       expect(opened.payments.map((p) => [p.kind, p.methodLabel])).toEqual([
-        ["down_payment", "Check"],
-        ["payment", "Check"],
-        ["full_payment", "Check"],
+        ["down_payment", "Dated Check"],
+        ["payment", "Dated Check"],
+        ["full_payment", "Dated Check"],
       ])
     })
 
@@ -182,7 +182,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       expect(changed.detail.changes).toMatchObject({
         kind: { from: "down_payment", to: "full_payment" },
         php_debited: { from: 36160, to: 36240 },
-        method: { from: "Check", to: "Alipay" },
+        method: { from: "Dated Check", to: "Alipay" },
       })
 
       await ipasService.removePayment(payment.id)
@@ -290,7 +290,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
     it("refuses a payment method as a charge kind", async () => {
       const ipas = await raise()
       await expect(
-        ipasService.addCharge(ipas.id, charge({ kindId: options.payment_method.Check.id })),
+        ipasService.addCharge(ipas.id, charge({ kindId: options.payment_method["Dated Check"].id })),
       ).rejects.toMatchObject({ code: "22023", message: expect.stringMatching(/charge kind/) })
     })
 
@@ -468,11 +468,11 @@ describe("ipasService: payments, charges and Landed Cost", () => {
   describe("the freight service", () => {
     it("is one per IPAS, an active option, and changeable until Filing", async () => {
       const ipas = await raise()
-      const dhl = options.freight_service["DHL Express"].id
+      const dhl = options.freight_service["DHL"].id
       const fedex = options.freight_service.FedEx.id
 
       await ipasService.setFreightService(ipas.id, dhl)
-      expect((await read(ipas.id)).freightService).toMatchObject({ id: dhl, label: "DHL Express" })
+      expect((await read(ipas.id)).freightService).toMatchObject({ id: dhl, label: "DHL" })
 
       await ipasService.setFreightService(ipas.id, fedex)
       expect((await read(ipas.id)).freightService.label).toBe("FedEx")
@@ -482,8 +482,8 @@ describe("ipasService: payments, charges and Landed Cost", () => {
 
       const trail = db.rows("ipas_events").filter((e) => e.kind === "header_changed")
       expect(trail.map((e) => e.detail.fields.freight_service_id)).toEqual([
-        { from: null, to: "DHL Express" },
-        { from: "DHL Express", to: "FedEx" },
+        { from: null, to: "DHL" },
+        { from: "DHL", to: "FedEx" },
         { from: "FedEx", to: null },
       ])
     })
@@ -536,6 +536,49 @@ describe("ipasService: payments, charges and Landed Cost", () => {
     })
   })
 
+  describe("section 2 ticks (Googlesheet, Gantt Chart)", () => {
+    it("are off until ticked, then set and cleared as plain booleans, one history entry each", async () => {
+      const ipas = await raise()
+      expect(await read(ipas.id)).toMatchObject({ googleSheet: false, ganttChart: false })
+
+      await ipasService.setHeader(ipas.id, { googleSheet: true })
+      await ipasService.setHeader(ipas.id, { ganttChart: true, googleSheet: true })
+      const after = await read(ipas.id)
+      expect(after).toMatchObject({ googleSheet: true, ganttChart: true })
+      expect(db.internal.rowsOf("ipas").find((r) => r.id === ipas.id)).toMatchObject({ google_sheet: true, gantt_chart: true })
+
+      const changes = db.rows("ipas_events").filter((e) => e.kind === "header_changed")
+      expect(changes.map((e) => e.detail.fields)).toEqual([
+        { google_sheet: { from: false, to: true } },
+        { gantt_chart: { from: false, to: true } },
+      ])
+    })
+
+    it("refuses anything but true or false, before the database is called", async () => {
+      const ipas = await raise()
+      await expect(ipasService.setHeader(ipas.id, { googleSheet: "yes" })).rejects.toMatchObject({
+        code: IPAS_ERROR.INVALID,
+        message: "Googlesheet is ticked or not.",
+      })
+      await expect(ipasService.setHeader(ipas.id, { ganttChart: null })).rejects.toMatchObject({
+        code: IPAS_ERROR.INVALID,
+        message: "Gantt Chart is ticked or not.",
+      })
+      expect(db.rows("ipas_events").filter((e) => e.kind === "header_changed")).toHaveLength(0)
+    })
+
+    it("keep each change in the history, with what it was", async () => {
+      const ipas = await raise()
+      await ipasService.setHeader(ipas.id, { googleSheet: true })
+      await ipasService.setHeader(ipas.id, { googleSheet: false })
+      const history = (await read(ipas.id)).events.filter((e) => e.kind === "header_changed")
+      expect(history.map((e) => e.detail.fields.google_sheet)).toEqual([
+        { from: false, to: true },
+        { from: true, to: false },
+      ])
+    })
+  })
+
   describe("the option lists", () => {
     it("lists a list in its order, inactive ones included unless asked not to", async () => {
       await ipasService.deactivateOption(options.payment_method["Credit Card"].id)
@@ -545,13 +588,15 @@ describe("ipasService: payments, charges and Landed Cost", () => {
 
       expect(all.map((o) => o.label)).toEqual([
         "Alipay",
-        "Bank Transfer",
+        "Bank Deposit",
+        "Bank TT",
         "Cash",
-        "Check",
         "Credit Card",
-        "GCash",
-        "PayPal",
-        "Telegraphic Transfer",
+        "Dated Check",
+        "Petnet",
+        "Western Union",
+        "Alibaba",
+        "Paypal",
         "Other",
       ])
       expect(active.map((o) => o.label)).not.toContain("Credit Card")
@@ -560,7 +605,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
 
     it("adds an option at the end, refuses a name already on the list, and renames", async () => {
       const added = await ipasService.saveOption({ list: IPAS_OPTION_LIST.PAYMENT_METHOD, label: "  Wise  " })
-      expect(added).toMatchObject({ label: "Wise", list: "payment_method", active: true, sort: 100 })
+      expect(added).toMatchObject({ label: "Wise", list: "payment_method", active: true, sort: 120 })
 
       await expect(
         ipasService.saveOption({ list: IPAS_OPTION_LIST.PAYMENT_METHOD, label: "alipay" }),
@@ -593,7 +638,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
     })
 
     it("deactivates and reactivates, never deletes", async () => {
-      const id = options.charge_kind["Other Charges"].id
+      const id = options.charge_kind["Delivery Fee"].id
       await ipasService.deactivateOption(id)
       expect(db.rows("ipas_options").find((o) => o.id === id).active).toBe(false)
 

@@ -511,6 +511,8 @@ export function stubIpasRpcs({
     "freight_service_id",
     "landed_cost_split",
     "computation_status",
+    "google_sheet",
+    "gantt_chart",
   ]
   const SPLITS = ["value", "quantity", "equal"]
   const STATUSES = ["encoding", "encoded", "costs_complete", "checked"]
@@ -603,6 +605,18 @@ export function stubIpasRpcs({
       if (to !== (row.computation_status ?? "encoding")) {
         next.computation_status = to
         note("computation_status", row.computation_status ?? "encoding", to)
+      }
+    }
+
+    // The section 2 ticks (#241): plain booleans. JSON null and anything else are refused.
+    for (const key of ["google_sheet", "gantt_chart"]) {
+      if (!(key in fields)) continue
+      if (typeof fields[key] !== "boolean") {
+        refuse("22023", `ipas_set_header: ${key === "google_sheet" ? "Googlesheet" : "Gantt Chart"} must be ticked or not ticked`)
+      }
+      if (fields[key] !== Boolean(row[key])) {
+        next[key] = fields[key]
+        note(key, Boolean(row[key]), fields[key])
       }
     }
 
@@ -1352,32 +1366,14 @@ export function stubIpasRpcs({
 }
 
 /**
- * Seeds the migration's option lists into the fake store (the policy tier has
- * the real rows). Returns `{ [list]: { [label]: row } }`.
+ * Seeds the migration's option lists (the sheet's real values) into the fake
+ * store; the policy tier has the real rows. Returns `{ [list]: { [label]: row } }`.
  */
 export function seedIpasOptions(seed) {
   const lists = {
-    payment_method: ["Alipay", "Bank Transfer", "Cash", "Check", "Credit Card", "GCash", "PayPal", "Telegraphic Transfer", "Other"],
-    charge_kind: [
-      "Brokerage Fee",
-      "Duties & Taxes",
-      "Destination Charges",
-      "Arrastre & Wharfage",
-      "Documentary Stamps",
-      "Delivery / Trucking",
-      "Other Charges",
-    ],
-    freight_service: [
-      "DHL Express",
-      "FedEx",
-      "UPS",
-      "Air Freight Forwarder",
-      "Sea Freight Forwarder",
-      "Local Courier",
-      "Supplier Delivery",
-      "Own Pickup",
-      "Other",
-    ],
+    payment_method: ["Alipay", "Bank Deposit", "Bank TT", "Cash", "Credit Card", "Dated Check", "Petnet", "Western Union", "Alibaba", "Paypal", "Other"],
+    charge_kind: ["Brokerage Fee", "Delivery Fee", "Destination Charges", "Duties & Taxes", "Origin Charges", "Processing Fee", "Truck Rental"],
+    freight_service: ["Ahead", "AVV", "DHL", "FedEx", "UPS", "Wide Range", "DSV", "TD Express Air", "TD Express Sea", "Other"],
   }
   const out = {}
   for (const [list, labels] of Object.entries(lists)) {
@@ -1389,20 +1385,20 @@ export function seedIpasOptions(seed) {
 
   // Document kinds (#246): label, the Source it is suggested for, documentation / filing / both.
   const kinds = [
-    ["Quotation", "local", "documentation"],
-    ["Signed Purchase Order", "both", "documentation"],
-    ["Proforma Invoice", "import", "documentation"],
-    ["Commercial Invoice", "import", "both"],
-    ["Packing List", "import", "both"],
-    ["Bill of Lading (BL)", "import", "both"],
-    ["Waybill", "import", "both"],
-    ["Certificate of Origin", "import", "documentation"],
-    ["Customs Import Entry", "import", "filing"],
-    ["Brokerage Billing Statement", "import", "filing"],
-    ["Supplier Sales Invoice", "local", "both"],
-    ["Delivery Receipt", "local", "both"],
-    ["Official Receipt", "both", "filing"],
+    ["Proforma Invoice", "import", "both"],
+    ["Quotation (Local)", "local", "documentation"],
+    ["Sales Contract", "both", "documentation"],
+    ["BL or Waybill", "import", "documentation"],
+    ["Packing List", "import", "documentation"],
+    ["Commercial Invoice", "import", "documentation"],
+    ["Form E / Form K", "import", "documentation"],
+    ["Compliance (Local)", "local", "documentation"],
+    ["OR / P.O.P (SS)", "both", "filing"],
+    ["Waybill", "import", "filing"],
     ["BIR 2307", "both", "filing"],
+    ["Landed / Local Cost (OPC)", "both", "filing"],
+    ["Freight Billing", "import", "filing"],
+    ["Others", "both", "filing"],
   ]
   out.document_kind = {}
   kinds.forEach(([label, applies_to, used_for], index) => {
@@ -1417,7 +1413,7 @@ export function seedIpasOptions(seed) {
   })
 
   out.item_location = {}
-  ;["Main Warehouse", "Showroom", "Office", "Project Site", "Customer Site", "Other"].forEach((label, index) => {
+  ;["BM Office", "Marikina Warehouse"].forEach((label, index) => {
     out.item_location[label] = seed("ipas_options", { list: "item_location", label, sort: (index + 1) * 10, active: true })
   })
   return out

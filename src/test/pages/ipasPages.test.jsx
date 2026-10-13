@@ -278,6 +278,21 @@ describe("IPAS pages", () => {
       expect(screen.queryByRole("button", { name: /Purpose and SORs/ })).not.toBeInTheDocument();
     });
 
+    it("ticks Googlesheet and Gantt Chart in section 2, each saved as it's ticked", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      expect(await screen.findByRole("checkbox", { name: "Googlesheet" })).not.toBeChecked();
+      await user.click(screen.getByRole("checkbox", { name: "Googlesheet" }));
+      await waitFor(() => expect(db.rows("ipas")[0].google_sheet).toBe(true));
+      expect(await screen.findByRole("checkbox", { name: "Googlesheet" })).toBeChecked();
+
+      await user.click(screen.getByRole("checkbox", { name: "Gantt Chart" }));
+      await waitFor(() => expect(db.rows("ipas")[0].gantt_chart).toBe(true));
+      expect(db.rows("ipas")[0].google_sheet).toBe(true);
+    });
+
     it("says not found for an IPAS the database doesn't return", async () => {
       renderDetail(db.nextUuid());
       expect(await screen.findByText("IPAS not found")).toBeInTheDocument();
@@ -403,7 +418,8 @@ describe("IPAS pages", () => {
       expect(await screen.findByText(/Partly received · 1 of 2 receipts done/)).toBeInTheDocument();
       expect(screen.getByText("1 draft bill")).toBeInTheDocument();
       expect(screen.getAllByText("stamped from Odoo")).toHaveLength(3);
-      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      // Section 2's two ticks are checkboxes; the Odoo statuses are not.
+      expect(screen.queryByRole("checkbox", { name: /received|bill|delivered|odoo/i })).not.toBeInTheDocument();
     });
 
     it("gives Finance the page without any override or edit control", async () => {

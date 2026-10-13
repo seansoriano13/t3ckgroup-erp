@@ -15,7 +15,7 @@
  * service tests, not here.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
+import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql, rlsStatus } from "./support/stack.js"
 import { purgeFixtureIpas } from "./support/ipas.js"
 import { canRead, tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
@@ -105,7 +105,7 @@ beforeAll(async () => {
     if (member.error) throw member.error
 
     methodIds = {
-        check: await optionId("payment_method", "Check"),
+        check: await optionId("payment_method", "Dated Check"),
         alipay: await optionId("payment_method", "Alipay"),
         other: await optionId("payment_method", "Other"),
     }
@@ -113,7 +113,7 @@ beforeAll(async () => {
         brokerage: await optionId("charge_kind", "Brokerage Fee"),
         duties: await optionId("charge_kind", "Duties & Taxes"),
     }
-    freightIds = { dhl: await optionId("freight_service", "DHL Express"), fedex: await optionId("freight_service", "FedEx") }
+    freightIds = { dhl: await optionId("freight_service", "DHL"), fedex: await optionId("freight_service", "FedEx") }
 })
 
 afterAll(async () => {
@@ -144,7 +144,7 @@ describe("the option lists", () => {
         const methods = labels("payment_method")
         expect(methods[0]).toBe("Alipay")
         expect(methods.at(-1)).toBe("Other")
-        expect(methods).toContain("Check")
+        expect(methods).toContain("Dated Check")
         expect(labels("charge_kind")).toHaveLength(7)
         expect(labels("freight_service").length).toBeGreaterThan(0)
     })
@@ -379,12 +379,12 @@ describe("changing and removing payments", () => {
             ["payment_changed", ids.finance],
             ["payment_removed", ids.outsider],
         ])
-        expect(trail[0].detail).toMatchObject({ payment_id: row.id, kind: "down_payment", method: "Check", currency: "USD" })
+        expect(trail[0].detail).toMatchObject({ payment_id: row.id, kind: "down_payment", method: "Dated Check", currency: "USD" })
         expect(trail[1].detail.changes).toMatchObject({
             kind: { from: "down_payment", to: "full_payment" },
             php_debited: { to: 36240 },
             charge_fee_php: { from: 0, to: 350 },
-            method: { from: "Check", to: "Alipay" },
+            method: { from: "Dated Check", to: "Alipay" },
             check_no: { from: null, to: "CHK-9" },
         })
         expect(trail[1].detail.changes.amount).toBeUndefined()
@@ -582,7 +582,7 @@ describe("the typed header values", () => {
         expect(event.actor_id).toBe(ids.outsider)
         expect(event.detail.fields).toMatchObject({
             pi_qt_amount: { from: null, to: 1250.5 },
-            freight_service_id: { from: null, to: "DHL Express" },
+            freight_service_id: { from: null, to: "DHL" },
             landed_cost_split: { from: "value", to: "quantity" },
             computation_status: { from: "encoding", to: "costs_complete" },
         })
@@ -641,5 +641,86 @@ describe("the typed header values", () => {
         await setHeader("outsider", ipas.id, { landed_cost_split: "equal" })
         await setHeader("outsider", ipas.id, { landed_cost_split: "equal", computation_status: "encoding" })
         expect((await events(ipas.id, "header_changed")).length).toBe(1)
+    })
+})
+
+describe("the section 2 ticks (#241)", () => {
+    const setHeader = (who, id, fields) => rpc(who, "ipas_set_header", { p_ipas_id: id, p_fields: fields })
+
+    it("are plain ticks, off until ticked, and a change is one header_changed event with before and after", async () => {
+        const ipas = await raise()
+        expect(ipas).toMatchObject({ google_sheet: false, gantt_chart: false })
+
+        const on = await setHeader("outsider", ipas.id, { google_sheet: true, gantt_chart: true })
+        expect(on.error).toBeNull()
+        expect(on.data).toMatchObject({ google_sheet: true, gantt_chart: true })
+
+        const off = await setHeader("outsider", ipas.id, { google_sheet: false })
+        expect(off.data).toMatchObject({ google_sheet: false, gantt_chart: true })
+
+        const changes = await events(ipas.id, "header_changed")
+        expect(changes).toHaveLength(2)
+        expect(changes[0].actor_id).toBe(ids.outsider)
+        expect(changes[0].detail.fields).toMatchObject({
+            google_sheet: { from: false, to: true },
+            gantt_chart: { from: false, to: true },
+        })
+        expect(changes[1].detail.fields).toEqual({ google_sheet: { from: true, to: false } })
+    })
+
+    it("writes no history for a repeat", async () => {
+        const ipas = await raise()
+        await setHeader("outsider", ipas.id, { gantt_chart: true })
+        await setHeader("outsider", ipas.id, { gantt_chart: true })
+        expect((await events(ipas.id, "header_changed")).length).toBe(1)
+    })
+
+    it("are not sign-off gated: ticking clears no approval", async () => {
+        const ipas = await raise()
+        await setHeader("outsider", ipas.id, { google_sheet: true })
+        expect(await events(ipas.id, "approvals_cleared")).toHaveLength(0)
+    })
+
+    it.each([
+        ["a text value", { google_sheet: "true" }],
+        ["a number", { gantt_chart: 1 }],
+        ["null", { google_sheet: null }],
+        ["an object", { gantt_chart: {} }],
+    ])("refuses %s with a sentence (22023), and writes nothing", async (_, fields) => {
+        const ipas = await raise()
+        const { error } = await setHeader("outsider", ipas.id, fields)
+        expect(error?.code).toBe("22023")
+        expect(await events(ipas.id, "header_changed")).toHaveLength(0)
+    })
+
+    it("is Purchasing only: Finance, signers, Super Admins and ordinary employees can't tick", async () => {
+        const ipas = await raise()
+        for (const who of ["finance", "ipasSigner", "superAdmin", "ordinary"]) {
+            const { error } = await setHeader(who, ipas.id, { google_sheet: true })
+            expect(error?.code, `${who} ticked Googlesheet`).toBe("42501")
+        }
+    })
+
+    it("is refused to the signed-out", async () => {
+        const ipas = await raise()
+        const { error } = await anonymousClient().rpc("ipas_set_header", { p_ipas_id: ipas.id, p_fields: { google_sheet: true } })
+        expect(error).not.toBeNull()
+    })
+
+    it("refuses a filed IPAS (the frozen-state 55000) and a cancelled one", async () => {
+        const filedIpas = await raise()
+        await file(filedIpas.id)
+        expect((await setHeader("outsider", filedIpas.id, { google_sheet: true })).error?.code).toBe("55000")
+
+        const cancelled = await raise()
+        expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Dropped" })).error).toBeNull()
+        expect((await setHeader("outsider", cancelled.id, { gantt_chart: true })).error?.code).toBe("55000")
+    })
+
+    it("can't be written to the table directly by Purchasing", async () => {
+        const ipas = await raise()
+        const { error } = await (await clientFor("outsider")).from("ipas").update({ google_sheet: true }).eq("id", ipas.id).select("id")
+        expect(error?.code === RLS_VIOLATION || error === null).toBe(true)
+        expect((await svc().from("ipas").select("google_sheet").eq("id", ipas.id).maybeSingle()).data.google_sheet).toBe(false)
     })
 })

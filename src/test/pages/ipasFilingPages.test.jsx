@@ -111,7 +111,7 @@ describe("IPAS section 7 and Filing", () => {
     signoff(row.id, 7, "checked", checker);
   };
   const quotation = (row, over = {}) => {
-    const kind = db.rows("ipas_options").find((o) => o.list === "document_kind" && o.label === "Quotation");
+    const kind = db.rows("ipas_options").find((o) => o.list === "document_kind" && o.label === "Quotation (Local)");
     return db.seed("ipas_documents", {
       ipas_id: row.id,
       kind_id: kind.id,
@@ -274,7 +274,7 @@ describe("IPAS section 7 and Filing", () => {
       const dialog = await screen.findByRole("dialog");
       const warnings = await within(dialog).findByTestId("ipas-filing-warnings");
       expect(within(warnings).getByText("1 required document isn't ticked")).toBeInTheDocument();
-      expect(within(warnings).getByText("Quotation")).toBeInTheDocument();
+      expect(within(warnings).getByText("Quotation (Local)")).toBeInTheDocument();
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
 
       await user.click(within(dialog).getByRole("button", { name: "File anyway" }));

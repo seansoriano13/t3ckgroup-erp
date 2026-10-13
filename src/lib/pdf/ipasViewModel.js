@@ -316,6 +316,8 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       reference: text(sor.salesReference) ?? BLANK,
       title: text(sor.projectTitle),
     })),
+    googleSheet: ipas.googleSheet === true,
+    ganttChart: ipas.ganttChart === true,
     sourceDoc: field('source_doc'),
     analytic: field('analytic'),
   };

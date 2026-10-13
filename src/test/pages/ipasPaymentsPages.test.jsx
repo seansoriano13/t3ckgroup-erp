@@ -108,7 +108,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       await pick(user, dialog, "Kind", "Down payment");
       await user.type(within(dialog).getByLabelText("Amount (PHP)"), "3000");
-      await pick(user, dialog, "Method", "Check");
+      await pick(user, dialog, "Method", "Dated Check");
       await user.type(within(dialog).getByPlaceholderText("When paid by check"), "CHK-0042");
       await user.click(within(dialog).getByRole("button", { name: "Record payment" }));
 
@@ -132,7 +132,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       renderDetail(row.id);
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
       const dialog = await screen.findByRole("dialog");
-      await pick(user, dialog, "Method", "Check");
+      await pick(user, dialog, "Method", "Dated Check");
 
       const amount = within(dialog).getByLabelText("Amount (PHP)");
       const submit = within(dialog).getByRole("button", { name: "Record payment" });
@@ -183,7 +183,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         amount: 8325,
         php_debited: null,
         charge_fee_php: 0,
-        method_id: options.payment_method.Check.id,
+        method_id: options.payment_method["Dated Check"].id,
         check_no: null,
         proof_url: null,
         created_by: purchaser.id,
@@ -240,9 +240,9 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       renderDetail(row.id);
       await user.click(await screen.findByRole("combobox", { name: "Freight service" }));
-      await user.click(await screen.findByRole("option", { name: "DHL Express" }));
+      await user.click(await screen.findByRole("option", { name: "DHL" }));
 
-      await waitFor(() => expect(db.rows("ipas")[0].freight_service_id).toBe(options.freight_service["DHL Express"].id));
+      await waitFor(() => expect(db.rows("ipas")[0].freight_service_id).toBe(options.freight_service["DHL"].id));
     });
   });
 
@@ -268,16 +268,16 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       db.seed("ipas_charges", {
         ipas_id: row.id,
-        kind_id: options.charge_kind["Other Charges"].id,
+        kind_id: options.charge_kind["Delivery Fee"].id,
         charged_on: "2026-10-12",
         amount_php: 300,
         created_by: purchaser.id,
       });
-      db.rows("ipas_options").find((o) => o.id === options.charge_kind["Other Charges"].id).active = false;
+      db.rows("ipas_options").find((o) => o.id === options.charge_kind["Delivery Fee"].id).active = false;
 
       renderDetail(row.id);
 
-      expect(await screen.findByText("Other Charges")).toBeInTheDocument();
+      expect(await screen.findByText("Delivery Fee")).toBeInTheDocument();
     });
   });
 
@@ -308,7 +308,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         amount: 100,
         php_debited: null,
         charge_fee_php: 0,
-        method_id: options.payment_method.Check.id,
+        method_id: options.payment_method["Dated Check"].id,
       });
 
       renderDetail(row.id);
@@ -435,7 +435,7 @@ describe("IPAS settings", () => {
     expect(screen.getByText("Brokerage Fee")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Freight services" }));
-    expect(await screen.findByText("DHL Express")).toBeInTheDocument();
+    expect(await screen.findByText("DHL")).toBeInTheDocument();
   });
 
   it("adds an option, refusing a name that is already there", async () => {
@@ -454,7 +454,7 @@ describe("IPAS settings", () => {
 
     // Refused with a sentence (toasted); nothing was added.
     await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeEnabled());
-    expect(db.rows("ipas_options").filter((o) => o.list === "payment_method")).toHaveLength(10);
+    expect(db.rows("ipas_options").filter((o) => o.list === "payment_method")).toHaveLength(12);
   });
 
   it("deactivates an option rather than deleting it, and offers it again when switched back", async () => {
@@ -482,8 +482,8 @@ describe("IPAS settings", () => {
 
     await waitFor(async () => {
       const rows = await screen.findAllByTestId("ipas-option-row");
-      expect(rows[1]).toHaveTextContent("Cash");
-      expect(rows[2]).toHaveTextContent("Bank Transfer");
+      expect(rows[2]).toHaveTextContent("Cash");
+      expect(rows[3]).toHaveTextContent("Bank TT");
     });
   });
 
@@ -513,7 +513,7 @@ describe("IPAS settings", () => {
         kind: "down_payment",
         paid_on: "2026-10-01",
         amount: 500,
-        method_id: options.payment_method.Check.id,
+        method_id: options.payment_method["Dated Check"].id,
         created_by: purchaser.id,
       });
       return filed;
@@ -525,18 +525,18 @@ describe("IPAS settings", () => {
 
       renderSettings();
       const rows = await screen.findAllByTestId("ipas-option-row");
-      const check = rows.find((row) => within(row).queryByText("Check"));
+      const check = rows.find((row) => within(row).queryByText("Dated Check"));
 
-      await waitFor(() => expect(within(check).getByRole("button", { name: "Rename Check" })).toBeDisabled());
+      await waitFor(() => expect(within(check).getByRole("button", { name: "Rename Dated Check" })).toBeDisabled());
       expect(within(check).getByText(hint)).toBeInTheDocument();
       expect(screen.getAllByText(hint)).toHaveLength(1);
       expect(screen.getByRole("button", { name: "Rename Cash" })).toBeEnabled();
 
-      await user.click(within(check).getByRole("switch", { name: "Check is offered" }));
-      await waitFor(() => expect(db.rows("ipas_options").find((o) => o.label === "Check").active).toBe(false));
-      await user.click(screen.getByRole("button", { name: "Move Check up" }));
-      await waitFor(() => expect(db.rows("ipas_options").find((o) => o.label === "Check").sort).toBeLessThan(
-        db.rows("ipas_options").find((o) => o.label === "Cash").sort,
+      await user.click(within(check).getByRole("switch", { name: "Dated Check is offered" }));
+      await waitFor(() => expect(db.rows("ipas_options").find((o) => o.label === "Dated Check").active).toBe(false));
+      await user.click(screen.getByRole("button", { name: "Move Dated Check up" }));
+      await waitFor(() => expect(db.rows("ipas_options").find((o) => o.label === "Dated Check").sort).toBeLessThan(
+        db.rows("ipas_options").find((o) => o.label === "Credit Card").sort,
       ));
     });
 
@@ -546,7 +546,7 @@ describe("IPAS settings", () => {
       renderSettings();
       await screen.findAllByTestId("ipas-option-row");
 
-      expect(screen.getByRole("button", { name: "Rename Check" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Rename Dated Check" })).toBeEnabled();
       expect(screen.queryByText(hint)).not.toBeInTheDocument();
     });
 
@@ -563,7 +563,7 @@ describe("IPAS settings", () => {
       await waitFor(() => expect(screen.getByRole("combobox", { name: "Waybill: Source" })).toBeDisabled());
       expect(screen.getByRole("combobox", { name: "Waybill: used for" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Rename Waybill" })).toBeDisabled();
-      expect(screen.getByRole("combobox", { name: "Bill of Lading (BL): Source" })).toBeEnabled();
+      expect(screen.getByRole("combobox", { name: "BL or Waybill: Source" })).toBeEnabled();
     });
   });
 

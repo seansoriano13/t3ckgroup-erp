@@ -254,6 +254,8 @@ function section2(vm) {
     '',
     `${sors}
     <div class="fields n2">
+      ${field('Googlesheet', tick(s.googleSheet))}
+      ${field('Gantt Chart', tick(s.ganttChart))}
       ${field('Source Doc. Odoo', overridableValue(s.sourceDoc), { mono: true, note: overrideNote(s.sourceDoc) })}
       ${field('Analytic Dist.', overridableValue(s.analytic), { note: overrideNote(s.analytic) })}
     </div>`,

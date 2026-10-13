@@ -18,6 +18,15 @@ const FILED = { state: "filed", filed_at: "2026-09-16T02:00:00.000Z" }
 
 const IMAGE = "data:image/png;base64,iVBORw0KGgo="
 
+describe("section 2's ticks", () => {
+  it("prints Googlesheet and Gantt Chart as boxes, ticked or empty", () => {
+    const html = buildIpasDocument(buildIpasViewModel(makePrintableIpas({ row: { google_sheet: true } })))
+
+    expect(html).toContain('<span class="k">Googlesheet</span><span class="v"><span class="chk done"')
+    expect(html).toContain('<span class="k">Gantt Chart</span><span class="v"><span class="chk" aria-label="not ticked"')
+  })
+})
+
 describe("the two A4 pages", () => {
   it("is two portrait A4 sheets, the first breaking before the second", () => {
     const html = doc()

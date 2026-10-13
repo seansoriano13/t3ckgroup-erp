@@ -199,26 +199,27 @@ revoke insert, update, delete, truncate on public.ipas_documents from anon, auth
 -- Seed: document kinds and item locations
 -- ------------------------------------------------------------------------------
 
--- The sheet's values aren't in the repo; these are a sensible starting point the
--- business edits in IPAS settings. Insert-if-missing, so a re-run (or a list
--- already edited) is left alone.
+-- The business's real lists, from the paper IPAS sheet, in sheet order. Still
+-- editable in IPAS settings. Insert-if-missing, so a re-run (or a list already
+-- edited) is left alone. Documentation kinds come first, then the Section 7
+-- filing items; Proforma Invoice is on both lists and appears once, as 'both'.
 insert into public.ipas_options (list, label, sort, applies_to, used_for)
 select 'document_kind', v.label, v.sort, v.applies_to, v.used_for
   from (values
-    ('Quotation', 10, 'local', 'documentation'),
-    ('Signed Purchase Order', 20, 'both', 'documentation'),
-    ('Proforma Invoice', 30, 'import', 'documentation'),
-    ('Commercial Invoice', 40, 'import', 'both'),
-    ('Packing List', 50, 'import', 'both'),
-    ('Bill of Lading (BL)', 60, 'import', 'both'),
-    ('Waybill', 70, 'import', 'both'),
-    ('Certificate of Origin', 80, 'import', 'documentation'),
-    ('Customs Import Entry', 90, 'import', 'filing'),
-    ('Brokerage Billing Statement', 100, 'import', 'filing'),
-    ('Supplier Sales Invoice', 110, 'local', 'both'),
-    ('Delivery Receipt', 120, 'local', 'both'),
-    ('Official Receipt', 130, 'both', 'filing'),
-    ('BIR 2307', 140, 'both', 'filing')
+    ('Proforma Invoice', 10, 'import', 'both'),
+    ('Quotation (Local)', 20, 'local', 'documentation'),
+    ('Sales Contract', 30, 'both', 'documentation'),
+    ('BL or Waybill', 40, 'import', 'documentation'),
+    ('Packing List', 50, 'import', 'documentation'),
+    ('Commercial Invoice', 60, 'import', 'documentation'),
+    ('Form E / Form K', 70, 'import', 'documentation'),
+    ('Compliance (Local)', 80, 'local', 'documentation'),
+    ('OR / P.O.P (SS)', 90, 'both', 'filing'),
+    ('Waybill', 100, 'import', 'filing'),
+    ('BIR 2307', 110, 'both', 'filing'),
+    ('Landed / Local Cost (OPC)', 120, 'both', 'filing'),
+    ('Freight Billing', 130, 'import', 'filing'),
+    ('Others', 140, 'both', 'filing')
   ) as v(label, sort, applies_to, used_for)
  where not exists (
    select 1 from public.ipas_options o
@@ -228,12 +229,8 @@ select 'document_kind', v.label, v.sort, v.applies_to, v.used_for
 insert into public.ipas_options (list, label, sort)
 select 'item_location', v.label, v.sort
   from (values
-    ('Main Warehouse', 10),
-    ('Showroom', 20),
-    ('Office', 30),
-    ('Project Site', 40),
-    ('Customer Site', 50),
-    ('Other', 60)
+    ('BM Office', 10),
+    ('Marikina Warehouse', 20)
   ) as v(label, sort)
  where not exists (
    select 1 from public.ipas_options o

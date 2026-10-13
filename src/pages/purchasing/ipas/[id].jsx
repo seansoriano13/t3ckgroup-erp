@@ -280,6 +280,17 @@ function IpasPage() {
     onError: (error) => toast.error(ipasErrorMessage(error)),
   });
 
+  // Section 2's two ticks (#241): plain, not sign-off gated.
+  const tickSheet = useMutation({
+    mutationFn: ({ field, value }) =>
+      ipasService.setHeader(id, {
+        googleSheet: field === IPAS_HEADER_FIELD.GOOGLE_SHEET ? value : undefined,
+        ganttChart: field === IPAS_HEADER_FIELD.GANTT_CHART ? value : undefined,
+      }),
+    onSuccess: () => changed(),
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
   const remove = useMutation({
     mutationFn: ({ type, row }) =>
       type === "payment" ? ipasService.removePayment(row.id) : ipasService.removeCharge(row.id),
@@ -577,6 +588,7 @@ function IpasPage() {
             canChange={canChange}
             onEditOverride={setOverriding}
             onResetOverride={(field) => reset.mutate(field)}
+            onTick={(field, value) => tickSheet.mutate({ field, value })}
           />
           <IpasChargesSection
             ipas={ipas}

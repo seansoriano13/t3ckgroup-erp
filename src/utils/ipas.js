@@ -264,6 +264,8 @@ export function shapeIpas(row, sors = [], extras = null) {
     contact,
     piNumber,
     contactFromOdoo: contact !== null && contact === clean(copy.supplier?.contact),
+    googleSheet: row.google_sheet === true,
+    ganttChart: row.gantt_chart === true,
     piNumberFromOdoo: piNumber !== null && piNumber === clean(copy.po?.partner_ref),
     changeNote: shapeChangeNote(row.odoo_change_note),
     statuses,

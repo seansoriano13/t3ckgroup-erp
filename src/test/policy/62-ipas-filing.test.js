@@ -150,7 +150,7 @@ beforeAll(async () => {
     await ensureCastLoaded()
     const flag = await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider)
     if (flag.error) throw flag.error
-    const method = await svc().from("ipas_options").select("id").eq("list", "payment_method").eq("label", "Check").maybeSingle()
+    const method = await svc().from("ipas_options").select("id").eq("list", "payment_method").eq("label", "Dated Check").maybeSingle()
     const kind = await svc().from("ipas_options").select("id").eq("list", "charge_kind").eq("label", "Brokerage Fee").maybeSingle()
     if (!method.data || !kind.data) throw new Error("The IPAS option lists aren't seeded")
     methodId = method.data.id

@@ -487,7 +487,9 @@ create table if not exists public."ipas" (
   "delivered_typed_at" timestamp with time zone,
   "actual_checking_by" uuid,
   "actual_checking_at" timestamp with time zone,
-  "item_location_id" uuid
+  "item_location_id" uuid,
+  "google_sheet" boolean not null default false,
+  "gantt_chart" boolean not null default false
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -6873,6 +6875,8 @@ declare
   v_freight uuid;
   v_split text;
   v_status text;
+  v_sheet boolean;
+  v_gantt boolean;
   v_label text;
   v_changes jsonb := '{}'::jsonb;
 begin
@@ -6887,7 +6891,8 @@ begin
   end if;
   for v_key in select jsonb_object_keys(p_fields) loop
     if v_key not in (
-      'supplier_contact', 'pi_number', 'pi_qt_amount', 'freight_service_id', 'landed_cost_split', 'computation_status'
+      'supplier_contact', 'pi_number', 'pi_qt_amount', 'freight_service_id', 'landed_cost_split', 'computation_status',
+      'google_sheet', 'gantt_chart'
     ) then
       raise exception 'ipas_set_header: % isn''t a header field you can type here', v_key using errcode = '22023';
     end if;
@@ -6987,6 +6992,29 @@ begin
   if v_status is distinct from v_row.computation_status then
     v_changes := v_changes || jsonb_build_object('computation_status', jsonb_build_object('from', v_row.computation_status, 'to', v_status));
   end if;
+  -- The section 2 ticks: plain yes or no. JSON null and any other type are refused.
+  v_sheet := v_row.google_sheet;
+  if jsonb_exists(p_fields, 'google_sheet') then
+    if jsonb_typeof(p_fields->'google_sheet') <> 'boolean' then
+      raise exception 'ipas_set_header: Googlesheet must be ticked or not ticked' using errcode = '22023';
+    end if;
+    v_sheet := (p_fields->>'google_sheet')::boolean;
+  end if;
+
+  v_gantt := v_row.gantt_chart;
+  if jsonb_exists(p_fields, 'gantt_chart') then
+    if jsonb_typeof(p_fields->'gantt_chart') <> 'boolean' then
+      raise exception 'ipas_set_header: Gantt Chart must be ticked or not ticked' using errcode = '22023';
+    end if;
+    v_gantt := (p_fields->>'gantt_chart')::boolean;
+  end if;
+
+  if v_sheet is distinct from v_row.google_sheet then
+    v_changes := v_changes || jsonb_build_object('google_sheet', jsonb_build_object('from', v_row.google_sheet, 'to', v_sheet));
+  end if;
+  if v_gantt is distinct from v_row.gantt_chart then
+    v_changes := v_changes || jsonb_build_object('gantt_chart', jsonb_build_object('from', v_row.gantt_chart, 'to', v_gantt));
+  end if;
   if v_changes = '{}'::jsonb then
     return v_row;
   end if;
@@ -6997,7 +7025,9 @@ begin
          pi_qt_amount = v_amount,
          freight_service_id = v_freight,
          landed_cost_split = v_split,
-         computation_status = v_status
+         computation_status = v_status,
+         google_sheet = v_sheet,
+         gantt_chart = v_gantt
    where id = v_row.id
   returning * into v_row;
 

@@ -435,12 +435,13 @@ export const ipasService = {
    *   freightServiceId             an active freight service, or null to clear
    *   landedCostSplit              value | quantity | equal
    *   computationStatus            encoding | encoded | costs_complete | checked
+   *   googleSheet, ganttChart      section 2's ticks: true or false (never sign-off gated)
    * Half-typed numbers are refused with a sentence (IpasError INVALID), never a
    * cast error. Returns the row.
    */
   async setHeader(
     id,
-    { supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus } = {},
+    { supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus, googleSheet, ganttChart } = {},
   ) {
     const fields = {};
     if (supplierContact !== undefined) fields.supplier_contact = supplierContact ?? "";
@@ -462,6 +463,14 @@ export const ipasService = {
         "The computation status is Encoding, Encoded, Costs complete or Checked by.",
       );
       fields.computation_status = computationStatus;
+    }
+    if (googleSheet !== undefined) {
+      if (typeof googleSheet !== "boolean") throw new IpasError(IPAS_ERROR.INVALID, "Googlesheet is ticked or not.");
+      fields.google_sheet = googleSheet;
+    }
+    if (ganttChart !== undefined) {
+      if (typeof ganttChart !== "boolean") throw new IpasError(IPAS_ERROR.INVALID, "Gantt Chart is ticked or not.");
+      fields.gantt_chart = ganttChart;
     }
     if (Object.keys(fields).length === 0) {
       throw new IpasError(IPAS_ERROR.INVALID, "Nothing to change.");

@@ -68,9 +68,9 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       const opened = await read(ipas.id)
 
       expect(labels(opened.documents)).toEqual(kindsFor("import"))
-      expect(labels(opened.documents)).toContain("Bill of Lading (BL)")
+      expect(labels(opened.documents)).toContain("BL or Waybill")
       expect(labels(opened.documents)).toContain("BIR 2307")
-      expect(labels(opened.documents)).not.toContain("Quotation")
+      expect(labels(opened.documents)).not.toContain("Quotation (Local)")
       expect(opened.suggestedDocuments).toEqual([])
     })
 
@@ -80,8 +80,8 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       const opened = await read(ipas.id)
 
       expect(labels(opened.documents)).toEqual(kindsFor("local"))
-      expect(labels(opened.documents)).toContain("Quotation")
-      expect(labels(opened.documents)).not.toContain("Bill of Lading (BL)")
+      expect(labels(opened.documents)).toContain("Quotation (Local)")
+      expect(labels(opened.documents)).not.toContain("BL or Waybill")
     })
 
     it("marks each row with its kind's Source and use, and BIR 2307 as a filing item", async () => {
@@ -90,8 +90,8 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       const opened = await read(ipas.id)
 
       expect(doc(opened, "BIR 2307")).toMatchObject({ appliesTo: "both", usedFor: "filing", isFiling: true, byHand: false })
-      expect(doc(opened, "Proforma Invoice")).toMatchObject({ usedFor: "documentation", isFiling: false })
-      expect(doc(opened, "Waybill")).toMatchObject({ usedFor: "both", isFiling: true })
+      expect(doc(opened, "Proforma Invoice")).toMatchObject({ appliesTo: "import", usedFor: "both", isFiling: true })
+      expect(doc(opened, "Waybill")).toMatchObject({ usedFor: "filing", isFiling: true })
     })
 
     it("starts every row unticked and without an attachment", async () => {
@@ -141,14 +141,14 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       const ipas = await raise("local", "P03010")
 
       await ipasService.addDocument(ipas.id, { label: "  Warranty card " })
-      await ipasService.addDocument(ipas.id, { kindId: options.document_kind["Bill of Lading (BL)"].id })
+      await ipasService.addDocument(ipas.id, { kindId: options.document_kind["BL or Waybill"].id })
 
       const opened = await read(ipas.id)
       expect(doc(opened, "Warranty card")).toMatchObject({ byHand: true, kind: null, isFiling: false })
-      expect(doc(opened, "Bill of Lading (BL)")).toMatchObject({ byHand: false })
+      expect(doc(opened, "BL or Waybill")).toMatchObject({ byHand: false })
       expect(eventsOf("document_added").map((e) => [e.detail.label, e.detail.by_hand])).toEqual([
         ["Warranty card", true],
-        ["Bill of Lading (BL)", false],
+        ["BL or Waybill", false],
       ])
     })
 
@@ -159,13 +159,13 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       const { kindsToAdd } = await import("@/utils/ipasDocuments")
       const addable = kindsToAdd(opened.options, db.rows("ipas_documents").filter((d) => d.ipas_id === ipas.id)).map((k) => k.label)
 
-      expect(addable).toContain("Bill of Lading (BL)")
-      expect(addable).not.toContain("Quotation")
+      expect(addable).toContain("BL or Waybill")
+      expect(addable).not.toContain("Quotation (Local)")
     })
 
     it("refuses a kind with a name, neither, a duplicate and a bad link", async () => {
       const ipas = await raise("import", "P03012")
-      const bl = options.document_kind["Bill of Lading (BL)"]
+      const bl = options.document_kind["BL or Waybill"]
 
       await expect(ipasService.addDocument(ipas.id, { kindId: bl.id, label: "x" })).rejects.toMatchObject({ code: "IPAS_INVALID" })
       await expect(ipasService.addDocument(ipas.id, {})).rejects.toMatchObject({ code: "IPAS_INVALID" })
@@ -298,8 +298,8 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       const opened = await read(ipas.id)
       const checklist = filingChecklist(opened.documents)
 
-      // Filing items only: a documentation-only kind (Proforma) isn't on it.
-      expect(checklist.map((d) => d.label)).not.toContain("Proforma Invoice")
+      // Proforma is both: documentation and filing, so it is on the checklist too.
+      expect(checklist.find((d) => d.label === "Proforma Invoice").ticked).toBe(true)
       expect(checklist.find((d) => d.label === "Waybill").ticked).toBe(true)
       expect(checklist.find((d) => d.label === "BIR 2307").ticked).toBe(false)
       expect(unfiledDocuments(opened.documents).map((d) => d.label)).toContain("BIR 2307")
@@ -356,7 +356,7 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       kind: "payment",
       paidOn: "2026-10-01",
       amount: "1000",
-      methodId: options.payment_method.Check.id,
+      methodId: options.payment_method["Dated Check"].id,
       ...over,
     })
 
@@ -474,12 +474,12 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
   describe("Item Location", () => {
     it("types an Item Location from the list and shows it, and clears it", async () => {
       const ipas = await raise("local", "P03060")
-      const place = options.item_location["Main Warehouse"]
+      const place = options.item_location["BM Office"]
 
       await ipasService.setItemLocation(ipas.id, place.id)
 
-      expect((await read(ipas.id)).itemLocation).toMatchObject({ id: place.id, label: "Main Warehouse" })
-      expect(eventsOf("item_location_changed")[0].detail).toEqual({ from: null, to: "Main Warehouse" })
+      expect((await read(ipas.id)).itemLocation).toMatchObject({ id: place.id, label: "BM Office" })
+      expect(eventsOf("item_location_changed")[0].detail).toEqual({ from: null, to: "BM Office" })
 
       await ipasService.setItemLocation(ipas.id, null)
       expect((await read(ipas.id)).itemLocation).toBeNull()
@@ -511,22 +511,22 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
     })
 
     it("re-marks a kind without losing its name, and refuses a mark that isn't one", async () => {
-      const kind = options.document_kind.Quotation
+      const kind = options.document_kind["Quotation (Local)"]
 
-      const changed = await ipasService.saveOption({ id: kind.id, list: "document_kind", label: "Quotation", appliesTo: "both", usedFor: "both" })
+      const changed = await ipasService.saveOption({ id: kind.id, list: "document_kind", label: "Quotation (Local)", appliesTo: "both", usedFor: "both" })
 
       expect(changed).toMatchObject({ id: kind.id, applies_to: "both", used_for: "both" })
       await expect(
-        ipasService.saveOption({ id: kind.id, list: "document_kind", label: "Quotation", appliesTo: "everywhere" }),
+        ipasService.saveOption({ id: kind.id, list: "document_kind", label: "Quotation (Local)", appliesTo: "everywhere" }),
       ).rejects.toMatchObject({ code: "IPAS_INVALID" })
     })
 
     it("says so in a sentence when the database refuses a change to an option a filed IPAS uses (55000)", async () => {
-      const kind = options.document_kind.Quotation
+      const kind = options.document_kind["Quotation (Local)"]
       server.use(
         http.patch(`${BASE_URL}/rest/v1/ipas_options`, () =>
           HttpResponse.json(
-            { code: "55000", message: 'ipas_options: "Quotation" is used on a filed IPAS. Deactivate it and add a new one instead.', details: null, hint: null },
+            { code: "55000", message: 'ipas_options: "Quotation (Local)" is used on a filed IPAS. Deactivate it and add a new one instead.', details: null, hint: null },
             { status: 400 },
           ),
         ),
@@ -542,7 +542,7 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
     it("lists the option ids a filed IPAS uses, and only those", async () => {
       const filed = await raise("local", "P03070")
       const open = await raise("local", "P03071")
-      const stillOpen = options.freight_service["DHL Express"]
+      const stillOpen = options.freight_service["DHL"]
       const used = options.freight_service.FedEx
       db.internal.rowsOf("ipas").find((r) => r.id === filed.id).state = "filed"
       db.internal.rowsOf("ipas").find((r) => r.id === filed.id).freight_service_id = used.id

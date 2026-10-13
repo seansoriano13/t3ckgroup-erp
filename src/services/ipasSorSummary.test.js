@@ -94,7 +94,7 @@ describe("ipasService.summariesForSor", () => {
       kind: "payment",
       paid_on: "2026-10-01",
       amount: 987654.32,
-      method_id: options.payment_method.Check.id,
+      method_id: options.payment_method["Dated Check"].id,
       proof_url: "https://res.cloudinary.com/demo/proof.png",
       created_by: buyer.id,
     })
@@ -125,7 +125,7 @@ describe("ipasService.summariesForSor", () => {
       kind: "payment",
       paid_on: "2026-10-01",
       amount: 100,
-      method_id: options.payment_method.Check.id,
+      method_id: options.payment_method["Dated Check"].id,
       proof_url: "https://res.cloudinary.com/demo/proof.png",
       created_by: buyer.id,
     })

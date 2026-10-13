@@ -433,7 +433,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       expect(before).toHaveLength(4)
 
       await ipasService.addPayment(ipas.id, {
-        kind: "down_payment", paidOn: "2026-10-01", amount: "500", chargeFeePhp: "", methodId: options.payment_method.Check.id,
+        kind: "down_payment", paidOn: "2026-10-01", amount: "500", chargeFeePhp: "", methodId: options.payment_method["Dated Check"].id,
       })
       await ipasService.addCharge(ipas.id, { kindId: options.charge_kind["Brokerage Fee"].id, chargedOn: "2026-10-05", amountPhp: "150" })
       await ipasService.overrideField(ipas.id, "entity", "T3CK Holdings")
@@ -458,7 +458,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
 
   describe("paid before approval", () => {
     const pay = (id) =>
-      ipasService.addPayment(id, { kind: "payment", paidOn: "2026-10-01", amount: "500", chargeFeePhp: "", methodId: options.payment_method.Check.id })
+      ipasService.addPayment(id, { kind: "payment", paidOn: "2026-10-01", amount: "500", chargeFeePhp: "", methodId: options.payment_method["Dated Check"].id })
 
     it("flags a payment recorded before section 1 is approved, and the payment row says so", async () => {
       addToList("s1_approved", approver)

@@ -4,7 +4,9 @@
         "title": "IPAS: SOR picker shows Stage, not customer",
         "version": "1.9.25",
         "changes": [
-            "IPAS: the SOR picker and the SORs on an IPAS show the reference, project and Stage. The customer name is no longer shown or searched; find an SOR by its reference or project"
+            "IPAS: the SOR picker and the SORs on an IPAS show the reference, project and Stage. The customer name is no longer shown or searched; find an SOR by its reference or project",
+            "IPAS: payment methods, charge kinds, freight services, document kinds and item locations start from the paper IPAS sheet's own lists. They can still be edited in Purchasing settings",
+            "IPAS: section 2 has two ticks, Googlesheet and Gantt Chart, and they print on the IPAS"
         ]
     },
     {

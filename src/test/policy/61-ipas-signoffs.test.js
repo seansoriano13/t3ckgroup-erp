@@ -136,7 +136,7 @@ beforeAll(async () => {
     await ensureCastLoaded()
     const flag = await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider)
     if (flag.error) throw flag.error
-    const { data, error } = await svc().from("ipas_options").select("id").eq("list", "payment_method").eq("label", "Check").maybeSingle()
+    const { data, error } = await svc().from("ipas_options").select("id").eq("list", "payment_method").eq("label", "Dated Check").maybeSingle()
     if (error || !data) throw new Error("The payment methods aren't seeded")
     methodId = data.id
 })

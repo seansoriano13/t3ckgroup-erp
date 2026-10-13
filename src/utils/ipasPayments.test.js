@@ -91,13 +91,13 @@ describe("summarizePayments", () => {
 
 describe("rows and pickers", () => {
   const options = new Map([
-    ["m1", { id: "m1", list: "payment_method", label: "Check", active: false, sort: 40 }],
+    ["m1", { id: "m1", list: "payment_method", label: "Dated Check", active: false, sort: 40 }],
     ["k1", { id: "k1", list: "charge_kind", label: "Brokerage Fee", active: true, sort: 10 }],
   ])
 
   it("resolves an option a list no longer offers, so history keeps its label", () => {
     expect(shapePayment({ id: "p", method_id: "m1", amount: "500", php_debited: null, proof_url: null }, options)).toMatchObject({
-      methodLabel: "Check",
+      methodLabel: "Dated Check",
       amount: 500,
       php_debited: null,
       charge_fee_php: 0,

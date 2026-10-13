@@ -115,7 +115,7 @@ export const IPAS_OVERRIDE_FIELDS = {
  * The header values Purchasing types or picks (ipas_set_header's keys). Contact
  * and P.I # are also filled from Odoo while blank (#243); the rest are #244's:
  * P.I/QT Amount (typed), the one freight service, how Landed Cost is spread,
- * and the computation status.
+ * and the computation status. Section 2's two ticks (#241) are booleans.
  */
 export const IPAS_HEADER_FIELD = {
   SUPPLIER_CONTACT: "supplier_contact",
@@ -124,6 +124,8 @@ export const IPAS_HEADER_FIELD = {
   FREIGHT_SERVICE: "freight_service_id",
   LANDED_COST_SPLIT: "landed_cost_split",
   COMPUTATION_STATUS: "computation_status",
+  GOOGLE_SHEET: "google_sheet",
+  GANTT_CHART: "gantt_chart",
 };
 
 /** Payment kinds (ipas_payments.kind). */

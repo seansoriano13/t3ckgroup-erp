@@ -20,8 +20,8 @@ const kind = (id, label, applies_to, used_for, over = {}) => ({
 })
 
 const OPTIONS = [
-  kind("k1", "Quotation", "local", "documentation", { sort: 10 }),
-  kind("k2", "Bill of Lading (BL)", "import", "both", { sort: 20 }),
+  kind("k1", "Quotation (Local)", "local", "documentation", { sort: 10 }),
+  kind("k2", "BL or Waybill", "import", "both", { sort: 20 }),
   kind("k3", "BIR 2307", "both", "filing", { sort: 30 }),
 ]
 
@@ -35,16 +35,16 @@ describe("what Filing expects of the documents", () => {
   const docs = shapeDocuments(rows, OPTIONS)
 
   it("is the kind rows matching the Source, whatever they are used for, hand-added ones left out", () => {
-    expect(requiredDocuments(docs, "import").map((d) => d.label).sort()).toEqual(["BIR 2307", "Bill of Lading (BL)"])
-    expect(requiredDocuments(docs, "local").map((d) => d.label).sort()).toEqual(["BIR 2307", "Quotation"])
+    expect(requiredDocuments(docs, "import").map((d) => d.label).sort()).toEqual(["BIR 2307", "BL or Waybill"])
+    expect(requiredDocuments(docs, "local").map((d) => d.label).sort()).toEqual(["BIR 2307", "Quotation (Local)"])
   })
 
   it("warns about the unticked ones with a label and nothing else", () => {
     expect(unfiledRequiredDocuments(docs, "import")).toEqual([
-      { id: "d2", label: "Bill of Lading (BL)", usedFor: "both", appliesTo: "import" },
+      { id: "d2", label: "BL or Waybill", usedFor: "both", appliesTo: "import" },
     ])
     expect(unfiledRequiredDocuments(docs, "local")).toEqual([
-      { id: "d1", label: "Quotation", usedFor: "documentation", appliesTo: "local" },
+      { id: "d1", label: "Quotation (Local)", usedFor: "documentation", appliesTo: "local" },
     ])
   })
 

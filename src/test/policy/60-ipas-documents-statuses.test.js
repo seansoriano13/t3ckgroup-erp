@@ -185,8 +185,8 @@ describe("the seeded lists", () => {
     it("seeds BIR 2307 as a filing kind and a Waybill and BL for Import, a Quotation for Local", async () => {
         expect(await kindByLabel("BIR 2307")).toMatchObject({ applies_to: "both", used_for: "filing" })
         expect(await kindByLabel("Waybill")).toMatchObject({ applies_to: "import" })
-        expect(await kindByLabel("Bill of Lading (BL)")).toMatchObject({ applies_to: "import" })
-        expect(await kindByLabel("Quotation")).toMatchObject({ applies_to: "local" })
+        expect(await kindByLabel("BL or Waybill")).toMatchObject({ applies_to: "import" })
+        expect(await kindByLabel("Quotation (Local)")).toMatchObject({ applies_to: "local" })
     })
 
     it("seeds item locations", async () => {
@@ -210,8 +210,8 @@ describe("documents follow the IPAS's Source", () => {
         const expected = all.filter((k) => k.active && ["import", "both"].includes(k.applies_to)).map((k) => k.label).sort()
 
         expect(await labelsOf(ipas.id)).toEqual(expected)
-        expect(expected).toContain("Bill of Lading (BL)")
-        expect(expected).not.toContain("Quotation")
+        expect(expected).toContain("BL or Waybill")
+        expect(expected).not.toContain("Quotation (Local)")
     })
 
     it("gives a Local IPAS the Local and Both kinds, and no Import-only ones", async () => {
@@ -220,8 +220,8 @@ describe("documents follow the IPAS's Source", () => {
         const expected = all.filter((k) => k.active && ["local", "both"].includes(k.applies_to)).map((k) => k.label).sort()
 
         expect(await labelsOf(ipas.id)).toEqual(expected)
-        expect(expected).toContain("Quotation")
-        expect(expected).not.toContain("Bill of Lading (BL)")
+        expect(expected).toContain("Quotation (Local)")
+        expect(expected).not.toContain("BL or Waybill")
     })
 
     it("starts every row unticked and without an attachment", async () => {
@@ -258,12 +258,12 @@ describe("documents follow the IPAS's Source", () => {
 
     it("leaves rows already ticked alone when suggesting", async () => {
         const ipas = await raise("import")
-        const bl = await docByLabel(ipas.id, "Bill of Lading (BL)")
+        const bl = await docByLabel(ipas.id, "BL or Waybill")
         await tick("outsider", bl.id, "purchasing", true)
 
         await rpc("outsider", "ipas_suggest_documents", { p_ipas_id: ipas.id })
 
-        expect((await docByLabel(ipas.id, "Bill of Lading (BL)")).purchasing_has).toBe(true)
+        expect((await docByLabel(ipas.id, "BL or Waybill")).purchasing_has).toBe(true)
     })
 
     it("refuses ipas_suggest_documents to anyone but Purchasing", async () => {
@@ -287,7 +287,7 @@ describe("adding a document by hand", () => {
 
     it("adds an Import kind to a Local IPAS: the suggestion is only a start", async () => {
         const ipas = await raise("local")
-        const bl = await kindByLabel("Bill of Lading (BL)")
+        const bl = await kindByLabel("BL or Waybill")
 
         const { data, error } = await addDocument("outsider", ipas.id, { p_kind_id: bl.id })
 
@@ -308,7 +308,7 @@ describe("adding a document by hand", () => {
 
     it("refuses a kind and a name together, neither, a long name and a bad link", async () => {
         const ipas = await raise("local")
-        const bl = await kindByLabel("Bill of Lading (BL)")
+        const bl = await kindByLabel("BL or Waybill")
 
         expect((await addDocument("outsider", ipas.id, { p_kind_id: bl.id, p_label: "x" })).error?.code).toBe("22023")
         expect((await addDocument("outsider", ipas.id, {})).error?.code).toBe("22023")
@@ -319,7 +319,7 @@ describe("adding a document by hand", () => {
 
     it("refuses a kind or a name that is already on the IPAS", async () => {
         const ipas = await raise("import")
-        const bl = await kindByLabel("Bill of Lading (BL)")
+        const bl = await kindByLabel("BL or Waybill")
         expect((await addDocument("outsider", ipas.id, { p_kind_id: bl.id })).error?.code).toBe("23505")
 
         expect((await addDocument("outsider", ipas.id, { p_label: "Memo" })).error).toBeNull()
@@ -508,7 +508,7 @@ describe("attachments and removal", () => {
         expect(await events(ipas.id, "document_removed")).toHaveLength(0)
 
         // A row picked from the list (it has a kind) is the same.
-        const kindId = (await svc().from("ipas_options").select("id").eq("list", "document_kind").eq("label", "Quotation").single()).data.id
+        const kindId = (await svc().from("ipas_options").select("id").eq("list", "document_kind").eq("label", "Quotation (Local)").single()).data.id
         const picked = (await addDocument("outsider", ipas.id, { p_kind_id: kindId })).data
         expect((await rpc("outsider", "ipas_remove_document", { p_document_id: picked.id })).error?.code).toBe("55000")
     })
@@ -535,7 +535,7 @@ describe("a filed or cancelled IPAS", () => {
         expect((await setOrigin("outsider", ipas.id, { shipped_out_on: "2026-10-01" })).error?.code).toBe("55000")
         expect((await setTyped("outsider", ipas.id, "delivered", "2026-10-02")).error?.code).toBe("55000")
         expect((await rpc("outsider", "ipas_stamp_actual_checking", { p_ipas_id: ipas.id })).error?.code).toBe("55000")
-        const place = await optionByLabel("item_location", "Main Warehouse")
+        const place = await optionByLabel("item_location", "BM Office")
         expect((await rpc("outsider", "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: place.id })).error?.code).toBe("55000")
     })
 
@@ -718,16 +718,16 @@ describe("the buyer track", () => {
 describe("Item Location", () => {
     it("types an Item Location from the list, and clears it", async () => {
         const ipas = await raise("local")
-        const place = await optionByLabel("item_location", "Main Warehouse")
+        const place = await optionByLabel("item_location", "BM Office")
 
         const { data, error } = await rpc("outsider", "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: place.id })
         expect(error).toBeNull()
         expect(data.item_location_id).toBe(place.id)
-        expect((await events(ipas.id, "item_location_changed")).at(-1).detail).toEqual({ from: null, to: "Main Warehouse" })
+        expect((await events(ipas.id, "item_location_changed")).at(-1).detail).toEqual({ from: null, to: "BM Office" })
 
         const cleared = await rpc("outsider", "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: null })
         expect(cleared.data.item_location_id).toBeNull()
-        expect((await events(ipas.id, "item_location_changed")).at(-1).detail).toEqual({ from: "Main Warehouse", to: null })
+        expect((await events(ipas.id, "item_location_changed")).at(-1).detail).toEqual({ from: "BM Office", to: null })
     })
 
     it("refuses an option of another list and a deactivated location", async () => {
@@ -742,7 +742,7 @@ describe("Item Location", () => {
 
     it("refuses everyone but Purchasing", async () => {
         const ipas = await raise("local")
-        const place = await optionByLabel("item_location", "Main Warehouse")
+        const place = await optionByLabel("item_location", "BM Office")
         for (const who of CAST_KEYS.filter((k) => k !== "outsider")) {
             const { error } = await rpc(who, "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: place.id })
             expect(error?.code, `${who} set the Item Location`).toBe("42501")

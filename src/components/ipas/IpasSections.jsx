@@ -1,6 +1,7 @@
 import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2 } from "lucide-react";
 
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 import { DetailRow } from "../ui/DetailParts";
 import SectionHeader from "../ui/SectionHeader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
@@ -9,6 +10,7 @@ import {
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_ERROR,
   IPAS_EVENT_LABELS,
+  IPAS_HEADER_FIELD,
   IPAS_STATUS_SOURCE,
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TICK_SIDE_LABELS,
@@ -396,8 +398,11 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
   );
 }
 
-/** Section 2: the SORs it serves, and Odoo's Source Document and analytic accounts. */
-export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onResetOverride }) {
+/**
+ * Section 2: the SORs it serves, the two plain ticks (Googlesheet, Gantt Chart,
+ * #241), and Odoo's Source Document and analytic accounts.
+ */
+export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onResetOverride, onTick }) {
   return (
     <IpasSection title="2 · Sales & Operation">
       <dl className="divide-y divide-border">
@@ -420,6 +425,22 @@ export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onRe
               ))}
             </ul>
           )}
+        </DetailRow>
+        <DetailRow label="Googlesheet">
+          <Checkbox
+            checked={ipas.googleSheet}
+            disabled={!canChange}
+            aria-label="Googlesheet"
+            onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
+          />
+        </DetailRow>
+        <DetailRow label="Gantt Chart">
+          <Checkbox
+            checked={ipas.ganttChart}
+            disabled={!canChange}
+            aria-label="Gantt Chart"
+            onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
+          />
         </DetailRow>
         <OverrideRow
           state={ipas.overrides[IPAS_OVERRIDE.SOURCE_DOC]}
@@ -614,6 +635,8 @@ const HEADER_FIELD_NAMES = {
   freight_service_id: "Freight service",
   landed_cost_split: "Landed Cost spread",
   computation_status: "Computation status",
+  google_sheet: "Googlesheet",
+  gantt_chart: "Gantt Chart",
 };
 
 const BANK_FIELD_NAMES = {
@@ -638,6 +661,7 @@ const PAYMENT_FIELD_NAMES = {
 /** One header change as words: the value it became. */
 function headerChangeText(field, change) {
   const to = change?.to;
+  if (typeof to === "boolean") return `${HEADER_FIELD_NAMES[field] ?? field}: ${to ? "ticked" : "not ticked"}`;
   if (to === null || to === undefined || to === "") return `${HEADER_FIELD_NAMES[field] ?? field}: cleared`;
   if (field === "pi_qt_amount") return `${HEADER_FIELD_NAMES[field]}: ${formatAmount(to, null)}`;
   if (field === "landed_cost_split") {

@@ -107,7 +107,7 @@ beforeAll(async () => {
     inventory = await raise({ purpose: "inventory" })
 
     // Money and bank details on `both`: none of it may reach the summary.
-    const methodId = await optionId("payment_method", "Check")
+    const methodId = await optionId("payment_method", "Dated Check")
     const chargeKindId = await optionId("charge_kind", "Brokerage Fee")
     await ok(
         rpc("outsider", "ipas_add_payment", {

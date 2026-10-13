@@ -346,6 +346,11 @@ describe("the page's content", () => {
     expect(section2.analytic.value).toBe("S07983 Emergency Response Vehicle")
   })
 
+  it("carries section 2's two ticks, off unless ticked", () => {
+    expect(vm().section2).toMatchObject({ googleSheet: false, ganttChart: false })
+    expect(vm({ row: { google_sheet: true } }).section2).toMatchObject({ googleSheet: true, ganttChart: false })
+  })
+
   it("notes an override beside the value Odoo has", () => {
     const { header } = vm({ row: { entity_override: "T3ck Trading" } })
 

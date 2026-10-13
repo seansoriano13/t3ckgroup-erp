@@ -138,36 +138,40 @@ create policy ipas_options_update on public.ipas_options
 -- Options are never deleted, by anyone through the API.
 revoke delete, truncate on public.ipas_options from anon, authenticated;
 
--- The sheet's lists, as the starting point. Insert-if-missing, so a re-run
--- (or a list the business already edited) is left alone.
+-- The business's real lists, from the paper IPAS sheet, in sheet order. Still
+-- editable in Purchasing settings. Insert-if-missing, so a re-run (or a list the
+-- business already edited) is left alone.
 insert into public.ipas_options (list, label, sort)
 select v.list, v.label, v.sort
   from (values
     ('payment_method', 'Alipay', 10),
-    ('payment_method', 'Bank Transfer', 20),
-    ('payment_method', 'Cash', 30),
-    ('payment_method', 'Check', 40),
+    ('payment_method', 'Bank Deposit', 20),
+    ('payment_method', 'Bank TT', 30),
+    ('payment_method', 'Cash', 40),
     ('payment_method', 'Credit Card', 50),
-    ('payment_method', 'GCash', 60),
-    ('payment_method', 'PayPal', 70),
-    ('payment_method', 'Telegraphic Transfer', 80),
-    ('payment_method', 'Other', 90),
+    ('payment_method', 'Dated Check', 60),
+    ('payment_method', 'Petnet', 70),
+    ('payment_method', 'Western Union', 80),
+    ('payment_method', 'Alibaba', 90),
+    ('payment_method', 'Paypal', 100),
+    ('payment_method', 'Other', 110),
     ('charge_kind', 'Brokerage Fee', 10),
-    ('charge_kind', 'Duties & Taxes', 20),
+    ('charge_kind', 'Delivery Fee', 20),
     ('charge_kind', 'Destination Charges', 30),
-    ('charge_kind', 'Arrastre & Wharfage', 40),
-    ('charge_kind', 'Documentary Stamps', 50),
-    ('charge_kind', 'Delivery / Trucking', 60),
-    ('charge_kind', 'Other Charges', 70),
-    ('freight_service', 'DHL Express', 10),
-    ('freight_service', 'FedEx', 20),
-    ('freight_service', 'UPS', 30),
-    ('freight_service', 'Air Freight Forwarder', 40),
-    ('freight_service', 'Sea Freight Forwarder', 50),
-    ('freight_service', 'Local Courier', 60),
-    ('freight_service', 'Supplier Delivery', 70),
-    ('freight_service', 'Own Pickup', 80),
-    ('freight_service', 'Other', 90)
+    ('charge_kind', 'Duties & Taxes', 40),
+    ('charge_kind', 'Origin Charges', 50),
+    ('charge_kind', 'Processing Fee', 60),
+    ('charge_kind', 'Truck Rental', 70),
+    ('freight_service', 'Ahead', 10),
+    ('freight_service', 'AVV', 20),
+    ('freight_service', 'DHL', 30),
+    ('freight_service', 'FedEx', 40),
+    ('freight_service', 'UPS', 50),
+    ('freight_service', 'Wide Range', 60),
+    ('freight_service', 'DSV', 70),
+    ('freight_service', 'TD Express Air', 80),
+    ('freight_service', 'TD Express Sea', 90),
+    ('freight_service', 'Other', 100)
   ) as v(list, label, sort)
  where not exists (
    select 1 from public.ipas_options o

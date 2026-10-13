@@ -16,8 +16,8 @@ const kind = (id, label, applies_to, used_for, over = {}) => ({
 })
 
 const OPTIONS = [
-  kind("k1", "Quotation", "local", "documentation", { sort: 10 }),
-  kind("k2", "Bill of Lading (BL)", "import", "both", { sort: 20 }),
+  kind("k1", "Quotation (Local)", "local", "documentation", { sort: 10 }),
+  kind("k2", "BL or Waybill", "import", "both", { sort: 20 }),
   kind("k3", "BIR 2307", "both", "filing", { sort: 30 }),
   kind("k4", "Retired", "import", "filing", { active: false, sort: 40 }),
   { id: "p1", list: "payment_method", label: "Cash", active: true },
@@ -37,13 +37,13 @@ describe("document kinds and Source", () => {
   })
 
   it("suggests the active kinds for a Source that the IPAS has no row for", () => {
-    expect(missingSuggestions(OPTIONS, [], "import").map((k) => k.label)).toEqual(["Bill of Lading (BL)", "BIR 2307"])
+    expect(missingSuggestions(OPTIONS, [], "import").map((k) => k.label)).toEqual(["BL or Waybill", "BIR 2307"])
     expect(missingSuggestions(OPTIONS, [{ kind_id: "k2" }], "import").map((k) => k.label)).toEqual(["BIR 2307"])
-    expect(missingSuggestions(OPTIONS, [], "local").map((k) => k.label)).toEqual(["Quotation", "BIR 2307"])
+    expect(missingSuggestions(OPTIONS, [], "local").map((k) => k.label)).toEqual(["Quotation (Local)", "BIR 2307"])
   })
 
   it("offers every active kind not yet on the IPAS to add by hand, whatever its Source", () => {
-    expect(kindsToAdd(OPTIONS, [{ kind_id: "k1" }]).map((k) => k.label)).toEqual(["Bill of Lading (BL)", "BIR 2307"])
+    expect(kindsToAdd(OPTIONS, [{ kind_id: "k1" }]).map((k) => k.label)).toEqual(["BL or Waybill", "BIR 2307"])
   })
 })
 
@@ -57,14 +57,14 @@ describe("shaping documents", () => {
 
   it("labels a kind row by its kind, even a deactivated one, and a hand-added row by its own name", () => {
     const docs = shapeDocuments(rows, OPTIONS)
-    expect(docs.map((d) => d.label)).toEqual(["Bill of Lading (BL)", "BIR 2307", "Retired", "Memo"])
+    expect(docs.map((d) => d.label)).toEqual(["BL or Waybill", "BIR 2307", "Retired", "Memo"])
     expect(docs.find((d) => d.id === "d3")).toMatchObject({ label: "Memo", byHand: true, isFiling: false })
     expect(docs.find((d) => d.id === "d4").label).toBe("Retired")
   })
 
   it("puts kind rows in the list's order and hand-added ones last", () => {
     const docs = shapeDocuments(rows, [
-      kind("k2", "Bill of Lading (BL)", "import", "both", { sort: 20 }),
+      kind("k2", "BL or Waybill", "import", "both", { sort: 20 }),
       kind("k3", "BIR 2307", "both", "filing", { sort: 10 }),
       kind("k4", "Retired", "import", "filing", { sort: 30 }),
     ])
@@ -82,10 +82,10 @@ describe("shaping documents", () => {
     const docs = shapeDocuments(rows, OPTIONS)
     expect(filingChecklist(docs).map((d) => [d.label, d.ticked]).sort()).toEqual([
       ["BIR 2307", true],
-      ["Bill of Lading (BL)", false],
+      ["BL or Waybill", false],
       ["Retired", false],
     ])
-    expect(unfiledDocuments(docs).map((d) => d.label).sort()).toEqual(["Bill of Lading (BL)", "Retired"])
+    expect(unfiledDocuments(docs).map((d) => d.label).sort()).toEqual(["BL or Waybill", "Retired"])
   })
 })
 
