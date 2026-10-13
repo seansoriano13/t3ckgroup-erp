@@ -4,7 +4,7 @@ import { db } from "@/test/db/store"
 import { supabase } from "@/lib/supabase"
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { waitForNetworkIdle } from "@/test/network"
-import { makeEmployee, makeOpportunity } from "@/test/factories"
+import { makeEmployee, makeFlowStage, makeOpportunity } from "@/test/factories"
 import { stubIpasRpcs } from "@/test/stubs/ipasRpc"
 import { IPAS_ERROR, IPAS_NOTIFICATION, IPAS_WARNING } from "@/constants/ipas"
 
@@ -221,6 +221,37 @@ describe("ipasService", () => {
       expect(byRef.S04602.id).toBe(s04602.id)
     })
 
+    it("gives only the reference, project and Stage, never the customer", async () => {
+      const stage = makeFlowStage({ name: "Quotation" })
+      const sor = makeOpportunity({
+        registered_by: salesperson.id,
+        sales_reference: "S07930",
+        project_title: "Staged",
+        client_name: "Zorblax Holdings",
+        flow_stage_id: stage.id,
+      })
+
+      const [suggestion] = await ipasService.suggestSors(odooPo({ origin: "S07930 Staged" }))
+      expect(Object.keys(suggestion).sort()).toEqual(["current_stage_name", "found_in", "id", "project_title", "sales_reference"])
+      expect(suggestion).toMatchObject({ id: sor.id, current_stage_name: "Quotation" })
+
+      const [found] = await ipasService.searchSors("S07930")
+      expect(Object.keys(found).sort()).toEqual(["current_stage_name", "id", "project_title", "sales_reference"])
+    })
+
+    it("searches by reference or project, and no longer by customer", async () => {
+      makeOpportunity({
+        registered_by: salesperson.id,
+        sales_reference: "S07931",
+        project_title: "Harbour Rescue",
+        client_name: "Zorblax Holdings",
+      })
+
+      expect((await ipasService.searchSors("harbour")).map((s) => s.sales_reference)).toEqual(["S07931"])
+      expect((await ipasService.searchSors("S07931")).map((s) => s.sales_reference)).toEqual(["S07931"])
+      expect(await ipasService.searchSors("zorblax")).toEqual([])
+    })
+
     it("suggests nothing when the copy names no SOR, and ignores an S number no SOR has", async () => {
       expect(await ipasService.suggestSors(odooPo({ origin: "Stock replenishment" }))).toEqual([])
       expect(await ipasService.suggestSors(odooPo({ origin: "S00001 Nobody" }))).toEqual([])
@@ -314,7 +345,13 @@ describe("ipasService", () => {
     })
 
     it("lists newest first with each IPAS's entity, supplier and SORs", async () => {
-      const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" })
+      const stage = makeFlowStage({ name: "Quotation" })
+      const sor = makeOpportunity({
+        registered_by: salesperson.id,
+        sales_reference: "S07920",
+        project_title: "Capas LGU",
+        flow_stage_id: stage.id,
+      })
       await raise({ poNumber: "P01001", purpose: "project", sorIds: [sor.id] })
       db.setClock("2026-10-14T00:00:00.000Z")
       await raise({ poNumber: "P01002" })
@@ -324,7 +361,7 @@ describe("ipasService", () => {
       expect(rows.map((r) => r.po_number)).toEqual(["P01002", "P01001"])
       expect(rows[1]).toMatchObject({ entity: "T3ck Trading", supplier: "Scorpe Technologies", currency: "Php" })
       expect(rows[1].sors).toEqual([
-        { id: sor.id, salesReference: "S07920", projectTitle: "Capas LGU", clientName: sor.client_name },
+        { id: sor.id, salesReference: "S07920", projectTitle: "Capas LGU", stageName: "Quotation" },
       ])
       expect(rows[0].sors).toEqual([])
     })

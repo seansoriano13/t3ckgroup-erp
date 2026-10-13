@@ -196,7 +196,7 @@ describe("escaping", () => {
       creator: { id: "x", name: hostile },
       itemLocation: { label: hostile },
       lines: base.lines.map((line) => ({ ...line, name: hostile, brand: hostile })),
-      sors: [{ id: "o", salesReference: "S1", projectTitle: hostile, clientName: hostile }],
+      sors: [{ id: "o", salesReference: "S1", projectTitle: hostile, stageName: hostile }],
       overrides: {
         ...base.overrides,
         entity: { ...base.overrides.entity, value: hostile, overridden: true, odoo: hostile },

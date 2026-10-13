@@ -128,7 +128,7 @@ export const ipasService = {
   /**
    * The SORs whose Sales Reference the copy mentions — in the PO's Source
    * Document or in a line's analytic account name — as
-   * `{ id, sales_reference, project_title, client_name, found_in }` (found_in:
+   * `{ id, sales_reference, project_title, current_stage_name, found_in }` (found_in:
    * "origin" and/or "analytic"). Only references that name an SOR come back.
    */
   async suggestSors(odooCopy) {
@@ -142,12 +142,12 @@ export const ipasService = {
       id: sor.opportunity_id,
       sales_reference: sor.sales_reference,
       project_title: sor.project_title,
-      client_name: sor.client_name,
+      current_stage_name: sor.current_stage_name,
       found_in: mentioned[sor.sales_reference] ?? [],
     }));
   },
 
-  /** SORs to attach to a Project IPAS, by Sales Reference, project or customer. */
+  /** SORs to attach to a Project IPAS, by Sales Reference or project. */
   async searchSors(term) {
     const search = (term || "").trim();
     if (search.length < 2) return [];
@@ -157,7 +157,7 @@ export const ipasService = {
       id: sor.opportunity_id,
       sales_reference: sor.sales_reference,
       project_title: sor.project_title,
-      client_name: sor.client_name,
+      current_stage_name: sor.current_stage_name,
     }));
   },
 

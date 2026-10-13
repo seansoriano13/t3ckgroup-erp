@@ -396,7 +396,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
   );
 }
 
-/** Section 2: the customers and SORs it serves, and Odoo's Source Document and analytic accounts. */
+/** Section 2: the SORs it serves, and Odoo's Source Document and analytic accounts. */
 export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onResetOverride }) {
   return (
     <IpasSection title="2 · Sales & Operation">
@@ -414,7 +414,7 @@ export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onRe
                   <span className="text-muted-foreground">
                     {" "}
                     · {sor.projectTitle}
-                    {sor.clientName ? ` · ${sor.clientName}` : ""}
+                    {sor.stageName ? ` · ${sor.stageName}` : ""}
                   </span>
                 </li>
               ))}

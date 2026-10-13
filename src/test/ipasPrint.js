@@ -142,7 +142,7 @@ const DOCUMENTS = [
 ]
 
 const SORS = [
-  { opportunity_id: "opp-1", sales_reference: "S07983", project_title: "Emergency Response Vehicle", client_name: "Palmer Asia Inc" },
+  { opportunity_id: "opp-1", sales_reference: "S07983", project_title: "Emergency Response Vehicle", current_stage_name: "Quotation" },
 ]
 
 /**

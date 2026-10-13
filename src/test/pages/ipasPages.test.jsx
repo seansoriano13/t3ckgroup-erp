@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import IpasListPage from "@/pages/purchasing/ipas/index";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import { renderWithProviders } from "@/test/support";
-import { makeEmployee, makeOpportunity } from "@/test/factories";
+import { makeEmployee, makeFlowStage, makeOpportunity } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { stubIpasRpcs } from "@/test/stubs/ipasRpc";
@@ -227,6 +227,24 @@ describe("IPAS pages", () => {
       expect(screen.getAllByText("S07920").length).toBeGreaterThan(0);
       expect(screen.getByText("Raised")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Cancel IPAS/ })).toBeInTheDocument();
+    });
+
+    it("shows each SOR as reference, project and Stage, never the customer", async () => {
+      const stage = makeFlowStage({ name: "Quotation" });
+      const sor = makeOpportunity({
+        registered_by: salesperson.id,
+        sales_reference: "S07920",
+        project_title: "Capas LGU",
+        client_name: "Zorblax Holdings",
+        flow_stage_id: stage.id,
+      });
+      const row = ipas({ po_number: "P02552", purpose: "project", created_by: purchaser.id });
+      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: sor.id });
+
+      renderDetail(row.id);
+
+      expect(await screen.findByText(/Capas LGU · Quotation/)).toBeInTheDocument();
+      expect(screen.queryByText(/Zorblax/)).not.toBeInTheDocument();
     });
 
     it("cancels with a reason and keeps the IPAS readable with its number", async () => {

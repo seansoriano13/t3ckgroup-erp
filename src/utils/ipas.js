@@ -215,7 +215,7 @@ export function shapeIpas(row, sors = [], extras = null) {
     id: s.opportunity_id,
     salesReference: s.sales_reference,
     projectTitle: s.project_title,
-    clientName: s.client_name,
+    stageName: s.current_stage_name ?? null,
   }));
   const poCancelledInOdoo = isPoCancelledInOdoo(row);
   const mismatch = sorMismatch(copy, shapedSors);

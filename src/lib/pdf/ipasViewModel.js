@@ -311,13 +311,10 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   };
 
   // ── Section 2 ──
-  const clients = [...new Set(sors.map((sor) => text(sor.clientName)).filter(Boolean))];
   const section2 = {
-    customers: clients,
     sors: sors.map((sor) => ({
       reference: text(sor.salesReference) ?? BLANK,
       title: text(sor.projectTitle),
-      client: text(sor.clientName),
     })),
     sourceDoc: field('source_doc'),
     analytic: field('analytic'),

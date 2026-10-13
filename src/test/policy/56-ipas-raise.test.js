@@ -648,7 +648,7 @@ describe("finding SORs to attach", () => {
         ])
     })
 
-    it("searches by project or customer, and leaves out a deleted SOR", async () => {
+    it("searches by project, and leaves out a deleted SOR", async () => {
         const hit = await rpc("outsider", "ipas_find_sors", { p_refs: null, p_search: "rope rescue" })
         expect(hit.data.map((r) => r.opportunity_id)).toEqual(expect.arrayContaining([sorA, sorB]))
 

@@ -322,13 +322,13 @@ export function stubIpasRpcs({
         (o) =>
           refs.includes(o.sales_reference) ||
           (term &&
-            [o.sales_reference, o.project_title, o.client_name].some((f) => String(f || "").toLowerCase().includes(term))),
+            [o.sales_reference, o.project_title].some((f) => String(f || "").toLowerCase().includes(term))),
       )
       .map((o) => ({
         opportunity_id: o.id,
         sales_reference: o.sales_reference,
         project_title: o.project_title,
-        client_name: o.client_name,
+        current_stage_name: findRow("flow_stages", o.flow_stage_id)?.name ?? null,
       }))
   })
 
@@ -346,7 +346,7 @@ export function stubIpasRpcs({
           opportunity_id: s.opportunity_id,
           sales_reference: o?.sales_reference ?? null,
           project_title: o?.project_title ?? null,
-          client_name: o?.client_name ?? null,
+          current_stage_name: (o && findRow("flow_stages", o.flow_stage_id)?.name) ?? null,
         }
       })
   })

@@ -337,11 +337,11 @@ describe("the page's content", () => {
     ])
   })
 
-  it("carries section 2: SORs with customers, Source Doc. and Analytic Dist.", () => {
+  it("carries section 2: SORs (no customer), Source Doc. and Analytic Dist.", () => {
     const { section2 } = vm()
 
-    expect(section2.sors).toEqual([{ reference: "S07983", title: "Emergency Response Vehicle", client: "Palmer Asia Inc" }])
-    expect(section2.customers).toEqual(["Palmer Asia Inc"])
+    expect(section2.sors).toEqual([{ reference: "S07983", title: "Emergency Response Vehicle" }])
+    expect(section2.customers).toBeUndefined()
     expect(section2.sourceDoc.value).toBe("S07983")
     expect(section2.analytic.value).toBe("S07983 Emergency Response Vehicle")
   })

@@ -242,9 +242,9 @@ function section1(vm) {
 function section2(vm) {
   const s = vm.section2;
   const sors = s.sors.length
-    ? `<table><thead><tr><th style="width:18%">SOR</th><th>Project</th><th style="width:34%">Customer</th></tr></thead><tbody>${s.sors
+    ? `<table><thead><tr><th style="width:18%">SOR</th><th>Project</th></tr></thead><tbody>${s.sors
         .map(
-          (sor) => `<tr><td class="m" style="font-weight:600">${esc(sor.reference)}</td><td>${esc(sor.title ?? '—')}</td><td>${esc(sor.client ?? '—')}</td></tr>`,
+          (sor) => `<tr><td class="m" style="font-weight:600">${esc(sor.reference)}</td><td>${esc(sor.title ?? '—')}</td></tr>`,
         )
         .join('')}</tbody></table>`
     : '<div class="empty">No SOR named.</div>';

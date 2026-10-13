@@ -67,7 +67,7 @@ describe("shapeIpas", () => {
       },
     }
     const shaped = shapeIpas(row, [
-      { opportunity_id: "o1", sales_reference: "S07983", project_title: "ERV", client_name: "Palmer" },
+      { opportunity_id: "o1", sales_reference: "S07983", project_title: "ERV", current_stage_name: "Quotation" },
     ])
     expect(shaped).toMatchObject({
       entity: "TG Enterprise",
@@ -75,7 +75,7 @@ describe("shapeIpas", () => {
       currency: "USD",
       poCancelledInOdoo: true,
       isProject: true,
-      sors: [{ id: "o1", salesReference: "S07983", projectTitle: "ERV", clientName: "Palmer" }],
+      sors: [{ id: "o1", salesReference: "S07983", projectTitle: "ERV", stageName: "Quotation" }],
     })
     expect(shaped.lines).toHaveLength(1)
   })

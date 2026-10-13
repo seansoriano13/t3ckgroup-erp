@@ -5991,7 +5991,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_find_sors(p_refs text[] DEFAULT NULL::text[], p_search text DEFAULT NULL::text)
- RETURNS TABLE(opportunity_id uuid, sales_reference text, project_title text, client_name text)
+ RETURNS TABLE(opportunity_id uuid, sales_reference text, project_title text, current_stage_name text)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -6011,8 +6011,9 @@ begin
     from unnest(coalesce(p_refs, '{}'::text[])) r;
 
   return query
-    select o.id, o.sales_reference, o.project_title, o.client_name
+    select o.id, o.sales_reference, o.project_title, fs.name
       from public.sales_opportunities o
+      left join public.flow_stages fs on fs.id = o.flow_stage_id
      where not coalesce(o.is_deleted, false)
        and not coalesce(o.is_scratch, false)
        and o.sales_reference is not null
@@ -6023,7 +6024,6 @@ begin
            and (
              position(v_term in lower(o.sales_reference)) > 0
              or position(v_term in lower(o.project_title)) > 0
-             or position(v_term in lower(o.client_name)) > 0
            )
          )
        )
@@ -7514,7 +7514,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_sor_headers(p_ipas_ids uuid[] DEFAULT NULL::uuid[])
- RETURNS TABLE(ipas_id uuid, opportunity_id uuid, sales_reference text, project_title text, client_name text)
+ RETURNS TABLE(ipas_id uuid, opportunity_id uuid, sales_reference text, project_title text, current_stage_name text)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -7526,15 +7526,16 @@ begin
   if not public.ipas_can_read() then
     return;
   end if;
-  -- Ask for the IPAS you mean: no ids, no rows (null used to mean every IPAS).
+  -- Ask for the IPAS you mean: no ids, no rows.
   if p_ipas_ids is null or cardinality(p_ipas_ids) = 0 then
     return;
   end if;
 
   return query
-    select s.ipas_id, s.opportunity_id, o.sales_reference, o.project_title, o.client_name
+    select s.ipas_id, s.opportunity_id, o.sales_reference, o.project_title, fs.name
       from public.ipas_sors s
       join public.sales_opportunities o on o.id = s.opportunity_id
+      left join public.flow_stages fs on fs.id = o.flow_stage_id
      where s.ipas_id = any (p_ipas_ids)
      order by o.sales_reference;
 end;

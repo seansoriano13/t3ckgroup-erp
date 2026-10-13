@@ -1,6 +1,14 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: SOR picker shows Stage, not customer",
+        "version": "1.9.25",
+        "changes": [
+            "IPAS: the SOR picker and the SORs on an IPAS show the reference, project and Stage. The customer name is no longer shown or searched; find an SOR by its reference or project"
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS options stay accurate on filed IPAS",
         "version": "1.9.24",
         "changes": [

@@ -16,7 +16,7 @@ function SorLine({ sor }) {
     <span className="min-w-0 text-[13px]">
       <span className="font-mono font-semibold">{sor.sales_reference}</span>
       <span className="text-muted-foreground"> · {sor.project_title}</span>
-      {sor.client_name && <span className="text-muted-foreground"> · {sor.client_name}</span>}
+      {sor.current_stage_name && <span className="text-muted-foreground"> · {sor.current_stage_name}</span>}
     </span>
   );
 }
@@ -24,8 +24,8 @@ function SorLine({ sor }) {
 /**
  * The SORs a Project IPAS names. `suggestions` are the SORs the PO's Source
  * Document or analytic accounts mention (one tick each); anything else is
- * found by Sales Reference, project or customer. `selected` and `onChange` are
- * lists of `{ id, sales_reference, project_title, client_name }`.
+ * found by Sales Reference or project. `selected` and `onChange` are
+ * lists of `{ id, sales_reference, project_title, current_stage_name }`.
  */
 export default function SorPicker({ selected, onChange, suggestions = [], disabled = false }) {
   const [term, setTerm] = useState("");
@@ -98,7 +98,7 @@ export default function SorPicker({ selected, onChange, suggestions = [], disabl
           value={term}
           disabled={disabled}
           onChange={(e) => setTerm(e.target.value)}
-          placeholder="Sales Reference, project or customer"
+          placeholder="Sales Reference or project"
         />
       </FieldBox>
       {search.length >= 2 && (

@@ -25,7 +25,7 @@ const toPicked = (sor) => ({
   id: sor.id,
   sales_reference: sor.salesReference,
   project_title: sor.projectTitle,
-  client_name: sor.clientName,
+  current_stage_name: sor.stageName,
 });
 
 /**
