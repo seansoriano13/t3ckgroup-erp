@@ -698,7 +698,9 @@ describe("ipasService", () => {
       })
 
       it("can't be ticked by hand: the service offers no way, and the database ignores the columns", async () => {
-        expect(Object.keys(ipasService).filter((name) => /status|tick|stamp|received|bill/i.test(name))).toEqual([])
+        // The computation status (#244) is Purchasing's own to set; the three Odoo statuses are nobody's.
+        const offered = Object.keys(ipasService).filter((name) => /status|tick|stamp|received|bill/i.test(name))
+        expect(offered).toEqual(["setComputationStatus"])
         const direct = await supabase.rpc("ipas_set_header", {
           p_ipas_id: row.id,
           p_fields: { received_in_odoo: true },

@@ -113,10 +113,128 @@ export const IPAS_OVERRIDE_FIELDS = {
   [IPAS_OVERRIDE.ANALYTIC]: { column: "analytic_override", label: "Analytic Dist." },
 };
 
-/** The values Purchasing types and Odoo only fills while they are blank. */
+/**
+ * The header values Purchasing types or picks (ipas_set_header's keys). Contact
+ * and P.I # are also filled from Odoo while blank (#243); the rest are #244's:
+ * P.I/QT Amount (typed), the one freight service, how Landed Cost is spread,
+ * and the computation status.
+ */
 export const IPAS_HEADER_FIELD = {
   SUPPLIER_CONTACT: "supplier_contact",
   PI_NUMBER: "pi_number",
+  PI_QT_AMOUNT: "pi_qt_amount",
+  FREIGHT_SERVICE: "freight_service_id",
+  LANDED_COST_SPLIT: "landed_cost_split",
+  COMPUTATION_STATUS: "computation_status",
+};
+
+/** Payment kinds (ipas_payments.kind). */
+export const IPAS_PAYMENT_KIND = {
+  DOWN_PAYMENT: "down_payment",
+  PAYMENT: "payment",
+  FULL_PAYMENT: "full_payment",
+  SHIPPING_FEE: "shipping_fee",
+};
+
+export const IPAS_PAYMENT_KINDS = [
+  IPAS_PAYMENT_KIND.DOWN_PAYMENT,
+  IPAS_PAYMENT_KIND.PAYMENT,
+  IPAS_PAYMENT_KIND.FULL_PAYMENT,
+  IPAS_PAYMENT_KIND.SHIPPING_FEE,
+];
+
+export const IPAS_PAYMENT_KIND_LABELS = {
+  [IPAS_PAYMENT_KIND.DOWN_PAYMENT]: "Down payment",
+  [IPAS_PAYMENT_KIND.PAYMENT]: "Payment",
+  [IPAS_PAYMENT_KIND.FULL_PAYMENT]: "Full payment",
+  [IPAS_PAYMENT_KIND.SHIPPING_FEE]: "Shipping fee",
+};
+
+/** How charges, charge fees and shipping fees are spread over the item lines. */
+export const IPAS_LANDED_COST_SPLIT = {
+  VALUE: "value",
+  QUANTITY: "quantity",
+  EQUAL: "equal",
+};
+
+export const IPAS_LANDED_COST_SPLITS = [
+  IPAS_LANDED_COST_SPLIT.VALUE,
+  IPAS_LANDED_COST_SPLIT.QUANTITY,
+  IPAS_LANDED_COST_SPLIT.EQUAL,
+];
+
+export const IPAS_LANDED_COST_SPLIT_LABELS = {
+  [IPAS_LANDED_COST_SPLIT.VALUE]: "By value",
+  [IPAS_LANDED_COST_SPLIT.QUANTITY]: "By quantity",
+  [IPAS_LANDED_COST_SPLIT.EQUAL]: "Equally",
+};
+
+/** Where the costing stands (ipas.computation_status), in order. */
+export const IPAS_COMPUTATION_STATUS = {
+  ENCODING: "encoding",
+  ENCODED: "encoded",
+  COSTS_COMPLETE: "costs_complete",
+  CHECKED: "checked",
+};
+
+export const IPAS_COMPUTATION_STATUSES = [
+  IPAS_COMPUTATION_STATUS.ENCODING,
+  IPAS_COMPUTATION_STATUS.ENCODED,
+  IPAS_COMPUTATION_STATUS.COSTS_COMPLETE,
+  IPAS_COMPUTATION_STATUS.CHECKED,
+];
+
+export const IPAS_COMPUTATION_STATUS_LABELS = {
+  [IPAS_COMPUTATION_STATUS.ENCODING]: "Encoding",
+  [IPAS_COMPUTATION_STATUS.ENCODED]: "Encoded",
+  [IPAS_COMPUTATION_STATUS.COSTS_COMPLETE]: "Costs complete",
+  [IPAS_COMPUTATION_STATUS.CHECKED]: "Checked by",
+};
+
+/** Landed Cost is `unavailable`, or `provisional` until Costs complete, then `final`. */
+export const IPAS_LANDED_COST_STATUS = {
+  UNAVAILABLE: "unavailable",
+  PROVISIONAL: "provisional",
+  FINAL: "final",
+};
+
+/** Why Landed Cost isn't available. */
+export const IPAS_LANDED_COST_REASON = {
+  NO_PAYMENTS: "no_payments",
+  NO_LINES: "no_lines",
+};
+
+/** The option lists (ipas_options.list). Options are deactivated, never deleted. */
+export const IPAS_OPTION_LIST = {
+  PAYMENT_METHOD: "payment_method",
+  CHARGE_KIND: "charge_kind",
+  FREIGHT_SERVICE: "freight_service",
+  DOCUMENT_KIND: "document_kind",
+  ITEM_LOCATION: "item_location",
+};
+
+/** The lists IPAS settings edits today, in tab order. Later tickets add theirs. */
+export const IPAS_OPTION_LISTS = [
+  IPAS_OPTION_LIST.PAYMENT_METHOD,
+  IPAS_OPTION_LIST.CHARGE_KIND,
+  IPAS_OPTION_LIST.FREIGHT_SERVICE,
+];
+
+export const IPAS_OPTION_LIST_LABELS = {
+  [IPAS_OPTION_LIST.PAYMENT_METHOD]: "Payment methods",
+  [IPAS_OPTION_LIST.CHARGE_KIND]: "Charge kinds",
+  [IPAS_OPTION_LIST.FREIGHT_SERVICE]: "Freight services",
+  [IPAS_OPTION_LIST.DOCUMENT_KIND]: "Document kinds",
+  [IPAS_OPTION_LIST.ITEM_LOCATION]: "Item locations",
+};
+
+/** What one option of each list is called, singular. */
+export const IPAS_OPTION_LIST_NOUNS = {
+  [IPAS_OPTION_LIST.PAYMENT_METHOD]: "payment method",
+  [IPAS_OPTION_LIST.CHARGE_KIND]: "charge kind",
+  [IPAS_OPTION_LIST.FREIGHT_SERVICE]: "freight service",
+  [IPAS_OPTION_LIST.DOCUMENT_KIND]: "document kind",
+  [IPAS_OPTION_LIST.ITEM_LOCATION]: "item location",
 };
 
 /**
@@ -157,4 +275,10 @@ export const IPAS_EVENT_LABELS = {
   odoo_copy_changed: "PO changed in Odoo",
   odoo_changed_since_filing: "Odoo has changed since filing",
   approvals_cleared: "Approvals cleared",
+  payment_added: "Payment added",
+  payment_changed: "Payment changed",
+  payment_removed: "Payment removed",
+  charge_added: "Charge added",
+  charge_changed: "Charge changed",
+  charge_removed: "Charge removed",
 };

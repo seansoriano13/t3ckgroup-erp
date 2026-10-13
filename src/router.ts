@@ -29,6 +29,7 @@ export type Path =
   | `/purchasing`
   | `/purchasing/ipas`
   | `/purchasing/ipas/:id`
+  | `/purchasing/ipas/settings`
   | `/release-notes`
   | `/reset-password`
   | `/retail`

@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: payments, charges and Landed Cost",
+        "version": "1.9.14",
+        "changes": [
+            "IPAS: Purchasing and Finance record any number of payments (down payment, payment, full payment, shipping fee) and importation charges. Each has its date and amount, a payment its charge fee, method, Check No. and optional proof of payment. Edit or remove them until the IPAS is filed; every change is kept in History.",
+            "IPAS: on a foreign-currency PO each payment records the PHP actually debited, so costs use the rate really paid. DP and FP come from the payment rows, P.I/QT Amount is typed, and no balance is worked out.",
+            "IPAS: each IPAS gets one freight service and a computation status: Encoding, Encoded, Costs complete, Checked by.",
+            "IPAS: Landed Cost shows per line and per unit, spread by value, by quantity or equally, marked provisional until Costs complete and final after. A foreign PO with no payment shows it as not available.",
+            "IPAS settings: Purchasing and Super Admins edit the payment method, charge kind and freight service lists. Options are reordered or deactivated, never deleted, and rows that used one keep it."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: the Odoo copy stays current, with overrides",
         "version": "1.9.13",
         "changes": [

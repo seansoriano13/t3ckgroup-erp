@@ -219,7 +219,8 @@ describe("IPAS pages", () => {
       renderDetail(row.id);
 
       expect(await screen.findByRole("heading", { name: "TGIPAS_049" })).toBeInTheDocument();
-      expect(screen.getByText("Greenspirit 2 Cutter")).toBeInTheDocument();
+      // The item shows in section 1 and again in Landed Cost (#244).
+      expect(screen.getAllByText("Greenspirit 2 Cutter").length).toBeGreaterThan(0);
       expect(screen.getByText("SCORPE")).toBeInTheDocument();
       expect(screen.getByText(/Copy from Odoo, fetched/)).toBeInTheDocument();
       expect(screen.getByText("For the Capas deal")).toBeInTheDocument();
@@ -285,7 +286,7 @@ describe("IPAS pages", () => {
 
       renderDetail(row.id);
 
-      expect(await screen.findByText("Replacement blades", { selector: "td, td *" })).toBeInTheDocument();
+      expect((await screen.findAllByText("Replacement blades", { selector: "td, td *" })).length).toBeGreaterThan(0);
       const note = await screen.findByText(/PO changed in Odoo ·/);
       expect(note).toBeInTheDocument();
       expect(screen.getByText("1 line added, 1 quantity or price changed")).toBeInTheDocument();
@@ -300,7 +301,7 @@ describe("IPAS pages", () => {
 
       expect(await screen.findByText("Odoo didn't answer")).toBeInTheDocument();
       expect(screen.getByText(/Showing the last copy, fetched/)).toBeInTheDocument();
-      expect(screen.getByText("Greenspirit 2 Cutter")).toBeInTheDocument();
+      expect(screen.getAllByText("Greenspirit 2 Cutter").length).toBeGreaterThan(0);
     });
 
     it("overrides Entity with Odoo's value beside it, and resets in one action", async () => {

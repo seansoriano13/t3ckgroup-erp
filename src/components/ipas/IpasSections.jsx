@@ -5,9 +5,12 @@ import { DetailRow } from "../ui/DetailParts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import {
+  IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_ERROR,
   IPAS_EVENT_LABELS,
+  IPAS_LANDED_COST_SPLIT_LABELS,
   IPAS_OVERRIDE,
+  IPAS_PAYMENT_KIND_LABELS,
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
   IPAS_SOURCE_LABELS,
@@ -271,7 +274,7 @@ const LINE_HEAD = "text-[10px] font-bold uppercase tracking-wider";
  * Currency, Supplier, item lines and Brand are read-only: a wrong one is fixed
  * on the PO in Odoo. Contact and P.I # are typed and kept.
  */
-export function IpasPurchasingSection({ ipas, refreshing = false, canChange = false, onEditHeader }) {
+export function IpasPurchasingSection({ ipas, refreshing = false, canChange = false, onEditHeader, children }) {
   const copy = ipas.odoo_copy ?? {};
   const po = copy.po ?? {};
   const total = ipas.lines.reduce((sum, line) => sum + (Number(line.price_subtotal) || 0), 0);
@@ -379,6 +382,8 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
           </div>
         </div>
       )}
+
+      {children}
     </IpasSection>
   );
 }
@@ -511,7 +516,69 @@ const OVERRIDE_FIELD_NAMES = {
 const HEADER_FIELD_NAMES = {
   supplier_contact: "Contact",
   pi_number: "P.I #",
+  pi_qt_amount: "P.I/QT Amount",
+  freight_service_id: "Freight service",
+  landed_cost_split: "Landed Cost spread",
+  computation_status: "Computation status",
 };
+
+const PAYMENT_FIELD_NAMES = {
+  kind: "kind",
+  paid_on: "date",
+  amount: "amount",
+  php_debited: "PHP debited",
+  charge_fee_php: "charge fee",
+  method: "method",
+  check_no: "Check No.",
+  proof: "proof",
+  charged_on: "date",
+  amount_php: "amount",
+};
+
+/** One header change as words: the value it became. */
+function headerChangeText(field, change) {
+  const to = change?.to;
+  if (to === null || to === undefined || to === "") return `${HEADER_FIELD_NAMES[field] ?? field}: cleared`;
+  if (field === "pi_qt_amount") return `${HEADER_FIELD_NAMES[field]}: ${formatAmount(to, null)}`;
+  if (field === "landed_cost_split") {
+    return `${HEADER_FIELD_NAMES[field]}: ${IPAS_LANDED_COST_SPLIT_LABELS[to] ?? to}`;
+  }
+  if (field === "computation_status") {
+    return `${HEADER_FIELD_NAMES[field]}: ${IPAS_COMPUTATION_STATUS_LABELS[to] ?? to}`;
+  }
+  return `${HEADER_FIELD_NAMES[field] ?? field}: “${to}”`;
+}
+
+const money = (value) => formatAmount(value, null);
+
+/** What a payment or charge event says beside its label, from the snapshot it kept. */
+function moneyEventDetail(event) {
+  const d = event.detail ?? {};
+  const kind = IPAS_PAYMENT_KIND_LABELS[d.kind] ?? d.kind ?? null;
+  const currency = d.currency ? `${d.currency} ` : "";
+  switch (event.kind) {
+    case "payment_added":
+    case "payment_removed": {
+      const parts = [kind, d.amount != null ? `${currency}${money(d.amount)}` : null];
+      if (d.php_debited != null) parts.push(`PHP ${money(d.php_debited)} debited`);
+      if (d.method) parts.push(d.method);
+      return parts.filter(Boolean).join(" · ");
+    }
+    case "payment_changed": {
+      const changed = Object.keys(d.changes ?? {}).map((key) => PAYMENT_FIELD_NAMES[key] ?? key);
+      return [kind, changed.length ? `changed ${changed.join(", ")}` : null].filter(Boolean).join(" · ");
+    }
+    case "charge_added":
+    case "charge_removed":
+      return [d.kind, d.amount_php != null ? `PHP ${money(d.amount_php)}` : null].filter(Boolean).join(" · ");
+    case "charge_changed": {
+      const changed = Object.keys(d.changes ?? {}).map((key) => PAYMENT_FIELD_NAMES[key] ?? key);
+      return [d.kind, changed.length ? `changed ${changed.join(", ")}` : null].filter(Boolean).join(" · ");
+    }
+    default:
+      return null;
+  }
+}
 
 /** The one line a history row adds beside its label, or null. */
 function eventDetail(event) {
@@ -525,7 +592,7 @@ function eventDetail(event) {
       return `${OVERRIDE_FIELD_NAMES[detail.field] ?? detail.field} back to Odoo${detail.odoo ? `: ${detail.odoo}` : ""}`;
     case "header_changed":
       return Object.entries(detail.fields ?? {})
-        .map(([field, change]) => `${HEADER_FIELD_NAMES[field] ?? field}: ${change.to ? `“${change.to}”` : "cleared"}`)
+        .map(([field, change]) => headerChangeText(field, change))
         .join("; ");
     case "filled_from_odoo":
       return (detail.fields ?? []).map((field) => HEADER_FIELD_NAMES[field] ?? field).join(", ");
@@ -542,6 +609,13 @@ function eventDetail(event) {
     }
     case "approvals_cleared":
       return detail.reason ?? null;
+    case "payment_added":
+    case "payment_changed":
+    case "payment_removed":
+    case "charge_added":
+    case "charge_changed":
+    case "charge_removed":
+      return moneyEventDetail(event);
     default:
       return null;
   }

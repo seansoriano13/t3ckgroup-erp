@@ -1,9 +1,14 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import {
+  IPAS_COMPUTATION_STATUSES,
   IPAS_ERROR,
+  IPAS_LANDED_COST_SPLITS,
   IPAS_NOTIFICATION,
+  IPAS_OPTION_LIST,
+  IPAS_OPTION_LIST_NOUNS,
   IPAS_OVERRIDE_FIELDS,
+  IPAS_PAYMENT_KINDS,
   IPAS_PRIORITIES,
   IPAS_PURPOSE,
   IPAS_PURPOSES,
@@ -13,10 +18,13 @@ import {
 } from "../constants/ipas";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
 import { ipasEntity, salesReferencesIn, shapeIpas } from "../utils/ipas";
+import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
 
 const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)";
 const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, avatar_path)";
+const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
+const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
 
 /**
  * An IPAS error the screen can word: `code` is one of IPAS_ERROR.
@@ -37,9 +45,15 @@ export class IpasError extends Error {
  * IPAS (spec #241, issue #242): the one seam the app uses for the IPAS.
  *
  * Reads and lifecycle land here first (#242); the Odoo refresh, overrides and
- * the typed header values follow (#243). Payments, charges, documents and
- * sign-offs extend this object in their own tickets. Every write is an RPC: the database decides who may make it and
- * writes the history row (ADR 0013).
+ * the typed header values follow (#243); payments, charges, the option lists
+ * and Landed Cost (#244). Documents and sign-offs extend this object in their
+ * own tickets. Every IPAS write is an RPC: the database decides who may make it
+ * and writes the history row (ADR 0013). The option lists are plain rows under
+ * row level security (nobody deletes one).
+ *
+ * Landed Cost is not stored: `get` works it out from the Odoo copy, the payment
+ * and charge rows and the spread and status columns (utils/landedCost.js), so a
+ * changed PO, payment or charge shows at once.
  *
  * The Odoo read is `odoo-po-ipas` (read-only). Creating reads the PO first and
  * stores that copy; the database never talks to Odoo.
@@ -200,17 +214,43 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
         .select(EVENT_SELECT)
         .eq("ipas_id", id)
         .order("created_at", { ascending: true }),
+      supabase
+        .from("ipas_payments")
+        .select(PAYMENT_SELECT)
+        .eq("ipas_id", id)
+        .order("paid_on", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("ipas_charges")
+        .select(CHARGE_SELECT)
+        .eq("ipas_id", id)
+        .order("charged_on", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase.from("ipas_options").select("*"),
     ]);
-    if (events.error) throw events.error;
+    for (const result of [events, payments, charges, options]) {
+      if (result.error) throw result.error;
+    }
 
-    return { ...shapeIpas(row, sorsByIpas.get(id) ?? []), events: events.data || [], refresh: outcome };
+    return {
+      ...shapeIpas(row, sorsByIpas.get(id) ?? [], {
+        payments: payments.data || [],
+        charges: charges.data || [],
+        options: options.data || [],
+      }),
+      // Every option row, inactive ones too: a row that holds a deactivated
+      // option still resolves it, and the pickers filter it out for new rows.
+      options: options.data || [],
+      events: events.data || [],
+      refresh: outcome,
+    };
   },
 
   // ── The Odoo copy ────────────────────────────────────────────────────────
@@ -314,20 +354,211 @@ export const ipasService = {
   },
 
   /**
-   * Types the supplier contact and/or P.I # (`{ supplierContact, piNumber }`;
-   * only the keys given are set, blank clears). A typed value is never
-   * overwritten by Odoo; a blank one fills from the next copy. Returns the row.
+   * Types the header values Purchasing owns. Only the keys given are set:
+   *   supplierContact, piNumber    text; blank clears (Odoo refills a blank one)
+   *   piQtAmount                   the supplier document's amount, in the PO's
+   *                                currency; blank clears. Typed, never computed.
+   *   freightServiceId             an active freight service, or null to clear
+   *   landedCostSplit              value | quantity | equal
+   *   computationStatus            encoding | encoded | costs_complete | checked
+   * Half-typed numbers are refused with a sentence (IpasError INVALID), never a
+   * cast error. Returns the row.
    */
-  async setHeader(id, { supplierContact, piNumber } = {}) {
+  async setHeader(
+    id,
+    { supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus } = {},
+  ) {
     const fields = {};
     if (supplierContact !== undefined) fields.supplier_contact = supplierContact ?? "";
     if (piNumber !== undefined) fields.pi_number = piNumber ?? "";
+    if (piQtAmount !== undefined) {
+      const parsed = parseAmountInput(piQtAmount);
+      if (!parsed.ok) throw new IpasError(IPAS_ERROR.INVALID, "P.I/QT Amount must be a number.");
+      fields.pi_qt_amount = parsed.value;
+    }
+    if (freightServiceId !== undefined) fields.freight_service_id = freightServiceId || null;
+    if (landedCostSplit !== undefined) {
+      requireOneOf(landedCostSplit, IPAS_LANDED_COST_SPLITS, "Spread Landed Cost by value, by quantity or equally.");
+      fields.landed_cost_split = landedCostSplit;
+    }
+    if (computationStatus !== undefined) {
+      requireOneOf(
+        computationStatus,
+        IPAS_COMPUTATION_STATUSES,
+        "The computation status is Encoding, Encoded, Costs complete or Checked by.",
+      );
+      fields.computation_status = computationStatus;
+    }
     if (Object.keys(fields).length === 0) {
       throw new IpasError(IPAS_ERROR.INVALID, "Nothing to change.");
     }
     const { data, error } = await supabase.rpc("ipas_set_header", { p_ipas_id: id, p_fields: fields });
     if (error) throw error;
     return data;
+  },
+
+  /** The computation status, set by Purchasing. Landed Cost is final from Costs complete. */
+  setComputationStatus(id, status) {
+    return ipasService.setHeader(id, { computationStatus: status });
+  },
+
+  /** How charges, charge fees and shipping fees are spread: value, quantity or equal. */
+  setLandedCostSplit(id, split) {
+    return ipasService.setHeader(id, { landedCostSplit: split });
+  },
+
+  /** The IPAS's one freight service (an active option), or null to clear it. */
+  setFreightService(id, optionId) {
+    return ipasService.setHeader(id, { freightServiceId: optionId });
+  },
+
+  // ── Payments and charges (#244) ──────────────────────────────────────────
+
+  /**
+   * Records a payment on an open IPAS (Purchasing or Finance).
+   * `{ kind, paidOn, amount, phpDebited, chargeFeePhp, methodId, checkNo,
+   * proofUrl }`: `amount` is in the PO's currency, `phpDebited` is the PHP
+   * actually debited and is required on a foreign-currency PO (pass
+   * `isPhpPo: false`; the database enforces it either way), and
+   * `chargeFeePhp` is always PHP. Returns the payment row.
+   */
+  async addPayment(id, payment, { isPhpPo = true } = {}) {
+    const args = paymentArgs(payment, isPhpPo);
+    const { data, error } = await supabase.rpc("ipas_add_payment", { p_ipas_id: id, ...args });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Changes a payment on an open IPAS: the same fields as addPayment, all of them. */
+  async updatePayment(paymentId, payment, { isPhpPo = true } = {}) {
+    const args = paymentArgs(payment, isPhpPo);
+    const { data, error } = await supabase.rpc("ipas_update_payment", { p_payment_id: paymentId, ...args });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Removes a payment from an open IPAS; the history keeps what was removed. */
+  async removePayment(paymentId) {
+    const { data, error } = await supabase.rpc("ipas_remove_payment", { p_payment_id: paymentId });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Records a charge on an open IPAS: `{ kindId, chargedOn, amountPhp }`, PHP. Returns the row. */
+  async addCharge(id, charge) {
+    const args = chargeArgs(charge);
+    const { data, error } = await supabase.rpc("ipas_add_charge", { p_ipas_id: id, ...args });
+    if (error) throw error;
+    return data;
+  },
+
+  async updateCharge(chargeId, charge) {
+    const args = chargeArgs(charge);
+    const { data, error } = await supabase.rpc("ipas_update_charge", { p_charge_id: chargeId, ...args });
+    if (error) throw error;
+    return data;
+  },
+
+  async removeCharge(chargeId) {
+    const { data, error } = await supabase.rpc("ipas_remove_charge", { p_charge_id: chargeId });
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Option lists (#244) ──────────────────────────────────────────────────
+
+  /**
+   * The rows of the option lists, in display order: every list, or just one.
+   * Inactive ones are included by default (the settings screen shows them and a
+   * row that holds one still resolves it); pass `includeInactive: false` for
+   * the choices a new row may pick.
+   */
+  async listOptions(list = null, { includeInactive = true } = {}) {
+    let query = supabase.from("ipas_options").select("*");
+    if (list) query = query.eq("list", list);
+    if (!includeInactive) query = query.eq("active", true);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).sort(
+      (a, b) =>
+        String(a.list).localeCompare(String(b.list)) ||
+        (a.sort ?? 0) - (b.sort ?? 0) ||
+        String(a.label).localeCompare(String(b.label)),
+    );
+  },
+
+  /**
+   * Adds an option to the end of a list, or renames one (`id`). Writable by
+   * Purchasing access and Super Admins only (row level security). A label is
+   * unique within its list, ignoring case.
+   */
+  async saveOption({ id = null, list, label }) {
+    requireOneOf(list, Object.values(IPAS_OPTION_LIST), "Pick a list.");
+    const name = (label || "").trim();
+    if (!name) {
+      throw new IpasError(IPAS_ERROR.INVALID, `Type the ${IPAS_OPTION_LIST_NOUNS[list] ?? "option"}'s name.`);
+    }
+
+    const current = await ipasService.listOptions(list);
+    const clash = current.find((o) => o.id !== id && String(o.label).trim().toLowerCase() === name.toLowerCase());
+    if (clash) throw new IpasError(IPAS_ERROR.INVALID, `"${clash.label}" is already on the list.`);
+
+    if (id) {
+      const { data, error } = await supabase.from("ipas_options").update({ label: name }).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    }
+
+    const sort = current.reduce((max, o) => Math.max(max, o.sort ?? 0), 0) + 10;
+    const { data, error } = await supabase
+      .from("ipas_options")
+      .insert({ list, label: name, sort, active: true })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Deactivates (or reactivates) an option. Options are never deleted: a
+   * deactivated one is no longer offered for new rows and stays on the rows
+   * that already use it.
+   */
+  async setOptionActive(id, active) {
+    const { data, error } = await supabase
+      .from("ipas_options")
+      .update({ active: Boolean(active) })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  deactivateOption(id) {
+    return ipasService.setOptionActive(id, false);
+  },
+
+  /** Puts a list's options in the given order (ids, first to last); the rest follow. */
+  async reorderOptions(list, orderedIds) {
+    const current = await ipasService.listOptions(list);
+    const known = new Set(current.map((o) => o.id));
+    const ids = (orderedIds || []).filter((optionId) => known.has(optionId));
+    const rest = current.map((o) => o.id).filter((optionId) => !ids.includes(optionId));
+    const order = [...ids, ...rest];
+    const byId = new Map(current.map((o) => [o.id, o]));
+
+    const writes = [];
+    order.forEach((optionId, index) => {
+      const sort = (index + 1) * 10;
+      if (byId.get(optionId).sort !== sort) {
+        writes.push(supabase.from("ipas_options").update({ sort }).eq("id", optionId));
+      }
+    });
+    const results = await Promise.all(writes);
+    const failed = results.find((r) => r.error);
+    if (failed) throw failed.error;
+    return order;
   },
 
   // ── Changes ──────────────────────────────────────────────────────────────
@@ -368,6 +599,53 @@ function unavailable(po) {
     IPAS_ERROR.ODOO_UNAVAILABLE,
     `Couldn't check ${po} against Odoo just now. The PO may well exist — try again in a moment.`,
   );
+}
+
+/** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
+function paymentArgs(payment, isPhpPo) {
+  const { kind, paidOn, amount, phpDebited, chargeFeePhp, methodId, checkNo, proofUrl } = payment || {};
+  requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
+  if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
+
+  const amountRead = parseAmountInput(amount);
+  if (!amountRead.ok || amountRead.value === null || amountRead.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "The amount must be a number more than zero.");
+  }
+
+  const phpRead = parseAmountInput(phpDebited);
+  if (!phpRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "PHP debited must be a number.");
+  if (!isPhpPo && (phpRead.value === null || phpRead.value <= 0)) {
+    throw new IpasError(
+      IPAS_ERROR.INVALID,
+      "This PO is in a foreign currency: give the PHP actually debited, so Landed Cost can use the real rate.",
+    );
+  }
+
+  const feeRead = parseAmountInput(chargeFeePhp);
+  if (!feeRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The charge fee must be a number.");
+  if (!methodId) throw new IpasError(IPAS_ERROR.INVALID, "Pick the payment method.");
+
+  return {
+    p_kind: kind,
+    p_paid_on: paidOn,
+    p_amount: amountRead.value,
+    p_php_debited: isPhpPo ? null : phpRead.value,
+    p_charge_fee_php: feeRead.value ?? 0,
+    p_method_id: methodId,
+    p_check_no: (checkNo || "").trim() || null,
+    p_proof_url: (proofUrl || "").trim() || null,
+  };
+}
+
+function chargeArgs(charge) {
+  const { kindId, chargedOn, amountPhp } = charge || {};
+  if (!kindId) throw new IpasError(IPAS_ERROR.INVALID, "Pick the kind of charge.");
+  if (!isIsoDate(chargedOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the charge.");
+  const read = parseAmountInput(amountPhp);
+  if (!read.ok || read.value === null || read.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "The amount must be a number more than zero.");
+  }
+  return { p_kind_id: kindId, p_charged_on: chargedOn, p_amount_php: read.value };
 }
 
 function failedRefresh(reason, message, fetchedAt) {

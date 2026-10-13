@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { Building2, Layers, Plus, ReceiptText } from "lucide-react";
+import { Building2, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import PageShell from "../../../components/ui/PageShell";
@@ -119,7 +119,9 @@ function IpasRow({ row, onOpen }) {
 function IpasList() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { hasPurchasingFlow } = getPermissionContext(user);
+  const { hasPurchasingFlow, isSuperAdmin } = getPermissionContext(user);
+  // The option lists: Purchasing access and Super Admins.
+  const canEditSettings = hasPurchasingFlow || isSuperAdmin;
 
   const [state, setState] = useState(IPAS_STATE.OPEN);
   const [entity, setEntity] = useState(null);
@@ -204,12 +206,25 @@ function IpasList() {
         title="IPAS"
         description="One per Odoo purchase order that needs one: its Odoo copy, payments and sign-offs."
         action={
-          hasPurchasingFlow ? (
-            <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
-              <Plus size={14} />
-              Raise IPAS
-            </Button>
-          ) : null
+          <>
+            {canEditSettings && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => navigate("/purchasing/ipas/settings")}
+              >
+                <Settings2 size={14} />
+                IPAS settings
+              </Button>
+            )}
+            {hasPurchasingFlow && (
+              <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
+                <Plus size={14} />
+                Raise IPAS
+              </Button>
+            )}
+          </>
         }
         toolbar={toolbar}
       >

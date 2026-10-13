@@ -2,7 +2,11 @@
  * Pure helpers for the IPAS (spec #241). No network, no React.
  */
 
+import { computeLandedCost, finiteNumber } from "./landedCost";
+import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import {
+  IPAS_COMPUTATION_STATUS,
+  IPAS_LANDED_COST_SPLIT,
   IPAS_OVERRIDE,
   IPAS_OVERRIDE_FIELDS,
   IPAS_PURPOSE,
@@ -187,8 +191,13 @@ export function changeNoteSummary(note) {
 /**
  * An IPAS row as the screens read it: the stored row plus what comes out of its
  * Odoo copy and its SORs. `sors` is `ipas_sor_headers` rows for this IPAS.
+ *
+ * `extras` ({ payments, charges, options }: raw ipas_payments and ipas_charges
+ * rows and every ipas_options row) adds the money: the shaped rows, the header
+ * amounts derived from them and Landed Cost. The list passes none and skips the
+ * work.
  */
-export function shapeIpas(row, sors = []) {
+export function shapeIpas(row, sors = [], extras = null) {
   if (!row) return null;
   const copy = row.odoo_copy ?? {};
   const shapedSors = sors.map((s) => ({
@@ -220,8 +229,11 @@ export function shapeIpas(row, sors = []) {
   const contact = clean(row.supplier_contact);
   const piNumber = clean(row.pi_number);
 
+  const money = extras ? shapeMoney(row, extras) : {};
+
   return {
     ...row,
+    ...money,
     entity: ipasEntity(row),
     supplier: ipasSupplier(row),
     currency: ipasCurrency(row),
@@ -292,4 +304,36 @@ export function formatAmount(value, currency) {
 /** The distinct analytic account names across an Odoo copy's lines, in order. */
 export function analyticNames(copy) {
   return [...new Set((copy?.lines ?? []).flatMap((line) => line?.analytic ?? []).filter(Boolean))];
+}
+
+/**
+ * The money of an IPAS: its payment and charge rows (with their option labels),
+ * the header amounts derived from them, the freight service, and Landed Cost.
+ * Whatever the rows hold, this never throws: unusable figures read as absent.
+ */
+function shapeMoney(row, { payments = [], charges = [], options = [] }) {
+  const byId = new Map(options.map((option) => [option.id, option]));
+  const shapedPayments = payments.map((payment) => shapePayment(payment, byId));
+  const shapedCharges = charges.map((charge) => shapeCharge(charge, byId));
+  const currency = ipasCurrency(row);
+  const split = row.landed_cost_split || IPAS_LANDED_COST_SPLIT.VALUE;
+  const computationStatus = row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING;
+
+  return {
+    payments: shapedPayments,
+    charges: shapedCharges,
+    paymentSummary: summarizePayments(shapedPayments, shapedCharges, currency),
+    piQtAmount: finiteNumber(row.pi_qt_amount),
+    freightService: row.freight_service_id ? (byId.get(row.freight_service_id) ?? null) : null,
+    landedCostSplit: split,
+    computationStatus,
+    landedCost: computeLandedCost({
+      copy: row.odoo_copy,
+      payments: shapedPayments,
+      charges: shapedCharges,
+      split,
+      computationStatus,
+      filed: row.state === IPAS_STATE.FILED,
+    }),
+  };
 }

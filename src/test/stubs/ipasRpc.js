@@ -32,13 +32,25 @@ const refuse = (code, message) => {
  * section 1 and 3 `approved` ones cleared, as the real function does against
  * `ipas_signoffs`.
  *
+ * #244 adds payments and charges (`ipas_add_payment` ... `ipas_remove_charge`)
+ * and widens `ipas_set_header`. They read `ipas_options` from the store, so a
+ * test seeds the options it uses (`seedIpasOptions`). `money: false` is a caller
+ * with neither Purchasing nor Finance access.
+ *
  * The fake has no signed-in identity, so `actorId` stands in for
  * get_employee_id(). `purchasing: false` is a caller without Purchasing access;
  * `reader: false` one who can't read IPAS.
  */
-export function stubIpasRpcs({ actorId, purchasing = true, reader = true, signoffs = [] } = {}) {
+export function stubIpasRpcs({ actorId, purchasing = true, reader = true, signoffs = [], money = null } = {}) {
   const requirePurchasing = (fn) => {
     if (!purchasing) refuse("42501", `${fn}: only Purchasing may do this`)
+  }
+
+  // Payments and charges: Purchasing access or Finance access. `money` lets a
+  // test say the caller holds Finance access without Purchasing.
+  const canWriteMoney = money ?? purchasing
+  const requireMoney = (fn) => {
+    if (!canWriteMoney) refuse("42501", `${fn}: only Purchasing or Finance records payments and charges`)
   }
 
   const nextNumber = () => {
@@ -360,30 +372,346 @@ export function stubIpasRpcs({ actorId, purchasing = true, reader = true, signof
     return updated
   })
 
+  const HEADER_KEYS = [
+    "supplier_contact",
+    "pi_number",
+    "pi_qt_amount",
+    "freight_service_id",
+    "landed_cost_split",
+    "computation_status",
+  ]
+  const SPLITS = ["value", "quantity", "equal"]
+  const STATUSES = ["encoding", "encoded", "costs_complete", "checked"]
+
+  const optionOf = (id) => findRow("ipas_options", id)
+
+  /** _ipas_check_option: an option of the list; a deactivated one only if the row already holds it. */
+  const checkOption = (fn, id, list, current, what) => {
+    const option = id ? optionOf(id) : null
+    if (!option || option.list !== list) refuse("22023", `${fn}: pick a ${what}`)
+    if (option.active === false && id !== current) {
+      refuse("22023", `${fn}: ${option.label} is deactivated; pick another ${what}`)
+    }
+    return option.label
+  }
+
+  const isPhpCopy = (copy) => String(copy?.po?.currency ?? "").trim().toUpperCase() === "PHP"
+  const round2 = (n) => Math.round(n * 100) / 100
+
   stubRpc("ipas_set_header", (args) => {
     requirePurchasing("ipas_set_header")
     const fields = args.p_fields
     if (!fields || typeof fields !== "object") refuse("22023", "ipas_set_header: the fields must be an object")
     for (const key of Object.keys(fields)) {
-      if (!["supplier_contact", "pi_number"].includes(key)) {
+      if (!HEADER_KEYS.includes(key)) {
         refuse("22023", `ipas_set_header: ${key} isn't a header field you can type here`)
       }
     }
     const row = findRow("ipas", args.p_ipas_id)
     requireOpen("ipas_set_header", row)
+
     const next = {}
     const changes = {}
+    const note = (key, from, to, extra = {}) => {
+      changes[key] = { from: from ?? null, to: to ?? null, ...extra }
+    }
+
     for (const key of ["supplier_contact", "pi_number"]) {
       if (!(key in fields)) continue
       const to = clean(fields[key])
       if (to !== (clean(row[key]) ?? null)) {
         next[key] = to
-        changes[key] = { from: row[key] ?? null, to }
+        note(key, row[key], to)
       }
     }
+
+    if ("pi_qt_amount" in fields) {
+      const raw = fields.pi_qt_amount
+      let to = null
+      if (raw === null || raw === undefined) to = null
+      else if (typeof raw === "number") to = round2(raw)
+      else if (typeof raw === "string") {
+        const text = raw.replace(/,/g, "").trim()
+        if (text === "") to = null
+        else if (/^[0-9]+(\.[0-9]+)?$/.test(text)) to = round2(Number(text))
+        else refuse("22023", "ipas_set_header: P.I/QT Amount must be a number")
+      } else refuse("22023", "ipas_set_header: P.I/QT Amount must be a number")
+      if (to !== null && to < 0) refuse("22023", "ipas_set_header: P.I/QT Amount can't be negative")
+      if (to !== (row.pi_qt_amount ?? null)) {
+        next.pi_qt_amount = to
+        note("pi_qt_amount", row.pi_qt_amount, to)
+      }
+    }
+
+    if ("freight_service_id" in fields) {
+      const to = clean(fields.freight_service_id)
+      if (to !== null) checkOption("ipas_set_header", to, "freight_service", row.freight_service_id, "freight service")
+      if (to !== (row.freight_service_id ?? null)) {
+        next.freight_service_id = to
+        note("freight_service_id", optionOf(row.freight_service_id)?.label ?? null, to ? optionOf(to).label : null)
+      }
+    }
+
+    if ("landed_cost_split" in fields) {
+      const to = fields.landed_cost_split
+      if (!SPLITS.includes(to)) {
+        refuse("22023", "ipas_set_header: Landed Cost is spread by value, by quantity or equally")
+      }
+      if (to !== (row.landed_cost_split ?? "value")) {
+        next.landed_cost_split = to
+        note("landed_cost_split", row.landed_cost_split ?? "value", to)
+      }
+    }
+
+    if ("computation_status" in fields) {
+      const to = fields.computation_status
+      if (!STATUSES.includes(to)) {
+        refuse("22023", "ipas_set_header: the computation status is Encoding, Encoded, Costs complete or Checked")
+      }
+      if (to !== (row.computation_status ?? "encoding")) {
+        next.computation_status = to
+        note("computation_status", row.computation_status ?? "encoding", to)
+      }
+    }
+
     if (!Object.keys(changes).length) return row
     const updated = updateRow("ipas", row, next)
     event(row.id, "header_changed", { fields: changes })
     return updated
   })
+
+  // ── Payments and charges (#244) ──────────────────────────────────────────
+
+  const requireOpenIpas = (fn, id) => {
+    const row = findRow("ipas", id)
+    requireOpen(fn, row)
+    return row
+  }
+
+  const cleanPayment = (fn, ipas, args, currentMethod) => {
+    if (!["down_payment", "payment", "full_payment", "shipping_fee"].includes(args.p_kind)) {
+      refuse("22023", `${fn}: ${args.p_kind ?? "null"} isn't a payment kind`)
+    }
+    if (!args.p_paid_on) refuse("22023", `${fn}: give the date of the payment`)
+    const amount = args.p_amount == null ? null : round2(Number(args.p_amount))
+    if (amount === null || !(amount > 0)) refuse("22023", `${fn}: the amount must be more than zero`)
+    const fee = round2(Number(args.p_charge_fee_php ?? 0))
+    if (fee < 0) refuse("22023", `${fn}: the charge fee can't be negative`)
+
+    let php = args.p_php_debited == null ? null : round2(Number(args.p_php_debited))
+    if (isPhpCopy(ipas.odoo_copy)) php = null
+    else if (php === null || !(php > 0)) {
+      refuse("22023", `${fn}: ${ipas.number} is a foreign-currency PO; give the PHP actually debited`)
+    }
+    const label = checkOption(fn, args.p_method_id, "payment_method", currentMethod, "payment method")
+    const proof = clean(args.p_proof_url)
+    if (proof && !/^https?:\/\//i.test(proof)) {
+      refuse("22023", `${fn}: the proof of payment must be a link to the uploaded file`)
+    }
+    return { amount, php, fee, label, proof }
+  }
+
+  stubRpc("ipas_add_payment", (args) => {
+    requireMoney("ipas_add_payment")
+    const ipas = requireOpenIpas("ipas_add_payment", args.p_ipas_id)
+    const clean_ = cleanPayment("ipas_add_payment", ipas, args, null)
+    const row = insertRow("ipas_payments", {
+      ipas_id: ipas.id,
+      kind: args.p_kind,
+      paid_on: args.p_paid_on,
+      amount: clean_.amount,
+      php_debited: clean_.php,
+      charge_fee_php: clean_.fee,
+      method_id: args.p_method_id,
+      check_no: clean(args.p_check_no),
+      proof_url: clean_.proof,
+      paid_before_approval: false,
+      created_by: actorId,
+    })
+    event(ipas.id, "payment_added", {
+      payment_id: row.id,
+      kind: row.kind,
+      paid_on: row.paid_on,
+      amount: row.amount,
+      php_debited: row.php_debited,
+      charge_fee_php: row.charge_fee_php,
+      method_id: row.method_id,
+      method: clean_.label,
+      check_no: row.check_no,
+      has_proof: row.proof_url !== null,
+      currency: ipas.odoo_copy?.po?.currency ?? null,
+    })
+    return row
+  })
+
+  stubRpc("ipas_update_payment", (args) => {
+    requireMoney("ipas_update_payment")
+    const before = findRow("ipas_payments", args.p_payment_id)
+    if (!before) refuse("P0002", `ipas_update_payment: payment ${args.p_payment_id} not found`)
+    const ipas = requireOpenIpas("ipas_update_payment", before.ipas_id)
+    const c = cleanPayment("ipas_update_payment", ipas, args, before.method_id)
+    const checkNo = clean(args.p_check_no)
+
+    const changes = {}
+    const diff = (key, from, to) => {
+      if ((from ?? null) !== (to ?? null)) changes[key] = { from: from ?? null, to: to ?? null }
+    }
+    diff("kind", before.kind, args.p_kind)
+    diff("paid_on", before.paid_on, args.p_paid_on)
+    diff("amount", before.amount, c.amount)
+    diff("php_debited", before.php_debited, c.php)
+    diff("charge_fee_php", before.charge_fee_php, c.fee)
+    if (before.method_id !== args.p_method_id) {
+      changes.method = { from: optionOf(before.method_id)?.label ?? null, to: c.label }
+    }
+    diff("check_no", before.check_no, checkNo)
+    if (Boolean(before.proof_url) !== Boolean(c.proof) || (before.proof_url ?? null) !== (c.proof ?? null)) {
+      changes.proof = { from: before.proof_url !== null && before.proof_url !== undefined, to: c.proof !== null }
+    }
+    if (!Object.keys(changes).length) return before
+
+    const updated = updateRow("ipas_payments", before, {
+      kind: args.p_kind,
+      paid_on: args.p_paid_on,
+      amount: c.amount,
+      php_debited: c.php,
+      charge_fee_php: c.fee,
+      method_id: args.p_method_id,
+      check_no: checkNo,
+      proof_url: c.proof,
+    })
+    event(ipas.id, "payment_changed", { payment_id: updated.id, kind: updated.kind, changes })
+    return updated
+  })
+
+  stubRpc("ipas_remove_payment", (args) => {
+    requireMoney("ipas_remove_payment")
+    const row = findRow("ipas_payments", args.p_payment_id)
+    if (!row) refuse("P0002", `ipas_remove_payment: payment ${args.p_payment_id} not found`)
+    const ipas = requireOpenIpas("ipas_remove_payment", row.ipas_id)
+    const rows = rowsOf("ipas_payments")
+    rows.splice(rows.indexOf(row), 1)
+    event(ipas.id, "payment_removed", {
+      payment_id: row.id,
+      kind: row.kind,
+      paid_on: row.paid_on,
+      amount: row.amount,
+      php_debited: row.php_debited,
+      charge_fee_php: row.charge_fee_php,
+      method: optionOf(row.method_id)?.label ?? null,
+      check_no: row.check_no,
+      had_proof: Boolean(row.proof_url),
+      currency: ipas.odoo_copy?.po?.currency ?? null,
+    })
+    return row
+  })
+
+  const cleanCharge = (fn, args, currentKind) => {
+    if (!args.p_charged_on) refuse("22023", `${fn}: give the date of the charge`)
+    const amount = args.p_amount_php == null ? null : round2(Number(args.p_amount_php))
+    if (amount === null || !(amount > 0)) refuse("22023", `${fn}: the amount must be more than zero`)
+    const label = checkOption(fn, args.p_kind_id, "charge_kind", currentKind, "charge kind")
+    return { amount, label }
+  }
+
+  stubRpc("ipas_add_charge", (args) => {
+    requireMoney("ipas_add_charge")
+    const ipas = requireOpenIpas("ipas_add_charge", args.p_ipas_id)
+    const c = cleanCharge("ipas_add_charge", args, null)
+    const row = insertRow("ipas_charges", {
+      ipas_id: ipas.id,
+      kind_id: args.p_kind_id,
+      charged_on: args.p_charged_on,
+      amount_php: c.amount,
+      created_by: actorId,
+    })
+    event(ipas.id, "charge_added", {
+      charge_id: row.id,
+      kind_id: row.kind_id,
+      kind: c.label,
+      charged_on: row.charged_on,
+      amount_php: row.amount_php,
+    })
+    return row
+  })
+
+  stubRpc("ipas_update_charge", (args) => {
+    requireMoney("ipas_update_charge")
+    const before = findRow("ipas_charges", args.p_charge_id)
+    if (!before) refuse("P0002", `ipas_update_charge: charge ${args.p_charge_id} not found`)
+    const ipas = requireOpenIpas("ipas_update_charge", before.ipas_id)
+    const c = cleanCharge("ipas_update_charge", args, before.kind_id)
+
+    const changes = {}
+    if (before.kind_id !== args.p_kind_id) {
+      changes.kind = { from: optionOf(before.kind_id)?.label ?? null, to: c.label }
+    }
+    if (before.charged_on !== args.p_charged_on) {
+      changes.charged_on = { from: before.charged_on, to: args.p_charged_on }
+    }
+    if (before.amount_php !== c.amount) changes.amount_php = { from: before.amount_php, to: c.amount }
+    if (!Object.keys(changes).length) return before
+
+    const updated = updateRow("ipas_charges", before, {
+      kind_id: args.p_kind_id,
+      charged_on: args.p_charged_on,
+      amount_php: c.amount,
+    })
+    event(ipas.id, "charge_changed", { charge_id: updated.id, kind: c.label, changes })
+    return updated
+  })
+
+  stubRpc("ipas_remove_charge", (args) => {
+    requireMoney("ipas_remove_charge")
+    const row = findRow("ipas_charges", args.p_charge_id)
+    if (!row) refuse("P0002", `ipas_remove_charge: charge ${args.p_charge_id} not found`)
+    const ipas = requireOpenIpas("ipas_remove_charge", row.ipas_id)
+    const rows = rowsOf("ipas_charges")
+    rows.splice(rows.indexOf(row), 1)
+    event(ipas.id, "charge_removed", {
+      charge_id: row.id,
+      kind: optionOf(row.kind_id)?.label ?? null,
+      charged_on: row.charged_on,
+      amount_php: row.amount_php,
+    })
+    return row
+  })
+}
+
+/**
+ * Seeds the migration's option lists into the fake store (the policy tier has
+ * the real rows). Returns `{ [list]: { [label]: row } }`.
+ */
+export function seedIpasOptions(seed) {
+  const lists = {
+    payment_method: ["Alipay", "Bank Transfer", "Cash", "Check", "Credit Card", "GCash", "PayPal", "Telegraphic Transfer", "Other"],
+    charge_kind: [
+      "Brokerage Fee",
+      "Duties & Taxes",
+      "Destination Charges",
+      "Arrastre & Wharfage",
+      "Documentary Stamps",
+      "Delivery / Trucking",
+      "Other Charges",
+    ],
+    freight_service: [
+      "DHL Express",
+      "FedEx",
+      "UPS",
+      "Air Freight Forwarder",
+      "Sea Freight Forwarder",
+      "Local Courier",
+      "Supplier Delivery",
+      "Own Pickup",
+      "Other",
+    ],
+  }
+  const out = {}
+  for (const [list, labels] of Object.entries(lists)) {
+    out[list] = {}
+    labels.forEach((label, index) => {
+      out[list][label] = seed("ipas_options", { list, label, sort: (index + 1) * 10, active: true })
+    })
+  }
+  return out
 }

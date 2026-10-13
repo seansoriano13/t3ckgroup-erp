@@ -16,6 +16,13 @@ import { FieldBox } from "../../../components/ui/FieldBox";
 import IpasStateBadge from "../../../components/ipas/IpasStateBadge";
 import EditPurposeSorsDialog from "../../../components/ipas/EditPurposeSorsDialog";
 import EditValueDialog from "../../../components/ipas/EditValueDialog";
+import PaymentDialog from "../../../components/ipas/PaymentDialog";
+import ChargeDialog from "../../../components/ipas/ChargeDialog";
+import {
+  IpasChargesSection,
+  IpasCostingSection,
+  IpasPaymentsBlock,
+} from "../../../components/ipas/IpasMoneySections";
 import {
   IpasHeaderSection,
   IpasHistorySection,
@@ -35,7 +42,22 @@ import { IPAS_HEADER_FIELD, IPAS_OVERRIDE_FIELDS, IPAS_STATE } from "../../../co
 const HEADER_LABELS = {
   [IPAS_HEADER_FIELD.SUPPLIER_CONTACT]: "Contact",
   [IPAS_HEADER_FIELD.PI_NUMBER]: "P.I #",
+  [IPAS_HEADER_FIELD.PI_QT_AMOUNT]: "P.I/QT Amount",
 };
+
+/** The value a typed header field starts from in its dialog. */
+function typingInitialValue(field, ipas) {
+  switch (field) {
+    case IPAS_HEADER_FIELD.SUPPLIER_CONTACT:
+      return ipas.contact ?? "";
+    case IPAS_HEADER_FIELD.PI_NUMBER:
+      return ipas.piNumber ?? "";
+    case IPAS_HEADER_FIELD.PI_QT_AMOUNT:
+      return ipas.piQtAmount === null || ipas.piQtAmount === undefined ? "" : String(ipas.piQtAmount);
+    default:
+      return "";
+  }
+}
 
 /**
  * One IPAS (issues #242 and #243, spec #241): the header, section 1 with the
@@ -48,14 +70,22 @@ const HEADER_LABELS = {
  * the contact and P.I # (Odoo fills them only while blank), changes Purpose and
  * SORs and cancels it, until it is filed. Every value read from Odoo carries
  * the Odoo mark.
+ *
+ * #244 adds the money: payments in section 1 and charges in section 3
+ * (Purchasing or Finance), the typed P.I/QT Amount and the freight service,
+ * and, in section 6, the computation status and Landed Cost with its
+ * provisional or final mark.
  */
 function IpasPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { hasPurchasingFlow } = getPermissionContext(user);
+  const { hasPurchasingFlow, hasFinanceFlow } = getPermissionContext(user);
 
   const [editing, setEditing] = useState(false);
+  const [paymentDialog, setPaymentDialog] = useState(null); // { payment | null }
+  const [chargeDialog, setChargeDialog] = useState(null); // { charge | null }
+  const [removing, setRemoving] = useState(null); // { type: "payment" | "charge", row }
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
   const [overriding, setOverriding] = useState(null);
@@ -114,9 +144,29 @@ function IpasPage() {
       ipasService.setHeader(id, {
         supplierContact: field === IPAS_HEADER_FIELD.SUPPLIER_CONTACT ? value : undefined,
         piNumber: field === IPAS_HEADER_FIELD.PI_NUMBER ? value : undefined,
+        piQtAmount: field === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? value : undefined,
       }),
     onSuccess: (_, { field }) => {
       toast.success(`${HEADER_LABELS[field]} saved.`);
+      changed();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  // Freight service, the computation status and how charges are spread: one
+  // picked value each, kept in history with what it was.
+  const pick = useMutation({
+    mutationFn: (values) => ipasService.setHeader(id, values),
+    onSuccess: () => changed(),
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
+
+  const remove = useMutation({
+    mutationFn: ({ type, row }) =>
+      type === "payment" ? ipasService.removePayment(row.id) : ipasService.removeCharge(row.id),
+    onSuccess: (_, { type }) => {
+      toast.success(type === "payment" ? "Payment removed." : "Charge removed.");
+      setRemoving(null);
       changed();
     },
     onError: (error) => toast.error(ipasErrorMessage(error)),
@@ -168,6 +218,8 @@ function IpasPage() {
   const open = ipas.state === IPAS_STATE.OPEN;
   const cancelled = ipas.state === IPAS_STATE.CANCELLED;
   const canChange = hasPurchasingFlow && open;
+  // Payments and charges: Purchasing or Finance, until Filing.
+  const canRecord = (hasPurchasingFlow || hasFinanceFlow) && open;
 
   return (
     <>
@@ -220,19 +272,68 @@ function IpasPage() {
             refreshing={refresh.isFetching}
             canChange={canChange}
             onEditHeader={setTyping}
-          />
+          >
+            <IpasPaymentsBlock
+              ipas={ipas}
+              canChange={canChange}
+              canRecord={canRecord}
+              onEditAmount={() => setTyping(IPAS_HEADER_FIELD.PI_QT_AMOUNT)}
+              onPickFreight={(optionId) => pick.mutate({ freightServiceId: optionId })}
+              onAddPayment={() => setPaymentDialog({ payment: null })}
+              onEditPayment={(payment) => setPaymentDialog({ payment })}
+              onRemovePayment={(payment) => setRemoving({ type: "payment", row: payment })}
+            />
+          </IpasPurchasingSection>
           <IpasSalesSection
             ipas={ipas}
             canChange={canChange}
             onEditOverride={setOverriding}
             onResetOverride={(field) => reset.mutate(field)}
           />
+          <IpasChargesSection
+            ipas={ipas}
+            canRecord={canRecord}
+            onAddCharge={() => setChargeDialog({ charge: null })}
+            onEditCharge={(charge) => setChargeDialog({ charge })}
+            onRemoveCharge={(charge) => setRemoving({ type: "charge", row: charge })}
+          />
           <IpasStatusSection ipas={ipas} />
+          <IpasCostingSection
+            ipas={ipas}
+            canChange={canChange}
+            onSetStatus={(computationStatus) => pick.mutate({ computationStatus })}
+            onSetSplit={(landedCostSplit) => pick.mutate({ landedCostSplit })}
+          />
           <IpasHistorySection events={ipas.events} />
         </div>
       </PageShell>
 
       <EditPurposeSorsDialog ipas={ipas} open={editing} onOpenChange={setEditing} />
+
+      <PaymentDialog
+        open={paymentDialog !== null}
+        onOpenChange={(next) => !next && setPaymentDialog(null)}
+        ipas={ipas}
+        payment={paymentDialog?.payment ?? null}
+      />
+
+      <ChargeDialog
+        open={chargeDialog !== null}
+        onOpenChange={(next) => !next && setChargeDialog(null)}
+        ipas={ipas}
+        charge={chargeDialog?.charge ?? null}
+      />
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(next) => !next && setRemoving(null)}
+        title={removing?.type === "payment" ? "Remove this payment?" : "Remove this charge?"}
+        description="It leaves the IPAS and Landed Cost is worked out again. The history keeps what was removed."
+        confirmLabel="Remove"
+        cancelLabel="Keep it"
+        tone="destructive"
+        onConfirm={() => removing && remove.mutate(removing)}
+      />
 
       <EditValueDialog
         open={overriding !== null}
@@ -252,9 +353,7 @@ function IpasPage() {
         title={`Edit ${HEADER_LABELS[typing] ?? ""}`}
         description="What you type is kept; Odoo fills this only while it is blank."
         label={HEADER_LABELS[typing] ?? ""}
-        initialValue={
-          typing === IPAS_HEADER_FIELD.SUPPLIER_CONTACT ? (ipas.contact ?? "") : typing ? (ipas.piNumber ?? "") : ""
-        }
+        initialValue={typingInitialValue(typing, ipas)}
         allowBlank
         onSubmit={(value) => typeHeader.mutateAsync({ field: typing, value })}
       />

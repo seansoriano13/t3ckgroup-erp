@@ -92,10 +92,17 @@ export const SEED_TABLES = [
   "purchase_request_items",
   "purchase_request_messages",
   // IPAS (#242). After sales_opportunities and employees, which they point at;
-  // ipas_sors and ipas_events point at ipas.
+  // ipas_sors and ipas_events point at ipas. ipas_options (#244) comes first:
+  // the business-edited lists (payment methods, charge kinds, freight services)
+  // that ipas.freight_service_id and the payment and charge rows point at. It is
+  // seeded rather than left to the migration so a restored IPAS keeps the
+  // option ids it was written with.
+  "ipas_options",
   "ipas",
   "ipas_sors",
   "ipas_events",
+  "ipas_payments",
+  "ipas_charges",
   "ipas_signer_lists",
   "odoo_retail_queue",
 ]
