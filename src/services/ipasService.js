@@ -18,9 +18,9 @@ import {
   IPAS_PURPOSE,
   IPAS_PURPOSES,
   IPAS_SEND_BACK_SECTIONS,
+  IPAS_SECTION_7_LIST,
   IPAS_SECTION_7_ROLES,
   IPAS_SECTION_NAMES,
-  IPAS_SIGNER_LIST,
   IPAS_SIGNER_LISTS,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
@@ -222,8 +222,10 @@ export const ipasService = {
     if (state && state !== IPAS_STATE_FILTER_ALL) query = query.eq("state", state);
     if (purpose) query = query.eq("purpose", purpose);
 
-    const [{ data: rows, error }, sorsByIpas] = await Promise.all([query, readSorHeaders()]);
+    const { data: rows, error } = await query;
     if (error) throw error;
+    // The SOR headers are asked for by id: the database gives none for a null list.
+    const sorsByIpas = await readSorHeaders((rows || []).map((row) => row.id));
 
     return (rows || [])
       .filter((row) => !entity || ipasEntity(row) === entity)
@@ -381,8 +383,8 @@ export const ipasService = {
           notificationService.createNotification({
             recipient_id,
             type: IPAS_NOTIFICATION.PO_CHANGED,
-            title: "PO changed in Odoo",
-            message: `${number} (${row.po_number}): the PO's lines or total changed in Odoo, so its approvals were cleared.`,
+            title: "Odoo PO changed",
+            message: `${number} (${row.po_number}): the Odoo PO's lines or total changed, so its approvals were cleared.`,
             reference_id: id,
           }),
         ),
@@ -862,6 +864,10 @@ export const ipasService = {
    * `declineSignature` signs without the stored signature, so the printed form
    * shows the name only.
    *
+   * Before section 7's Approved files, the Odoo copy is refreshed (a copy Odoo
+   * can't be asked for stands), so the filed copy is current whichever screen
+   * signs; if that clears approvals, nothing is filed and it says so.
+   *
    * Filing only warns about documents. Before section 7's Approved files, this
    * works out the required documents nobody has ticked (`filingWarnings`); when
    * there are any it signs nothing and answers
@@ -893,6 +899,19 @@ export const ipasService = {
         [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED],
         "A section is Prepared, then Approved.",
       );
+    }
+
+    if (section === 7 && role === IPAS_SIGNOFF_ROLE.APPROVED) {
+      // Filing freezes the Odoo copy, so file a current one, whichever screen the
+      // person signs from. Odoo being down is no reason to stop: the stored copy
+      // stands (`refresh` never throws for that).
+      const refreshed = await ipasService.refresh(id);
+      if (refreshed.ok && (refreshed.approvalsCleared?.length ?? 0) > 0) {
+        throw new IpasError(
+          IPAS_ERROR.INVALID,
+          "The Odoo PO changed since it was last read, so its approvals were cleared and nothing was filed. Get the sections approved again, then file.",
+        );
+      }
     }
 
     if (section === 7 && role === IPAS_SIGNOFF_ROLE.APPROVED && !confirm) {
@@ -1032,7 +1051,7 @@ export const ipasService = {
 
     const keys = new Set((memberships || []).map((m) => m.list_key));
     const firstSections = [1, 3].filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
-    const sevenRoles = IPAS_SECTION_7_ROLES.filter((role) => keys.has(SECTION_7_LIST[role]));
+    const sevenRoles = IPAS_SECTION_7_ROLES.filter((role) => keys.has(IPAS_SECTION_7_LIST[role]));
     if (firstSections.length === 0 && sevenRoles.length === 0) return [];
 
     // Section 7 reads sections 1 and 3 too: it opens on their approvals.
@@ -1263,13 +1282,6 @@ function requireSendBackSection(section) {
   }
 }
 
-const SECTION_7_LIST = {
-  [IPAS_SIGNOFF_ROLE.RECEIVED]: IPAS_SIGNER_LIST.S7_RECEIVED,
-  [IPAS_SIGNOFF_ROLE.NOTED]: IPAS_SIGNER_LIST.S7_NOTED,
-  [IPAS_SIGNOFF_ROLE.CHECKED]: IPAS_SIGNER_LIST.S7_CHECKED,
-  [IPAS_SIGNOFF_ROLE.APPROVED]: IPAS_SIGNER_LIST.S7_APPROVED,
-};
-
 /** The notification a stage of `ipas_sign` sends to the next list. */
 function stageNotification(stage, { label, section, role }) {
   switch (stage) {
@@ -1344,7 +1356,7 @@ async function readIpasLabel(id, row) {
 function unavailable(po) {
   return new IpasError(
     IPAS_ERROR.ODOO_UNAVAILABLE,
-    `Couldn't check ${po} against Odoo just now. The PO may well exist — try again in a moment.`,
+    `Couldn't check ${po} against Odoo just now. The Odoo PO may well exist — try again in a moment.`,
   );
 }
 
@@ -1364,7 +1376,7 @@ function paymentArgs(payment, isPhpPo) {
   if (!isPhpPo && (phpRead.value === null || phpRead.value <= 0)) {
     throw new IpasError(
       IPAS_ERROR.INVALID,
-      "This PO is in a foreign currency: give the PHP actually debited, so Landed Cost can use the real rate.",
+      "This Odoo PO is in a foreign currency: give the PHP actually debited, so Landed Cost can use the real rate.",
     );
   }
 
@@ -1419,7 +1431,7 @@ function requireOverridable(field) {
   if (!Object.hasOwn(IPAS_OVERRIDE_FIELDS, field)) {
     throw new IpasError(
       IPAS_ERROR.INVALID,
-      "Only Entity, Source Doc. and Analytic Dist. can be overridden. Fix anything else on the PO in Odoo.",
+      "Only Entity, Source Doc. and Analytic Dist. can be overridden. Fix anything else in Odoo.",
     );
   }
 }
@@ -1442,10 +1454,11 @@ function requireSorsFitPurpose(purpose, sorIds) {
 }
 
 /** `ipas_sor_headers` as a Map of ipas id -> its SOR header rows. */
-async function readSorHeaders(ipasIds = null) {
+async function readSorHeaders(ipasIds) {
+  const byIpas = new Map();
+  if (!ipasIds?.length) return byIpas;
   const { data, error } = await supabase.rpc("ipas_sor_headers", { p_ipas_ids: ipasIds });
   if (error) throw error;
-  const byIpas = new Map();
   for (const row of data || []) {
     const list = byIpas.get(row.ipas_id) ?? [];
     list.push(row);

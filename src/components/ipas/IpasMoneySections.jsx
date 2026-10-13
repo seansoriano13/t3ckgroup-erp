@@ -3,6 +3,7 @@ import { CircleAlert, Check, Paperclip, Pencil, Plus, Trash2 } from "lucide-reac
 import { Button } from "../ui/button";
 import { DetailRow } from "../ui/DetailParts";
 import { ExternalLink } from "../ui/external-link";
+import SectionHeader from "../ui/SectionHeader";
 import { SelectField } from "../ui/SelectField";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
@@ -98,21 +99,20 @@ export function IpasPaymentsBlock({
         <DetailRow label="FP">{sum.fullPayment > 0 ? formatAmount(sum.fullPayment, currency) : null}</DetailRow>
       </dl>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Payments</h3>
+      <SectionHeader title="Payments" className="pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddPayment}>
             <Plus size={14} />
             Add payment
           </Button>
         )}
-      </div>
+      </SectionHeader>
 
       {payments.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
           No payments recorded yet.
           {!isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
-            ? " A foreign-currency PO needs a payment with the PHP debited before Landed Cost can be worked out."
+            ? " A foreign-currency Odoo PO needs a payment with the PHP debited before Landed Cost can be worked out."
             : ""}
         </p>
       ) : (
@@ -235,19 +235,18 @@ export function IpasChargesSection({
       title="3 · Purchasing & Finance"
       aside={charges.length > 0 ? <span>Charges: {pesos(sum.chargesPhp)}</span> : null}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Importation charges</h3>
+      <SectionHeader title="Importation charges" className="pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddCharge}>
             <Plus size={14} />
             Add charge
           </Button>
         )}
-      </div>
+      </SectionHeader>
 
       {charges.length === 0 ? (
         <p className="mt-3 rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-          No charges recorded yet. A charge covering several POs is recorded as this IPAS&apos;s own share.
+          No charges recorded yet. A charge covering several Odoo POs is recorded as this IPAS&apos;s own share.
         </p>
       ) : (
         <div className="mt-3 overflow-x-auto rounded-lg border border-border">
@@ -336,7 +335,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
     >
       <div className="space-y-4">
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Computation status</h3>
+          <SectionHeader title="Computation status" className="pb-2" />
           <ol className="mt-2 flex flex-wrap items-center gap-2" aria-label="Computation status">
             {IPAS_COMPUTATION_STATUSES.map((status, index) => {
               const done = index <= currentIndex;
@@ -379,11 +378,8 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
         </div>
 
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Landed Cost</h3>
-              <LandedCostBadge status={lc.status} />
-            </div>
+          <SectionHeader title="Landed Cost" className="pb-2">
+            <LandedCostBadge status={lc.status} />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Spread charges</span>
               {canChange ? (
@@ -401,7 +397,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                 </span>
               )}
             </div>
-          </div>
+          </SectionHeader>
 
           {unavailable ? (
             <div
@@ -413,8 +409,8 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                 <p className="font-semibold text-foreground">Landed Cost is not available yet</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {lc.reason === IPAS_LANDED_COST_REASON.NO_PAYMENTS
-                    ? `This PO is in ${lc.currency || "a foreign currency"}. Landed Cost converts at the rate actually paid, so it needs a payment with the PHP debited. It is never guessed or taken from Odoo's rate.`
-                    : "The PO has no item lines to cost."}
+                    ? `This Odoo PO is in ${lc.currency || "a foreign currency"}. Landed Cost converts at the rate actually paid, so it needs a payment with the PHP debited. It is never guessed or taken from Odoo's rate.`
+                    : "The Odoo PO has no item lines to cost."}
                 </p>
               </div>
             </div>

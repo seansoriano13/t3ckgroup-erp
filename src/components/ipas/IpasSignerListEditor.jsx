@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import PeoplePicker from "../ui/PeoplePicker";
-import Spinner from "../ui/Spinner";
+import PageLoading from "../ui/PageLoading";
 import QueryError from "../ui/QueryError";
 import { ipasService } from "../../services/ipasService";
 import { IPAS_SIGNER_LISTS, IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS } from "../../constants/ipas";
@@ -48,7 +48,7 @@ export default function IpasSignerListEditor() {
     },
   });
 
-  if (isLoading) return <Spinner />;
+  if (isLoading) return <PageLoading label="sign-off lists" />;
   if (isError) return <QueryError title="The sign-off lists could not be loaded." onRetry={refetch} />;
 
   return (

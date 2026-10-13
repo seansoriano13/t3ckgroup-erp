@@ -287,7 +287,7 @@ describe("IPAS pages", () => {
       renderDetail(row.id);
 
       expect((await screen.findAllByText("Replacement blades", { selector: "td, td *" })).length).toBeGreaterThan(0);
-      const note = await screen.findByText(/PO changed in Odoo ·/);
+      const note = await screen.findByText(/Odoo PO changed ·/);
       expect(note).toBeInTheDocument();
       expect(screen.getByText("1 line added, 1 quantity or price changed")).toBeInTheDocument();
       expect(screen.getByText(/Added/)).toBeInTheDocument();
@@ -346,13 +346,13 @@ describe("IPAS pages", () => {
       expect(db.rows("ipas")[0].supplier_contact).toBe("Mr. R. Cruz");
     });
 
-    it("says PO cancelled in Odoo and leaves the IPAS open to cancel by hand", async () => {
+    it("says Odoo PO cancelled and leaves the IPAS open to cancel by hand", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", answer("P02552", { po: { id: 1, name: "P02552", state: "cancel", company: "T3ck Trading", currency: "Php", origin: null, partner_ref: null } }));
 
       renderDetail(row.id);
 
-      expect(await screen.findByText("PO cancelled in Odoo")).toBeInTheDocument();
+      expect(await screen.findByText("Odoo PO cancelled")).toBeInTheDocument();
       expect(screen.getByText(/stays open until Purchasing cancels it/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Cancel IPAS/ })).toBeInTheDocument();
       expect(db.rows("ipas")[0].state).toBe("open");

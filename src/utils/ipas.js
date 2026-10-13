@@ -224,7 +224,7 @@ export function shapeIpas(row, sors = [], extras = null) {
   // only said, and a filed IPAS keeps its frozen copy.
   const warnings = [];
   if (poCancelledInOdoo && row.state !== IPAS_STATE.CANCELLED) {
-    warnings.push({ code: IPAS_WARNING.PO_CANCELLED_IN_ODOO, message: "PO cancelled in Odoo" });
+    warnings.push({ code: IPAS_WARNING.PO_CANCELLED_IN_ODOO, message: "Odoo PO cancelled" });
   }
   if (mismatch && row.state !== IPAS_STATE.CANCELLED) {
     warnings.push({

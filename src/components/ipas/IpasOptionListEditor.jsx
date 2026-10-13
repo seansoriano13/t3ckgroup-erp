@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
 import { SelectField } from "../ui/SelectField";
-import Spinner from "../ui/Spinner";
+import PageLoading from "../ui/PageLoading";
 import QueryError from "../ui/QueryError";
 import StatusBadge from "../StatusBadge";
 import EditValueDialog from "./EditValueDialog";
@@ -117,13 +117,7 @@ export default function IpasOptionListEditor({ list }) {
 
   const busy = add.isPending || toggle.isPending || move.isPending || rename.isPending || mark.isPending;
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoading label="this list" />;
   if (isError) return <QueryError title="This list could not be loaded." onRetry={refetch} />;
 
   return (

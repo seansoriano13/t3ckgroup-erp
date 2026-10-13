@@ -1,6 +1,7 @@
 import { Check, Circle, FileCheck2 } from "lucide-react";
 
 import { Button } from "../ui/button";
+import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
 import { SignoffBox } from "./IpasSignoffs";
@@ -64,7 +65,7 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive }) {
     >
       <div className="space-y-4" data-testid="ipas-filing">
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Checklist</h3>
+          <SectionHeader title="Checklist" className="pb-2" />
           <ul className="mt-1 divide-y divide-border">
             <ChecklistItem
               ticked={costsComplete}
@@ -100,26 +101,23 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive }) {
         </div>
 
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sign-offs</h3>
-            <div className="flex flex-wrap items-center gap-2">
-              {offered.map((role) => (
-                <Button
-                  key={role}
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={busy}
-                  onClick={() => onGive(role)}
-                  data-testid={`ipas-give-${role}`}
-                >
-                  {role === IPAS_SIGNOFF_ROLE.APPROVED ? <FileCheck2 size={14} /> : <Check size={14} />}
-                  {role === IPAS_SIGNOFF_ROLE.APPROVED
-                    ? "Approve and file"
-                    : `${IPAS_SIGNOFF_ROLE_ACTIONS[role]} (${IPAS_SIGNOFF_ROLE_LABELS[role]})`}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <SectionHeader title="Sign-offs" className="pb-2">
+            {offered.map((role) => (
+              <Button
+                key={role}
+                size="sm"
+                className="gap-1.5"
+                disabled={busy}
+                onClick={() => onGive(role)}
+                data-testid={`ipas-give-${role}`}
+              >
+                {role === IPAS_SIGNOFF_ROLE.APPROVED ? <FileCheck2 size={14} /> : <Check size={14} />}
+                {role === IPAS_SIGNOFF_ROLE.APPROVED
+                  ? "Approve and file"
+                  : `${IPAS_SIGNOFF_ROLE_ACTIONS[role]} (${IPAS_SIGNOFF_ROLE_LABELS[role]})`}
+              </Button>
+            ))}
+          </SectionHeader>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {IPAS_SECTION_7_ROLES.map((role) => (
@@ -140,7 +138,7 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive }) {
 
         {state.history.length > 0 && (
           <div className="space-y-1" data-testid="ipas-signoff-history-7">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cleared</p>
+            <p className="text-xs font-semibold text-muted-foreground">Cleared</p>
             <ul className="space-y-0.5 text-xs text-muted-foreground">
               {state.history.map((entry) => (
                 <li key={entry.id}>

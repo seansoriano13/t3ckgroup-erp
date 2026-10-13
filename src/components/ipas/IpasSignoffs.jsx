@@ -1,6 +1,7 @@
 import { Check, CornerUpLeft, PenLine } from "lucide-react";
 
 import { Button } from "../ui/button";
+import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_LABELS } from "../../constants/ipas";
 import { SIGNOFF_STATUS } from "../../utils/ipasSignoffs";
@@ -61,32 +62,27 @@ export function IpasSignoffs({ section, state, rights, busy = false, onPrepare, 
 
   return (
     <div className="mt-5 space-y-3" data-testid={`ipas-signoffs-${section}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Sign-offs
-          <StatusBadge theme={badge.theme} label={badge.label} />
-        </h3>
-        <div className="flex flex-wrap items-center gap-2">
-          {rights.canPrepare && (
-            <Button size="sm" className="gap-1.5" disabled={busy} onClick={onPrepare}>
-              <PenLine size={14} />
-              Prepare section {section}
-            </Button>
-          )}
-          {rights.canApprove && (
-            <Button size="sm" className="gap-1.5" disabled={busy} onClick={onApprove}>
-              <Check size={14} />
-              Approve section {section}
-            </Button>
-          )}
-          {rights.canSendBack && (
-            <Button size="sm" variant="outline" className="gap-1.5" disabled={busy} onClick={onSendBack}>
-              <CornerUpLeft size={14} />
-              Send back
-            </Button>
-          )}
-        </div>
-      </div>
+      <SectionHeader title="Sign-offs" className="pb-2">
+        <StatusBadge theme={badge.theme} label={badge.label} />
+        {rights.canPrepare && (
+          <Button size="sm" className="gap-1.5" disabled={busy} onClick={onPrepare}>
+            <PenLine size={14} />
+            Prepare section {section}
+          </Button>
+        )}
+        {rights.canApprove && (
+          <Button size="sm" className="gap-1.5" disabled={busy} onClick={onApprove}>
+            <Check size={14} />
+            Approve section {section}
+          </Button>
+        )}
+        {rights.canSendBack && (
+          <Button size="sm" variant="outline" className="gap-1.5" disabled={busy} onClick={onSendBack}>
+            <CornerUpLeft size={14} />
+            Send back
+          </Button>
+        )}
+      </SectionHeader>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <SignoffBox
@@ -107,7 +103,7 @@ export function IpasSignoffs({ section, state, rights, busy = false, onPrepare, 
 
       {state.history.length > 0 && (
         <div className="space-y-1" data-testid={`ipas-signoff-history-${section}`}>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cleared</p>
+          <p className="text-xs font-semibold text-muted-foreground">Cleared</p>
           <ul className="space-y-0.5 text-xs text-muted-foreground">
             {state.history.map((entry) => (
               <li key={entry.id}>

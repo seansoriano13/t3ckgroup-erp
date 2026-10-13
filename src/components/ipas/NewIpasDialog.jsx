@@ -156,7 +156,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
             </FieldBox>
             {checked ? (
               <Button type="button" variant="outline" disabled={busy} onClick={reset}>
-                Change PO
+                Change Odoo PO
               </Button>
             ) : (
               <Button type="submit" variant="outline" disabled={busy || !poNumber.trim()}>

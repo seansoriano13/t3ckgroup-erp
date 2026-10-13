@@ -2,6 +2,7 @@ import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2 }
 
 import { Button } from "../ui/button";
 import { DetailRow } from "../ui/DetailParts";
+import SectionHeader from "../ui/SectionHeader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import {
@@ -143,7 +144,7 @@ export function IpasWarnings({ ipas, refresh }) {
       banners.push({
         key: warning.code,
         tone: "red",
-        title: "PO cancelled in Odoo",
+        title: "Odoo PO cancelled",
         body: "This IPAS stays open until Purchasing cancels it.",
       });
     } else if (warning.code === IPAS_WARNING.SOR_MISMATCH) {
@@ -173,7 +174,7 @@ export function IpasWarnings({ ipas, refresh }) {
       icon: CloudOff,
       title:
         refresh.reason === IPAS_ERROR.PO_NOT_FOUND
-          ? "Odoo no longer has this PO"
+          ? "This Odoo PO is no longer in Odoo"
           : refresh.reason === IPAS_ERROR.ODOO_UNAVAILABLE
             ? "Odoo didn't answer"
             : "The Odoo copy couldn't be refreshed",
@@ -211,7 +212,7 @@ export function IpasChangeNote({ note, currency }) {
   return (
     <div role="status" className="mb-3 rounded-lg border border-blue-400 bg-blue-3/40 p-3 text-[13px]">
       <p className="font-semibold text-blue-11">
-        PO changed in Odoo{note.at ? ` · ${formatDate(note.at)}` : ""}
+        Odoo PO changed{note.at ? ` · ${formatDate(note.at)}` : ""}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">{changeNoteSummary(note)}</p>
       <ul className="mt-2 space-y-1 text-xs text-foreground">
@@ -320,7 +321,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
         <DetailRow label="Currency">
           <span className="inline-flex items-center gap-2">
             <span className="font-mono">{ipas.currency}</span>
-            <OdooMark>Odoo · fix on the PO</OdooMark>
+            <OdooMark>Odoo · fix on the Odoo PO</OdooMark>
           </span>
         </DetailRow>
         <DetailRow label="Supplier">
@@ -346,7 +347,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
       </Facts>
 
       {ipas.lines.length === 0 ? (
-        <p className="py-4 text-sm text-muted-foreground">The PO has no item lines.</p>
+        <p className="py-4 text-sm text-muted-foreground">The Odoo PO has no item lines.</p>
       ) : (
         <div className="mt-3 overflow-x-auto rounded-lg border border-border">
           <Table className="md:min-w-[40rem]">
@@ -545,15 +546,14 @@ function SupplierOrigin({ ipas, canChange, onEdit }) {
 
   return (
     <div className="space-y-2" data-testid="ipas-supplier-origin">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Supplier Origin</h3>
+      <SectionHeader title="Supplier Origin" className="pb-2">
         {canChange && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
             <Pencil size={14} />
             Edit dates
           </Button>
         )}
-      </div>
+      </SectionHeader>
       <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
         {IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, label }) => (
           <DetailRow key={field} label={label}>
@@ -582,7 +582,7 @@ export function IpasStatusSection({ ipas, canChange = false, onEditOrigin, onEdi
       <div className="space-y-4">
         <SupplierOrigin ipas={ipas} canChange={canChange} onEdit={onEditOrigin} />
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Buyer track</h3>
+          <SectionHeader title="Buyer track" className="pb-2" />
           <ul className="mt-1 divide-y divide-border">
             {track.map((item) => (
               <TrackStatus
@@ -699,7 +699,7 @@ function eventDetail(event) {
     case "odoo_copy_changed": {
       const note = detail.note;
       if (!note) {
-        return detail.po_state_to ? `PO is now ${ODOO_PO_STATE_LABELS[detail.po_state_to] ?? detail.po_state_to}` : null;
+        return detail.po_state_to ? `Odoo PO is now ${ODOO_PO_STATE_LABELS[detail.po_state_to] ?? detail.po_state_to}` : null;
       }
       const parts = [];
       if (note.added?.length) parts.push(`${note.added.length} added`);

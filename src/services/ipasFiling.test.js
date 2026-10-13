@@ -303,6 +303,63 @@ describe("ipasService: section 7 and Filing", () => {
       expect(opened.landedCost.status).toBe("final")
     })
 
+    describe("the Odoo copy it files", () => {
+      /** Everything done but section 7's Approved. */
+      async function readyToFile() {
+        const ipas = await raise()
+        await costsComplete(ipas)
+        tickEverything()
+        await approveFirstSections(ipas)
+        await receivedNotedChecked(ipas)
+        return ipas
+      }
+
+      it("is refreshed from Odoo first, so a copy that moved since it was last read is the one filed", async () => {
+        const ipas = await readyToFile()
+        const before = rowOf(ipas.id).odoo_fetched_at
+        stubEdgeFunction("odoo-po-ipas", {
+          ...odooPo({ name: ipas.po_number }),
+          receipts: { status: "done", done: 1, total: 1 },
+        })
+
+        as(approver)
+        const result = await ipasService.sign(ipas.id, 7, "approved")
+
+        expect(result.filed).toBe(true)
+        expect(rowOf(ipas.id).state).toBe("filed")
+        expect(rowOf(ipas.id).odoo_copy.receipts).toEqual({ status: "done", done: 1, total: 1 })
+        expect(rowOf(ipas.id).odoo_fetched_at >= before).toBe(true)
+      })
+
+      it("files nothing when the refresh shows the Odoo PO changed, and says why", async () => {
+        const ipas = await readyToFile()
+        stubEdgeFunction("odoo-po-ipas", odooPo({ name: ipas.po_number, lines: [line(1), line(2, 5, 40)] }))
+
+        as(approver)
+        await expect(ipasService.sign(ipas.id, 7, "approved")).rejects.toMatchObject({
+          code: IPAS_ERROR.INVALID,
+          message: expect.stringMatching(/nothing was filed/),
+        })
+
+        expect(rowOf(ipas.id).state).toBe("open")
+        expect(live(ipas.id)).not.toContain("7/approved")
+        expect(live(ipas.id)).not.toContain("1/approved")
+      })
+
+      it("is the stored copy when Odoo doesn't answer, and filing still goes ahead", async () => {
+        const ipas = await readyToFile()
+        const stored = structuredClone(rowOf(ipas.id).odoo_copy)
+        stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" })
+
+        as(approver)
+        const result = await ipasService.sign(ipas.id, 7, "approved")
+
+        expect(result.filed).toBe(true)
+        expect(rowOf(ipas.id).state).toBe("filed")
+        expect(rowOf(ipas.id).odoo_copy).toEqual(stored)
+      })
+    })
+
     it("refuses another sign-off on a filed IPAS", async () => {
       const ipas = await filed()
       as(receiver)

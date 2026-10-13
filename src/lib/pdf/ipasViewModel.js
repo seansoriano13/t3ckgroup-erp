@@ -203,8 +203,8 @@ function landedCostOf(ipas, filed) {
   if (lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE) {
     const note =
       lc.reason === IPAS_LANDED_COST_REASON.NO_PAYMENTS
-        ? `This PO is in ${lc.currency || 'a foreign currency'}. Landed Cost converts at the rate actually paid, so it needs a payment with the PHP debited.`
-        : 'The PO has no item lines to cost.';
+        ? `This Odoo PO is in ${lc.currency || 'a foreign currency'}. Landed Cost converts at the rate actually paid, so it needs a payment with the PHP debited.`
+        : 'The Odoo PO has no item lines to cost.';
     return { status: lc.status, label: 'Not available', note, lines: [], total: null };
   }
 

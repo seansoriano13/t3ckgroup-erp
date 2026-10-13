@@ -61,7 +61,7 @@ function Body({ ipas, payment, onClose }) {
   const queryClient = useQueryClient();
   const editing = Boolean(payment);
   const isPhpPo = isPhpCurrency(ipas.currency);
-  const currency = ipas.currency || "PO currency";
+  const currency = ipas.currency || "Odoo PO currency";
 
   const [form, setForm] = useState({
     kind: payment?.kind ?? IPAS_PAYMENT_KIND.PAYMENT,
@@ -90,7 +90,7 @@ function Body({ ipas, payment, onClose }) {
   if (!isIsoDate(form.paidOn)) problems.push("Give the date of the payment.");
   if (!amount.ok || amount.value === null || amount.value <= 0) problems.push("Amount must be a number more than zero.");
   if (!isPhpPo && (!php.ok || php.value === null || php.value <= 0)) {
-    problems.push("PHP debited is required on a foreign-currency PO.");
+    problems.push("PHP debited is required on a foreign-currency Odoo PO.");
   }
   if (!fee.ok) problems.push("Charge fee must be a number.");
   if (!form.methodId) problems.push("Pick the payment method.");

@@ -329,9 +329,11 @@ export function stubIpasRpcs({
 
   stubRpc("ipas_sor_headers", (args) => {
     if (!reader) return []
+    // A null or empty id list is nothing, as in the database.
     const wanted = args.p_ipas_ids
+    if (!wanted || wanted.length === 0) return []
     return rowsOf("ipas_sors")
-      .filter((s) => !wanted || wanted.includes(s.ipas_id))
+      .filter((s) => wanted.includes(s.ipas_id))
       .map((s) => {
         const o = findRow("sales_opportunities", s.opportunity_id)
         return {

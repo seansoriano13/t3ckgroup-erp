@@ -8,9 +8,6 @@
 
 import { STATUS_THEME } from "./statusTheme";
 
-/** `TGIPAS_` and a zero-padded sequence, three digits minimum (TGIPAS_048). */
-export const IPAS_NUMBER_PREFIX = "TGIPAS_";
-
 export const IPAS_PRIORITY = {
   VERY_HIGH: "very_high",
   HIGH: "high",
@@ -424,9 +421,6 @@ export const IPAS_SIGNOFF_STAGE = {
   FILED: "filed",
 };
 
-/** The roles of a section 1 or 3 sign-off, in order. */
-export const IPAS_SIGNOFF_ROLES_FIRST_SECTIONS = [IPAS_SIGNOFF_ROLE.PREPARED, IPAS_SIGNOFF_ROLE.APPROVED];
-
 export const IPAS_SECTION_NAMES = {
   1: "Purchasing",
   3: "Purchasing & Finance",
@@ -447,6 +441,14 @@ export const IPAS_SIGNER_LIST = {
 };
 
 export const IPAS_SIGNER_LISTS = Object.values(IPAS_SIGNER_LIST);
+
+/** The list that gives each section 7 sign-off. */
+export const IPAS_SECTION_7_LIST = {
+  [IPAS_SIGNOFF_ROLE.RECEIVED]: IPAS_SIGNER_LIST.S7_RECEIVED,
+  [IPAS_SIGNOFF_ROLE.NOTED]: IPAS_SIGNER_LIST.S7_NOTED,
+  [IPAS_SIGNOFF_ROLE.CHECKED]: IPAS_SIGNER_LIST.S7_CHECKED,
+  [IPAS_SIGNOFF_ROLE.APPROVED]: IPAS_SIGNER_LIST.S7_APPROVED,
+};
 
 export const IPAS_SIGNER_LIST_LABELS = {
   [IPAS_SIGNER_LIST.S1_APPROVED]: "Section 1 · Approved",
@@ -483,7 +485,7 @@ export const IPAS_EVENT_LABELS = {
   override_reset: "Reset to Odoo",
   header_changed: "Header changed",
   filled_from_odoo: "Filled from Odoo",
-  odoo_copy_changed: "PO changed in Odoo",
+  odoo_copy_changed: "Odoo PO changed",
   odoo_changed_since_filing: "Odoo has changed since filing",
   approvals_cleared: "Approvals cleared",
   signed: "Signed off",

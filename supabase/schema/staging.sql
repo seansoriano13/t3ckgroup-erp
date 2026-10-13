@@ -447,7 +447,7 @@ create table if not exists public."hr_leave_categories" (
 
 create table if not exists public."ipas" (
   "id" uuid not null default gen_random_uuid(),
-  "number" text not null default ('TGIPAS_'::text || lpad((nextval('ipas_number_seq'::regclass))::text, 3, '0'::text)),
+  "number" text not null default ipas_format_number(nextval('ipas_number_seq'::regclass)),
   "po_number" text not null,
   "odoo_po_id" integer,
   "priority" text not null,
@@ -6004,6 +6004,15 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_format_number(p_value bigint)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select 'TGIPAS_' || lpad(p_value::text, greatest(3, length(p_value::text)), '0');
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_freeze_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -7306,12 +7315,16 @@ begin
   if not public.ipas_can_read() then
     return;
   end if;
+  -- Ask for the IPAS you mean: no ids, no rows (null used to mean every IPAS).
+  if p_ipas_ids is null or cardinality(p_ipas_ids) = 0 then
+    return;
+  end if;
 
   return query
     select s.ipas_id, s.opportunity_id, o.sales_reference, o.project_title, o.client_name
       from public.ipas_sors s
       join public.sales_opportunities o on o.id = s.opportunity_id
-     where p_ipas_ids is null or s.ipas_id = any (p_ipas_ids)
+     where s.ipas_id = any (p_ipas_ids)
      order by o.sales_reference;
 end;
 $function$

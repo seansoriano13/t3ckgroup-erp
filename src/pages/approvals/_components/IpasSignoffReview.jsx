@@ -44,7 +44,7 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
             <DetailRow label="Supplier">{pending.supplier}</DetailRow>
             <DetailRow label="Purpose">{IPAS_PURPOSE_LABELS[pending.purpose] ?? pending.purpose}</DetailRow>
             <DetailRow label="Priority">{IPAS_PRIORITY_LABELS[pending.priority] ?? pending.priority}</DetailRow>
-            <DetailRow label="PO total">{formatAmount(pending.total, pending.currency)}</DetailRow>
+            <DetailRow label="Odoo PO total">{formatAmount(pending.total, pending.currency)}</DetailRow>
             <DetailRow label="Section">
               {pending.section} · {IPAS_SECTION_NAMES[pending.section]}
             </DetailRow>

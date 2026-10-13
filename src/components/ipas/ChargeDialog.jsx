@@ -79,7 +79,7 @@ function Body({ ipas, charge, onClose }) {
       <DialogHeader className="shrink-0 pr-10">
         <DialogTitle>{editing ? "Edit charge" : "Record a charge"}</DialogTitle>
         <DialogDescription>
-          Importation charges are in pesos. If a charge covers several POs, enter this IPAS&apos;s own share.
+          Importation charges are in pesos. If a charge covers several Odoo POs, enter this IPAS&apos;s own share.
         </DialogDescription>
       </DialogHeader>
 

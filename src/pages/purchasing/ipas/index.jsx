@@ -7,26 +7,25 @@ import ProtectedRoute from "../../../components/ProtectedRoute";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
-import Spinner from "../../../components/ui/Spinner";
+import PageLoading from "../../../components/ui/PageLoading";
 import TabGroup from "../../../components/ui/TabGroup";
 import FilterBar from "../../../components/ui/FilterBar";
 import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
-import { SortHead, Table, TableBody, TableCell, TableHeader, TableRow } from "../../../components/ui/table";
+import { TablePager } from "../../../components/ui/TablePager";
+import { SortHead, Table, TableBody, TableHeader, TableRow } from "../../../components/ui/table";
+import { usePaging } from "../../../hooks/usePaging";
 import { useTableSort } from "../../../hooks/useTableSort";
 import { useAuth } from "../../../context/AuthContext";
-import IpasStateBadge from "../../../components/ipas/IpasStateBadge";
+import IpasRow from "../../../components/ipas/IpasRow";
 import NewIpasDialog from "../../../components/ipas/NewIpasDialog";
 import { ipasListKey } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
 import { getPermissionContext } from "../../../utils/permissions";
 import { filterIpas } from "../../../utils/ipas";
-import { formatDate } from "../../../utils/formatDate.js";
 import {
-  IPAS_PRIORITY_LABELS,
   IPAS_PURPOSES,
   IPAS_PURPOSE_LABELS,
-  IPAS_SOURCE_LABELS,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
 } from "../../../constants/ipas";
@@ -49,7 +48,7 @@ const NARROW_HIDDEN = new Set(["Supplier", "Entity", "SORs", "Raised"]);
 
 const IPAS_SORT = {
   ipas: (r) => r.number,
-  po: (r) => r.po_number,
+  "odoo-po": (r) => r.po_number,
   supplier: (r) => r.supplier,
   entity: (r) => r.entity,
   purpose: (r) => IPAS_PURPOSE_LABELS[r.purpose],
@@ -64,57 +63,6 @@ const PURPOSE_OPTIONS = [
 ];
 
 const slug = (heading) => heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-
-function IpasRow({ row, onOpen }) {
-  return (
-    <TableRow
-      tabIndex={0}
-      data-testid="ipas-row"
-      onClick={() => onOpen(row.id)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && e.target === e.currentTarget) {
-          e.preventDefault();
-          onOpen(row.id);
-        }
-      }}
-      className={`group cursor-pointer outline-none focus-visible:bg-muted ${row.state === IPAS_STATE.CANCELLED ? "opacity-70" : ""}`}
-    >
-      <TableCell>
-        <span className="block font-mono text-xs font-semibold text-foreground">{row.number}</span>
-        <span className="mt-0.5 block text-[11px] text-muted-foreground">
-          {IPAS_PRIORITY_LABELS[row.priority]} · {IPAS_SOURCE_LABELS[row.source]}
-        </span>
-      </TableCell>
-      <TableCell>
-        <span className="font-mono text-xs text-foreground">{row.po_number}</span>
-      </TableCell>
-      <TableCell className="hidden md:table-cell">
-        <span className="block max-w-[16rem] truncate text-xs text-foreground">{row.supplier || "—"}</span>
-      </TableCell>
-      <TableCell className="hidden md:table-cell">
-        <span className="text-xs text-muted-foreground">{row.entity || "—"}</span>
-      </TableCell>
-      <TableCell>
-        <span className="text-xs font-medium text-foreground">{IPAS_PURPOSE_LABELS[row.purpose]}</span>
-      </TableCell>
-      <TableCell className="hidden md:table-cell">
-        {row.sors.length === 0 ? (
-          <span className="text-xs text-muted-foreground">—</span>
-        ) : (
-          <span className="font-mono text-xs text-foreground">
-            {row.sors.map((s) => s.salesReference).join(", ")}
-          </span>
-        )}
-      </TableCell>
-      <TableCell className="hidden md:table-cell">
-        <span className="text-xs tabular-nums text-muted-foreground">{formatDate(row.created_at)}</span>
-      </TableCell>
-      <TableCell className="text-right">
-        <IpasStateBadge state={row.state} />
-      </TableCell>
-    </TableRow>
-  );
-}
 
 function IpasList() {
   const navigate = useNavigate();
@@ -146,6 +94,7 @@ function IpasList() {
   const scoped = useMemo(() => filterIpas(rows, { entity, purpose, search }), [rows, entity, purpose, search]);
   const filtered = useMemo(() => filterIpas(scoped, { state }), [scoped, state]);
   const { sorted: visible, sort, toggle } = useTableSort(filtered, IPAS_SORT);
+  const paging = usePaging(visible);
 
   const count = (s) => filterIpas(scoped, { state: s }).length;
   const hasActiveFilters = search !== "" || entity !== null || purpose !== null;
@@ -228,11 +177,7 @@ function IpasList() {
         }
         toolbar={toolbar}
       >
-        {isLoading && (
-          <div className="flex justify-center py-20">
-            <Spinner />
-          </div>
-        )}
+        {isLoading && <PageLoading label="IPAS" />}
 
         {isError && <QueryError title="IPAS could not be loaded." onRetry={refetch} />}
 
@@ -254,7 +199,7 @@ function IpasList() {
               <Table tableId="ipas" className="md:min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["IPAS", "PO", "Supplier", "Entity", "Purpose", "SORs", "Raised", "State"].map((heading) => (
+                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "SORs", "Raised", "State"].map((heading) => (
                       <SortHead
                         key={heading}
                         id={slug(heading)}
@@ -269,15 +214,13 @@ function IpasList() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visible.map((row) => (
+                  {paging.rows.map((row) => (
                     <IpasRow key={row.id} row={row} onOpen={(id) => navigate(`/purchasing/ipas/${id}`)} />
                   ))}
                 </TableBody>
               </Table>
             </div>
-            <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-              {visible.length} IPAS shown
-            </div>
+            <TablePager {...paging} noun="IPAS" />
           </div>
         )}
       </PageShell>

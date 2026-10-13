@@ -11,8 +11,8 @@
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUS,
+  IPAS_SECTION_7_LIST,
   IPAS_SECTION_7_ROLES,
-  IPAS_SIGNER_LIST,
   IPAS_SIGNOFF_ROLE,
   IPAS_STATE,
 } from "../constants/ipas";
@@ -180,19 +180,12 @@ export function section7Rights({ state, userId, lists = {}, ipasState, costsComp
     else if (!state.opened) why = "sections_not_approved";
     else if (role !== IPAS_SIGNOFF_ROLE.RECEIVED && !state.received) why = "needs_received";
     else if (role === IPAS_SIGNOFF_ROLE.APPROVED && !(state.noted && state.checked)) why = "needs_all_three";
-    else if (!onList(SECTION_7_LIST[role])) why = "not_on_list";
+    else if (!onList(IPAS_SECTION_7_LIST[role])) why = "not_on_list";
     else if (role === IPAS_SIGNOFF_ROLE.APPROVED && !costsComplete) why = "costs_incomplete";
     out[role] = { canGive: why === null, why };
   }
   return out;
 }
-
-const SECTION_7_LIST = {
-  [IPAS_SIGNOFF_ROLE.RECEIVED]: IPAS_SIGNER_LIST.S7_RECEIVED,
-  [IPAS_SIGNOFF_ROLE.NOTED]: IPAS_SIGNER_LIST.S7_NOTED,
-  [IPAS_SIGNOFF_ROLE.CHECKED]: IPAS_SIGNER_LIST.S7_CHECKED,
-  [IPAS_SIGNOFF_ROLE.APPROVED]: IPAS_SIGNER_LIST.S7_APPROVED,
-};
 
 /** Whether a computation status is Costs complete or later (what Filing needs). */
 export function isCostsComplete(status) {

@@ -160,7 +160,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.type(amount, "640");
       const submit = within(dialog).getByRole("button", { name: "Record payment" });
 
-      expect(within(dialog).getByText("PHP debited is required on a foreign-currency PO.")).toBeInTheDocument();
+      expect(within(dialog).getByText("PHP debited is required on a foreign-currency Odoo PO.")).toBeInTheDocument();
       expect(submit).toBeDisabled();
 
       await user.type(phpDebited, "36160");

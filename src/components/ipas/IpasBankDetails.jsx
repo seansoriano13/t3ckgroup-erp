@@ -2,6 +2,7 @@ import { Pencil, TriangleAlert } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { DetailRow } from "../ui/DetailParts";
+import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 
 /**
@@ -19,15 +20,14 @@ export function IpasBankDetails({ ipas, canChange = false, onEdit }) {
 
   return (
     <div className="mt-5 space-y-3" data-testid="ipas-bank-details">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Bank details</h3>
+      <SectionHeader title="Bank details" className="pb-2">
         {canChange && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
             <Pencil size={14} />
             {bank ? "Edit bank details" : "Add bank details"}
           </Button>
         )}
-      </div>
+      </SectionHeader>
 
       {flagged && (
         <div

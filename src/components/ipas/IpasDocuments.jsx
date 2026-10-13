@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { ListPlus, Paperclip, Plus, Trash2, X } from "lucide-react";
+import toast from "react-hot-toast";
 
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { ExternalLink } from "../ui/external-link";
 import { FileInput } from "../ui/FileInput";
+import SectionHeader from "../ui/SectionHeader";
 import Spinner from "../ui/Spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
@@ -52,6 +54,8 @@ export function IpasDocuments({
     try {
       const url = await uploadDocumentFile(file);
       if (url) await onAttach(document, url);
+    } catch (error) {
+      toast.error(error?.message || "The file couldn't be attached.");
     } finally {
       setUploadingId(null);
     }
@@ -59,10 +63,9 @@ export function IpasDocuments({
 
   return (
     <div className="mt-5 space-y-3" data-testid="ipas-documents">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Documents</h3>
+      <SectionHeader title="Documents" className="pb-2">
         {canChange && (
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             {suggested.length > 0 && (
               <Button size="sm" variant="outline" className="gap-1.5" onClick={onSuggest}>
                 <ListPlus size={14} />
@@ -73,9 +76,9 @@ export function IpasDocuments({
               <Plus size={14} />
               Add document
             </Button>
-          </div>
+          </>
         )}
-      </div>
+      </SectionHeader>
 
       {documents.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">

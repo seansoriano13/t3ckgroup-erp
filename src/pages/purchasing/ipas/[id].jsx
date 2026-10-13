@@ -578,7 +578,8 @@ function IpasPage() {
               canChange={canChange}
               canTickFinance={canTickFinance}
               onTick={(document, side, value) => tick.mutate({ document, side, value })}
-              onAttach={(document, url) => attach.mutateAsync({ document, url })}
+              // attach's onError has already toasted the reason; the catch keeps the rejection from escaping.
+              onAttach={(document, url) => attach.mutateAsync({ document, url }).catch(() => {})}
               onRemoveAttachment={(document) => attach.mutate({ document, url: "" })}
               onAdd={() => setDocumentDialog(true)}
               onSuggest={() => suggest.mutate()}

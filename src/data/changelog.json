@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: review fixes",
+        "version": "1.9.22",
+        "changes": [
+            "IPAS: filing an IPAS checks Odoo for the latest PO first. If the PO changed since the approvals were given, they are cleared and nothing is filed.",
+            "IPAS: screens, messages and the printed form say \"Odoo PO\". Attaching a document that fails to save now says why."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: printed IPAS",
         "version": "1.9.21",
         "changes": [

@@ -202,7 +202,7 @@ function section1(vm) {
         )
         .join('')}</tbody>
       <tfoot><tr><td colspan="4" style="text-align:right">Total before tax, as Odoo prices the lines</td><td class="num">${esc(s.itemsTotal)}</td></tr></tfoot></table>`
-    : '<div class="empty">The PO has no item lines.</div>';
+    : '<div class="empty">The Odoo PO has no item lines.</div>';
 
   const payments = s.payments.length
     ? `<table><thead><tr>
@@ -369,7 +369,7 @@ function section7(vm) {
   const s = vm.section7;
   return section(
     '7 · For filing',
-    'Finance / Accounting',
+    'Finance',
     `<div class="stat">${s.checklist
       .map(
         (c) => `<span class="s${c.ticked ? ' done' : ''}">${tick(c.ticked)}<span class="t">${esc(c.label)}</span>${

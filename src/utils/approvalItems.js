@@ -10,7 +10,7 @@
  */
 
 import { TASK_STATUS } from "../constants/status.js";
-import { IPAS_SIGNOFF_ROLE_LABELS } from "../constants/ipas.js";
+import { IPAS_PRIORITY, IPAS_SIGNOFF_ROLE_LABELS } from "../constants/ipas.js";
 import { checklistProgressLabel, isChecklistDescription, isStaleSince } from "./approvalQueue.js";
 
 export const LEAVE_LABEL = { SIL: "SIL Leave", OFFSET: "Offset", OVERTIME: "Overtime", UNDERTIME: "Undertime" };
@@ -111,7 +111,7 @@ export function ipasToItem(pending, now = Date.now()) {
         clockAt,
         isStale: isStaleSince(clockAt, now),
         done: false,
-        isHighPriority: pending.priority === "very_high",
+        isHighPriority: pending.priority === IPAS_PRIORITY.VERY_HIGH,
         attachmentCount: 0,
         chain: ipasChain(pending),
         source: pending,

@@ -150,6 +150,20 @@ describe("ipasService", () => {
       expect([a.number, b.number, c.number]).toEqual(["TGIPAS_049", "TGIPAS_050", "TGIPAS_051"])
     })
 
+    it("keeps counting past TGIPAS_999 without cutting the number short", async () => {
+      stubEdgeFunction("odoo-po-ipas", (body) => odooPo({ name: body.poNumber }))
+      await raise({ poNumber: "P01101" })
+      // The database formats `TGIPAS_` + the sequence value, three digits at least and
+      // never truncated (migration 20261013101000, proven in 64-ipas-review-fixes); the
+      // stub mirrors it, and nothing here may read TGIPAS_100 for the thousandth.
+      db.internal.rowsOf("ipas")[0].number = "TGIPAS_999"
+      const thousandth = await raise({ poNumber: "P01102" })
+      const next = await raise({ poNumber: "P01103" })
+
+      expect([thousandth.number, next.number]).toEqual(["TGIPAS_1000", "TGIPAS_1001"])
+      expect(new Set(db.rows("ipas").map((row) => row.number)).size).toBe(3)
+    })
+
     it("needs an SOR on a Project and refuses one on any other Purpose", async () => {
       stubEdgeFunction("odoo-po-ipas", odooPo())
       const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920" })
@@ -711,7 +725,7 @@ describe("ipasService", () => {
         expect(direct.error?.code).toBe("22023")
       })
 
-      it("shows 'PO cancelled in Odoo' and leaves the IPAS open", async () => {
+      it("shows 'Odoo PO cancelled' and leaves the IPAS open", async () => {
         odoo = { ...odoo, po: { ...odoo.po, state: "cancel" } }
 
         const read = await ipasService.get(row.id)
@@ -719,7 +733,7 @@ describe("ipasService", () => {
         expect(read.state).toBe("open")
         expect(read.poCancelledInOdoo).toBe(true)
         expect(read.warnings.map((w) => w.code)).toContain(IPAS_WARNING.PO_CANCELLED_IN_ODOO)
-        expect(read.warnings.find((w) => w.code === IPAS_WARNING.PO_CANCELLED_IN_ODOO).message).toBe("PO cancelled in Odoo")
+        expect(read.warnings.find((w) => w.code === IPAS_WARNING.PO_CANCELLED_IN_ODOO).message).toBe("Odoo PO cancelled")
         expect(stored().state).toBe("open")
         expect(stored().cancelled_at ?? null).toBeNull()
         expect(read.statuses.purchaseOrder.ticked).toBe(false)
