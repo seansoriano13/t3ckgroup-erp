@@ -1,6 +1,14 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS options stay accurate on filed IPAS",
+        "version": "1.9.24",
+        "changes": [
+            "IPAS: a payment method, charge kind, document kind, freight service or item location used on a filed IPAS can no longer be renamed. Deactivate it and add a new one instead"
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "IPAS: follow-ups",
         "version": "1.9.23",
         "changes": [

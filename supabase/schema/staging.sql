@@ -5964,6 +5964,17 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_filed_option_ids()
+ RETURNS uuid[]
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case when public.ipas_can_read() then
+    coalesce((select array_agg(o.id) from ipas_options o where public.ipas_option_on_filed(o.id)), '{}'::uuid[])
+  else '{}'::uuid[] end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_fill_from_odoo_copy()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -6069,6 +6080,47 @@ begin
   if new.po_number is distinct from old.po_number then
     raise exception 'ipas: the PO of % can''t change; cancel it and raise a new IPAS', old.number
       using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_option_on_filed(p_option_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from ipas i
+     where i.state = 'filed'
+       and (i.freight_service_id = p_option_id or i.item_location_id = p_option_id)
+  ) or exists (
+    select 1 from ipas_payments p join ipas i on i.id = p.ipas_id
+     where i.state = 'filed' and p.method_id = p_option_id
+  ) or exists (
+    select 1 from ipas_charges c join ipas i on i.id = c.ipas_id
+     where i.state = 'filed' and c.kind_id = p_option_id
+  ) or exists (
+    select 1 from ipas_documents d join ipas i on i.id = d.ipas_id
+     where i.state = 'filed' and d.kind_id = p_option_id
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_options_filed_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if (
+    new.label is distinct from old.label
+    or new.applies_to is distinct from old.applies_to
+    or new.used_for is distinct from old.used_for
+  ) and public.ipas_option_on_filed(old.id) then
+    raise exception 'ipas_options: "%" is used on a filed IPAS. Deactivate it and add a new one instead.', old.label
+      using errcode = '55000';
   end if;
   return new;
 end;
@@ -12745,6 +12797,7 @@ CREATE TRIGGER ipas_documents_freeze BEFORE INSERT OR DELETE OR UPDATE ON public
 CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
+CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_filed_guard();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();

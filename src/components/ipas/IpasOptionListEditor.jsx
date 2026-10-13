@@ -24,7 +24,7 @@ import {
   IPAS_OPTION_LIST_NOUNS,
 } from "../../constants/ipas";
 import { ipasErrorMessage } from "../../utils/ipas";
-import { ipasOptionsKey } from "./ipasKeys";
+import { ipasFiledOptionsKey, ipasOptionsKey } from "./ipasKeys";
 
 const APPLIES_TO_OPTIONS = IPAS_DOCUMENT_APPLIES_TO_VALUES.map((value) => ({
   value,
@@ -35,12 +35,16 @@ const USED_FOR_OPTIONS = IPAS_DOCUMENT_USED_FOR_VALUES.map((value) => ({
   label: IPAS_DOCUMENT_USED_FOR_LABELS[value],
 }));
 
+const FILED_HINT = "Used on a filed IPAS. Deactivate it and add a new one instead.";
+
 /**
  * One option list of the IPAS settings (#244): add, rename, reorder and
  * deactivate. A document kind (#246) is also marked: which Source it is
  * suggested for (Import, Local or both) and whether it is documentation, filing
  * or both. Options are never deleted. A deactivated option is no longer
- * offered for new rows and stays on the rows that already use it. Writable by
+ * offered for new rows and stays on the rows that already use it. An option a
+ * filed IPAS uses can't be renamed or re-marked (the database refuses, for
+ * everyone): deactivate it and add a new one. Writable by
  * Purchasing access and Super Admins (the database decides).
  */
 export default function IpasOptionListEditor({ list }) {
@@ -57,8 +61,16 @@ export default function IpasOptionListEditor({ list }) {
     queryFn: () => ipasService.listOptions(list),
   });
 
+  // The options a filed IPAS uses keep their name and marks.
+  const { data: filedIds = [] } = useQuery({
+    queryKey: ipasFiledOptionsKey,
+    queryFn: () => ipasService.listFiledOptionIds(),
+  });
+  const isLocked = (option) => filedIds.includes(option.id);
+
   const changed = () => {
     queryClient.invalidateQueries({ queryKey: ipasOptionsKey(list) });
+    queryClient.invalidateQueries({ queryKey: ipasFiledOptionsKey });
     // Open IPAS pages read the options with the IPAS.
     queryClient.invalidateQueries({ queryKey: ["ipas", "one"] });
   };
@@ -194,13 +206,16 @@ export default function IpasOptionListEditor({ list }) {
                 </Button>
               </div>
 
-              <span
-                className={`min-w-0 flex-1 truncate text-[13px] font-medium ${
-                  option.active ? "text-foreground" : "text-muted-foreground line-through"
-                }`}
-              >
-                {option.label}
-              </span>
+              <div className="min-w-0 flex-1">
+                <span
+                  className={`block truncate text-[13px] font-medium ${
+                    option.active ? "text-foreground" : "text-muted-foreground line-through"
+                  }`}
+                >
+                  {option.label}
+                </span>
+                {isLocked(option) && <span className="block text-xs text-muted-foreground">{FILED_HINT}</span>}
+              </div>
               {!option.active && <StatusBadge theme="mauve" label="Deactivated" />}
 
               {isDocumentKind && (
@@ -209,7 +224,7 @@ export default function IpasOptionListEditor({ list }) {
                     size="sm"
                     options={APPLIES_TO_OPTIONS}
                     value={option.applies_to ?? IPAS_DOCUMENT_APPLIES_TO.BOTH}
-                    disabled={busy}
+                    disabled={busy || isLocked(option)}
                     onChange={(value) => mark.mutate({ option, appliesTo: value })}
                     className="w-auto"
                     aria-label={`${option.label}: Source`}
@@ -218,7 +233,7 @@ export default function IpasOptionListEditor({ list }) {
                     size="sm"
                     options={USED_FOR_OPTIONS}
                     value={option.used_for ?? IPAS_DOCUMENT_USED_FOR.DOCUMENTATION}
-                    disabled={busy}
+                    disabled={busy || isLocked(option)}
                     onChange={(value) => mark.mutate({ option, usedFor: value })}
                     className="w-auto"
                     aria-label={`${option.label}: used for`}
@@ -230,6 +245,8 @@ export default function IpasOptionListEditor({ list }) {
                 variant="ghost"
                 size="icon-xs"
                 aria-label={`Rename ${option.label}`}
+                disabled={isLocked(option)}
+                title={isLocked(option) ? FILED_HINT : undefined}
                 onClick={() => setRenaming(option)}
               >
                 <Pencil />

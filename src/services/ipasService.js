@@ -789,6 +789,14 @@ export const ipasService = {
         .eq("id", id)
         .select()
         .single();
+      // An option a filed IPAS uses keeps its name and marks: the database
+      // refuses (55000) for everyone. Say so in a sentence the page can show.
+      if (error?.code === "55000") {
+        throw new IpasError(
+          IPAS_ERROR.OPTION_ON_FILED,
+          `"${name}" is used on a filed IPAS and can't be changed. Deactivate it and add a new one instead.`,
+        );
+      }
       if (error) throw error;
       return data;
     }
@@ -812,6 +820,17 @@ export const ipasService = {
       .single();
     if (error) throw error;
     return data;
+  },
+
+  /**
+   * The ids of the options a filed IPAS uses. Those can be deactivated and
+   * reordered but not renamed (nor re-marked); the database enforces it. Empty
+   * when the answer can't be had: the database still refuses, with a sentence.
+   */
+  async listFiledOptionIds() {
+    const { data, error } = await supabase.rpc("ipas_filed_option_ids");
+    if (error) return [];
+    return Array.isArray(data) ? data : [];
   },
 
   /**

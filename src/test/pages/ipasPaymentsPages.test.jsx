@@ -503,6 +503,70 @@ describe("IPAS settings", () => {
     await waitFor(() => expect(db.rows("ipas_options").find((o) => o.id === id).label).toBe("Corporate Card"));
   });
 
+  describe("an option a filed IPAS uses", () => {
+    const hint = /Used on a filed IPAS\. Deactivate it and add a new one instead\./;
+
+    function useOnFiled(over = {}) {
+      const filed = ipas({ po_number: "P02600", state: "filed", filed_at: "2026-10-14T00:00:00.000Z", ...over });
+      db.seed("ipas_payments", {
+        ipas_id: filed.id,
+        kind: "down_payment",
+        paid_on: "2026-10-01",
+        amount: 500,
+        method_id: options.payment_method.Check.id,
+        created_by: purchaser.id,
+      });
+      return filed;
+    }
+
+    it("can't be renamed: Rename is off and the hint shows, while Deactivate and reorder stay", async () => {
+      const user = userEvent.setup();
+      useOnFiled();
+
+      renderSettings();
+      const rows = await screen.findAllByTestId("ipas-option-row");
+      const check = rows.find((row) => within(row).queryByText("Check"));
+
+      await waitFor(() => expect(within(check).getByRole("button", { name: "Rename Check" })).toBeDisabled());
+      expect(within(check).getByText(hint)).toBeInTheDocument();
+      expect(screen.getAllByText(hint)).toHaveLength(1);
+      expect(screen.getByRole("button", { name: "Rename Cash" })).toBeEnabled();
+
+      await user.click(within(check).getByRole("switch", { name: "Check is offered" }));
+      await waitFor(() => expect(db.rows("ipas_options").find((o) => o.label === "Check").active).toBe(false));
+      await user.click(screen.getByRole("button", { name: "Move Check up" }));
+      await waitFor(() => expect(db.rows("ipas_options").find((o) => o.label === "Check").sort).toBeLessThan(
+        db.rows("ipas_options").find((o) => o.label === "Cash").sort,
+      ));
+    });
+
+    it("is still renamable when only an open IPAS uses it", async () => {
+      useOnFiled({ state: "open", filed_at: null });
+
+      renderSettings();
+      await screen.findAllByTestId("ipas-option-row");
+
+      expect(screen.getByRole("button", { name: "Rename Check" })).toBeEnabled();
+      expect(screen.queryByText(hint)).not.toBeInTheDocument();
+    });
+
+    it("freezes a document kind's Source and used-for marks too", async () => {
+      const user = userEvent.setup();
+      const filed = ipas({ po_number: "P02601", state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
+      const waybill = options.document_kind.Waybill;
+      db.seed("ipas_documents", { ipas_id: filed.id, kind_id: waybill.id, purchasing_has: true, finance_has: true });
+
+      renderSettings();
+      await user.click(await screen.findByRole("tab", { name: "Document kinds" }));
+      await screen.findByText("Waybill");
+
+      await waitFor(() => expect(screen.getByRole("combobox", { name: "Waybill: Source" })).toBeDisabled());
+      expect(screen.getByRole("combobox", { name: "Waybill: used for" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Rename Waybill" })).toBeDisabled();
+      expect(screen.getByRole("combobox", { name: "Bill of Lading (BL): Source" })).toBeEnabled();
+    });
+  });
+
   it("is the Purchasing tab of Settings: open to Super Admins and Purchasing access, absent for everyone else", async () => {
     mockUser.current = superAdmin;
     const first = renderSettings();

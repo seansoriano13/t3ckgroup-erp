@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { ipasService } from "./ipasService"
 import { db } from "@/test/db/store"
-import { stubEdgeFunction } from "@/test/msw/server"
+import { http, HttpResponse } from "msw"
+import { server, stubEdgeFunction } from "@/test/msw/server"
 import { makeEmployee } from "@/test/factories"
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc"
 import { IPAS_STATUS_SOURCE } from "@/constants/ipas"
@@ -28,6 +29,8 @@ const odooPo = (name) => ({
   receipts: { status: "pending", done: 0, total: 1 },
   bills: { count: 0, draft: 0 },
 })
+
+const BASE_URL = import.meta.env.VITE_SUPABASE_URL
 
 describe("ipasService: documents, Supplier Origin and the buyer track", () => {
   let buyer, finance, options
@@ -516,6 +519,47 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       await expect(
         ipasService.saveOption({ id: kind.id, list: "document_kind", label: "Quotation", appliesTo: "everywhere" }),
       ).rejects.toMatchObject({ code: "IPAS_INVALID" })
+    })
+
+    it("says so in a sentence when the database refuses a change to an option a filed IPAS uses (55000)", async () => {
+      const kind = options.document_kind.Quotation
+      server.use(
+        http.patch(`${BASE_URL}/rest/v1/ipas_options`, () =>
+          HttpResponse.json(
+            { code: "55000", message: 'ipas_options: "Quotation" is used on a filed IPAS. Deactivate it and add a new one instead.', details: null, hint: null },
+            { status: 400 },
+          ),
+        ),
+      )
+
+      await expect(ipasService.saveOption({ id: kind.id, list: "document_kind", label: "Price Quote" })).rejects.toMatchObject({
+        name: "IpasError",
+        code: "IPAS_OPTION_ON_FILED",
+        message: expect.stringMatching(/used on a filed IPAS.*Deactivate it and add a new one instead/),
+      })
+    })
+
+    it("lists the option ids a filed IPAS uses, and only those", async () => {
+      const filed = await raise("local", "P03070")
+      const open = await raise("local", "P03071")
+      const stillOpen = options.freight_service["DHL Express"]
+      const used = options.freight_service.FedEx
+      db.internal.rowsOf("ipas").find((r) => r.id === filed.id).state = "filed"
+      db.internal.rowsOf("ipas").find((r) => r.id === filed.id).freight_service_id = used.id
+      db.internal.rowsOf("ipas").find((r) => r.id === open.id).freight_service_id = stillOpen.id
+      db.internal.rowsOf("ipas_documents").filter((d) => d.ipas_id === filed.id).forEach((d) => { d.kind_id = options.document_kind.Waybill.id })
+
+      const ids = await ipasService.listFiledOptionIds()
+
+      expect(ids).toContain(used.id)
+      expect(ids).toContain(options.document_kind.Waybill.id)
+      expect(ids).not.toContain(stillOpen.id)
+    })
+
+    it("lists none when the lookup isn't available", async () => {
+      stubIpasRpcs({ actorId: buyer.id, reader: false })
+
+      expect(await ipasService.listFiledOptionIds()).toEqual([])
     })
 
     it("marks no other list's options", async () => {

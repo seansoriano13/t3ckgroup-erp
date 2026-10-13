@@ -1321,6 +1321,23 @@ export function stubIpasRpcs({
     return { list_key: listKey, added, removed }
   })
 
+  // The options a filed IPAS uses (they can't be renamed). The refusal itself is
+  // a trigger the fake can't run; it is proven in 66-ipas-options-filed-guard.
+  stubRpc("ipas_filed_option_ids", () => {
+    if (!reader) return []
+    const filed = new Set(rowsOf("ipas").filter((row) => row.state === "filed").map((row) => row.id))
+    const used = new Set()
+    for (const row of rowsOf("ipas")) {
+      if (!filed.has(row.id)) continue
+      if (row.freight_service_id) used.add(row.freight_service_id)
+      if (row.item_location_id) used.add(row.item_location_id)
+    }
+    for (const p of rowsOf("ipas_payments")) if (filed.has(p.ipas_id) && p.method_id) used.add(p.method_id)
+    for (const c of rowsOf("ipas_charges")) if (filed.has(c.ipas_id) && c.kind_id) used.add(c.kind_id)
+    for (const d of rowsOf("ipas_documents")) if (filed.has(d.ipas_id) && d.kind_id) used.add(d.kind_id)
+    return [...used]
+  })
+
   stubRpc("ipas_set_item_location", (args) => {
     requirePurchasing("ipas_set_item_location")
     const row = requireOpenIpas("ipas_set_item_location", args.p_ipas_id)
