@@ -10,6 +10,7 @@
  */
 
 import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './formViewModel';
+import { buildIpasViewModel } from './ipasViewModel';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 
@@ -29,6 +30,15 @@ const FORM_TYPES = {
   UNDERTIME: {
     buildViewModel: buildTG13ViewModel,
     markPrinted: (record, hrId) => offsetService.markUndertimeRequestsPrinted({ id: record.id, hrId }),
+  },
+  // Issue #250: the IPAS prints on two A4 pages through its own composer
+  // (ipasDocument.js), not the paired Letter half-sheets, so its builder takes
+  // `ipasService.get`'s result and a `{ filingCopy }` option. Printing an IPAS
+  // stamps nothing: there is no "printed" state to move, so markPrinted is a
+  // no-op that keeps the registry's contract (every type has one).
+  IPAS: {
+    buildViewModel: buildIpasViewModel,
+    markPrinted: async () => {},
   },
 };
 

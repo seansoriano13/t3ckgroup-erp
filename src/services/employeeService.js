@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
+import { IPAS_SIGNER_LISTS } from "../constants/ipas";
 
 async function prepareEmailForSave(email, currentEmployeeId = null) {
   if (!email) return null;
@@ -43,6 +44,44 @@ async function prepareEmailForSave(email, currentEmployeeId = null) {
   return cleanEmail;
 }
 
+/**
+ * Where the employee stands on the IPAS sign-off lists (#242, #247):
+ *   isIpasSigner    on any list and no other access reads the IPAS for them
+ *                   (Purchasing access, Finance access or Super Admin already
+ *                   do), so the navigation shows IPAS
+ *   isIpasApprover  on any sign-off list (section 1 or 3 Approved, section 7's
+ *                   Received, Noted, Checked or Approved), whatever else they
+ *                   hold: a Super Admin signs only when on a list, so this is
+ *                   what puts the Approval Center's IPAS queue in front of them
+ * A failure reads as "no": the lists are a convenience for the navigation, never
+ * the gate (the database is).
+ */
+async function ipasListMembership(employee) {
+  const none = { isIpasSigner: false, isIpasApprover: false };
+  try {
+    const { data, error } = await supabase.from("ipas_signer_lists").select("list_key").eq("employee_id", employee.id);
+    if (error) return none;
+    const keys = (data || []).map((row) => row.list_key);
+    const readsAnyway = employee.has_purchasing_flow || employee.has_finance_flow || employee.is_super_admin;
+    return {
+      isIpasSigner: !readsAnyway && keys.length > 0,
+      isIpasApprover: keys.some((key) => IPAS_SIGNER_LISTS.includes(key)),
+    };
+  } catch {
+    return none;
+  }
+}
+
+/**
+ * A call sign as the database stores it (#247): trimmed, and null when blank.
+ * The column refuses an empty or padded string, and an unset call sign is null
+ * so any number of people can have none (the unique index is where it's set).
+ */
+export function cleanCallSign(value) {
+  const text = typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+  return text === "" ? null : text;
+}
+
 export const employeeService = {
   async getEmployeeByEmail(email) {
     const { data, error } = await supabase
@@ -54,6 +93,7 @@ export const employeeService = {
 
     if (error) return null;
 
+    const ipasLists = await ipasListMembership(data);
     return {
       id: data.id,
       email: data.email,
@@ -65,6 +105,10 @@ export const employeeService = {
       isHr: data.is_hr,
       isSuperAdmin: data.is_super_admin,
       isRoleSimulator: data.is_role_simulator,
+      // On an IPAS sign-off list: reads every IPAS, so the nav shows the list.
+      isIpasSigner: ipasLists.isIpasSigner,
+      // On the section 1 or 3 approval list: the Approval Center's IPAS queue.
+      isIpasApprover: ipasLists.isIpasApprover,
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,
@@ -77,6 +121,8 @@ export const employeeService = {
       // Coerced: a frontend running ahead of 0054 gets undefined from `select("*")`,
       // and the flag grants nothing until a Super Admin turns it on anyway.
       has_purchasing_flow: !!data.has_purchasing_flow,
+      has_finance_flow: !!data.has_finance_flow,
+      call_sign: data.call_sign ?? null,
       has_retail_access: !!data.has_retail_access,
       has_bug_report_access: !!data.has_bug_report_access,
       offset_hours_balance: data.offset_hours_balance || 0,
@@ -115,6 +161,8 @@ export const employeeService = {
       has_sales_flow: employee.has_sales_flow,
       has_task_flow: employee.has_task_flow,
       has_purchasing_flow: !!employee.has_purchasing_flow,
+      has_finance_flow: !!employee.has_finance_flow,
+      call_sign: employee.call_sign ?? null,
       has_retail_access: !!employee.has_retail_access,
       has_bug_report_access: !!employee.has_bug_report_access,
       offset_hours_balance: employee.offset_hours_balance || 0,
@@ -233,6 +281,8 @@ export const employeeService = {
           has_sales_flow: employeeData.has_sales_flow,
           has_task_flow: employeeData.has_task_flow,
           has_purchasing_flow: employeeData.has_purchasing_flow,
+          has_finance_flow: employeeData.has_finance_flow ?? false,
+          call_sign: cleanCallSign(employeeData.call_sign),
           // Open for Sales by default; an explicit choice from the form wins.
           has_retail_access:
             employeeData.has_retail_access ??
@@ -289,6 +339,10 @@ export const employeeService = {
         has_sales_flow: employeeData.has_sales_flow,
         has_task_flow: employeeData.has_task_flow,
         has_purchasing_flow: employeeData.has_purchasing_flow,
+        has_finance_flow: employeeData.has_finance_flow,
+        // Only touched when the caller says so: HR and Super Admins set it
+        // (the database keeps it as it was for anyone else).
+        call_sign: employeeData.call_sign !== undefined ? cleanCallSign(employeeData.call_sign) : undefined,
         has_retail_access: employeeData.has_retail_access,
         has_bug_report_access: employeeData.has_bug_report_access,
         hidden_nav_keys: employeeData.hiddenNavKeys !== undefined ? employeeData.hiddenNavKeys : undefined,

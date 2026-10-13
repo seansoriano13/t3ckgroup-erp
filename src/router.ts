@@ -7,6 +7,7 @@ export type Path =
   | `/`
   | `/approvals`
   | `/approvals/hr-verification`
+  | `/approvals/ipas`
   | `/approvals/leaves`
   | `/approvals/tasks`
   | `/bug-reports`
@@ -27,6 +28,9 @@ export type Path =
   | `/opportunities/commission-formula`
   | `/profile`
   | `/purchasing`
+  | `/purchasing/ipas`
+  | `/purchasing/ipas/:id`
+  | `/purchasing/ipas/settings`
   | `/release-notes`
   | `/reset-password`
   | `/retail`
@@ -45,6 +49,7 @@ export type Path =
 
 export type Params = {
   '/flow-versions/:snapshotId': { snapshotId: string }
+  '/purchasing/ipas/:id': { id: string }
   '/verify/:token': { token: string }
 }
 

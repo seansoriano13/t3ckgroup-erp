@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHookWithQuery } from "../test/support";
 import { useNavBadges } from "./useNavBadges";
 import { taskService } from "../services/taskService";
+import { ipasService } from "../services/ipasService";
 
 vi.mock("../services/taskService", () => ({
   taskService: {
@@ -12,6 +13,12 @@ vi.mock("../services/taskService", () => ({
 vi.mock("../services/headApprovalService", () => ({
   headApprovalService: {
     getPendingForHead: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+vi.mock("../services/ipasService", () => ({
+  ipasService: {
+    pendingSignoffsFor: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -42,8 +49,26 @@ describe("useNavBadges", () => {
       taskApprovals: 0,
       hrVerifications: 0,
       leaveApprovals: 0,
+      ipasSignoffs: 0,
       mySors: 0,
     });
+  });
+
+  it("counts the IPAS sections waiting on an approver, and doesn't ask anyone else", async () => {
+    ipasService.pendingSignoffsFor.mockResolvedValue([{ id: "i1:1" }, { id: "i2:3" }]);
+
+    const approver = renderHookWithQuery(() => useNavBadges({ id: "boss", isIpasApprover: true }));
+    await vi.waitFor(() => {
+      expect(approver.result.current.ipasSignoffs).toBe(2);
+    });
+    expect(ipasService.pendingSignoffsFor).toHaveBeenCalledWith("boss");
+
+    ipasService.pendingSignoffsFor.mockClear();
+    const other = renderHookWithQuery(() => useNavBadges({ id: "plain", isSuperAdmin: true }));
+    await vi.waitFor(() => {
+      expect(other.result.current.ipasSignoffs).toBe(0);
+    });
+    expect(ipasService.pendingSignoffsFor).not.toHaveBeenCalled();
   });
 
   it("computes taskApprovals for department head based on pending tasks", async () => {

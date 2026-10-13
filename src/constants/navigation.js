@@ -17,6 +17,7 @@ import {
   Sparkles,
   Handshake,
   Bug,
+  ReceiptText,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -153,6 +154,19 @@ export const NAV_MODULES = {
         isPermitted: () => true,
         exactMatch: true,
       },
+      // The IPAS (#241): one per purchase order that needs one. Read by
+      // Purchasing access, Finance access, Super Admins and the sign-off
+      // lists; the database refuses everyone else, so this only spares the
+      // rest an empty screen. Not an exact match: an open IPAS is a child
+      // route.
+      {
+        key: "purchasing.ipas",
+        label: "IPAS",
+        link: "/purchasing/ipas",
+        icon: ReceiptText,
+        isPermitted: (ctx) =>
+          ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow || ctx.isIpasSigner,
+      },
     ],
   },
   approvals: {
@@ -191,6 +205,18 @@ export const NAV_MODULES = {
         icon: Clock,
         badgeKey: "leaveApprovals",
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead,
+        exactMatch: true,
+      },
+      {
+        // IPAS sign-offs (#247, #248): sections 1 and 3, and section 7's
+        // Received, Noted, Checked and Approved, for the people on those
+        // lists. A Super Admin signs only when on a list, so no pass here.
+        key: "approvals.ipas",
+        label: "IPAS Sign-offs",
+        link: "/approvals/ipas",
+        icon: ReceiptText,
+        badgeKey: "ipasSignoffs",
+        isPermitted: (ctx) => ctx.isIpasApprover,
         exactMatch: true,
       },
     ],

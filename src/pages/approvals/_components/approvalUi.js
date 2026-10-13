@@ -1,3 +1,5 @@
+import { IPAS_SIGNOFF_ROLE_LABELS } from "../../../constants/ipas";
+
 /** Approve reads as "yes" in green, as it always has on the approval screens; red stays with Return. */
 export const APPROVE_CLASS = "bg-green-9 text-white shadow-sm hover:bg-green-10";
 
@@ -17,6 +19,12 @@ export const NOTE_PRESETS = {
 export function whyYouSeeThis(item) {
   const first = (item.person?.name || "They").split(" ")[0];
   if (item.queue === "hr") return "You hold HR verification: graded work needs your sign-off before it counts for payroll.";
+  if (item.queue === "ipas") {
+    if (item.source?.section === 7) {
+      return `You are on the section 7 ${(IPAS_SIGNOFF_ROLE_LABELS[item.source?.role] ?? "").toLowerCase()} list, and ${item.source?.role === "approved" ? "everything before it is given. Approving files the IPAS and freezes it" : "it is your turn"}.`;
+    }
+    return `You are on the section ${item.source?.section} approval list, and ${first} prepared it. Whoever prepares a section can't approve it.`;
+  }
   if (item.queue === "leaves") return `You are ${first}’s department head, the first approver for leave and overtime.`;
   return item.source?.reportedTo
     ? `${first} reported this task to you, so it comes to you for a grade.`

@@ -35,10 +35,12 @@ describe("the seeded cast", () => {
         employees = Object.fromEntries(data.map((e) => [e.email, e]))
     })
 
-    it("creates every one of the thirteen identities the matrix discriminates on", () => {
+    it("creates every one of the fifteen identities the matrix discriminates on", () => {
         // #295 (ADR 0021) added `stageParticipant` — called into a single
-        // Stage's work with no Deal Team role and no Always-sees grant.
-        expect(CAST_KEYS).toHaveLength(13)
+        // Stage's work with no Deal Team role and no Always-sees grant. #242
+        // (IPAS) added `finance` (Finance access alone) and `ipasSigner` (a
+        // plain employee a test puts on a sign-off list).
+        expect(CAST_KEYS).toHaveLength(15)
         for (const key of CAST_KEYS) {
             expect(employees[castEmail(key)], `missing employee row for ${key}`).toBeTruthy()
         }
@@ -76,6 +78,7 @@ describe("the seeded cast", () => {
         expect(holders("can_manage_leaves")).toEqual(["leaveManager"])
         expect(holders("is_head")).toEqual(["head", "subHead"])
         expect(holders("is_deleted")).toEqual(["deleted"])
+        expect(holders("has_finance_flow")).toEqual(["finance"])
     })
 
     it("distinguishes a department head from a sub-department head", () => {
@@ -119,6 +122,7 @@ describe("the seeded cast", () => {
             expect(row.is_super_admin).toBe(spec.is_super_admin ?? false)
             expect(row.can_manage_leaves).toBe(spec.can_manage_leaves ?? false)
             expect(row.has_sales_flow).toBe(spec.has_sales_flow ?? false)
+            expect(row.has_finance_flow).toBe(spec.has_finance_flow ?? false)
         }
     })
 })

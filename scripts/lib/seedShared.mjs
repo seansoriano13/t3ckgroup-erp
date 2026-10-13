@@ -91,6 +91,29 @@ export const SEED_TABLES = [
   "purchase_request_members",
   "purchase_request_items",
   "purchase_request_messages",
+  // IPAS (#242). After sales_opportunities and employees, which they point at;
+  // ipas_sors and ipas_events point at ipas. ipas_options (#244) comes first:
+  // the business-edited lists (payment methods, charge kinds, freight services)
+  // that ipas.freight_service_id and the payment and charge rows point at. It is
+  // seeded rather than left to the migration so a restored IPAS keeps the
+  // option ids it was written with.
+  "ipas_options",
+  "ipas",
+  "ipas_sors",
+  "ipas_events",
+  "ipas_payments",
+  "ipas_charges",
+  // Documents (#246) point at ipas and at the document_kind options above.
+  "ipas_documents",
+  // Sign-offs (#247) point at ipas and employees. Seeded with the lists beside
+  // them: an approval and who gave it are facts about the work, and the restore
+  // runs in replica mode, so the paid-before-approval flags it carries are kept
+  // as written rather than recomputed from the rows loaded so far. The
+  // signature_version column holds a storage path, never the image.
+  "ipas_signoffs",
+  "ipas_signer_lists",
+  // Who changed those lists (#241): history about employees, no sensitive data.
+  "ipas_signer_list_log",
   "odoo_retail_queue",
 ]
 
@@ -108,6 +131,8 @@ export const SEED_EXCLUDED_TABLES = {
     "Reports point at files in the remote environment's private bug-reports bucket, which a local stack cannot read, and carry each sender's browser details. Send a fresh one locally with the bug button.",
   bug_report_notes:
     "The thread on a Bug Report, and bug_reports itself is not seeded, so there is nothing for a note to hang on.",
+  ipas_bank_details:
+    "Suppliers' bank account numbers (#245). Narrow read policy by design (Purchasing, Finance, Super Admins and the section 1 and 3 approvers), and a local stack or a colleague's seed has no business carrying real account numbers. Type fresh ones locally on an IPAS.",
   sor_action_runs:
     "A fire-once ledger derived from Stage Actions actually firing (issue #204), not a fact to seed — a local stack regenerates it the first time a seeded deal moves through a Flow Stage.",
 }

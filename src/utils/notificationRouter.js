@@ -53,6 +53,11 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
         detail: { id: notif.reference_id, type: "PURCHASE_REQUEST" },
       }),
     );
+  } else if (notif.type.startsWith("IPAS_")) {
+    // IPAS notifications (#243): reference_id is the IPAS. The page itself
+    // decides what the reader may see (the database returns nothing to someone
+    // who can't read IPAS), so every IPAS_* type lands there.
+    navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
   } else if (notif.type === "GROUP_TASK_COMMENT") {
     navigate("/group-tasks");
     window.dispatchEvent(

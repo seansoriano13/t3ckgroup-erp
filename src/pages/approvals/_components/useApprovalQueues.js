@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, ClipboardCheck, ShieldCheck } from "lucide-react";
+import { CalendarClock, ClipboardCheck, ReceiptText, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { taskService } from "../../../services/taskService.js";
@@ -13,8 +13,9 @@ import {
 } from "../../../utils/approvalQueue.js";
 
 /**
- * The three Approval Center queues. One page per queue, one design for all of
- * them; the tab strip at the top of each page is built from this list.
+ * The Approval Center queues. One page per queue, one design for all of them;
+ * the tab strip at the top of each page is built from this list. IPAS sign-offs
+ * (#247) belong to the people on a section 1 or 3 approval list, not to a role.
  */
 export const APPROVAL_QUEUES = [
   {
@@ -38,6 +39,13 @@ export const APPROVAL_QUEUES = [
     icon: CalendarClock,
     can: (r) => r.isSuperAdmin || r.isHead,
   },
+  {
+    key: "ipas",
+    path: "/approvals/ipas",
+    label: "IPAS Sign-offs",
+    icon: ReceiptText,
+    can: (r) => r.isIpasApprover,
+  },
 ];
 
 export function useApprovalRoles() {
@@ -48,6 +56,8 @@ export function useApprovalRoles() {
     isHead: user?.is_head === true || user?.isHead === true,
     // DB-driven only: super admins do not inherit HR.
     isHr: user?.is_hr === true || user?.isHr === true,
+    // On the section 1 or 3 approval list; a Super Admin only when on one.
+    isIpasApprover: user?.is_ipas_approver === true || user?.isIpasApprover === true,
   };
 }
 

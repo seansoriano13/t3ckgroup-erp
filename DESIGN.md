@@ -425,10 +425,10 @@ Every routed screen is built from one skeleton (ADR 0029). This section is the r
 These are UI terms. They do not belong in CONTEXT.md.
 
 ### Route → page type
-- **Queue**: Task Approvals, HR Verifications, Leave Approvals (the three Approval Center routes), Procurement Queue, Bug Reports, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
-- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log.
+- **Queue**: Task Approvals, HR Verifications, Leave Approvals, IPAS Sign-offs (`/approvals/ipas`; the four Approval Center routes), Procurement Queue, Bug Reports, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
+- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log, IPAS (`/purchasing/ipas`; each IPAS opens as its own record page at `/purchasing/ipas/[id]`, a Register detail whose numbered sections stack in the Centred frame).
 - **Report**: Commission Dashboard, Retail, Dashboard, SOR Register → Overview view.
-- **Config**: Settings, Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
+- **Config**: Settings (its Purchasing tab holds the IPAS option lists and, for Super Admins, the sign-off lists and the history of who changed them; the old `/purchasing/ipas/settings` redirects there), Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
 - **Tool**: Flow Canvas, Document Center (a view in the Leaves Manager), Release Notes.
 - Redirect-only routes (legacy CRM/opportunities paths, Approval Center index, HR index, Super Admin index, Lead Sources) have no type.
 

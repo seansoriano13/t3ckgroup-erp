@@ -4,9 +4,11 @@
  * `purchase_request_set_item_status(item, 'ordered', { po_number, po_verification })` takes
  * an optional PO number and its Odoo check; `purchase_request_pick_po_lines` records the PO
  * line(s) the item is bought on, refusing any line not on the PO's IPAS
- * stored Odoo copy. No IPAS exists yet, so the seam `_ipas_po_line_ids`
- * answers '{}' for every PO; the "an IPAS exists" tests swap its body for one
- * that knows a single PO, and put the shipped body back afterwards.
+ * stored Odoo copy. The seam `_ipas_po_line_ids` answers from the live IPAS's
+ * copy (#242; proven against real IPAS in 56-ipas-raise.test.js). Nothing here
+ * raises an IPAS, so it answers '{}' for every PO; the "an IPAS exists" tests
+ * swap its body for one that knows a single PO, and put the shipped body back
+ * afterwards.
  *
  * `stageParticipant` is the Buyer (given Purchasing access here); `dealOwner`
  * is on the sales side; `ordinary` isn't a member.
@@ -163,7 +165,7 @@ describe("Ordered takes an optional PO number", () => {
     })
 })
 
-describe("a PO with no IPAS yet (the shipped seam)", () => {
+describe("a PO with no IPAS yet (the seam answers empty)", () => {
     it("offers no lines, refuses every pick, and the item stays 'PO line not picked'", async () => {
         const id = await seedItem()
         await order("stageParticipant", id, { po_number: IPAS_PO, po_verification: "VERIFIED" })

@@ -1,6 +1,147 @@
 [
     {
         "date": "2026-10-13",
+        "title": "IPAS: SOR picker shows Stage, not customer",
+        "version": "1.9.25",
+        "changes": [
+            "IPAS: the SOR picker and the SORs on an IPAS show the reference, project and Stage. The customer name is no longer shown or searched; find an SOR by its reference or project",
+            "IPAS: payment methods, charge kinds, freight services, document kinds and item locations start from the paper IPAS sheet's own lists. They can still be edited in Purchasing settings",
+            "IPAS: section 2 has two ticks, Googlesheet and Gantt Chart, and they print on the IPAS"
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS options stay accurate on filed IPAS",
+        "version": "1.9.24",
+        "changes": [
+            "IPAS: a payment method, charge kind, document kind, freight service or item location used on a filed IPAS can no longer be renamed. Deactivate it and add a new one instead"
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: follow-ups",
+        "version": "1.9.23",
+        "changes": [
+            "IPAS: everyone who can read an IPAS now sees signers' signatures on the printed form. The filing copy of a printed IPAS is offered on filed IPAS only.",
+            "IPAS: section 7 can be sent back with a reason by anyone who signs it; the people who had signed are told. A suggested document can no longer be removed, only one added by hand.",
+            "Settings: the IPAS lists and sign-off lists moved into a new Purchasing tab, and Super Admins can see who changed the sign-off lists."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: review fixes",
+        "version": "1.9.22",
+        "changes": [
+            "IPAS: filing an IPAS checks Odoo for the latest PO first. If the PO changed since the approvals were given, they are cleared and nothing is filed.",
+            "IPAS: screens, messages and the printed form say \"Odoo PO\". Attaching a document that fails to save now says why."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: printed IPAS",
+        "version": "1.9.21",
+        "changes": [
+            "IPAS: Print puts an IPAS on two A4 portrait pages in the sheet's own order: the header and sections 1, 2 and 3, then sections 5, 6 and 7. Each section's sign-offs print beside it: a stored signature prints as the signature, a signer with none or who chose not to sign prints as the name only, and a box still waiting prints Signature required.",
+            "IPAS: Landed Cost prints per unit and in total with its provisional or final mark, and a filed IPAS always prints final. Statuses read from Odoo carry a mark with the legend stamped from Odoo, and the footer shows when the Odoo copy was read.",
+            "IPAS: bank account numbers print as the last four digits. Print filing copy prints them in full. Bank details print only for people who can read them, the filing copy included.",
+            "IPAS: printing refreshes an open IPAS from Odoo first. A filed IPAS prints its frozen copy and doesn't ask Odoo."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: summary on the SOR",
+        "version": "1.9.20",
+        "changes": [
+            "SOR: an IPAS section lists each Project IPAS that names the SOR, with its number, PO, supplier, state, buyer track, computation status and how far each section's sign-offs have got. Anyone who can read the SOR sees it, without Purchasing or Finance access.",
+            "SOR: the summary never shows payments, charges, bank details or Landed Cost. People with IPAS access get an Open IPAS button on each row; everyone else reads the summary only.",
+            "SOR: an IPAS that names two SORs appears on both, and an Inventory, Supplies or Events IPAS never appears on an SOR."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: section 7 and Filing",
+        "version": "1.9.19",
+        "changes": [
+            "IPAS: section 7 files the IPAS. It opens once sections 1 and 3 are approved. Received comes first, then Noted and Checked in either order, then Approved, which files it. Each step tells the next list, and the Approval Center queue shows the step waiting on you.",
+            "IPAS: Approved is refused until the computation status reaches Costs complete, because Filing freezes Landed Cost as final.",
+            "IPAS: required documents that nobody has ticked only warn. The Approve dialog lists them and the IPAS files when you confirm.",
+            "IPAS: a filed IPAS is frozen. Its payments, charges, documents, bank details, SORs, Purpose and overrides no longer change, and Landed Cost reads final. If the PO changes in Odoo afterwards, the page shows Odoo has changed since filing and the filed copy stays as it was.",
+            "IPAS: a Super Admin can reopen a filed IPAS with a reason. It clears section 7's sign-offs (kept in History), leaves sections 1 and 3 approved and makes it editable again. A filed IPAS can't be cancelled until it is reopened."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: sections 1 and 3 sign-offs in the Approval Center",
+        "version": "1.9.18",
+        "changes": [
+            "IPAS: sections 1 and 3 are signed in the ERP. Anyone with Purchasing access marks a section Prepared; the people on that section's approval list approve it. Whoever prepared a section can't approve it, and a Super Admin approves only when they are on the list.",
+            "IPAS: an approver can send a section back with a reason. It clears Prepared and Approved for that section, keeps them in History and tells whoever prepared it.",
+            "IPAS: a changed PO in Odoo (lines or total) or a flagged Account # clears the approvals on sections 1 and 3 and notifies the preparer. Payments, charges, overrides, Purpose and SORs never do.",
+            "IPAS: a payment recorded before section 1 is approved shows Paid before approval.",
+            "Approval Center: a new IPAS Sign-offs queue lists the sections waiting on you, with a count in the sidebar. A notification tells the approvers when a section is prepared.",
+            "IPAS settings: Super Admins keep the sign-off lists, who may approve each section.",
+            "Employees: HR and Super Admins can give someone a Call Sign, the code they go by (for example 101). Each Call Sign is unique."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: documents, Supplier Origin and the buyer track",
+        "version": "1.9.17",
+        "changes": [
+            "IPAS: section 3 lists the documents a purchase needs. An Import IPAS starts with the Import documents and a Local IPAS with the Local ones, plus the documents both need. Purchasing can add any other document by hand and attach the file.",
+            "IPAS: every document has two ticks. Purchasing ticks Purchasing has it and Finance ticks Finance has it; neither can tick the other's box, and each tick is kept in History with who made it. Filing documents such as BIR 2307 are the same rows, so one ticked here is already ticked at Filing.",
+            "IPAS: section 5 shows the Item Location, picked from a list. TG03 Location is gone.",
+            "IPAS: an Import IPAS carries the Supplier Origin dates (Shipped Out, Onboard, Arrived in PH, Arrived in Whs.). A Local IPAS doesn't show or accept them.",
+            "IPAS: the buyer track adds With P.O.P (shown while any payment carries proof of payment), Import Clearance (Import only), Delivered and Actual Checking. Each status says whether it was stamped from Odoo, derived or typed, and who typed or stamped it and when.",
+            "IPAS settings: Purchasing and Super Admins edit the document kinds (Import, Local or both; documentation, filing or both) and the Item Location list."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: bank details and the changed-account flag",
+        "version": "1.9.16",
+        "changes": [
+            "IPAS: Purchasing types the supplier's Bank Name, Account Name and Account # in section 3. Finance, Super Admins and the section 1 and 3 approvers can read them; Finance can't change them, and a section 7 Noted or Checked signer without those roles reads the IPAS but not the bank details.",
+            "IPAS: an Account # that differs from the same supplier's most recent IPAS is flagged beside the account. Spaces and dashes don't count as a difference, and a supplier's first IPAS is never flagged.",
+            "IPAS: a flagged account clears the approvals given on sections 1 and 3 and notifies whoever prepared them. History records that the bank details changed, never the account number itself."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: payments, charges and Landed Cost",
+        "version": "1.9.15",
+        "changes": [
+            "IPAS: Purchasing and Finance record any number of payments (down payment, payment, full payment, shipping fee) and importation charges. Each has its date and amount, a payment its charge fee, method, Check No. and optional proof of payment. Edit or remove them until the IPAS is filed; every change is kept in History.",
+            "IPAS: on a foreign-currency PO each payment records the PHP actually debited, so costs use the rate really paid. DP and FP come from the payment rows, P.I/QT Amount is typed, and no balance is worked out.",
+            "IPAS: each IPAS gets one freight service and a computation status: Encoding, Encoded, Costs complete, Checked by.",
+            "IPAS: Landed Cost shows per line and per unit, spread by value, by quantity or equally, marked provisional until Costs complete and final after. A foreign PO with no payment shows it as not available.",
+            "IPAS settings: Purchasing and Super Admins edit the payment method, charge kind and freight service lists. Options are reordered or deactivated, never deleted, and rows that used one keep it."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: the Odoo copy stays current, with overrides",
+        "version": "1.9.14",
+        "changes": [
+            "IPAS: opening an IPAS refreshes it from Odoo and notes what changed since the last copy: lines added or removed, and new quantities or prices. When Odoo doesn't answer, the last copy shows with its fetch time.",
+            "IPAS: Purchasing can override Entity, Source Doc. and Analytic Dist., with Odoo's value shown beside the override and one click to go back to it. Currency, Supplier, item lines and Brand stay as Odoo has them.",
+            "IPAS: the supplier contact and P.I # fill from Odoo only while blank, and what you type is kept.",
+            "IPAS: Purchase Order, Received in Odoo (with Partly received) and Create Bill are stamped from Odoo and marked as such. A PO cancelled in Odoo shows a banner and leaves the IPAS open, and a mismatch between Odoo's S numbers and the IPAS's SORs warns."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: raise and track an IPAS from an Odoo purchase order",
+        "version": "1.9.13",
+        "changes": [
+            "IPAS: Purchasing can raise an IPAS from an Odoo PO number. The ERP checks the PO in Odoo, gives it a TGIPAS number, and brings in the supplier, currency and item lines.",
+            "IPAS: a Project IPAS names its SORs, suggested from the PO's Source Document and analytic accounts. Inventory, Supplies and Events name none.",
+            "IPAS: the new IPAS page in the Purchasing menu lists every IPAS by open, filed or cancelled, and by entity and purpose. Purchasing can change the purpose and SORs, or cancel with a reason. The number is kept.",
+            "Employees: a new Finance access switch sits beside Purchasing, for Finance staff who read every IPAS."
+        ]
+    },
+    {
+        "date": "2026-10-13",
         "title": "Simpler Offset Request Form",
         "version": "1.9.12",
         "changes": [

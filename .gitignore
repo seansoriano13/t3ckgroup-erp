@@ -101,6 +101,8 @@ docs/*.pdf
 !.claude/settings.json
 !.claude/skills
 !.claude/skills/**
+!.claude/agents
+!.claude/agents/**
 
 # Generated lint report — regenerate with `npx eslint . -f json -o eslint.json`
 eslint.json

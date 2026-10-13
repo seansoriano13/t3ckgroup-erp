@@ -91,3 +91,50 @@ describe("EmployeeForm Bug Reports access right", () => {
     expect(submitted[0].has_bug_report_access).toBe(true)
   })
 })
+
+describe("EmployeeForm Finance access right", () => {
+  it("saves the Finance switch beside Purchasing", async () => {
+    const { submitted, user } = await renderForm({ initialData: { has_finance_flow: false } })
+
+    await user.click(screen.getByText("Finance", { selector: "p" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_finance_flow).toBe(true)
+    expect(submitted[0].has_purchasing_flow).toBe(false)
+  })
+
+  it("starts a new employee without Finance access", async () => {
+    const { submitted, user } = await renderForm()
+
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_finance_flow).toBe(false)
+  })
+})
+
+describe("EmployeeForm Call Sign", () => {
+  const callSignInput = () => screen.getByPlaceholderText("e.g. 101 (unique, optional)")
+
+  it("saves the call sign typed beside the role", async () => {
+    const { submitted, user } = await renderForm({ initialData: {} })
+
+    await user.type(callSignInput(), "1203")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].call_sign).toBe("1203")
+  })
+
+  it("shows the call sign an employee already has", async () => {
+    await renderForm({ initialData: { call_sign: "101" } })
+    expect(callSignInput()).toHaveValue("101")
+  })
+
+  it("starts a new employee with no call sign, and a null one reads as blank", async () => {
+    const { submitted, user } = await renderForm({ initialData: { call_sign: null } })
+    expect(callSignInput()).toHaveValue("")
+
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].call_sign ?? "").toBe("")
+  })
+})

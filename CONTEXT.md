@@ -676,6 +676,10 @@ every order, and never without an order, though the order may still be an
 unconfirmed RFQ. A Project purchase names the SOR or SORs it buys for and
 appears in each one's PMS; an Inventory, Supplies or Events purchase names none.
 Numbered in one series across all four entities, carrying on from the sheet's.
+Anyone who can read an SOR sees a summary of each Project IPAS naming it on
+that SOR (number, PO, supplier, state, buyer track, costing and sign-off
+progress) and never its payments, charges, bank details or Landed Cost; the full
+IPAS opens only for its own readers.
 Its fields are defined by the company's own IPAS sheet, not by this glossary.
 _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 
@@ -685,7 +689,10 @@ received the IPAS and it has been noted and checked, and only after sections 1
 and 3 are approved and the purchase's costs are marked complete, since filing
 freezes a Landed Cost that would otherwise still be provisional. A filed IPAS is frozen: its copy of the Odoo purchase order,
 its payments and charges, its Purpose and its SORs no longer change. Earlier
-approvals block nothing; filing is the one point that locks.
+approvals block nothing; filing is the one point that locks. Required documents
+that nobody has ticked only warn. A Super Admin can reopen a filed IPAS with a
+reason, which clears section 7 and leaves sections 1 and 3 approved; a filed IPAS
+can't be cancelled until it is reopened.
 _Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 3)
 
 **Finance access**:

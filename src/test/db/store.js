@@ -117,7 +117,9 @@ function checkConstraints(tableName, table, row) {
     const value = row[check.column]
     if (value == null) continue
 
-    if (check.kind === "enum" && !check.values.includes(value)) {
+    // The list is parsed as text, so a numeric column (`section in (1, 3, 7)`)
+    // is compared by its text too.
+    if (check.kind === "enum" && !check.values.includes(value) && !check.values.includes(String(value))) {
       throw pgrstError(
         "23514",
         `new row for relation "${tableName}" violates check constraint "${check.name}"`,

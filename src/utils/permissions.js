@@ -14,6 +14,11 @@ export function getPermissionContext(user) {
   const hasSalesFlow = !!(user?.has_sales_flow ?? user?.hasSalesFlow);
   const hasTaskFlow = !!(user?.has_task_flow ?? user?.hasTaskFlow);
   const hasPurchasingFlow = !!(user?.has_purchasing_flow ?? user?.hasPurchasingFlow);
+  const hasFinanceFlow = !!(user?.has_finance_flow ?? user?.hasFinanceFlow);
+  // On a sign-off list (ipas_signer_lists); derived by employeeService.
+  const isIpasSigner = !!(user?.is_ipas_signer ?? user?.isIpasSigner);
+  // On the section 1 or 3 approval list (the Approval Center's IPAS queue).
+  const isIpasApprover = !!(user?.is_ipas_approver ?? user?.isIpasApprover);
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
@@ -30,6 +35,9 @@ export function getPermissionContext(user) {
     hasSalesFlow,
     hasTaskFlow,
     hasPurchasingFlow,
+    hasFinanceFlow,
+    isIpasSigner,
+    isIpasApprover,
     hasRetailAccess,
     hasBugReportAccess,
     isRoleSimulator,
@@ -54,4 +62,16 @@ export function isNavEntryVisible(ctx, entry) {
   if (!entry.isPermitted(ctx)) return false;
   if (!entry.key) return true;
   return !ctx.hiddenNavKeys?.includes(entry.key);
+}
+
+/**
+ * Whether the person `ctx` describes may read every IPAS (the database's
+ * `ipas_can_read`): Purchasing access, Finance access, a Super Admin, or
+ * anyone on a sign-off list (`isIpasSigner` is the list members with no other
+ * access, `isIpasApprover` any list member). The SOR's IPAS summary opens the
+ * full IPAS only for these; everyone else it only informs. A screen's
+ * convenience: the database refuses a non-reader whatever this says.
+ */
+export function canReadIpas(ctx) {
+  return !!(ctx?.isSuperAdmin || ctx?.hasPurchasingFlow || ctx?.hasFinanceFlow || ctx?.isIpasSigner || ctx?.isIpasApprover);
 }

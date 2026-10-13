@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
 import { headApprovalService } from "../services/headApprovalService";
 import { opportunityService } from "../services/opportunityService";
+import { ipasService } from "../services/ipasService";
+import { ipasPendingKey } from "../components/ipas/ipasKeys";
 
 
 /**
@@ -66,10 +68,22 @@ export function useNavBadges(user) {
     staleTime: 30000,
   });
 
+  // 4. IPAS sections 1 and 3 waiting on this person's signature (#247). Only
+  // asked for someone on an approval list.
+  const isIpasApprover = !!(user?.is_ipas_approver || user?.isIpasApprover);
+  const { data: pendingIpas = [] } = useQuery({
+    queryKey: ipasPendingKey(user?.id),
+    queryFn: () => ipasService.pendingSignoffsFor(user.id),
+    enabled: !!user?.id && isIpasApprover,
+    staleTime: 30000,
+  });
+  const ipasSignoffs = isIpasApprover ? pendingIpas.length : 0;
+
   return {
     taskApprovals,
     hrVerifications,
     leaveApprovals,
+    ipasSignoffs,
     mySors,
   };
 }

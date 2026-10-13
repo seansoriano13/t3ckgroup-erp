@@ -10,6 +10,7 @@
  */
 
 import { TASK_STATUS } from "../constants/status.js";
+import { IPAS_PRIORITY, IPAS_SIGNOFF_ROLE_LABELS } from "../constants/ipas.js";
 import { checklistProgressLabel, isChecklistDescription, isStaleSince } from "./approvalQueue.js";
 
 export const LEAVE_LABEL = { SIL: "SIL Leave", OFFSET: "Offset", OVERTIME: "Overtime", UNDERTIME: "Undertime" };
@@ -62,6 +63,59 @@ export function leaveChain(request) {
         { label: "Department head", who: "You", state: "current", at: null },
         { label: "HR approval", who: "HR", state: "next", at: null },
     ];
+}
+
+/**
+ * IPAS sign-offs: sections 1 and 3 are Prepared by Purchasing, then wait on this
+ * approver; section 7 is Received, Noted and Checked, then Approved, and the
+ * chain shows who has given each and which one is this person's.
+ */
+export function ipasChain(pending) {
+    if (pending?.section === 7 && Array.isArray(pending.steps)) {
+        return pending.steps.map((step) => {
+            if (step.signoff) {
+                return { label: step.label, who: step.signoff.signedBy?.name || "Someone", state: "done", at: step.signoff.signedAt || null };
+            }
+            if (step.role === pending.role) return { label: step.label, who: "You", state: "current", at: null };
+            return { label: step.label, who: "Section 7 list", state: "next", at: null };
+        });
+    }
+    return [
+        { label: "Prepared", who: pending?.preparedBy?.name || "Purchasing", state: "done", at: pending?.preparedAt || null },
+        { label: "Approved", who: "You", state: "current", at: null },
+    ];
+}
+
+/**
+ * An IPAS section waiting on the signed-in approver (ipasService.pendingSignoffsFor)
+ * as an ApprovalItem. The clock runs from when it became ready for this person
+ * (Purchasing prepared the section; for section 7, the sign-off before theirs),
+ * and the "person" is whoever did that. A very high priority IPAS reads as high
+ * priority.
+ */
+export function ipasToItem(pending, now = Date.now()) {
+    const clockAt = pending.readyAt ?? pending.preparedAt;
+    return {
+        id: pending.id,
+        queue: "ipas",
+        ref: pending.number,
+        title: pending.supplier || pending.poNumber,
+        typeLabel: `${pending.poNumber} · Section ${pending.section}${pending.section === 7 ? ` · ${IPAS_SIGNOFF_ROLE_LABELS[pending.role] ?? pending.role}` : ""}`,
+        person: {
+            id: pending.preparedBy?.id,
+            name: pending.preparedBy?.name || "Unknown",
+            avatarPath: pending.preparedBy?.avatarPath || null,
+            dept: pending.section === 7 ? "Filing" : "Purchasing",
+        },
+        submittedAt: clockAt,
+        clockAt,
+        isStale: isStaleSince(clockAt, now),
+        done: false,
+        isHighPriority: pending.priority === IPAS_PRIORITY.VERY_HIGH,
+        attachmentCount: 0,
+        chain: ipasChain(pending),
+        source: pending,
+    };
 }
 
 /**
