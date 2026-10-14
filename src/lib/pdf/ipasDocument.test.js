@@ -4,8 +4,9 @@ import { buildIpasViewModel } from "./ipasViewModel"
 import { BAUTISTA, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
 
 /**
- * The printed IPAS's HTML (#250): two A4 portrait pages in the sheet's order,
- * every string escaped, and the marks the ticket names on the paper itself.
+ * The printed IPAS's HTML (#250): two A4 portrait pages in the module's own
+ * section order, every string escaped, and the marks the ticket names on the
+ * paper itself.
  */
 
 const doc = (ipasOptions, printOptions, tweak) => {
@@ -18,7 +19,7 @@ const FILED = { state: "filed", filed_at: "2026-09-16T02:00:00.000Z" }
 
 const IMAGE = "data:image/png;base64,iVBORw0KGgo="
 
-describe("section 2's ticks", () => {
+describe("Sales & Operation's ticks", () => {
   it("prints Googlesheet and Gantt Chart as boxes, ticked or empty", () => {
     const html = buildIpasDocument(buildIpasViewModel(makePrintableIpas({ row: { google_sheet: true } })))
 
@@ -39,11 +40,17 @@ describe("the two A4 pages", () => {
     expect(html).toContain("page 2 of 2")
   })
 
-  it("puts the header and sections 1, 2 and 3 on page 1 and 5, 6 and 7 on page 2, in the sheet's order", () => {
+  it("puts the header and sections 1 and 2 on page 1 and 3 to 7 on page 2, numbered in the module's own order", () => {
     const html = doc()
     const page2 = html.indexOf("page 2 of 2")
-    const order = ["Entity", "1 · Purchasing", "2 · Sales &amp; Operation", "3 · Purchasing &amp; Finance"].map((label) => html.indexOf(label))
-    const order2 = ["5 · Logistics", "6 · Status", "7 · For filing"].map((label) => html.indexOf(label))
+    const order = ["Entity", "1 · Purchasing", "2 · Purchasing &amp; Finance"].map((label) => html.indexOf(label))
+    const order2 = [
+      "3 · Computation status &amp; Landed Cost",
+      "4 · Filing",
+      "5 · Sales &amp; Operation",
+      "6 · Logistics",
+      "7 · Status",
+    ].map((label) => html.indexOf(label))
 
     expect(order.every((at) => at > -1)).toBe(true)
     expect(order).toEqual([...order].sort((a, b) => a - b))
@@ -52,10 +59,18 @@ describe("the two A4 pages", () => {
     expect(order2).toEqual([...order2].sort((a, b) => a - b))
   })
 
-  it("has no section 4 and no Transmittals list", () => {
+  it("numbers the sections 1 to 7 with none skipped or repeated, and says which each page holds", () => {
+    const html = doc()
+    const numbers = [...html.matchAll(/<h3><span>(\d) · /g)].map((match) => Number(match[1]))
+
+    expect(numbers).toEqual([1, 2, 3, 4, 5, 6, 7])
+    expect(html).toContain("Sections 1 · Purchasing to 2 · Purchasing &amp; Finance")
+    expect(html).toContain("Sections 3 · Computation status &amp; Landed Cost to 7 · Status")
+  })
+
+  it("has no Transmittals list", () => {
     const html = doc()
 
-    expect(html).not.toMatch(/\b4 ·/)
     expect(html).not.toMatch(/transmittal/i)
   })
 
@@ -98,7 +113,7 @@ describe("signatures", () => {
     // Name only: printed in the plate in the printed-name style, no image.
     expect(html).toContain('<div class="printed-name">M. Ramos</div>')
     expect(html).toMatch(/name only, no signature on file/)
-    // Waiting: section 3's two boxes and section 7's four.
+    // Waiting: Purchasing & Finance's two boxes and Filing's four.
     expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(6)
     expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(6)
   })

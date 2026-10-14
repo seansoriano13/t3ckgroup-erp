@@ -22,7 +22,7 @@ import { useEmployeeAvatarMap } from "../../hooks/useEmployeeAvatarMap";
 import { useRecordParam } from "../../hooks/useRecordParam";
 import { bugReportService } from "../../services/bugReportService";
 import { getPermissionContext } from "../../utils/permissions";
-import { APPROVE_CLASS } from "../approvals/_components/approvalUi";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 import { formatDateWith } from "../../utils/formatDate";
 import { FieldBox } from "@/components/ui/FieldBox";
 
@@ -35,7 +35,7 @@ const REPORT_SORT = {
   status: (r) => (r.resolved_at ? 1 : 0),
 };
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const HEAD = "text-label font-bold uppercase tracking-wider";
 
 const firstLine = (text) => (text || "").split("\n")[0];
 const formatWhen = (iso) =>

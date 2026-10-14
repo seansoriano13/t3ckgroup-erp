@@ -8,6 +8,7 @@ import { SelectField } from "../ui/SelectField";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
+import { useEditable } from "./record/sectionChrome";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -17,12 +18,13 @@ import {
   IPAS_LANDED_COST_STATUS,
   IPAS_OPTION_LIST,
   IPAS_PAYMENT_KIND_LABELS,
+  ipasSectionLabel,
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
 import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
 import { isPhpCurrency } from "../../utils/landedCost";
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const HEAD = "text-label font-bold uppercase tracking-wider";
 
 const SPLIT_OPTIONS = IPAS_LANDED_COST_SPLITS.map((value) => ({
   value,
@@ -32,6 +34,9 @@ const SPLIT_OPTIONS = IPAS_LANDED_COST_SPLITS.map((value) => ({
 const NONE = "__none__";
 
 const pesos = (value) => formatAmount(value, "PHP");
+
+/** An amount inside a sentence or a label, in the same monospace figures as the tables. */
+const Amt = ({ children }) => <span className="font-mono tabular-nums">{children}</span>;
 
 /**
  * Section 1's money: the header amounts (P.I/QT Amount typed; DP and FP read
@@ -44,14 +49,16 @@ const pesos = (value) => formatAmount(value, "PHP");
  */
 export function IpasPaymentsBlock({
   ipas,
-  canChange = false,
-  canRecord = false,
+  canChange: changeGranted = false,
+  canRecord: recordGranted = false,
   onEditAmount,
   onPickFreight,
   onAddPayment,
   onEditPayment,
   onRemovePayment,
 }) {
+  const canChange = useEditable(changeGranted);
+  const canRecord = useEditable(recordGranted);
   const { payments, paymentSummary: sum, currency, landedCost } = ipas;
   const isPhp = isPhpCurrency(currency);
   const freightOptions = [
@@ -67,7 +74,7 @@ export function IpasPaymentsBlock({
       <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
         <DetailRow label="P.I/QT Amount">
           <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{ipas.piQtAmount === null ? "—" : formatAmount(ipas.piQtAmount, currency)}</span>
+            <Amt>{ipas.piQtAmount === null ? "—" : formatAmount(ipas.piQtAmount, currency)}</Amt>
             {canChange && (
               <Button
                 variant="ghost"
@@ -95,8 +102,8 @@ export function IpasPaymentsBlock({
             ipas.freightService?.label
           )}
         </DetailRow>
-        <DetailRow label="DP">{sum.downPayment > 0 ? formatAmount(sum.downPayment, currency) : null}</DetailRow>
-        <DetailRow label="FP">{sum.fullPayment > 0 ? formatAmount(sum.fullPayment, currency) : null}</DetailRow>
+        <DetailRow label="DP">{sum.downPayment > 0 ? <Amt>{formatAmount(sum.downPayment, currency)}</Amt> : null}</DetailRow>
+        <DetailRow label="FP">{sum.fullPayment > 0 ? <Amt>{formatAmount(sum.fullPayment, currency)}</Amt> : null}</DetailRow>
       </dl>
 
       <SectionHeader title="Payments" className="pb-2">
@@ -135,18 +142,18 @@ export function IpasPaymentsBlock({
             <TableBody>
               {payments.map((payment) => (
                 <TableRow key={payment.id} data-testid="ipas-payment-row">
-                  <TableCell className="text-[13px] font-medium text-foreground">
+                  <TableCell className="text-sm font-medium text-foreground">
                     <span className="inline-flex flex-wrap items-center gap-2">
                       {IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind}
                       {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
                     </span>
                   </TableCell>
                   <TableCell className="text-xs tabular-nums text-muted-foreground">{formatDay(payment.paid_on)}</TableCell>
-                  <TableCell className="text-right text-xs font-semibold tabular-nums">
+                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
                     {formatAmount(payment.amount, currency)}
                   </TableCell>
                   {!isPhp && (
-                    <TableCell className="text-right text-xs tabular-nums">
+                    <TableCell className="text-right font-mono text-xs tabular-nums">
                       {payment.php_debited === null ? (
                         <span className="text-amber-11">Missing</span>
                       ) : (
@@ -154,13 +161,13 @@ export function IpasPaymentsBlock({
                       )}
                     </TableCell>
                   )}
-                  <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                  <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
                     {payment.charge_fee_php ? pesos(payment.charge_fee_php) : "—"}
                   </TableCell>
                   <TableCell className="text-xs text-foreground">
                     {payment.methodLabel ?? "—"}
                     {payment.check_no && (
-                      <span className="block text-[11px] text-muted-foreground">Check No. {payment.check_no}</span>
+                      <span className="block text-xs text-muted-foreground">Check No. {payment.check_no}</span>
                     )}
                   </TableCell>
                   <TableCell className="text-xs">
@@ -178,10 +185,10 @@ export function IpasPaymentsBlock({
                   </TableCell>
                   {canRecord && (
                     <TableCell className="text-right">
-                      <span className="inline-flex items-center gap-1">
+                      <span className="inline-flex items-center gap-2">
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon"
                           aria-label={`Edit ${IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? "payment"} of ${formatDay(payment.paid_on)}`}
                           onClick={() => onEditPayment(payment)}
                         >
@@ -189,7 +196,7 @@ export function IpasPaymentsBlock({
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon"
                           className="text-muted-foreground hover:text-red-11"
                           aria-label={`Remove ${IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? "payment"} of ${formatDay(payment.paid_on)}`}
                           onClick={() => onRemovePayment(payment)}
@@ -208,7 +215,7 @@ export function IpasPaymentsBlock({
               Total debited, including charge fees
               {sum.missingPhp > 0 && ` · ${sum.missingPhp} payment${sum.missingPhp === 1 ? "" : "s"} without PHP debited`}
             </span>
-            <span className="font-semibold tabular-nums">{pesos(sum.totalDebitedPhp)}</span>
+            <span className="font-mono font-semibold tabular-nums">{pesos(sum.totalDebitedPhp)}</span>
           </div>
         </div>
       )}
@@ -222,19 +229,17 @@ export function IpasPaymentsBlock({
  */
 export function IpasChargesSection({
   ipas,
-  canRecord = false,
+  canRecord: recordGranted = false,
   onAddCharge,
   onEditCharge,
   onRemoveCharge,
   children = null,
 }) {
+  const canRecord = useEditable(recordGranted);
   const { charges, paymentSummary: sum } = ipas;
 
   return (
-    <IpasSection
-      title="3 · Purchasing & Finance"
-      aside={charges.length > 0 ? <span>Charges: {pesos(sum.chargesPhp)}</span> : null}
-    >
+    <IpasSection title={ipasSectionLabel("finance")}>
       <SectionHeader title="Importation charges" className="pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddCharge}>
@@ -264,15 +269,15 @@ export function IpasChargesSection({
             <TableBody>
               {charges.map((charge) => (
                 <TableRow key={charge.id} data-testid="ipas-charge-row">
-                  <TableCell className="text-[13px] font-medium text-foreground">{charge.kindLabel ?? "—"}</TableCell>
+                  <TableCell className="text-sm font-medium text-foreground">{charge.kindLabel ?? "—"}</TableCell>
                   <TableCell className="text-xs tabular-nums text-muted-foreground">{formatDay(charge.charged_on)}</TableCell>
-                  <TableCell className="text-right text-xs font-semibold tabular-nums">{pesos(charge.amount_php)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">{pesos(charge.amount_php)}</TableCell>
                   {canRecord && (
                     <TableCell className="text-right">
-                      <span className="inline-flex items-center gap-1">
+                      <span className="inline-flex items-center gap-2">
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon"
                           aria-label={`Edit ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
                           onClick={() => onEditCharge(charge)}
                         >
@@ -280,7 +285,7 @@ export function IpasChargesSection({
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon"
                           className="text-muted-foreground hover:text-red-11"
                           aria-label={`Remove ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
                           onClick={() => onRemoveCharge(charge)}
@@ -296,7 +301,7 @@ export function IpasChargesSection({
           </Table>
           <div className="flex justify-between gap-3 border-t border-border bg-muted/20 px-4 py-2 text-xs">
             <span className="text-muted-foreground">Total charges</span>
-            <span className="font-semibold tabular-nums">{pesos(sum.chargesPhp)}</span>
+            <span className="font-mono font-semibold tabular-nums">{pesos(sum.chargesPhp)}</span>
           </div>
         </div>
       )}
@@ -306,15 +311,17 @@ export function IpasChargesSection({
 }
 
 const LANDED_BADGE = {
-  [IPAS_LANDED_COST_STATUS.PROVISIONAL]: { theme: "amber", label: "Provisional" },
-  [IPAS_LANDED_COST_STATUS.FINAL]: { theme: "green", label: "Final" },
-  [IPAS_LANDED_COST_STATUS.UNAVAILABLE]: { theme: "mauve", label: "Not available" },
+  [IPAS_LANDED_COST_STATUS.PROVISIONAL]: { label: "Provisional" },
+  [IPAS_LANDED_COST_STATUS.FINAL]: { label: "Final" },
+  [IPAS_LANDED_COST_STATUS.UNAVAILABLE]: { label: "Not available" },
 };
 
 /** The mark Landed Cost carries wherever it is read: provisional, final or not available. */
 export function LandedCostBadge({ status }) {
-  const badge = LANDED_BADGE[status] ?? LANDED_BADGE[IPAS_LANDED_COST_STATUS.UNAVAILABLE];
-  return <StatusBadge theme={badge.theme} label={badge.label} />;
+  const known = status in LANDED_BADGE ? status : IPAS_LANDED_COST_STATUS.UNAVAILABLE;
+  // Unavailable is registered as "not available" in status.js, so it is not read as the procurement outcome of that name.
+  const registered = known === IPAS_LANDED_COST_STATUS.UNAVAILABLE ? "not_available" : known;
+  return <StatusBadge status={registered} label={LANDED_BADGE[known].label} />;
 }
 
 /**
@@ -322,17 +329,15 @@ export function LandedCostBadge({ status }) {
  * complete, Checked by; set by Purchasing) and Landed Cost per line and per
  * unit with its provisional or final mark and how it was spread.
  */
-export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSetSplit }) {
+export function IpasCostingSection({ ipas, canChange: granted = false, onSetStatus, onSetSplit }) {
+  const canChange = useEditable(granted);
   const lc = ipas.landedCost;
   const currentIndex = IPAS_COMPUTATION_STATUSES.indexOf(ipas.computationStatus);
   const unavailable = lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE;
   const foreign = lc.isForeign;
 
   return (
-    <IpasSection
-      title="6 · Computation status & Landed Cost"
-      aside={<LandedCostBadge status={lc.status} />}
-    >
+    <IpasSection title={ipasSectionLabel("costing")}>
       <div className="space-y-4">
         <div>
           <SectionHeader title="Computation status" className="pb-2" />
@@ -345,7 +350,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                   {canChange ? (
                     <Button
                       size="sm"
-                      variant={current ? "default" : "outline"}
+                      variant={current ? "secondary" : "outline"}
                       aria-pressed={current}
                       className="gap-1.5"
                       onClick={() => !current && onSetStatus(status)}
@@ -357,7 +362,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                     <span
                       className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[0.8rem] font-medium ${
                         current
-                          ? "border-foreground bg-foreground text-background"
+                          ? "border-border bg-secondary text-foreground"
                           : done
                             ? "border-green-400 text-green-11"
                             : "border-border text-muted-foreground"
@@ -372,9 +377,6 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
               );
             })}
           </ol>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Landed Cost reads provisional until Costs complete, then final.
-          </p>
         </div>
 
         <div className="space-y-3">
@@ -402,7 +404,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
           {unavailable ? (
             <div
               role="status"
-              className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-[13px]"
+              className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm"
             >
               <CircleAlert size={16} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
               <div>
@@ -419,8 +421,8 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
               {foreign && lc.rate && (
                 <p className="text-xs text-muted-foreground">
                   Converted at <span className="font-semibold text-foreground tabular-nums">{lc.rate.rate.toFixed(4)}</span>{" "}
-                  PHP per {lc.currency}: {pesos(lc.rate.phpDebited)} debited for{" "}
-                  {formatAmount(lc.rate.foreignPaid, lc.currency)} across {lc.rate.payments}{" "}
+                  PHP per {lc.currency}: <Amt>{pesos(lc.rate.phpDebited)}</Amt> debited for{" "}
+                  <Amt>{formatAmount(lc.rate.foreignPaid, lc.currency)}</Amt> across {lc.rate.payments}{" "}
                   {lc.rate.payments === 1 ? "payment" : "payments"}.
                 </p>
               )}
@@ -445,28 +447,28 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                   <TableBody>
                     {lc.lines.map((line, index) => (
                       <TableRow key={line.lineId ?? index} data-testid="ipas-landed-line">
-                        <TableCell className="max-w-[18rem] whitespace-pre-line text-[13px] text-foreground">
+                        <TableCell className="max-w-[18rem] whitespace-pre-line text-sm text-foreground">
                           {line.name}
                         </TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">
+                        <TableCell className="text-right font-mono text-xs tabular-nums">
                           {line.quantity} {line.unit}
                         </TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">
+                        <TableCell className="text-right font-mono text-xs tabular-nums">
                           {pesos(line.unitPricePhp)}
                           {foreign && (
-                            <span className="block text-[11px] text-muted-foreground">
+                            <span className="block text-xs text-muted-foreground">
                               {formatAmount(line.unitPriceForeign, lc.currency)}
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{pesos(line.goodsPhp)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                        <TableCell className="text-right font-mono text-xs tabular-nums">{pesos(line.goodsPhp)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
                           {pesos(line.spreadPhp)}
                         </TableCell>
-                        <TableCell className="text-right text-xs font-semibold tabular-nums">
+                        <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
                           {pesos(line.landedPhp)}
                         </TableCell>
-                        <TableCell className="text-right text-xs font-semibold tabular-nums">
+                        <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
                           {pesos(line.landedPerUnitPhp)}
                         </TableCell>
                       </TableRow>
@@ -475,10 +477,10 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                 </Table>
                 <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 border-t border-border bg-muted/20 px-4 py-2 text-xs">
                   <span className="text-muted-foreground">
-                    Goods {pesos(lc.totals.goodsPhp)} + charges {pesos(lc.totals.chargesPhp)} + charge fees{" "}
-                    {pesos(lc.totals.chargeFeesPhp)} + shipping fees {pesos(lc.totals.shippingFeesPhp)}
+                    Goods <Amt>{pesos(lc.totals.goodsPhp)}</Amt> + charges <Amt>{pesos(lc.totals.chargesPhp)}</Amt> + charge fees{" "}
+                    <Amt>{pesos(lc.totals.chargeFeesPhp)}</Amt> + shipping fees <Amt>{pesos(lc.totals.shippingFeesPhp)}</Amt>
                   </span>
-                  <span className="font-semibold tabular-nums">{pesos(lc.totals.landedPhp)}</span>
+                  <span className="font-mono font-semibold tabular-nums">{pesos(lc.totals.landedPhp)}</span>
                 </div>
               </div>
             </>

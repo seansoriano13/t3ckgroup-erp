@@ -81,7 +81,7 @@ export default function TaskRow({ row }) {
 
         <span
           className={cn(
-            "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-black tabular-nums uppercase",
+            "shrink-0 rounded-md px-1.5 py-0.5 text-label font-black tabular-nums uppercase",
             allDone ? "bg-green-9/15 text-green-11" : "bg-amber-9/15 text-amber-11",
           )}
         >
@@ -110,7 +110,7 @@ export default function TaskRow({ row }) {
                 </p>
                 {m.part && <p className="truncate text-[10px] text-muted-foreground">{m.part.split("\n")[0]}</p>}
               </div>
-              <span className={cn("shrink-0 text-[10px] font-bold uppercase", m.done ? "text-green-11" : "text-muted-foreground")}>
+              <span className={cn("shrink-0 text-label font-bold uppercase", m.done ? "text-green-11" : "text-muted-foreground")}>
                 {m.done ? "Done" : "Pending"}
               </span>
             </div>

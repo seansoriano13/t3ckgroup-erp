@@ -88,9 +88,11 @@ describe("Retail page", () => {
 
     const toggles = await screen.findAllByRole("button", { name: /order/i }, { timeout: 5000 });
     await userEvent.click(toggles[0]);
-    const suspect = screen.getByText("Suspect");
-    const missing = screen.getByText("Missing");
-    const ok = screen.getByText("OK");
+    // The text sits in the badge's inner span; the colours are on the badge itself.
+    const badgeOf = (text) => screen.getByText(text).closest("span.rounded-full");
+    const suspect = badgeOf("Suspect");
+    const missing = badgeOf("Missing");
+    const ok = badgeOf("OK");
     expect(suspect.className).not.toBe(missing.className);
     expect(ok.className).not.toBe(missing.className);
   });
@@ -231,14 +233,14 @@ describe("Retail page", () => {
       expect(within(missingRow).getByText("2609020BTB5E8F")).toBeInTheDocument();
       expect(within(missingRow).getByText("Juan Dela Cruz")).toBeInTheDocument();
       expect(within(missingRow).getByText(formatPHP(1000))).toBeInTheDocument();
-      const missingBadge = within(missingRow).getByText("Missing");
+      const missingBadge = within(missingRow).getByText("Missing").closest("span.rounded-full");
 
       const suspectRow = chase.getByRole("row", { name: /S08502/ });
       expect(within(suspectRow).getByText("Maria Santos")).toBeInTheDocument();
       expect(within(suspectRow).getByText(formatPHP(500))).toBeInTheDocument();
       expect(within(suspectRow).getByText(formatPHP(40))).toBeInTheDocument();
       expect(within(suspectRow).getByText(formatPHP(600))).toBeInTheDocument();
-      const suspectBadge = within(suspectRow).getByText("Suspect");
+      const suspectBadge = within(suspectRow).getByText("Suspect").closest("span.rounded-full");
       expect(suspectBadge.className).not.toBe(missingBadge.className);
 
       // Each order opens its own sale order, in a new tab.

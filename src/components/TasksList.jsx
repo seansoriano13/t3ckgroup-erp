@@ -392,7 +392,7 @@ export default function TasksList({ selectedRange }) {
                             size="w-2 h-2"
                             color={getStatusDotColor(task.status)}
                           />
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1 bg-muted px-2 py-0.5 rounded-md border border-border/50">
+                          <span className="text-label font-bold text-muted-foreground uppercase tracking-widest ml-1 bg-muted px-2 py-0.5 rounded-md border border-border/50">
                             {new Date(task.createdAt).toLocaleDateString(
                               undefined,
                               { month: "short", day: "numeric" },
@@ -562,7 +562,7 @@ export default function TasksList({ selectedRange }) {
 
               {/* Dynamic Action Box based on Role */}
               <div className="mt-auto rounded-2xl p-5 bg-amber-1 border border-amber-4 shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-mauve-9 mb-2">
+                <p className="text-label font-black uppercase tracking-[0.2em] text-mauve-9 mb-2">
                   System Context
                 </p>
                 <p className="text-[13px] font-bold leading-relaxed text-foreground">

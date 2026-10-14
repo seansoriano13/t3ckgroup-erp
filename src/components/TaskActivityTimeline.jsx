@@ -129,12 +129,12 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
       <div className={`max-w-[85%] min-w-0 relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
         <div className="flex items-center gap-2 mb-1 px-1">
           {!isMe && (
-            <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">
+            <span className="text-label font-extrabold text-muted-foreground uppercase tracking-widest">
               {entry.authorName}
             </span>
           )}
           {isMe && (
-            <span className="text-[10px] font-extrabold text-mauve-11  uppercase tracking-widest ml-auto">
+            <span className="text-label font-extrabold text-mauve-11  uppercase tracking-widest ml-auto">
               You
             </span>
           )}

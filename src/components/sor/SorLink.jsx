@@ -58,7 +58,7 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
 
   return (
     <div className="flex flex-col gap-1.5 pt-2">
-      <span className="flex items-center gap-1.5 pl-1 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+      <span className="flex items-center gap-1.5 pl-1 text-label font-bold tracking-wider text-muted-foreground uppercase">
         <Briefcase size={12} /> Sales Opportunity
       </span>
       <Button

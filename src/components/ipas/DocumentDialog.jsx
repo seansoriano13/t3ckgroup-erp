@@ -25,15 +25,16 @@ const BY_HAND = "__by_hand__";
  * have yet, or one typed by hand for paperwork the list doesn't know. Purchasing
  * only. Mounted only while open.
  */
-export default function DocumentDialog({ open, onOpenChange, ipas, onAdded }) {
+/** `onFailed(error, retry)`, when given, shows a failed add in the page (with Retry) instead of a toast alone. */
+export default function DocumentDialog({ open, onOpenChange, ipas, onAdded, onFailed }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body ipas={ipas} onAdded={onAdded} onClose={() => onOpenChange(false)} />}
+      {open && <Body ipas={ipas} onAdded={onAdded} onFailed={onFailed} onClose={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function Body({ ipas, onAdded, onClose }) {
+function Body({ ipas, onAdded, onFailed, onClose }) {
   const kinds = kindsToAdd(ipas.options ?? [], ipas.documents ?? []);
   const [choice, setChoice] = useState(kinds.length > 0 ? "" : BY_HAND);
   const [label, setLabel] = useState("");
@@ -52,7 +53,7 @@ function Body({ ipas, onAdded, onClose }) {
       onAdded?.();
       onClose();
     },
-    onError: (error) => toast.error(ipasErrorMessage(error)),
+    onError: (error) => (onFailed ? onFailed(error, () => add.mutate()) : toast.error(ipasErrorMessage(error))),
   });
 
   return (

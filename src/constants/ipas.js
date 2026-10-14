@@ -6,8 +6,6 @@
  * and the printed form say. CONTEXT.md's IPAS entry is the language source.
  */
 
-import { STATUS_THEME } from "./statusTheme";
-
 export const IPAS_PRIORITY = {
   VERY_HIGH: "very_high",
   HIGH: "high",
@@ -67,12 +65,8 @@ export const IPAS_STATE_LABELS = {
   [IPAS_STATE.CANCELLED]: "Cancelled",
 };
 
-/** The badge colour of each state (StatusBadge `theme`). */
-export const IPAS_STATE_THEME = {
-  [IPAS_STATE.OPEN]: STATUS_THEME.AMBER,
-  [IPAS_STATE.FILED]: STATUS_THEME.GREEN,
-  [IPAS_STATE.CANCELLED]: STATUS_THEME.MAUVE,
-};
+// The badge colour of each state lives with every other status colour, in
+// constants/status.js (IPAS_STATUS_THEME).
 
 /** The list's state filter: one state, or every IPAS. */
 export const IPAS_STATE_FILTER_ALL = "all";
@@ -424,11 +418,53 @@ export const IPAS_SIGNOFF_STAGE = {
   FILED: "filed",
 };
 
-export const IPAS_SECTION_NAMES = {
-  1: "Purchasing",
-  3: "Purchasing & Finance",
-  7: "Filing",
+/**
+ * The number each part of an IPAS shows, on screen and on the printed sheet, in
+ * the order the module shows them (money and sign-offs first). The paper sheet
+ * numbered them differently. Only what a person reads changes: the stored
+ * sign-off sections stay 1, 3 and 7 (`ipas_signoffs.section`, the signer lists,
+ * the RPCs).
+ */
+export const IPAS_PART_NO = {
+  purchasing: 1,
+  finance: 2,
+  costing: 3,
+  filing: 4,
+  sales: 5,
+  logistics: 6,
+  status: 7,
 };
+
+/** The name each part is shown by. */
+export const IPAS_PART_NAMES = {
+  purchasing: "Purchasing",
+  finance: "Purchasing & Finance",
+  costing: "Computation status & Landed Cost",
+  filing: "Filing",
+  sales: "Sales & Operation",
+  logistics: "Logistics",
+  status: "Status",
+};
+
+/** The part a stored sign-off section (1, 3 or 7) is. */
+export const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 7: "filing" };
+
+/** A stored sign-off section's name, unnumbered: "Purchasing", "Purchasing & Finance", "Filing". */
+export function ipasSectionName(section) {
+  return IPAS_PART_NAMES[IPAS_SECTION_PART[section]] ?? "";
+}
+
+/**
+ * A section as a person reads it: "<no> · <name>", e.g. "2 · Purchasing & Finance".
+ * Takes a part key ("finance") or a stored sign-off section (3). Anything it
+ * doesn't know reads as it is given.
+ */
+export function ipasSectionLabel(partOrSection) {
+  const part = IPAS_SECTION_PART[partOrSection] ?? partOrSection;
+  const no = IPAS_PART_NO[part];
+  if (no === undefined) return String(partOrSection);
+  return `${no} · ${IPAS_PART_NAMES[part]}`;
+}
 
 /**
  * The signer lists (ipas_signer_lists.list_key): who may give each sign-off

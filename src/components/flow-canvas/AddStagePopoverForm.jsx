@@ -46,7 +46,7 @@ export default function AddStagePopoverForm({ onSubmit, close, heading = "New St
         if (e.key === "Escape") close();
       }}
     >
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+      <p className="text-label font-black uppercase tracking-[0.16em] text-muted-foreground">
         {heading}
       </p>
       <div className="flex gap-2">

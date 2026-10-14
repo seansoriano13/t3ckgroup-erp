@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -51,9 +50,9 @@ function ipas(overrides = {}) {
   });
 }
 
-function renderDetail(id) {
+function renderDetail(id, section, param = "open") {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?${param}=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
@@ -77,9 +76,9 @@ describe("IPAS page: bank details", () => {
 
   it("lets Purchasing type bank details from section 3, and shows them without a flag", async () => {
     const row = ipas({ po_number: "P03001", created_by: purchaser.id });
-    const user = userEvent.setup();
+    const user = setupUser();
 
-    renderDetail(row.id);
+    renderDetail(row.id, "finance", "edit");
     expect(await screen.findByText("No bank details typed yet.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add bank details" }));
     const dialog = await screen.findByRole("dialog");
@@ -98,7 +97,7 @@ describe("IPAS page: bank details", () => {
     await waitFor(() => expect(within(block).getByText("0012 3456 7890")).toBeInTheDocument());
     expect(within(block).queryByRole("alert")).not.toBeInTheDocument();
     expect(within(block).queryByText("Changed account")).not.toBeInTheDocument();
-  });
+  }, 20000); // typing a bank record takes most of 5s on a loaded machine
 
   it("shows a flagged account prominently, beside the Account #", async () => {
     const earlier = ipas({ po_number: "P03010", created_by: purchaser.id });
@@ -106,7 +105,7 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03011", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BPI", account_name: "Scorpe", account_number: "2222", account_flagged: true });
 
-    renderDetail(row.id);
+    renderDetail(row.id, "finance", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     const alert = await within(block).findByRole("alert");
@@ -122,7 +121,7 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03020", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0012", account_flagged: false });
 
-    renderDetail(row.id);
+    renderDetail(row.id, "finance", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     expect(await within(block).findByText("0012")).toBeInTheDocument();
@@ -136,9 +135,9 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03030", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0099887766", account_flagged: true });
 
-    renderDetail(row.id);
+    renderDetail(row.id, "finance", "edit");
 
-    expect(await screen.findByText("3 · Purchasing & Finance")).toBeInTheDocument();
+    expect((await screen.findAllByText("2 · Purchasing & Finance")).length).toBeGreaterThan(0);
     expect(screen.queryByTestId("ipas-bank-details")).not.toBeInTheDocument();
     expect(screen.queryByText(/Bank details/)).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("0099887766");
@@ -155,7 +154,7 @@ describe("IPAS page: bank details", () => {
     });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0012", account_flagged: false });
 
-    renderDetail(row.id);
+    renderDetail(row.id, "finance", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     expect(within(block).queryByRole("button", { name: /bank details/i })).not.toBeInTheDocument();

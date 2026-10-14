@@ -8,7 +8,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, renderHook, screen } from "@testing-library/react"
+import { render, renderHook, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 export function createTestQueryClient() {
@@ -66,6 +66,15 @@ export function renderWithProviders(ui, { client = createTestQueryClient(), ...o
  */
 export function setupUser(options = {}) {
   return userEvent.setup({ delay: null, ...options })
+}
+
+/**
+ * A sign-off move (card or drawer footer) asks first in a dialog titled "<label>?".
+ * Confirms it with the button that says the move's verb.
+ */
+export async function confirmMove(user, label, verb) {
+  const dialog = await screen.findByRole("dialog", { name: `${label}?` })
+  await user.click(within(dialog).getByRole("button", { name: verb }))
 }
 
 /**

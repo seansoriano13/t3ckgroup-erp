@@ -30,7 +30,7 @@ import {
   IPAS_PAYMENT_KIND_LABELS,
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
-  IPAS_SECTION_NAMES,
+  ipasSectionName,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_SOURCE_LABELS,
@@ -132,7 +132,7 @@ const SIGN_LABELS = {
  */
 export function signoffBox(role, section, signoff) {
   const label = SIGN_LABELS[role] ?? IPAS_SIGNOFF_ROLE_LABELS[role] ?? role;
-  const title = IPAS_SECTION_NAMES[section] ?? '';
+  const title = ipasSectionName(section);
   if (!signoff) return { role: label, who: '', title, state: 'awaiting', signaturePath: null, signatureDeclined: false };
 
   const who = text(signoff.signedBy?.name) ?? 'Unknown signer';

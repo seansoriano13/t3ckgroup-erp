@@ -66,7 +66,7 @@ function PillSelect({ label, tone, options, value, onChange, disabled }) {
       trigger={() => (
         <span
           className={cn(
-            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap",
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label font-bold uppercase tracking-wider whitespace-nowrap",
             tone,
             disabled ? "opacity-70" : "cursor-pointer hover:brightness-110",
           )}

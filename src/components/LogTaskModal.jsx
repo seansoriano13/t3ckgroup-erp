@@ -273,7 +273,7 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
               </div>
               {confirmMode === "confirm" && (
                 <div className="mt-2 space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                     Decider (defaults to the Deal Owner)
                   </span>
                   <PeoplePicker value={decider} onChange={setDecider} allowRoles placeholder="Add Decider" />

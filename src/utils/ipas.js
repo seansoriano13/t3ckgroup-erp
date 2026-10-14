@@ -276,10 +276,16 @@ export function shapeIpas(row, sors = [], extras = null) {
   };
 }
 
-/** A database error's message without the RPC's own name in front of it. */
+/** The browsers' own words for a request that never reached the server. */
+const NETWORK_FAILURE = /^(?:typeerror:\s*)?(failed to fetch|networkerror when attempting to fetch|load failed|network request failed)/i;
+
+export const IPAS_OFFLINE_MESSAGE = "Can't reach the server. Check your connection and try again.";
+
+/** A database error's message without the RPC's own name in front of it; a dropped connection in plain words. */
 export function ipasErrorMessage(error, fallback = "Something went wrong.") {
   const raw = error?.message;
   if (!raw || typeof raw !== "string") return fallback;
+  if (NETWORK_FAILURE.test(raw.trim())) return IPAS_OFFLINE_MESSAGE;
   return raw.replace(/^ipas_[a-z_]+:\s*/i, "");
 }
 

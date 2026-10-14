@@ -3,6 +3,7 @@ import {
   getStatusColorAlpha,
   getStatusDotColor,
   getStatusTheme,
+  getStatusToneClasses,
   STATUS_THEME,
   TASK_STATUS,
 } from "./status"
@@ -71,5 +72,29 @@ describe("status colour classes", () => {
   it("derives the translucent background from the theme", () => {
     expect(getStatusColorAlpha(STATUS_THEME.VIOLET)).toBe("bg-violet-a7 shadow-violet-5")
     expect(getStatusColorAlpha("not-a-theme")).toBe("bg-mauve-a7 shadow-mauve-5")
+  })
+})
+
+describe("IPAS statuses", () => {
+  it("themes the lifecycle, sign-off, filing and Landed Cost words from their stored values", () => {
+    expect(getStatusTheme("open")).toBe(STATUS_THEME.AMBER)
+    expect(getStatusTheme("filed")).toBe(STATUS_THEME.GREEN)
+    expect(getStatusTheme("not_prepared")).toBe(STATUS_THEME.MAUVE)
+    expect(getStatusTheme("awaiting_approval")).toBe(STATUS_THEME.AMBER)
+    expect(getStatusTheme("approved")).toBe(STATUS_THEME.GREEN)
+    expect(getStatusTheme("in_progress")).toBe(STATUS_THEME.AMBER)
+    expect(getStatusTheme("provisional")).toBe(STATUS_THEME.AMBER)
+    expect(getStatusTheme("final")).toBe(STATUS_THEME.GREEN)
+    expect(getStatusTheme("not_available")).toBe(STATUS_THEME.MAUVE)
+  })
+
+  it("reads a cancelled IPAS like every other cancelled thing", () => {
+    expect(getStatusTheme("cancelled")).toBe(STATUS_THEME.RED)
+  })
+
+  it("themes the done / now / waiting ladder, and hands back its dot, word and ring classes", () => {
+    expect(getStatusToneClasses(getStatusTheme("done"))).toEqual({ dot: "bg-green-9", text: "text-green-12", ring: "border-green-9" })
+    expect(getStatusToneClasses(getStatusTheme("current")).dot).toBe("bg-amber-9")
+    expect(getStatusToneClasses(getStatusTheme("waiting")).text).toBe("text-muted-foreground")
   })
 })

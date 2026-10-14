@@ -4,7 +4,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { leaveWhen, relativeAge } from "../../../utils/approvalItems.js";
 import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
-import { APPROVE_CLASS, NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
+import { NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 
 /**
  * Reviewing one leave, Offset, overtime or undertime request as its department

@@ -52,7 +52,7 @@ export default function HRFormModal({
             {subtitle && (
               <>
                 <span className="text-muted-foreground/30">•</span>
-                <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/60">
+                <span className="text-label uppercase tracking-widest font-bold text-muted-foreground/60">
                   {subtitle}
                 </span>
               </>

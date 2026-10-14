@@ -133,6 +133,14 @@ describe("ipasErrorMessage", () => {
     )
     expect(ipasErrorMessage({})).toBe("Something went wrong.")
   })
+
+  it("says a dropped connection in plain words, whatever the browser calls it", () => {
+    const offline = "Can't reach the server. Check your connection and try again."
+    expect(ipasErrorMessage(new TypeError("Failed to fetch"))).toBe(offline)
+    expect(ipasErrorMessage({ message: "TypeError: Failed to fetch" })).toBe(offline)
+    expect(ipasErrorMessage({ message: "Load failed" })).toBe(offline)
+    expect(ipasErrorMessage({ message: "NetworkError when attempting to fetch resource." })).toBe(offline)
+  })
 })
 
 describe("overrides", () => {

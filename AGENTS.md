@@ -354,6 +354,21 @@ let it escape to the router's default error boundary.
 Whenever you complete a task that changes the application's behavior or UI, you must add an entry to `src/data/changelog.json` before pushing to origin. 
 This ensures all users see a "What's Changed" announcement modal on their next login. Keep the descriptions high-level, simple, and easy to understand for non-technical users.
 
+### Running tests
+
+Never run the whole suite (`pnpm test`, `pnpm vitest run`) while working. It is 360+
+files, one forked process each, and each page test boots jsdom, MSW and a fake database
+parsed from the migrations: about 20 minutes on a 4-core machine. Run only what you
+touched:
+
+- a folder or file: `pnpm vitest run src/components/ipas`
+- everything that imports your change: `pnpm vitest run --changed HEAD` (or `HEAD~N`
+  after committing); widely shared files such as `StatusBadge` still take ~10 minutes
+- pure logic only: `pnpm test:unit`
+
+The full suite runs once, in `pnpm preflight`, before a push to `staging`. A test that
+fails only in the full run and passes alone is load flake; say so, don't chase it.
+
 ### Pushing to staging
 
 Pushing to `staging` auto-applies pending migrations to the staging database and

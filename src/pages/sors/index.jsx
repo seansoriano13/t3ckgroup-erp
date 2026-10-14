@@ -1061,7 +1061,7 @@ export default function OpportunitiesPage() {
                     <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[114px]">Expected Value</SortableTh>
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
                     <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Deal Owner</SortableTh>
-                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[150px]">Status</SortableTh>
+                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[192px]">Status</SortableTh>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1163,7 +1163,7 @@ export default function OpportunitiesPage() {
                                   label={display.label}
                                   status={display.code}
                                   theme={display.tone}
-                                  className="min-w-0 max-w-full truncate"
+                                  className="min-w-0"
                                   title={display.label}
                                 />
                               ) : (

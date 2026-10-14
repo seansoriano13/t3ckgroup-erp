@@ -350,7 +350,7 @@ export default function TaskTableView({
                     {/* Priority */}
                     <TableCell className="px-3 hidden md:table-cell">
                       {task.priority ? (
-                        <div className="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider">
+                        <div className="flex items-center gap-1.5 font-bold text-label uppercase tracking-wider">
                           {task.priority === "HIGH" && (
                             <Dot
                               color="bg-destructive"
@@ -393,7 +393,7 @@ export default function TaskTableView({
                           {formatDate(task.endAt || task.targetDate)}
                         </span>
                         {isOverdue && (
-                          <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight">
+                          <span className="flex items-center gap-1 text-label font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight">
                             <TriangleAlert size={10} /> Overdue
                           </span>
                         )}

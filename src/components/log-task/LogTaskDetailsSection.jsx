@@ -237,7 +237,7 @@ export default function LogTaskDetailsSection({
                 {showChecklist && (
                     <div className='mt-2 animate-slide-down'>
                         <div className='flex items-center justify-between mb-2'>
-                            <span className='text-[10px] font-bold text-muted-foreground uppercase tracking-widest'>
+                            <span className='text-label font-bold text-muted-foreground uppercase tracking-widest'>
                                 Checklist
                             </span>
                             <Button

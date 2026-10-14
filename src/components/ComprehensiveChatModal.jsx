@@ -233,7 +233,7 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
             isMe ? "flex-row-reverse" : "flex-row"
           )}
         >
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+          <span className="text-label font-bold text-muted-foreground uppercase tracking-tight">
             {isMe ? "You" : entry.authorName}
           </span>
           {entry.authorIsHead && (
@@ -1112,7 +1112,7 @@ export default function ComprehensiveChatModal({
                         <div className="flex items-center gap-1.5">
                           <span
                             className={cn(
-                              "text-[10px] font-black uppercase tracking-tighter opacity-70",
+                              "text-label font-black uppercase tracking-tighter opacity-70",
                               chat.entity_type === "TASK"
                                 ? "text-foreground"
                                 : canonicalEntityType(chat.entity_type) === "GROUP_TASK"
@@ -1192,7 +1192,7 @@ export default function ComprehensiveChatModal({
                     <h3 className="text-sm font-black truncate">
                       {selectedChat.title}
                     </h3>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-label text-muted-foreground font-bold uppercase tracking-wider">
                       {entityLabel(selectedChat.entity_type)} •{" "}
                       {/* The RPC's group-task subtitle is the constant
                           "Committee Task" — the old name again. */}

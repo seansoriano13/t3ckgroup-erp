@@ -120,8 +120,12 @@
   --border: var(--mauve-6);
   --input: var(--mauve-6);
 
-  /* Focus Rings */
-  --ring: var(--mauve-8);
+  /* Focus Rings: mauve-11 is 5.6:1 on the card in light and 8.4:1 in dark (WCAG 2.2 needs 3:1). */
+  --ring: var(--mauve-11);
+
+  /* Print preview (screen only): the desk and the sheet's lift, read by PrintPreview. */
+  --preview-desk: var(--mauve-4);
+  --preview-sheet-shadow: 0 1px 2px var(--mauve-a6), 0 14px 30px -16px var(--mauve-a9);
 
   /* Sidebar */
   --sidebar: var(--mauve-2);
@@ -556,6 +560,7 @@
 ---break--- */
 
 @theme inline {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --font-heading: var(--font-sans);
   --font-sans: "Plus Jakarta Sans", sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -597,6 +602,9 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Uppercase tracked key-label role (DESIGN.md typography "label"): field keys, status badges. */
+  --text-label: 11px;
 }
 
 /* 

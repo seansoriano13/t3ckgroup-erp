@@ -14,11 +14,11 @@ const openIpas = (id) => window.open(`/purchasing/ipas/${id}`, "_blank", "noopen
 
 function TrackChip({ item }) {
   const Icon = item.ticked ? Check : item.partial ? CircleDot : Circle;
-  const theme = item.ticked ? "green" : item.partial ? "amber" : "mauve";
+  const status = item.ticked ? "done" : item.partial ? "partial" : "waiting";
   return (
     <li>
       <StatusBadge
-        theme={theme}
+        status={status}
         className="gap-1"
         title={item.ticked ? `${item.label}: done` : item.partial ? `${item.label}: partly done` : `${item.label}: not yet`}
       >

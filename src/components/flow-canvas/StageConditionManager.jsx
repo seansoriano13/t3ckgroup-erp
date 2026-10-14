@@ -229,7 +229,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
       className="space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6"
     >
       <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+        <h4 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
           {editingId ? "Edit condition" : "New condition"}
         </h4>
         <Button type="button" variant="ghost" size="icon-xs" onClick={resetForm} aria-label="Cancel">

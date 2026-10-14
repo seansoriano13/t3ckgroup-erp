@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { cn } from "@/lib/utils";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 
 /**
  * A confirmation the app draws itself.
@@ -20,7 +21,8 @@ import { cn } from "@/lib/utils";
  * alongside the question, such as the reason a locked flow is being reopened.
  *
  * Controlled: the caller owns `open`, so the same dialog serves a queue of
- * different questions without remounting.
+ * different questions without remounting. `tone`: "destructive" (red confirm),
+ * "approve" (the green Approve, as its button on the page), or the default.
  */
 export default function ConfirmDialog({
   open,
@@ -57,6 +59,7 @@ export default function ConfirmDialog({
           <Button
             size="lg"
             variant={tone === "destructive" ? "destructive" : "default"}
+            className={cn(tone === "approve" && APPROVE_CLASS)}
             disabled={confirmDisabled}
             onClick={() => {
               onConfirm?.();

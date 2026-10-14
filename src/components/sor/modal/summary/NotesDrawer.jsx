@@ -22,7 +22,7 @@ export default function NotesDrawer({ p, open, onClose }) {
   return (
     <div
       className={cn(
-        "absolute inset-y-0 right-0 z-30 w-full max-w-[400px] border-l border-border/60 bg-popover shadow-[-12px_0_32px_-16px_rgba(0,0,0,0.25)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        "absolute inset-y-0 right-0 z-30 w-full max-w-[400px] border-l border-border/60 bg-popover shadow-[-12px_0_32px_-16px_rgba(0,0,0,0.25)] transition-transform duration-300 ease-out-expo",
         open ? "translate-x-0" : "pointer-events-none translate-x-full",
       )}
       inert={!open}

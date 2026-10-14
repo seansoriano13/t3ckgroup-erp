@@ -27,7 +27,7 @@ import { ApprovalToolbar, SelectionBar } from "../_components/ApprovalToolbar";
 import { ApprovalTable } from "../_components/ApprovalTable";
 import { ApprovalSheet } from "../_components/ApprovalSheet";
 import { TaskReview } from "../_components/TaskReview";
-import { APPROVE_CLASS } from "../_components/approvalUi";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 import BulkDeclineModal from "../_components/BulkDeclineModal";
 
 const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "tasks");

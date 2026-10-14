@@ -10,7 +10,7 @@
  */
 
 import { TASK_STATUS } from "../constants/status.js";
-import { IPAS_PRIORITY, IPAS_SIGNOFF_ROLE_LABELS } from "../constants/ipas.js";
+import { IPAS_PRIORITY, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../constants/ipas.js";
 import { checklistProgressLabel, isChecklistDescription, isStaleSince } from "./approvalQueue.js";
 
 export const LEAVE_LABEL = { SIL: "SIL Leave", OFFSET: "Offset", OVERTIME: "Overtime", UNDERTIME: "Undertime" };
@@ -77,7 +77,7 @@ export function ipasChain(pending) {
                 return { label: step.label, who: step.signoff.signedBy?.name || "Someone", state: "done", at: step.signoff.signedAt || null };
             }
             if (step.role === pending.role) return { label: step.label, who: "You", state: "current", at: null };
-            return { label: step.label, who: "Section 7 list", state: "next", at: null };
+            return { label: step.label, who: `Section ${ipasSectionLabel(7)} list`, state: "next", at: null };
         });
     }
     return [
@@ -100,7 +100,7 @@ export function ipasToItem(pending, now = Date.now()) {
         queue: "ipas",
         ref: pending.number,
         title: pending.supplier || pending.poNumber,
-        typeLabel: `${pending.poNumber} · Section ${pending.section}${pending.section === 7 ? ` · ${IPAS_SIGNOFF_ROLE_LABELS[pending.role] ?? pending.role}` : ""}`,
+        typeLabel: `${pending.poNumber} · Section ${ipasSectionLabel(pending.section)}${pending.section === 7 ? ` · ${IPAS_SIGNOFF_ROLE_LABELS[pending.role] ?? pending.role}` : ""}`,
         person: {
             id: pending.preparedBy?.id,
             name: pending.preparedBy?.name || "Unknown",

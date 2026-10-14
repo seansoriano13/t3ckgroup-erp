@@ -254,7 +254,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
             <DrawerTitle className="text-xl font-bold text-foreground flex items-center gap-2 leading-normal">
               <Bell size={20} className="text-foreground" /> Notifications
             </DrawerTitle>
-            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">
+            <p className="text-label text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">
               Your Universal Action Hub
             </p>
           </div>
@@ -262,14 +262,14 @@ export default function NotificationDrawer({ isOpen, onClose }) {
             <Button
               variant="outline"
               onClick={() => markAllReadMutation.mutate()}
-              className="h-auto text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors px-2 py-1 rounded-md uppercase tracking-tight"
+              className="h-auto text-label font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors px-2 py-1 rounded-md uppercase tracking-tight"
             >
               Mark All Read
             </Button>
             <Button
               variant="outline"
               onClick={() => markAllUnreadMutation.mutate()}
-              className="h-auto text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors px-2 py-1 rounded-md uppercase tracking-tight"
+              className="h-auto text-label font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors px-2 py-1 rounded-md uppercase tracking-tight"
             >
               Mark All Unread
             </Button>

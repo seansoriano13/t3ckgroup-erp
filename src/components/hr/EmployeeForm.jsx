@@ -523,7 +523,7 @@ export default function EmployeeForm({
               type="button"
               variant="link"
               onClick={() => setFormData((prev) => ({ ...prev, hiddenNavKeys: [] }))}
-              className="h-auto p-0 text-[10px] font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
+              className="h-auto p-0 text-label font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
             >
               <X size={11} /> Clear all
             </Button>
