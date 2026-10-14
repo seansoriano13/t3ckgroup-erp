@@ -1416,7 +1416,7 @@ alter table hr_day_shift_config add constraint "hr_day_shift_config_weekday_chec
 alter table ipas add constraint "ipas_actual_checking_pair_chk" CHECK (((actual_checking_by IS NULL) = (actual_checking_at IS NULL)));
 alter table ipas add constraint "ipas_cancelled_chk" CHECK (((state <> 'cancelled'::text) OR ((cancelled_at IS NOT NULL) AND (cancel_reason IS NOT NULL) AND (length(btrim(cancel_reason)) > 0))));
 alter table ipas add constraint "ipas_change_note_chk" CHECK (((odoo_change_note IS NULL) OR (jsonb_typeof(odoo_change_note) = 'object'::text)));
-alter table ipas add constraint "ipas_computation_status_chk" CHECK ((computation_status = ANY (ARRAY['encoding'::text, 'encoded'::text, 'costs_complete'::text, 'checked'::text])));
+alter table ipas add constraint "ipas_computation_status_chk" CHECK ((computation_status = ANY (ARRAY['encoding'::text, 'encoded'::text, 'lc_gs_done'::text, 'lc_odoo_done'::text, 'checked'::text])));
 alter table ipas add constraint "ipas_import_clearance_import_chk" CHECK (((source = 'import'::text) OR (import_clearance_on IS NULL)));
 alter table ipas add constraint "ipas_landed_cost_split_chk" CHECK ((landed_cost_split = ANY (ARRAY['value'::text, 'quantity'::text, 'equal'::text])));
 alter table ipas add constraint "ipas_odoo_copy_chk" CHECK ((jsonb_typeof(odoo_copy) = 'object'::text));
@@ -6600,6 +6600,8 @@ declare
   v_roles text[];
   v_preparers uuid[];
   v_notify uuid[];
+  v_cascade text[] := '{}'::text[];
+  v_cascade_ids uuid[] := '{}'::uuid[];
 begin
   if v_actor is null then
     raise exception 'ipas_send_back: not signed in' using errcode = '42501';
@@ -6611,16 +6613,16 @@ begin
     raise exception 'ipas_send_back: the reason is 500 characters at most' using errcode = '22023';
   end if;
   if p_section is null or p_section not in (1, 3, 7) then
-    raise exception 'ipas_send_back: only sections 1, 3 and 7 can be sent back' using errcode = '22023';
+    raise exception 'ipas_send_back: only sections 1, 3 and 7 can be returned' using errcode = '22023';
   end if;
 
-  -- Refuses a filed or cancelled IPAS (55000): a filed one is reopened, not sent back.
+  -- Refuses a filed or cancelled IPAS (55000): a filed one is reopened, not returned.
   v_ipas := public._ipas_lock_open('ipas_send_back', p_ipas_id);
 
   if p_section = 7 then
     -- Anyone on a section 7 list, whichever sign-off they give.
     if not public._ipas_can_sign_section(7, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section 7 sends it back' using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section 7 returns it' using errcode = '42501';
     end if;
 
     -- Section 7 is open once sections 1 and 3 are approved.
@@ -6636,7 +6638,7 @@ begin
 
     with cleared as (
       update public.ipas_signoffs s
-         set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Sent back: ' || v_reason
+         set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Returned: ' || v_reason
        where s.ipas_id = v_ipas.id
          and s.section = 7
          and s.role in ('received', 'noted', 'checked')
@@ -6651,12 +6653,12 @@ begin
     v_preparers := '{}'::uuid[];
   else
     if not public._ipas_can_sign_section(p_section, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section % sends it back', p_section using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section % returns it', p_section using errcode = '42501';
     end if;
 
     with cleared as (
       update public.ipas_signoffs s
-         set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Sent back: ' || v_reason
+         set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Returned: ' || v_reason
        where s.ipas_id = v_ipas.id
          and s.section = p_section
          and s.role in ('prepared', 'approved')
@@ -6669,16 +6671,36 @@ begin
       from cleared;
 
     v_notify := v_preparers;
+
+    -- Section 4 no longer has two approved sections behind it: its open sign-offs go too.
+    if cardinality(v_roles) > 0 then
+      with cleared as (
+        update public.ipas_signoffs s
+           set cleared_at = now(), cleared_by = v_actor,
+               cleared_reason = 'Section ' || p_section || ' returned: ' || v_reason
+         where s.ipas_id = v_ipas.id
+           and s.section = 7
+           and s.role in ('received', 'noted', 'checked')
+           and s.cleared_at is null
+        returning s.role, s.signed_by
+      )
+      select coalesce(array_agg(role order by role), '{}'::text[]),
+             coalesce(array_agg(distinct signed_by) filter (where signed_by is distinct from v_actor), '{}'::uuid[])
+        into v_cascade, v_cascade_ids
+        from cleared;
+      v_notify := (select coalesce(array_agg(distinct x), '{}'::uuid[]) from unnest(v_notify || v_cascade_ids) as x);
+    end if;
   end if;
 
   if cardinality(v_roles) = 0 then
-    raise exception 'ipas_send_back: section % has nothing to send back', p_section using errcode = '55000';
+    raise exception 'ipas_send_back: section % has nothing to return', p_section using errcode = '55000';
   end if;
 
   perform public._ipas_write_event(v_ipas.id, v_actor, 'sent_back', jsonb_build_object(
     'section', p_section,
     'reason', v_reason,
-    'cleared', to_jsonb(v_roles)
+    'cleared', to_jsonb(v_roles),
+    'cleared_section_7', to_jsonb(v_cascade)
   ));
 
   return jsonb_build_object(
@@ -6686,6 +6708,7 @@ begin
     'section', p_section,
     'actor_id', v_actor,
     'cleared_roles', to_jsonb(v_roles),
+    'cleared_section_7', to_jsonb(v_cascade),
     'preparer_ids', to_jsonb(v_preparers),
     'notify_ids', to_jsonb(v_notify)
   );
@@ -6878,12 +6901,17 @@ declare
   v_sheet boolean;
   v_gantt boolean;
   v_label text;
+  v_is_purchasing boolean;
   v_changes jsonb := '{}'::jsonb;
 begin
   if v_actor is null then
     raise exception 'ipas_set_header: not signed in' using errcode = '42501';
   end if;
-  if not public.has_purchasing_access() then
+  -- Purchasing changes an IPAS. Finance or a Super Admin may only give or take back
+  -- "Checked by" (the last computation status), which is checked further down.
+  v_is_purchasing := public.has_purchasing_access();
+  if not v_is_purchasing
+     and not (public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
     raise exception 'ipas_set_header: only Purchasing changes an IPAS' using errcode = '42501';
   end if;
   if p_fields is null or jsonb_typeof(p_fields) <> 'object' then
@@ -6966,9 +6994,22 @@ begin
   v_status := v_row.computation_status;
   if jsonb_exists(p_fields, 'computation_status') then
     v_status := p_fields->>'computation_status';
-    if v_status is null or v_status not in ('encoding', 'encoded', 'costs_complete', 'checked') then
-      raise exception 'ipas_set_header: the computation status is Encoding, Encoded, Costs complete or Checked'
+    if v_status is null or v_status not in ('encoding', 'encoded', 'lc_gs_done', 'lc_odoo_done', 'checked') then
+      raise exception 'ipas_set_header: the computation status is Encoding, Encoded, LC GS Done, LC Odoo Done or Checked by'
         using errcode = '22023';
+    end if;
+  end if;
+
+  -- Finance and Super Admins (who aren't Purchasing) only move Checked by: from LC Odoo Done
+  -- to Checked by, or back, and nothing else in the same call.
+  if not v_is_purchasing then
+    if (select count(*) from jsonb_object_keys(p_fields)) <> 1
+       or not jsonb_exists(p_fields, 'computation_status')
+       or not (
+         (v_row.computation_status = 'lc_odoo_done' and v_status = 'checked')
+         or (v_row.computation_status = 'checked' and v_status = 'lc_odoo_done')
+       ) then
+      raise exception 'ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by' using errcode = '42501';
     end if;
   end if;
 
@@ -7410,8 +7451,8 @@ begin
       ) < 3 then
         raise exception 'ipas_sign: Approved needs Received, Noted and Checked first' using errcode = '55000';
       end if;
-      if v_ipas.computation_status not in ('costs_complete', 'checked') then
-        raise exception 'ipas_sign: % can''t be filed until Costs complete: Landed Cost is still provisional, and Filing freezes it as final', v_ipas.number
+      if v_ipas.computation_status not in ('lc_odoo_done', 'checked') then
+        raise exception 'ipas_sign: % can''t be filed until LC Odoo Done: Landed Cost is still provisional, and Filing freezes it as final', v_ipas.number
           using errcode = '55000';
       end if;
     end if;
@@ -7796,6 +7837,89 @@ begin
   ));
 
   return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_undo_approval(p_ipas_id uuid, p_section integer, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_reason text := nullif(btrim(p_reason), '');
+  v_ipas public.ipas;
+  v_approver uuid;
+  v_cascade text[] := '{}'::text[];
+  v_cascade_ids uuid[] := '{}'::uuid[];
+  v_notify uuid[] := '{}'::uuid[];
+begin
+  if v_actor is null then
+    raise exception 'ipas_undo_approval: not signed in' using errcode = '42501';
+  end if;
+  if v_reason is null then
+    raise exception 'ipas_undo_approval: give a reason, so the approver knows why' using errcode = '22023';
+  end if;
+  if length(v_reason) > 500 then
+    raise exception 'ipas_undo_approval: the reason is 500 characters at most' using errcode = '22023';
+  end if;
+  if p_section is null or p_section not in (1, 3) then
+    raise exception 'ipas_undo_approval: only sections 1 and 3 have an approval to undo' using errcode = '22023';
+  end if;
+
+  v_ipas := public._ipas_lock_open('ipas_undo_approval', p_ipas_id);
+
+  if not public._ipas_can_sign_section(p_section, v_actor) then
+    raise exception 'ipas_undo_approval: only a signer of section % undoes its approval', p_section using errcode = '42501';
+  end if;
+
+  update public.ipas_signoffs s
+     set cleared_at = now(), cleared_by = v_actor, cleared_reason = 'Approval undone: ' || v_reason
+   where s.ipas_id = v_ipas.id and s.section = p_section and s.role = 'approved' and s.cleared_at is null
+  returning s.signed_by into v_approver;
+
+  if not found then
+    raise exception 'ipas_undo_approval: section % has no approval to undo', p_section using errcode = '55000';
+  end if;
+
+  -- Section 4 stood on both approvals: its open sign-offs go too.
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = v_actor,
+           cleared_reason = 'Section ' || p_section || ' approval undone: ' || v_reason
+     where s.ipas_id = v_ipas.id
+       and s.section = 7
+       and s.role in ('received', 'noted', 'checked')
+       and s.cleared_at is null
+    returning s.role, s.signed_by
+  )
+  select coalesce(array_agg(role order by role), '{}'::text[]),
+         coalesce(array_agg(distinct signed_by) filter (where signed_by is distinct from v_actor), '{}'::uuid[])
+    into v_cascade, v_cascade_ids
+    from cleared;
+
+  v_notify := v_cascade_ids;
+  if v_approver is not null and v_approver is distinct from v_actor then
+    v_notify := v_notify || v_approver;
+  end if;
+  v_notify := (select coalesce(array_agg(distinct x), '{}'::uuid[]) from unnest(v_notify) as x);
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'approval_undone', jsonb_build_object(
+    'section', p_section,
+    'reason', v_reason,
+    'approver_id', v_approver,
+    'cleared_section_7', to_jsonb(v_cascade)
+  ));
+
+  return jsonb_build_object(
+    'ipas', to_jsonb(v_ipas),
+    'section', p_section,
+    'actor_id', v_actor,
+    'approver_id', v_approver,
+    'cleared_section_7', to_jsonb(v_cascade),
+    'notify_ids', to_jsonb(v_notify)
+  );
 end;
 $function$
 ;
