@@ -110,14 +110,14 @@ export function IpasDocuments({
             <TableBody>
               {documents.map((document) => (
                 <TableRow key={document.id} data-testid="ipas-document-row">
-                  <TableCell className="text-[13px] text-foreground">
+                  <TableCell className="text-sm text-foreground">
                     <span className="font-medium">{document.label}</span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
                       {document.byHand ? (
-                        <span className="text-[11px] text-muted-foreground">Added by hand</span>
+                        <span className="text-xs text-muted-foreground">Added by hand</span>
                       ) : (
                         <>
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="text-xs text-muted-foreground">
                             {IPAS_DOCUMENT_APPLIES_TO_LABELS[document.appliesTo] ?? ""}
                           </span>
                           {document.isFiling && (

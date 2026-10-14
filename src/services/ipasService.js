@@ -20,7 +20,7 @@ import {
   IPAS_SEND_BACK_SECTIONS,
   IPAS_SECTION_7_LIST,
   IPAS_SECTION_7_ROLES,
-  IPAS_SECTION_NAMES,
+  ipasSectionName,
   IPAS_SIGNER_LISTS,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
@@ -1048,7 +1048,7 @@ export const ipasService = {
             sender_id: senderId,
             type: IPAS_NOTIFICATION.SENT_BACK,
             title: "IPAS sent back",
-            message: `${ipas}: section ${section} (${IPAS_SECTION_NAMES[section]}) was sent back. ${why}`,
+            message: `${ipas}: section ${section} (${ipasSectionName(section)}) was sent back. ${why}`,
             reference_id: id,
           }),
         ),
@@ -1350,7 +1350,7 @@ function stageNotification(stage, { label, section, role }) {
       return {
         type: IPAS_NOTIFICATION.SIGNOFF_READY,
         title: "IPAS ready for approval",
-        message: `${label}: section ${section} (${IPAS_SECTION_NAMES[section]}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
+        message: `${label}: section ${section} (${ipasSectionName(section)}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
       };
   }
 }
