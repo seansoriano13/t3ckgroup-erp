@@ -109,15 +109,15 @@ describe("IPAS sign-offs", () => {
       expect(within(one).getByText("Not prepared")).toBeInTheDocument();
       expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
 
-      await user.click(within(one).getByRole("button", { name: "Prepare section 1" }));
+      await user.click(within(one).getByRole("button", { name: "Prepare section 1 · Purchasing" }));
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Awaiting approval")).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-prepared")).getByText("Buyer")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Prepare section 1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Prepare section 1 · Purchasing" })).not.toBeInTheDocument();
       await waitForNetworkIdle();
       expect(db.rows("notifications").map((n) => n.recipient_id).sort()).toEqual([approver.id, other.id].sort());
       // Section 3 is its own.
-      expect(screen.getByRole("button", { name: "Prepare section 3" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Prepare section 2 · Purchasing & Finance" })).toBeInTheDocument();
     });
 
     it("offers Approve to a list member after Prepared, and shows who approved", async () => {
@@ -130,11 +130,11 @@ describe("IPAS sign-offs", () => {
       renderDetail(row.id);
       const one = await screen.findByTestId("ipas-signoffs-1");
       expect(within(one).queryByRole("button", { name: /Prepare section/ })).not.toBeInTheDocument();
-      await user.click(within(one).getByRole("button", { name: "Approve section 1" }));
+      await user.click(within(one).getByRole("button", { name: "Approve section 1 · Purchasing" }));
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-approved")).getByText("Boss Lito")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Approve section 1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
     });
 
     it("doesn't offer Approve to the preparer, and says why", async () => {
@@ -145,7 +145,7 @@ describe("IPAS sign-offs", () => {
       renderDetail(row.id);
 
       const one = await screen.findByTestId("ipas-signoffs-1");
-      expect(within(one).queryByRole("button", { name: "Approve section 1" })).not.toBeInTheDocument();
+      expect(within(one).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
       expect(within(one).getByText(/You prepared this section, so someone else approves it/)).toBeInTheDocument();
       // They are on the list, so they may still send it back.
       expect(within(one).getByRole("button", { name: "Send back" })).toBeInTheDocument();
@@ -218,10 +218,10 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id);
 
-      expect(await screen.findByText("Section 1 prepared")).toBeInTheDocument();
-      expect(screen.getByText("Section 1 approved · without a signature")).toBeInTheDocument();
-      expect(screen.getByText("Section 3 · “Freight is missing”")).toBeInTheDocument();
-      expect(screen.getByText("PO changed in Odoo · section 1 and section 3 back to awaiting approval")).toBeInTheDocument();
+      expect(await screen.findByText("Section 1 · Purchasing prepared")).toBeInTheDocument();
+      expect(screen.getByText("Section 1 · Purchasing approved · without a signature")).toBeInTheDocument();
+      expect(screen.getByText("Section 2 · Purchasing & Finance · “Freight is missing”")).toBeInTheDocument();
+      expect(screen.getByText("PO changed in Odoo · 1 · Purchasing and 2 · Purchasing & Finance back to awaiting approval")).toBeInTheDocument();
     });
 
     it("offers no sign-off action on a filed IPAS", async () => {
@@ -245,11 +245,39 @@ describe("IPAS sign-offs", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id);
-      await user.click(within(await screen.findByTestId("ipas-signoffs-1")).getByRole("button", { name: "Approve section 1" }));
+      await user.click(within(await screen.findByTestId("ipas-signoffs-1")).getByRole("button", { name: "Approve section 1 · Purchasing" }));
 
       await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/^you are not on the list that may give this sign-off/i)));
       expect(toastError.mock.calls.at(-1)[0]).not.toMatch(/ipas_sign|42501/);
       expect(db.rows("ipas_signoffs").filter((s) => s.role === "approved")).toEqual([]);
+    });
+
+    it("names every section by its number and name, never by a bare number", async () => {
+      onList("s1_approved", approver);
+      onList("s3_approved", approver);
+      const row = ipas();
+      signoff(row.id, 1, "prepared", purchaser);
+      signoff(row.id, 1, "approved", approver);
+      signoff(row.id, 3, "prepared", purchaser);
+      db.seed("ipas_events", [
+        { ipas_id: row.id, actor_id: approver.id, kind: "sent_back", detail: { section: 3, reason: "Freight is missing", cleared: ["prepared"] } },
+        { ipas_id: row.id, actor_id: purchaser.id, kind: "approvals_cleared", detail: { reason: "PO changed in Odoo", sections: [1, 3] } },
+      ]);
+      signIn(approver);
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      const three = await screen.findByTestId("ipas-signoffs-3");
+      await user.click(within(three).getByRole("button", { name: "Send back" }));
+      await screen.findByRole("dialog");
+
+      const text = document.body.textContent ?? "";
+      expect(text).toContain("Send section 2 · Purchasing & Finance back?");
+      expect(text).toContain("Waiting for 1 · Purchasing and 2 · Purchasing & Finance");
+      expect(text).toContain("Section 2 · Purchasing & Finance · “Freight is missing”");
+      expect(text).toContain("PO changed in Odoo · 1 · Purchasing and 2 · Purchasing & Finance back to awaiting approval");
+      // A section is named with its number and its name, or not by number at all.
+      expect(text).not.toMatch(/\b(?:sections?|send|waiting for|and|for)\s+\d+\b(?!\s*·)/i);
     });
   });
 

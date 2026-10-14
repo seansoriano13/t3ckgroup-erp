@@ -152,9 +152,9 @@ describe("IPAS section 7 and Filing", () => {
       renderDetail(row.id);
 
       const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).getAllByText("Opens once sections 1 and 3 are approved.")).toHaveLength(4);
+      expect(within(filing).getAllByText("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved.")).toHaveLength(4);
       expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.getByText("Waiting for sections 1 and 3")).toBeInTheDocument();
+      expect(screen.getByText("Waiting for 1 · Purchasing and 2 · Purchasing & Finance")).toBeInTheDocument();
     });
 
     it("offers Received to its list, then Noted and Checked, each only to its own list", async () => {
@@ -388,9 +388,9 @@ describe("IPAS section 7 and Filing", () => {
 
       renderDetail(row.id);
 
-      expect(await screen.findByText("Section 7 approved · Costs complete")).toBeInTheDocument();
+      expect(await screen.findByText("Section 4 · Filing approved · Costs complete")).toBeInTheDocument();
       expect(screen.getByText("1 added")).toBeInTheDocument();
-      expect(screen.getByText("“Charges were misread” · cleared section 7: approved, checked")).toBeInTheDocument();
+      expect(screen.getByText("“Charges were misread” · cleared section 4 · Filing: approved, checked")).toBeInTheDocument();
     });
 
     it("lets a Super Admin reopen it with a required reason, and the edit controls come back", async () => {

@@ -1,13 +1,17 @@
 /**
- * The printed IPAS as HTML: two A4 portrait pages in the sheet's own order
- * (spec #241 "Printed IPAS", issue #250, ADR 0014).
+ * The printed IPAS as HTML: two A4 portrait pages (spec #241 "Printed IPAS",
+ * issue #250, ADR 0014), numbered and named as the screen numbers them
+ * (ipasSectionLabel, constants/ipas.js), not as the paper sheet did:
  *
- *   Page 1   header, 1 Purchasing (items and payments), 2 Sales & Operation,
- *            3 Purchasing & Finance (charges, documents, bank details)
- *   Page 2   5 Logistics (Item Location), 6 Status and Landed Cost,
- *            7 Filing (checklist and four signatures)
+ *   Page 1   header, 1 Purchasing (items and payments),
+ *            2 Purchasing & Finance (charges, documents, bank details)
+ *   Page 2   3 Computation status & Landed Cost, 4 Filing (checklist and four
+ *            signatures), 5 Sales & Operation, 6 Logistics (Item Location),
+ *            7 Status (Supplier Origin and the buyer track)
  *
- * There is no section 4 and no Transmittals list yet (they join in build step 2).
+ * The view model keeps the stored section names (`section1`, `section3`, ...);
+ * only what is printed is renumbered. There is no Transmittals list yet (it
+ * joins in build step 2).
  *
  * Pure: a view model (ipasViewModel.js) in, a complete document string out.
  * `formHTML` and `sigBlock` concatenate strings without escaping, and an IPAS
@@ -15,6 +19,7 @@
  * `escapeHtml` before it is written, including what `sigBlock` is handed.
  */
 
+import { ipasSectionLabel } from '../../constants/ipas';
 import { MARK } from './brandMark';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 
@@ -177,9 +182,10 @@ function header(vm) {
   </div>`;
 }
 
-function footer(vm, page, sections) {
+function footer(vm, page, [first, last]) {
   const f = vm.footer;
   const middle = [f.landedCost, f.odooRead + (f.odooNote ? ` (${f.odooNote})` : '')].filter(Boolean).map(esc).join(' · ');
+  const sections = `Sections ${ipasSectionLabel(first)} to ${ipasSectionLabel(last)}`;
   return `<div class="foot">
     <span>${esc(f.reference)}${f.printed ? `<br>${esc(f.printed)}` : ''}</span>
     <span class="mid">${middle}</span>
@@ -189,7 +195,7 @@ function footer(vm, page, sections) {
 
 // ── Sections ─────────────────────────────────────────────────────────────────
 
-function section1(vm) {
+function purchasing(vm) {
   const s = vm.section1;
   const items = s.items.length
     ? `<table><thead><tr>
@@ -224,7 +230,7 @@ function section1(vm) {
     : '<div class="empty">No payments recorded.</div>';
 
   return section(
-    '1 · Purchasing',
+    esc(ipasSectionLabel('purchasing')),
     esc(s.poNumber),
     `<div class="fields">
       ${field('Supplier', esc(s.supplier))}
@@ -239,7 +245,7 @@ function section1(vm) {
   );
 }
 
-function section2(vm) {
+function sales(vm) {
   const s = vm.section2;
   const sors = s.sors.length
     ? `<table><thead><tr><th style="width:18%">SOR</th><th>Project</th></tr></thead><tbody>${s.sors
@@ -250,7 +256,7 @@ function section2(vm) {
     : '<div class="empty">No SOR named.</div>';
 
   return section(
-    '2 · Sales &amp; Operation',
+    esc(ipasSectionLabel('sales')),
     '',
     `${sors}
     <div class="fields n2">
@@ -262,7 +268,7 @@ function section2(vm) {
   );
 }
 
-function section3(vm) {
+function finance(vm) {
   const s = vm.section3;
   const charges = `<table><thead><tr><th>Importation charge</th><th style="width:30%">Date</th><th class="num" style="width:34%">Amount</th></tr></thead>
     <tbody>${
@@ -301,7 +307,7 @@ function section3(vm) {
   }
 
   return section(
-    '3 · Purchasing &amp; Finance',
+    esc(ipasSectionLabel('finance')),
     `Charges: ${esc(s.chargesTotal)}`,
     `<div class="cols2"><div>${charges}</div><div>${documents}</div></div>
     ${bank}
@@ -309,9 +315,9 @@ function section3(vm) {
   );
 }
 
-function section5(vm) {
+function logistics(vm) {
   return section(
-    '5 · Logistics &amp; Warehouse',
+    esc(ipasSectionLabel('logistics')),
     '',
     `<div class="fields n2">${field('Item Location', esc(vm.section5.itemLocation ?? '—'))}</div>`,
   );
@@ -323,10 +329,9 @@ const statusChip = (item) =>
       item.detail ? `<span class="d">${esc(item.detail)}</span>` : ''
     }</span>`;
 
-function section6(vm) {
+/** Supplier Origin (Import only) and the buyer track. */
+function status(vm) {
   const s = vm.section6;
-  const lc = s.landedCost;
-  const mark = `<span class="prov ${lc.status === 'final' ? 'final' : lc.status === 'unavailable' ? 'na' : ''}">${esc(lc.label)}</span>`;
 
   const origin = s.origin
     ? `<div><div class="group-k">Supplier origin</div><div class="stat">${s.origin
@@ -337,6 +342,20 @@ function section6(vm) {
         )
         .join('')}</div></div>`
     : '';
+
+  return section(
+    esc(ipasSectionLabel('status')),
+    s.hasOdooMarks ? legend : '',
+    `${origin}
+    <div><div class="group-k">Buyer track</div><div class="stat">${s.buyerTrack.map(statusChip).join('')}</div></div>`,
+  );
+}
+
+/** The computation status and Landed Cost per line, with its provisional or final mark. */
+function costing(vm) {
+  const s = vm.section6;
+  const lc = s.landedCost;
+  const mark = `<span class="prov ${lc.status === 'final' ? 'final' : lc.status === 'unavailable' ? 'na' : ''}">${esc(lc.label)}</span>`;
 
   const computation = `<div><div class="group-k">IPAS computation</div><div class="stat">${s.computation
     .map(
@@ -358,19 +377,17 @@ function section6(vm) {
           ${lc.note ? `<div class="sub">${esc(lc.note)}</div>` : ''}`;
 
   return section(
-    '6 · Status',
-    s.hasOdooMarks ? legend : '',
-    `${origin}
-    <div><div class="group-k">Buyer track</div><div class="stat">${s.buyerTrack.map(statusChip).join('')}</div></div>
-    ${computation}
+    esc(ipasSectionLabel('costing')),
+    '',
+    `${computation}
     <div class="box"><div class="group-k">Landed cost calculation ${mark}</div>${landed}</div>`,
   );
 }
 
-function section7(vm) {
+function filing(vm) {
   const s = vm.section7;
   return section(
-    '7 · For filing',
+    esc(ipasSectionLabel('filing')),
     'Finance',
     `<div class="stat">${s.checklist
       .map(
@@ -388,12 +405,12 @@ function section7(vm) {
 /** Both pages, as markup. */
 export function buildIpasPagesHtml(vm) {
   return `<div class="sheet first">
-    ${rail(vm, 1)}${header(vm)}${section1(vm)}${section2(vm)}${section3(vm)}
-    ${footer(vm, 1, 'sections 1–3')}
+    ${rail(vm, 1)}${header(vm)}${purchasing(vm)}${finance(vm)}
+    ${footer(vm, 1, ['purchasing', 'finance'])}
   </div>
   <div class="sheet">
-    ${rail(vm, 2)}${section5(vm)}${section6(vm)}${section7(vm)}
-    ${footer(vm, 2, 'sections 5–7')}
+    ${rail(vm, 2)}${costing(vm)}${filing(vm)}${sales(vm)}${logistics(vm)}${status(vm)}
+    ${footer(vm, 2, ['costing', 'status'])}
   </div>`;
 }
 

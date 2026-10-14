@@ -3,7 +3,7 @@ import { Check, CornerUpLeft, PenLine } from "lucide-react";
 import { Button } from "../ui/button";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
-import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_LABELS } from "../../constants/ipas";
+import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../../constants/ipas";
 import { SIGNOFF_STATUS } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
 
@@ -67,13 +67,13 @@ export function IpasSignoffs({ section, state, rights, busy = false, onPrepare, 
         {rights.canPrepare && (
           <Button size="sm" className="gap-1.5" disabled={busy} onClick={onPrepare}>
             <PenLine size={14} />
-            Prepare section {section}
+            Prepare section {ipasSectionLabel(section)}
           </Button>
         )}
         {rights.canApprove && (
           <Button size="sm" className="gap-1.5" disabled={busy} onClick={onApprove}>
             <Check size={14} />
-            Approve section {section}
+            Approve section {ipasSectionLabel(section)}
           </Button>
         )}
         {rights.canSendBack && (

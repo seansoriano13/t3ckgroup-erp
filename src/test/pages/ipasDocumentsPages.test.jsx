@@ -218,7 +218,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id);
-      expect(await screen.findByText("5 · Logistics")).toBeInTheDocument();
+      expect(await screen.findByText("6 · Logistics")).toBeInTheDocument();
       await user.click(screen.getByRole("combobox", { name: "Item Location" }));
       await user.click(await screen.findByRole("option", { name: "BM Office" }));
 
@@ -262,7 +262,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
       renderDetail(row.id);
 
-      expect(await screen.findByText("6 · Status")).toBeInTheDocument();
+      expect(await screen.findByText("7 · Status")).toBeInTheDocument();
       expect(screen.queryByTestId("ipas-supplier-origin")).not.toBeInTheDocument();
       expect(screen.queryByText("Supplier Origin")).not.toBeInTheDocument();
       expect(screen.queryByText("Import Clearance")).not.toBeInTheDocument();

@@ -17,6 +17,7 @@ import {
   IPAS_LANDED_COST_STATUS,
   IPAS_OPTION_LIST,
   IPAS_PAYMENT_KIND_LABELS,
+  ipasSectionLabel,
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
 import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
@@ -232,7 +233,7 @@ export function IpasChargesSection({
 
   return (
     <IpasSection
-      title="3 · Purchasing & Finance"
+      title={ipasSectionLabel("finance")}
       aside={charges.length > 0 ? <span>Charges: {pesos(sum.chargesPhp)}</span> : null}
     >
       <SectionHeader title="Importation charges" className="pb-2">
@@ -330,7 +331,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
 
   return (
     <IpasSection
-      title="6 · Computation status & Landed Cost"
+      title={ipasSectionLabel("costing")}
       aside={<LandedCostBadge status={lc.status} />}
     >
       <div className="space-y-4">

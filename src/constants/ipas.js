@@ -431,6 +431,59 @@ export const IPAS_SECTION_NAMES = {
 };
 
 /**
+ * The number each part of an IPAS shows, on screen and on the printed sheet, in
+ * the order the module shows them (money and sign-offs first). The paper sheet
+ * numbered them differently. Only what a person reads changes: the stored
+ * sign-off sections stay 1, 3 and 7 (`ipas_signoffs.section`, the signer lists,
+ * the RPCs), which `IPAS_SECTION_NO` maps to these numbers.
+ */
+export const IPAS_PART_NO = {
+  purchasing: 1,
+  finance: 2,
+  costing: 3,
+  filing: 4,
+  sales: 5,
+  logistics: 6,
+  status: 7,
+};
+
+/** The name each part is shown by. */
+export const IPAS_PART_NAMES = {
+  purchasing: "Purchasing",
+  finance: "Purchasing & Finance",
+  costing: "Computation status & Landed Cost",
+  filing: "Filing",
+  sales: "Sales & Operation",
+  logistics: "Logistics",
+  status: "Status",
+};
+
+/** The part a stored sign-off section (1, 3 or 7) is. */
+const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 7: "filing" };
+
+/** The number a stored sign-off section (1, 3 or 7) shows as. */
+export const IPAS_SECTION_NO = {
+  1: IPAS_PART_NO[IPAS_SECTION_PART[1]],
+  3: IPAS_PART_NO[IPAS_SECTION_PART[3]],
+  7: IPAS_PART_NO[IPAS_SECTION_PART[7]],
+};
+
+/** A stored sign-off section as the number a person reads; anything unknown reads as it is. */
+export const ipasSectionNo = (section) => IPAS_SECTION_NO[section] ?? section;
+
+/**
+ * A section as a person reads it: "<no> · <name>", e.g. "2 · Purchasing & Finance".
+ * Takes a part key ("finance") or a stored sign-off section (3). Anything it
+ * doesn't know reads as it is given.
+ */
+export function ipasSectionLabel(partOrSection) {
+  const part = IPAS_SECTION_PART[partOrSection] ?? partOrSection;
+  const no = IPAS_PART_NO[part];
+  if (no === undefined) return String(partOrSection);
+  return `${no} · ${IPAS_PART_NAMES[part]}`;
+}
+
+/**
  * The signer lists (ipas_signer_lists.list_key): who may give each sign-off
  * after Prepared. Super Admins edit them; Prepared needs Purchasing access.
  */

@@ -12,13 +12,17 @@ import {
   IPAS_SIGNOFF_ROLE_ACTIONS,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_STATE,
+  ipasSectionLabel,
 } from "../../constants/ipas";
 import { filingChecklist } from "../../utils/ipasDocuments";
 import { FILING_STATUS, isCostsComplete } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
 
+/** The two sign-off sections that open section 7, as a person reads them. */
+const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")}`;
+
 const STATUS_BADGE = {
-  [FILING_STATUS.WAITING]: { theme: "mauve", label: "Waiting for sections 1 and 3" },
+  [FILING_STATUS.WAITING]: { theme: "mauve", label: `Waiting for ${OPENING_SECTIONS}` },
   [FILING_STATUS.READY]: { theme: "amber", label: "Ready to receive" },
   [FILING_STATUS.IN_PROGRESS]: { theme: "amber", label: "In progress" },
   [FILING_STATUS.FILED]: { theme: "green", label: "Filed" },
@@ -26,7 +30,7 @@ const STATUS_BADGE = {
 
 /** What each box says while it is empty, from where section 7 stands. */
 function waitingText(role, state) {
-  if (!state.opened) return "Opens once sections 1 and 3 are approved.";
+  if (!state.opened) return `Opens once ${OPENING_SECTIONS} are approved.`;
   if (role === IPAS_SIGNOFF_ROLE.RECEIVED) return "Comes first.";
   if (!state.received) return "After Received.";
   if (role === IPAS_SIGNOFF_ROLE.APPROVED) {
@@ -63,7 +67,7 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
 
   return (
     <IpasSection
-      title="7 · Filing"
+      title={ipasSectionLabel("filing")}
       aside={<StatusBadge theme={badge.theme} label={badge.label} />}
     >
       <div className="space-y-4" data-testid="ipas-filing">
@@ -77,7 +81,7 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
             />
             {checklist.length === 0 ? (
               <li className="py-2 text-[13px] text-muted-foreground">
-                No filing items are listed for this IPAS. Documents are ticked in section 3.
+                No filing items are listed for this IPAS. Documents are ticked in section {ipasSectionLabel("finance")}.
               </li>
             ) : (
               checklist.map((doc) => (
