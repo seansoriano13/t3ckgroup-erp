@@ -187,6 +187,25 @@ describe("IPAS signing with the evidence in view", () => {
       expect(screen.queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
     });
 
+    it("Edit section from the drawer, then Back, lands on the overview with the row focused and no drawer", async () => {
+      const row = ipas();
+      const router = renderRouted(row.id);
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
+      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      await user.click(within(drawer).getByRole("button", { name: "Edit section" }));
+      await screen.findByRole("button", { name: "Back to overview" });
+      // The drawer's entry was replaced, not stacked under the edit view.
+      expect(router.state.location.search).toBe("?edit=purchasing");
+
+      await act(() => router.navigate(-1));
+      await waitFor(() => expect(router.state.location.search).toBe(""));
+      expect(await screen.findByRole("button", { name: /^1 · Purchasing/ })).toHaveFocus();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
+    });
+
     it("Back leaves the edit view for the overview, with the section row focused", async () => {
       const row = ipas();
       const router = renderRouted(row.id);
@@ -301,7 +320,7 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" })).toBeInTheDocument();
     });
 
-    it("marks costs complete after a yes, toasts with Undo, and Undo restores the status", async () => {
+    it("marks costs complete with no question, toasts with Undo, and Undo restores the status", async () => {
       const row = ipas({ computation_status: "encoded" });
       // No Toaster in the page tests: draw the undoable toast where it is asked for.
       toastSpy = vi.spyOn(toast, "custom").mockImplementation((render) => {
@@ -312,8 +331,8 @@ describe("IPAS signing with the evidence in view", () => {
       const user = userEvent.setup();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Mark costs complete" }));
-      const dialog = await screen.findByRole("dialog", { name: "Mark costs complete?" });
-      await user.click(within(dialog).getByRole("button", { name: "Mark complete" }));
+      // Undoable from its toast, so it asks nothing first.
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
       await waitFor(() => expect(rowOf(row.id).computation_status).toBe("costs_complete"));
       expect(toastSpy).toHaveBeenCalled();
@@ -391,6 +410,38 @@ describe("IPAS signing with the evidence in view", () => {
 
       await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.role === "approved")).toHaveLength(1));
       expect(screen.queryByRole("link", { name: /Next IPAS waiting for me/ })).not.toBeInTheDocument();
+    });
+
+    it("following Next IPAS leaves no failure of the last IPAS behind: no alert, and Retry is not carried over", async () => {
+      signIn(approver);
+      const first = ipas();
+      const second = ipas();
+      for (const row of [first, second]) {
+        signoff(row.id, 1, "prepared", purchaser);
+        signoff(row.id, 3, "prepared", purchaser);
+      }
+      onList("s3_approved", approver);
+      renderDetail(first.id);
+      const user = userEvent.setup();
+
+      // A sign-off on the first IPAS succeeds, which names the second as the next one waiting.
+      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
+      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" })).getByRole("button", { name: "Approve" }));
+      await screen.findByRole("link", { name: `Next IPAS waiting for me: ${second.number}` });
+
+      // The database refuses the next one on the first IPAS, so its failure is on the card.
+      signIn(approver, { actorId: other.id });
+      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 2 · Purchasing & Finance" }));
+      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 2 · Purchasing & Finance?" })).getByRole("button", { name: "Approve" }));
+      expect(await within(await yourMove()).findByRole("alert")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("link", { name: `Next IPAS waiting for me: ${second.number}` }));
+      await waitFor(() => expect(screen.getByRole("heading", { name: second.number })).toBeInTheDocument());
+      const region = await yourMove();
+      // The second IPAS offers the same move, but shows none of the first one's failure.
+      await within(region).findByRole("button", { name: "Approve section 2 · Purchasing & Finance" });
+      expect(within(region).queryByRole("alert")).not.toBeInTheDocument();
+      expect(within(region).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     });
   });
 });

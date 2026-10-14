@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ArrowLeft, ReceiptText } from "lucide-react";
@@ -122,6 +122,7 @@ function typingInitialValue(field, ipas) {
  */
 function IpasPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
@@ -148,11 +149,27 @@ function IpasPage() {
   // The typed dates being edited: "origin" (Supplier Origin) or a typed status key.
   const [dates, setDates] = useState(null);
   // The section the drawer shows (?open=), and each section row, so focus can go back to it.
-  const { index, current, inPlace, open: openSection, step: stepSection, close: closeSection } = useOpenSection();
+  const { index, current, inPlace, open: openDrawer, step: stepSection, close: closeSection } = useOpenSection();
   // The section in the edit view (?edit=), and the section last left, to focus its row on the way back.
   const { key: editKey, edit: openEdit, leave: leaveEdit } = useEditSection();
   const editedKey = useRef(null);
   const rowEls = useRef({});
+  // Set when the drawer was opened from the overview on this page: the edit view then replaces
+  // that entry, so the overview is one Back away. Otherwise (a link opened straight into the
+  // drawer or the edit view) "Back to overview" replaces the entry instead.
+  const overviewBehind = useRef(false);
+  const openSection = (key) => {
+    overviewBehind.current = Boolean(key);
+    openDrawer(key);
+  };
+  const backToOverview = () => {
+    if (overviewBehind.current) {
+      overviewBehind.current = false;
+      navigate(-1);
+    } else {
+      leaveEdit();
+    }
+  };
 
   // The stored copy, at once. The refresh below catches it up.
   const { data: ipas, isLoading, isError, refetch } = useQuery({
@@ -633,7 +650,7 @@ function IpasPage() {
   const editView = editKey ? (
     <div className="space-y-6">
       <div>
-        <Button variant="ghost" size="sm" className="gap-1.5" onClick={leaveEdit}>
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={backToOverview}>
           <ArrowLeft size={14} aria-hidden="true" />
           Back to overview
         </Button>
@@ -865,10 +882,13 @@ function IpasPage() {
 
 // Every employee reaches the route; the database decides what comes back
 // (ipas_can_read), so a non-reader gets the "not found" state.
+// Keyed by the IPAS, so "Next IPAS waiting for me" (same route, new id) starts
+// from a clean page: no failure, dialog or sign-off from the last IPAS carries over.
 export default function IpasPageRoute() {
+  const { id } = useParams();
   return (
     <ProtectedRoute>
-      <IpasPage />
+      <IpasPage key={id} />
     </ProtectedRoute>
   );
 }

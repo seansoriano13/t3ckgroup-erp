@@ -113,8 +113,9 @@ function gateDefs(digest) {
 
 /**
  * The six gates in order, each with its state and flags:
- *   now       exactly one gate is Now while the IPAS is open: the first unmet
- *             gate whose prerequisites are met (if none is, the first unmet one)
+ *   now       the first unmet gate whose prerequisites are met: at most one. None
+ *             when no gate's turn has come on an open IPAS; the card then says
+ *             what it waits on (moveCopy.js)
  *   eligible  not done, and its prerequisites are met (or it is Now)
  *   state     "done" | "current" (Now) | "waiting"
  *   accessibleName  "Section 2, Purchasing & Finance, Approved, waiting"
@@ -122,8 +123,8 @@ function gateDefs(digest) {
  */
 export function gatesFor(digest) {
   const defs = gateDefs(digest);
-  const unmet = defs.filter((gate) => !gate.done);
-  const now = digest.open ? (unmet.find((gate) => gate.prereqMet) ?? unmet[0] ?? null) : null;
+  // The costs gate's prerequisite is the encoded status, so it is Now only on its turn.
+  const now = digest.open ? (defs.find((gate) => !gate.done && gate.prereqMet) ?? null) : null;
 
   return defs.map((gate) => {
     const isNow = gate === now;
