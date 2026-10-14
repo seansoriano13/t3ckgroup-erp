@@ -83,9 +83,25 @@ function renderRouted(id) {
 
 const yourMove = () => screen.findByRole("region", { name: "Your move" });
 
+/** Stubs the wide breakpoint (xl, 1280px) on: jsdom reports no match, which collapses the card. */
+function stubWide() {
+  window.matchMedia = vi.fn().mockImplementation((query) => ({
+    matches: true,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
 describe("IPAS signing with the evidence in view", () => {
   let purchaser, approver, other;
   let toastSpy = null;
+
+  const originalMatchMedia = window.matchMedia;
 
   const signIn = (person, opts = {}) => {
     mockUser.current = person;
@@ -94,6 +110,7 @@ describe("IPAS signing with the evidence in view", () => {
 
   beforeEach(() => {
     counter = 80;
+    stubWide();
     purchaser = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
     approver = makeEmployee({ name: "Boss Lito" });
     other = makeEmployee({ name: "Co Approver" });
@@ -104,6 +121,7 @@ describe("IPAS signing with the evidence in view", () => {
   });
 
   afterEach(() => {
+    window.matchMedia = originalMatchMedia;
     toastSpy?.mockRestore();
     toastSpy = null;
   });

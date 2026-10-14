@@ -353,7 +353,7 @@ describe("ipasService", () => {
         flow_stage_id: stage.id,
       })
       await raise({ poNumber: "P01001", purpose: "project", sorIds: [sor.id] })
-      db.setClock("2026-10-14T00:00:00.000Z")
+      db.setClock("2099-01-01T00:00:00.000Z")
       await raise({ poNumber: "P01002" })
 
       const rows = await ipasService.list()

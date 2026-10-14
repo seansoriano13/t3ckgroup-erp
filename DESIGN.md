@@ -273,7 +273,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/record-modal.jsx`, on Dialog. The one-size modal for the records that carry a Chat (SOR, Individual Task, Group Task; DESIGN.md "Pages → Container rule"). `RecordModalContent` replaces `DialogContent` (`className`, plus DialogContent props); `RECORD_MODAL_CLASS` is its size. No size switcher.
 
 #### ConfirmDialog
-`ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `className`, `footerClassName`, `children`.
+`ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `className`, `footerClassName`, `children`. `ui/approveClass.js` exports `APPROVE_CLASS`, the green Approve style for a `Button` that approves outside a ConfirmDialog (record footers, the Decision card).
 
 #### Input
 `ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox and file inputs have their own Primitives.

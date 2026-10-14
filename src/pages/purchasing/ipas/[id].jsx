@@ -708,7 +708,7 @@ function IpasPage() {
             </Link>
           )}
           <div className="space-y-2 empty:hidden">
-            {shownFailure && (
+            {!editKey && shownFailure && (
               <InlineError
                 message={shownFailure.message}
                 onRetry={shownFailure.retry}
