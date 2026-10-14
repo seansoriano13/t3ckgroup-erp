@@ -4,13 +4,21 @@ import { IPAS_COMPUTATION_STATUS, IPAS_SIGNOFF_ROLE, ipasSectionLabel } from "@/
 import { hintFor } from "./moveCopy";
 
 /**
- * One move: its key (which gate it passes, see gates.js), how it looks, its
- * label, its consequence hint, and what it does.
- *   kind  "approve" (green) | "prepare" or "neutral" (outline) | "return" (pale red)
+ * One move: its key (which gate it passes, see gates.js), the section it
+ * belongs to (the drawer's footer and "Review section" use it), how it looks,
+ * its label, its consequence hint, and what it does.
+ *   kind     "approve" (green) | "prepare" or "neutral" (outline) | "return" (pale red)
+ *   confirm  the card asks first, with the restatement; the drawer footer signs
+ *            straight away, because the evidence is in view
+ *   run(from)  `from` is { key, origin } where the move was started; the page
+ *            passes it to the mutation so a failure shows at its origin
  */
-function move(key, kind, icon, label, run, digest) {
-  return { key, kind, icon, label, run, hint: hintFor(key, digest) };
+function move(key, section, { kind, icon, label, verb, confirm = true, run }, digest) {
+  return { key, section, kind, icon, label, verb, confirm, run, hint: hintFor(key, digest) };
 }
+
+const FILING = ipasSectionLabel(7);
+const PART = { 1: "purchasing", 3: "finance", 7: "filing" };
 
 /**
  * Everything the signed-in person may do on this IPAS right now, in three groups:
@@ -30,35 +38,61 @@ export function movesFor(ctx, digest) {
     const mine = rights[section];
     const label = ipasSectionLabel(section);
     if (mine.canApprove) {
-      moves.push(move(`approve-${section}`, "approve", Check, `Approve section ${label}`, () => on.approve(section), digest));
+      moves.push(
+        move(`approve-${section}`, PART[section], {
+          kind: "approve",
+          icon: Check,
+          label: `Approve section ${label}`,
+          verb: "Approve",
+          run: (from) => on.approve(section, from),
+        }, digest),
+      );
     }
     if (mine.canPrepare) {
-      moves.push(move(`prepare-${section}`, "prepare", PenLine, `Prepare section ${label}`, () => on.prepare(section), digest));
+      moves.push(
+        move(`prepare-${section}`, PART[section], {
+          kind: "prepare",
+          icon: PenLine,
+          label: `Prepare section ${label}`,
+          verb: "Prepare",
+          run: (from) => on.prepare(section, from),
+        }, digest),
+      );
     }
   }
 
-  const filing = ipasSectionLabel(7);
+  // Approve and file confirms in the filing dialog (it lists the documents), so its card move does not ask twice.
   const steps = [
-    [IPAS_SIGNOFF_ROLE.RECEIVED, "receive", Check, `Receive section ${filing}`],
-    [IPAS_SIGNOFF_ROLE.NOTED, "note", Check, `Note section ${filing}`],
-    [IPAS_SIGNOFF_ROLE.CHECKED, "check", Check, `Check section ${filing}`],
-    [IPAS_SIGNOFF_ROLE.APPROVED, "file", FileCheck2, "Approve and file"],
+    [IPAS_SIGNOFF_ROLE.RECEIVED, "receive", "Receive"],
+    [IPAS_SIGNOFF_ROLE.NOTED, "note", "Note"],
+    [IPAS_SIGNOFF_ROLE.CHECKED, "check", "Check"],
+    [IPAS_SIGNOFF_ROLE.APPROVED, "file", "Approve and file"],
   ];
-  for (const [role, key, icon, label] of steps) {
-    if (rights[7][role]?.canGive) moves.push(move(key, "approve", icon, label, () => on.give(role), digest));
+  for (const [role, key, verb] of steps) {
+    if (!rights[7][role]?.canGive) continue;
+    const filed = role === IPAS_SIGNOFF_ROLE.APPROVED;
+    moves.push(
+      move(key, "filing", {
+        kind: "approve",
+        icon: filed ? FileCheck2 : Check,
+        label: filed ? "Approve and file" : `${verb} section ${FILING}`,
+        verb,
+        confirm: !filed,
+        run: (from) => on.give(role, from),
+      }, digest),
+    );
   }
 
   const costs = [];
   if (can.change && !digest.costsComplete) {
     costs.push(
-      move(
-        "costs",
-        "neutral",
-        Check,
-        "Mark costs complete",
-        () => on.setComputationStatus(IPAS_COMPUTATION_STATUS.COSTS_COMPLETE),
-        digest,
-      ),
+      move("costs", "costing", {
+        kind: "neutral",
+        icon: Check,
+        label: "Mark costs complete",
+        verb: "Mark complete",
+        run: (from) => on.setComputationStatus(IPAS_COMPUTATION_STATUS.COSTS_COMPLETE, from),
+      }, digest),
     );
   }
 
@@ -66,13 +100,35 @@ export function movesFor(ctx, digest) {
   for (const section of [1, 3]) {
     if (rights[section].canSendBack) {
       returns.push(
-        move(`return-${section}`, "return", CornerUpLeft, `Send section ${ipasSectionLabel(section)} back`, () => on.sendBack(section), digest),
+        move(`return-${section}`, PART[section], {
+          kind: "return",
+          icon: CornerUpLeft,
+          label: `Send section ${ipasSectionLabel(section)} back`,
+          verb: "Send back",
+          confirm: false,
+          run: () => on.sendBack(section),
+        }, digest),
       );
     }
   }
   if (rights.sendBack7) {
-    returns.push(move("return-7", "return", CornerUpLeft, `Send section ${filing} back`, () => on.sendBack(7), digest));
+    returns.push(
+      move("return-7", "filing", {
+        kind: "return",
+        icon: CornerUpLeft,
+        label: `Send section ${FILING} back`,
+        verb: "Send back",
+        confirm: false,
+        run: () => on.sendBack(7),
+      }, digest),
+    );
   }
 
   return { moves, costs, returns };
+}
+
+/** The moves a section's drawer footer offers: the same moves as the card, for that section. */
+export function footerMovesFor(ctx, digest, sectionKey) {
+  const { moves, costs, returns } = movesFor(ctx, digest);
+  return [...moves, ...costs, ...returns].filter((item) => item.section === sectionKey);
 }

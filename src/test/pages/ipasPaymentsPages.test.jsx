@@ -181,7 +181,8 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       // The payment dialog closes; the section drawer is still open, so close it and open Costing.
       await waitFor(() => expect(screen.getAllByRole("dialog")).toHaveLength(1));
       await user.keyboard("{Escape}");
-      await user.click(await screen.findByRole("button", { name: /Computation status & Landed Cost/ }));
+      // The section row (its number first); the card's "Review section 3 · …" link names it too.
+      await user.click(await screen.findByRole("button", { name: /^3 · Computation status & Landed Cost/ }));
       expect(await screen.findByTestId("ipas-landed-line")).toBeInTheDocument();
     });
 

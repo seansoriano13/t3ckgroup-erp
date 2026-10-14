@@ -30,15 +30,24 @@ import { ipasFilingWarningsKey } from "./ipasKeys";
  * { confirm: true })` and words a failure with a toast); the dialog closes
  * when it resolves. It is mounted only while open.
  */
-export default function FilingDialog({ open, onOpenChange, ipasId, number, onConfirm }) {
+export default function FilingDialog({ open, onOpenChange, ipasId, number, onConfirm, summary, signer }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body ipasId={ipasId} number={number} onConfirm={onConfirm} onClose={() => onOpenChange(false)} />}
+      {open && (
+        <Body
+          ipasId={ipasId}
+          number={number}
+          onConfirm={onConfirm}
+          summary={summary}
+          signer={signer}
+          onClose={() => onOpenChange(false)}
+        />
+      )}
     </Dialog>
   );
 }
 
-function Body({ ipasId, number, onConfirm, onClose }) {
+function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
   const [saving, setSaving] = useState(false);
 
   // Read fresh every time the dialog opens: what is ticked may have moved.
@@ -72,6 +81,9 @@ function Body({ ipasId, number, onConfirm, onClose }) {
           Approving section {ipasSectionLabel(7)} files this IPAS. It freezes Landed Cost as final and locks its payments, charges,
           documents, bank details, SORs and Purpose. Only a Super Admin can reopen it.
         </DialogDescription>
+        {/* From the record page: what filing adds, and who signs (the Approval Center passes neither). */}
+        {summary && <p className="text-sm text-foreground">{summary}</p>}
+        {signer && <p className="text-sm font-medium text-foreground">{signer}</p>}
       </DialogHeader>
 
       {warnings.isLoading ? (

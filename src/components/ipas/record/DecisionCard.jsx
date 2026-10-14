@@ -1,27 +1,24 @@
 // The decider: "Your move" answers what this person can do here, and says what
 // happens next for whoever is up. The moves are the ones `movesFor` allows, and
-// each one carries its consequence. Below the wide breakpoint the chain sits
-// behind a toggle; above it the chain is always shown beside the moves.
+// each one carries its consequence. A card move asks first (the restatement
+// comes from the same digest as the section row); the drawer footer signs
+// straight away. Below the wide breakpoint the chain sits behind a toggle;
+// above it the chain is always shown beside the moves.
 
 import { useState } from "react";
+import { Link } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
-import { APPROVE_CLASS } from "@/pages/approvals/_components/approvalUi";
 import IpasChain from "./IpasChain";
+import MoveButton from "./MoveButton";
 import { nowGate, waitingSections } from "./gates";
 import { movesFor } from "./moves";
 
 /** The wide breakpoint (Tailwind xl): the card sits beside the sections and shows its chain. */
 const WIDE = "(min-width: 1280px)";
-
-const LOOK = {
-  approve: { variant: "default", className: APPROVE_CLASS },
-  prepare: { variant: "outline", className: "" },
-  neutral: { variant: "outline", className: "" },
-  return: { variant: "destructive", className: "" },
-};
 
 /** One line under "Your move": what the viewer can do, or who the IPAS waits on. */
 function statusLine(digest, gates, offered) {
@@ -38,40 +35,40 @@ function statusLine(digest, gates, offered) {
 }
 
 /** A group of moves, each with its label and its one-line consequence under it. */
-function MoveGroup({ items, disabled, className }) {
+function MoveGroup({ items, origin, className, ...rest }) {
   return (
     <ul className={cn("space-y-3", className)}>
-      {items.map(({ key, kind, icon: Icon, label, hint, run }) => (
-        <li key={key} className="space-y-1.5">
-          <Button
-            size="lg"
-            variant={LOOK[kind].variant}
-            disabled={disabled}
-            onClick={run}
-            aria-describedby={`your-move-hint-${key}`}
-            className={cn("w-full justify-center gap-2 font-semibold", LOOK[kind].className)}
-          >
-            <Icon size={16} aria-hidden="true" />
-            {label}
-          </Button>
-          <p id={`your-move-hint-${key}`} className="text-xs text-muted-foreground">
-            {hint}
-          </p>
-        </li>
+      {items.map((item) => (
+        <MoveButton key={item.key} move={item} origin={origin} {...rest} />
       ))}
     </ul>
   );
 }
 
-export default function DecisionCard({ ctx, digest }) {
-  const { busy } = ctx;
+export default function DecisionCard({ ctx, digest, onReview, next }) {
+  const { busy, failure, viewer } = ctx;
   const wide = useMediaQuery(WIDE);
   const [chainOpen, setChainOpen] = useState(false);
+  // The card move waiting for the viewer's yes, with its restatement. `asked`
+  // keeps the move while the dialog animates shut, so its title does not blank.
+  const [asked, setAsked] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { moves, costs, returns } = movesFor(ctx, digest);
   const offered = [...moves, ...costs, ...returns];
   const { gates } = digest;
   const doneCount = gates.filter((gate) => gate.done).length;
   const busyNow = busy.signoff || busy.give;
+
+  // A card move asks first, unless it asks in its own dialog (the filing dialog, the reason of a send back).
+  const runFromCard = (item) => {
+    if (item.confirm) {
+      setAsked(item);
+      setConfirmOpen(true);
+    } else {
+      item.run({ key: item.key, origin: "card" });
+    }
+  };
+  const rest = { disabled: busyNow, busy: busyNow, failure, onRun: runFromCard, onReview };
 
   return (
     <section
@@ -84,10 +81,22 @@ export default function DecisionCard({ ctx, digest }) {
           Your move
         </h2>
         <p className="text-sm text-foreground">{statusLine(digest, gates, offered)}</p>
+        {next && (
+          <p className="text-sm">
+            <Link
+              to={`/purchasing/ipas/${next.ipasId}`}
+              className="font-semibold text-foreground underline underline-offset-4"
+            >
+              Next IPAS waiting for me: {next.number}
+            </Link>
+          </p>
+        )}
 
-        {moves.length > 0 && <MoveGroup items={moves} disabled={busyNow} />}
-        {returns.length > 0 && <MoveGroup items={returns} disabled={busyNow} />}
-        {costs.length > 0 && <MoveGroup items={costs} disabled={busyNow} className="border-t border-border pt-4" />}
+        {moves.length > 0 && <MoveGroup items={moves} origin="card" {...rest} />}
+        {returns.length > 0 && <MoveGroup items={returns} origin="card" {...rest} />}
+        {costs.length > 0 && (
+          <MoveGroup items={costs} origin="card" className="border-t border-border pt-4" {...rest} />
+        )}
       </div>
 
       {!wide && (
@@ -108,6 +117,21 @@ export default function DecisionCard({ ctx, digest }) {
           <IpasChain gates={gates} />
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`${asked?.label ?? ""}?`}
+        confirmLabel={asked?.verb ?? "Confirm"}
+        onConfirm={() => asked?.run({ key: asked.key, origin: "card" })}
+      >
+        <div className="space-y-1.5 text-sm">
+          <p className="text-muted-foreground">{asked ? digest.lines[asked.section] : ""}</p>
+          <p className="font-medium text-foreground">
+            {viewer ? `You sign as ${viewer}.` : "You sign with this account."}
+          </p>
+        </div>
+      </ConfirmDialog>
     </section>
   );
 }
