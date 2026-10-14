@@ -32,7 +32,7 @@ export default function Sheet({ p, view, onClose, onOpen }) {
       />
       <div
         className={cn(
-          "absolute inset-y-0 right-0 z-20 flex w-full max-w-[820px] flex-col border-l border-border/60 bg-popover shadow-[-16px_0_40px_-20px_rgba(0,0,0,0.3)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:w-[72%]",
+          "absolute inset-y-0 right-0 z-20 flex w-full max-w-[820px] flex-col border-l border-border/60 bg-popover shadow-[-16px_0_40px_-20px_rgba(0,0,0,0.3)] transition-transform duration-300 ease-out-expo md:w-[72%]",
           open ? "translate-x-0" : "pointer-events-none translate-x-full",
         )}
         inert={!open}

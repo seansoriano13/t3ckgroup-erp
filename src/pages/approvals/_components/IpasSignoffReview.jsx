@@ -8,13 +8,13 @@ import {
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_ACTIONS,
   IPAS_SIGNOFF_ROLE_LABELS,
-  ipasSectionName,
+  ipasSectionLabel,
 } from "../../../constants/ipas";
 import { formatAmount } from "../../../utils/ipas";
 import { canSendBackItem } from "../../../utils/ipasSignoffs";
 import { relativeAge } from "../../../utils/approvalItems.js";
 import { whyYouSeeThis } from "./approvalUi";
-import { APPROVE_CLASS } from "@/constants/approveClass";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 
 /**
  * Reviewing one IPAS sign-off as its signer (#247, sections 1 and 3; #248,
@@ -49,7 +49,7 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
             <DetailRow label="Priority">{IPAS_PRIORITY_LABELS[pending.priority] ?? pending.priority}</DetailRow>
             <DetailRow label="Odoo PO total">{formatAmount(pending.total, pending.currency)}</DetailRow>
             <DetailRow label="Section">
-              {pending.section} · {ipasSectionName(pending.section)}
+              {ipasSectionLabel(pending.section)}
             </DetailRow>
             {isFiling && <DetailRow label="Your step">{IPAS_SIGNOFF_ROLE_LABELS[pending.role]}</DetailRow>}
             <DetailRow label="Waiting">

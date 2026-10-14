@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { cn } from "@/lib/utils";
-import { APPROVE_CLASS } from "@/constants/approveClass";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 
 /**
  * A confirmation the app draws itself.

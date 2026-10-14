@@ -6,7 +6,7 @@
 import { Button } from "@/components/ui/button";
 import { ipasSectionLabel } from "@/constants/ipas";
 import { cn } from "@/lib/utils";
-import { APPROVE_CLASS } from "@/constants/approveClass";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 import InlineError from "./InlineError";
 
 const LOOK = {

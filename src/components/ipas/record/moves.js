@@ -20,6 +20,8 @@ const FILING = ipasSectionLabel(7);
 const PART = IPAS_SECTION_PART;
 // The two sections a Finance or purchasing signer can approve or send back from the card.
 const MOVE_SECTIONS = [1, 3];
+// The filing section: its sign-offs are steps, not Prepare and Approve.
+const FILING_SECTION = 7;
 
 /**
  * Everything the signed-in person may do on this IPAS right now, in three groups:
@@ -70,7 +72,7 @@ export function movesFor(ctx, digest) {
     [IPAS_SIGNOFF_ROLE.APPROVED, "file", "Approve and file"],
   ];
   for (const [role, key, verb] of steps) {
-    if (!rights[7][role]?.canGive) continue;
+    if (!rights[FILING_SECTION][role]?.canGive) continue;
     const filed = role === IPAS_SIGNOFF_ROLE.APPROVED;
     moves.push(
       move(key, "filing", {
@@ -85,8 +87,10 @@ export function movesFor(ctx, digest) {
   }
 
   const costs = [];
-  // Offered only once the computation status is Encoded: until then the card says what it waits on.
-  if (can.change && !digest.costsComplete && digest.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED) {
+  // Offered only on the Costs complete gate's own turn (gates.js), so the card's status
+  // line, which says what it waits on until then, and this move never disagree.
+  const costsGate = digest.gates.find((gate) => gate.key === "costs");
+  if (can.change && !digest.costsComplete && costsGate?.prereqMet) {
     costs.push(
       move("costs", "costing", {
         kind: "neutral",
@@ -123,7 +127,7 @@ export function movesFor(ctx, digest) {
         label: `Send section ${FILING} back`,
         verb: "Send back",
         confirm: false,
-        run: () => on.sendBack(7),
+        run: () => on.sendBack(FILING_SECTION),
       }, digest),
     );
   }

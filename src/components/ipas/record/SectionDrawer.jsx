@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Pencil, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { DRAWER_SECTIONS } from "./digest";
 import MoveButton from "./MoveButton";
 import { canEditSection, footerMovesFor } from "./moves";
 import { CHROME, IpasSectionChrome } from "./sectionChrome";
+import { useMoveConfirm } from "./useMoveConfirm";
 
 /** Marks the drawer's own dialog, so J and K can tell it from a dialog opened on top of it. */
 const DRAWER_ATTR = "data-section-drawer";
@@ -69,16 +69,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
   const editable = Boolean(current) && canEditSection(current.key, ctx);
   const busyNow = busy.signoff || busy.give;
   // A move that signs asks first, restating what it signs, the same as the card does.
-  const [asked, setAsked] = useState(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const runFromFooter = (item, origin) => {
-    if (item.confirm) {
-      setAsked(item);
-      setConfirmOpen(true);
-    } else {
-      item.run({ key: item.key, origin });
-    }
-  };
+  const { run: runFromFooter, dialog: confirmDialog } = useMoveConfirm({ digest, viewer: ctx.viewer, origin: CHROME.DRAWER });
 
   return (
     <Drawer open={Boolean(current)} onOpenChange={(next) => !next && close()}>
@@ -118,7 +109,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
             {/* Keyed by section, so stepping with previous and next eases the body in. */}
             <div
               key={current.key}
-              className="min-h-0 flex-1 animate-in overflow-y-auto px-7 py-6 duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] fade-in-0 slide-in-from-right-2"
+              className="min-h-0 flex-1 animate-in overflow-y-auto px-7 py-6 duration-300 ease-out-expo fade-in-0 slide-in-from-right-2"
             >
               <IpasSectionChrome.Provider value={CHROME.DRAWER}>{blocks[current.key]}</IpasSectionChrome.Provider>
             </div>
@@ -137,7 +128,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
                       <MoveButton
                         key={item.key}
                         move={item}
-                        origin="drawer"
+                        origin={CHROME.DRAWER}
                         disabled={busyNow}
                         busy={busyNow}
                         failure={failure}
@@ -148,21 +139,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
                 )}
               </div>
             )}
-            <ConfirmDialog
-              open={confirmOpen}
-              onOpenChange={setConfirmOpen}
-              title={`${asked?.label ?? ""}?`}
-              confirmLabel={asked?.verb ?? "Confirm"}
-              tone={asked?.kind === "return" ? "default" : "approve"}
-              onConfirm={() => asked?.run({ key: asked.key, origin: "drawer" })}
-            >
-              <div className="space-y-1.5 text-sm">
-                <p className="text-muted-foreground">{asked ? digest.lines[asked.section] : ""}</p>
-                <p className="font-medium text-foreground">
-                  {ctx.viewer ? `You sign as ${ctx.viewer}.` : "You sign with this account."}
-                </p>
-              </div>
-            </ConfirmDialog>
+            {confirmDialog}
           </>
         )}
       </DrawerContent>

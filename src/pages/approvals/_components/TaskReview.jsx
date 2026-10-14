@@ -14,7 +14,7 @@ import { checklistProgressLabel, isChecklistDescription, resolveApprovalShortcut
 import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import { NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
-import { APPROVE_CLASS } from "@/constants/approveClass";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**

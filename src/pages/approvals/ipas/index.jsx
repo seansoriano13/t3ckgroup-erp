@@ -12,7 +12,7 @@ import SendBackDialog from "../../../components/ipas/SendBackDialog";
 import FilingDialog from "../../../components/ipas/FilingDialog";
 import { ipasKey, ipasListKey, ipasPendingKey, ipasPendingPrefix } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
-import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_ACTIONS, IPAS_SIGNOFF_ROLE_LABELS } from "../../../constants/ipas";
+import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_ACTIONS, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../../../constants/ipas";
 import { ipasToItem } from "../../../utils/approvalItems.js";
 import { ipasErrorMessage } from "../../../utils/ipas";
 import { canSendBackItem } from "../../../utils/ipasSignoffs";
@@ -262,10 +262,10 @@ function IpasSignoffsQueue() {
       <SendBackDialog
         open={sendingBack !== null}
         onOpenChange={(next) => !next && setSendingBack(null)}
-        title={sendingBack ? `Send ${sendingBack.ref} section ${sendingBack.source.section} back?` : "Send back?"}
+        title={sendingBack ? `Send ${sendingBack.ref} section ${ipasSectionLabel(sendingBack.source.section)} back?` : "Send back?"}
         description={
           sendingBack?.source.section === 7
-            ? "It clears Received, Noted and Checked and tells the people who gave them. Sections 1 and 3 stay approved. The history keeps what was cleared."
+            ? `It clears Received, Noted and Checked and tells the people who gave them. Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved. The history keeps what was cleared.`
             : "It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
         }
         placeholder={sendingBack?.source.section === 7 ? "What needs fixing before it is filed?" : undefined}

@@ -135,10 +135,9 @@ function IpasPage() {
   const [failure, setFailure] = useState(null);
   // The IPAS this viewer just signed, so the card can point at the next one waiting for them.
   const [signedId, setSignedId] = useState(null);
-  // A failed change made in the edit view, shown in its header with Retry (see failEdit).
-  const [editFailure, setEditFailure] = useState(null);
-  // A failed change made on the overview (a Logistics pick, the status stamp, Mark costs undo), shown in the page with Retry.
-  const [overviewFailure, setOverviewFailure] = useState(null);
+  // A failed change (see failChange), kept with Retry where it was made: `key` is the
+  // edit view's section, or null on the overview (a Logistics pick, the status stamp, Mark costs undo).
+  const [changeFailure, setChangeFailure] = useState(null);
 
   const [editing, setEditing] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(null); // { payment | null }
@@ -222,7 +221,7 @@ function IpasPage() {
   }, [refresh.dataUpdatedAt, id, queryClient]);
 
   const changed = () => {
-    setEditFailure(null);
+    setChangeFailure(null);
     queryClient.invalidateQueries({ queryKey: ipasKey(id) });
     queryClient.invalidateQueries({ queryKey: ipasListKey });
   };
@@ -230,12 +229,13 @@ function IpasPage() {
   // A failed change: the toast as ever, and the message kept with Retry, which runs
   // the same change again. In the edit view it sits in that view's header, tagged
   // with its section; on the overview it sits at the top of the page.
-  const failEdit = (error, retry) => {
+  const failChange = (error, retry) => {
     const message = ipasErrorMessage(error);
     toast.error(message);
-    if (editKey) setEditFailure({ key: editKey, message, retry });
-    else setOverviewFailure({ message, retry });
+    setChangeFailure({ key: editKey ?? null, message, retry });
   };
+  // Only the failure made in the view now showing.
+  const shownFailure = changeFailure?.key === (editKey ?? null) ? changeFailure : null;
 
   // A sign-off moves the Approval Center queue and its badge too.
   const signoffChanged = () => {
@@ -305,7 +305,7 @@ function IpasPage() {
       const retry = () => setStatus.mutate(vars);
       // From the card (Mark costs complete) the failure shows there; from the edit view, in its header.
       if (vars.from) failMove(error, vars.from, retry);
-      else failEdit(error, retry);
+      else failChange(error, retry);
     },
   });
 
@@ -345,7 +345,7 @@ function IpasPage() {
       toast.success(`${IPAS_OVERRIDE_FIELDS[field].label} overridden. Odoo's value stays beside it.`);
       changed();
     },
-    onError: (error, vars) => failEdit(error, () => override.mutate(vars)),
+    onError: (error, vars) => failChange(error, () => override.mutate(vars)),
   });
 
   const reset = useMutation({
@@ -354,7 +354,7 @@ function IpasPage() {
       toast.success(`${IPAS_OVERRIDE_FIELDS[field].label} is back to Odoo's value.`);
       changed();
     },
-    onError: (error, field) => failEdit(error, () => reset.mutate(field)),
+    onError: (error, field) => failChange(error, () => reset.mutate(field)),
   });
 
   const typeHeader = useMutation({
@@ -368,7 +368,7 @@ function IpasPage() {
       toast.success(`${HEADER_LABELS[field]} saved.`);
       changed();
     },
-    onError: (error, vars) => failEdit(error, () => typeHeader.mutate(vars)),
+    onError: (error, vars) => failChange(error, () => typeHeader.mutate(vars)),
   });
 
   // Freight service, the computation status and how charges are spread: one
@@ -376,7 +376,7 @@ function IpasPage() {
   const pick = useMutation({
     mutationFn: (values) => ipasService.setHeader(id, values),
     onSuccess: () => changed(),
-    onError: (error, vars) => failEdit(error, () => pick.mutate(vars)),
+    onError: (error, vars) => failChange(error, () => pick.mutate(vars)),
   });
 
   // Section 2's two ticks (#241): plain, not sign-off gated.
@@ -387,7 +387,7 @@ function IpasPage() {
         ganttChart: field === IPAS_HEADER_FIELD.GANTT_CHART ? value : undefined,
       }),
     onSuccess: () => changed(),
-    onError: (error, vars) => failEdit(error, () => tickSheet.mutate(vars)),
+    onError: (error, vars) => failChange(error, () => tickSheet.mutate(vars)),
   });
 
   const remove = useMutation({
@@ -398,7 +398,7 @@ function IpasPage() {
       setRemoving(null);
       changed();
     },
-    onError: (error, vars) => failEdit(error, () => remove.mutate(vars)),
+    onError: (error, vars) => failChange(error, () => remove.mutate(vars)),
   });
 
   // Documents (#246). Each tick is its own department's: the database refuses
@@ -406,7 +406,7 @@ function IpasPage() {
   const tick = useMutation({
     mutationFn: ({ document, side, value }) => ipasService.tickDocument(document.id, side, value),
     onSuccess: changed,
-    onError: (error, vars) => failEdit(error, () => tick.mutate(vars)),
+    onError: (error, vars) => failChange(error, () => tick.mutate(vars)),
   });
 
   const attach = useMutation({
@@ -415,7 +415,7 @@ function IpasPage() {
       toast.success(url ? "File attached." : "Attachment removed.");
       changed();
     },
-    onError: (error, vars) => failEdit(error, () => attach.mutate(vars)),
+    onError: (error, vars) => failChange(error, () => attach.mutate(vars)),
   });
 
   const suggest = useMutation({
@@ -424,7 +424,7 @@ function IpasPage() {
       toast.success(added.length === 1 ? `${added[0]} added.` : `${added.length} documents added.`);
       changed();
     },
-    onError: (error) => failEdit(error, () => suggest.mutate()),
+    onError: (error) => failChange(error, () => suggest.mutate()),
   });
 
   const removeDocument = useMutation({
@@ -435,7 +435,7 @@ function IpasPage() {
       changed();
     },
     onError: (error, document) => {
-      failEdit(error, () => removeDocument.mutate(document));
+      failChange(error, () => removeDocument.mutate(document));
       setRemovingDocument(null);
     },
   });
@@ -450,7 +450,7 @@ function IpasPage() {
       toast.success(dates === "origin" ? "Supplier Origin saved." : `${IPAS_TYPED_STATUS_LABELS[dates]} saved.`);
       changed();
     },
-    onError: (error, vars) => failEdit(error, () => saveDates.mutate(vars)),
+    onError: (error, vars) => failChange(error, () => saveDates.mutate(vars)),
   });
 
   const stamp = useMutation({
@@ -459,13 +459,13 @@ function IpasPage() {
       toast.success(stamped ? "Actual Checking stamped." : "Actual Checking stamp cleared.");
       changed();
     },
-    onError: (error, stamped) => failEdit(error, () => stamp.mutate(stamped)),
+    onError: (error, stamped) => failChange(error, () => stamp.mutate(stamped)),
   });
 
   const locate = useMutation({
     mutationFn: (optionId) => ipasService.setItemLocation(id, optionId),
     onSuccess: changed,
-    onError: (error, optionId) => failEdit(error, () => locate.mutate(optionId)),
+    onError: (error, optionId) => failChange(error, () => locate.mutate(optionId)),
   });
 
   const cancel = useMutation({
@@ -675,11 +675,11 @@ function IpasPage() {
           <ArrowLeft size={14} aria-hidden="true" />
           Back to overview
         </Button>
-        {editFailure?.key === editKey && (
+        {shownFailure && (
           <InlineError
-            message={editFailure.message}
-            onRetry={editFailure.retry}
-            onDismiss={() => setEditFailure(null)}
+            message={shownFailure.message}
+            onRetry={shownFailure.retry}
+            onDismiss={() => setChangeFailure(null)}
           />
         )}
       </div>
@@ -708,11 +708,11 @@ function IpasPage() {
             </Link>
           )}
           <div className="space-y-2 empty:hidden">
-            {overviewFailure && (
+            {shownFailure && (
               <InlineError
-                message={overviewFailure.message}
-                onRetry={overviewFailure.retry}
-                onDismiss={() => setOverviewFailure(null)}
+                message={shownFailure.message}
+                onRetry={shownFailure.retry}
+                onDismiss={() => setChangeFailure(null)}
               />
             )}
             {cancelled && (
@@ -782,7 +782,7 @@ function IpasPage() {
         onOpenChange={(next) => !next && setPaymentDialog(null)}
         ipas={ipas}
         payment={paymentDialog?.payment ?? null}
-        onFailed={failEdit}
+        onFailed={failChange}
       />
 
       <ChargeDialog
@@ -790,10 +790,10 @@ function IpasPage() {
         onOpenChange={(next) => !next && setChargeDialog(null)}
         ipas={ipas}
         charge={chargeDialog?.charge ?? null}
-        onFailed={failEdit}
+        onFailed={failChange}
       />
 
-      <BankDetailsDialog open={bankDialog} onOpenChange={setBankDialog} ipas={ipas} onFailed={failEdit} />
+      <BankDetailsDialog open={bankDialog} onOpenChange={setBankDialog} ipas={ipas} onFailed={failChange} />
 
       <SendBackDialog
         open={sendingBack !== null}
@@ -840,7 +840,7 @@ function IpasPage() {
         onOpenChange={setDocumentDialog}
         ipas={ipas}
         onAdded={changed}
-        onFailed={failEdit}
+        onFailed={failChange}
       />
 
       <DatesDialog

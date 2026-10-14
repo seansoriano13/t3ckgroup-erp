@@ -1,22 +1,22 @@
 // The decider: "Your move" answers what this person can do here, and says what
 // happens next for whoever is up. The moves are the ones `movesFor` allows, and
 // each one carries its consequence. A card move asks first (the restatement
-// comes from the same digest as the section row); the drawer footer signs
-// straight away. Below the wide breakpoint the chain sits behind a toggle;
+// comes from the same digest as the section row), and so does the drawer footer. Below the wide breakpoint the chain sits behind a toggle;
 // above it the chain is always shown beside the moves.
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link } from "react-router";
 
 import { Button } from "@/components/ui/button";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
 import IpasChain from "./IpasChain";
 import MoveButton from "./MoveButton";
 import { nowGate, waitingSections } from "./gates";
 import { COSTS_WAITING } from "./moveCopy";
+import { CHROME } from "./sectionChrome";
 import { movesFor } from "./moves";
+import { useMoveConfirm } from "./useMoveConfirm";
 
 /** The wide breakpoint (Tailwind xl): the card sits beside the sections and shows its chain. */
 const WIDE = "(min-width: 1280px)";
@@ -50,13 +50,10 @@ function MoveGroup({ items, origin, className, ...rest }) {
 export default function DecisionCard({ ctx, digest, onReview, next }) {
   const { busy, failure, viewer } = ctx;
   const wide = useMediaQuery(WIDE);
+  const movesId = useId();
   const [chainOpen, setChainOpen] = useState(false);
   // Below the wide breakpoint the card is its heading and status line; the moves open on request.
   const [movesOpen, setMovesOpen] = useState(false);
-  // The card move waiting for the viewer's yes, with its restatement. `asked`
-  // keeps the move while the dialog animates shut, so its title does not blank.
-  const [asked, setAsked] = useState(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const { moves, costs, returns } = movesFor(ctx, digest);
   const offered = [...moves, ...costs, ...returns];
   const { gates } = digest;
@@ -64,14 +61,7 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
   const busyNow = busy.signoff || busy.give;
 
   // A card move asks first, unless it asks in its own dialog (the filing dialog, the reason of a send back).
-  const runFromCard = (item) => {
-    if (item.confirm) {
-      setAsked(item);
-      setConfirmOpen(true);
-    } else {
-      item.run({ key: item.key, origin: "card" });
-    }
-  };
+  const { run: runFromCard, dialog: confirmDialog } = useMoveConfirm({ digest, viewer, origin: CHROME.CARD });
   const rest = { disabled: busyNow, busy: busyNow, failure, onRun: runFromCard, onReview };
 
   return (
@@ -102,18 +92,18 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
             variant="outline"
             size="sm"
             aria-expanded={movesOpen}
-            aria-controls="your-move-moves"
+            aria-controls={movesId}
             onClick={() => setMovesOpen((open) => !open)}
           >
             {movesOpen ? "Hide my moves" : `Show my moves · ${offered.length}`}
           </Button>
         )}
         {(wide || movesOpen) && (
-          <div id="your-move-moves" className="space-y-4">
-            {moves.length > 0 && <MoveGroup items={moves} origin="card" {...rest} />}
-            {returns.length > 0 && <MoveGroup items={returns} origin="card" {...rest} />}
+          <div id={movesId} className="space-y-4">
+            {moves.length > 0 && <MoveGroup items={moves} origin={CHROME.CARD} {...rest} />}
+            {returns.length > 0 && <MoveGroup items={returns} origin={CHROME.CARD} {...rest} />}
             {costs.length > 0 && (
-              <MoveGroup items={costs} origin="card" className="border-t border-border pt-4" {...rest} />
+              <MoveGroup items={costs} origin={CHROME.CARD} className="border-t border-border pt-4" {...rest} />
             )}
           </div>
         )}
@@ -138,21 +128,7 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
         </div>
       )}
 
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={`${asked?.label ?? ""}?`}
-        confirmLabel={asked?.verb ?? "Confirm"}
-        tone={asked?.kind === "return" ? "default" : "approve"}
-        onConfirm={() => asked?.run({ key: asked.key, origin: "card" })}
-      >
-        <div className="space-y-1.5 text-sm">
-          <p className="text-muted-foreground">{asked ? digest.lines[asked.section] : ""}</p>
-          <p className="font-medium text-foreground">
-            {viewer ? `You sign as ${viewer}.` : "You sign with this account."}
-          </p>
-        </div>
-      </ConfirmDialog>
+      {confirmDialog}
     </section>
   );
 }

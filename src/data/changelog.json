@@ -1,6 +1,19 @@
 [
     {
         "date": "2026-10-14",
+        "title": "IPAS: sign-offs ask first, in the panel too",
+        "version": "1.9.27",
+        "changes": [
+            "IPAS: signing from a section's panel now asks you to confirm first, the same as from Your move.",
+            "IPAS: Edit section is in the footer of a section's panel, next to the sign-off buttons.",
+            "IPAS: Mark costs complete is offered once the costs are encoded.",
+            "IPAS: on a narrow screen, Your move shows just its status line; open it to see your moves.",
+            "IPAS: if the page fails to load an overview change, the message shows there with Retry.",
+            "IPAS: the Approval Center names sections the same way as the IPAS page, for example 2 · Purchasing & Finance."
+        ]
+    },
+    {
+        "date": "2026-10-14",
         "title": "IPAS: record page fixes and clearer sign-offs",
         "version": "1.9.26",
         "changes": [
@@ -12,7 +25,7 @@
             "IPAS: a failed change made in a section's edit view shows its message there, with Retry.",
             "IPAS: the Odoo warning can be dismissed; the saved copy stays on the page.",
             "IPAS: the Approve confirmation uses the same green button as the Approve button.",
-            "IPAS: Edit section sits at the top of a section's panel, not in its footer.",
+            "IPAS: Edit section sits in the footer of a section's panel, next to its sign-off buttons.",
             "Focus outlines are darker across the app, so they are easier to see when using a keyboard.",
             "Approve buttons are readable in dark mode."
         ]

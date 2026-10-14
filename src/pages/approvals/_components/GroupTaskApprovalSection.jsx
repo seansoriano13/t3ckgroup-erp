@@ -18,7 +18,7 @@ import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import { ApprovalTable } from "./ApprovalTable";
 import { ApprovalSheet } from "./ApprovalSheet";
 import { NOTE_PRESETS } from "./approvalUi";
-import { APPROVE_CLASS } from "@/constants/approveClass";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 
 const QUEUE = { label: "Group Tasks", icon: Users };
 

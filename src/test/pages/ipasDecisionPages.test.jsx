@@ -3,6 +3,7 @@ import { screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import { renderWithProviders, setupUser } from "@/test/support";
+import { COSTS_WAITING } from "@/components/ipas/record/moveCopy";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -225,7 +226,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText(/Waiting for Purchasing to finish encoding costs\.$/)).toBeInTheDocument();
+    expect(within(region).getByText(`Nothing needs you right now. ${COSTS_WAITING}`)).toBeInTheDocument();
     expect(screen.queryAllByRole("group", { name: /, now$/ })).toHaveLength(0);
   });
 

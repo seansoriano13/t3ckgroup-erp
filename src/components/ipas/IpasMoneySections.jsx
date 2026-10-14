@@ -239,10 +239,7 @@ export function IpasChargesSection({
   const { charges, paymentSummary: sum } = ipas;
 
   return (
-    <IpasSection
-      title={ipasSectionLabel("finance")}
-      aside={charges.length > 0 ? <span>Charges: <Amt>{pesos(sum.chargesPhp)}</Amt></span> : null}
-    >
+    <IpasSection title={ipasSectionLabel("finance")}>
       <SectionHeader title="Importation charges" className="pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddCharge}>

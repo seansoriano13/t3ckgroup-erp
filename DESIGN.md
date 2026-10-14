@@ -495,7 +495,7 @@ Sentence-case title with an optional one-line description. Uppercase tracked lab
 - **Do** reserve Signal Red for the primary or destructive action on a surface and for the selected canvas edge (ADR 0009, `no-primary-decoration`).
 - **Do** use a Primitive from the catalog above, never raw HTML for a covered element. If none fits, stop and ask.
 - **Do** label record fields with the 11px bold uppercase tracked label, and set audited figures (amounts, record numbers, `vX.Y`) in monospace.
-- **Do** keep motion between 150 and 400ms on `cubic-bezier(0.16, 1, 0.3, 1)`, and keep the global reduced-motion guard intact.
+- **Do** keep motion between 150 and 400ms on `cubic-bezier(0.16, 1, 0.3, 1)` (the `ease-out-expo` utility), and keep the global reduced-motion guard intact.
 
 ### Don't:
 - **Don't** use red for focus rings, hover tints, or decorative backgrounds. Focus is neutral grey (mauve-11).
