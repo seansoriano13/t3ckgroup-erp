@@ -196,16 +196,16 @@ function trackItem(item, statuses) {
   };
 }
 
-function landedCostOf(ipas, filed) {
+function landedCostOf(ipas, filed, charges) {
   const lc = ipas.landedCost;
-  if (!lc) return { status: IPAS_LANDED_COST_STATUS.UNAVAILABLE, label: 'Not available', note: null, lines: [], total: null };
+  if (!lc) return { status: IPAS_LANDED_COST_STATUS.UNAVAILABLE, label: 'Not available', note: null, lines: [], total: null, build: [], perUnit: null, units: null };
 
   if (lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE) {
     const note =
       lc.reason === IPAS_LANDED_COST_REASON.NO_PAYMENTS
         ? `This Odoo PO is in ${lc.currency || 'a foreign currency'}. Landed Cost converts at the rate actually paid, so it needs a payment with the PHP debited.`
         : 'The Odoo PO has no item lines to cost.';
-    return { status: lc.status, label: 'Not available', note, lines: [], total: null };
+    return { status: lc.status, label: 'Not available', note, lines: [], total: null, build: [], perUnit: null, units: null };
   }
 
   // A filed IPAS is final whatever the computation status says.
@@ -216,8 +216,27 @@ function landedCostOf(ipas, filed) {
   }
   notes.push(`Charges, charge fees and shipping fees spread ${(IPAS_LANDED_COST_SPLIT_LABELS[lc.usedSplit] ?? '').toLowerCase()}.`);
 
+  // How the total is made: the goods, then everything spread over them. These
+  // are the same totals the calculation adds, so the rows sum to the figure.
+  const totals = lc.totals ?? {};
+  const build = [
+    {
+      label: 'Goods',
+      basis: lc.isForeign && lc.rate ? `at ${lc.rate.rate.toFixed(4)} PHP per ${lc.currency}` : 'as the PO prices them',
+      amount: peso(totals.goodsPhp),
+    },
+    { label: 'Shipping fees', basis: 'shipping payments', amount: peso(totals.shippingFeesPhp) },
+    { label: 'Bank charge fees', basis: 'on payments', amount: peso(totals.chargeFeesPhp) },
+    ...charges.map((charge) => ({ label: charge.kind, basis: charge.date, amount: charge.amount })),
+  ];
+  // One line reads per unit; several lines read as the number of lines.
+  const only = lc.lines.length === 1 ? lc.lines[0] : null;
+
   return {
     status,
+    build,
+    perUnit: only ? peso(only.landedPerUnitPhp) : null,
+    units: only ? `${only.quantity}${text(only.unit) ? ` ${only.unit}` : ''}` : `${lc.lines.length} lines`,
     label: status === IPAS_LANDED_COST_STATUS.FINAL ? 'Final' : 'Provisional',
     note: notes.join(' '),
     lines: lc.lines.map((line) => ({
@@ -372,7 +391,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     reached: index <= reached,
     current: index === reached,
   }));
-  const landedCost = landedCostOf(ipas, filed);
+  const landedCost = landedCostOf(ipas, filed, section3.charges);
   const section6 = {
     origin,
     buyerTrack,
