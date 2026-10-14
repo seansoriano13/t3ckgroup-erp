@@ -1,3 +1,4 @@
+import { useContext } from "react";
 import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -30,9 +31,20 @@ import { changeNoteSummary, formatAmount } from "../../utils/ipas";
 import { buildBuyerTrack } from "../../utils/ipasDocuments";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatDate } from "../../utils/formatDate.js";
+import { IpasSectionChrome } from "./record/sectionChrome";
 
 /** One numbered section of the IPAS, as the sheet draws it. */
 export function IpasSection({ title, aside, children }) {
+  // In the drawer the drawer header already names the section: no card frame, no title.
+  const chrome = useContext(IpasSectionChrome);
+  if (chrome === "bare") {
+    return (
+      <section>
+        {aside && <div className="mb-3 text-xs text-muted-foreground">{aside}</div>}
+        {children}
+      </section>
+    );
+  }
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-card">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2.5">

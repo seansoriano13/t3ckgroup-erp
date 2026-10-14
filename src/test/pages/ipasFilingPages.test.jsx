@@ -78,9 +78,9 @@ const signoff = (ipasId, section, role, signedBy, over = {}) =>
   });
 const onList = (listKey, ...people) => people.forEach((p) => db.seed("ipas_signer_lists", { list_key: listKey, employee_id: p.id }));
 
-function renderDetail(id) {
+function renderDetail(id, section) {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?open=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
@@ -149,12 +149,12 @@ describe("IPAS section 7 and Filing", () => {
       signoff(row.id, 1, "approved", boss);
       signIn(receiver);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
 
       const filing = await screen.findByTestId("ipas-filing");
       expect(within(filing).getAllByText("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved.")).toHaveLength(4);
       expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.getByText("Waiting for 1 · Purchasing and 2 · Purchasing & Finance")).toBeInTheDocument();
+      expect(screen.getAllByText("Waiting for 1 · Purchasing and 2 · Purchasing & Finance").length).toBeGreaterThan(0);
     });
 
     it("offers Received to its list, then Noted and Checked, each only to its own list", async () => {
@@ -163,7 +163,7 @@ describe("IPAS section 7 and Filing", () => {
       signIn(receiver);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
       const filing = await screen.findByTestId("ipas-filing");
       expect(within(filing).getByRole("button", { name: /Receive/ })).toBeInTheDocument();
       expect(within(filing).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
@@ -188,7 +188,7 @@ describe("IPAS section 7 and Filing", () => {
       signIn(noter);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
       await user.click(await within(await screen.findByTestId("ipas-filing")).findByTestId("ipas-send-back-7"));
 
       const dialog = await screen.findByRole("dialog");
@@ -212,7 +212,7 @@ describe("IPAS section 7 and Filing", () => {
       const early = ipas();
       approvedFirstSections(early);
       signIn(noter);
-      const { unmount } = renderDetail(early.id);
+      const { unmount } = renderDetail(early.id, "filing");
       await screen.findByTestId("ipas-filing");
       expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
       unmount();
@@ -221,7 +221,7 @@ describe("IPAS section 7 and Filing", () => {
       approvedFirstSections(given);
       signoff(given.id, 7, "received", receiver);
       signIn(superAdmin, { superAdmin: true });
-      const second = renderDetail(given.id);
+      const second = renderDetail(given.id, "filing");
       await screen.findByTestId("ipas-filing");
       expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
       second.unmount();
@@ -231,7 +231,7 @@ describe("IPAS section 7 and Filing", () => {
       givenThroughChecked(filed);
       signoff(filed.id, 7, "approved", boss);
       signIn(noter);
-      renderDetail(filed.id);
+      renderDetail(filed.id, "filing");
       await screen.findByTestId("ipas-filed-notice");
       expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
     });
@@ -241,7 +241,7 @@ describe("IPAS section 7 and Filing", () => {
       approvedFirstSections(row);
       signIn(superAdmin, { superAdmin: true });
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
 
       const filing = await screen.findByTestId("ipas-filing");
       expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
@@ -253,7 +253,7 @@ describe("IPAS section 7 and Filing", () => {
       givenThroughChecked(row);
       signIn(boss);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
 
       const filing = await screen.findByTestId("ipas-filing");
       expect(within(filing).queryByRole("button", { name: "Approve and file" })).not.toBeInTheDocument();
@@ -268,7 +268,7 @@ describe("IPAS section 7 and Filing", () => {
       signIn(boss);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
       await user.click(await screen.findByRole("button", { name: "Approve and file" }));
 
       const dialog = await screen.findByRole("dialog");
@@ -292,7 +292,7 @@ describe("IPAS section 7 and Filing", () => {
       signIn(boss);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
       await user.click(await screen.findByRole("button", { name: "Approve and file" }));
 
       const dialog = await screen.findByRole("dialog");
@@ -311,7 +311,7 @@ describe("IPAS section 7 and Filing", () => {
       // The page thinks the viewer may approve; the database says costs aren't complete.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoded";
       const user = userEvent.setup();
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
       // Offered from a stale read: Costs complete here, then the status moves underneath.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "costs_complete";
       await user.click(await screen.findByRole("button", { name: "Approve and file" }));
@@ -337,7 +337,7 @@ describe("IPAS section 7 and Filing", () => {
       const row = filedRow();
       signIn(purchaser);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
 
       const notice = await screen.findByTestId("ipas-filed-notice");
       expect(within(notice).getByText(/^Filed /)).toBeInTheDocument();
@@ -386,7 +386,7 @@ describe("IPAS section 7 and Filing", () => {
       ]);
       signIn(purchaser);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "history");
 
       expect(await screen.findByText("Section 4 · Filing approved · Costs complete")).toBeInTheDocument();
       expect(screen.getByText("1 added")).toBeInTheDocument();
@@ -413,8 +413,11 @@ describe("IPAS section 7 and Filing", () => {
       expect(cleared.map((s) => s.role).sort()).toEqual(["approved", "checked", "noted", "received"]);
       expect(cleared.every((s) => s.cleared_reason === "Reopened: Charges were misread")).toBe(true);
       // Sections 1 and 3 stay approved; section 7 starts from Received again.
-      expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument();
-      expect(screen.getByTestId("ipas-signoff-history-7")).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
+      expect(within(await screen.findByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      await user.click(await screen.findByRole("button", { name: /^4 · Filing/ }));
+      expect(await screen.findByTestId("ipas-signoff-history-7")).toBeInTheDocument();
     });
   });
 

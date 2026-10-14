@@ -1,0 +1,120 @@
+// The record's section bodies, one per section key, built from the page's
+// state. Each is the existing section component, unchanged; the drawer frames
+// it (see sectionChrome.js). `ctx` is what the page hands the record:
+// { ipas, refreshing, can, rights, busy, on }.
+
+import { IpasBankDetails } from "@/components/ipas/IpasBankDetails";
+import { IpasDocuments } from "@/components/ipas/IpasDocuments";
+import { IpasFilingSection } from "@/components/ipas/IpasFiling";
+import { IpasLogisticsSection } from "@/components/ipas/IpasLogistics";
+import { IpasChargesSection, IpasCostingSection, IpasPaymentsBlock } from "@/components/ipas/IpasMoneySections";
+import {
+  IpasHeaderSection,
+  IpasHistorySection,
+  IpasPurchasingSection,
+  IpasSalesSection,
+  IpasStatusSection,
+} from "@/components/ipas/IpasSections";
+import { IpasSignoffs } from "@/components/ipas/IpasSignoffs";
+
+export function buildBlocks(ctx) {
+  const { ipas, can, on, rights, busy } = ctx;
+
+  const signoffs = (section) => (
+    <IpasSignoffs
+      section={section}
+      state={ipas.signoffSections[section]}
+      rights={rights[section]}
+      busy={busy.signoff}
+      onPrepare={() => on.prepare(section)}
+      onApprove={() => on.approve(section)}
+      onSendBack={() => on.sendBack(section)}
+    />
+  );
+
+  const payments = (
+    <IpasPaymentsBlock
+      ipas={ipas}
+      canChange={can.change}
+      canRecord={can.record}
+      onEditAmount={on.editAmount}
+      onPickFreight={on.pickFreight}
+      onAddPayment={on.addPayment}
+      onEditPayment={on.editPayment}
+      onRemovePayment={on.removePayment}
+    />
+  );
+
+  const documents = (
+    <IpasDocuments
+      ipas={ipas}
+      canChange={can.change}
+      canTickFinance={can.tickFinance}
+      onTick={on.tickDocument}
+      onAttach={on.attach}
+      onRemoveAttachment={on.removeAttachment}
+      onAdd={on.addDocument}
+      onSuggest={on.suggestDocuments}
+      onRemove={on.removeDocument}
+    />
+  );
+
+  return {
+    header: (
+      <IpasHeaderSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} />
+    ),
+    purchasing: (
+      <IpasPurchasingSection ipas={ipas} refreshing={ctx.refreshing} canChange={can.change} onEditHeader={on.editHeader}>
+        {payments}
+        {signoffs(1)}
+      </IpasPurchasingSection>
+    ),
+    finance: (
+      <IpasChargesSection
+        ipas={ipas}
+        canRecord={can.record}
+        onAddCharge={on.addCharge}
+        onEditCharge={on.editCharge}
+        onRemoveCharge={on.removeCharge}
+      >
+        {documents}
+        <IpasBankDetails ipas={ipas} canChange={can.change} onEdit={on.editBank} />
+        {signoffs(3)}
+      </IpasChargesSection>
+    ),
+    costing: (
+      <IpasCostingSection ipas={ipas} canChange={can.change} onSetStatus={on.setComputationStatus} onSetSplit={on.setSplit} />
+    ),
+    filing: (
+      <IpasFilingSection
+        ipas={ipas}
+        rights={rights[7]}
+        busy={busy.give}
+        onGive={on.give}
+        canSendBack={rights.sendBack7}
+        onSendBack={() => on.sendBack(7)}
+      />
+    ),
+    sales: (
+      <IpasSalesSection
+        ipas={ipas}
+        canChange={can.change}
+        onEditOverride={on.editOverride}
+        onResetOverride={on.resetOverride}
+        onTick={on.tickSheet}
+      />
+    ),
+    logistics: <IpasLogisticsSection ipas={ipas} canChange={can.change} onPick={on.pickLocation} />,
+    status: (
+      <IpasStatusSection
+        ipas={ipas}
+        canChange={can.change}
+        onEditOrigin={on.editOrigin}
+        onEditStatus={on.editStatus}
+        onStamp={on.stamp}
+        onClearStamp={on.clearStamp}
+      />
+    ),
+    history: <IpasHistorySection events={ipas.events} />,
+  };
+}

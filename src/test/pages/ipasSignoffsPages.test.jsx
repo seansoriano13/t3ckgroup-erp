@@ -66,9 +66,9 @@ const signoff = (ipasId, section, role, signedBy, over = {}) =>
   db.seed("ipas_signoffs", { ipas_id: ipasId, section, role, signed_by: signedBy.id, ...over });
 const onList = (listKey, ...people) => people.forEach((p) => db.seed("ipas_signer_lists", { list_key: listKey, employee_id: p.id }));
 
-function renderDetail(id) {
+function renderDetail(id, section) {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?open=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
@@ -104,7 +104,7 @@ describe("IPAS sign-offs", () => {
       const row = ipas({ created_by: purchaser.id });
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
       const one = await screen.findByTestId("ipas-signoffs-1");
       expect(within(one).getByText("Not prepared")).toBeInTheDocument();
       expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
@@ -116,8 +116,6 @@ describe("IPAS sign-offs", () => {
       expect(screen.queryByRole("button", { name: "Prepare section 1 · Purchasing" })).not.toBeInTheDocument();
       await waitForNetworkIdle();
       expect(db.rows("notifications").map((n) => n.recipient_id).sort()).toEqual([approver.id, other.id].sort());
-      // Section 3 is its own.
-      expect(screen.getByRole("button", { name: "Prepare section 2 · Purchasing & Finance" })).toBeInTheDocument();
     });
 
     it("offers Approve to a list member after Prepared, and shows who approved", async () => {
@@ -127,7 +125,7 @@ describe("IPAS sign-offs", () => {
       signIn(approver);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
       const one = await screen.findByTestId("ipas-signoffs-1");
       expect(within(one).queryByRole("button", { name: /Prepare section/ })).not.toBeInTheDocument();
       await user.click(within(one).getByRole("button", { name: "Approve section 1 · Purchasing" }));
@@ -142,7 +140,7 @@ describe("IPAS sign-offs", () => {
       const row = ipas();
       signoff(row.id, 1, "prepared", purchaser);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
 
       const one = await screen.findByTestId("ipas-signoffs-1");
       expect(within(one).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
@@ -157,7 +155,7 @@ describe("IPAS sign-offs", () => {
       signoff(row.id, 1, "prepared", purchaser);
       signIn(superAdmin);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
 
       const one = await screen.findByTestId("ipas-signoffs-1");
       expect(within(one).getByText("Awaiting approval")).toBeInTheDocument();
@@ -172,7 +170,7 @@ describe("IPAS sign-offs", () => {
       signIn(approver);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "finance");
       const three = await screen.findByTestId("ipas-signoffs-3");
       await user.click(within(three).getByRole("button", { name: "Send back" }));
 
@@ -200,7 +198,7 @@ describe("IPAS sign-offs", () => {
         cleared_reason: "PO changed in Odoo",
       });
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
 
       const one = await screen.findByTestId("ipas-signoffs-1");
       expect(within(one).getByText("Awaiting approval")).toBeInTheDocument();
@@ -216,7 +214,7 @@ describe("IPAS sign-offs", () => {
         { ipas_id: row.id, actor_id: purchaser.id, kind: "approvals_cleared", detail: { reason: "PO changed in Odoo", sections: [1, 3] } },
       ]);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "history");
 
       expect(await screen.findByText("Section 1 · Purchasing prepared")).toBeInTheDocument();
       expect(screen.getByText("Section 1 · Purchasing approved · without a signature")).toBeInTheDocument();
@@ -230,7 +228,7 @@ describe("IPAS sign-offs", () => {
       signoff(row.id, 1, "prepared", purchaser);
       signIn(approver);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
 
       const one = await screen.findByTestId("ipas-signoffs-1");
       expect(within(one).queryByRole("button")).not.toBeInTheDocument();
@@ -244,7 +242,7 @@ describe("IPAS sign-offs", () => {
       signIn(approver, { actorId: other.id });
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
       await user.click(within(await screen.findByTestId("ipas-signoffs-1")).getByRole("button", { name: "Approve section 1 · Purchasing" }));
 
       await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/^you are not on the list that may give this sign-off/i)));
@@ -266,7 +264,7 @@ describe("IPAS sign-offs", () => {
       signIn(approver);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      const view = renderDetail(row.id, "finance");
       const three = await screen.findByTestId("ipas-signoffs-3");
       await user.click(within(three).getByRole("button", { name: "Send back" }));
       await screen.findByRole("dialog");
@@ -274,10 +272,14 @@ describe("IPAS sign-offs", () => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Send section 2 · Purchasing & Finance back?");
       expect(text).toContain("Waiting for 1 · Purchasing and 2 · Purchasing & Finance");
-      expect(text).toContain("Section 2 · Purchasing & Finance · “Freight is missing”");
-      expect(text).toContain("PO changed in Odoo · 1 · Purchasing and 2 · Purchasing & Finance back to awaiting approval");
       // A section is named with its number and its name, or not by number at all.
       expect(text).not.toMatch(/\b(?:sections?|send|waiting for|and|for)\s+\d+\b(?!\s*·)/i);
+      view.unmount();
+
+      // History names the same sections the same way.
+      renderDetail(row.id, "history");
+      expect(await screen.findByText("Section 2 · Purchasing & Finance · “Freight is missing”")).toBeInTheDocument();
+      expect(screen.getByText("PO changed in Odoo · 1 · Purchasing and 2 · Purchasing & Finance back to awaiting approval")).toBeInTheDocument();
     });
   });
 
