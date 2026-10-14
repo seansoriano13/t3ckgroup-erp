@@ -34,7 +34,8 @@ export default function Figures({ digest, onOpen }) {
       key: "costing",
       label: "Landed Cost",
       value: money.landedText,
-      sub: LANDED_BADGE[money.landedStatus]?.label,
+      // Unavailable already reads "Not available yet" in the value: one line says it.
+      sub: money.landedPhp === null ? undefined : LANDED_BADGE[money.landedStatus]?.label,
     },
   ];
 
@@ -45,7 +46,7 @@ export default function Figures({ digest, onOpen }) {
           <Button
             variant="ghost"
             onClick={() => onOpen(stat.key)}
-            className="group/stat h-auto w-full min-w-0 flex-col items-start justify-start gap-0 rounded-sm p-0 text-left font-normal whitespace-normal hover:bg-transparent"
+            className="group/stat h-auto w-full min-w-0 flex-col items-start justify-start gap-0 rounded-sm p-0 text-left font-normal whitespace-normal hover:bg-transparent focus-visible:ring-mauve-11"
           >
             <span className="flex items-center gap-1 text-xs text-muted-foreground group-hover/stat:text-foreground">
               {stat.label}
@@ -53,7 +54,7 @@ export default function Figures({ digest, onOpen }) {
             </span>
             <span
               className={cn(
-                "mt-0.5 block max-w-full min-w-0 text-lg font-semibold tracking-tight tabular-nums break-words text-foreground",
+                "mt-0.5 block max-w-full min-w-0 font-mono text-lg font-semibold tracking-tight tabular-nums break-words text-foreground",
               )}
             >
               {stat.value}

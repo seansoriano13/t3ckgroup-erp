@@ -151,7 +151,7 @@ function TypedRow({ label, value, fromOdoo, canChange, onEdit }) {
  * open), an S-number mismatch, a filed IPAS whose PO has since changed, and an
  * Odoo that didn't answer. None of them changes the IPAS.
  */
-export function IpasWarnings({ ipas, refresh }) {
+export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
   const banners = [];
 
   for (const warning of ipas.warnings ?? []) {
@@ -194,6 +194,7 @@ export function IpasWarnings({ ipas, refresh }) {
             ? "Odoo didn't answer"
             : "The Odoo copy couldn't be refreshed",
       body: `Showing the last copy${refresh.fetchedAt ? `, fetched ${formatDate(refresh.fetchedAt)}` : ""}.`,
+      retry: true,
     });
   }
 
@@ -201,19 +202,28 @@ export function IpasWarnings({ ipas, refresh }) {
 
   return (
     <div className="space-y-2">
-      {banners.map(({ key, tone, icon: Icon = CircleAlert, title, body }) => (
+      {banners.map(({ key, tone, icon: Icon = CircleAlert, title, body, retry }) => (
         <div
           key={key}
           role="status"
-          className={`flex items-start gap-2 rounded-xl border p-3 text-[13px] ${
+          className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3 text-sm ${
             tone === "red" ? "border-red-400 bg-red-3/40 text-red-11" : "border-amber-400 bg-amber-3/40 text-amber-11"
           }`}
         >
-          <Icon size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-          <div>
-            <p className="font-semibold">{title}</p>
-            <p className="mt-0.5 text-xs opacity-90">{body}</p>
+          <div className="flex min-w-0 items-start gap-2">
+            <Icon size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">{title}</p>
+              <p className="mt-0.5 text-xs opacity-90">{body}</p>
+            </div>
           </div>
+          {/* The failed refresh keeps its banner and offers the same refresh again. */}
+          {retry && onRetry && (
+            <Button size="sm" variant="outline" className="shrink-0 gap-1.5 bg-card" disabled={retrying} onClick={onRetry}>
+              <RefreshCw size={14} aria-hidden="true" className={retrying ? "animate-spin" : undefined} />
+              {retrying ? "Retrying…" : "Retry"}
+            </Button>
+          )}
         </div>
       ))}
     </div>
@@ -383,13 +393,13 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
                     {line.name}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{line.brand || "—"}</TableCell>
-                  <TableCell className="text-right text-xs tabular-nums">
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
                     {line.quantity} {line.unit}
                   </TableCell>
-                  <TableCell className="text-right text-xs tabular-nums">
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
                     {formatAmount(line.price_unit, ipas.currency)}
                   </TableCell>
-                  <TableCell className="text-right text-xs font-semibold tabular-nums">
+                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
                     {formatAmount(line.price_subtotal, ipas.currency)}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
@@ -401,7 +411,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
           </Table>
           <div className="flex justify-between gap-3 border-t border-border bg-muted/20 px-4 py-2 text-xs">
             <span className="text-muted-foreground">Before tax, as Odoo prices the lines</span>
-            <span className="font-semibold tabular-nums">{formatAmount(total, ipas.currency)}</span>
+            <span className="font-mono font-semibold tabular-nums">{formatAmount(total, ipas.currency)}</span>
           </div>
         </div>
       )}

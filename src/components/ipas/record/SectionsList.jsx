@@ -26,7 +26,7 @@ function Row({ section, digest, ipas, onOpen, rowRef }) {
         ref={rowRef(section.key)}
         variant="ghost"
         onClick={() => onOpen(section.key)}
-        className="group/row h-auto w-full min-w-0 justify-start gap-3 rounded-none px-4 py-3 text-left font-normal whitespace-normal hover:bg-muted/50"
+        className="group/row h-auto w-full min-w-0 justify-start gap-3 rounded-none px-4 py-3 text-left font-normal whitespace-normal hover:bg-muted/50 focus-visible:ring-mauve-11"
       >
         <span className="mt-1.5 flex shrink-0 self-start">
           <StateDot tone={sectionDot(section.key, digest)} />

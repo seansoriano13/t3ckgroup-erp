@@ -15,11 +15,19 @@ import { buildIpasDocument } from "@/lib/pdf/ipasDocument";
 import { hydrateIpasSignatures } from "@/lib/pdf/ipasPrinter";
 import { buildIpasViewModel } from "@/lib/pdf/ipasViewModel";
 
-const DESK = `<style>@media screen {
-  html, body { background: #e9e8ec; }
+// The desk and the sheet's lift are the `--preview-desk` and `--preview-sheet-shadow`
+// tokens (index.css). The frame is its own document with no app CSS, so the
+// token values are read here and written into it.
+function deskStyle() {
+  const root = getComputedStyle(document.documentElement);
+  const desk = root.getPropertyValue("--preview-desk").trim();
+  const lift = root.getPropertyValue("--preview-sheet-shadow").trim();
+  return `<style>@media screen {
+  html, body { background: ${desk}; }
   body { padding: 24px 0 4px; }
-  .sheet { margin: 0 auto 24px; box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 14px 30px -16px rgba(0,0,0,.45); }
+  .sheet { margin: 0 auto 24px; box-shadow: ${lift}; }
 }</style>`;
+}
 
 function PreviewFrame({ ctx, filingCopy, frame }) {
   const { ipas, refresh, printedBy } = ctx;
@@ -32,7 +40,7 @@ function PreviewFrame({ ctx, filingCopy, frame }) {
       try {
         const vm = buildIpasViewModel({ ...ipas, refresh: refresh ?? null }, { filingCopy, printedAt: new Date().toISOString(), printedBy });
         await hydrateIpasSignatures(vm);
-        if (live) setHtml(buildIpasDocument(vm).replace("</head>", `${DESK}</head>`));
+        if (live) setHtml(buildIpasDocument(vm).replace("</head>", `${deskStyle()}</head>`));
       } catch {
         if (live) setFailed(true);
       }

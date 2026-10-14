@@ -391,6 +391,16 @@ function IpasPage() {
     print.mutate({ filingCopy, printWindow });
   };
 
+  // The link has an href for when #531's card region is absent; where it is, the
+  // jump also moves focus there.
+  const skipToYourMove = (event) => {
+    const target = document.getElementById("your-move");
+    if (!target) return;
+    event.preventDefault();
+    target.scrollIntoView({ block: "start" });
+    target.focus({ preventScroll: true });
+  };
+
   const back = (
     <Link
       to="/purchasing/ipas"
@@ -552,6 +562,14 @@ function IpasPage() {
         action={<HeaderActions ctx={ctx} />}
       >
         <div className="space-y-6">
+          {/* Keyboard users skip the figures and sections to the card; hidden until focused. */}
+          <Link
+            to="#your-move"
+            onClick={skipToYourMove}
+            className="sr-only text-sm font-medium text-foreground underline underline-offset-4 focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-4 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-card focus-visible:px-3 focus-visible:py-2 focus-visible:shadow-sm focus-visible:ring-3 focus-visible:ring-mauve-11"
+          >
+            Skip to your move
+          </Link>
           <div className="space-y-2 empty:hidden">
             {cancelled && (
               <div role="status" className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
@@ -568,7 +586,12 @@ function IpasPage() {
 
             <IpasFiledNotice ipas={ipas} canReopen={isSuperAdmin && filed} onReopen={() => setReopening(true)} />
 
-            <IpasWarnings ipas={ipas} refresh={refresh.data} />
+            <IpasWarnings
+              ipas={ipas}
+              refresh={refresh.data}
+              onRetry={() => refresh.refetch()}
+              retrying={refresh.isFetching}
+            />
           </div>
 
           {/* The decider: the figures and sections on the left, the card beside them from the wide breakpoint. */}

@@ -34,7 +34,8 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
                 <div className="mt-1 flex flex-wrap items-center gap-2.5">
                   <StateDot tone={sectionDot(current.key, digest)} />
                   <DrawerTitle className="min-w-0 text-lg font-bold">{current.title}</DrawerTitle>
-                  <Pill badge={sectionBadge(current.key, digest, ipas)} />
+                  {/* Costing's Landed Cost mark sits in its body, next to the figure: not again here. */}
+                  {current.key !== "costing" && <Pill badge={sectionBadge(current.key, digest, ipas)} />}
                 </div>
                 <DrawerDescription className="mt-0.5 text-sm">{digest.lines[current.key]}</DrawerDescription>
               </div>
