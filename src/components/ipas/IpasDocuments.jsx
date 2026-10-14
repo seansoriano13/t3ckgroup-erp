@@ -168,6 +168,7 @@ export function IpasDocuments({
                   </TableCell>
                   <TableCell className="text-center">
                     <Checkbox
+                      tone="neutral"
                       checked={document.purchasingHas}
                       disabled={!canChange}
                       aria-label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}: ${document.label}`}
@@ -176,6 +177,7 @@ export function IpasDocuments({
                   </TableCell>
                   <TableCell className="text-center">
                     <Checkbox
+                      tone="neutral"
                       checked={document.financeHas}
                       disabled={!canTickFinance}
                       aria-label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}: ${document.label}`}

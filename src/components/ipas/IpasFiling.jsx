@@ -201,14 +201,14 @@ export function IpasFiledNotice({ ipas, canReopen, onReopen }) {
     <div
       role="status"
       data-testid="ipas-filed-notice"
-      className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-green-400 bg-green-3/40 p-3 text-[13px]"
+      className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-green-400 bg-green-3/40 p-3 text-sm"
     >
       <div>
         <p className="font-semibold text-green-11">
           Filed {formatDate(ipas.filed_at)}
           {approved?.signedBy?.name ? ` · approved by ${approved.signedBy.name}` : ""}
         </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <p className="mt-0.5 max-w-prose text-xs text-mauve-11">
           This IPAS is frozen: its Odoo copy, payments, charges, documents, bank details, SORs, Purpose and Landed
           Cost no longer change. A Super Admin can reopen it with a reason.
         </p>

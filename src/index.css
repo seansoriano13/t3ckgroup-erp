@@ -123,6 +123,10 @@
   /* Focus Rings */
   --ring: var(--mauve-8);
 
+  /* Print preview (screen only): the desk and the sheet's lift, read by PrintPreview. */
+  --preview-desk: var(--mauve-4);
+  --preview-sheet-shadow: 0 1px 2px var(--mauve-a6), 0 14px 30px -16px var(--mauve-a9);
+
   /* Sidebar */
   --sidebar: var(--mauve-2);
   --sidebar-foreground: var(--mauve-12);

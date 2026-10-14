@@ -400,6 +400,28 @@ describe("IPAS pages", () => {
       expect(screen.getAllByText("Greenspirit 2 Cutter").length).toBeGreaterThan(0);
     });
 
+    it("retries the Odoo refresh from the banner: a failed retry keeps the banner, a good one clears it", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const requests = vi.fn(() => ({ success: false, message: "Odoo is rate-limiting requests" }));
+      stubEdgeFunction("odoo-po-ipas", requests);
+      const user = userEvent.setup();
+
+      // No section open: the banner sits on the page, and a drawer would make it inert.
+      renderDetail(row.id);
+      expect(await screen.findByText("Odoo didn't answer")).toBeInTheDocument();
+      const callsBefore = requests.mock.calls.length;
+
+      await user.click(screen.getByRole("button", { name: "Retry" }));
+      await waitFor(() => expect(requests.mock.calls.length).toBeGreaterThan(callsBefore));
+      expect(screen.getByText("Odoo didn't answer")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+
+      stubEdgeFunction("odoo-po-ipas", () => answer("P02552"));
+      await user.click(screen.getByRole("button", { name: "Retry" }));
+      await waitFor(() => expect(screen.queryByText("Odoo didn't answer")).not.toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    });
+
     it("overrides Entity with Odoo's value beside it, and resets in one action", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", answer("P02552"));
