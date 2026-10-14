@@ -58,9 +58,9 @@ const signoff = (ipasId, section, role, signedBy, over = {}) =>
 const onList = (listKey, ...people) => people.forEach((p) => db.seed("ipas_signer_lists", { list_key: listKey, employee_id: p.id }));
 const rowOf = (id) => db.rows("ipas").find((r) => r.id === id);
 
-function renderDetail(id, section) {
+function renderDetail(id, section, param = "open") {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?open=${section}` : ""}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?${param}=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
@@ -143,10 +143,61 @@ describe("IPAS signing with the evidence in view", () => {
 
     it("has no footer for a section with no sign-off", async () => {
       const row = ipas();
-      renderDetail(row.id, "logistics");
+      renderDetail(row.id, "history");
 
-      const drawer = await screen.findByRole("dialog", { name: "6 · Logistics" });
-      expect(within(drawer).queryByRole("button", { name: /^Prepare|^Approve|^Send/ })).not.toBeInTheDocument();
+      const drawer = await screen.findByRole("dialog", { name: "History" });
+      expect(within(drawer).queryByRole("button", { name: /^Prepare|^Approve|^Send|^Edit section/ })).not.toBeInTheDocument();
+    });
+
+    // #533: money reads in the drawer; editing is in the edit view.
+    it("shows the money read-only in the drawer, with no add or edit control", async () => {
+      const row = ipas();
+      renderDetail(row.id, "purchasing");
+
+      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      expect(within(drawer).queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: /^Edit P\.I/ })).not.toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Edit section" })).toBeInTheDocument();
+    });
+
+    it("offers no Edit section to a viewer with no edit rights on the section", async () => {
+      const row = ipas();
+      signIn(approver);
+      renderDetail(row.id, "purchasing");
+      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      expect(within(drawer).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
+    });
+
+    it("Edit section opens the edit view with the tables editable, and Back to overview focuses the row", async () => {
+      const row = ipas();
+      renderRouted(row.id);
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
+      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      await user.click(within(drawer).getByRole("button", { name: "Edit section" }));
+
+      expect(await screen.findByRole("button", { name: "Add payment" })).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Your move" })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Back to overview" }));
+      const trigger = await screen.findByRole("button", { name: /^1 · Purchasing/ });
+      expect(trigger).toHaveFocus();
+      expect(screen.queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
+    });
+
+    it("Back leaves the edit view for the overview, with the section row focused", async () => {
+      const row = ipas();
+      const router = renderRouted(row.id);
+      await screen.findByRole("button", { name: /^2 · Purchasing & Finance/ });
+
+      await act(() => router.navigate(`/purchasing/ipas/${row.id}?edit=finance`));
+      expect(await screen.findByRole("button", { name: "Back to overview" })).toBeInTheDocument();
+      await act(() => router.navigate(-1));
+
+      await waitFor(() => expect(router.state.location.search).toBe(""));
+      expect(await screen.findByRole("button", { name: /^2 · Purchasing & Finance/ })).toHaveFocus();
     });
 
     it("signs from the footer without a second question", async () => {

@@ -30,13 +30,14 @@ import { changeNoteSummary, formatAmount } from "../../utils/ipas";
 import { buildBuyerTrack } from "../../utils/ipasDocuments";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatDate } from "../../utils/formatDate.js";
-import { useInDrawer } from "./record/sectionChrome";
+import ReadTick from "./record/ReadTick";
+import { useBare, useEditable, useInDrawer } from "./record/sectionChrome";
 
 /** One numbered section of the IPAS, as the sheet draws it. */
 export function IpasSection({ title, aside, children }) {
-  // In the drawer the drawer header already names the section: no card frame, no title.
-  const inDrawer = useInDrawer();
-  if (inDrawer) {
+  // In the drawer and in place the row or drawer header already names the section: no card frame, no title.
+  const bare = useBare();
+  if (bare) {
     return (
       <section>
         {aside && <div className="mb-3 text-xs text-muted-foreground">{aside}</div>}
@@ -278,7 +279,8 @@ export function IpasChangeNote({ note, currency }) {
 }
 
 /** Header: Entity, Priority, Source, Purpose, who raised it and when. */
-export function IpasHeaderSection({ ipas, canChange = false, onEditOverride, onResetOverride }) {
+export function IpasHeaderSection({ ipas, canChange: granted = false, onEditOverride, onResetOverride }) {
+  const canChange = useEditable(granted);
   return (
     <IpasSection title="Header">
       <Facts>
@@ -306,7 +308,8 @@ const LINE_HEAD = "text-label font-bold uppercase tracking-wider";
  * Currency, Supplier, item lines and Brand are read-only: a wrong one is fixed
  * on the PO in Odoo. Contact and P.I # are typed and kept.
  */
-export function IpasPurchasingSection({ ipas, refreshing = false, canChange = false, onEditHeader, children }) {
+export function IpasPurchasingSection({ ipas, refreshing = false, canChange: granted = false, onEditHeader, children }) {
+  const canChange = useEditable(granted);
   const copy = ipas.odoo_copy ?? {};
   const po = copy.po ?? {};
   const total = ipas.lines.reduce((sum, line) => sum + (Number(line.price_subtotal) || 0), 0);
@@ -424,7 +427,9 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
  * Section 2: the SORs it serves, the two plain ticks (Googlesheet, Gantt Chart,
  * #241), and Odoo's Source Document and analytic accounts.
  */
-export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onResetOverride, onTick }) {
+export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverride, onResetOverride, onTick }) {
+  const canChange = useEditable(granted);
+  const inDrawer = useInDrawer();
   return (
     <IpasSection title={ipasSectionLabel("sales")}>
       <dl className="divide-y divide-border">
@@ -449,20 +454,28 @@ export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onRe
           )}
         </DetailRow>
         <DetailRow label="Googlesheet">
-          <Checkbox
-            checked={ipas.googleSheet}
-            disabled={!canChange}
-            aria-label="Googlesheet"
-            onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
-          />
+          {inDrawer ? (
+            <ReadTick checked={ipas.googleSheet} label="Googlesheet" />
+          ) : (
+            <Checkbox
+              checked={ipas.googleSheet}
+              disabled={!canChange}
+              aria-label="Googlesheet"
+              onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
+            />
+          )}
         </DetailRow>
         <DetailRow label="Gantt Chart">
-          <Checkbox
-            checked={ipas.ganttChart}
-            disabled={!canChange}
-            aria-label="Gantt Chart"
-            onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
-          />
+          {inDrawer ? (
+            <ReadTick checked={ipas.ganttChart} label="Gantt Chart" />
+          ) : (
+            <Checkbox
+              checked={ipas.ganttChart}
+              disabled={!canChange}
+              aria-label="Gantt Chart"
+              onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
+            />
+          )}
         </DetailRow>
         <OverrideRow
           state={ipas.overrides[IPAS_OVERRIDE.SOURCE_DOC]}
@@ -617,7 +630,8 @@ function SupplierOrigin({ ipas, canChange, onEdit }) {
  *
  *   canChange   Purchasing on an open IPAS: types the dates and stamps
  */
-export function IpasStatusSection({ ipas, canChange = false, onEditOrigin, onEditStatus, onStamp, onClearStamp }) {
+export function IpasStatusSection({ ipas, canChange: granted = false, onEditOrigin, onEditStatus, onStamp, onClearStamp }) {
+  const canChange = useEditable(granted);
   const track = ipas.buyerTrack ?? buildBuyerTrack(ipas, ipas.statuses);
 
   return (

@@ -8,6 +8,7 @@ import { SelectField } from "../ui/SelectField";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
+import { useEditable } from "./record/sectionChrome";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -45,14 +46,16 @@ const pesos = (value) => formatAmount(value, "PHP");
  */
 export function IpasPaymentsBlock({
   ipas,
-  canChange = false,
-  canRecord = false,
+  canChange: changeGranted = false,
+  canRecord: recordGranted = false,
   onEditAmount,
   onPickFreight,
   onAddPayment,
   onEditPayment,
   onRemovePayment,
 }) {
+  const canChange = useEditable(changeGranted);
+  const canRecord = useEditable(recordGranted);
   const { payments, paymentSummary: sum, currency, landedCost } = ipas;
   const isPhp = isPhpCurrency(currency);
   const freightOptions = [
@@ -223,12 +226,13 @@ export function IpasPaymentsBlock({
  */
 export function IpasChargesSection({
   ipas,
-  canRecord = false,
+  canRecord: recordGranted = false,
   onAddCharge,
   onEditCharge,
   onRemoveCharge,
   children = null,
 }) {
+  const canRecord = useEditable(recordGranted);
   const { charges, paymentSummary: sum } = ipas;
 
   return (
@@ -323,7 +327,8 @@ export function LandedCostBadge({ status }) {
  * complete, Checked by; set by Purchasing) and Landed Cost per line and per
  * unit with its provisional or final mark and how it was spread.
  */
-export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSetSplit }) {
+export function IpasCostingSection({ ipas, canChange: granted = false, onSetStatus, onSetSplit }) {
+  const canChange = useEditable(granted);
   const lc = ipas.landedCost;
   const currentIndex = IPAS_COMPUTATION_STATUSES.indexOf(ipas.computationStatus);
   const unavailable = lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE;

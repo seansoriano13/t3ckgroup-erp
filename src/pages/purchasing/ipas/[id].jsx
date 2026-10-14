@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { ArrowLeft, ReceiptText } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
+import { Button } from "../../../components/ui/button";
 import PageShell from "../../../components/ui/PageShell";
 import PageLoading from "../../../components/ui/PageLoading";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -29,7 +30,9 @@ import HeaderActions from "../../../components/ipas/record/HeaderActions";
 import SectionDrawer from "../../../components/ipas/record/SectionDrawer";
 import SectionsList from "../../../components/ipas/record/SectionsList";
 import { buildBlocks } from "../../../components/ipas/record/blocks";
-import { digestIpas, filingSummary } from "../../../components/ipas/record/digest";
+import { digestIpas, filingSummary, isInPlace } from "../../../components/ipas/record/digest";
+import { CHROME, IpasSectionChrome } from "../../../components/ipas/record/sectionChrome";
+import { useEditSection } from "../../../components/ipas/record/useEditSection";
 import { useOpenSection } from "../../../components/ipas/record/useOpenSection";
 import {
   ipasKey,
@@ -145,7 +148,10 @@ function IpasPage() {
   // The typed dates being edited: "origin" (Supplier Origin) or a typed status key.
   const [dates, setDates] = useState(null);
   // The section the drawer shows (?open=), and each section row, so focus can go back to it.
-  const { index, current, open: openSection, step: stepSection, close: closeSection } = useOpenSection();
+  const { index, current, inPlace, open: openSection, step: stepSection, close: closeSection } = useOpenSection();
+  // The section in the edit view (?edit=), and the section last left, to focus its row on the way back.
+  const { key: editKey, edit: openEdit, leave: leaveEdit } = useEditSection();
+  const editedKey = useRef(null);
   const rowEls = useRef({});
 
   // The stored copy, at once. The refresh below catches it up.
@@ -174,6 +180,18 @@ function IpasPage() {
     queryFn: () => ipasService.getSignerLists(),
     enabled: Boolean(id),
   });
+
+  // Leaving the edit view (its link, or Back) returns to the overview with that section's row focused.
+  useEffect(() => {
+    if (editKey) {
+      editedKey.current = editKey;
+      return;
+    }
+    const from = editedKey.current;
+    if (!from) return;
+    editedKey.current = null;
+    if (!current && !inPlace) rowEls.current[from]?.focus();
+  }, [editKey, current, inPlace]);
 
   useEffect(() => {
     if (!refresh.dataUpdatedAt) return;
@@ -606,6 +624,23 @@ function IpasPage() {
     failure: failure && { ...failure, dismiss: () => setFailure(null) },
   };
   const blocks = buildBlocks(ctx);
+  // A row opens its section in the drawer; a short section toggles in place under its row.
+  const openRow = (key) => (isInPlace(key) && inPlace === key ? closeSection() : openSection(key));
+  const inPlaceBodies = {
+    logistics: <IpasSectionChrome.Provider value={CHROME.INLINE}>{blocks.logistics}</IpasSectionChrome.Provider>,
+    status: <IpasSectionChrome.Provider value={CHROME.INLINE}>{blocks.status}</IpasSectionChrome.Provider>,
+  };
+  const editView = editKey ? (
+    <div className="space-y-6">
+      <div>
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={leaveEdit}>
+          <ArrowLeft size={14} aria-hidden="true" />
+          Back to overview
+        </Button>
+      </div>
+      <IpasSectionChrome.Provider value={CHROME.CARD}>{blocks[editKey]}</IpasSectionChrome.Provider>
+    </div>
+  ) : null;
 
   // The dialog closes on a failure too (its onConfirm catches): the failure then
   // shows inline at the move that started it, with Retry.
@@ -618,13 +653,15 @@ function IpasPage() {
       >
         <div className="space-y-6">
           {/* Keyboard users skip the figures and sections to the card; hidden until focused. */}
-          <Link
-            to="#your-move"
-            onClick={skipToYourMove}
-            className="sr-only text-sm font-medium text-foreground underline underline-offset-4 focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-4 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-card focus-visible:px-3 focus-visible:py-2 focus-visible:shadow-sm focus-visible:ring-3 focus-visible:ring-mauve-11"
-          >
-            Skip to your move
-          </Link>
+          {!editKey && (
+            <Link
+              to="#your-move"
+              onClick={skipToYourMove}
+              className="sr-only text-sm font-medium text-foreground underline underline-offset-4 focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-4 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-card focus-visible:px-3 focus-visible:py-2 focus-visible:shadow-sm focus-visible:ring-3 focus-visible:ring-mauve-11"
+            >
+              Skip to your move
+            </Link>
+          )}
           <div className="space-y-2 empty:hidden">
             {cancelled && (
               <div role="status" className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
@@ -650,33 +687,40 @@ function IpasPage() {
           </div>
 
           {/* The decider: the figures and sections on the left; the card beside them from the wide breakpoint, sticky and without an inner scroll. Below it the card follows the sections. */}
-          <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <div className="min-w-0 space-y-8">
-              <Figures digest={digest} onOpen={openSection} />
-              <SectionsList
-                digest={digest}
-                onOpen={openSection}
-                rowRef={(key) => (node) => {
-                  rowEls.current[key] = node;
-                }}
-              />
+          {editView ?? (
+            <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+              <div className="min-w-0 space-y-8">
+                <Figures digest={digest} onOpen={openRow} />
+                <SectionsList
+                  digest={digest}
+                  onOpen={openRow}
+                  inPlace={inPlace}
+                  bodies={inPlaceBodies}
+                  rowRef={(key) => (node) => {
+                    rowEls.current[key] = node;
+                  }}
+                />
+              </div>
+              <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
+                <DecisionCard ctx={ctx} digest={digest} onReview={openSection} next={nextIpas} />
+              </aside>
             </div>
-            <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
-              <DecisionCard ctx={ctx} digest={digest} onReview={openSection} next={nextIpas} />
-            </aside>
-          </div>
+          )}
         </div>
 
-        <SectionDrawer
-          ctx={ctx}
-          blocks={blocks}
-          digest={digest}
-          index={index}
-          current={current}
-          step={stepSection}
-          close={closeSection}
-          getRow={(key) => rowEls.current[key]}
-        />
+        {!editKey && (
+          <SectionDrawer
+            ctx={ctx}
+            blocks={blocks}
+            digest={digest}
+            index={index}
+            current={current}
+            step={stepSection}
+            close={closeSection}
+            getRow={(key) => rowEls.current[key]}
+            onEdit={openEdit}
+          />
+        )}
       </PageShell>
 
       <EditPurposeSorsDialog ipas={ipas} open={editing} onOpenChange={setEditing} />

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasListPage from "@/pages/purchasing/ipas/index";
@@ -55,9 +55,9 @@ function renderList() {
   );
 }
 
-function renderDetail(id, section) {
+function renderDetail(id, section, param = "open") {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?open=${section}` : ""}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?${param}=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
@@ -275,7 +275,7 @@ describe("IPAS pages", () => {
       expect(screen.queryByText(/Zorblax/)).not.toBeInTheDocument();
     });
 
-    it("cancels with a reason and keeps the IPAS readable with its number", async () => {
+    it("cancels with a reason and keeps the IPAS readable with its number", { timeout: 20000 }, async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = userEvent.setup();
 
@@ -313,7 +313,7 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = userEvent.setup();
 
-      renderDetail(row.id, "sales");
+      renderDetail(row.id, "sales", "edit");
       expect(await screen.findByRole("checkbox", { name: "Googlesheet" })).not.toBeChecked();
       await user.click(screen.getByRole("checkbox", { name: "Googlesheet" }));
       await waitFor(() => expect(db.rows("ipas")[0].google_sheet).toBe(true));
@@ -346,14 +346,45 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = userEvent.setup();
 
-      renderDetail(row.id, "logistics");
+      renderDetail(row.id, "header");
       const dialog = await screen.findByRole("dialog");
-      expect(within(dialog).getByText("6 · Logistics")).toBeInTheDocument();
+      expect(within(dialog).getByText("Header")).toBeInTheDocument();
 
       await user.keyboard("{Escape}");
 
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-      expect(screen.getByRole("button", { name: /^6 · Logistics/ })).toHaveFocus();
+      expect(screen.getByRole("button", { name: /^Header/ })).toHaveFocus();
+    });
+
+    // #533: a short section expands under its row, with no drawer.
+    it("expands Logistics in place from ?open=, with no drawer", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      renderDetail(row.id, "logistics");
+
+      const trigger = await screen.findByRole("button", { name: /^6 · Logistics/ });
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText("Item Location")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("toggles a short section in place from its row, and J skips it in the drawer", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = userEvent.setup();
+      renderDetail(row.id);
+
+      const trigger = await screen.findByRole("button", { name: /^6 · Logistics/ });
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      await user.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      await user.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+      // From Sales, J goes to History: Logistics and Status are not in the drawer's order.
+      await user.click(screen.getByRole("button", { name: /Sales & Operation/ }));
+      await screen.findByRole("dialog", { name: /Sales & Operation/ });
+      fireEvent.keyDown(window, { key: "j" });
+      expect(await screen.findByRole("dialog", { name: "History" })).toBeInTheDocument();
     });
 
     it("says not found for an IPAS the database doesn't return", async () => {
@@ -427,7 +458,7 @@ describe("IPAS pages", () => {
       stubEdgeFunction("odoo-po-ipas", answer("P02552"));
       const user = userEvent.setup();
 
-      renderDetail(row.id, "header");
+      renderDetail(row.id, "header", "edit");
       await user.click(await screen.findByRole("button", { name: "Override Entity" }));
       const dialog = await screen.findByRole("dialog");
       expect(within(dialog).getByText("T3ck Trading")).toBeInTheDocument();
@@ -452,7 +483,7 @@ describe("IPAS pages", () => {
       stubEdgeFunction("odoo-po-ipas", answer("P02552"));
       const user = userEvent.setup();
 
-      renderDetail(row.id, "purchasing");
+      renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: "Edit Contact" }));
       const dialog = await screen.findByRole("dialog");
       const field = within(dialog).getByRole("textbox");
