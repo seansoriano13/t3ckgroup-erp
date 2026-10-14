@@ -1,17 +1,20 @@
 /**
  * The printed IPAS as HTML: two A4 portrait pages (spec #241 "Printed IPAS",
- * issue #250, ADR 0014), numbered and named as the screen numbers them
- * (ipasSectionLabel, constants/ipas.js), not as the paper sheet did:
+ * issue #250, ADR 0014), drawn in the same document language as the HR leave
+ * slips (htmlPrinter.js): rail, serif name, one big mono figure, a right-hand
+ * Outcome column, hairlines and a signature band.
  *
- *   Page 1   header, 1 Purchasing (items and payments),
- *            2 Purchasing & Finance (charges, documents, bank details)
- *   Page 2   3 Computation status & Landed Cost, 4 Filing (checklist and four
- *            signatures), 5 Sales & Operation, 6 Logistics (Item Location),
- *            7 Status (Supplier Origin and the buyer track)
+ *   Page 1   the voucher: supplier and the Landed Cost, how that figure is
+ *            built, the header fields, Outcome and sign-offs, and every
+ *            signature box of sections 1, 3 and 7
+ *   Page 2   the reference, numbered and named as the screen numbers them
+ *            (ipasSectionLabel, constants/ipas.js): 1 Purchasing (items and
+ *            payments), 2 Purchasing & Finance (charges, documents, bank
+ *            details), 3 Computation status & Landed Cost, 4 Filing, 5 Sales &
+ *            Operation, 6 Logistics, 7 Status
  *
  * The view model keeps the stored section names (`section1`, `section3`, ...);
- * only what is printed is renumbered. There is no Transmittals list yet (it
- * joins in build step 2).
+ * only what is printed is renumbered. There is no Transmittals list yet.
  *
  * Pure: a view model (ipasViewModel.js) in, a complete document string out.
  * `formHTML` and `sigBlock` concatenate strings without escaping, and an IPAS
@@ -27,10 +30,10 @@ const PAGE_COUNT = 2;
 
 const CSS = `
   :root {
-    --paper: #ffffff; --ink: #0f172a; --ink-mid: #1e293b; --ink-soft: #334155; --ink-faint: #64748b;
-    --rule: #cbd5e1; --hair: #e2e8f0; --wash: #f8fafc;
-    --accent: #0f5b47; --ok: #15803d; --ok-bg: #f0fdf4; --ok-border: #bbf7d0;
-    --flag: #b91c1c; --warn: #b45309; --warn-bg: #fffbeb; --warn-border: #fde68a;
+    --paper: #ffffff; --ink: #221F1A; --ink-mid: #4A463F; --ink-soft: #4A463F; --ink-faint: #6E6A61;
+    --rule: #C6C1B8; --hair: #E3E0D9; --wash: #F2F0EA;
+    --accent: #221F1A; --ok: #221F1A; --ok-bg: #ffffff; --ok-border: #221F1A;
+    --flag: #b91c1c; --warn: #6E6A61; --warn-bg: #ffffff; --warn-border: #6E6A61;
     --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
     --serif: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
@@ -40,86 +43,119 @@ const CSS = `
   html, body { margin: 0; padding: 0; background: #ffffff; color: var(--ink); font-family: var(--sans); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
   .sheet {
-    width: 210mm; min-height: 296mm; margin: 0 auto; padding: 9mm 12mm 8mm;
-    display: flex; flex-direction: column; gap: 3mm;
-    font-size: 8.6pt; line-height: 1.34; color: var(--ink); background: var(--paper);
+    width: 210mm; min-height: 296mm; margin: 0 auto; padding: 10mm 14mm 8mm;
+    display: flex; flex-direction: column; gap: 3.5mm;
+    font-size: 8.6pt; line-height: 1.36; color: var(--ink); background: var(--paper);
   }
   .sheet.first { break-after: page; page-break-after: always; }
 
-  .m { font-family: var(--mono); }
-  .rail { display: flex; align-items: flex-end; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
-  .rail .mark { width: 24px; height: 21px; color: var(--accent); flex: none; }
-  .rail .mark svg { width: 100%; height: 100%; display: block; }
-  .rail .org { font-size: 7.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; font-weight: 500; }
-  .rail .org b { display: block; font-size: 10.5pt; letter-spacing: .04em; color: var(--ink); font-weight: 700; }
-  .rail .doc { margin-left: auto; text-align: right; }
-  .rail .doc .t { font-family: var(--serif); font-size: 16pt; font-weight: 600; line-height: 1; }
-  .rail .doc .s { font-family: var(--mono); font-size: 7.5pt; color: var(--ink-soft); font-weight: 500; margin-top: 3px; }
-  .copy-mark { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--ink); border-radius: 2px; font-family: var(--sans); font-size: 6.4pt; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+  .m { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .k { font-size: 6pt; line-height: 1.3; font-weight: 500; letter-spacing: .155em; text-transform: uppercase; color: var(--ink-faint); }
 
-  .hdr { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px 14px; border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); padding: 9px 2px; }
-  .f .k { display: block; font-size: 6.5pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; margin-bottom: 2px; }
-  .f .v { font-size: 9pt; font-weight: 600; overflow-wrap: anywhere; }
-  .f .v.mono { font-family: var(--mono); font-weight: 500; }
+  .rail { display: flex; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+  .rail .mark { width: 27px; height: 23px; flex: none; color: var(--ink); }
+  .rail .mark svg { width: 100%; height: 100%; display: block; }
+  .rail .org { font-size: 6pt; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-faint); line-height: 1.55; font-weight: 500; }
+  .rail .org b { display: block; font-size: 7.4pt; letter-spacing: .155em; color: var(--ink-mid); font-weight: 600; }
+  .rail .doc { margin-left: auto; text-align: right; line-height: 1.45; }
+  .rail .doc .t { font-size: 10pt; font-weight: 600; letter-spacing: .03em; font-family: var(--mono); }
+  .rail .doc .s { font-family: var(--mono); font-size: 7pt; color: var(--ink-faint); }
+  .copy-mark { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--ink); border-radius: 2px; font-family: var(--sans); font-size: 6pt; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+  .tag-state { display: inline-block; padding: 0 5px; border: 1px solid var(--rule); border-radius: 2px; font-family: var(--sans); font-size: 6.4pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .tag-state.filed { border-color: var(--ink); color: var(--ink); }
+  .tag-state.cancelled { color: var(--flag); border-color: var(--flag); }
+
+  .head { display: flex; align-items: flex-end; gap: 28px; padding: 3mm 0 3.5mm; border-bottom: 1px solid var(--rule); }
+  .head .l { flex: 1 1 auto; min-width: 0; }
+  .head .kind { font-size: 7.8pt; font-weight: 600; letter-spacing: .19em; text-transform: uppercase; }
+  .head .who { font-family: var(--serif); font-size: 19pt; font-weight: 500; letter-spacing: -.017em; line-height: 1.12; margin-top: 7px; overflow-wrap: anywhere; }
+  .head .meta { font-size: 8pt; color: var(--ink-mid); margin-top: 4px; }
+  .head .company { font-size: 7.2pt; color: var(--ink-faint); margin-top: 4px; }
+  .head .company .k { display: inline; margin-right: 5px; }
+  .head .company b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+  .head .r { flex: 0 0 auto; text-align: right; }
+  .head .big { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 23pt; font-weight: 500; letter-spacing: -.035em; line-height: 1; margin-top: 7px; }
+  .head .big em { font-style: normal; font-size: 9pt; font-weight: 400; color: var(--ink-mid); margin-left: 6px; letter-spacing: 0; }
+  .head .big.na { font-size: 13pt; color: var(--ink-faint); letter-spacing: 0; }
+  .head .ledger { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-faint); margin-top: 6px; }
+
+  .cols { display: flex; gap: 24px; flex: 1; min-height: 0; padding-top: 1mm; }
+  .cL { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5mm; }
+  .cR { flex: 0 0 56mm; padding-left: 20px; border-left: 1px solid var(--hair); display: flex; flex-direction: column; gap: 5mm; }
+  .blk .v { font-size: 9pt; font-weight: 600; margin-top: 4px; }
+  .blk .rows { margin-top: 6px; display: grid; gap: 5px; }
+  .blk .row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 7.6pt; line-height: 1.3; }
+  .blk .row .a { color: var(--ink-faint); }
+  .blk .row .b { font-family: var(--mono); font-weight: 500; text-align: right; }
+  .blk .row .b.wait { color: var(--ink-faint); }
+
+  .hdr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 20px; }
+  .f .k { display: block; margin-bottom: 2px; }
+  .f .v { font-size: 9pt; font-weight: 500; overflow-wrap: anywhere; }
+  .f .v.mono { font-family: var(--mono); font-size: 8.4pt; }
   .f .x { display: block; font-size: 6.8pt; color: var(--ink-faint); font-weight: 400; }
-  .tag-state { display: inline-block; padding: 1px 6px; border-radius: 3px; background: var(--wash); border: 1px solid var(--hair); font-size: 7pt; font-weight: 600; }
-  .tag-state.filed { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok); }
-  .tag-state.cancelled { color: var(--flag); }
 
   .sec { display: flex; flex-direction: column; gap: 5px; }
-  .sec > h3 { margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 7.6pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mid); border-bottom: 1.5px solid var(--hair); padding: 0 0 5px; font-weight: 700; }
-  .sec > h3 b { font-family: var(--mono); color: var(--ink-soft); font-weight: 500; letter-spacing: 0; font-size: 7.2pt; background: var(--wash); border-radius: 3px; padding: 1px 7px; text-transform: none; }
-  .sec > .body { padding: 2px 0; display: flex; flex-direction: column; gap: 6px; }
-  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
-  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 5px 14px; }
+  .sec > h3 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 6pt; letter-spacing: .155em; text-transform: uppercase; color: var(--ink-mid); border-bottom: 1px solid var(--rule); padding: 0 0 4px; font-weight: 600; }
+  .sec > h3 b { font-family: var(--mono); color: var(--ink-faint); font-weight: 400; letter-spacing: 0; font-size: 7pt; text-transform: none; }
+  .sec > .body { padding: 2px 0; display: flex; flex-direction: column; gap: 7px; }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 6px 16px; }
   .fields.n3 { grid-template-columns: repeat(3, 1fr); }
   .fields.n2 { grid-template-columns: repeat(2, 1fr); }
 
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; vertical-align: top; padding: 3px 6px; border-bottom: 1px solid var(--hair); font-size: 8pt; }
-  thead th { font-size: 6.4pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; border-bottom: 1.5px solid var(--rule); padding: 4px 6px; }
-  th.num, td.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  th, td { text-align: left; vertical-align: top; padding: 3px 6px 3px 0; border-bottom: 1px solid var(--hair); font-size: 8pt; }
+  thead th { font-size: 6pt; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--rule); padding: 0 6px 4px 0; }
+  th.num, td.num { text-align: right; font-family: var(--mono); white-space: nowrap; padding-right: 0; padding-left: 8px; }
   th.center, td.center { text-align: center; }
   tr { break-inside: avoid; page-break-inside: avoid; }
-  tfoot td { font-weight: 700; border-top: 1.5px solid var(--rule); border-bottom: 0; padding: 5px 6px; }
+  tfoot td { font-weight: 600; border-top: 1px solid var(--ink); border-bottom: 0; padding: 5px 6px 0 0; }
+  tfoot td.num { padding-right: 0; }
   .pre { white-space: pre-line; }
-  .sub { color: var(--ink-soft); font-size: 7pt; }
+  .sub { color: var(--ink-mid); font-size: 7pt; }
   .empty { color: var(--ink-faint); font-style: italic; }
 
-  .chk { display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--ink-faint); background: #ffffff; font-size: 8pt; line-height: 1; color: transparent; vertical-align: middle; }
-  .chk.done { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); font-weight: 700; }
-  .chk.part { border-color: var(--warn); color: var(--warn); font-weight: 700; }
+  .build td .basis { color: var(--ink-faint); font-size: 7.2pt; }
+  .build tfoot td { font-family: var(--mono); font-size: 9.6pt; padding-top: 6px; }
+  .build tfoot td:first-child { font-family: var(--sans); font-size: 8pt; }
+  .lede { font-family: var(--serif); font-style: italic; font-size: 9.6pt; line-height: 1.5; color: var(--ink-mid); }
 
-  .stat { display: flex; flex-wrap: wrap; gap: 4px 8px; }
-  .stat .s { display: inline-flex; gap: 5px; align-items: center; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--hair); font-size: 7.6pt; break-inside: avoid; }
-  .stat .s.done { background: var(--ok-bg); border-color: var(--ok-border); font-weight: 600; }
-  .stat .s .d { font-family: var(--mono); color: var(--ink-soft); font-size: 6.8pt; font-weight: 500; }
-  .stat .s.current { border-color: var(--ink); }
-  .odoo { color: var(--accent); font-size: 7pt; line-height: 1; }
-  .legend { color: var(--accent); font-family: var(--sans); font-weight: 600; }
-  .group-k { font-size: 6.5pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; margin-bottom: 3px; }
+  .chk { display: inline-flex; align-items: center; justify-content: center; width: 11px; height: 11px; border-radius: 2px; border: 1px solid var(--ink-faint); background: #ffffff; font-size: 7.6pt; line-height: 1; color: transparent; vertical-align: middle; }
+  .chk.done { border-color: var(--ink); color: var(--ink); font-weight: 700; }
+  .chk.part { border-color: var(--ink-faint); color: var(--ink-mid); font-weight: 700; }
 
-  .box { border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; background: var(--wash); break-inside: avoid; }
-  .prov { display: inline-block; padding: 0 5px; font-size: 6.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; border-radius: 2.5px; border: 1px solid var(--warn-border); background: var(--warn-bg); color: var(--warn); }
-  .prov.final { border-color: var(--ok-border); background: var(--ok-bg); color: var(--ok); }
-  .prov.na { border-color: var(--rule); background: #ffffff; color: var(--ink-soft); }
+  .stat { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .stat .s { display: inline-flex; gap: 5px; align-items: center; font-size: 7.8pt; break-inside: avoid; color: var(--ink-faint); }
+  .stat .s.done { color: var(--ink); font-weight: 500; }
+  .stat .s .d { font-family: var(--mono); color: var(--ink-faint); font-size: 6.8pt; font-weight: 400; }
+  .stat .s.current .t { text-decoration: underline; text-underline-offset: 2px; }
+  .odoo { color: var(--ink); font-size: 6.6pt; line-height: 1; }
+  .legend { color: var(--ink-mid); font-family: var(--sans); font-weight: 500; letter-spacing: 0; }
+  .group-k { font-size: 6pt; letter-spacing: .155em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; margin-bottom: 3px; }
+
+  .box { border-top: 1px solid var(--hair); padding: 6px 0 0; break-inside: avoid; }
+  .prov { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--ink); border-radius: 2px; font-family: var(--sans); font-size: 5.8pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; vertical-align: 2px; color: var(--ink); }
+  .prov.final { background: var(--ink); color: #ffffff; }
+  .prov.na { border-color: var(--rule); color: var(--ink-faint); }
   .flag { color: var(--flag); font-weight: 700; }
 
-  .sigs { display: grid; gap: 6mm; margin-top: 1mm; break-inside: avoid; }
+  .band { margin-top: auto; padding-top: 4mm; border-top: 1px solid var(--rule); break-inside: avoid; }
+  .sigs { display: grid; gap: 14px 20px; }
   .sigs.n2 { grid-template-columns: repeat(2, 1fr); }
   .sigs.n4 { grid-template-columns: repeat(4, 1fr); }
   .sig { display: flex; flex-direction: column; }
-  .sig .k { font-size: 6.4pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
-  .sig .plate { height: 9mm; border-bottom: 1.2px solid var(--ink); display: flex; align-items: flex-end; padding-bottom: 3px; margin-top: 4px; }
-  .sig.awaiting .plate { border-bottom-style: dashed; border-bottom-color: var(--ink-faint); }
+  .sig .k { color: var(--ink-faint); }
+  .sig .plate { height: 9mm; margin-top: 4px; border-bottom: 1px solid var(--rule); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 2px; }
+  .sig.awaiting .plate { background: var(--wash); }
   .sig .plate img { max-height: 8mm; max-width: 100%; object-fit: contain; }
-  .sig .printed-name { font-family: var(--serif); font-style: italic; font-size: 11pt; font-weight: 600; }
-  .sig .who { font-size: 8.2pt; font-weight: 600; margin-top: 4px; min-height: 1.34em; }
-  .sig .role { font-size: 6.8pt; color: var(--ink-soft); }
-  .sig .stamp { font-family: var(--mono); font-size: 6.2pt; color: var(--ink-faint); margin-top: 1px; }
-  .sig .pending { font-family: var(--mono); font-size: 6.4pt; color: var(--warn); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-top: 1px; }
+  .sig .printed-name { font-family: var(--serif); font-style: italic; font-size: 11.5pt; font-weight: 500; }
+  .sig .who { font-size: 8pt; font-weight: 600; margin-top: 4px; min-height: 1.34em; }
+  .sig .role { font-size: 6pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-top: 2px; }
+  .sig .stamp { font-family: var(--mono); font-size: 6pt; color: var(--ink-mid); margin-top: 3px; }
+  .sig .pending { font-family: var(--mono); font-size: 6pt; color: var(--ink-faint); letter-spacing: .12em; text-transform: uppercase; margin-top: 3px; }
 
-  .foot { display: grid; grid-template-columns: 1fr 1.6fr 1fr; align-items: start; gap: 12px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.6pt; color: var(--ink-faint); font-family: var(--mono); margin-top: auto; }
+  .foot { display: grid; grid-template-columns: 1fr 1.6fr 1fr; align-items: start; gap: 12px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.2pt; color: var(--ink-faint); font-family: var(--mono); margin-top: auto; }
   .foot .mid { text-align: center; }
   .foot .r { text-align: right; }
 `;
@@ -162,34 +198,99 @@ function sigs(boxes, columns) {
 // ── Chrome ───────────────────────────────────────────────────────────────────
 
 function rail(vm, page) {
-  const stateClass = vm.filed ? ' filed' : vm.state === 'cancelled' ? ' cancelled' : '';
   return `<div class="rail"><span class="mark">${MARK}</span>
-    <span class="org"><b>T3CKGROUP</b>Integrated Purchasing and Shipping Form</span>
-    <span class="doc"><div class="t">IPAS${vm.filingCopy ? '<span class="copy-mark">Filing copy</span>' : ''}</div>
-    <div class="s">${esc(vm.number)} · ${esc(vm.poNumber)} · page ${page} of ${PAGE_COUNT}</div>
-    <div class="s"><span class="tag-state${stateClass}">${esc(vm.stateLabel)}</span></div></span></div>`;
+    <span class="org"><b>T3CKGROUP</b>Purchasing department</span>
+    <span class="doc"><div class="t">${esc(vm.number)}${vm.filingCopy ? '<span class="copy-mark">Filing copy</span>' : ''}</div>
+    <div class="s">IPAS · page ${page} of ${PAGE_COUNT}</div></span></div>`;
+}
+
+/** Page 1's head: who it is from, and the one figure the form exists to prove. */
+function head(vm) {
+  const h = vm.header;
+  const lc = vm.section6.landedCost;
+  const stateClass = vm.filed ? ' filed' : vm.state === 'cancelled' ? ' cancelled' : '';
+  const mark = `<span class="prov ${lc.status === 'final' ? 'final' : lc.status === 'unavailable' ? 'na' : ''}">${esc(lc.label)}</span>`;
+  const figure =
+    lc.status === 'unavailable'
+      ? '<div class="big na">Not available</div>'
+      : `<div class="big">${esc(lc.total.replace(/^PHP /, '₱'))}<em>PHP</em></div>`;
+  const ledger =
+    lc.status === 'unavailable'
+      ? ''
+      : `<div class="ledger">${lc.perUnit ? `${esc(lc.perUnit)} per unit · ` : ''}${esc(lc.units)}</div>`;
+  const meta = [vm.poNumber, vm.footer.reference.split(' · ').slice(1).join(' · '), h.source, h.purpose, `${h.priority} priority`]
+    .filter(Boolean)
+    .map(esc)
+    .join(' · ');
+  return `<div class="head">
+    <div class="l"><div class="kind">Integrated Purchasing and Shipping Form</div>
+      <div class="who">${esc(vm.section1.supplier)}</div>
+      <div class="meta">${meta}</div>
+      <div class="company"><span class="k">Entity</span> <b>${overridableValue(h.entity)}</b></div></div>
+    <div class="r"><div class="k">Landed Cost${mark}</div>${figure}${ledger}
+      <div class="ledger"><span class="tag-state${stateClass}">${esc(vm.stateLabel)}</span></div></div>
+  </div>`;
+}
+
+/** Who has signed what, in a few rows, from the boxes that print below. */
+function outcome(vm) {
+  const given = (boxes) => boxes.filter((box) => box.state === 'signed').length;
+  const row = (label, boxes) => {
+    const done = given(boxes);
+    const text = done === boxes.length ? 'signed' : `${done} of ${boxes.length}`;
+    return `<div class="row"><span class="a">${esc(label)}</span><span class="b${done === boxes.length ? '' : ' wait'}">${text}</span></div>`;
+  };
+  const computation = vm.section6.computation
+    .map(
+      (c) =>
+        `<div class="row"><span class="a">${esc(c.label)}</span><span class="b${c.reached ? '' : ' wait'}">${c.current ? 'now' : c.reached ? 'done' : 'open'}</span></div>`,
+    )
+    .join('');
+  return `<div class="blk"><div class="k">Outcome</div><div class="v">${esc(vm.stateLabel)}</div></div>
+    <div class="blk"><div class="k">Sign-offs</div><div class="rows">
+      ${row(ipasSectionLabel('purchasing'), vm.section1.signoffs)}
+      ${row(ipasSectionLabel('finance'), vm.section3.signoffs)}
+      ${row(ipasSectionLabel('filing'), vm.section7.signoffs)}
+    </div></div>
+    <div class="blk"><div class="k">Computation</div><div class="rows">${computation}</div></div>`;
+}
+
+/** How the Landed Cost is made: the goods, then everything spread over them. */
+function build(vm) {
+  const lc = vm.section6.landedCost;
+  if (lc.status === 'unavailable') {
+    return `<div class="sec"><h3><span>How the Landed Cost is built</span></h3><div class="body"><div class="lede">${esc(lc.note ?? 'Landed Cost is not available yet.')}</div></div></div>`;
+  }
+  const rows = lc.build
+    .map((r) => `<tr><td>${esc(r.label)}${r.basis ? ` <span class="basis">${esc(r.basis)}</span>` : ''}</td><td class="num">${esc(r.amount)}</td></tr>`)
+    .join('');
+  return `<div class="sec"><h3><span>How the Landed Cost is built</span><b>${esc(lc.label)}</b></h3><div class="body">
+    <table class="build"><thead><tr><th>Component</th><th class="num">PHP</th></tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr><td>Landed Cost, ${esc(lc.units)}</td><td class="num">${esc(lc.total)}</td></tr></tfoot></table>
+    ${lc.note ? `<div class="lede">${esc(lc.note)}</div>` : ''}
+  </div></div>`;
 }
 
 function header(vm) {
   const h = vm.header;
+  const s = vm.section1;
   return `<div class="hdr">
-    ${field('Entity', overridableValue(h.entity), { note: overrideNote(h.entity) })}
     ${field('Priority', esc(h.priority))}
     ${field('Source', esc(h.source))}
     ${field('Purpose', esc(h.purpose))}
     ${field('Date created', esc(h.created), { mono: true })}
     ${field('Created by', esc(h.createdBy))}
+    ${field('Contact', esc(s.contact ?? '—'))}
   </div>`;
 }
 
-function footer(vm, page, [first, last]) {
+function footer(vm, page, rangeLabel) {
   const f = vm.footer;
   const middle = [f.landedCost, f.odooRead + (f.odooNote ? ` (${f.odooNote})` : '')].filter(Boolean).map(esc).join(' · ');
-  const sections = `Sections ${ipasSectionLabel(first)} to ${ipasSectionLabel(last)}`;
   return `<div class="foot">
     <span>${esc(f.reference)}${f.printed ? `<br>${esc(f.printed)}` : ''}</span>
     <span class="mid">${middle}</span>
-    <span class="r">page ${page} of ${PAGE_COUNT}<br>${esc(sections)}</span>
+    <span class="r">page ${page} of ${PAGE_COUNT}<br>${esc(rangeLabel)}</span>
   </div>`;
 }
 
@@ -240,8 +341,7 @@ function purchasing(vm) {
       ${s.piQtAmount ? field('P.I/QT Amount', esc(s.piQtAmount), { mono: true }) : ''}
     </div>
     ${items}
-    ${payments}
-    ${sigs(s.signoffs, 2)}`,
+    ${payments}`,
   );
 }
 
@@ -310,8 +410,7 @@ function finance(vm) {
     esc(ipasSectionLabel('finance')),
     `Charges: ${esc(s.chargesTotal)}`,
     `<div class="cols2"><div>${charges}</div><div>${documents}</div></div>
-    ${bank}
-    ${sigs(s.signoffs, 2)}`,
+    ${bank}`,
   );
 }
 
@@ -395,8 +494,7 @@ function filing(vm) {
           c.detail ? `<span class="d">${esc(c.detail)}</span>` : ''
         }</span>`,
       )
-      .join('')}</div>
-    ${sigs(s.signoffs, 4)}`,
+      .join('')}</div>`,
   );
 }
 
@@ -404,13 +502,21 @@ function filing(vm) {
 
 /** Both pages, as markup. */
 export function buildIpasPagesHtml(vm) {
+  const boxes = [...vm.section1.signoffs, ...vm.section3.signoffs, ...vm.section7.signoffs];
+  const first = ipasSectionLabel('purchasing');
+  const last = ipasSectionLabel('status');
   return `<div class="sheet first">
-    ${rail(vm, 1)}${header(vm)}${purchasing(vm)}${finance(vm)}
-    ${footer(vm, 1, ['purchasing', 'finance'])}
+    ${rail(vm, 1)}${head(vm)}
+    <div class="cols">
+      <div class="cL">${build(vm)}${header(vm)}</div>
+      <div class="cR">${outcome(vm)}</div>
+    </div>
+    <div class="band">${sigs(boxes, 4)}</div>
+    ${footer(vm, 1, 'Summary and sign-offs')}
   </div>
   <div class="sheet">
-    ${rail(vm, 2)}${costing(vm)}${filing(vm)}${sales(vm)}${logistics(vm)}${status(vm)}
-    ${footer(vm, 2, ['costing', 'status'])}
+    ${rail(vm, 2)}${purchasing(vm)}${finance(vm)}${costing(vm)}${filing(vm)}${sales(vm)}${logistics(vm)}${status(vm)}
+    ${footer(vm, 2, `Sections ${first} to ${last}`)}
   </div>`;
 }
 
@@ -422,7 +528,7 @@ export function buildIpasDocument(vm) {
 <meta charset="utf-8">
 <title>${esc(vm.number)} · ${esc(vm.poNumber)}${vm.filingCopy ? ' · filing copy' : ''}</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap">
 <style>${CSS}</style>
 </head>
 <body>

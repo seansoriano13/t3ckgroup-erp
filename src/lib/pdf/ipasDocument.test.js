@@ -40,32 +40,42 @@ describe("the two A4 pages", () => {
     expect(html).toContain("page 2 of 2")
   })
 
-  it("puts the header and sections 1 and 2 on page 1 and 3 to 7 on page 2, numbered in the module's own order", () => {
+  it("puts the voucher on page 1 and the seven numbered sections on page 2, in the module's own order", () => {
     const html = doc()
     const page2 = html.indexOf("page 2 of 2")
-    const order = ["Entity", "1 · Purchasing", "2 · Purchasing &amp; Finance"].map((label) => html.indexOf(label))
-    const order2 = [
-      "3 · Computation status &amp; Landed Cost",
-      "4 · Filing",
-      "5 · Sales &amp; Operation",
-      "6 · Logistics",
-      "7 · Status",
+    const voucher = ["How the Landed Cost is built", "Date created", "Created by", "Outcome", "Sign-offs"].map((label) => html.indexOf(label))
+    const sections = [
+      "<h3><span>1 · Purchasing",
+      "<h3><span>2 · Purchasing &amp; Finance",
+      "<h3><span>3 · Computation status &amp; Landed Cost",
+      "<h3><span>4 · Filing",
+      "<h3><span>5 · Sales &amp; Operation",
+      "<h3><span>6 · Logistics",
+      "<h3><span>7 · Status",
     ].map((label) => html.indexOf(label))
 
-    expect(order.every((at) => at > -1)).toBe(true)
-    expect(order).toEqual([...order].sort((a, b) => a - b))
-    expect(order.every((at) => at < page2)).toBe(true)
-    expect(order2.every((at) => at > page2)).toBe(true)
-    expect(order2).toEqual([...order2].sort((a, b) => a - b))
+    expect(voucher.every((at) => at > -1 && at < page2)).toBe(true)
+    expect(sections.every((at) => at > page2)).toBe(true)
+    expect(sections).toEqual([...sections].sort((a, b) => a - b))
   })
 
-  it("numbers the sections 1 to 7 with none skipped or repeated, and says which each page holds", () => {
+  it("numbers the sections 1 to 7 with none skipped or repeated, and says what each page holds", () => {
     const html = doc()
     const numbers = [...html.matchAll(/<h3><span>(\d) · /g)].map((match) => Number(match[1]))
 
     expect(numbers).toEqual([1, 2, 3, 4, 5, 6, 7])
-    expect(html).toContain("Sections 1 · Purchasing to 2 · Purchasing &amp; Finance")
-    expect(html).toContain("Sections 3 · Computation status &amp; Landed Cost to 7 · Status")
+    expect(html).toContain("Summary and sign-offs")
+    expect(html).toContain("Sections 1 · Purchasing to 7 · Status")
+  })
+
+  it("builds the Landed Cost on page 1 from the same totals the calculation adds", () => {
+    const html = doc()
+    const page1 = html.slice(0, html.indexOf("page 2 of 2"))
+
+    for (const text of ["Goods", "Shipping fees", "Bank charge fees", "Brokerage Fee", "Duties &amp; Taxes", "PHP 93,573.68"]) {
+      expect(page1).toContain(text)
+    }
+    expect(page1).toContain("PHP 46,786.84 per unit")
   })
 
   it("has no Transmittals list", () => {
@@ -113,7 +123,7 @@ describe("signatures", () => {
     // Name only: printed in the plate in the printed-name style, no image.
     expect(html).toContain('<div class="printed-name">M. Ramos</div>')
     expect(html).toMatch(/name only, no signature on file/)
-    // Waiting: Purchasing & Finance's two boxes and Filing's four.
+    // Waiting: section 3's two boxes and Filing's four, each printed once, on page 1.
     expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(6)
     expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(6)
   })
