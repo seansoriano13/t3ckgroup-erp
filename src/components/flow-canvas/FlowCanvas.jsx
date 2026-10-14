@@ -1445,7 +1445,7 @@ function FlowCanvasInner() {
                   {({ close }) => (
                     <div className="flex flex-col gap-3">
                       <div>
-                        <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                        <p className="mb-1.5 text-label font-black uppercase tracking-[0.16em] text-muted-foreground">
                           New Sale Type
                         </p>
                         <form
@@ -1538,7 +1538,7 @@ function FlowCanvasInner() {
                 >
                   {() => (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                      <p className="text-label font-black uppercase tracking-[0.16em] text-muted-foreground">
                         View as
                       </p>
                       <PeoplePicker

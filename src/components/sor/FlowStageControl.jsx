@@ -197,7 +197,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
 
       {current?.is_terminal && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+          <span className="text-label font-bold tracking-widest text-muted-foreground uppercase">
             Deals stop here
           </span>
         </div>

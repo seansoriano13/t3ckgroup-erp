@@ -204,7 +204,7 @@ export default function PeoplePicker({
                   return (
                     <div key={selectorKey(option.selector)}>
                       {heading && (
-                        <p className="px-2.5 pb-1 pt-2 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+                        <p className="px-2.5 pb-1 pt-2 text-label font-black uppercase tracking-[0.15em] text-muted-foreground">
                           {heading}
                         </p>
                       )}

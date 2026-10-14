@@ -19,7 +19,7 @@ import {
 } from "../../constants/ipas";
 import { uploadDocumentFile } from "./uploadDocumentFile";
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const HEAD = "text-label font-bold uppercase tracking-wider";
 
 /**
  * Section 3's documents (#246): one list, two ticks per row. Purchasing has it

@@ -60,7 +60,7 @@ export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
                   {fmtDay(req.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </TableCell>
                 <TableCell>
-                  <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${REQUEST_TYPE_BADGE[req.type].badgeClass}`}>
+                  <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-label border ${REQUEST_TYPE_BADGE[req.type].badgeClass}`}>
                     {REQUEST_TYPE_BADGE[req.type].label}
                   </span>
                 </TableCell>
@@ -70,7 +70,7 @@ export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
                       {fmtDay(req.startDate, { month: 'short', day: 'numeric' })}
                       {' – '}
                       {fmtDay(req.endDate, { month: 'short', day: 'numeric' })}
-                      <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      <span className="ml-1.5 text-label font-bold text-muted-foreground uppercase tracking-wider">
                         {req.dayCount} days
                       </span>
                     </>
@@ -91,7 +91,7 @@ export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
                       )}
                     </span>
                     {req.start_time && req.end_time && (
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      <span className="text-label font-semibold text-muted-foreground uppercase tracking-wider">
                         {formatWindow(req.start_time, req.end_time)}
                       </span>
                     )}

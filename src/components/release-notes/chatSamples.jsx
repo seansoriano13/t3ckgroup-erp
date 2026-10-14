@@ -20,7 +20,7 @@ function Message({ mine, name, children }) {
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div className="max-w-[80%] space-y-1">
-        <p className={`px-1 text-[10px] font-bold uppercase tracking-tight text-muted-foreground ${mine ? "text-right" : ""}`}>{name}</p>
+        <p className={`px-1 text-label font-bold uppercase tracking-tight text-muted-foreground ${mine ? "text-right" : ""}`}>{name}</p>
         <p className={`rounded-2xl px-4 py-2.5 text-sm ${mine ? "rounded-tr-none bg-mauve-12 text-mauve-1" : "rounded-tl-none border border-border bg-card"}`}>{children}</p>
       </div>
     </div>

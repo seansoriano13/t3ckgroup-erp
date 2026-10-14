@@ -11,7 +11,7 @@ const PILL = {
 export function StatusPill({ item }) {
   const [label, tone] = PILL[statusOf(item)];
   return (
-    <span className={`inline-flex shrink-0 items-center rounded-full border bg-card px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${tone}`}>
+    <span className={`inline-flex shrink-0 items-center rounded-full border bg-card px-2 py-0.5 text-label font-bold uppercase tracking-wider ${tone}`}>
       {label}
     </span>
   );

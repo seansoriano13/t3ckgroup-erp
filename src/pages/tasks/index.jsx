@@ -544,7 +544,7 @@ export default function TasksPage() {
                             : "bg-amber-9"
                   }
                 />
-                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                <h3 className="text-label font-black text-muted-foreground uppercase tracking-[0.2em]">
                   {statusKey === "COMPLETE_VERIFIED"
                     ? "Verified"
                     : statusKey === "COMPLETE_UNVERIFIED"
@@ -581,7 +581,7 @@ export default function TasksPage() {
               {/* Per-Group Mini Pagination */}
               {totalGroupPages > 1 && (
                 <div className="flex items-center justify-end gap-3 pt-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                     Page {currentGroupPage} / {totalGroupPages}
                   </span>
                   <div className="flex gap-1">

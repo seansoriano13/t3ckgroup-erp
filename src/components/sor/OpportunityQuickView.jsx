@@ -114,7 +114,7 @@ export default function OpportunityQuickView({
       {() => (
         <SlideOverBody>
           <section className="space-y-3">
-            <h3 className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <h3 className="flex items-center gap-1.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
               <ClipboardList size={12} /> Your open tasks
             </h3>
             {isLoadingTasks ? (
@@ -139,7 +139,7 @@ export default function OpportunityQuickView({
           </section>
 
           <section className="space-y-3">
-            <h3 className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <h3 className="flex items-center gap-1.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
               <ListChecks size={12} /> Open on this stage
             </h3>
             {isLoadingChecklist ? (

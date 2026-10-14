@@ -92,7 +92,7 @@ export default function RateEmployeesModal({
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-mauve-3/40 shrink-0 relative overflow-hidden bg-card">
           <div className="space-y-1 mt-1">
             <div className="flex items-center gap-2 mb-2.5">
-              <span className="text-[10px] font-bold bg-warning/10 text-amber-10 px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm border border-amber-500/20">
+              <span className="text-label font-bold bg-warning/10 text-amber-10 px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm border border-amber-500/20">
                 Evaluation Mode
               </span>
             </div>
@@ -196,7 +196,7 @@ export default function RateEmployeesModal({
                     </div>
 
                     {rating.status !== "DONE" && (
-                      <p className="text-[10px] font-bold text-amber-9 uppercase tracking-widest flex items-center gap-1.5 bg-warning/10 w-fit px-2 py-1 rounded-md border border-amber-500/20">
+                      <p className="text-label font-bold text-amber-9 uppercase tracking-widest flex items-center gap-1.5 bg-warning/10 w-fit px-2 py-1 rounded-md border border-amber-500/20">
                         Warning: Task not marked DONE by employee
                       </p>
                     )}

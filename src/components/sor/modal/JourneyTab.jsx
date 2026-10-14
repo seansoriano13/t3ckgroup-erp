@@ -343,7 +343,7 @@ function RestrictedVisit({ visit }) {
       <span className="min-w-0 flex-1 truncate">
         <span className="text-xs font-bold text-foreground">{visit.stage.name}</span>
         {visit.stage.bracket && (
-          <span className="ml-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+          <span className="ml-1.5 text-label font-semibold tracking-wider text-muted-foreground uppercase">
             {visit.stage.bracket}
           </span>
         )}
@@ -351,7 +351,7 @@ function RestrictedVisit({ visit }) {
       <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
         {entered} → {left || "open"}
       </span>
-      <span className="shrink-0 rounded-md bg-mauve-a4 px-1.5 py-0.5 text-[10px] font-black uppercase text-muted-foreground">
+      <span className="shrink-0 rounded-md bg-mauve-a4 px-1.5 py-0.5 text-label font-black uppercase text-muted-foreground">
         Restricted
       </span>
     </div>
@@ -369,7 +369,7 @@ function ClosedOffBadge({ closedOff }) {
   const when = formatWhen(closedOff.at);
   return (
     <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-      <span className="shrink-0 rounded-md bg-red-9/15 px-1.5 py-0.5 text-[10px] font-black uppercase text-red-11">
+      <span className="shrink-0 rounded-md bg-red-9/15 px-1.5 py-0.5 text-label font-black uppercase text-red-11">
         Closed off
       </span>
       <span>
@@ -436,7 +436,7 @@ function PastVisit({ row, onToggle }) {
         <span className="min-w-0 flex-1 truncate">
           <span className="text-xs font-bold text-foreground">{visit.stage.name}</span>
           {visit.stage.bracket && (
-            <span className="ml-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+            <span className="ml-1.5 text-label font-semibold tracking-wider text-muted-foreground uppercase">
               {visit.stage.bracket}
             </span>
           )}
@@ -448,13 +448,13 @@ function PastVisit({ row, onToggle }) {
             and tasks now read on the new visit — counting them here would
             show work that was carried forward as unmet. */}
         {visit.resumedAt ? (
-          <span className="shrink-0 rounded-md bg-mauve-a4 px-1.5 py-0.5 text-[10px] font-black uppercase text-muted-foreground">
+          <span className="shrink-0 rounded-md bg-mauve-a4 px-1.5 py-0.5 text-label font-black uppercase text-muted-foreground">
             Resumed
           </span>
         ) : (
           <span
             className={cn(
-              "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase",
+              "shrink-0 rounded-md px-1.5 py-0.5 text-label font-black uppercase",
               unmet > 0 ? "bg-amber-9/15 text-amber-11" : "bg-green-9/15 text-green-11",
             )}
           >
@@ -462,12 +462,12 @@ function PastVisit({ row, onToggle }) {
           </span>
         )}
         {skipped > 0 && (
-          <span className="shrink-0 rounded-md bg-mauve-a4 px-1.5 py-0.5 text-[10px] font-black uppercase text-muted-foreground">
+          <span className="shrink-0 rounded-md bg-mauve-a4 px-1.5 py-0.5 text-label font-black uppercase text-muted-foreground">
             {skipped} skipped
           </span>
         )}
         {visit.closedOff && (
-          <span className="shrink-0 rounded-md bg-red-9/15 px-1.5 py-0.5 text-[10px] font-black uppercase text-red-11">
+          <span className="shrink-0 rounded-md bg-red-9/15 px-1.5 py-0.5 text-label font-black uppercase text-red-11">
             Closed off
           </span>
         )}
@@ -629,7 +629,7 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
           className="h-auto w-full items-center gap-3 rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-left hover:border-mauve-7 hover:bg-muted/30"
         >
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <p className="flex items-center gap-1.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
               Now
               {current.summary.bracket && <span className="text-muted-foreground/60">· {current.summary.bracket}</span>}
             </p>
@@ -648,7 +648,7 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
 
       {past.length > 0 ? (
         <div className="space-y-2">
-          <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+          <p className="text-label font-bold tracking-widest text-muted-foreground uppercase">
             Earlier stages ({past.length})
           </p>
           {past.map((row) => (

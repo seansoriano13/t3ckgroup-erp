@@ -24,7 +24,7 @@ export function SignoffBox({ section, role, signoff, waiting }) {
       className="rounded-lg border border-border bg-muted/20 px-3 py-2.5"
       data-testid={`ipas-signoff-${section}-${role}`}
     >
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+      <p className="text-label font-bold uppercase tracking-wider text-muted-foreground">
         {IPAS_SIGNOFF_ROLE_LABELS[role]}
       </p>
       {signoff ? (

@@ -20,7 +20,7 @@ export default function PurchaseRequestCard({ opportunityId }) {
 
   return (
     <section className="space-y-3" aria-label="Purchase Request">
-      <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Purchase Request</p>
+      <p className="text-label font-bold tracking-widest text-muted-foreground uppercase">Purchase Request</p>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/50 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <ShoppingCart size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />

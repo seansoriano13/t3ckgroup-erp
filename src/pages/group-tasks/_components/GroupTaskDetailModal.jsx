@@ -1264,7 +1264,7 @@ export default function GroupTaskDetailModal({
               {/* HR Remarks */}
               {task.hr_remarks && (
                 <div className="bg-destructive/10 border border-red-500/20 p-5 rounded-2xl mt-6 shadow-sm animate-content-in stagger-3">
-                  <h4 className="text-[10px] font-bold text-destructive uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <h4 className="text-label font-bold text-destructive uppercase tracking-widest mb-2 flex items-center gap-1.5">
                     <FileText size={12} /> HR Remarks
                   </h4>
                   <p className="text-sm text-red-900 dark:text-red-200/90 leading-relaxed font-medium">
@@ -1349,7 +1349,7 @@ export default function GroupTaskDetailModal({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-black truncate">Conversation</h3>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Group Task Chat</p>
+                <p className="text-label text-muted-foreground font-bold uppercase tracking-wider">Group Task Chat</p>
               </div>
             </div>
 

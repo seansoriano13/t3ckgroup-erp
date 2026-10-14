@@ -161,7 +161,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     <Undo2 size={15} /> Recall
                   </Button>
 
-                  <div className="text-[10px] uppercase tracking-widest font-bold text-blue-10 flex items-center gap-1.5 px-2">
+                  <div className="text-label uppercase tracking-widest font-bold text-blue-10 flex items-center gap-1.5 px-2">
                     <Clock size={16} />
                     {state.isDelayed && state.enableVisualShaming ? (
                       <span className="text-destructive animate-pulse">

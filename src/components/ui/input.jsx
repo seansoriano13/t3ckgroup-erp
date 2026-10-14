@@ -27,7 +27,7 @@ const Input = React.forwardRef(function Input(
       >
         <label
           className={cn(
-            "text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block",
+            "text-label font-bold text-muted-foreground uppercase tracking-widest mb-1 block",
             error && "text-destructive",
             labelClassName,
           )}

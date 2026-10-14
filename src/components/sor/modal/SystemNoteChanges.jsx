@@ -27,7 +27,7 @@ function FieldChangeRow({ change }) {
   }
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">{change.label}</span>
+      <span className="text-label font-bold tracking-wider text-muted-foreground uppercase">{change.label}</span>
       <Chip>{change.from}</Chip>
       <ArrowRight size={11} className="shrink-0 text-muted-foreground/60" />
       <Chip>{change.to}</Chip>

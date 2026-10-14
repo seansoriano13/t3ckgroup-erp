@@ -184,7 +184,7 @@ export default function SorFormBuilder({ flow }) {
               <ChevronDown size={11} className="text-muted-foreground/50 -rotate-90" />
               <span className="font-medium text-muted-foreground/80">Registration form</span>
               <span className="text-muted-foreground/30">•</span>
-              <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/60">
+              <span className="text-label uppercase tracking-widest font-bold text-muted-foreground/60">
                 {flow.name || "This Sale Type"}
               </span>
             </div>
@@ -219,7 +219,7 @@ export default function SorFormBuilder({ flow }) {
                 className="space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6"
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                  <h4 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                     New field
                   </h4>
                   <Button type="button" variant="ghost" size="icon-xs" onClick={() => setIsAdding(false)} aria-label="Cancel">
@@ -299,7 +299,7 @@ export default function SorFormBuilder({ flow }) {
             {/* Fixed parts of the form. Drawn so the builder shows the whole
                 thing, dimmed so it is clear they are not configurable. */}
             <div className="pt-2 border-t border-border/50 space-y-3 opacity-50 pointer-events-none select-none">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              <p className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                 Product List, Sales Division and Ownership — always on the form
               </p>
               <div className="rounded-xl border border-dashed border-border bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground">
