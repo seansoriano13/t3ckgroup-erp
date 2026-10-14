@@ -6,6 +6,7 @@ import StatusBadge from "../StatusBadge";
 import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../../constants/ipas";
 import { SIGNOFF_STATUS } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
+import { useInDrawer } from "./record/sectionChrome";
 
 const STATUS_BADGE = {
   [SIGNOFF_STATUS.NOT_PREPARED]: { theme: "mauve", label: "Not prepared" },
@@ -59,24 +60,26 @@ export function SignoffBox({ section, role, signoff, waiting }) {
 export function IpasSignoffs({ section, state, rights, busy = false, onPrepare, onApprove, onSendBack }) {
   const badge = STATUS_BADGE[state.status];
   const hint = state.status === SIGNOFF_STATUS.AWAITING_APPROVAL ? WHY_NOT[rights.whyNotApprove] : null;
+  // In the drawer the pinned footer carries the moves, so the body only reads.
+  const inDrawer = useInDrawer();
 
   return (
     <div className="mt-5 space-y-3" data-testid={`ipas-signoffs-${section}`}>
       <SectionHeader title="Sign-offs" className="pb-2">
         <StatusBadge theme={badge.theme} label={badge.label} />
-        {rights.canPrepare && (
+        {!inDrawer && rights.canPrepare && (
           <Button size="sm" className="gap-1.5" disabled={busy} onClick={onPrepare}>
             <PenLine size={14} />
             Prepare section {ipasSectionLabel(section)}
           </Button>
         )}
-        {rights.canApprove && (
+        {!inDrawer && rights.canApprove && (
           <Button size="sm" className="gap-1.5" disabled={busy} onClick={onApprove}>
             <Check size={14} />
             Approve section {ipasSectionLabel(section)}
           </Button>
         )}
-        {rights.canSendBack && (
+        {!inDrawer && rights.canSendBack && (
           <Button size="sm" variant="outline" className="gap-1.5" disabled={busy} onClick={onSendBack}>
             <CornerUpLeft size={14} />
             Send back

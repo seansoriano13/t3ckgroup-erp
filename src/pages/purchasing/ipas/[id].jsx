@@ -29,23 +29,27 @@ import HeaderActions from "../../../components/ipas/record/HeaderActions";
 import SectionDrawer from "../../../components/ipas/record/SectionDrawer";
 import SectionsList from "../../../components/ipas/record/SectionsList";
 import { buildBlocks } from "../../../components/ipas/record/blocks";
-import { digestIpas } from "../../../components/ipas/record/digest";
+import { digestIpas, filingSummary } from "../../../components/ipas/record/digest";
 import { useOpenSection } from "../../../components/ipas/record/useOpenSection";
 import {
   ipasKey,
   ipasListKey,
+  ipasPendingKey,
   ipasPendingPrefix,
   ipasRefreshKey,
   ipasSignerListsKey,
 } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
 import { openPrintWindow, printIpas } from "../../../lib/pdf/ipasPrinter";
+import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage } from "../../../utils/ipas";
 import { canSendBackSection7, isCostsComplete, section7Rights, signoffRights } from "../../../utils/ipasSignoffs";
 import { formatDate } from "../../../utils/formatDate.js";
 import {
+  IPAS_COMPUTATION_STATUS,
+  IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_HEADER_FIELD,
   IPAS_OVERRIDE_FIELDS,
   IPAS_SIGNOFF_ROLE,
@@ -119,8 +123,13 @@ function IpasPage() {
   const { user } = useAuth();
   const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
   const [sendingBack, setSendingBack] = useState(null); // the section being sent back
-  const [filing, setFiling] = useState(false); // the Approve (files the IPAS) dialog
+  // The Approve and file dialog, and where it was started ({ from }), or null when shut.
+  const [filing, setFiling] = useState(null);
   const [reopening, setReopening] = useState(false);
+  // A failed move, shown at the place it was started (card or drawer footer), with Retry.
+  const [failure, setFailure] = useState(null);
+  // The IPAS this viewer just signed, so the card can point at the next one waiting for them.
+  const [signedId, setSignedId] = useState(null);
 
   const [editing, setEditing] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(null); // { payment | null }
@@ -183,6 +192,15 @@ function IpasPage() {
     queryClient.invalidateQueries({ queryKey: ipasPendingPrefix });
   };
 
+  // A failed move: the toast as ever, and the message kept at the move's origin
+  // (`from`: the key and where it was started) with Retry, which runs `retry` again.
+  const failMove = (error, from, retry) => {
+    const message = ipasErrorMessage(error);
+    toast.error(message);
+    if (from) setFailure({ key: from.key, origin: from.origin, message, retry });
+  };
+  const markSigned = () => setSignedId(id);
+
   const signoff = useMutation({
     mutationFn: ({ section, role }) => ipasService.sign(id, section, role),
     onSuccess: ({ notified }, { section, role }) => {
@@ -195,9 +213,11 @@ function IpasPage() {
       } else {
         toast.success(`Section ${ipasSectionLabel(section)} approved.`);
       }
+      setFailure(null);
+      markSigned();
       signoffChanged();
     },
-    onError: (error) => toast.error(ipasErrorMessage(error)),
+    onError: (error, vars) => failMove(error, vars.from, () => signoff.mutate(vars)),
   });
 
   // Section 7's steps. Approved files the IPAS and goes through the dialog that
@@ -207,10 +227,39 @@ function IpasPage() {
     onSuccess: (result, { role }) => {
       if (result.filed) toast.success(`${ipas.number} is filed.`);
       else toast.success(`Section ${ipasSectionLabel(7)} ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()}.`);
+      setFailure(null);
+      markSigned();
       signoffChanged();
     },
-    onError: (error) => toast.error(ipasErrorMessage(error)),
+    onError: (error, vars) => failMove(error, vars.from, () => give.mutate(vars)),
   });
+
+  // Mark costs complete, or any computation status the body's control picks.
+  // Costs complete is undoable: its toast restores the status it came from,
+  // through this same mutation.
+  const setStatus = useMutation({
+    mutationFn: ({ computationStatus }) => ipasService.setHeader(id, { computationStatus }),
+    onSuccess: (_, { computationStatus, undoTo, undo }) => {
+      setFailure(null);
+      changed();
+      if (undo) {
+        toast.success(`Computation status is back to ${IPAS_COMPUTATION_STATUS_LABELS[computationStatus]}.`);
+      } else if (undoTo !== undefined && computationStatus === IPAS_COMPUTATION_STATUS.COSTS_COMPLETE) {
+        undoableSuccessToast("Costs marked complete. Landed Cost is final.", "Undo", () =>
+          setStatus.mutate({ computationStatus: undoTo, undo: true }),
+        );
+      }
+    },
+    onError: (error, vars) => failMove(error, vars.from, () => setStatus.mutate(vars)),
+  });
+
+  // The next IPAS waiting for this viewer, after one of their sign-offs here.
+  const pending = useQuery({
+    queryKey: ipasPendingKey(user?.id),
+    queryFn: () => ipasService.pendingSignoffsFor(user.id),
+    enabled: Boolean(user?.id) && signedId === id,
+  });
+  const nextIpas = signedId === id ? (pending.data ?? []).find((item) => item.ipasId !== id) ?? null : null;
 
   const reopen = useMutation({
     mutationFn: (reason) => ipasService.reopen(id, reason),
@@ -468,9 +517,10 @@ function IpasPage() {
     lists: signerLists,
     ipasState: ipas.state,
   });
-  const giveSignoff = (role) => {
-    if (role === IPAS_SIGNOFF_ROLE.APPROVED) setFiling(true);
-    else give.mutate({ role, confirm: false });
+  // `from` is where the move was started, for a failure to show there.
+  const giveSignoff = (role, from) => {
+    if (role === IPAS_SIGNOFF_ROLE.APPROVED) setFiling({ from });
+    else give.mutate({ role, confirm: false, from });
   };
 
   // What the dates dialog edits: the four Supplier Origin dates, or one typed status.
@@ -523,10 +573,11 @@ function IpasPage() {
     editStatus: setDates,
     stamp: () => stamp.mutate(true),
     clearStamp: () => stamp.mutate(false),
-    setComputationStatus: (computationStatus) => pick.mutate({ computationStatus }),
+    setComputationStatus: (computationStatus, from) =>
+      setStatus.mutate({ computationStatus, from, undoTo: ipas.computationStatus }),
     setSplit: (landedCostSplit) => pick.mutate({ landedCostSplit }),
-    prepare: (section) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.PREPARED }),
-    approve: (section) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.APPROVED }),
+    prepare: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.PREPARED, from }),
+    approve: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.APPROVED, from }),
     sendBack: (section) => setSendingBack(section),
     give: giveSignoff,
   };
@@ -551,9 +602,13 @@ function IpasPage() {
     on,
     back,
     printedBy: user?.name ?? null,
+    viewer: user?.name ?? null,
+    failure: failure && { ...failure, dismiss: () => setFailure(null) },
   };
   const blocks = buildBlocks(ctx);
 
+  // The dialog closes on a failure too (its onConfirm catches): the failure then
+  // shows inline at the move that started it, with Retry.
   return (
     <>
       <PageShell
@@ -607,7 +662,7 @@ function IpasPage() {
               />
             </div>
             <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
-              <DecisionCard ctx={ctx} digest={digest} />
+              <DecisionCard ctx={ctx} digest={digest} onReview={openSection} next={nextIpas} />
             </aside>
           </div>
         </div>
@@ -656,11 +711,17 @@ function IpasPage() {
       />
 
       <FilingDialog
-        open={filing}
-        onOpenChange={setFiling}
+        open={filing !== null}
+        onOpenChange={(next) => !next && setFiling(null)}
         ipasId={id}
         number={ipas.number}
-        onConfirm={() => give.mutateAsync({ role: IPAS_SIGNOFF_ROLE.APPROVED, confirm: true })}
+        summary={filingSummary(digest)}
+        signer={user?.name ? `You sign as ${user.name}.` : null}
+        onConfirm={() =>
+          give
+            .mutateAsync({ role: IPAS_SIGNOFF_ROLE.APPROVED, confirm: true, from: filing?.from })
+            .catch(() => {})
+        }
       />
 
       <SendBackDialog

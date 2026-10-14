@@ -221,3 +221,13 @@ export function sectionState(key, digest) {
   }
   return null;
 }
+
+/**
+ * What filing adds, for the Approve and file dialog: the Landed Cost it makes
+ * final and the documents in hand it freezes. Read from the same digest as the rows.
+ */
+export function filingSummary(digest) {
+  const { money, docs } = digest;
+  const landed = money.landedPhp === null ? "Landed Cost is not available yet" : `Landed Cost becomes final at ${money.landedText}`;
+  return `${landed}. ${docs.ticked} of ${docs.total} documents in hand are frozen with it.`;
+}

@@ -98,7 +98,7 @@ describe("IPAS page: bank details", () => {
     await waitFor(() => expect(within(block).getByText("0012 3456 7890")).toBeInTheDocument());
     expect(within(block).queryByRole("alert")).not.toBeInTheDocument();
     expect(within(block).queryByText("Changed account")).not.toBeInTheDocument();
-  });
+  }, 20000); // typing a bank record takes most of 5s on a loaded machine
 
   it("shows a flagged account prominently, beside the Account #", async () => {
     const earlier = ipas({ po_number: "P03010", created_by: purchaser.id });

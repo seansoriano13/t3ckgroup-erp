@@ -164,11 +164,12 @@ describe("IPAS section 7 and Filing", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id, "filing");
-      const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).getByRole("button", { name: /Receive/ })).toBeInTheDocument();
-      expect(within(filing).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
+      // The drawer's footer carries the step; the card repeats it.
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      expect(within(drawer).getByRole("button", { name: /Receive/ })).toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
 
-      await user.click(within(filing).getByRole("button", { name: /Receive/ }));
+      await user.click(within(drawer).getByRole("button", { name: /Receive/ }));
 
       await waitFor(() =>
         expect(within(screen.getByTestId("ipas-signoff-7-received")).getByText("Rita Receiver")).toBeInTheDocument(),
@@ -189,9 +190,10 @@ describe("IPAS section 7 and Filing", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id, "filing");
-      await user.click(await within(await screen.findByTestId("ipas-filing")).findByTestId("ipas-send-back-7"));
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      await user.click(within(drawer).getByRole("button", { name: "Send section 4 · Filing back" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: "Send section 4 · Filing back?" });
       const submit = within(dialog).getByRole("button", { name: "Send back" });
       expect(submit).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Landed cost is off");
@@ -209,12 +211,13 @@ describe("IPAS section 7 and Filing", () => {
     });
 
     it("offers no Send back before Received, to someone on no list, or on a filed IPAS", async () => {
+      const sendBack = /Send section 4 · Filing back/;
       const early = ipas();
       approvedFirstSections(early);
       signIn(noter);
       const { unmount } = renderDetail(early.id, "filing");
-      await screen.findByTestId("ipas-filing");
-      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      expect(within(drawer).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
       unmount();
 
       const given = ipas();
@@ -222,8 +225,8 @@ describe("IPAS section 7 and Filing", () => {
       signoff(given.id, 7, "received", receiver);
       signIn(superAdmin, { superAdmin: true });
       const second = renderDetail(given.id, "filing");
-      await screen.findByTestId("ipas-filing");
-      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
+      const drawer2 = await screen.findByRole("dialog", { name: "4 · Filing" });
+      expect(within(drawer2).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
       second.unmount();
 
       const filed = ipas({ state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
@@ -233,7 +236,8 @@ describe("IPAS section 7 and Filing", () => {
       signIn(noter);
       renderDetail(filed.id, "filing");
       await screen.findByTestId("ipas-filed-notice");
-      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
+      const drawer3 = await screen.findByRole("dialog", { name: "4 · Filing" });
+      expect(within(drawer3).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
     });
 
     it("offers a person on neither list nothing, and a Super Admin off the lists the same", async () => {
@@ -269,9 +273,10 @@ describe("IPAS section 7 and Filing", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id, "filing");
-      await user.click(await screen.findByRole("button", { name: "Approve and file" }));
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
       const warnings = await within(dialog).findByTestId("ipas-filing-warnings");
       expect(within(warnings).getByText("1 required document isn't ticked")).toBeInTheDocument();
       expect(within(warnings).getByText("Quotation (Local)")).toBeInTheDocument();
@@ -293,9 +298,10 @@ describe("IPAS section 7 and Filing", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id, "filing");
-      await user.click(await screen.findByRole("button", { name: "Approve and file" }));
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
       expect(await within(dialog).findByText("Every required document is ticked.")).toBeInTheDocument();
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
       await user.click(within(dialog).getByRole("button", { name: "Approve and file" }));
@@ -314,10 +320,13 @@ describe("IPAS section 7 and Filing", () => {
       renderDetail(row.id, "filing");
       // Offered from a stale read: Costs complete here, then the status moves underneath.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "costs_complete";
-      await user.click(await screen.findByRole("button", { name: "Approve and file" }));
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoding";
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
       await user.click(await within(dialog).findByRole("button", { name: /Approve and file|File anyway/ }));
+      // The dialog closes on the failure; the error waits at the footer's move, with Retry.
+      expect(await within(drawer).findByRole("alert")).toHaveTextContent(/can't be filed until Costs complete/);
 
       await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/can't be filed until Costs complete/)));
       expect(toastError.mock.calls.at(-1)[0]).not.toMatch(/ipas_sign|55000/);

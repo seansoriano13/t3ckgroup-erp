@@ -17,6 +17,7 @@ import {
 import { filingChecklist } from "../../utils/ipasDocuments";
 import { FILING_STATUS, isCostsComplete } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
+import { useInDrawer } from "./record/sectionChrome";
 
 /** The two sign-off sections that open section 7, as a person reads them. */
 const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")}`;
@@ -64,6 +65,8 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
   const filed = ipas.state === IPAS_STATE.FILED;
   const offered = IPAS_SECTION_7_ROLES.filter((role) => rights[role]?.canGive);
   const hint = rights[IPAS_SIGNOFF_ROLE.APPROVED]?.why === "costs_incomplete" ? WHY_NOT.costs_incomplete : null;
+  // In the drawer the pinned footer carries the give and send-back moves, so the body only reads.
+  const inDrawer = useInDrawer();
 
   return (
     <IpasSection
@@ -109,7 +112,7 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
 
         <div className="space-y-3">
           <SectionHeader title="Sign-offs" className="pb-2">
-            {offered.map((role) => (
+            {!inDrawer && offered.map((role) => (
               <Button
                 key={role}
                 size="sm"
@@ -124,7 +127,7 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
                   : `${IPAS_SIGNOFF_ROLE_ACTIONS[role]} (${IPAS_SIGNOFF_ROLE_LABELS[role]})`}
               </Button>
             ))}
-            {canSendBack && (
+            {!inDrawer && canSendBack && (
               <Button
                 size="sm"
                 variant="outline"

@@ -105,15 +105,17 @@ describe("IPAS sign-offs", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id, "purchasing");
-      const one = await screen.findByTestId("ipas-signoffs-1");
+      // The drawer's footer carries the move; the body only reads.
+      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(one).getByText("Not prepared")).toBeInTheDocument();
       expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
 
-      await user.click(within(one).getByRole("button", { name: "Prepare section 1 · Purchasing" }));
+      await user.click(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" }));
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Awaiting approval")).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-prepared")).getByText("Buyer")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Prepare section 1 · Purchasing" })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: "Prepare section 1 · Purchasing" })).not.toBeInTheDocument();
       await waitForNetworkIdle();
       expect(db.rows("notifications").map((n) => n.recipient_id).sort()).toEqual([approver.id, other.id].sort());
     });
@@ -126,13 +128,14 @@ describe("IPAS sign-offs", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id, "purchasing");
-      const one = await screen.findByTestId("ipas-signoffs-1");
+      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(one).queryByRole("button", { name: /Prepare section/ })).not.toBeInTheDocument();
-      await user.click(within(one).getByRole("button", { name: "Approve section 1 · Purchasing" }));
+      await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-approved")).getByText("Boss Lito")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
     });
 
     it("doesn't offer Approve to the preparer, and says why", async () => {
@@ -142,11 +145,12 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id, "purchasing");
 
-      const one = await screen.findByTestId("ipas-signoffs-1");
-      expect(within(one).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
+      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const one = within(drawer).getByTestId("ipas-signoffs-1");
+      expect(within(drawer).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
       expect(within(one).getByText(/You prepared this section, so someone else approves it/)).toBeInTheDocument();
-      // They are on the list, so they may still send it back.
-      expect(within(one).getByRole("button", { name: "Send back" })).toBeInTheDocument();
+      // They are on the list, so they may still send it back: from the footer.
+      expect(within(drawer).getByRole("button", { name: "Send section 1 · Purchasing back" })).toBeInTheDocument();
     });
 
     it("offers nothing to someone off the list, a Super Admin included", async () => {
@@ -171,10 +175,10 @@ describe("IPAS sign-offs", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id, "finance");
-      const three = await screen.findByTestId("ipas-signoffs-3");
-      await user.click(within(three).getByRole("button", { name: "Send back" }));
+      const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
+      await user.click(within(drawer).getByRole("button", { name: "Send section 2 · Purchasing & Finance back" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: "Send section 2 · Purchasing & Finance back?" });
       const send = within(dialog).getByRole("button", { name: "Send back" });
       expect(send).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "  Freight is missing ");
@@ -243,7 +247,8 @@ describe("IPAS sign-offs", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id, "purchasing");
-      await user.click(within(await screen.findByTestId("ipas-signoffs-1")).getByRole("button", { name: "Approve section 1 · Purchasing" }));
+      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
 
       await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/^you are not on the list that may give this sign-off/i)));
       expect(toastError.mock.calls.at(-1)[0]).not.toMatch(/ipas_sign|42501/);
@@ -265,9 +270,9 @@ describe("IPAS sign-offs", () => {
       const user = userEvent.setup();
 
       const view = renderDetail(row.id, "finance");
-      const three = await screen.findByTestId("ipas-signoffs-3");
-      await user.click(within(three).getByRole("button", { name: "Send back" }));
-      await screen.findByRole("dialog");
+      const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
+      await user.click(within(drawer).getByRole("button", { name: "Send section 2 · Purchasing & Finance back" }));
+      await screen.findByRole("dialog", { name: "Send section 2 · Purchasing & Finance back?" });
 
       const text = document.body.textContent ?? "";
       expect(text).toContain("Send section 2 · Purchasing & Finance back?");
