@@ -23,7 +23,7 @@ import { extraRequesters, purchaseRequestSummary } from "../../utils/purchaseReq
 
 const Field = ({ label, children }) => (
   <div className="min-w-0">
-    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+    <p className="text-label font-black uppercase tracking-[0.16em] text-muted-foreground">
       {label}
     </p>
     <div className="mt-1.5 text-xs leading-relaxed text-foreground">{children}</div>
@@ -148,7 +148,7 @@ export default function StageActionDetail({
                           {nameOf(member.employeeId)}
                         </p>
                         {(member.customRole || member.role) && (
-                          <span className="inline-block rounded bg-mauve-a3 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-mauve-11">
+                          <span className="inline-block rounded bg-mauve-a3 px-2 py-0.5 text-label font-black uppercase tracking-[0.1em] text-mauve-11">
                             {member.customRole || member.role}
                           </span>
                         )}

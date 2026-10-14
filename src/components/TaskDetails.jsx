@@ -658,7 +658,7 @@ export default function TaskDetails({
                 {/* KEYBOARD SHORTCUTS HINT */}
                 {!isFinalized && !isEditing && canEvaluate && (
                   <div className="pt-2 flex justify-center opacity-70 mb-4 pb-4">
-                    <p className="text-[10px] text-muted-foreground font-bold tracking-widest uppercase flex items-center gap-2">
+                    <p className="text-label text-muted-foreground font-bold tracking-widest uppercase flex items-center gap-2">
                       Shortcuts:
                       {!isHr ? (
                         <>

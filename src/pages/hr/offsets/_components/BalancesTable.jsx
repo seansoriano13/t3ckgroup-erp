@@ -128,7 +128,7 @@ function SortHead({ label, k, right, sort, setSort }) {
       size="xs"
       onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? -s.dir : 1 }))}
       aria-sort={on ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}
-      className={`-mx-2 gap-1 text-[10px] font-bold uppercase tracking-wider ${right ? 'justify-end' : 'justify-start'} ${on ? 'text-foreground' : 'text-muted-foreground'}`}
+      className={`-mx-2 gap-1 text-label font-bold uppercase tracking-wider ${right ? 'justify-end' : 'justify-start'} ${on ? 'text-foreground' : 'text-muted-foreground'}`}
     >
       {label}
       {on ? (sort.dir > 0 ? <ArrowUp /> : <ArrowDown />) : <ChevronsUpDown className="opacity-40" />}

@@ -310,7 +310,7 @@ export function SignatureSample() {
             type="button"
             variant="outline"
             onClick={() => setOpen(true)}
-            className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+            className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
           >
             <PenLine size={14} /> Add Signature
           </Button>

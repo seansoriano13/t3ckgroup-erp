@@ -278,7 +278,7 @@ export function IpasHeaderSection({ ipas, canChange = false, onEditOverride, onR
   );
 }
 
-const LINE_HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const LINE_HEAD = "text-label font-bold uppercase tracking-wider";
 
 /**
  * Section 1: the PO and its item lines, as Odoo had them when last fetched.

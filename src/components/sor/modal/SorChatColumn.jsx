@@ -92,7 +92,7 @@ export default function SorChatColumn({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
-        <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+        <p className="text-label font-bold tracking-widest text-muted-foreground uppercase">
           Activity & Log Notes
         </p>
         <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">

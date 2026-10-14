@@ -331,7 +331,7 @@ export default function EmployeeManagement() {
                               />
                             </p>
 
-                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+                            <p className="text-label text-muted-foreground font-bold uppercase tracking-widest">
                               {emp.id?.slice(0, 8)}…
                             </p>
                           </div>
@@ -385,43 +385,43 @@ export default function EmployeeManagement() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                            <span className="text-label font-black text-muted-foreground uppercase tracking-widest">
                               SIL: <span className="text-foreground">{emp.sil_hours_balance || 0}h</span>
                             </span>
-                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                            <span className="text-label font-black text-muted-foreground uppercase tracking-widest">
                               OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0}h</span>
                             </span>
                           </div>
                         </TableCell>
                         <TableCell className="text-xs flex gap-1">
                           {emp.isSuperAdmin && (
-                            <span className="bg-violet-2 text-violet-11 border border-mauve-5 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider">
+                            <span className="bg-violet-2 text-violet-11 border border-mauve-5 px-2.5 py-1 rounded-lg font-black text-label flex items-center gap-1 uppercase tracking-wider">
                               <Shield size={11} /> Super Admin
                             </span>
                           )}
                           {emp.isHr && (
-                            <span className="bg-blue-2 text-blue-11 border border-blue-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                            <span className="bg-blue-2 text-blue-11 border border-blue-6 px-2.5 py-1 rounded-lg font-black text-label uppercase tracking-wider">
                               HR
                             </span>
                           )}
                           {emp.isHead && (
-                            <span className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                            <span className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-label uppercase tracking-wider">
                               Head
                             </span>
                           )}
                           {emp.canManageLeaves && (
-                            <span className="bg-orange-2 text-orange-11 border border-orange-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                            <span className="bg-orange-2 text-orange-11 border border-orange-6 px-2.5 py-1 rounded-lg font-black text-label uppercase tracking-wider">
                               Leave Mgr
                             </span>
                           )}
                           {!emp.isSuperAdmin && !emp.isHr && !emp.isHead && !emp.canManageLeaves && (
-                            <span className="bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                            <span className="bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-lg font-black text-label uppercase tracking-wider">
                               Standard
                             </span>
                           )}
                           {emp.isIssuedPassword && (
                             <span
-                              className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider"
+                              className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-label flex items-center gap-1 uppercase tracking-wider"
                               title="Still signed in with an issued password"
                             >
                               <KeyRound size={11} /> Issued Password

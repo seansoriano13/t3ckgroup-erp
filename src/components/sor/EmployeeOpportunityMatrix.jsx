@@ -357,7 +357,7 @@ export default function EmployeeOpportunityMatrix({
                 {/* Right: Metrics */}
                 <div className="flex items-center gap-4 sm:gap-6 shrink-0">
                   <div className="hidden md:flex flex-col items-end">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Deals
                     </span>
                     <span className="text-xs font-semibold text-foreground">
@@ -366,7 +366,7 @@ export default function EmployeeOpportunityMatrix({
                   </div>
 
                   <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Win Rate
                     </span>
                     <span className="flex items-center gap-1 text-xs font-semibold text-foreground">
@@ -385,7 +385,7 @@ export default function EmployeeOpportunityMatrix({
                   </div>
 
                   <div className="flex flex-col items-end min-w-[100px]">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Pipeline Value
                     </span>
                     <span className="text-sm font-bold text-foreground">

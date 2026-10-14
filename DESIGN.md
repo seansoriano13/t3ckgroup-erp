@@ -44,7 +44,7 @@ typography:
     lineHeight: 1.5
   label:
     fontFamily: "Plus Jakarta Sans, sans-serif"
-    fontSize: "10px"
+    fontSize: "11px"
     fontWeight: 700
     letterSpacing: "0.05em"
   figure:
@@ -128,7 +128,7 @@ Light and dark themes are both first-class. Radix's `.dark` scale swaps every st
 **Key Characteristics:**
 - Mauve neutral field (Radix `mauve` 1–12) and a single brand accent (Radix `red`)
 - Plus Jakarta Sans throughout, with weight rather than family carrying hierarchy
-- Tiny uppercase tracked labels (10–11px bold) as the connective tissue of every record
+- Tiny uppercase tracked labels (11px bold) as the connective tissue of every record
 - Softly rounded geometry (12px base radius) and pill-shaped chips
 - Flat-leaning surfaces with borders first and small shadows as state
 - Dark mode via Radix scale swap, with no per-component color overrides
@@ -175,7 +175,7 @@ Green, amber, blue, violet, orange, and red Radix scales are imported for **Stat
 - **Headline** (900, 1.25rem → 1.5rem): section headers inside a page.
 - **Title** (500–600, 1rem): card titles, modal titles.
 - **Body** (500, 0.875rem; 13px in dense lists): record content, descriptions (max width ~42rem in headers).
-- **Label** (700–900, 10–11px, uppercase, `tracking-wider`/`tracking-widest`): field keys, status badges, sidebar group names, date-picker headers. This is the most-used style in the app and appears in roughly 150 files.
+- **Label** (700–900, 11px, uppercase, `tracking-wider`/`tracking-widest`): field keys, status badges, sidebar group names, date-picker headers. Set it with the `text-label` utility (`--text-label` in `src/index.css`), never a hardcoded `text-[10px]`. This is the most-used style in the app and appears in roughly 150 files.
 - **Figure** (mono, 12px): record numbers, amounts, and version badges (`vX.Y`) where a machine is accountable for the value.
 
 ### Named Rules
@@ -221,8 +221,9 @@ Compact, confident, and quiet unless they are *the* action.
 - **Disabled:** 50% opacity with no pointer events.
 
 ### Chips and badges
-- **StatusBadge:** a pill (2px 8px) in the card color with a status-colored border and text, 10px bold uppercase tracked. Mauve is the fallback for unknown statuses.
+- **StatusBadge:** a pill (2px 8px) in the card color with a status-colored border and text, 11px bold uppercase tracked (`text-label`). Text uses Radix step 11 (step 12 for green, amber, and orange, which fall short of 4.5:1 at 11) so it passes 4.5:1 on the card. Mauve is the fallback for unknown statuses.
 - **PropertyPill:** a round pill with a border, 12px medium muted text. It darkens on hover, and its active state takes the muted fill and semibold text.
+- **State dot:** a small `Dot` (6–8px) may sit beside text in list rows and tabs to show state. It is never a pill: StatusBadge stays the only status pill. The dot always sits beside a visible state word and never carries the state alone.
 
 ### Cards / Containers
 - **Corner Style:** 16.8px (`xl`).
@@ -493,7 +494,7 @@ Sentence-case title with an optional one-line description. Uppercase tracked lab
 - **Do** write color as Radix steps or semantic tokens (`bg-muted`, `border-mauve-6`, `text-muted-foreground`) so dark mode follows for free.
 - **Do** reserve Signal Red for the primary or destructive action on a surface and for the selected canvas edge (ADR 0009, `no-primary-decoration`).
 - **Do** use a Primitive from the catalog above, never raw HTML for a covered element. If none fits, stop and ask.
-- **Do** label record fields with the 10–11px bold uppercase tracked label, and set audited figures (amounts, record numbers, `vX.Y`) in monospace.
+- **Do** label record fields with the 11px bold uppercase tracked label, and set audited figures (amounts, record numbers, `vX.Y`) in monospace.
 - **Do** keep motion between 150 and 400ms on `cubic-bezier(0.16, 1, 0.3, 1)`, and keep the global reduced-motion guard intact.
 
 ### Don't:

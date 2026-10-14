@@ -80,7 +80,7 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
                     containerClassName="w-16 shrink-0"
                     className="h-auto px-2 py-1 rounded-md text-xs font-bold text-right"
                   />
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase">hrs</span>
+                  <span className="text-label font-semibold text-muted-foreground uppercase">hrs</span>
                   {netHours !== rawHours && (
                     <span className="text-[10px] font-semibold text-muted-foreground">→ {netHours} net</span>
                   )}

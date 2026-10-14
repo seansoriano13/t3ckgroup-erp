@@ -177,7 +177,7 @@ const COLOR_BACKGROUNDS = {
 const Chip = ({ className, icon: Icon, children, ...rest }) => (
   <span
     className={cn(
-      "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.12em]",
+      "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-label font-black uppercase tracking-[0.12em]",
       className || "bg-mauve-a3 text-mauve-11",
     )}
     {...rest}
@@ -480,7 +480,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
             )}
             {endsAsWon(stage) && <Chip className={ROLE.won.chip} icon={Flag}>Ends won</Chip>}
             {!isEntry && !isWon && !stage.is_terminal && (
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="text-label font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Stage
               </span>
             )}

@@ -109,7 +109,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
 
       {items.length > 0 && (
         <div className="flex items-center justify-end gap-2 pt-1 pr-1">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
             Product Line Total
           </span>
           <span className="text-sm font-black text-foreground">

@@ -20,7 +20,7 @@ export default function StageFieldPreview({ draft }) {
       <div className="space-y-1 rounded-lg bg-card/60 p-3 outline outline-1 -outline-offset-1 outline-mauve-5">
         <FieldBox label={<>{draft.label.trim() || (draft.source === "sor" ? SOR_STAGE_FIELDS[draft.sorField]?.label : "Untitled field")}
           {draft.isRequired ? (
-            <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
+            <span className="text-label font-black uppercase text-amber-600 dark:text-amber-400">
               Required
             </span>
           ) : (

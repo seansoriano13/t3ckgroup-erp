@@ -101,7 +101,7 @@ export default function RequestMembers({ request, rail = false }) {
             >
               <Avatar name={m.name} src={m.avatar_path} size="xs" />
               <span className={cn("font-medium text-foreground", rail && "min-w-0 flex-1 truncate")}>{m.name}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/75">
+              <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground/75">
                 {isBuyer ? "Buyer" : SIDE_LABEL[m.side] || m.side}
               </span>
               {showRemove && (

@@ -27,7 +27,7 @@ export default function MySorRow({ row, onOpen }) {
           {row.projectTitle || "Untitled"}
         </span>
         {!row.isOpen && (
-          <span className="inline-flex items-center gap-1 rounded-md bg-mauve-4 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-md bg-mauve-4 px-1.5 py-0.5 text-label font-black uppercase tracking-widest text-muted-foreground">
             <Lock size={10} /> Access ended
           </span>
         )}

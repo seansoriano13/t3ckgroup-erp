@@ -155,7 +155,7 @@ export default function StageStrip({ p, visits, showMoves = true, className }) {
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-sm font-black text-foreground">
           {current?.label || "—"}
-          {current?.bracket && <span className="ml-2 text-[10px] font-bold tracking-wider text-violet-11 uppercase">{current.bracket}</span>}
+          {current?.bracket && <span className="ml-2 text-label font-bold tracking-wider text-violet-11 uppercase">{current.bracket}</span>}
         </p>
         {showMoves && <MoveButtons p={p} align="end" />}
       </div>

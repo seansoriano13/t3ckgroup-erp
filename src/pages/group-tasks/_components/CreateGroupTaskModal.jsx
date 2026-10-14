@@ -465,7 +465,7 @@ export default function CreateGroupTaskModal({
                 </div>
 
                 <div className="flex flex-col shrink-0">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                  <span className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                     Target Due Date
                   </span>
                   <div className="relative">
@@ -509,7 +509,7 @@ export default function CreateGroupTaskModal({
                 {mode !== "automation" && (
                   <>
                     <div className="flex flex-col shrink-0">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                      <span className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                         Start Date
                       </span>
                       <div className="relative">
@@ -528,7 +528,7 @@ export default function CreateGroupTaskModal({
                     </div>
 
                     <div className="flex flex-col shrink-0">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                      <span className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                         Lead Time
                       </span>
                       <Input
@@ -556,7 +556,7 @@ export default function CreateGroupTaskModal({
               )}
               {mode === "automation" && confirmMode === "confirm" && (
                 <div className="mt-2 space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                     Decider (defaults to the Deal Owner)
                   </span>
                   <PeoplePicker value={decider} onChange={setDecider} allowRoles placeholder="Add Decider" />

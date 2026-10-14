@@ -41,7 +41,7 @@ export default function LogTaskAssignmentBar({
       {/* ORGANIZATION SECTION (HR only) */}
       {isHr && (
         <div className="space-y-3">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest pl-1">
+          <div className="flex items-center gap-1.5 text-label font-bold text-muted-foreground/80 uppercase tracking-widest pl-1">
             <Users size={12} /> Assignment
           </div>
           <div className="grid grid-cols-2 gap-3">

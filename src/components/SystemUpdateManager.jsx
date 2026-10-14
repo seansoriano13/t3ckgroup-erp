@@ -238,7 +238,7 @@ export default function SystemUpdateManager() {
           <div className="px-5 pt-4 pb-5 border-b border-border/40">
             {/* Label + AI Button */}
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              <p className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                 {editingId ? "Editing Broadcast" : "New Broadcast"}
               </p>
               <Button
@@ -350,7 +350,7 @@ export default function SystemUpdateManager() {
           <div className="px-5 py-4">
             {/* History Header */}
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              <p className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                 History
               </p>
               <div className="flex items-center gap-2">
@@ -450,7 +450,7 @@ export default function SystemUpdateManager() {
                               size={12}
                               className={typeOpt?.color || "text-muted-foreground"}
                             />
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+                            <span className="text-label font-bold text-muted-foreground uppercase tracking-wide">
                               {update.type}
                             </span>
                             <span className="text-[10px] text-muted-foreground/60">

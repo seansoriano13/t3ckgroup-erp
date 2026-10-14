@@ -199,7 +199,7 @@ export default function TaskFilters({
                 className="h-full border-r border-border flex-center"
                 trigger={({ isOpen }) => (
                   <div className="flex items-center pl-4 pr-3 gap-2 cursor-pointer hover:bg-muted/60 transition-colors h-full rounded-l-lg min-w-[80px] justify-center">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-foreground">
+                    <span className="text-label uppercase font-bold tracking-widest text-foreground">
                       {currentTimeframeLabel}
                     </span>
                     <ChevronDown

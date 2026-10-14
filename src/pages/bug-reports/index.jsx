@@ -35,7 +35,7 @@ const REPORT_SORT = {
   status: (r) => (r.resolved_at ? 1 : 0),
 };
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const HEAD = "text-label font-bold uppercase tracking-wider";
 
 const firstLine = (text) => (text || "").split("\n")[0];
 const formatWhen = (iso) =>

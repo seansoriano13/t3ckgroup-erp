@@ -78,7 +78,7 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
       {() => (
         <div className="flex flex-col gap-4">
           <section className="space-y-1.5">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+            <p className="text-label font-black uppercase tracking-[0.16em] text-muted-foreground">
               Always sees
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
@@ -96,7 +96,7 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
           </section>
 
           <section className="space-y-1.5">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+            <p className="text-label font-black uppercase tracking-[0.16em] text-muted-foreground">
               Always edits
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
@@ -115,7 +115,7 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
           </section>
 
           <section className="space-y-1.5">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+            <p className="text-label font-black uppercase tracking-[0.16em] text-muted-foreground">
               History viewers
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">

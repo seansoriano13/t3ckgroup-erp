@@ -355,7 +355,7 @@ export default function GroupTaskTableView({
                             {formatDueDate(task.due_date)}
                           </span>
                           {isOverdue && (
-                            <span className="text-[10px] font-bold text-destructive uppercase tracking-tight">
+                            <span className="text-label font-bold text-destructive uppercase tracking-tight">
                               Overdue
                             </span>
                           )}

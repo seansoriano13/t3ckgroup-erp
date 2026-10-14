@@ -1,7 +1,10 @@
 import { IPAS_SIGNOFF_ROLE_LABELS } from "../../../constants/ipas";
 
-/** Approve reads as "yes" in green, as it always has on the approval screens; red stays with Return. */
-export const APPROVE_CLASS = "bg-green-9 text-white shadow-sm hover:bg-green-10";
+/**
+ * Approve reads as "yes" in green, as it always has on the approval screens; red stays with Return.
+ * White on green-11 (#218358) is 4.72:1; green-9 (#30a46c) was 3.16:1. Hover goes to green-12 (white 12.32:1).
+ */
+export const APPROVE_CLASS = "bg-green-11 text-white shadow-sm hover:bg-green-12";
 
 /** pending | overdue | approved | verified — the one-word state of a row. */
 export function statusOf(item) {

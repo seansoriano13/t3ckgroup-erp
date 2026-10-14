@@ -245,7 +245,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
           </Button>
         </div>
 
-        <div className="grid grid-cols-12 gap-3 border-t border-border/60 bg-muted/40 px-6 py-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+        <div className="grid grid-cols-12 gap-3 border-t border-border/60 bg-muted/40 px-6 py-2.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
           <span className={showMoney ? "col-span-6" : "col-span-10"}>Product &amp; Unit</span>
           <span className="col-span-2 text-right">Quantity</span>
           {showMoney && (
@@ -289,7 +289,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
 
       {showMoney && (
         <div className="grid shrink-0 grid-cols-12 items-center gap-3 border-t border-border/80 bg-muted/30 px-6 py-3 text-sm">
-          <span className="col-span-8 text-right text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+          <span className="col-span-8 text-right text-label font-bold tracking-widest text-muted-foreground uppercase">
             {search.trim() ? "Filtered Line Total" : "Product Line Total"}
           </span>
           <span className="col-span-4 text-right text-base font-black tabular-nums text-foreground">{formatPHP(total)}</span>
