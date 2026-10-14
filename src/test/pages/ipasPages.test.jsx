@@ -55,15 +55,19 @@ function renderList() {
   );
 }
 
-function renderDetail(id) {
+function renderDetail(id, section) {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?open=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
       </Routes>
     </MemoryRouter>,
   );
+}
+
+async function openMore(user) {
+  await user.click(await screen.findByRole("button", { name: /More/ }));
 }
 
 describe("IPAS pages", () => {
@@ -210,24 +214,48 @@ describe("IPAS pages", () => {
   });
 
   describe("one IPAS", () => {
-    it("shows the header, the item lines with their fetch time, and the SORs", async () => {
-      const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" });
-      const row = ipas({ po_number: "P02552", purpose: "project", remarks: "For the Capas deal", created_by: purchaser.id });
-      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: sor.id });
-      db.seed("ipas_events", { ipas_id: row.id, actor_id: purchaser.id, kind: "created", detail: {} });
+    it("shows the item lines with their fetch time in section 1", async () => {
+      const row = ipas({ po_number: "P02552", purpose: "project", created_by: purchaser.id });
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
 
-      expect(await screen.findByRole("heading", { name: "TGIPAS_049" })).toBeInTheDocument();
+      // The drawer is modal, so the page behind it is hidden from role queries.
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
       // The item shows in section 1 and again in Landed Cost (#244).
-      expect(screen.getAllByText("Greenspirit 2 Cutter").length).toBeGreaterThan(0);
+      expect((await screen.findAllByText("Greenspirit 2 Cutter")).length).toBeGreaterThan(0);
       expect(screen.getByText("SCORPE")).toBeInTheDocument();
       expect(screen.getByText(/Copy from Odoo, fetched/)).toBeInTheDocument();
-      expect(screen.getByText("For the Capas deal")).toBeInTheDocument();
-      expect(screen.getAllByText("S07920").length).toBeGreaterThan(0);
-      expect(screen.getByText("Raised")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Cancel IPAS/ })).toBeInTheDocument();
     });
+
+    it("shows the header facts in the Header section", async () => {
+      const row = ipas({ po_number: "P02552", purpose: "project", remarks: "For the Capas deal", created_by: purchaser.id });
+
+      renderDetail(row.id, "header");
+
+      expect(await screen.findByText("For the Capas deal")).toBeInTheDocument();
+    });
+
+    it("shows the creation in History", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      db.seed("ipas_events", { ipas_id: row.id, actor_id: purchaser.id, kind: "created", detail: {} });
+
+      renderDetail(row.id, "history");
+
+      expect(await screen.findByText("Raised")).toBeInTheDocument();
+    });
+
+    it("keeps Cancel IPAS in the More menu, with Print", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      await openMore(user);
+
+      expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Cancel IPAS" })).toBeInTheDocument();
+    });
+
+
 
     it("shows each SOR as reference, project and Stage, never the customer", async () => {
       const stage = makeFlowStage({ name: "Quotation" });
@@ -241,7 +269,7 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", purpose: "project", created_by: purchaser.id });
       db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: sor.id });
 
-      renderDetail(row.id);
+      renderDetail(row.id, "sales");
 
       expect(await screen.findByText(/Capas LGU · Quotation/)).toBeInTheDocument();
       expect(screen.queryByText(/Zorblax/)).not.toBeInTheDocument();
@@ -252,7 +280,8 @@ describe("IPAS pages", () => {
       const user = userEvent.setup();
 
       renderDetail(row.id);
-      await user.click(await screen.findByRole("button", { name: /Cancel IPAS/ }));
+      await openMore(user);
+      await user.click(await screen.findByRole("button", { name: "Cancel IPAS" }));
       const dialog = await screen.findByRole("dialog");
       const confirm = within(dialog).getByRole("button", { name: "Cancel IPAS" });
       expect(confirm).toBeDisabled();
@@ -262,6 +291,8 @@ describe("IPAS pages", () => {
 
       await waitFor(() => expect(db.rows("ipas")[0]).toMatchObject({ state: "cancelled", cancel_reason: "Supplier withdrew" }));
       // The reason shows in the banner and again in the history.
+      expect((await screen.findAllByText(/Supplier withdrew/)).length).toBeGreaterThanOrEqual(1);
+      await user.click(await screen.findByRole("button", { name: /^History/ }));
       expect((await screen.findAllByText(/Supplier withdrew/)).length).toBeGreaterThanOrEqual(2);
       expect(screen.getByText(/won't be used again/)).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Cancel IPAS/ })).not.toBeInTheDocument();
@@ -282,7 +313,7 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "sales");
       expect(await screen.findByRole("checkbox", { name: "Googlesheet" })).not.toBeChecked();
       await user.click(screen.getByRole("checkbox", { name: "Googlesheet" }));
       await waitFor(() => expect(db.rows("ipas")[0].google_sheet).toBe(true));
@@ -291,6 +322,38 @@ describe("IPAS pages", () => {
       await user.click(screen.getByRole("checkbox", { name: "Gantt Chart" }));
       await waitFor(() => expect(db.rows("ipas")[0].gantt_chart).toBe(true));
       expect(db.rows("ipas")[0].google_sheet).toBe(true);
+    });
+
+    it("shows each section row with its full summary and the state word beside its dot", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      db.seed("ipas_signoffs", { ipas_id: row.id, section: 1, role: "prepared", signed_by: purchaser.id });
+
+      renderDetail(row.id);
+
+      const purchasing = await screen.findByRole("button", { name: /^1 · Purchasing/ });
+      expect(purchasing).toHaveTextContent("Awaiting approval");
+      expect(purchasing).toHaveTextContent(/\d+ lines?/);
+      expect(purchasing).toHaveTextContent("no payments yet");
+      expect(purchasing).not.toHaveTextContent("PHP");
+      const costing = screen.getByRole("button", { name: /^3 · Computation status & Landed Cost/ });
+      expect(costing).toHaveTextContent("Computation status: Encoding");
+      // Money and sign-offs first, sentence case, then everything else.
+      expect(screen.getByRole("heading", { name: "Money and sign-offs" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Everything else" })).toBeInTheDocument();
+    });
+
+    it("opens a section from ?open=, and Escape returns focus to its row", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = userEvent.setup();
+
+      renderDetail(row.id, "logistics");
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText("6 · Logistics")).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(screen.getByRole("button", { name: /^6 · Logistics/ })).toHaveFocus();
     });
 
     it("says not found for an IPAS the database doesn't return", async () => {
@@ -317,7 +380,7 @@ describe("IPAS pages", () => {
         }),
       );
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
 
       expect((await screen.findAllByText("Replacement blades", { selector: "td, td *" })).length).toBeGreaterThan(0);
       const note = await screen.findByText(/Odoo PO changed ·/);
@@ -330,7 +393,7 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" });
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
 
       expect(await screen.findByText("Odoo didn't answer")).toBeInTheDocument();
       expect(screen.getByText(/Showing the last copy, fetched/)).toBeInTheDocument();
@@ -342,7 +405,7 @@ describe("IPAS pages", () => {
       stubEdgeFunction("odoo-po-ipas", answer("P02552"));
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "header");
       await user.click(await screen.findByRole("button", { name: "Override Entity" }));
       const dialog = await screen.findByRole("dialog");
       expect(within(dialog).getByText("T3ck Trading")).toBeInTheDocument();
@@ -367,7 +430,7 @@ describe("IPAS pages", () => {
       stubEdgeFunction("odoo-po-ipas", answer("P02552"));
       const user = userEvent.setup();
 
-      renderDetail(row.id);
+      renderDetail(row.id, "purchasing");
       await user.click(await screen.findByRole("button", { name: "Edit Contact" }));
       const dialog = await screen.findByRole("dialog");
       const field = within(dialog).getByRole("textbox");
@@ -384,10 +447,12 @@ describe("IPAS pages", () => {
       stubEdgeFunction("odoo-po-ipas", answer("P02552", { po: { id: 1, name: "P02552", state: "cancel", company: "T3ck Trading", currency: "Php", origin: null, partner_ref: null } }));
 
       renderDetail(row.id);
+      const user = userEvent.setup();
 
       expect(await screen.findByText("Odoo PO cancelled")).toBeInTheDocument();
       expect(screen.getByText(/stays open until Purchasing cancels it/)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Cancel IPAS/ })).toBeInTheDocument();
+      await openMore(user);
+      expect(screen.getByRole("button", { name: "Cancel IPAS" })).toBeInTheDocument();
       expect(db.rows("ipas")[0].state).toBe("open");
     });
 
@@ -400,7 +465,7 @@ describe("IPAS pages", () => {
         answer("P02552", { po: { id: 1, name: "P02552", state: "purchase", company: "T3ck Trading", currency: "Php", origin: "S07920 Capas and S06070 Las Nieves", partner_ref: null } }),
       );
 
-      renderDetail(row.id);
+      renderDetail(row.id, "sales");
 
       expect(await screen.findByText("Odoo's S numbers differ from this IPAS's SORs")).toBeInTheDocument();
       expect(screen.getByText(/Odoo also names S06070/)).toBeInTheDocument();
@@ -413,7 +478,7 @@ describe("IPAS pages", () => {
         answer("P02552", { receipts: { status: "partial", done: 1, total: 2 }, bills: { count: 1, draft: 1 } }),
       );
 
-      renderDetail(row.id);
+      renderDetail(row.id, "status");
 
       expect(await screen.findByText(/Partly received · 1 of 2 receipts done/)).toBeInTheDocument();
       expect(screen.getByText("1 draft bill")).toBeInTheDocument();
