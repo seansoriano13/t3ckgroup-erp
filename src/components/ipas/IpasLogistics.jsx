@@ -3,6 +3,7 @@ import { SelectField } from "../ui/SelectField";
 import { IpasSection } from "./IpasSections";
 import { IPAS_OPTION_LIST, ipasSectionLabel } from "../../constants/ipas";
 import { optionsForPicker } from "../../utils/ipasPayments";
+import { useEditable } from "./record/sectionChrome";
 
 const NONE = "__none__";
 
@@ -12,7 +13,8 @@ const NONE = "__none__";
  *
  *   canChange   Purchasing on an open IPAS
  */
-export function IpasLogisticsSection({ ipas, canChange = false, onPick }) {
+export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick }) {
+  const canChange = useEditable(granted);
   const options = [
     { value: NONE, label: "Not set" },
     ...optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.ITEM_LOCATION, ipas.item_location_id).map((option) => ({

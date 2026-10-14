@@ -66,9 +66,9 @@ const signoff = (ipasId, section, role, signedBy, over = {}) =>
   db.seed("ipas_signoffs", { ipas_id: ipasId, section, role, signed_by: signedBy.id, ...over });
 const onList = (listKey, ...people) => people.forEach((p) => db.seed("ipas_signer_lists", { list_key: listKey, employee_id: p.id }));
 
-function renderDetail(id, section) {
+function renderDetail(id, section, param = "open") {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?open=${section}` : ""}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?${param}=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />

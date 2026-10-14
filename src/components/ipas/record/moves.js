@@ -127,6 +127,27 @@ export function movesFor(ctx, digest) {
   return { moves, costs, returns };
 }
 
+/**
+ * Whether the edit view has edit controls for a section, for this viewer: the
+ * same grants its body uses (Purchasing's payments are Purchasing or Finance's;
+ * a charge, a document tick or a bank line follows Finance's grants). Section 4
+ * has none: its moves are sign-offs only.
+ */
+export function canEditSection(key, { can }) {
+  switch (key) {
+    case "purchasing":
+      return can.change || can.record;
+    case "finance":
+      return can.record || can.change || can.tickFinance;
+    case "costing":
+    case "sales":
+    case "header":
+      return can.change;
+    default:
+      return false;
+  }
+}
+
 /** The moves a section's drawer footer offers: the same moves as the card, for that section. */
 export function footerMovesFor(ctx, digest, sectionKey) {
   const { moves, costs, returns } = movesFor(ctx, digest);

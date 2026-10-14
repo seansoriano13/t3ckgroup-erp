@@ -5,6 +5,7 @@ import { DetailRow } from "../ui/DetailParts";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { ipasSectionLabel } from "../../constants/ipas";
+import { useEditable } from "./record/sectionChrome";
 
 /**
  * Bank details inside section 3 (#245): Bank Name, Account Name and Account #,
@@ -14,7 +15,8 @@ import { ipasSectionLabel } from "../../constants/ipas";
  *
  *   canChange   Purchasing on an open IPAS. Finance reads but never types them.
  */
-export function IpasBankDetails({ ipas, canChange = false, onEdit }) {
+export function IpasBankDetails({ ipas, canChange: granted = false, onEdit }) {
+  const canChange = useEditable(granted);
   if (!ipas.canReadBankDetails) return null;
   const bank = ipas.bankDetails;
   const flagged = Boolean(bank?.flagged);

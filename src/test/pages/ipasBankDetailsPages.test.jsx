@@ -51,9 +51,9 @@ function ipas(overrides = {}) {
   });
 }
 
-function renderDetail(id, section) {
+function renderDetail(id, section, param = "open") {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?open=${section}` : ""}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?${param}=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
@@ -79,7 +79,7 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03001", created_by: purchaser.id });
     const user = userEvent.setup();
 
-    renderDetail(row.id, "finance");
+    renderDetail(row.id, "finance", "edit");
     expect(await screen.findByText("No bank details typed yet.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add bank details" }));
     const dialog = await screen.findByRole("dialog");
@@ -106,7 +106,7 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03011", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BPI", account_name: "Scorpe", account_number: "2222", account_flagged: true });
 
-    renderDetail(row.id, "finance");
+    renderDetail(row.id, "finance", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     const alert = await within(block).findByRole("alert");
@@ -122,7 +122,7 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03020", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0012", account_flagged: false });
 
-    renderDetail(row.id, "finance");
+    renderDetail(row.id, "finance", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     expect(await within(block).findByText("0012")).toBeInTheDocument();
@@ -136,7 +136,7 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03030", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0099887766", account_flagged: true });
 
-    renderDetail(row.id, "finance");
+    renderDetail(row.id, "finance", "edit");
 
     expect((await screen.findAllByText("2 · Purchasing & Finance")).length).toBeGreaterThan(0);
     expect(screen.queryByTestId("ipas-bank-details")).not.toBeInTheDocument();
@@ -155,7 +155,7 @@ describe("IPAS page: bank details", () => {
     });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0012", account_flagged: false });
 
-    renderDetail(row.id, "finance");
+    renderDetail(row.id, "finance", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     expect(within(block).queryByRole("button", { name: /bank details/i })).not.toBeInTheDocument();

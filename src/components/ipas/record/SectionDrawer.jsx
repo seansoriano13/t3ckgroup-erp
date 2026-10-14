@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
-import { SECTIONS, sectionState } from "./digest";
+import { DRAWER_SECTIONS, sectionState } from "./digest";
 import MoveButton from "./MoveButton";
 import { Caption } from "./parts";
-import { footerMovesFor } from "./moves";
+import { canEditSection, footerMovesFor } from "./moves";
 import { StateWord } from "./StateMark";
 import { CHROME, IpasSectionChrome } from "./sectionChrome";
 
@@ -34,9 +34,10 @@ function otherDialogOpen() {
  * was opened directly.
  *
  * A pinned footer carries the viewer's moves for this section (the same moves
- * as the card, signed straight away); sections with no sign-off have none.
+ * as the card, signed straight away) and, where the viewer may edit it, Edit
+ * section, which opens the edit view. The body is read-only here.
  */
-export default function SectionDrawer({ ctx, blocks, digest, index, current, step, close, getRow }) {
+export default function SectionDrawer({ ctx, blocks, digest, index, current, step, close, getRow, onEdit }) {
   const { ipas, busy, failure } = ctx;
   // The row to return focus to. Kept while the drawer animates shut, when `current` is already gone.
   const lastKey = useRef(null);
@@ -51,12 +52,12 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isEditable(event.target) || otherDialogOpen()) return;
       const key = event.key.toLowerCase();
-      if (key === "j" && index < SECTIONS.length - 1) {
+      if (key === "j" && index < DRAWER_SECTIONS.length - 1) {
         event.preventDefault();
-        step(SECTIONS[index + 1].key);
+        step(DRAWER_SECTIONS[index + 1].key);
       } else if (key === "k" && index > 0) {
         event.preventDefault();
-        step(SECTIONS[index - 1].key);
+        step(DRAWER_SECTIONS[index - 1].key);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -66,6 +67,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
   const returnFocus = () => getRow(lastKey.current) ?? true;
   const state = current ? sectionState(current.key, digest) : null;
   const moves = current ? footerMovesFor(ctx, digest, current.key) : [];
+  const editable = Boolean(current) && canEditSection(current.key, ctx);
   const busyNow = busy.signoff || busy.give;
 
   return (
@@ -86,7 +88,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
                 variant="outline"
                 size="icon"
                 disabled={index <= 0}
-                onClick={() => step(SECTIONS[index - 1].key)}
+                onClick={() => step(DRAWER_SECTIONS[index - 1].key)}
                 aria-label="Previous section"
               >
                 <ChevronLeft size={16} />
@@ -94,8 +96,8 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
               <Button
                 variant="outline"
                 size="icon"
-                disabled={index >= SECTIONS.length - 1}
-                onClick={() => step(SECTIONS[index + 1].key)}
+                disabled={index >= DRAWER_SECTIONS.length - 1}
+                onClick={() => step(DRAWER_SECTIONS[index + 1].key)}
                 aria-label="Next section"
               >
                 <ChevronRight size={16} />
@@ -111,7 +113,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
             >
               <IpasSectionChrome.Provider value={CHROME.DRAWER}>{blocks[current.key]}</IpasSectionChrome.Provider>
             </div>
-            {moves.length > 0 && (
+            {(moves.length > 0 || editable) && (
               <div className="border-t border-border bg-muted/30 px-7 py-4">
                 <ul className="grid gap-4 sm:grid-cols-2">
                   {moves.map((item) => (
@@ -125,6 +127,15 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
                       onRun={(move, origin) => move.run({ key: move.key, origin })}
                     />
                   ))}
+                  {editable && (
+                    <li className="space-y-1.5">
+                      <Button size="lg" variant="outline" className="w-full justify-center gap-2 font-semibold" onClick={() => onEdit(current.key)}>
+                        <Pencil size={16} aria-hidden="true" />
+                        Edit section
+                      </Button>
+                      <p className="text-xs text-muted-foreground">Opens this section&apos;s tables and dialogs in the page.</p>
+                    </li>
+                  )}
                 </ul>
               </div>
             )}

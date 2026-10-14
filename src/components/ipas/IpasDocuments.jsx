@@ -17,6 +17,8 @@ import {
   IPAS_TICK_SIDE,
   IPAS_TICK_SIDE_LABELS,
 } from "../../constants/ipas";
+import ReadTick from "./record/ReadTick";
+import { useEditable, useInDrawer } from "./record/sectionChrome";
 import { uploadDocumentFile } from "./uploadDocumentFile";
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
@@ -36,8 +38,8 @@ const HEAD = "text-label font-bold uppercase tracking-wider";
  */
 export function IpasDocuments({
   ipas,
-  canChange = false,
-  canTickFinance = false,
+  canChange: changeGranted = false,
+  canTickFinance: tickGranted = false,
   onTick,
   onAttach,
   onRemoveAttachment,
@@ -45,6 +47,10 @@ export function IpasDocuments({
   onSuggest,
   onRemove,
 }) {
+  const canChange = useEditable(changeGranted);
+  const canTickFinance = useEditable(tickGranted);
+  // In the drawer the two ticks read as text; the edit view keeps the boxes.
+  const inDrawer = useInDrawer();
   const documents = ipas.documents ?? [];
   const suggested = ipas.suggestedDocuments ?? [];
   const [uploadingId, setUploadingId] = useState(null);
@@ -167,6 +173,12 @@ export function IpasDocuments({
                     )}
                   </TableCell>
                   <TableCell className="text-center">
+                    {inDrawer ? (
+                    <ReadTick
+                      checked={document.purchasingHas}
+                      label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}: ${document.label}`}
+                    />
+                  ) : (
                     <Checkbox
                       tone="neutral"
                       checked={document.purchasingHas}
@@ -174,8 +186,15 @@ export function IpasDocuments({
                       aria-label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}: ${document.label}`}
                       onCheckedChange={(value) => onTick(document, IPAS_TICK_SIDE.PURCHASING, Boolean(value))}
                     />
+                  )}
                   </TableCell>
                   <TableCell className="text-center">
+                    {inDrawer ? (
+                    <ReadTick
+                      checked={document.financeHas}
+                      label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}: ${document.label}`}
+                    />
+                  ) : (
                     <Checkbox
                       tone="neutral"
                       checked={document.financeHas}
@@ -183,6 +202,7 @@ export function IpasDocuments({
                       aria-label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}: ${document.label}`}
                       onCheckedChange={(value) => onTick(document, IPAS_TICK_SIDE.FINANCE, Boolean(value))}
                     />
+                  )}
                   </TableCell>
                   {canChange && (
                     <TableCell className="text-right">
