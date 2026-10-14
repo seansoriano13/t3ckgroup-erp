@@ -22,9 +22,9 @@ export default function HeaderActions({ ctx }) {
       <Dropdown
         usePortal
         placement="bottom-end"
-        popoverClassName="popover-enter z-[10001] w-max min-w-52 rounded-xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
+        popoverClassName="popover-enter z-[10001] w-max min-w-52 rounded-xl bg-popover p-1.5 shadow-lg ring-1 ring-mauve-6"
         trigger={
-          <Button variant="outline" aria-haspopup="menu">
+          <Button variant="outline">
             <MoreHorizontal size={14} />
             More
           </Button>
@@ -75,8 +75,8 @@ export default function HeaderActions({ ctx }) {
               <>
                 <div className="my-1 h-px bg-border" role="separator" />
                 <Button
-                  variant="ghost"
-                  className={`${MENU_ITEM} text-red-11 hover:bg-red-9/10`}
+                  variant="destructive"
+                  className={MENU_ITEM}
                   onClick={() => {
                     close();
                     on.cancel();

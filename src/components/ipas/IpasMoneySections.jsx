@@ -139,7 +139,7 @@ export function IpasPaymentsBlock({
             <TableBody>
               {payments.map((payment) => (
                 <TableRow key={payment.id} data-testid="ipas-payment-row">
-                  <TableCell className="text-[13px] font-medium text-foreground">
+                  <TableCell className="text-sm font-medium text-foreground">
                     <span className="inline-flex flex-wrap items-center gap-2">
                       {IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind}
                       {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
@@ -164,7 +164,7 @@ export function IpasPaymentsBlock({
                   <TableCell className="text-xs text-foreground">
                     {payment.methodLabel ?? "—"}
                     {payment.check_no && (
-                      <span className="block text-[11px] text-muted-foreground">Check No. {payment.check_no}</span>
+                      <span className="block text-xs text-muted-foreground">Check No. {payment.check_no}</span>
                     )}
                   </TableCell>
                   <TableCell className="text-xs">
@@ -269,7 +269,7 @@ export function IpasChargesSection({
             <TableBody>
               {charges.map((charge) => (
                 <TableRow key={charge.id} data-testid="ipas-charge-row">
-                  <TableCell className="text-[13px] font-medium text-foreground">{charge.kindLabel ?? "—"}</TableCell>
+                  <TableCell className="text-sm font-medium text-foreground">{charge.kindLabel ?? "—"}</TableCell>
                   <TableCell className="text-xs tabular-nums text-muted-foreground">{formatDay(charge.charged_on)}</TableCell>
                   <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">{pesos(charge.amount_php)}</TableCell>
                   {canRecord && (
@@ -375,9 +375,6 @@ export function IpasCostingSection({ ipas, canChange: granted = false, onSetStat
               );
             })}
           </ol>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Landed Cost reads provisional until Costs complete, then final.
-          </p>
         </div>
 
         <div className="space-y-3">
@@ -405,7 +402,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, onSetStat
           {unavailable ? (
             <div
               role="status"
-              className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-[13px]"
+              className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm"
             >
               <CircleAlert size={16} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
               <div>
@@ -448,7 +445,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, onSetStat
                   <TableBody>
                     {lc.lines.map((line, index) => (
                       <TableRow key={line.lineId ?? index} data-testid="ipas-landed-line">
-                        <TableCell className="max-w-[18rem] whitespace-pre-line text-[13px] text-foreground">
+                        <TableCell className="max-w-[18rem] whitespace-pre-line text-sm text-foreground">
                           {line.name}
                         </TableCell>
                         <TableCell className="text-right font-mono text-xs tabular-nums">
@@ -457,7 +454,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, onSetStat
                         <TableCell className="text-right font-mono text-xs tabular-nums">
                           {pesos(line.unitPricePhp)}
                           {foreign && (
-                            <span className="block text-[11px] text-muted-foreground">
+                            <span className="block text-xs text-muted-foreground">
                               {formatAmount(line.unitPriceForeign, lc.currency)}
                             </span>
                           )}

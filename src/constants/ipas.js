@@ -424,12 +424,6 @@ export const IPAS_SIGNOFF_STAGE = {
   FILED: "filed",
 };
 
-export const IPAS_SECTION_NAMES = {
-  1: "Purchasing",
-  3: "Purchasing & Finance",
-  7: "Filing",
-};
-
 /**
  * The number each part of an IPAS shows, on screen and on the printed sheet, in
  * the order the module shows them (money and sign-offs first). The paper sheet
@@ -459,7 +453,12 @@ export const IPAS_PART_NAMES = {
 };
 
 /** The part a stored sign-off section (1, 3 or 7) is. */
-const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 7: "filing" };
+export const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 7: "filing" };
+
+/** A stored sign-off section's name, unnumbered: "Purchasing", "Purchasing & Finance", "Filing". */
+export function ipasSectionName(section) {
+  return IPAS_PART_NAMES[IPAS_SECTION_PART[section]] ?? "";
+}
 
 /** The number a stored sign-off section (1, 3 or 7) shows as. */
 export const IPAS_SECTION_NO = {

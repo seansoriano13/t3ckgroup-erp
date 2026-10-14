@@ -1,6 +1,6 @@
 import { Check, CornerUpLeft, FileCheck2, PenLine } from "lucide-react";
 
-import { IPAS_COMPUTATION_STATUS, IPAS_SIGNOFF_ROLE, ipasSectionLabel } from "@/constants/ipas";
+import { IPAS_COMPUTATION_STATUS, IPAS_SECTION_PART, IPAS_SIGNOFF_ROLE, ipasSectionLabel } from "@/constants/ipas";
 import { hintFor } from "./moveCopy";
 
 /**
@@ -18,7 +18,7 @@ function move(key, section, { kind, icon, label, verb, confirm = true, run }, di
 }
 
 const FILING = ipasSectionLabel(7);
-const PART = { 1: "purchasing", 3: "finance", 7: "filing" };
+const PART = IPAS_SECTION_PART;
 
 /**
  * Everything the signed-in person may do on this IPAS right now, in three groups:
@@ -91,6 +91,8 @@ export function movesFor(ctx, digest) {
         icon: Check,
         label: "Mark costs complete",
         verb: "Mark complete",
+        // Undoable from its toast, so no question first (and no "You sign as" line).
+        confirm: false,
         run: (from) => on.setComputationStatus(IPAS_COMPUTATION_STATUS.COSTS_COMPLETE, from),
       }, digest),
     );

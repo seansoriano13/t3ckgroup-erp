@@ -29,15 +29,16 @@ const asText = (value) => (value === null || value === undefined ? "" : String(v
  * entered as this IPAS's own share, worked out by Purchasing, so it counts
  * once across purchases. `charge` null adds one. Mounted only while open.
  */
-export default function ChargeDialog({ open, onOpenChange, ipas, charge = null }) {
+/** `onFailed(error, retry)`, when given, shows a failed save in the page (with Retry) instead of a toast alone. */
+export default function ChargeDialog({ open, onOpenChange, ipas, charge = null, onFailed }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body ipas={ipas} charge={charge} onClose={() => onOpenChange(false)} />}
+      {open && <Body ipas={ipas} charge={charge} onFailed={onFailed} onClose={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function Body({ ipas, charge, onClose }) {
+function Body({ ipas, charge, onFailed, onClose }) {
   const queryClient = useQueryClient();
   const editing = Boolean(charge);
 
@@ -71,7 +72,7 @@ function Body({ ipas, charge, onClose }) {
       queryClient.invalidateQueries({ queryKey: ipasListKey });
       onClose();
     },
-    onError: (error) => toast.error(ipasErrorMessage(error)),
+    onError: (error) => (onFailed ? onFailed(error, () => save.mutate()) : toast.error(ipasErrorMessage(error))),
   });
 
   return (

@@ -5,9 +5,11 @@ import { SECTIONS } from "./digest";
 const PARAM = "edit";
 
 /**
- * The section open in the edit view, kept in `?edit=<key>`. Entering it pushes
- * a history entry, so Back leaves it; leaving (its link, or Back) replaces the
- * entry. Entering it also drops `?open=`: the drawer closes as the view opens.
+ * The section open in the edit view, kept in `?edit=<key>`. Entering it from
+ * the drawer replaces the `?open=` entry, so the history reads [overview,
+ * overview with ?edit=] and Back lands on the overview; entering it any other
+ * way pushes an entry. Leaving (its link, or Back) replaces the entry. Entering
+ * it drops `?open=`: the drawer closes as the view opens.
  */
 export function useEditSection() {
   const [params, setParams] = useSearchParams();
@@ -31,7 +33,7 @@ export function useEditSection() {
 
   return {
     key,
-    edit: (next) => write(next, { replace: false }),
+    edit: (next) => write(next, { replace: params.has("open") }),
     leave: () => write(null, { replace: true }),
   };
 }

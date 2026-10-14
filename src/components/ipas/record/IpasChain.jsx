@@ -6,7 +6,7 @@
 import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { StateChip } from "./StateMark";
+import { StateWord } from "./StateMark";
 import { STATE, STATE_CLASS } from "./statePalette";
 
 /** The gate's mark: a filled check when done, a ring when it is Now, a hollow dot when waiting. */
@@ -21,10 +21,7 @@ function GateMark({ state }) {
   return (
     <span
       aria-hidden="true"
-      className={cn(
-        "mt-0.5 size-4 shrink-0 rounded-full border-2",
-        state === STATE.CURRENT ? "border-amber-9 bg-amber-3" : "border-mauve-7 bg-card",
-      )}
+      className={cn("mt-0.5 size-4 shrink-0 rounded-full border-2 bg-card", STATE_CLASS[state].ring)}
     />
   );
 }
@@ -50,7 +47,7 @@ export default function IpasChain({ gates }) {
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="text-sm font-semibold text-foreground">{gate.label}</span>
                   <span className="text-sm text-muted-foreground">{gate.role}</span>
-                  <StateChip state={gate.state} />
+                  <StateWord state={gate.state} />
                 </div>
                 <p className="text-xs text-muted-foreground">{gate.line}</p>
               </div>

@@ -216,9 +216,8 @@ export function sectionState(key, digest) {
   const gate = (gateKey) => digest.gates.find((g) => g.key === gateKey);
   if (key === "purchasing") return { state: gate("purchasing").state, detail: SIGNOFF_DETAIL[digest.s1.status] };
   if (key === "finance") return { state: gate("finance").state, detail: SIGNOFF_DETAIL[digest.s3.status] };
-  if (key === "costing") {
-    return { state: gate("costs").state, detail: LANDED_BADGE[digest.money.landedStatus]?.label ?? null };
-  }
+  // Its Landed Cost mark (Provisional, Final) is said once, in the section body beside Landed Cost.
+  if (key === "costing") return { state: gate("costs").state, detail: null };
   if (key === "filing") {
     const filing = digest.gates.filter((g) => g.part === "filing");
     const state = filing.every((g) => g.done)

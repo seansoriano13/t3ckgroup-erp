@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -59,7 +60,7 @@ export function IpasSection({ title, aside, children }) {
 /** The mark every value read from Odoo carries (the printed form's "● Odoo"). */
 export function OdooMark({ children = "Odoo" }) {
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
       <span className="size-1.5 rounded-full bg-blue-9" aria-hidden="true" />
       {children}
     </span>
@@ -153,6 +154,8 @@ function TypedRow({ label, value, fromOdoo, canChange, onEdit }) {
  */
 export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
   const banners = [];
+  // The Odoo-didn't-answer banner can be dismissed; the page keeps the stored copy either way.
+  const [refreshDismissed, setRefreshDismissed] = useState(false);
 
   for (const warning of ipas.warnings ?? []) {
     if (warning.code === IPAS_WARNING.PO_CANCELLED_IN_ODOO) {
@@ -182,10 +185,12 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
     }
   }
 
-  if (refresh && refresh.ok === false) {
+  if (refresh && refresh.ok === false && !refreshDismissed) {
     banners.push({
       key: "refresh",
       tone: "amber",
+      alert: true,
+      onDismiss: () => setRefreshDismissed(true),
       icon: CloudOff,
       title:
         refresh.reason === IPAS_ERROR.PO_NOT_FOUND
@@ -202,12 +207,12 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
 
   return (
     <div className="space-y-2">
-      {banners.map(({ key, tone, icon: Icon = CircleAlert, title, body, retry }) => (
+      {banners.map(({ key, tone, alert, onDismiss, icon: Icon = CircleAlert, title, body, retry }) => (
         <div
           key={key}
-          role="status"
+          role={alert ? "alert" : "status"}
           className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3 text-sm ${
-            tone === "red" ? "border-red-400 bg-red-3/40 text-red-11" : "border-amber-400 bg-amber-3/40 text-amber-11"
+            tone === "red" ? "border-red-7 bg-red-3/40 text-red-11" : "border-amber-7 bg-amber-3/40 text-amber-11"
           }`}
         >
           <div className="flex min-w-0 items-start gap-2">
@@ -224,6 +229,11 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
               {retrying ? "Retrying…" : "Retry"}
             </Button>
           )}
+          {onDismiss && (
+            <Button size="sm" variant="ghost" className="shrink-0" onClick={onDismiss}>
+              Dismiss
+            </Button>
+          )}
         </div>
       ))}
     </div>
@@ -235,7 +245,7 @@ export function IpasChangeNote({ note, currency }) {
   if (!note) return null;
   const money = (value) => formatAmount(value, currency);
   return (
-    <div role="status" className="mb-3 rounded-lg border border-blue-400 bg-blue-3/40 p-3 text-[13px]">
+    <div role="status" className="mb-3 rounded-lg border border-blue-400 bg-blue-3/40 p-3 text-sm">
       <p className="font-semibold text-blue-11">
         Odoo PO changed{note.at ? ` · ${formatDate(note.at)}` : ""}
       </p>
@@ -391,7 +401,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange: gra
             <TableBody>
               {ipas.lines.map((line) => (
                 <TableRow key={line.line_id}>
-                  <TableCell className="max-w-[22rem] whitespace-pre-line text-[13px] text-foreground">
+                  <TableCell className="max-w-[22rem] whitespace-pre-line text-sm text-foreground">
                     {line.name}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{line.brand || "—"}</TableCell>
@@ -441,7 +451,7 @@ export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverr
           ) : (
             <ul className="space-y-1">
               {ipas.sors.map((sor) => (
-                <li key={sor.id} className="text-[13px]">
+                <li key={sor.id} className="text-sm">
                   <span className="font-mono font-semibold">{sor.salesReference}</span>
                   <span className="text-muted-foreground">
                     {" "}
@@ -500,10 +510,10 @@ function SourceNote({ item }) {
     case IPAS_STATUS_SOURCE.ODOO:
       return <OdooMark>stamped from Odoo</OdooMark>;
     case IPAS_STATUS_SOURCE.DERIVED:
-      return <span className="text-[11px] font-medium text-muted-foreground">derived from payments</span>;
+      return <span className="text-xs font-medium text-muted-foreground">derived from payments</span>;
     case IPAS_STATUS_SOURCE.TYPED:
       return (
-        <span className="text-[11px] font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           {item.ticked
             ? `typed${item.by?.name ? ` by ${item.by.name}` : ""}${item.at ? ` · ${formatDate(item.at)}` : ""}`
             : "typed by Purchasing"}
@@ -511,7 +521,7 @@ function SourceNote({ item }) {
       );
     case IPAS_STATUS_SOURCE.STAMPED:
       return (
-        <span className="text-[11px] font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           {item.ticked
             ? `stamped${item.by?.name ? ` by ${item.by.name}` : ""}${item.at ? ` · ${formatDate(item.at)}` : ""}`
             : "stamped by Purchasing"}
@@ -527,7 +537,7 @@ function TrackStatus({ item, canChange, onEdit, onStamp, onClearStamp }) {
   const detail = item.on ? formatDay(item.on) : item.detail;
 
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-[13px]" data-testid={`ipas-track-${item.key}`}>
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm" data-testid={`ipas-track-${item.key}`}>
       <span
         className={`grid size-5 shrink-0 place-items-center rounded-full border ${
           ticked
@@ -860,7 +870,7 @@ export function IpasHistorySection({ events }) {
           {events.map((event) => {
             const detail = eventDetail(event);
             return (
-              <li key={event.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 text-[13px]">
+              <li key={event.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 text-sm">
                 <span className="font-medium text-foreground">{IPAS_EVENT_LABELS[event.kind] || event.kind}</span>
                 {detail && <span className="text-muted-foreground">{detail}</span>}
                 <span className="ml-auto text-xs text-muted-foreground">

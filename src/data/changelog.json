@@ -1,5 +1,23 @@
 [
     {
+        "date": "2026-10-14",
+        "title": "IPAS: record page fixes and clearer sign-offs",
+        "version": "1.9.26",
+        "changes": [
+            "IPAS: Back from a section's edit view returns to the IPAS overview, with that section highlighted.",
+            "IPAS: going to the next IPAS waiting for you no longer carries over a message or Retry from the one before.",
+            "IPAS: Mark costs complete happens straight away, with an Undo, and no confirmation.",
+            "IPAS: sign-offs are made from Your move or a section's panel. The edit view no longer has its own sign-off buttons.",
+            "IPAS: if sending a section back or reopening an IPAS fails, the reason stays in the box with a Retry button.",
+            "IPAS: a failed change made in a section's edit view shows its message there, with Retry.",
+            "IPAS: the Odoo warning can be dismissed; the saved copy stays on the page.",
+            "IPAS: the Approve confirmation uses the same green button as the Approve button.",
+            "IPAS: Edit section sits at the top of a section's panel, not in its footer.",
+            "Focus outlines are darker across the app, so they are easier to see when using a keyboard.",
+            "Approve buttons are readable in dark mode."
+        ]
+    },
+    {
         "date": "2026-10-13",
         "title": "IPAS: SOR picker shows Stage, not customer",
         "version": "1.9.25",

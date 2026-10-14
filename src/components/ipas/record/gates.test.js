@@ -51,9 +51,16 @@ describe("gatesFor: the one Now", () => {
     expect(nowGate(gates).key).toBe("noted-checked");
   });
 
-  it("falls to the first unmet gate when none has its prerequisites met", () => {
+  it("is none when no unmet gate has its prerequisites met, and costs is never Now before its turn", () => {
     const gates = gatesOf({ status: "encoding", ...approvedBoth, s7: { received: who("Fi"), noted: who("No"), checked: who("Ch") } });
-    expect(nowGate(gates).key).toBe("costs");
+    expect(nowGate(gates)).toBeNull();
+    expect(byKey(gates, "costs").now).toBe(false);
+    expect(byKey(gates, "costs").state).toBe("waiting");
+  });
+
+  it("is Costs complete once the status is encoded and every earlier gate is given", () => {
+    const gates = gatesOf({ status: "encoded", ...approvedBoth, s7: { received: who("Fi"), noted: who("No"), checked: who("Ch") } });
+    expect(nowGate(gates)?.key).toBe("costs");
   });
 
   it("is never more than one gate", () => {
@@ -74,7 +81,7 @@ describe("gatesFor: the one Now", () => {
                   });
                   const nows = gates.filter((gate) => gate.now);
                   expect(nows.length).toBeLessThanOrEqual(1);
-                  expect(nows.length === 1).toBe(gates.some((gate) => !gate.done));
+                  expect(nows.length === 1).toBe(gates.some((gate) => !gate.done && gate.prereqMet));
                 }
               }
             }

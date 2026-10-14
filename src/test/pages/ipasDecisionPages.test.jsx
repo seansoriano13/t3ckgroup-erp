@@ -213,6 +213,23 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(within(region).queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("names Purchasing's encoding as the wait when sections 1 and 2 and the filing steps are given but costs are not encoded", async () => {
+    const row = ipas({ computation_status: "encoding" });
+    signoff(row.id, 1, "prepared", purchaser);
+    signoff(row.id, 1, "approved", approver);
+    signoff(row.id, 3, "prepared", purchaser);
+    signoff(row.id, 3, "approved", approver);
+    signoff(row.id, 7, "received", approver);
+    signoff(row.id, 7, "noted", approver);
+    signoff(row.id, 7, "checked", approver);
+    // Costs are not encoded yet, so Costs complete is not Now and filing waits on it: nothing is Now.
+    renderDetail(row.id);
+
+    const region = await screen.findByRole("region", { name: "Your move" });
+    expect(within(region).getByText("Waiting for Purchasing to finish encoding costs.")).toBeInTheDocument();
+    expect(screen.queryAllByRole("group", { name: /, now$/ })).toHaveLength(0);
+  });
+
   it("says Filed, with no moves; Reopen sits in the filed banner and only a Super Admin gets it", async () => {
     const row = ipas({ state: "filed", filed_at: "2026-10-14T00:00:00.000Z", computation_status: "checked" });
     signoff(row.id, 1, "prepared", purchaser);

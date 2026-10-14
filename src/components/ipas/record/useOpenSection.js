@@ -17,7 +17,7 @@ export function useOpenSection() {
     current: index >= 0 ? DRAWER_SECTIONS[index] : null,
     inPlace: isInPlace(recordId) ? recordId : null,
     open: (key) => (key ? open(key) : close()),
-    step: (key) => step(key),
+    step,
     close,
   };
 }

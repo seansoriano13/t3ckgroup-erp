@@ -18,18 +18,10 @@ import {
 import { IpasSignoffs } from "@/components/ipas/IpasSignoffs";
 
 export function buildBlocks(ctx) {
-  const { ipas, can, on, rights, busy } = ctx;
+  const { ipas, can, on, rights } = ctx;
 
   const signoffs = (section) => (
-    <IpasSignoffs
-      section={section}
-      state={ipas.signoffSections[section]}
-      rights={rights[section]}
-      busy={busy.signoff}
-      onPrepare={() => on.prepare(section)}
-      onApprove={() => on.approve(section)}
-      onSendBack={() => on.sendBack(section)}
-    />
+    <IpasSignoffs section={section} state={ipas.signoffSections[section]} rights={rights[section]} />
   );
 
   const payments = (
@@ -86,14 +78,7 @@ export function buildBlocks(ctx) {
       <IpasCostingSection ipas={ipas} canChange={can.change} onSetStatus={on.setComputationStatus} onSetSplit={on.setSplit} />
     ),
     filing: (
-      <IpasFilingSection
-        ipas={ipas}
-        rights={rights[7]}
-        busy={busy.give}
-        onGive={on.give}
-        canSendBack={rights.sendBack7}
-        onSendBack={() => on.sendBack(7)}
-      />
+      <IpasFilingSection ipas={ipas} rights={rights[7]} canSendBack={rights.sendBack7} />
     ),
     sales: (
       <IpasSalesSection

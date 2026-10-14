@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import IpasChain from "./IpasChain";
 import MoveButton from "./MoveButton";
 import { nowGate, waitingSections } from "./gates";
+import { COSTS_WAITING } from "./moveCopy";
 import { movesFor } from "./moves";
 
 /** The wide breakpoint (Tailwind xl): the card sits beside the sections and shows its chain. */
@@ -24,12 +25,13 @@ const WIDE = "(min-width: 1280px)";
 function statusLine(digest, gates, offered) {
   if (digest.filed) return "Filed. Nothing left to do.";
   if (digest.cancelled) return "Cancelled. Nothing to do.";
+  // No gate is Now only while Costs complete waits for Purchasing's encoding (gates.js).
+  const now = nowGate(gates);
+  if (!now) return offered.length === 0 ? `Nothing needs you right now. ${COSTS_WAITING}` : COSTS_WAITING;
   if (offered.length === 0) {
     const waiting = waitingSections(gates);
     return waiting ? `Nothing needs you right now. Waiting on ${waiting}.` : "Nothing needs you right now.";
   }
-  const now = nowGate(gates);
-  if (!now) return "";
   const mine = now.moveKeys.some((key) => offered.some((move) => move.key === key));
   return `Next: ${mine ? "Waiting for you" : `Waiting for ${now.waitsOn}`}`;
 }
@@ -73,8 +75,9 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
   return (
     <section
       id="your-move"
+      tabIndex={-1}
       aria-labelledby="your-move-heading"
-      className="overflow-hidden rounded-2xl border border-border bg-card"
+      className="overflow-hidden rounded-2xl border border-border bg-card outline-none"
     >
       <div className="space-y-4 p-5">
         <h2 id="your-move-heading" className="text-base font-semibold text-foreground">
@@ -105,7 +108,7 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
             variant="ghost"
             size="sm"
             aria-expanded={chainOpen}
-            aria-controls="your-move-chain"
+            aria-controls={chainOpen ? "your-move-chain" : undefined}
             onClick={() => setChainOpen((open) => !open)}
           >
             {chainOpen ? "Hide where it stands" : `Where it stands · ${doneCount} of ${gates.length}`}
@@ -123,6 +126,7 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
         onOpenChange={setConfirmOpen}
         title={`${asked?.label ?? ""}?`}
         confirmLabel={asked?.verb ?? "Confirm"}
+        tone={asked?.kind === "return" ? "default" : "approve"}
         onConfirm={() => asked?.run({ key: asked.key, origin: "card" })}
       >
         <div className="space-y-1.5 text-sm">

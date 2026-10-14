@@ -46,7 +46,7 @@ export default function Figures({ digest, onOpen }) {
           <Button
             variant="ghost"
             onClick={() => onOpen(stat.key)}
-            className="group/stat h-auto w-full min-w-0 flex-col items-start justify-start gap-0 rounded-sm p-0 text-left font-normal whitespace-normal hover:bg-transparent focus-visible:ring-mauve-11"
+            className="group/stat h-auto w-full min-w-0 flex-col items-start justify-start gap-0 rounded-sm p-0 text-left font-normal whitespace-normal hover:bg-transparent"
           >
             <span className="flex items-center gap-1 text-xs text-muted-foreground group-hover/stat:text-foreground">
               {stat.label}

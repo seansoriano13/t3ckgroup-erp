@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { DRAWER_SECTIONS, sectionState } from "./digest";
 import MoveButton from "./MoveButton";
-import { Caption } from "./parts";
 import { canEditSection, footerMovesFor } from "./moves";
 import { StateWord } from "./StateMark";
 import { CHROME, IpasSectionChrome } from "./sectionChrome";
@@ -14,7 +13,7 @@ import { CHROME, IpasSectionChrome } from "./sectionChrome";
 const DRAWER_ATTR = "data-section-drawer";
 
 /** Typing keeps its keys: J and K in a field are letters. */
-function isEditable(target) {
+function isTypingTarget(target) {
   if (!(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
@@ -34,8 +33,9 @@ function otherDialogOpen() {
  * was opened directly.
  *
  * A pinned footer carries the viewer's moves for this section (the same moves
- * as the card, signed straight away) and, where the viewer may edit it, Edit
- * section, which opens the edit view. The body is read-only here.
+ * as the card, signed straight away) and nothing else. Where the viewer may
+ * edit the section, a small Edit section button at the top of the body opens
+ * the edit view. The money in the body is read-only here.
  */
 export default function SectionDrawer({ ctx, blocks, digest, index, current, step, close, getRow, onEdit }) {
   const { ipas, busy, failure } = ctx;
@@ -50,7 +50,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
     if (!current) return undefined;
     const onKey = (event) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (isEditable(event.target) || otherDialogOpen()) return;
+      if (isTypingTarget(event.target) || otherDialogOpen()) return;
       const key = event.key.toLowerCase();
       if (key === "j" && index < DRAWER_SECTIONS.length - 1) {
         event.preventDefault();
@@ -77,7 +77,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
           <>
             <div className="flex items-center gap-3 border-b border-border px-7 py-5">
               <div className="min-w-0 flex-1">
-                <Caption>{ipas.number}</Caption>
+                <p className="font-mono text-xs font-medium tabular-nums text-muted-foreground">{ipas.number}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2.5">
                   <DrawerTitle className="min-w-0 text-lg font-bold">{current.title}</DrawerTitle>
                   {state && <StateWord state={state.state} detail={state.detail} />}
@@ -111,9 +111,16 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
               key={current.key}
               className="min-h-0 flex-1 animate-in overflow-y-auto px-7 py-6 duration-300 ease-out fade-in-0 slide-in-from-right-2"
             >
+              {editable && (
+                <Button size="sm" variant="outline" className="mb-5 gap-1.5" onClick={() => onEdit(current.key)}>
+                  <Pencil size={14} aria-hidden="true" />
+                  Edit section
+                </Button>
+              )}
               <IpasSectionChrome.Provider value={CHROME.DRAWER}>{blocks[current.key]}</IpasSectionChrome.Provider>
             </div>
-            {(moves.length > 0 || editable) && (
+            {/* The pinned footer is the decision area only: the viewer's moves for this section. */}
+            {moves.length > 0 && (
               <div className="border-t border-border bg-muted/30 px-7 py-4">
                 <ul className="grid gap-4 sm:grid-cols-2">
                   {moves.map((item) => (
@@ -127,15 +134,6 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
                       onRun={(move, origin) => move.run({ key: move.key, origin })}
                     />
                   ))}
-                  {editable && (
-                    <li className="space-y-1.5">
-                      <Button size="lg" variant="outline" className="w-full justify-center gap-2 font-semibold" onClick={() => onEdit(current.key)}>
-                        <Pencil size={16} aria-hidden="true" />
-                        Edit section
-                      </Button>
-                      <p className="text-xs text-muted-foreground">Opens this section&apos;s tables and dialogs in the page.</p>
-                    </li>
-                  )}
                 </ul>
               </div>
             )}
