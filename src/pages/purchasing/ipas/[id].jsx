@@ -571,12 +571,11 @@ function IpasPage() {
             <IpasWarnings ipas={ipas} refresh={refresh.data} />
           </div>
 
-          {/* The decider: the figures and sections on the left, the card beside them from the wide breakpoint. */}
+          {/* The decider: the figures and sections on the left; the card beside them from the wide breakpoint, sticky and without an inner scroll. Below it the card follows the sections. */}
           <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
             <div className="min-w-0 space-y-8">
               <Figures digest={digest} onOpen={openSection} />
               <SectionsList
-                ipas={ipas}
                 digest={digest}
                 onOpen={openSection}
                 rowRef={(key) => (node) => {
@@ -584,7 +583,7 @@ function IpasPage() {
                 }}
               />
             </div>
-            <aside className="custom-scrollbar min-w-0 xl:sticky xl:top-2 xl:order-last xl:max-h-[calc(100dvh-7.5rem)] xl:self-start xl:overflow-y-auto">
+            <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
               <DecisionCard ctx={ctx} digest={digest} />
             </aside>
           </div>

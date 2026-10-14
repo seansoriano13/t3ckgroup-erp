@@ -271,7 +271,7 @@ describe("IPAS sign-offs", () => {
 
       const text = document.body.textContent ?? "";
       expect(text).toContain("Send section 2 · Purchasing & Finance back?");
-      expect(text).toContain("Waiting for 1 · Purchasing and 2 · Purchasing & Finance");
+      expect(text).toContain("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved");
       // A section is named with its number and its name, or not by number at all.
       expect(text).not.toMatch(/\b(?:sections?|send|waiting for|and|for)\s+\d+\b(?!\s*·)/i);
       view.unmount();

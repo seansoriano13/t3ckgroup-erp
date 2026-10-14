@@ -154,7 +154,7 @@ describe("IPAS section 7 and Filing", () => {
       const filing = await screen.findByTestId("ipas-filing");
       expect(within(filing).getAllByText("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved.")).toHaveLength(4);
       expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.getAllByText("Waiting for 1 · Purchasing and 2 · Purchasing & Finance").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved").length).toBeGreaterThan(0);
     });
 
     it("offers Received to its list, then Noted and Checked, each only to its own list", async () => {
