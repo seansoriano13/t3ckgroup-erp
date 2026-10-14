@@ -1,8 +1,9 @@
 import { DetailRow } from "../ui/DetailParts";
 import { SelectField } from "../ui/SelectField";
 import { IpasSection } from "./IpasSections";
-import { IPAS_OPTION_LIST } from "../../constants/ipas";
+import { IPAS_OPTION_LIST, ipasSectionLabel } from "../../constants/ipas";
 import { optionsForPicker } from "../../utils/ipasPayments";
+import { useEditable } from "./record/sectionChrome";
 
 const NONE = "__none__";
 
@@ -12,7 +13,8 @@ const NONE = "__none__";
  *
  *   canChange   Purchasing on an open IPAS
  */
-export function IpasLogisticsSection({ ipas, canChange = false, onPick }) {
+export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick }) {
+  const canChange = useEditable(granted);
   const options = [
     { value: NONE, label: "Not set" },
     ...optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.ITEM_LOCATION, ipas.item_location_id).map((option) => ({
@@ -22,7 +24,7 @@ export function IpasLogisticsSection({ ipas, canChange = false, onPick }) {
   ];
 
   return (
-    <IpasSection title="5 · Logistics">
+    <IpasSection title={ipasSectionLabel("logistics")}>
       <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
         <DetailRow label="Item Location">
           {canChange ? (

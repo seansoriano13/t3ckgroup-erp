@@ -58,7 +58,7 @@ import {
  * chat) with the Buyer pinned in its footer.
  */
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const HEAD = "text-label font-bold uppercase tracking-wider";
 const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 

@@ -5,10 +5,10 @@ import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import {
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
-  IPAS_SECTION_NAMES,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_ACTIONS,
   IPAS_SIGNOFF_ROLE_LABELS,
+  ipasSectionName,
 } from "../../../constants/ipas";
 import { formatAmount } from "../../../utils/ipas";
 import { canSendBackItem } from "../../../utils/ipasSignoffs";
@@ -48,7 +48,7 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
             <DetailRow label="Priority">{IPAS_PRIORITY_LABELS[pending.priority] ?? pending.priority}</DetailRow>
             <DetailRow label="Odoo PO total">{formatAmount(pending.total, pending.currency)}</DetailRow>
             <DetailRow label="Section">
-              {pending.section} · {IPAS_SECTION_NAMES[pending.section]}
+              {pending.section} · {ipasSectionName(pending.section)}
             </DetailRow>
             {isFiling && <DetailRow label="Your step">{IPAS_SIGNOFF_ROLE_LABELS[pending.role]}</DetailRow>}
             <DetailRow label="Waiting">

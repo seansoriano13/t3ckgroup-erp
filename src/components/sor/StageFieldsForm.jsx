@@ -90,7 +90,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
 
   return (
     <div className="rounded-xl border border-border/70 bg-card/50 p-4">
-      <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+      <p className="mb-3 text-label font-bold tracking-widest text-muted-foreground uppercase">
         <ListTodo size={11} className="mr-1 inline" /> This Stage's fields
       </p>
       <div className="space-y-3">
@@ -105,7 +105,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
             <div key={field.id} className="space-y-1">
               <FieldBox label={<>{field.label}
                 {field.is_required && (
-                  <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
+                  <span className="text-label font-black uppercase text-amber-600 dark:text-amber-400">
                     Required
                   </span>
                 )}</>} />

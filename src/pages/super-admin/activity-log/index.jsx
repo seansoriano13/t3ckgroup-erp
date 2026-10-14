@@ -100,7 +100,7 @@ function ContentDisplay({ content, search }) {
           </div>
         ))}
         {remaining > 0 && (
-          <div className="text-[10px] font-bold text-muted-foreground/60 pl-[22px] pt-0.5 uppercase tracking-wider">
+          <div className="text-label font-bold text-muted-foreground/60 pl-[22px] pt-0.5 uppercase tracking-wider">
             + {remaining} more item{remaining !== 1 ? "s" : ""}
           </div>
         )}
@@ -472,7 +472,7 @@ export default function SuperAdminActivityLogPage() {
                           {humanizeCode(e.type || "SYSTEM")}
                         </span>
                         {e.isGroup && (
-                          <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-violet-11">
+                          <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-label font-black uppercase tracking-wider text-violet-11">
                             Group Task
                           </span>
                         )}

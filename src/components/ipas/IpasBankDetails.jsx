@@ -4,6 +4,8 @@ import { Button } from "../ui/button";
 import { DetailRow } from "../ui/DetailParts";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
+import { ipasSectionLabel } from "../../constants/ipas";
+import { useEditable } from "./record/sectionChrome";
 
 /**
  * Bank details inside section 3 (#245): Bank Name, Account Name and Account #,
@@ -13,7 +15,8 @@ import StatusBadge from "../StatusBadge";
  *
  *   canChange   Purchasing on an open IPAS. Finance reads but never types them.
  */
-export function IpasBankDetails({ ipas, canChange = false, onEdit }) {
+export function IpasBankDetails({ ipas, canChange: granted = false, onEdit }) {
+  const canChange = useEditable(granted);
   if (!ipas.canReadBankDetails) return null;
   const bank = ipas.bankDetails;
   const flagged = Boolean(bank?.flagged);
@@ -32,14 +35,14 @@ export function IpasBankDetails({ ipas, canChange = false, onEdit }) {
       {flagged && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-400 bg-red-3/40 p-3 text-[13px] text-red-11"
+          className="flex items-start gap-2 rounded-xl border border-red-400 bg-red-3/40 p-3 text-sm text-red-11"
         >
           <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
           <div>
             <p className="font-semibold">Account # changed</p>
             <p className="mt-0.5 text-xs opacity-90">
               It differs from this supplier&apos;s last IPAS. Confirm it with the supplier before anyone approves or
-              pays. Any approvals given on sections 1 and 3 were cleared.
+              pays. Any approvals given on sections {ipasSectionLabel(1)} and {ipasSectionLabel(3)} were cleared.
             </p>
           </div>
         </div>

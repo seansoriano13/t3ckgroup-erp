@@ -361,12 +361,12 @@ export default function ProfilePage() {
               {(user?.isHead || user?.isHr) && (
                 <div className="flex gap-2 mb-1">
                   {user?.isHead && (
-                    <span className="bg-transparent text-amber-11 border border-amber-6 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest">
+                    <span className="bg-transparent text-amber-11 border border-amber-6 text-label font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest">
                       Head
                     </span>
                   )}
                   {user?.isHr && (
-                    <span className="bg-transparent text-violet-11 border border-violet-6 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest">
+                    <span className="bg-transparent text-violet-11 border border-violet-6 text-label font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest">
                       HR
                     </span>
                   )}
@@ -408,7 +408,7 @@ export default function ProfilePage() {
                   <Building2 size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     Department
                   </p>
                   <p className="text-foreground font-black mt-0.5 text-sm">
@@ -422,7 +422,7 @@ export default function ProfilePage() {
                   <Briefcase size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     Sub-Department
                   </p>
                   <p className="text-foreground font-black mt-0.5 text-sm">
@@ -436,7 +436,7 @@ export default function ProfilePage() {
                   <ShieldCheck size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     System ID
                   </p>
                   <p className="text-muted-foreground font-mono text-xs mt-1 break-all select-all">
@@ -457,7 +457,7 @@ export default function ProfilePage() {
                 type="button"
                 variant="outline"
                 onClick={() => setSignatureModalOpen(true)}
-                className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
               >
                 <PenLine size={14} /> {user?.signaturePath ? "Replace" : "Add Signature"}
               </Button>
@@ -484,7 +484,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-black text-foreground">
                     {isStatsLoading ? <Spinner size="sm" /> : isStatsError ? "—" : stats?.primary}
                   </p>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     {stats?.primaryLabel || "Metrics"}
                   </p>
                 </div>
@@ -497,7 +497,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-black text-green-10">
                     {isStatsLoading ? <Spinner size="sm" /> : isStatsError ? "—" : stats?.secondary}
                   </p>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     {stats?.secondaryLabel || "Completed"}
                   </p>
                 </div>
@@ -568,7 +568,7 @@ export default function ProfilePage() {
                     type="button"
                     variant="outline"
                     onClick={() => avatarInputRef.current?.open()}
-                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
                   >
                     <UploadCloud size={14} /> Upload
                   </Button>
@@ -580,7 +580,7 @@ export default function ProfilePage() {
                       setRemoveAvatar(true);
                     }}
                     disabled={isUsingDefaultAvatar}
-                    className="h-auto rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
+                    className="h-auto rounded-full px-3 py-1.5 text-label font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
                   >
                     Reset
                   </Button>
@@ -624,7 +624,7 @@ export default function ProfilePage() {
                     type="button"
                     variant="outline"
                     onClick={() => bannerInputRef.current?.open()}
-                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
                   >
                     <UploadCloud size={14} /> Upload
                   </Button>
@@ -642,7 +642,7 @@ export default function ProfilePage() {
                       setBannerFile(null);
                       setRemoveBanner(false);
                     }}
-                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
                   >
                     Random
                   </Button>
@@ -655,7 +655,7 @@ export default function ProfilePage() {
                       setRemoveBanner(true);
                     }}
                     disabled={isUsingDefaultBanner}
-                    className="h-auto rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
+                    className="h-auto rounded-full px-3 py-1.5 text-label font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
                   >
                     Reset
                   </Button>
@@ -709,7 +709,7 @@ export default function ProfilePage() {
                   variant="outline"
                   onClick={() => generateQuoteMutation.mutate()}
                   disabled={generateQuoteMutation.isPending}
-                  className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-foreground hover:bg-muted disabled:opacity-70"
+                  className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest text-foreground hover:bg-muted disabled:opacity-70"
                 >
                   {generateQuoteMutation.isPending ? (
                     <Spinner size="sm" />
@@ -726,7 +726,7 @@ export default function ProfilePage() {
                     setRemoveQuote(true);
                   }}
                   disabled={isUsingDefaultQuote}
-                  className="h-auto rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
+                  className="h-auto rounded-full px-3 py-1.5 text-label font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
                 >
                   Reset
                 </Button>

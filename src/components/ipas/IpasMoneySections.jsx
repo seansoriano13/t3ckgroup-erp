@@ -8,6 +8,7 @@ import { SelectField } from "../ui/SelectField";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
+import { useEditable } from "./record/sectionChrome";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -17,12 +18,13 @@ import {
   IPAS_LANDED_COST_STATUS,
   IPAS_OPTION_LIST,
   IPAS_PAYMENT_KIND_LABELS,
+  ipasSectionLabel,
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
 import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
 import { isPhpCurrency } from "../../utils/landedCost";
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const HEAD = "text-label font-bold uppercase tracking-wider";
 
 const SPLIT_OPTIONS = IPAS_LANDED_COST_SPLITS.map((value) => ({
   value,
@@ -44,14 +46,16 @@ const pesos = (value) => formatAmount(value, "PHP");
  */
 export function IpasPaymentsBlock({
   ipas,
-  canChange = false,
-  canRecord = false,
+  canChange: changeGranted = false,
+  canRecord: recordGranted = false,
   onEditAmount,
   onPickFreight,
   onAddPayment,
   onEditPayment,
   onRemovePayment,
 }) {
+  const canChange = useEditable(changeGranted);
+  const canRecord = useEditable(recordGranted);
   const { payments, paymentSummary: sum, currency, landedCost } = ipas;
   const isPhp = isPhpCurrency(currency);
   const freightOptions = [
@@ -135,18 +139,18 @@ export function IpasPaymentsBlock({
             <TableBody>
               {payments.map((payment) => (
                 <TableRow key={payment.id} data-testid="ipas-payment-row">
-                  <TableCell className="text-[13px] font-medium text-foreground">
+                  <TableCell className="text-sm font-medium text-foreground">
                     <span className="inline-flex flex-wrap items-center gap-2">
                       {IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind}
                       {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
                     </span>
                   </TableCell>
                   <TableCell className="text-xs tabular-nums text-muted-foreground">{formatDay(payment.paid_on)}</TableCell>
-                  <TableCell className="text-right text-xs font-semibold tabular-nums">
+                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
                     {formatAmount(payment.amount, currency)}
                   </TableCell>
                   {!isPhp && (
-                    <TableCell className="text-right text-xs tabular-nums">
+                    <TableCell className="text-right font-mono text-xs tabular-nums">
                       {payment.php_debited === null ? (
                         <span className="text-amber-11">Missing</span>
                       ) : (
@@ -154,13 +158,13 @@ export function IpasPaymentsBlock({
                       )}
                     </TableCell>
                   )}
-                  <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                  <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
                     {payment.charge_fee_php ? pesos(payment.charge_fee_php) : "—"}
                   </TableCell>
                   <TableCell className="text-xs text-foreground">
                     {payment.methodLabel ?? "—"}
                     {payment.check_no && (
-                      <span className="block text-[11px] text-muted-foreground">Check No. {payment.check_no}</span>
+                      <span className="block text-xs text-muted-foreground">Check No. {payment.check_no}</span>
                     )}
                   </TableCell>
                   <TableCell className="text-xs">
@@ -178,10 +182,10 @@ export function IpasPaymentsBlock({
                   </TableCell>
                   {canRecord && (
                     <TableCell className="text-right">
-                      <span className="inline-flex items-center gap-1">
+                      <span className="inline-flex items-center gap-2">
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon"
                           aria-label={`Edit ${IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? "payment"} of ${formatDay(payment.paid_on)}`}
                           onClick={() => onEditPayment(payment)}
                         >
@@ -189,7 +193,7 @@ export function IpasPaymentsBlock({
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon"
                           className="text-muted-foreground hover:text-red-11"
                           aria-label={`Remove ${IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? "payment"} of ${formatDay(payment.paid_on)}`}
                           onClick={() => onRemovePayment(payment)}
@@ -208,7 +212,7 @@ export function IpasPaymentsBlock({
               Total debited, including charge fees
               {sum.missingPhp > 0 && ` · ${sum.missingPhp} payment${sum.missingPhp === 1 ? "" : "s"} without PHP debited`}
             </span>
-            <span className="font-semibold tabular-nums">{pesos(sum.totalDebitedPhp)}</span>
+            <span className="font-mono font-semibold tabular-nums">{pesos(sum.totalDebitedPhp)}</span>
           </div>
         </div>
       )}
@@ -222,17 +226,18 @@ export function IpasPaymentsBlock({
  */
 export function IpasChargesSection({
   ipas,
-  canRecord = false,
+  canRecord: recordGranted = false,
   onAddCharge,
   onEditCharge,
   onRemoveCharge,
   children = null,
 }) {
+  const canRecord = useEditable(recordGranted);
   const { charges, paymentSummary: sum } = ipas;
 
   return (
     <IpasSection
-      title="3 · Purchasing & Finance"
+      title={ipasSectionLabel("finance")}
       aside={charges.length > 0 ? <span>Charges: {pesos(sum.chargesPhp)}</span> : null}
     >
       <SectionHeader title="Importation charges" className="pb-2">
@@ -264,15 +269,15 @@ export function IpasChargesSection({
             <TableBody>
               {charges.map((charge) => (
                 <TableRow key={charge.id} data-testid="ipas-charge-row">
-                  <TableCell className="text-[13px] font-medium text-foreground">{charge.kindLabel ?? "—"}</TableCell>
+                  <TableCell className="text-sm font-medium text-foreground">{charge.kindLabel ?? "—"}</TableCell>
                   <TableCell className="text-xs tabular-nums text-muted-foreground">{formatDay(charge.charged_on)}</TableCell>
-                  <TableCell className="text-right text-xs font-semibold tabular-nums">{pesos(charge.amount_php)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">{pesos(charge.amount_php)}</TableCell>
                   {canRecord && (
                     <TableCell className="text-right">
-                      <span className="inline-flex items-center gap-1">
+                      <span className="inline-flex items-center gap-2">
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon"
                           aria-label={`Edit ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
                           onClick={() => onEditCharge(charge)}
                         >
@@ -280,7 +285,7 @@ export function IpasChargesSection({
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon"
                           className="text-muted-foreground hover:text-red-11"
                           aria-label={`Remove ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
                           onClick={() => onRemoveCharge(charge)}
@@ -296,7 +301,7 @@ export function IpasChargesSection({
           </Table>
           <div className="flex justify-between gap-3 border-t border-border bg-muted/20 px-4 py-2 text-xs">
             <span className="text-muted-foreground">Total charges</span>
-            <span className="font-semibold tabular-nums">{pesos(sum.chargesPhp)}</span>
+            <span className="font-mono font-semibold tabular-nums">{pesos(sum.chargesPhp)}</span>
           </div>
         </div>
       )}
@@ -322,17 +327,15 @@ export function LandedCostBadge({ status }) {
  * complete, Checked by; set by Purchasing) and Landed Cost per line and per
  * unit with its provisional or final mark and how it was spread.
  */
-export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSetSplit }) {
+export function IpasCostingSection({ ipas, canChange: granted = false, onSetStatus, onSetSplit }) {
+  const canChange = useEditable(granted);
   const lc = ipas.landedCost;
   const currentIndex = IPAS_COMPUTATION_STATUSES.indexOf(ipas.computationStatus);
   const unavailable = lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE;
   const foreign = lc.isForeign;
 
   return (
-    <IpasSection
-      title="6 · Computation status & Landed Cost"
-      aside={<LandedCostBadge status={lc.status} />}
-    >
+    <IpasSection title={ipasSectionLabel("costing")}>
       <div className="space-y-4">
         <div>
           <SectionHeader title="Computation status" className="pb-2" />
@@ -345,7 +348,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                   {canChange ? (
                     <Button
                       size="sm"
-                      variant={current ? "default" : "outline"}
+                      variant={current ? "secondary" : "outline"}
                       aria-pressed={current}
                       className="gap-1.5"
                       onClick={() => !current && onSetStatus(status)}
@@ -372,9 +375,6 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
               );
             })}
           </ol>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Landed Cost reads provisional until Costs complete, then final.
-          </p>
         </div>
 
         <div className="space-y-3">
@@ -402,7 +402,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
           {unavailable ? (
             <div
               role="status"
-              className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-[13px]"
+              className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm"
             >
               <CircleAlert size={16} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
               <div>
@@ -445,28 +445,28 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                   <TableBody>
                     {lc.lines.map((line, index) => (
                       <TableRow key={line.lineId ?? index} data-testid="ipas-landed-line">
-                        <TableCell className="max-w-[18rem] whitespace-pre-line text-[13px] text-foreground">
+                        <TableCell className="max-w-[18rem] whitespace-pre-line text-sm text-foreground">
                           {line.name}
                         </TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">
+                        <TableCell className="text-right font-mono text-xs tabular-nums">
                           {line.quantity} {line.unit}
                         </TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">
+                        <TableCell className="text-right font-mono text-xs tabular-nums">
                           {pesos(line.unitPricePhp)}
                           {foreign && (
-                            <span className="block text-[11px] text-muted-foreground">
+                            <span className="block text-xs text-muted-foreground">
                               {formatAmount(line.unitPriceForeign, lc.currency)}
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{pesos(line.goodsPhp)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                        <TableCell className="text-right font-mono text-xs tabular-nums">{pesos(line.goodsPhp)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
                           {pesos(line.spreadPhp)}
                         </TableCell>
-                        <TableCell className="text-right text-xs font-semibold tabular-nums">
+                        <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
                           {pesos(line.landedPhp)}
                         </TableCell>
-                        <TableCell className="text-right text-xs font-semibold tabular-nums">
+                        <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
                           {pesos(line.landedPerUnitPhp)}
                         </TableCell>
                       </TableRow>
@@ -478,7 +478,7 @@ export function IpasCostingSection({ ipas, canChange = false, onSetStatus, onSet
                     Goods {pesos(lc.totals.goodsPhp)} + charges {pesos(lc.totals.chargesPhp)} + charge fees{" "}
                     {pesos(lc.totals.chargeFeesPhp)} + shipping fees {pesos(lc.totals.shippingFeesPhp)}
                   </span>
-                  <span className="font-semibold tabular-nums">{pesos(lc.totals.landedPhp)}</span>
+                  <span className="font-mono font-semibold tabular-nums">{pesos(lc.totals.landedPhp)}</span>
                 </div>
               </div>
             </>

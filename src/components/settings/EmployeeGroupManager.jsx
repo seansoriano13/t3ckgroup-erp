@@ -189,7 +189,7 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-foreground">
               {group.name}
-              {isArchived && <span className="ml-2 text-[10px] font-semibold uppercase text-muted-foreground">Archived</span>}
+              {isArchived && <span className="ml-2 text-label font-semibold uppercase text-muted-foreground">Archived</span>}
             </p>
             <p className="truncate text-xs text-muted-foreground">
               {group.memberIds.length} {group.memberIds.length === 1 ? "person" : "people"}

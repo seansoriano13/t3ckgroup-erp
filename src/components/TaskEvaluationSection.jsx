@@ -68,7 +68,7 @@ export default function TaskEvaluationSection({
                   </span>
                 </div>
                 {task.evaluatedById === task.loggedById && (
-                  <span className="px-2 py-0.5 rounded-full bg-purple-900/20 text-plum-9 text-[10px] font-black uppercase tracking-widest border border-purple-500/30">
+                  <span className="px-2 py-0.5 rounded-full bg-purple-900/20 text-plum-9 text-label font-black uppercase tracking-widest border border-purple-500/30">
                     Self-Verified
                   </span>
                 )}

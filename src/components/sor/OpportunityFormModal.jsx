@@ -507,7 +507,7 @@ export default function OpportunityFormModal({
 
         <div className="pt-2 border-t border-border/50 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            <p className="text-label font-bold text-muted-foreground uppercase tracking-widest">
               Ownership
             </p>
             {(!form.deal_owner_id || !effectiveSalesDirectorId || (form.project_type === "STRATEGIC" && !form.closing_sales_id)) && (

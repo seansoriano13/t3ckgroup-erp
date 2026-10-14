@@ -78,9 +78,9 @@ const signoff = (ipasId, section, role, signedBy, over = {}) =>
   });
 const onList = (listKey, ...people) => people.forEach((p) => db.seed("ipas_signer_lists", { list_key: listKey, employee_id: p.id }));
 
-function renderDetail(id) {
+function renderDetail(id, section, param = "open") {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}${section ? `?${param}=${section}` : ""}`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />
@@ -149,12 +149,12 @@ describe("IPAS section 7 and Filing", () => {
       signoff(row.id, 1, "approved", boss);
       signIn(receiver);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
 
       const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).getAllByText("Opens once sections 1 and 3 are approved.")).toHaveLength(4);
+      expect(within(filing).getAllByText("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved.")).toHaveLength(4);
       expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.getByText("Waiting for sections 1 and 3")).toBeInTheDocument();
+      expect(screen.getAllByText("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved").length).toBeGreaterThan(0);
     });
 
     it("offers Received to its list, then Noted and Checked, each only to its own list", async () => {
@@ -163,12 +163,13 @@ describe("IPAS section 7 and Filing", () => {
       signIn(receiver);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
-      const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).getByRole("button", { name: /Receive/ })).toBeInTheDocument();
-      expect(within(filing).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
+      renderDetail(row.id, "filing");
+      // The drawer's footer carries the step; the card repeats it.
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      expect(within(drawer).getByRole("button", { name: /Receive/ })).toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
 
-      await user.click(within(filing).getByRole("button", { name: /Receive/ }));
+      await user.click(within(drawer).getByRole("button", { name: /Receive/ }));
 
       await waitFor(() =>
         expect(within(screen.getByTestId("ipas-signoff-7-received")).getByText("Rita Receiver")).toBeInTheDocument(),
@@ -188,10 +189,11 @@ describe("IPAS section 7 and Filing", () => {
       signIn(noter);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
-      await user.click(await within(await screen.findByTestId("ipas-filing")).findByTestId("ipas-send-back-7"));
+      renderDetail(row.id, "filing");
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      await user.click(within(drawer).getByRole("button", { name: "Send section 4 · Filing back" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: "Send section 4 · Filing back?" });
       const submit = within(dialog).getByRole("button", { name: "Send back" });
       expect(submit).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Landed cost is off");
@@ -209,21 +211,22 @@ describe("IPAS section 7 and Filing", () => {
     });
 
     it("offers no Send back before Received, to someone on no list, or on a filed IPAS", async () => {
+      const sendBack = /Send section 4 · Filing back/;
       const early = ipas();
       approvedFirstSections(early);
       signIn(noter);
-      const { unmount } = renderDetail(early.id);
-      await screen.findByTestId("ipas-filing");
-      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
+      const { unmount } = renderDetail(early.id, "filing");
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      expect(within(drawer).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
       unmount();
 
       const given = ipas();
       approvedFirstSections(given);
       signoff(given.id, 7, "received", receiver);
       signIn(superAdmin, { superAdmin: true });
-      const second = renderDetail(given.id);
-      await screen.findByTestId("ipas-filing");
-      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
+      const second = renderDetail(given.id, "filing");
+      const drawer2 = await screen.findByRole("dialog", { name: "4 · Filing" });
+      expect(within(drawer2).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
       second.unmount();
 
       const filed = ipas({ state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
@@ -231,9 +234,10 @@ describe("IPAS section 7 and Filing", () => {
       givenThroughChecked(filed);
       signoff(filed.id, 7, "approved", boss);
       signIn(noter);
-      renderDetail(filed.id);
+      renderDetail(filed.id, "filing");
       await screen.findByTestId("ipas-filed-notice");
-      expect(screen.queryByTestId("ipas-send-back-7")).not.toBeInTheDocument();
+      const drawer3 = await screen.findByRole("dialog", { name: "4 · Filing" });
+      expect(within(drawer3).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
     });
 
     it("offers a person on neither list nothing, and a Super Admin off the lists the same", async () => {
@@ -241,7 +245,7 @@ describe("IPAS section 7 and Filing", () => {
       approvedFirstSections(row);
       signIn(superAdmin, { superAdmin: true });
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
 
       const filing = await screen.findByTestId("ipas-filing");
       expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
@@ -253,7 +257,7 @@ describe("IPAS section 7 and Filing", () => {
       givenThroughChecked(row);
       signIn(boss);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
 
       const filing = await screen.findByTestId("ipas-filing");
       expect(within(filing).queryByRole("button", { name: "Approve and file" })).not.toBeInTheDocument();
@@ -268,10 +272,11 @@ describe("IPAS section 7 and Filing", () => {
       signIn(boss);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
-      await user.click(await screen.findByRole("button", { name: "Approve and file" }));
+      renderDetail(row.id, "filing");
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
       const warnings = await within(dialog).findByTestId("ipas-filing-warnings");
       expect(within(warnings).getByText("1 required document isn't ticked")).toBeInTheDocument();
       expect(within(warnings).getByText("Quotation (Local)")).toBeInTheDocument();
@@ -292,10 +297,11 @@ describe("IPAS section 7 and Filing", () => {
       signIn(boss);
       const user = userEvent.setup();
 
-      renderDetail(row.id);
-      await user.click(await screen.findByRole("button", { name: "Approve and file" }));
+      renderDetail(row.id, "filing");
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
       expect(await within(dialog).findByText("Every required document is ticked.")).toBeInTheDocument();
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
       await user.click(within(dialog).getByRole("button", { name: "Approve and file" }));
@@ -311,13 +317,16 @@ describe("IPAS section 7 and Filing", () => {
       // The page thinks the viewer may approve; the database says costs aren't complete.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoded";
       const user = userEvent.setup();
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
       // Offered from a stale read: Costs complete here, then the status moves underneath.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "costs_complete";
-      await user.click(await screen.findByRole("button", { name: "Approve and file" }));
+      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoding";
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
       await user.click(await within(dialog).findByRole("button", { name: /Approve and file|File anyway/ }));
+      // The dialog closes on the failure; the error waits at the footer's move, with Retry.
+      expect(await within(drawer).findByRole("alert")).toHaveTextContent(/can't be filed until Costs complete/);
 
       await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/can't be filed until Costs complete/)));
       expect(toastError.mock.calls.at(-1)[0]).not.toMatch(/ipas_sign|55000/);
@@ -337,7 +346,7 @@ describe("IPAS section 7 and Filing", () => {
       const row = filedRow();
       signIn(purchaser);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "filing");
 
       const notice = await screen.findByTestId("ipas-filed-notice");
       expect(within(notice).getByText(/^Filed /)).toBeInTheDocument();
@@ -386,11 +395,11 @@ describe("IPAS section 7 and Filing", () => {
       ]);
       signIn(purchaser);
 
-      renderDetail(row.id);
+      renderDetail(row.id, "history");
 
-      expect(await screen.findByText("Section 7 approved · Costs complete")).toBeInTheDocument();
+      expect(await screen.findByText("Section 4 · Filing approved · Costs complete")).toBeInTheDocument();
       expect(screen.getByText("1 added")).toBeInTheDocument();
-      expect(screen.getByText("“Charges were misread” · cleared section 7: approved, checked")).toBeInTheDocument();
+      expect(screen.getByText("“Charges were misread” · cleared section 4 · Filing: approved, checked")).toBeInTheDocument();
     });
 
     it("lets a Super Admin reopen it with a required reason, and the edit controls come back", async () => {
@@ -413,8 +422,11 @@ describe("IPAS section 7 and Filing", () => {
       expect(cleared.map((s) => s.role).sort()).toEqual(["approved", "checked", "noted", "received"]);
       expect(cleared.every((s) => s.cleared_reason === "Reopened: Charges were misread")).toBe(true);
       // Sections 1 and 3 stay approved; section 7 starts from Received again.
-      expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument();
-      expect(screen.getByTestId("ipas-signoff-history-7")).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
+      expect(within(await screen.findByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      await user.click(await screen.findByRole("button", { name: /^4 · Filing/ }));
+      expect(await screen.findByTestId("ipas-signoff-history-7")).toBeInTheDocument();
     });
   });
 

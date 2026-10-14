@@ -450,7 +450,7 @@ function BoardColumn({
   return (
     <div className="flex min-w-[264px] w-[264px] shrink-0 flex-col">
       {bracketHeader && (
-        <p className="mb-1 truncate px-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+        <p className="mb-1 truncate px-1 text-label font-black uppercase tracking-widest text-muted-foreground">
           {bracketHeader}
         </p>
       )}

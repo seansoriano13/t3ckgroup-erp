@@ -260,7 +260,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
           <div className="px-4 pt-3 pb-4 pl-10">
             {activeTab === "all" ? (
               <>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+                <p className="text-label font-semibold text-muted-foreground uppercase tracking-widest mb-2">
                   Shared answer (shown to all roles without a custom answer)
                 </p>
                 <AutoTextarea
@@ -289,7 +289,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                   {shared ? (
                     /* Preview of shared answer */
                     <div className="bg-muted/40 rounded-lg px-3 py-2.5 border border-border/50">
-                      <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1">Shared preview</p>
+                      <p className="text-label text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1">Shared preview</p>
                       <p className="text-sm text-muted-foreground/60 leading-relaxed italic">
                         {item.a || "(No shared answer written yet — edit the All Roles tab)"}
                       </p>
@@ -584,7 +584,7 @@ export default function FAQEditorPage() {
           {/* Sidebar */}
           <div className="w-56 shrink-0 border-r border-border bg-muted/10 flex flex-col overflow-hidden">
             <div className="px-3 pt-4 pb-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground px-1 mb-2">
+              <p className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground px-1 mb-2">
                 Categories
               </p>
             </div>

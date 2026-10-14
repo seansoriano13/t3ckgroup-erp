@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Textarea } from "@/components/ui/textarea";
+import InlineError from "@/components/ipas/record/InlineError";
+import { ipasErrorMessage } from "@/utils/ipas";
 
 /**
  * Sending a section back (#247) or reopening a filed IPAS (#248): the reason is
@@ -19,6 +21,9 @@ import { Textarea } from "@/components/ui/textarea";
  * when it resolves, and the caller words a failure (a toast). It is mounted
  * only while open, so it always starts empty. The wording defaults to sending
  * back; `placeholder`, `submitLabel` and `busyLabel` change it.
+ *
+ * `inlineError`: on a failure the dialog stays open and says why in itself too,
+ * with Retry (the same reason, submitted again) and Dismiss, alongside the toast.
  */
 export default function SendBackDialog({ open, onOpenChange, ...body }) {
   return (
@@ -36,18 +41,22 @@ function Body({
   placeholder = "What does the preparer need to fix?",
   submitLabel = "Send back",
   busyLabel = "Sending back…",
+  inlineError = false,
 }) {
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState(null);
   const trimmed = reason.trim();
 
   const submit = async () => {
     setSaving(true);
+    setFailure(null);
     try {
       await onSubmit(trimmed);
       onClose();
-    } catch {
+    } catch (error) {
       // The caller toasts; keep the dialog open so the reason isn't lost.
+      if (inlineError) setFailure(ipasErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -70,6 +79,10 @@ function Body({
           autoFocus
         />
       </FieldBox>
+
+      {failure && (
+        <InlineError message={failure} busy={saving} onRetry={submit} onDismiss={() => setFailure(null)} />
+      )}
 
       <DialogFooter>
         <Button variant="outline" size="lg" onClick={onClose}>

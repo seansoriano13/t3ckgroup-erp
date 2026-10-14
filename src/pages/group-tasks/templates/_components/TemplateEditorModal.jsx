@@ -251,7 +251,7 @@ export default function TemplateEditorModal({
                   </div>
 
                   <div className="flex flex-col shrink-0">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                    <span className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                       Due In (Days)
                     </span>
                     <Input

@@ -44,7 +44,7 @@ typography:
     lineHeight: 1.5
   label:
     fontFamily: "Plus Jakarta Sans, sans-serif"
-    fontSize: "10px"
+    fontSize: "11px"
     fontWeight: 700
     letterSpacing: "0.05em"
   figure:
@@ -128,7 +128,7 @@ Light and dark themes are both first-class. Radix's `.dark` scale swaps every st
 **Key Characteristics:**
 - Mauve neutral field (Radix `mauve` 1–12) and a single brand accent (Radix `red`)
 - Plus Jakarta Sans throughout, with weight rather than family carrying hierarchy
-- Tiny uppercase tracked labels (10–11px bold) as the connective tissue of every record
+- Tiny uppercase tracked labels (11px bold) as the connective tissue of every record
 - Softly rounded geometry (12px base radius) and pill-shaped chips
 - Flat-leaning surfaces with borders first and small shadows as state
 - Dark mode via Radix scale swap, with no per-component color overrides
@@ -175,7 +175,7 @@ Green, amber, blue, violet, orange, and red Radix scales are imported for **Stat
 - **Headline** (900, 1.25rem → 1.5rem): section headers inside a page.
 - **Title** (500–600, 1rem): card titles, modal titles.
 - **Body** (500, 0.875rem; 13px in dense lists): record content, descriptions (max width ~42rem in headers).
-- **Label** (700–900, 10–11px, uppercase, `tracking-wider`/`tracking-widest`): field keys, status badges, sidebar group names, date-picker headers. This is the most-used style in the app and appears in roughly 150 files.
+- **Label** (700–900, 11px, uppercase, `tracking-wider`/`tracking-widest`): field keys, status badges, sidebar group names, date-picker headers. Set it with the `text-label` utility (`--text-label` in `src/index.css`), never a hardcoded `text-[10px]` for an uppercase key label. Other 10px text is out of scope for this rule and is not being migrated here. This is the most-used style in the app and appears in roughly 150 files.
 - **Figure** (mono, 12px): record numbers, amounts, and version badges (`vX.Y`) where a machine is accountable for the value.
 
 ### Named Rules
@@ -221,8 +221,9 @@ Compact, confident, and quiet unless they are *the* action.
 - **Disabled:** 50% opacity with no pointer events.
 
 ### Chips and badges
-- **StatusBadge:** a pill (2px 8px) in the card color with a status-colored border and text, 10px bold uppercase tracked. Mauve is the fallback for unknown statuses.
+- **StatusBadge:** a pill (2px 8px) in the card color with a status-colored border and text, 11px bold uppercase tracked (`text-label`). Text uses Radix step 11 (step 12 for green, amber, and orange, which fall short of 4.5:1 at 11) so it passes 4.5:1 on the card. Mauve is the fallback for unknown statuses.
 - **PropertyPill:** a round pill with a border, 12px medium muted text. It darkens on hover, and its active state takes the muted fill and semibold text.
+- **State dot:** a small `Dot` (6–8px) may sit beside text in list rows and tabs to show state. It is never a pill: StatusBadge stays the only status pill. The dot always sits beside a visible state word and never carries the state alone.
 
 ### Cards / Containers
 - **Corner Style:** 16.8px (`xl`).
@@ -287,7 +288,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/switch.jsx`. On/off toggle. Props: `size`, plus base-ui switch props (`checked`, `onCheckedChange`, `disabled`).
 
 #### Checkbox
-`ui/checkbox.jsx`. Replaces raw `<input type="checkbox">`; a tick box, not the on/off Switch. Props: base-ui checkbox props (`checked`, `onCheckedChange`, `disabled`). Wrap in a label for a text target, or pass `aria-label`.
+`ui/checkbox.jsx`. Replaces raw `<input type="checkbox">`; a tick box, not the on/off Switch. Props: `tone` (`primary`, the default; `neutral`, a mauve-12 tick for a neutral surface), plus base-ui checkbox props (`checked`, `onCheckedChange`, `disabled`). Wrap in a label for a text target, or pass `aria-label`.
 
 #### FileInput
 `ui/FileInput.jsx`. Replaces raw `<input type="file">`; owns the hidden input and its trigger. Props: `accept`, `multiple`, `disabled`, `onFiles(files[])`, `onCancel`, `variant`/`size`/`className` and any other props for the trigger Button. With `children` it renders a Button trigger; without, only the hidden input, opened via `ref.current.open()` from a trigger elsewhere.
@@ -426,7 +427,7 @@ These are UI terms. They do not belong in CONTEXT.md.
 
 ### Route → page type
 - **Queue**: Task Approvals, HR Verifications, Leave Approvals, IPAS Sign-offs (`/approvals/ipas`; the four Approval Center routes), Procurement Queue, Bug Reports, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
-- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log, IPAS (`/purchasing/ipas`; each IPAS opens as its own record page at `/purchasing/ipas/[id]`, a Register detail whose numbered sections stack in the Centred frame).
+- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log, IPAS (`/purchasing/ipas`; each IPAS opens as its own record page at `/purchasing/ipas/[id]`, the Decider layout: the overview holds the figures and the sections as rows, with a "Your move" decision card beside them (the chain sits behind a toggle below the wide breakpoint). A section opens in a slide-over drawer with its moves pinned in the footer; a section's edit view replaces the overview in the page, at `?edit=`).
 - **Report**: Commission Dashboard, Retail, Dashboard, SOR Register → Overview view.
 - **Config**: Settings (its Purchasing tab holds the IPAS option lists and, for Super Admins, the sign-off lists and the history of who changed them; the old `/purchasing/ipas/settings` redirects there), Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
 - **Tool**: Flow Canvas, Document Center (a view in the Leaves Manager), Release Notes.
@@ -460,7 +461,7 @@ Compact is the only title size, last word in Signal Red. The large variant is re
 
 ### Container rule
 Pick by what the person is doing.
-- **Slide-over** (from the right): looking at or deciding on a record picked from a list. Has previous/next with a position count, "Open full" when a RecordModal exists, a scrolling body, and a pinned decision footer. The open record lives in the URL query. Never holds a long form; longer edits open a modal from it.
+- **Slide-over** (from the right): looking at or deciding on a record picked from a list. Has previous/next with a position count, "Open full" when a RecordModal exists, a scrolling body, and a pinned decision footer. The open record lives in the URL query. Never holds a long form; longer edits open a modal from it. A record's section drawer (the IPAS record page) omits the position count: its sections are not a list to count through.
 - **Modal**: a short make or confirm step ending in Save/Cancel (Register SOR, New Template, Apply Leave / OT, Add Employee, confirmations).
 - **RecordModal**: SOR, Individual Task, Group Task, the records that carry a Chat. One size (16px inset, 1400px max width, rounded, dimmed backdrop), no size switcher. Reached from a slide-over's "Open full" or directly where that is the existing entry.
 
@@ -493,7 +494,7 @@ Sentence-case title with an optional one-line description. Uppercase tracked lab
 - **Do** write color as Radix steps or semantic tokens (`bg-muted`, `border-mauve-6`, `text-muted-foreground`) so dark mode follows for free.
 - **Do** reserve Signal Red for the primary or destructive action on a surface and for the selected canvas edge (ADR 0009, `no-primary-decoration`).
 - **Do** use a Primitive from the catalog above, never raw HTML for a covered element. If none fits, stop and ask.
-- **Do** label record fields with the 10–11px bold uppercase tracked label, and set audited figures (amounts, record numbers, `vX.Y`) in monospace.
+- **Do** label record fields with the 11px bold uppercase tracked label, and set audited figures (amounts, record numbers, `vX.Y`) in monospace.
 - **Do** keep motion between 150 and 400ms on `cubic-bezier(0.16, 1, 0.3, 1)`, and keep the global reduced-motion guard intact.
 
 ### Don't:

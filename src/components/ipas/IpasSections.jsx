@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -24,14 +25,27 @@ import {
   IPAS_SOURCE_LABELS,
   IPAS_WARNING,
   ODOO_PO_STATE_LABELS,
+  ipasSectionLabel,
 } from "../../constants/ipas";
 import { changeNoteSummary, formatAmount } from "../../utils/ipas";
 import { buildBuyerTrack } from "../../utils/ipasDocuments";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatDate } from "../../utils/formatDate.js";
+import ReadTick from "./record/ReadTick";
+import { useBare, useEditable, useInDrawer } from "./record/sectionChrome";
 
 /** One numbered section of the IPAS, as the sheet draws it. */
 export function IpasSection({ title, aside, children }) {
+  // In the drawer and in place the row or drawer header already names the section: no card frame, no title.
+  const bare = useBare();
+  if (bare) {
+    return (
+      <section>
+        {aside && <div className="mb-3 text-xs text-muted-foreground">{aside}</div>}
+        {children}
+      </section>
+    );
+  }
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-card">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2.5">
@@ -46,7 +60,7 @@ export function IpasSection({ title, aside, children }) {
 /** The mark every value read from Odoo carries (the printed form's "● Odoo"). */
 export function OdooMark({ children = "Odoo" }) {
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
       <span className="size-1.5 rounded-full bg-blue-9" aria-hidden="true" />
       {children}
     </span>
@@ -138,8 +152,10 @@ function TypedRow({ label, value, fromOdoo, canChange, onEdit }) {
  * open), an S-number mismatch, a filed IPAS whose PO has since changed, and an
  * Odoo that didn't answer. None of them changes the IPAS.
  */
-export function IpasWarnings({ ipas, refresh }) {
+export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
   const banners = [];
+  // The Odoo-didn't-answer banner can be dismissed; the page keeps the stored copy either way.
+  const [refreshDismissed, setRefreshDismissed] = useState(false);
 
   for (const warning of ipas.warnings ?? []) {
     if (warning.code === IPAS_WARNING.PO_CANCELLED_IN_ODOO) {
@@ -169,10 +185,12 @@ export function IpasWarnings({ ipas, refresh }) {
     }
   }
 
-  if (refresh && refresh.ok === false) {
+  if (refresh && refresh.ok === false && !refreshDismissed) {
     banners.push({
       key: "refresh",
       tone: "amber",
+      alert: true,
+      onDismiss: () => setRefreshDismissed(true),
       icon: CloudOff,
       title:
         refresh.reason === IPAS_ERROR.PO_NOT_FOUND
@@ -181,6 +199,7 @@ export function IpasWarnings({ ipas, refresh }) {
             ? "Odoo didn't answer"
             : "The Odoo copy couldn't be refreshed",
       body: `Showing the last copy${refresh.fetchedAt ? `, fetched ${formatDate(refresh.fetchedAt)}` : ""}.`,
+      retry: true,
     });
   }
 
@@ -188,19 +207,33 @@ export function IpasWarnings({ ipas, refresh }) {
 
   return (
     <div className="space-y-2">
-      {banners.map(({ key, tone, icon: Icon = CircleAlert, title, body }) => (
+      {banners.map(({ key, tone, alert, onDismiss, icon: Icon = CircleAlert, title, body, retry }) => (
         <div
           key={key}
-          role="status"
-          className={`flex items-start gap-2 rounded-xl border p-3 text-[13px] ${
-            tone === "red" ? "border-red-400 bg-red-3/40 text-red-11" : "border-amber-400 bg-amber-3/40 text-amber-11"
+          role={alert ? "alert" : "status"}
+          className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3 text-sm ${
+            tone === "red" ? "border-red-7 bg-red-3/40 text-red-11" : "border-amber-7 bg-amber-3/40 text-amber-11"
           }`}
         >
-          <Icon size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-          <div>
-            <p className="font-semibold">{title}</p>
-            <p className="mt-0.5 text-xs opacity-90">{body}</p>
+          <div className="flex min-w-0 items-start gap-2">
+            <Icon size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">{title}</p>
+              <p className="mt-0.5 text-xs opacity-90">{body}</p>
+            </div>
           </div>
+          {/* The failed refresh keeps its banner and offers the same refresh again. */}
+          {retry && onRetry && (
+            <Button size="sm" variant="outline" className="shrink-0 gap-1.5 bg-card" disabled={retrying} onClick={onRetry}>
+              <RefreshCw size={14} aria-hidden="true" className={retrying ? "animate-spin" : undefined} />
+              {retrying ? "Retrying…" : "Retry"}
+            </Button>
+          )}
+          {onDismiss && (
+            <Button size="sm" variant="ghost" className="shrink-0" onClick={onDismiss}>
+              Dismiss
+            </Button>
+          )}
         </div>
       ))}
     </div>
@@ -212,7 +245,7 @@ export function IpasChangeNote({ note, currency }) {
   if (!note) return null;
   const money = (value) => formatAmount(value, currency);
   return (
-    <div role="status" className="mb-3 rounded-lg border border-blue-400 bg-blue-3/40 p-3 text-[13px]">
+    <div role="status" className="mb-3 rounded-lg border border-blue-400 bg-blue-3/40 p-3 text-sm">
       <p className="font-semibold text-blue-11">
         Odoo PO changed{note.at ? ` · ${formatDate(note.at)}` : ""}
       </p>
@@ -256,7 +289,8 @@ export function IpasChangeNote({ note, currency }) {
 }
 
 /** Header: Entity, Priority, Source, Purpose, who raised it and when. */
-export function IpasHeaderSection({ ipas, canChange = false, onEditOverride, onResetOverride }) {
+export function IpasHeaderSection({ ipas, canChange: granted = false, onEditOverride, onResetOverride }) {
+  const canChange = useEditable(granted);
   return (
     <IpasSection title="Header">
       <Facts>
@@ -277,14 +311,15 @@ export function IpasHeaderSection({ ipas, canChange = false, onEditOverride, onR
   );
 }
 
-const LINE_HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const LINE_HEAD = "text-label font-bold uppercase tracking-wider";
 
 /**
  * Section 1: the PO and its item lines, as Odoo had them when last fetched.
  * Currency, Supplier, item lines and Brand are read-only: a wrong one is fixed
  * on the PO in Odoo. Contact and P.I # are typed and kept.
  */
-export function IpasPurchasingSection({ ipas, refreshing = false, canChange = false, onEditHeader, children }) {
+export function IpasPurchasingSection({ ipas, refreshing = false, canChange: granted = false, onEditHeader, children }) {
+  const canChange = useEditable(granted);
   const copy = ipas.odoo_copy ?? {};
   const po = copy.po ?? {};
   const total = ipas.lines.reduce((sum, line) => sum + (Number(line.price_subtotal) || 0), 0);
@@ -293,7 +328,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
     <IpasSection
       title={
         <span className="flex flex-wrap items-center gap-2">
-          1 · Purchasing
+          {ipasSectionLabel("purchasing")}
           <span className="font-mono text-xs font-semibold text-muted-foreground">{ipas.po_number}</span>
         </span>
       }
@@ -366,17 +401,17 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
             <TableBody>
               {ipas.lines.map((line) => (
                 <TableRow key={line.line_id}>
-                  <TableCell className="max-w-[22rem] whitespace-pre-line text-[13px] text-foreground">
+                  <TableCell className="max-w-[22rem] whitespace-pre-line text-sm text-foreground">
                     {line.name}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{line.brand || "—"}</TableCell>
-                  <TableCell className="text-right text-xs tabular-nums">
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
                     {line.quantity} {line.unit}
                   </TableCell>
-                  <TableCell className="text-right text-xs tabular-nums">
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
                     {formatAmount(line.price_unit, ipas.currency)}
                   </TableCell>
-                  <TableCell className="text-right text-xs font-semibold tabular-nums">
+                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
                     {formatAmount(line.price_subtotal, ipas.currency)}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
@@ -388,7 +423,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
           </Table>
           <div className="flex justify-between gap-3 border-t border-border bg-muted/20 px-4 py-2 text-xs">
             <span className="text-muted-foreground">Before tax, as Odoo prices the lines</span>
-            <span className="font-semibold tabular-nums">{formatAmount(total, ipas.currency)}</span>
+            <span className="font-mono font-semibold tabular-nums">{formatAmount(total, ipas.currency)}</span>
           </div>
         </div>
       )}
@@ -402,9 +437,11 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
  * Section 2: the SORs it serves, the two plain ticks (Googlesheet, Gantt Chart,
  * #241), and Odoo's Source Document and analytic accounts.
  */
-export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onResetOverride, onTick }) {
+export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverride, onResetOverride, onTick }) {
+  const canChange = useEditable(granted);
+  const inDrawer = useInDrawer();
   return (
-    <IpasSection title="2 · Sales & Operation">
+    <IpasSection title={ipasSectionLabel("sales")}>
       <dl className="divide-y divide-border">
         <DetailRow label="SORs">
           {ipas.sors.length === 0 ? (
@@ -414,7 +451,7 @@ export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onRe
           ) : (
             <ul className="space-y-1">
               {ipas.sors.map((sor) => (
-                <li key={sor.id} className="text-[13px]">
+                <li key={sor.id} className="text-sm">
                   <span className="font-mono font-semibold">{sor.salesReference}</span>
                   <span className="text-muted-foreground">
                     {" "}
@@ -427,20 +464,28 @@ export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onRe
           )}
         </DetailRow>
         <DetailRow label="Googlesheet">
-          <Checkbox
-            checked={ipas.googleSheet}
-            disabled={!canChange}
-            aria-label="Googlesheet"
-            onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
-          />
+          {inDrawer ? (
+            <ReadTick checked={ipas.googleSheet} label="Googlesheet" />
+          ) : (
+            <Checkbox
+              checked={ipas.googleSheet}
+              disabled={!canChange}
+              aria-label="Googlesheet"
+              onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
+            />
+          )}
         </DetailRow>
         <DetailRow label="Gantt Chart">
-          <Checkbox
-            checked={ipas.ganttChart}
-            disabled={!canChange}
-            aria-label="Gantt Chart"
-            onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
-          />
+          {inDrawer ? (
+            <ReadTick checked={ipas.ganttChart} label="Gantt Chart" />
+          ) : (
+            <Checkbox
+              checked={ipas.ganttChart}
+              disabled={!canChange}
+              aria-label="Gantt Chart"
+              onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
+            />
+          )}
         </DetailRow>
         <OverrideRow
           state={ipas.overrides[IPAS_OVERRIDE.SOURCE_DOC]}
@@ -465,10 +510,10 @@ function SourceNote({ item }) {
     case IPAS_STATUS_SOURCE.ODOO:
       return <OdooMark>stamped from Odoo</OdooMark>;
     case IPAS_STATUS_SOURCE.DERIVED:
-      return <span className="text-[11px] font-medium text-muted-foreground">derived from payments</span>;
+      return <span className="text-xs font-medium text-muted-foreground">derived from payments</span>;
     case IPAS_STATUS_SOURCE.TYPED:
       return (
-        <span className="text-[11px] font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           {item.ticked
             ? `typed${item.by?.name ? ` by ${item.by.name}` : ""}${item.at ? ` · ${formatDate(item.at)}` : ""}`
             : "typed by Purchasing"}
@@ -476,7 +521,7 @@ function SourceNote({ item }) {
       );
     case IPAS_STATUS_SOURCE.STAMPED:
       return (
-        <span className="text-[11px] font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           {item.ticked
             ? `stamped${item.by?.name ? ` by ${item.by.name}` : ""}${item.at ? ` · ${formatDate(item.at)}` : ""}`
             : "stamped by Purchasing"}
@@ -492,7 +537,7 @@ function TrackStatus({ item, canChange, onEdit, onStamp, onClearStamp }) {
   const detail = item.on ? formatDay(item.on) : item.detail;
 
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-[13px]" data-testid={`ipas-track-${item.key}`}>
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm" data-testid={`ipas-track-${item.key}`}>
       <span
         className={`grid size-5 shrink-0 place-items-center rounded-full border ${
           ticked
@@ -595,11 +640,12 @@ function SupplierOrigin({ ipas, canChange, onEdit }) {
  *
  *   canChange   Purchasing on an open IPAS: types the dates and stamps
  */
-export function IpasStatusSection({ ipas, canChange = false, onEditOrigin, onEditStatus, onStamp, onClearStamp }) {
+export function IpasStatusSection({ ipas, canChange: granted = false, onEditOrigin, onEditStatus, onStamp, onClearStamp }) {
+  const canChange = useEditable(granted);
   const track = ipas.buyerTrack ?? buildBuyerTrack(ipas, ipas.statuses);
 
   return (
-    <IpasSection title="6 · Status" aside="Each status shows where it came from.">
+    <IpasSection title={ipasSectionLabel("status")} aside="Each status shows where it came from.">
       <div className="space-y-4">
         <SupplierOrigin ipas={ipas} canChange={canChange} onEdit={onEditOrigin} />
         <div>
@@ -732,25 +778,25 @@ function eventDetail(event) {
       return parts.join(", ") || null;
     }
     case "approvals_cleared": {
-      const sections = (detail.sections ?? []).map((s) => `section ${s}`).join(" and ");
+      const sections = (detail.sections ?? []).map((s) => ipasSectionLabel(s)).join(" and ");
       return [detail.reason, sections ? `${sections} back to awaiting approval` : null].filter(Boolean).join(" · ") || null;
     }
     case "signed":
       return [
-        `Section ${detail.section} ${IPAS_SIGNOFF_ROLE_LABELS[detail.role]?.toLowerCase() ?? detail.role}`,
+        `Section ${ipasSectionLabel(detail.section)} ${IPAS_SIGNOFF_ROLE_LABELS[detail.role]?.toLowerCase() ?? detail.role}`,
         detail.signature_declined ? "without a signature" : null,
       ]
         .filter(Boolean)
         .join(" · ");
     case "sent_back":
-      return [`Section ${detail.section}`, detail.reason ? `“${detail.reason}”` : null].filter(Boolean).join(" · ");
+      return [`Section ${ipasSectionLabel(detail.section)}`, detail.reason ? `“${detail.reason}”` : null].filter(Boolean).join(" · ");
     case "filed":
-      return `Section 7 approved · ${IPAS_COMPUTATION_STATUS_LABELS[detail.computation_status] ?? "Costs complete"}`;
+      return `Section ${ipasSectionLabel("filing")} approved · ${IPAS_COMPUTATION_STATUS_LABELS[detail.computation_status] ?? "Costs complete"}`;
     case "reopened": {
       const cleared = (detail.cleared ?? []).map((role) => IPAS_SIGNOFF_ROLE_LABELS[role]?.toLowerCase() ?? role);
       return [
         detail.reason ? `“${detail.reason}”` : null,
-        cleared.length ? `cleared section 7: ${cleared.join(", ")}` : null,
+        cleared.length ? `cleared section ${ipasSectionLabel("filing")}: ${cleared.join(", ")}` : null,
       ]
         .filter(Boolean)
         .join(" · ");
@@ -824,7 +870,7 @@ export function IpasHistorySection({ events }) {
           {events.map((event) => {
             const detail = eventDetail(event);
             return (
-              <li key={event.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 text-[13px]">
+              <li key={event.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 text-sm">
                 <span className="font-medium text-foreground">{IPAS_EVENT_LABELS[event.kind] || event.kind}</span>
                 {detail && <span className="text-muted-foreground">{detail}</span>}
                 <span className="ml-auto text-xs text-muted-foreground">

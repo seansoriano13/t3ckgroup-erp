@@ -11,8 +11,8 @@ import {
   IPAS_BUYER_TRACK_LABELS,
   IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUS_LABELS,
-  IPAS_SECTION_NAMES,
   IPAS_STATE,
+  ipasSectionName,
 } from "../constants/ipas";
 
 /**
@@ -75,7 +75,7 @@ export function signoffProgress(signoffs) {
     const shaped = steps.map(({ role, label }) => ({ role, label, done: live[role] === true }));
     return {
       section: Number(section),
-      name: IPAS_SECTION_NAMES[section] ?? `Section ${section}`,
+      name: ipasSectionName(section) || `Section ${section}`,
       steps: shaped,
       done: shaped.filter((step) => step.done).length,
       total: shaped.length,

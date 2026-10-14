@@ -105,7 +105,7 @@ export default function PersonalPipelineRadar({ selectedRange }) {
 
           <div className="flex items-center gap-6">
             <div className="text-right">
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+              <p className="text-label font-black text-muted-foreground uppercase tracking-widest mb-1">
                 Avg Grade
               </p>
               <div className="flex items-center justify-end gap-1.5 text-blue-9">
@@ -117,7 +117,7 @@ export default function PersonalPipelineRadar({ selectedRange }) {
             <div className="w-px h-8 bg-border"></div>
 
             <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+              <p className="text-label font-black text-muted-foreground uppercase tracking-widest mb-1">
                 Execution
               </p>
               <div className="flex items-center gap-1.5 text-green-9">

@@ -215,13 +215,13 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
           )}
         >
           <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <p className="text-label font-bold tracking-widest text-muted-foreground uppercase">
               What {opportunity?.status ? "this Stage" : "the Stage"} owes
             </p>
             {applicable.length > 0 && (
               <span
                 className={cn(
-                  "shrink-0 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider tabular-nums",
+                  "shrink-0 rounded-md px-2 py-0.5 text-label font-black uppercase tracking-wider tabular-nums",
                   allSatisfied
                     ? "bg-green-9/15 text-green-11"
                     : "bg-amber-9/15 text-amber-11",

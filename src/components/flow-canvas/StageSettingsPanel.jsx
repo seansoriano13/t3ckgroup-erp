@@ -123,7 +123,7 @@ export default function StageSettingsPanel({
     >
       <header className="flex items-start gap-3 border-b border-mauve-5 px-5 py-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
             Stage
           </p>
           {isEditingName && !disabled ? (
@@ -180,7 +180,7 @@ export default function StageSettingsPanel({
         {activeTab === "settings" && (
           <div className="space-y-5 p-5">
             <section className="space-y-2.5">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+              <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                 Role in the flow
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -247,7 +247,7 @@ export default function StageSettingsPanel({
                 It decides whether a deal there counts as Realized or lost. */}
             {stage.is_terminal && !isWon && onSetTerminalOutcome && (
               <section className="space-y-2.5">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                   Deals here end as
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -280,7 +280,7 @@ export default function StageSettingsPanel({
                 made (and read back) without a pointer. */}
             {onAddMove && (
               <section className="space-y-2.5">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                   Deals can move to
                 </h3>
                 {outgoingMoves.length === 0 ? (
@@ -322,7 +322,7 @@ export default function StageSettingsPanel({
             )}
 
             <section className="space-y-2.5">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+              <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                 Color
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -348,7 +348,7 @@ export default function StageSettingsPanel({
             </section>
 
             <section className="space-y-2.5">
-              <h3 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+              <h3 className="flex items-center gap-1.5 text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                 <Tag size={11} /> Bracket
               </h3>
               <p className="text-xs leading-relaxed text-muted-foreground">

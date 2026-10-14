@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
@@ -14,6 +14,8 @@ const toastError = vi.hoisted(() => vi.fn());
 const printer = vi.hoisted(() => ({
   openPrintWindow: vi.fn(),
   printIpas: vi.fn(),
+  // The Preview builds the same document as Print, from the signatures it fetches.
+  hydrateIpasSignatures: vi.fn(),
 }));
 
 vi.mock("@/context/AuthContext", () => ({
@@ -43,6 +45,11 @@ const copy = (po) => ({
 const patchIpas = (id, patch) =>
   updateRow("ipas", db.internal.rowsOf("ipas").find((r) => r.id === id), patch);
 
+// Print and Print filing copy live in the header's More menu.
+const openMore = async (user) => {
+  await user.click(await screen.findByRole("button", { name: /More/ }));
+};
+
 const renderDetail = (id) =>
   renderWithProviders(
     <MemoryRouter initialEntries={[`/purchasing/ipas/${id}`]}>
@@ -58,6 +65,7 @@ describe("IPAS page: print", () => {
   beforeEach(() => {
     printer.openPrintWindow.mockReset();
     printer.printIpas.mockReset();
+    printer.hydrateIpasSignatures.mockReset();
     toastError.mockClear();
     finance = makeEmployee({ name: "Fe Cruz", has_finance_flow: true });
     seedIpasOptions((table, record) => db.seed(table, record));
@@ -85,6 +93,7 @@ describe("IPAS page: print", () => {
     const user = userEvent.setup();
 
     renderDetail(row.id);
+    await openMore(user);
     await user.click(await screen.findByRole("button", { name: "Print" }));
 
     expect(printer.openPrintWindow).toHaveBeenCalledTimes(1);
@@ -104,6 +113,7 @@ describe("IPAS page: print", () => {
     const user = userEvent.setup();
 
     renderDetail(row.id);
+    await openMore(user);
     await user.click(await screen.findByRole("button", { name: "Print filing copy" }));
 
     await waitFor(() => expect(printer.printIpas).toHaveBeenCalledTimes(1));
@@ -111,16 +121,31 @@ describe("IPAS page: print", () => {
   });
 
   it("offers only the plain Print on an open IPAS", async () => {
+    const user = userEvent.setup();
     renderDetail(row.id);
+    await openMore(user);
 
     expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Print filing copy" })).not.toBeInTheDocument();
   });
 
+  it("previews the document that prints, in a dialog with one close", async () => {
+    const user = userEvent.setup();
+    renderDetail(row.id);
+
+    await user.click(await screen.findByRole("button", { name: "Preview" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Print preview" });
+    expect(await within(dialog).findByTitle("Print preview of TGIPAS_050")).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("button", { name: "Close" })).toHaveLength(1);
+  });
+
   it("offers only the plain Print on a cancelled IPAS", async () => {
     patchIpas(row.id, { state: "cancelled", cancelled_at: "2026-10-13T03:00:00.000Z", cancel_reason: "Duplicate" });
+    const user = userEvent.setup();
 
     renderDetail(row.id);
+    await openMore(user);
 
     expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Print filing copy" })).not.toBeInTheDocument();
@@ -129,8 +154,10 @@ describe("IPAS page: print", () => {
   it("offers no filing copy on a filed IPAS to someone who can't read bank details", async () => {
     patchIpas(row.id, { state: "filed", filed_at: "2026-10-13T03:00:00.000Z" });
     stubIpasRpcs({ actorId: finance.id, bankReader: false });
+    const user = userEvent.setup();
 
     renderDetail(row.id);
+    await openMore(user);
 
     expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Print filing copy" })).not.toBeInTheDocument();
@@ -141,6 +168,7 @@ describe("IPAS page: print", () => {
     const user = userEvent.setup();
 
     renderDetail(row.id);
+    await openMore(user);
     await user.click(await screen.findByRole("button", { name: "Print" }));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/popup blocked/i)));
@@ -153,6 +181,7 @@ describe("IPAS page: print", () => {
     const user = userEvent.setup();
 
     renderDetail(row.id);
+    await openMore(user);
     await user.click(await screen.findByRole("button", { name: "Print" }));
 
     await waitFor(() =>

@@ -1,4 +1,4 @@
-import { Check, Circle, CornerUpLeft, FileCheck2 } from "lucide-react";
+import { Check, Circle } from "lucide-react";
 
 import { Button } from "../ui/button";
 import SectionHeader from "../ui/SectionHeader";
@@ -9,16 +9,20 @@ import {
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_SECTION_7_ROLES,
   IPAS_SIGNOFF_ROLE,
-  IPAS_SIGNOFF_ROLE_ACTIONS,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_STATE,
+  ipasSectionLabel,
 } from "../../constants/ipas";
 import { filingChecklist } from "../../utils/ipasDocuments";
 import { FILING_STATUS, isCostsComplete } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
+import { useInDrawer } from "./record/sectionChrome";
+
+/** The two sign-off sections that open section 7, as a person reads them. */
+const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")}`;
 
 const STATUS_BADGE = {
-  [FILING_STATUS.WAITING]: { theme: "mauve", label: "Waiting for sections 1 and 3" },
+  [FILING_STATUS.WAITING]: { theme: "mauve", label: `Waiting for ${OPENING_SECTIONS}` },
   [FILING_STATUS.READY]: { theme: "amber", label: "Ready to receive" },
   [FILING_STATUS.IN_PROGRESS]: { theme: "amber", label: "In progress" },
   [FILING_STATUS.FILED]: { theme: "green", label: "Filed" },
@@ -26,7 +30,7 @@ const STATUS_BADGE = {
 
 /** What each box says while it is empty, from where section 7 stands. */
 function waitingText(role, state) {
-  if (!state.opened) return "Opens once sections 1 and 3 are approved.";
+  if (!state.opened) return `Opens once ${OPENING_SECTIONS} are approved.`;
   if (role === IPAS_SIGNOFF_ROLE.RECEIVED) return "Comes first.";
   if (!state.received) return "After Received.";
   if (role === IPAS_SIGNOFF_ROLE.APPROVED) {
@@ -47,12 +51,12 @@ const WHY_NOT = {
  * Waybill ticked there is already ticked here.
  *
  *   rights     section7Rights(...) for the signed-in person
- *   onGive     (role) => void; the page owns the mutation (and the filing dialog)
- *   canSendBack / onSendBack
- *              a section 7 signer returns Received, Noted and Checked with a
- *              reason (canSendBackSection7); the page owns the dialog
+ *   canSendBack
+ *              a section 7 signer may return Received, Noted and Checked
+ *              (canSendBackSection7). The moves live in the decision card and
+ *              the drawer's footer, so the body only reads.
  */
-export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendBack = false, onSendBack }) {
+export function IpasFilingSection({ ipas, rights, canSendBack = false }) {
   const state = ipas.signoffSections[7];
   const badge = STATUS_BADGE[state.status];
   const checklist = filingChecklist(ipas.documents ?? []);
@@ -60,10 +64,12 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
   const filed = ipas.state === IPAS_STATE.FILED;
   const offered = IPAS_SECTION_7_ROLES.filter((role) => rights[role]?.canGive);
   const hint = rights[IPAS_SIGNOFF_ROLE.APPROVED]?.why === "costs_incomplete" ? WHY_NOT.costs_incomplete : null;
+  // In the drawer the pinned footer carries the give and send-back moves, so the body only reads.
+  const inDrawer = useInDrawer();
 
   return (
     <IpasSection
-      title="7 · Filing"
+      title={ipasSectionLabel("filing")}
       aside={<StatusBadge theme={badge.theme} label={badge.label} />}
     >
       <div className="space-y-4" data-testid="ipas-filing">
@@ -76,8 +82,8 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
               detail={`Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[ipas.computationStatus] ?? "—"}`}
             />
             {checklist.length === 0 ? (
-              <li className="py-2 text-[13px] text-muted-foreground">
-                No filing items are listed for this IPAS. Documents are ticked in section 3.
+              <li className="py-2 text-sm text-muted-foreground">
+                No filing items are listed for this IPAS. Documents are ticked in section {ipasSectionLabel("finance")}.
               </li>
             ) : (
               checklist.map((doc) => (
@@ -104,36 +110,10 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
         </div>
 
         <div className="space-y-3">
-          <SectionHeader title="Sign-offs" className="pb-2">
-            {offered.map((role) => (
-              <Button
-                key={role}
-                size="sm"
-                className="gap-1.5"
-                disabled={busy}
-                onClick={() => onGive(role)}
-                data-testid={`ipas-give-${role}`}
-              >
-                {role === IPAS_SIGNOFF_ROLE.APPROVED ? <FileCheck2 size={14} /> : <Check size={14} />}
-                {role === IPAS_SIGNOFF_ROLE.APPROVED
-                  ? "Approve and file"
-                  : `${IPAS_SIGNOFF_ROLE_ACTIONS[role]} (${IPAS_SIGNOFF_ROLE_LABELS[role]})`}
-              </Button>
-            ))}
-            {canSendBack && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                disabled={busy}
-                onClick={onSendBack}
-                data-testid="ipas-send-back-7"
-              >
-                <CornerUpLeft size={14} />
-                Send back
-              </Button>
-            )}
-          </SectionHeader>
+          <SectionHeader title="Sign-offs" className="pb-2" />
+          {!inDrawer && (offered.length > 0 || canSendBack) && (
+            <p className="text-xs text-muted-foreground">Sign-offs are in Your move.</p>
+          )}
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {IPAS_SECTION_7_ROLES.map((role) => (
@@ -174,7 +154,7 @@ export function IpasFilingSection({ ipas, rights, busy = false, onGive, canSendB
 
 function ChecklistItem({ ticked, label, detail }) {
   return (
-    <li className="flex items-center gap-2 py-2 text-[13px]" data-testid="ipas-filing-item" data-ticked={ticked}>
+    <li className="flex items-center gap-2 py-2 text-sm" data-testid="ipas-filing-item" data-ticked={ticked}>
       {ticked ? (
         <Check size={15} className="shrink-0 text-green-11" aria-label="Ticked" />
       ) : (
@@ -197,14 +177,14 @@ export function IpasFiledNotice({ ipas, canReopen, onReopen }) {
     <div
       role="status"
       data-testid="ipas-filed-notice"
-      className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-green-400 bg-green-3/40 p-3 text-[13px]"
+      className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-green-7 bg-green-3/40 p-3 text-sm"
     >
       <div>
         <p className="font-semibold text-green-11">
           Filed {formatDate(ipas.filed_at)}
           {approved?.signedBy?.name ? ` · approved by ${approved.signedBy.name}` : ""}
         </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <p className="mt-0.5 max-w-prose text-xs text-mauve-11">
           This IPAS is frozen: its Odoo copy, payments, charges, documents, bank details, SORs, Purpose and Landed
           Cost no longer change. A Super Admin can reopen it with a reason.
         </p>

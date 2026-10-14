@@ -29,7 +29,7 @@ function Detail({ label, children, isEditing, control, wrapperClass = "w-full" }
   }
   return (
     <div>
-      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
       <div className="text-sm font-semibold text-foreground break-words">
         {children || <span className="text-muted-foreground/60">—</span>}
       </div>
@@ -150,7 +150,7 @@ export default function DetailsTab({ ctx }) {
             {showMoney && (
               <div className="p-5 bg-gradient-to-b from-muted/40 to-transparent">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
+                  <span className="text-label font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
                   {opportunity.status && <StatusBadge status={opportunity.status} />}
                 </div>
                 {isEditing ? (
@@ -211,7 +211,7 @@ export default function DetailsTab({ ctx }) {
             )}
 
             <div className="p-5">
-              <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Team & Assignees</p>
+              <p className="mb-3 text-label font-bold tracking-widest text-muted-foreground uppercase">Team & Assignees</p>
               {isEditing ? (
                 <div className="space-y-3">
                   <Detail
@@ -376,7 +376,7 @@ export default function DetailsTab({ ctx }) {
 
         <div className="flex flex-col gap-6 lg:col-span-8">
           <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
-            <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Deal Details</p>
+            <p className="mb-4 text-label font-bold tracking-widest text-muted-foreground uppercase">Deal Details</p>
             <div className={cn("grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3",)}>
               <Detail
                 label="Lead Source"

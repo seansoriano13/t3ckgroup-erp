@@ -94,7 +94,7 @@ export default function GroupTaskCard({
 
       {/* HR Rejected Banner */}
       {task.status === "ACTIVE" && task.hr_remarks && (
-        <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 bg-destructive/10 border border-red-500/20 rounded-lg text-[10px] font-bold text-destructive uppercase tracking-wider">
+        <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 bg-destructive/10 border border-red-500/20 rounded-lg text-label font-bold text-destructive uppercase tracking-wider">
           <AlertTriangle size={11} />
           HR Rejected — Resubmit Required
         </div>
@@ -125,7 +125,7 @@ export default function GroupTaskCard({
       {myMember && !isCreator && !isSuperAdmin && (
         <div className="mb-4 bg-muted/30 p-3.5 rounded-xl border border-border/40 hover:border-border/80 transition-colors w-full min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.1em] truncate">
+            <div className="text-label font-black text-muted-foreground uppercase tracking-[0.1em] truncate">
               My Task
             </div>
             {myMember.role && (

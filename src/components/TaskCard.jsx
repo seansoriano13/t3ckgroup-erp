@@ -257,7 +257,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
       <div className="flex justify-between items-center gap-3 mb-3">
         <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
           <div
-            className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold shrink min-w-0 truncate"
+            className="text-label text-muted-foreground uppercase tracking-widest font-semibold shrink min-w-0 truncate"
             title={
               task.categoryId ? task.categoryId.replace(" TASK", "") : "TASK"
             }
@@ -432,7 +432,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                     e.stopPropagation()
                     setIsExpanded(!isExpanded)
                   }}
-                  className="h-auto p-0 flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-transparent transition-all duration-300 uppercase tracking-wider shrink-0"
+                  className="h-auto p-0 flex items-center gap-1 text-label font-bold text-muted-foreground hover:text-foreground hover:bg-transparent transition-all duration-300 uppercase tracking-wider shrink-0"
                 >
                   {isExpanded ? (
                     <>
@@ -499,7 +499,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
           )}
 
           {(!isManagement || !task.loggedByName) && task.reportedToName && (
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mr-1.5 shrink-0">
+            <span className="text-label text-muted-foreground uppercase tracking-widest font-semibold mr-1.5 shrink-0">
               To
             </span>
           )}
@@ -525,7 +525,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
         {/* Right side: HR Status & Priority */}
         <div className="ml-auto flex items-center gap-3 shrink-0">
           {task.priority && (
-            <div className="flex items-center gap-1.5 shrink-0 font-bold text-[10px] uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 shrink-0 font-bold text-label uppercase tracking-wider">
               {task.priority === "HIGH" && (
                 <Dot
                   color="bg-destructive"
@@ -558,7 +558,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
       {isOwnerOverdue && (
         <div className="mt-4 -mx-5 -mb-5 px-4 py-2.5 bg-amber-500/10 border-t border-amber-500/25 rounded-b-2xl flex items-center gap-2">
           <TriangleAlert size={12} className="text-amber-500 shrink-0" />
-          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+          <span className="text-label font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
             Overdue — mark as done to submit for review
           </span>
         </div>

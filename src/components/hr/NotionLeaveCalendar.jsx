@@ -130,7 +130,7 @@ export default function NotionLeaveCalendar({
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, idx) => (
           <span
             key={d}
-            className={`text-[10px] font-black uppercase tracking-[0.15em] ${idx === 0 || idx === 6
+            className={`text-label font-black uppercase tracking-[0.15em] ${idx === 0 || idx === 6
               ? 'text-red-11'
               : 'text-muted-foreground'
               }`}
@@ -171,7 +171,7 @@ export default function NotionLeaveCalendar({
                   {day}
                 </span>
                 {leaves.length > 0 && (
-                  <span className="text-[10px] font-black uppercase tracking-wider border border-mauve-6 px-1.5 py-0.5 rounded-md">
+                  <span className="text-label font-black uppercase tracking-wider border border-mauve-6 px-1.5 py-0.5 rounded-md">
                     {leaves.length} {leaves.length === 1 ? 'leave' : 'leaves'}
                   </span>
                 )}
@@ -280,7 +280,7 @@ export default function NotionLeaveCalendar({
                         {leave.hours} hrs {leave.type}
                       </span>
                       {leave.start_time && leave.end_time && (
-                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        <span className="text-label font-semibold text-muted-foreground uppercase tracking-wider">
                           {formatWindow(leave.start_time, leave.end_time)}
                         </span>
                       )}
