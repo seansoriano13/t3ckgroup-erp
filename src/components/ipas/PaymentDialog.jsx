@@ -49,15 +49,16 @@ const asText = (value) => (value === null || value === undefined ? "" : String(v
  * `payment` null adds one. A deactivated method already on the payment stays
  * pickable; new payments only offer active ones.
  */
-export default function PaymentDialog({ open, onOpenChange, ipas, payment = null }) {
+/** `onFailed(error, retry)`, when given, shows a failed save in the page (with Retry) instead of a toast alone. */
+export default function PaymentDialog({ open, onOpenChange, ipas, payment = null, onFailed }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body ipas={ipas} payment={payment} onClose={() => onOpenChange(false)} />}
+      {open && <Body ipas={ipas} payment={payment} onFailed={onFailed} onClose={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function Body({ ipas, payment, onClose }) {
+function Body({ ipas, payment, onFailed, onClose }) {
   const queryClient = useQueryClient();
   const editing = Boolean(payment);
   const isPhpPo = isPhpCurrency(ipas.currency);
@@ -118,7 +119,7 @@ function Body({ ipas, payment, onClose }) {
       queryClient.invalidateQueries({ queryKey: ipasListKey });
       onClose();
     },
-    onError: (error) => toast.error(ipasErrorMessage(error)),
+    onError: (error) => (onFailed ? onFailed(error, () => save.mutate()) : toast.error(ipasErrorMessage(error))),
   });
 
   const attach = async ([file]) => {

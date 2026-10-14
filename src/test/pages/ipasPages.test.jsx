@@ -453,6 +453,20 @@ describe("IPAS pages", () => {
       expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     });
 
+    it("dismisses the Odoo banner, and the stored copy stays on the page", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" });
+      const user = userEvent.setup();
+
+      renderDetail(row.id);
+      const banner = await screen.findByRole("alert");
+      expect(banner).toHaveTextContent("Odoo didn't answer");
+      await user.click(within(banner).getByRole("button", { name: "Dismiss" }));
+
+      expect(screen.queryByText("Odoo didn't answer")).not.toBeInTheDocument();
+      expect(screen.getByText("Odoo PO, before tax")).toBeInTheDocument();
+    });
+
     it("overrides Entity with Odoo's value beside it, and resets in one action", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", answer("P02552"));

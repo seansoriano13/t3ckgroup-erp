@@ -206,6 +206,25 @@ describe("IPAS signing with the evidence in view", () => {
       expect(screen.queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
     });
 
+    it("a failed change in the edit view shows its error in the view's header, and Retry runs it again", async () => {
+      const row = ipas({ computation_status: "encoding" });
+      // The page offers the change to Purchasing; the database refuses it for this caller.
+      signIn(purchaser, { purchasing: false });
+      const router = renderRouted(row.id);
+      const user = userEvent.setup();
+
+      await act(() => router.navigate(`/purchasing/ipas/${row.id}?edit=costing`));
+      await user.click(await screen.findByRole("button", { name: "Costs complete" }));
+      const alert = await screen.findByRole("alert");
+      expect(within(alert).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      expect(rowOf(row.id).computation_status).toBe("encoding");
+
+      signIn(purchaser);
+      await user.click(within(alert).getByRole("button", { name: "Retry" }));
+      await waitFor(() => expect(rowOf(row.id).computation_status).toBe("costs_complete"));
+      await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    });
+
     it("Back leaves the edit view for the overview, with the section row focused", async () => {
       const row = ipas();
       const router = renderRouted(row.id);
@@ -379,6 +398,30 @@ describe("IPAS signing with the evidence in view", () => {
       expect(document.getElementById("your-move").querySelector('[role="alert"]')).toBeNull();
       await user.click(within(alert).getByRole("button", { name: "Dismiss" }));
       await waitFor(() => expect(within(drawer).queryByRole("alert")).not.toBeInTheDocument());
+    });
+
+    it("a failed send back keeps the dialog open with the reason and the error in it, and Retry sends it", async () => {
+      const row = ipas();
+      signoff(row.id, 1, "prepared", purchaser);
+      // The page offers the send back; the database says the viewer isn't on the list.
+      signIn(approver, { actorId: other.id });
+      renderDetail(row.id);
+      const user = userEvent.setup();
+
+      await user.click(within(await yourMove()).getByRole("button", { name: "Send section 1 · Purchasing back" }));
+      const dialog = await screen.findByRole("dialog", { name: "Send section 1 · Purchasing back?" });
+      await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "Wrong supplier");
+      await user.click(within(dialog).getByRole("button", { name: "Send back" }));
+
+      const alert = await within(dialog).findByRole("alert");
+      expect(within(dialog).getByPlaceholderText(/What does the preparer need to fix/)).toHaveValue("Wrong supplier");
+      expect(db.rows("ipas_signoffs").some((s) => s.cleared_reason)).toBe(false);
+
+      signIn(approver);
+      await user.click(within(alert).getByRole("button", { name: "Retry" }));
+
+      await waitFor(() => expect(db.rows("ipas_signoffs").some((s) => s.cleared_reason === "Sent back: Wrong supplier")).toBe(true));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 
     it("names the next IPAS waiting for the viewer after a sign-off, and none when there is none", async () => {

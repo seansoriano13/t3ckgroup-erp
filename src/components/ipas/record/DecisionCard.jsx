@@ -126,6 +126,7 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
         onOpenChange={setConfirmOpen}
         title={`${asked?.label ?? ""}?`}
         confirmLabel={asked?.verb ?? "Confirm"}
+        tone={asked?.kind === "return" ? "default" : "approve"}
         onConfirm={() => asked?.run({ key: asked.key, origin: "card" })}
       >
         <div className="space-y-1.5 text-sm">

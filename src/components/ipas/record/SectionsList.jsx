@@ -4,22 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SECTIONS, sectionState } from "./digest";
-import { StateDot, StateWord } from "./StateMark";
-import { STATE, STATE_WORD } from "./statePalette";
-
-/** What the three states mean, in one line. */
-function StateLegend() {
-  return (
-    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-      {[STATE.DONE, STATE.CURRENT, STATE.WAITING].map((state) => (
-        <span key={state} className="inline-flex items-center gap-1.5">
-          <StateDot state={state} />
-          {STATE_WORD[state]}
-        </span>
-      ))}
-    </p>
-  );
-}
+import { StateWord } from "./StateMark";
 
 /**
  * The open and close of a short section, in place: the same `.reveal` the
@@ -60,7 +45,7 @@ function Row({ section, digest, onOpen, rowRef, expanded, body }) {
         onClick={() => onOpen(section.key)}
         aria-expanded={section.inPlace ? expanded : undefined}
         aria-controls={section.inPlace ? panelId : undefined}
-        className="group/row h-auto w-full min-w-0 justify-start gap-3 rounded-none px-4 py-3 text-left font-normal whitespace-normal hover:bg-muted/50 focus-visible:ring-mauve-11"
+        className="group/row h-auto w-full min-w-0 justify-start gap-3 rounded-none px-4 py-3 text-left font-normal whitespace-normal hover:bg-muted/50"
       >
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -118,10 +103,7 @@ export default function SectionsList({ digest, onOpen, rowRef, inPlace = null, b
   const rowProps = { digest, onOpen, rowRef, inPlace, bodies };
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-base font-semibold text-foreground">Sections</h2>
-        <StateLegend />
-      </div>
+      <h2 className="text-base font-semibold text-foreground">Sections</h2>
       <Group title="Money and sign-offs" sections={SECTIONS.filter((section) => !section.secondary)} {...rowProps} />
       <Group title="Everything else" sections={SECTIONS.filter((section) => section.secondary)} {...rowProps} />
     </div>

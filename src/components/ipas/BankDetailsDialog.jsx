@@ -23,15 +23,16 @@ import { ipasKey, ipasListKey } from "./ipasKeys";
  * supplier's last IPAS and flags a difference, so this says so before saving.
  * Mounted only while open, so the fields start from what is stored.
  */
-export default function BankDetailsDialog({ open, onOpenChange, ipas }) {
+/** `onFailed(error, retry)`, when given, shows a failed save in the page (with Retry) instead of a toast alone. */
+export default function BankDetailsDialog({ open, onOpenChange, ipas, onFailed }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body ipas={ipas} onClose={() => onOpenChange(false)} />}
+      {open && <Body ipas={ipas} onFailed={onFailed} onClose={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function Body({ ipas, onClose }) {
+function Body({ ipas, onFailed, onClose }) {
   const queryClient = useQueryClient();
   const current = ipas.bankDetails;
   const [form, setForm] = useState({
@@ -60,7 +61,7 @@ function Body({ ipas, onClose }) {
       queryClient.invalidateQueries({ queryKey: ipasListKey });
       onClose();
     },
-    onError: (error) => toast.error(ipasErrorMessage(error)),
+    onError: (error) => (onFailed ? onFailed(error, () => save.mutate()) : toast.error(ipasErrorMessage(error))),
   });
 
   return (
