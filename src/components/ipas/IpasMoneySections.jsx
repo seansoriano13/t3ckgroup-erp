@@ -35,6 +35,9 @@ const NONE = "__none__";
 
 const pesos = (value) => formatAmount(value, "PHP");
 
+/** An amount inside a sentence or a label, in the same monospace figures as the tables. */
+const Amt = ({ children }) => <span className="font-mono tabular-nums">{children}</span>;
+
 /**
  * Section 1's money: the header amounts (P.I/QT Amount typed; DP and FP read
  * off the payment rows; no balance anywhere), the one freight service, and the
@@ -71,7 +74,7 @@ export function IpasPaymentsBlock({
       <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
         <DetailRow label="P.I/QT Amount">
           <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{ipas.piQtAmount === null ? "—" : formatAmount(ipas.piQtAmount, currency)}</span>
+            <Amt>{ipas.piQtAmount === null ? "—" : formatAmount(ipas.piQtAmount, currency)}</Amt>
             {canChange && (
               <Button
                 variant="ghost"
@@ -99,8 +102,8 @@ export function IpasPaymentsBlock({
             ipas.freightService?.label
           )}
         </DetailRow>
-        <DetailRow label="DP">{sum.downPayment > 0 ? formatAmount(sum.downPayment, currency) : null}</DetailRow>
-        <DetailRow label="FP">{sum.fullPayment > 0 ? formatAmount(sum.fullPayment, currency) : null}</DetailRow>
+        <DetailRow label="DP">{sum.downPayment > 0 ? <Amt>{formatAmount(sum.downPayment, currency)}</Amt> : null}</DetailRow>
+        <DetailRow label="FP">{sum.fullPayment > 0 ? <Amt>{formatAmount(sum.fullPayment, currency)}</Amt> : null}</DetailRow>
       </dl>
 
       <SectionHeader title="Payments" className="pb-2">
@@ -238,7 +241,7 @@ export function IpasChargesSection({
   return (
     <IpasSection
       title={ipasSectionLabel("finance")}
-      aside={charges.length > 0 ? <span>Charges: {pesos(sum.chargesPhp)}</span> : null}
+      aside={charges.length > 0 ? <span>Charges: <Amt>{pesos(sum.chargesPhp)}</Amt></span> : null}
     >
       <SectionHeader title="Importation charges" className="pb-2">
         {canRecord && (
@@ -311,15 +314,17 @@ export function IpasChargesSection({
 }
 
 const LANDED_BADGE = {
-  [IPAS_LANDED_COST_STATUS.PROVISIONAL]: { theme: "amber", label: "Provisional" },
-  [IPAS_LANDED_COST_STATUS.FINAL]: { theme: "green", label: "Final" },
-  [IPAS_LANDED_COST_STATUS.UNAVAILABLE]: { theme: "mauve", label: "Not available" },
+  [IPAS_LANDED_COST_STATUS.PROVISIONAL]: { label: "Provisional" },
+  [IPAS_LANDED_COST_STATUS.FINAL]: { label: "Final" },
+  [IPAS_LANDED_COST_STATUS.UNAVAILABLE]: { label: "Not available" },
 };
 
 /** The mark Landed Cost carries wherever it is read: provisional, final or not available. */
 export function LandedCostBadge({ status }) {
-  const badge = LANDED_BADGE[status] ?? LANDED_BADGE[IPAS_LANDED_COST_STATUS.UNAVAILABLE];
-  return <StatusBadge theme={badge.theme} label={badge.label} />;
+  const known = status in LANDED_BADGE ? status : IPAS_LANDED_COST_STATUS.UNAVAILABLE;
+  // Unavailable is registered as "not available" in status.js, so it is not read as the procurement outcome of that name.
+  const registered = known === IPAS_LANDED_COST_STATUS.UNAVAILABLE ? "not_available" : known;
+  return <StatusBadge status={registered} label={LANDED_BADGE[known].label} />;
 }
 
 /**
@@ -419,8 +424,8 @@ export function IpasCostingSection({ ipas, canChange: granted = false, onSetStat
               {foreign && lc.rate && (
                 <p className="text-xs text-muted-foreground">
                   Converted at <span className="font-semibold text-foreground tabular-nums">{lc.rate.rate.toFixed(4)}</span>{" "}
-                  PHP per {lc.currency}: {pesos(lc.rate.phpDebited)} debited for{" "}
-                  {formatAmount(lc.rate.foreignPaid, lc.currency)} across {lc.rate.payments}{" "}
+                  PHP per {lc.currency}: <Amt>{pesos(lc.rate.phpDebited)}</Amt> debited for{" "}
+                  <Amt>{formatAmount(lc.rate.foreignPaid, lc.currency)}</Amt> across {lc.rate.payments}{" "}
                   {lc.rate.payments === 1 ? "payment" : "payments"}.
                 </p>
               )}
@@ -475,8 +480,8 @@ export function IpasCostingSection({ ipas, canChange: granted = false, onSetStat
                 </Table>
                 <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 border-t border-border bg-muted/20 px-4 py-2 text-xs">
                   <span className="text-muted-foreground">
-                    Goods {pesos(lc.totals.goodsPhp)} + charges {pesos(lc.totals.chargesPhp)} + charge fees{" "}
-                    {pesos(lc.totals.chargeFeesPhp)} + shipping fees {pesos(lc.totals.shippingFeesPhp)}
+                    Goods <Amt>{pesos(lc.totals.goodsPhp)}</Amt> + charges <Amt>{pesos(lc.totals.chargesPhp)}</Amt> + charge fees{" "}
+                    <Amt>{pesos(lc.totals.chargeFeesPhp)}</Amt> + shipping fees <Amt>{pesos(lc.totals.shippingFeesPhp)}</Amt>
                   </span>
                   <span className="font-mono font-semibold tabular-nums">{pesos(lc.totals.landedPhp)}</span>
                 </div>

@@ -6,8 +6,6 @@
  * and the printed form say. CONTEXT.md's IPAS entry is the language source.
  */
 
-import { STATUS_THEME } from "./statusTheme";
-
 export const IPAS_PRIORITY = {
   VERY_HIGH: "very_high",
   HIGH: "high",
@@ -67,12 +65,8 @@ export const IPAS_STATE_LABELS = {
   [IPAS_STATE.CANCELLED]: "Cancelled",
 };
 
-/** The badge colour of each state (StatusBadge `theme`). */
-export const IPAS_STATE_THEME = {
-  [IPAS_STATE.OPEN]: STATUS_THEME.AMBER,
-  [IPAS_STATE.FILED]: STATUS_THEME.GREEN,
-  [IPAS_STATE.CANCELLED]: STATUS_THEME.MAUVE,
-};
+// The badge colour of each state lives with every other status colour, in
+// constants/status.js (IPAS_STATUS_THEME).
 
 /** The list's state filter: one state, or every IPAS. */
 export const IPAS_STATE_FILTER_ALL = "all";

@@ -26,24 +26,34 @@ export default function MoveButton({ move, origin, disabled = false, onRun, onRe
   const failed = failure && failure.key === key && failure.origin === origin ? failure : null;
 
   return (
-    <li className="space-y-1.5">
+    <li className="space-y-2">
+      {/* A long label wraps inside the button instead of running into its edges. */}
       <Button
         size="lg"
         variant={LOOK[kind].variant}
         disabled={disabled}
         onClick={() => onRun(move, origin)}
         aria-describedby={`move-hint-${origin}-${key}`}
-        className={cn("w-full justify-center gap-2 font-semibold", LOOK[kind].className)}
+        className={cn(
+          "h-auto min-h-10 w-full justify-center gap-2 px-4 py-2.5 text-center font-semibold leading-snug whitespace-normal",
+          LOOK[kind].className,
+        )}
       >
         <Icon size={16} aria-hidden="true" />
-        {label}
+        <span className="min-w-0">{label}</span>
       </Button>
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <p id={`move-hint-${origin}-${key}`} className="min-w-0 flex-1 text-xs text-muted-foreground">
+      {/* The hint takes the full width, with the review link on its own line under it. */}
+      <div className="grid gap-1.5">
+        <p id={`move-hint-${origin}-${key}`} className="text-xs leading-relaxed text-muted-foreground">
           {hint}
         </p>
         {onReview && (
-          <Button variant="link" size="sm" className="h-auto p-0" onClick={() => onReview(move.section)}>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto justify-self-start p-0 text-xs font-medium text-foreground underline underline-offset-4 hover:text-muted-foreground"
+            onClick={() => onReview(move.section)}
+          >
             Review section {ipasSectionLabel(move.section)}
           </Button>
         )}

@@ -37,6 +37,9 @@ function Reveal({ open, id, children }) {
 function Row({ section, digest, onOpen, rowRef, expanded, body }) {
   const state = sectionState(section.key, digest);
   const panelId = useId();
+  const summary = digest.lines[section.key];
+  // A waiting Filing row already says "Opens once …" as its detail: say it once.
+  const repeatsDetail = Boolean(state?.detail) && state.detail === summary;
   return (
     <li>
       <Button
@@ -52,7 +55,7 @@ function Row({ section, digest, onOpen, rowRef, expanded, body }) {
             <span className="text-sm font-semibold text-foreground">{section.title}</span>
             {state && <StateWord state={state.state} detail={state.detail} />}
           </span>
-          <span className="text-sm text-muted-foreground">{digest.lines[section.key]}</span>
+          {!repeatsDetail && <span className="text-sm text-muted-foreground">{summary}</span>}
         </span>
         <ChevronRight
           size={16}

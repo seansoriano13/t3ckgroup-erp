@@ -22,10 +22,10 @@ import { useInDrawer } from "./record/sectionChrome";
 const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")}`;
 
 const STATUS_BADGE = {
-  [FILING_STATUS.WAITING]: { theme: "mauve", label: `Waiting for ${OPENING_SECTIONS}` },
-  [FILING_STATUS.READY]: { theme: "amber", label: "Ready to receive" },
-  [FILING_STATUS.IN_PROGRESS]: { theme: "amber", label: "In progress" },
-  [FILING_STATUS.FILED]: { theme: "green", label: "Filed" },
+  [FILING_STATUS.WAITING]: { label: `Waiting for ${OPENING_SECTIONS}` },
+  [FILING_STATUS.READY]: { label: "Ready to receive" },
+  [FILING_STATUS.IN_PROGRESS]: { label: "In progress" },
+  [FILING_STATUS.FILED]: { label: "Filed" },
 };
 
 /** What each box says while it is empty, from where section 7 stands. */
@@ -70,7 +70,7 @@ export function IpasFilingSection({ ipas, rights, canSendBack = false }) {
   return (
     <IpasSection
       title={ipasSectionLabel("filing")}
-      aside={<StatusBadge theme={badge.theme} label={badge.label} />}
+      aside={<StatusBadge status={state.status} label={badge.label} />}
     >
       <div className="space-y-4" data-testid="ipas-filing">
         <div>

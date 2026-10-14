@@ -8,9 +8,9 @@ import { formatDate } from "../../utils/formatDate.js";
 import { useInDrawer } from "./record/sectionChrome";
 
 const STATUS_BADGE = {
-  [SIGNOFF_STATUS.NOT_PREPARED]: { theme: "mauve", label: "Not prepared" },
-  [SIGNOFF_STATUS.AWAITING_APPROVAL]: { theme: "amber", label: "Awaiting approval" },
-  [SIGNOFF_STATUS.APPROVED]: { theme: "green", label: "Approved" },
+  [SIGNOFF_STATUS.NOT_PREPARED]: { label: "Not prepared" },
+  [SIGNOFF_STATUS.AWAITING_APPROVAL]: { label: "Awaiting approval" },
+  [SIGNOFF_STATUS.APPROVED]: { label: "Approved" },
 };
 
 const WHY_NOT = {
@@ -65,7 +65,7 @@ export function IpasSignoffs({ section, state, rights }) {
   return (
     <div className="mt-5 space-y-3" data-testid={`ipas-signoffs-${section}`}>
       <SectionHeader title="Sign-offs" className="pb-2">
-        <StatusBadge theme={badge.theme} label={badge.label} />
+        <StatusBadge status={state.status} label={badge.label} />
       </SectionHeader>
       {!inDrawer && mayGive && <p className="text-xs text-muted-foreground">Sign-offs are in Your move.</p>}
 

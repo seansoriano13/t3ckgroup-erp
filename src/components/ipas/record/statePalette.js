@@ -4,6 +4,8 @@
 // tinted pill (StatusBadge is the only status pill), and never colour alone:
 // every use also carries its word from STATE_WORD.
 
+import { getStatusTheme, getStatusToneClasses } from "@/constants/status";
+
 export const STATE = {
   DONE: "done",
   CURRENT: "current",
@@ -16,21 +18,9 @@ export const STATE_WORD = {
   [STATE.WAITING]: "Waiting",
 };
 
-/** Classes per state. Text uses step 12 (or the muted step 11) so it clears 4.5:1 on the card. */
+/** Classes per state, from the repo's one status palette (constants/status.js): "done", "current" and "waiting" are registered there. */
 export const STATE_CLASS = {
-  [STATE.DONE]: {
-    dot: "bg-green-9",
-    text: "text-green-12",
-    ring: "border-green-9",
-  },
-  [STATE.CURRENT]: {
-    dot: "bg-amber-9",
-    text: "text-amber-12",
-    ring: "border-amber-9",
-  },
-  [STATE.WAITING]: {
-    dot: "bg-mauve-7",
-    text: "text-muted-foreground",
-    ring: "border-mauve-7",
-  },
+  [STATE.DONE]: getStatusToneClasses(getStatusTheme(STATE.DONE)),
+  [STATE.CURRENT]: getStatusToneClasses(getStatusTheme(STATE.CURRENT)),
+  [STATE.WAITING]: getStatusToneClasses(getStatusTheme(STATE.WAITING)),
 };

@@ -38,9 +38,9 @@ const FILING_DETAIL = {
 };
 
 export const LANDED_BADGE = {
-  [IPAS_LANDED_COST_STATUS.PROVISIONAL]: { theme: "amber", label: "Provisional" },
-  [IPAS_LANDED_COST_STATUS.FINAL]: { theme: "green", label: "Final" },
-  [IPAS_LANDED_COST_STATUS.UNAVAILABLE]: { theme: "mauve", label: "Not available" },
+  [IPAS_LANDED_COST_STATUS.PROVISIONAL]: { label: "Provisional" },
+  [IPAS_LANDED_COST_STATUS.FINAL]: { label: "Final" },
+  [IPAS_LANDED_COST_STATUS.UNAVAILABLE]: { label: "Not available" },
 };
 
 const PLAIN_TITLE = { header: "Header", history: "History" };

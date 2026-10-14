@@ -22,7 +22,14 @@ export default function Figures({ digest, onOpen }) {
       key: "purchasing",
       label: "Paid",
       value: money.paidText,
-      sub: money.paymentCount > 0 ? `${money.debitedPhpText} debited` : "No payments yet",
+      sub:
+        money.paymentCount > 0 ? (
+          <>
+            <span className="font-mono tabular-nums">{money.debitedPhpText}</span> debited
+          </>
+        ) : (
+          "No payments yet"
+        ),
     },
     {
       key: "finance",
