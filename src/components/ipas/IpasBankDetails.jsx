@@ -23,7 +23,7 @@ export function IpasBankDetails({ ipas, canChange: granted = false, onEdit }) {
 
   return (
     <div className="mt-5 space-y-3" data-testid="ipas-bank-details">
-      <SectionHeader title="Bank details" className="pb-2">
+      <SectionHeader title="Bank details" className="border-b-0 pb-2">
         {canChange && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
             <Pencil size={14} />

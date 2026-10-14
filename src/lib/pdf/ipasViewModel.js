@@ -10,7 +10,7 @@
  *   - A sign-off prints three ways: a stored signature prints as the signature,
  *     a signer with none (or who declined) as the name only, and a box still
  *     waiting as "Signature required".
- *   - Landed Cost carries its mark: provisional until Costs complete, final
+ *   - Landed Cost carries its mark: provisional until LC Odoo Done, final
  *     after, and a filed IPAS is always final.
  *   - Statuses Odoo stamped carry a mark; the Odoo read time goes in the footer.
  *   - Account numbers print as the last four, in full only on the filing copy.
@@ -41,7 +41,7 @@ import {
 } from '../../constants/ipas';
 import { filingChecklist } from '../../utils/ipasDocuments';
 import { formatDay } from '../../utils/ipasPayments';
-import { isCostsComplete } from '../../utils/ipasSignoffs';
+import { isLandedCostFinal } from '../../utils/ipasSignoffs';
 import { isPhpCurrency } from '../../utils/landedCost';
 
 /** The printed form is read in the company's own timezone, wherever it is printed. */
@@ -404,8 +404,8 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   // ── Section 7 ──
   const checklist = [
     {
-      label: 'Costs complete',
-      ticked: isCostsComplete(ipas.computationStatus),
+      label: 'LC Odoo Done',
+      ticked: isLandedCostFinal(ipas.computationStatus),
       detail: `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[ipas.computationStatus] ?? BLANK}`,
     },
     ...filingChecklist(documents).map((doc) => ({

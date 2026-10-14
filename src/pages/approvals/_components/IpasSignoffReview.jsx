@@ -75,7 +75,7 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
         <div className="flex gap-2">
           {canSendBackItem(pending) && (
             <Button variant="outline" className="flex-1" disabled={isSubmitting} onClick={() => onSendBack(item)}>
-              Send back
+              Return
             </Button>
           )}
           <Button className={`flex-1 ${APPROVE_CLASS}`} disabled={isSubmitting} onClick={() => onApprove(item)}>

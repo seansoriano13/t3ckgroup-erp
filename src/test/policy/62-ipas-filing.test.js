@@ -139,7 +139,7 @@ async function filed({ project = false } = {}) {
         p_ipas_id: ipas.id, p_bank_name: "BDO", p_account_name: "Scorpe", p_account_number: "0011-2233",
     })
     expect(bank.error).toBeNull()
-    expect((await setStatus(ipas.id, "costs_complete")).error).toBeNull()
+    expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
     await approvedThrough(ipas)
     await receivedNotedChecked(ipas)
     const done = await signOk("ipasSigner", ipas.id, 7, "approved")
@@ -220,7 +220,7 @@ describe("section 7: the order", () => {
     it("refuses Approved until Received, Noted and Checked are all given", async () => {
         const ipas = await raise()
         await approvedThrough(ipas)
-        await setStatus(ipas.id, "costs_complete")
+        await setStatus(ipas.id, "lc_odoo_done")
 
         expect((await sign("ipasSigner", ipas.id, 7, "approved")).error?.code).toBe("55000")
         await signOk("finance", ipas.id, 7, "received")
@@ -264,7 +264,7 @@ describe("section 7: the order", () => {
 })
 
 describe("filing", () => {
-    it("is refused before Costs complete, with the reason", async () => {
+    it("is refused before LC Odoo Done, with the reason", async () => {
         for (const status of ["encoding", "encoded"]) {
             const ipas = await raise()
             await approvedThrough(ipas)
@@ -273,7 +273,7 @@ describe("filing", () => {
 
             const { error } = await sign("ipasSigner", ipas.id, 7, "approved")
             expect(error?.code, status).toBe("55000")
-            expect(error?.message).toMatch(/Costs complete/)
+            expect(error?.message).toMatch(/LC Odoo Done/)
             const row = await rowOf(ipas.id)
             expect(row.state).toBe("open")
             expect(row.filed_at).toBeNull()
@@ -292,7 +292,7 @@ describe("filing", () => {
         expect((await liveKeys(ipas.id)).filter((k) => k.startsWith("7/"))).toEqual(["7/approved", "7/checked", "7/noted", "7/received"])
     })
 
-    it("also files at Checked, the status after Costs complete", async () => {
+    it("also files at Checked, the status after LC Odoo Done", async () => {
         const ipas = await raise()
         await approvedThrough(ipas)
         await receivedNotedChecked(ipas)
@@ -311,7 +311,7 @@ describe("filing", () => {
 describe("who each step notifies", () => {
     it("names exactly the next list, never the person signing", async () => {
         const ipas = await raise()
-        await setStatus(ipas.id, "costs_complete")
+        await setStatus(ipas.id, "lc_odoo_done")
 
         const a = await signOk("outsider", ipas.id, 1, "prepared")
         expect(a).toMatchObject({ stage: "section_prepared", notify_ids: [ids.ipasSigner] })

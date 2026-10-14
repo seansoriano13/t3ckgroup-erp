@@ -31,7 +31,7 @@ const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "ipas");
  * section 1 or 3 that Purchasing has prepared and that waits on the signed-in
  * person (on that section's approval list, and not its preparer), and every
  * section 7 step that is theirs to give once the one before it is. Approve signs
- * it; Send back returns a section 1 or 3 to its preparer with a reason, and
+ * it; Return sends a section 1 or 3 back to its preparer with a reason, and
  * returns section 7 (Received, Noted and Checked) from any step after Received;
  * section 7's Approved goes through the dialog that lists the required documents
  * nobody has ticked and files the IPAS. The IPAS itself is one click from the
@@ -127,8 +127,8 @@ function IpasSignoffsQueue() {
     onSuccess: (_, { item }) => {
       toast.success(
         item.source.section === 7
-          ? `${item.ref} section 7 sent back. The people who had signed it were told.`
-          : `${item.ref} section ${item.source.section} sent back to its preparer.`,
+          ? `${item.ref} section 7 returned. The people who had signed it were told.`
+          : `${item.ref} section ${item.source.section} returned to its preparer.`,
       );
       advance(item);
       settled(item);
@@ -187,11 +187,11 @@ function IpasSignoffsQueue() {
           renderRowAction={(item) => (
             <>
               {canSendBackItem(item.source) && (
-                <Tooltip content="Send back">
+                <Tooltip content="Return">
                   <Button
                     variant="outline"
                     size="icon-sm"
-                    aria-label={`Send back ${item.ref} section ${item.source.section}`}
+                    aria-label={`Return ${item.ref} section ${item.source.section}`}
                     disabled={busy}
                     onClick={() => setSendingBack(item)}
                   >
@@ -262,7 +262,7 @@ function IpasSignoffsQueue() {
       <SendBackDialog
         open={sendingBack !== null}
         onOpenChange={(next) => !next && setSendingBack(null)}
-        title={sendingBack ? `Send ${sendingBack.ref} section ${ipasSectionLabel(sendingBack.source.section)} back?` : "Send back?"}
+        title={sendingBack ? `Return ${sendingBack.ref} section ${ipasSectionLabel(sendingBack.source.section)}?` : "Return?"}
         description={
           sendingBack?.source.section === 7
             ? `It clears Received, Noted and Checked and tells the people who gave them. Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved. The history keeps what was cleared.`

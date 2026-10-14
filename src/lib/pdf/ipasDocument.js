@@ -280,7 +280,7 @@ function header(vm) {
     ${field('Purpose', esc(h.purpose))}
     ${field('Date created', esc(h.created), { mono: true })}
     ${field('Created by', esc(h.createdBy))}
-    ${field('Contact', esc(s.contact ?? '—'))}
+    ${field("Supplier's name", esc(s.contact ?? '—'))}
   </div>`;
 }
 
@@ -335,7 +335,7 @@ function purchasing(vm) {
     esc(s.poNumber),
     `<div class="fields">
       ${field('Supplier', esc(s.supplier))}
-      ${field('Contact', esc(s.contact ?? '—'))}
+      ${field("Supplier's name", esc(s.contact ?? '—'))}
       ${field('Currency', esc(s.currency), { mono: true })}
       ${field('P.I #', esc(s.piNumber ?? '—'), { mono: true })}
       ${s.piQtAmount ? field('P.I/QT Amount', esc(s.piQtAmount), { mono: true }) : ''}

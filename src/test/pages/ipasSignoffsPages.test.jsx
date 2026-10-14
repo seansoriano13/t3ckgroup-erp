@@ -26,7 +26,7 @@ vi.mock("@/context/AuthContext", () => ({
 
 /**
  * IPAS sign-offs (#247) as the people at the screens meet them: the IPAS page's
- * Prepare, Approve and Send back, the Super Admin's signer lists in settings,
+ * Prepare, Approve and Return, the Super Admin's signer lists in settings,
  * and the Approval Center's IPAS queue. The database decides who may sign
  * (policy tier 61); this proves each screen offers only what it will let a
  * person do, and that what they do lands.
@@ -150,8 +150,8 @@ describe("IPAS sign-offs", () => {
       const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(drawer).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
       expect(within(one).getByText(/You prepared this section, so someone else approves it/)).toBeInTheDocument();
-      // They are on the list, so they may still send it back: from the footer.
-      expect(within(drawer).getByRole("button", { name: "Send section 1 · Purchasing back" })).toBeInTheDocument();
+      // They are on the list, so they may still return it: from the footer.
+      expect(within(drawer).getByRole("button", { name: "Return section 1 · Purchasing" })).toBeInTheDocument();
     });
 
     it("offers nothing to someone off the list, a Super Admin included", async () => {
@@ -167,7 +167,35 @@ describe("IPAS sign-offs", () => {
       expect(within(one).queryByRole("button")).not.toBeInTheDocument();
     });
 
-    it("sends a section back with a reason that is required, and shows what was cleared and why", async () => {
+    it("returns a prepared section with a reason that is required, and shows what was cleared and why", async () => {
+      onList("s3_approved", approver);
+      const row = ipas();
+      signoff(row.id, 3, "prepared", purchaser);
+      signIn(approver);
+      const user = setupUser();
+
+      renderDetail(row.id, "finance");
+      const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
+      await user.click(within(drawer).getByRole("button", { name: "Return section 2 · Purchasing & Finance" }));
+
+      const dialog = await screen.findByRole("dialog", { name: "Return section 2 · Purchasing & Finance?" });
+      const send = within(dialog).getByRole("button", { name: "Return" });
+      expect(send).toBeDisabled();
+      await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "  Freight is missing ");
+      expect(send).toBeEnabled();
+      await user.click(send);
+
+      // UI first: the section reads Not prepared at once.
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-3")).getByText("Not prepared")).toBeInTheDocument());
+      const history = screen.getByTestId("ipas-signoff-history-3");
+      expect(within(history).getAllByText(/Returned: Freight is missing/)).toHaveLength(1);
+      await waitForNetworkIdle();
+      const notice = db.rows("notifications").find((n) => n.type === "IPAS_SENT_BACK");
+      expect(notice).toMatchObject({ recipient_id: purchaser.id, reference_id: row.id });
+      expect(notice.title).toBe("IPAS returned");
+    });
+
+    it("undoes an approval with a reason, leaving Prepared so it waits for an approver again", async () => {
       onList("s3_approved", approver);
       const row = ipas();
       signoff(row.id, 3, "prepared", purchaser);
@@ -177,21 +205,25 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id, "finance");
       const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
-      await user.click(within(drawer).getByRole("button", { name: "Send section 2 · Purchasing & Finance back" }));
+      // Once approved it is Undo approval, never Return.
+      expect(within(drawer).queryByRole("button", { name: "Return section 2 · Purchasing & Finance" })).not.toBeInTheDocument();
+      await user.click(within(drawer).getByRole("button", { name: "Undo approval of section 2 · Purchasing & Finance" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Send section 2 · Purchasing & Finance back?" });
-      const send = within(dialog).getByRole("button", { name: "Send back" });
-      expect(send).toBeDisabled();
-      await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "  Freight is missing ");
-      expect(send).toBeEnabled();
-      await user.click(send);
+      const dialog = await screen.findByRole("dialog", { name: "Undo approval of section 2 · Purchasing & Finance?" });
+      const undo = within(dialog).getByRole("button", { name: "Undo approval" });
+      expect(undo).toBeDisabled();
+      await user.type(within(dialog).getByPlaceholderText(/Why is this approval being taken back/), "Approved too fast");
+      await user.click(undo);
 
-      await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-3")).getByText("Not prepared")).toBeInTheDocument());
-      const history = screen.getByTestId("ipas-signoff-history-3");
-      expect(within(history).getAllByText(/Sent back: Freight is missing/)).toHaveLength(2);
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-3")).getByText("Awaiting approval")).toBeInTheDocument());
       await waitForNetworkIdle();
-      const notice = db.rows("notifications").find((n) => n.type === "IPAS_SENT_BACK");
-      expect(notice).toMatchObject({ recipient_id: purchaser.id, reference_id: row.id });
+      const live = db.rows("ipas_signoffs").filter((s) => !s.cleared_at).map((s) => s.role);
+      expect(live).toEqual(["prepared"]);
+      expect(db.rows("ipas_signoffs").find((s) => s.cleared_at)).toMatchObject({
+        role: "approved",
+        cleared_reason: "Approval undone: Approved too fast",
+        cleared_by: approver.id,
+      });
     });
 
     it("shows what an Odoo change cleared, and awaiting approval again", async () => {
@@ -273,11 +305,11 @@ describe("IPAS sign-offs", () => {
 
       const view = renderDetail(row.id, "finance");
       const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
-      await user.click(within(drawer).getByRole("button", { name: "Send section 2 · Purchasing & Finance back" }));
-      await screen.findByRole("dialog", { name: "Send section 2 · Purchasing & Finance back?" });
+      await user.click(within(drawer).getByRole("button", { name: "Return section 2 · Purchasing & Finance" }));
+      await screen.findByRole("dialog", { name: "Return section 2 · Purchasing & Finance?" });
 
       const text = document.body.textContent ?? "";
-      expect(text).toContain("Send section 2 · Purchasing & Finance back?");
+      expect(text).toContain("Return section 2 · Purchasing & Finance?");
       expect(text).toContain("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved");
       // A section is named with its number and its name, or not by number at all.
       expect(text).not.toMatch(/\b(?:sections?|send|waiting for|and|for)\s+\d+\b(?!\s*·)/i);
@@ -414,7 +446,7 @@ describe("IPAS sign-offs", () => {
       expect(db.rows("ipas_signoffs").filter((s) => !s.cleared_at).map((s) => s.role).sort()).toEqual(["approved", "prepared"]);
     });
 
-    it("sends back from the row with a reason, and tells the preparer", async () => {
+    it("returns from the row with a reason, and tells the preparer", async () => {
       onList("s3_approved", approver);
       const row = ipas({ created_by: purchaser.id });
       signoff(row.id, 3, "prepared", purchaser);
@@ -423,14 +455,14 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Send back ${row.number} section 3` }));
+      await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 3` }));
       const dialog = await screen.findByRole("dialog");
       await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "Wrong supplier");
-      await user.click(within(dialog).getByRole("button", { name: "Send back" }));
+      await user.click(within(dialog).getByRole("button", { name: "Return" }));
 
       await waitFor(() => expect(screen.getByText("Nothing waiting on you right now")).toBeInTheDocument());
       await waitForNetworkIdle();
-      expect(db.rows("ipas_signoffs")[0]).toMatchObject({ cleared_reason: "Sent back: Wrong supplier", cleared_by: approver.id });
+      expect(db.rows("ipas_signoffs")[0]).toMatchObject({ cleared_reason: "Returned: Wrong supplier", cleared_by: approver.id });
       expect(db.rows("notifications").find((n) => n.type === "IPAS_SENT_BACK")).toMatchObject({ recipient_id: purchaser.id });
     });
 
@@ -450,7 +482,7 @@ describe("IPAS sign-offs", () => {
       expect(within(sheet).getByText(row.po_number)).toBeInTheDocument();
       expect(within(sheet).getByRole("link", { name: "Open the IPAS" })).toHaveAttribute("href", `/purchasing/ipas/${row.id}`);
       expect(within(sheet).getByRole("button", { name: "Approve" })).toBeInTheDocument();
-      expect(within(sheet).getByRole("button", { name: "Send back" })).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: "Return" })).toBeInTheDocument();
     });
 
     it("sends someone who isn't on an approval list away", async () => {

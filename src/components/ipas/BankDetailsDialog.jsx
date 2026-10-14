@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,9 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
-import { ipasService } from "../../services/ipasService";
-import { ipasErrorMessage } from "../../utils/ipas";
-import { ipasKey, ipasListKey } from "./ipasKeys";
 
 /**
  * Type or change the supplier's bank details (#245): Bank Name, Account Name
@@ -23,17 +18,16 @@ import { ipasKey, ipasListKey } from "./ipasKeys";
  * supplier's last IPAS and flags a difference, so this says so before saving.
  * Mounted only while open, so the fields start from what is stored.
  */
-/** `onFailed(error, retry)`, when given, shows a failed save in the page (with Retry) instead of a toast alone. */
-export default function BankDetailsDialog({ open, onOpenChange, ipas, onFailed }) {
+/** `onSave(values)` is the page's: the dialog closes at once and the page saves behind it. */
+export default function BankDetailsDialog({ open, onOpenChange, ipas, onSave }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body ipas={ipas} onFailed={onFailed} onClose={() => onOpenChange(false)} />}
+      {open && <Body ipas={ipas} onSave={onSave} onClose={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function Body({ ipas, onFailed, onClose }) {
-  const queryClient = useQueryClient();
+function Body({ ipas, onSave, onClose }) {
   const current = ipas.bankDetails;
   const [form, setForm] = useState({
     bankName: current?.bankName ?? "",
@@ -47,22 +41,10 @@ function Body({ ipas, onFailed, onClose }) {
     form.accountName.trim() === (current?.accountName ?? "") &&
     form.accountNumber.trim() === (current?.accountNumber ?? "");
 
-  const save = useMutation({
-    mutationFn: () => ipasService.setBankDetails(ipas.id, form),
-    onSuccess: (result) => {
-      if (result.flagged && result.accountChanged) {
-        toast.error("Account # differs from this supplier's last IPAS. It is flagged and its approvals were cleared.", {
-          duration: 8000,
-        });
-      } else {
-        toast.success("Bank details saved.");
-      }
-      queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) });
-      queryClient.invalidateQueries({ queryKey: ipasListKey });
-      onClose();
-    },
-    onError: (error) => (onFailed ? onFailed(error, () => save.mutate()) : toast.error(ipasErrorMessage(error))),
-  });
+  const save = () => {
+    onSave(form);
+    onClose();
+  };
 
   return (
     <DialogContent className="sm:max-w-md">
@@ -96,8 +78,8 @@ function Body({ ipas, onFailed, onClose }) {
         <Button variant="outline" size="lg" onClick={onClose}>
           Cancel
         </Button>
-        <Button size="lg" disabled={unchanged || save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? "Saving…" : "Save bank details"}
+        <Button size="lg" disabled={unchanged} onClick={save}>
+          Save bank details
         </Button>
       </DialogFooter>
     </DialogContent>

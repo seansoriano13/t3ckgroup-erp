@@ -568,14 +568,14 @@ describe("the typed header values", () => {
             pi_qt_amount: "1,250.50",
             freight_service_id: freightIds.dhl,
             landed_cost_split: "quantity",
-            computation_status: "costs_complete",
+            computation_status: "lc_odoo_done",
         })
         expect(error).toBeNull()
         expect(Number(data.pi_qt_amount)).toBe(1250.5)
         expect(data).toMatchObject({
             freight_service_id: freightIds.dhl,
             landed_cost_split: "quantity",
-            computation_status: "costs_complete",
+            computation_status: "lc_odoo_done",
         })
 
         const [event] = await events(ipas.id, "header_changed")
@@ -584,7 +584,7 @@ describe("the typed header values", () => {
             pi_qt_amount: { from: null, to: 1250.5 },
             freight_service_id: { from: null, to: "DHL" },
             landed_cost_split: { from: "value", to: "quantity" },
-            computation_status: { from: "encoding", to: "costs_complete" },
+            computation_status: { from: "encoding", to: "lc_odoo_done" },
         })
     })
 

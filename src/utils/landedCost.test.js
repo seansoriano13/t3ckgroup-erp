@@ -217,7 +217,7 @@ describe("computeLandedCost", () => {
     it.each([
       ["encoding", IPAS_LANDED_COST_STATUS.PROVISIONAL],
       ["encoded", IPAS_LANDED_COST_STATUS.PROVISIONAL],
-      ["costs_complete", IPAS_LANDED_COST_STATUS.FINAL],
+      ["lc_odoo_done", IPAS_LANDED_COST_STATUS.FINAL],
       ["checked", IPAS_LANDED_COST_STATUS.FINAL],
     ])("reads %s as %s", (computationStatus, status) => {
       expect(computeLandedCost({ ...base, computationStatus }).status).toBe(status)
@@ -230,7 +230,7 @@ describe("computeLandedCost", () => {
     })
 
     it("stays unavailable at Costs complete rather than reading final", () => {
-      const result = computeLandedCost({ copy: copy("USD", [line(1, 1, 100)]), computationStatus: "costs_complete" })
+      const result = computeLandedCost({ copy: copy("USD", [line(1, 1, 100)]), computationStatus: "lc_odoo_done" })
       expect(result.status).toBe(IPAS_LANDED_COST_STATUS.UNAVAILABLE)
     })
   })

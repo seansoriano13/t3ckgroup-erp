@@ -64,7 +64,7 @@ export function IpasSignoffs({ section, state, rights }) {
 
   return (
     <div className="mt-5 space-y-3" data-testid={`ipas-signoffs-${section}`}>
-      <SectionHeader title="Sign-offs" className="pb-2">
+      <SectionHeader title="Sign-offs" className="border-b-0 pb-2">
         <StatusBadge status={state.status} label={badge.label} />
       </SectionHeader>
       {!inDrawer && mayGive && <p className="text-xs text-muted-foreground">Sign-offs are in Your move.</p>}

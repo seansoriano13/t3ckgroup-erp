@@ -368,7 +368,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange: gra
           </span>
         </DetailRow>
         <TypedRow
-          label="Contact"
+          label="Supplier's name"
           value={ipas.contact}
           fromOdoo={ipas.contactFromOdoo}
           canChange={canChange}
@@ -614,7 +614,7 @@ function SupplierOrigin({ ipas, canChange, onEdit }) {
 
   return (
     <div className="space-y-2" data-testid="ipas-supplier-origin">
-      <SectionHeader title="Supplier Origin" className="pb-2">
+      <SectionHeader title="Supplier Origin" className="border-b-0 pb-2">
         {canChange && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
             <Pencil size={14} />
@@ -651,7 +651,7 @@ export function IpasStatusSection({ ipas, canChange: granted = false, onEditOrig
       <div className="space-y-4">
         <SupplierOrigin ipas={ipas} canChange={canChange} onEdit={onEditOrigin} />
         <div>
-          <SectionHeader title="Buyer track" className="pb-2" />
+          <SectionHeader title="Buyer track" className="border-b-0 pb-2" />
           <ul className="mt-1 divide-y divide-border">
             {track.map((item) => (
               <TrackStatus
@@ -677,7 +677,7 @@ const OVERRIDE_FIELD_NAMES = {
 };
 
 const HEADER_FIELD_NAMES = {
-  supplier_contact: "Contact",
+  supplier_contact: "Supplier's name",
   pi_number: "P.I #",
   pi_qt_amount: "P.I/QT Amount",
   freight_service_id: "Freight service",
@@ -791,9 +791,18 @@ function eventDetail(event) {
         .filter(Boolean)
         .join(" · ");
     case "sent_back":
-      return [`Section ${ipasSectionLabel(detail.section)}`, detail.reason ? `“${detail.reason}”` : null].filter(Boolean).join(" · ");
+    case "approval_undone":
+      return [
+        `Section ${ipasSectionLabel(detail.section)}`,
+        detail.reason ? `“${detail.reason}”` : null,
+        detail.cleared_section_7?.length > 0
+          ? `also cleared ${ipasSectionLabel("filing")}: ${detail.cleared_section_7.map((role) => IPAS_SIGNOFF_ROLE_LABELS[role]?.toLowerCase() ?? role).join(", ")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
     case "filed":
-      return `Section ${ipasSectionLabel("filing")} approved · ${IPAS_COMPUTATION_STATUS_LABELS[detail.computation_status] ?? "Costs complete"}`;
+      return `Section ${ipasSectionLabel("filing")} approved · ${IPAS_COMPUTATION_STATUS_LABELS[detail.computation_status] ?? "LC Odoo Done"}`;
     case "reopened": {
       const cleared = (detail.cleared ?? []).map((role) => IPAS_SIGNOFF_ROLE_LABELS[role]?.toLowerCase() ?? role);
       return [

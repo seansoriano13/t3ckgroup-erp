@@ -415,7 +415,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
         await ipasService.setComputationStatus(ipas.id, "encoded")
         expect((await read(ipas.id)).landedCost.status).toBe(IPAS_LANDED_COST_STATUS.PROVISIONAL)
 
-        await ipasService.setComputationStatus(ipas.id, "costs_complete")
+        await ipasService.setComputationStatus(ipas.id, "lc_odoo_done")
         expect((await read(ipas.id)).landedCost.status).toBe(IPAS_LANDED_COST_STATUS.FINAL)
 
         await ipasService.setComputationStatus(ipas.id, "checked")
@@ -430,19 +430,19 @@ describe("ipasService: payments, charges and Landed Cost", () => {
         await expect(ipasService.setComputationStatus(ipas.id, "done")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
 
         stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true })
-        await expect(ipasService.setComputationStatus(ipas.id, "costs_complete")).rejects.toMatchObject({ code: "42501" })
+        await expect(ipasService.setComputationStatus(ipas.id, "lc_odoo_done")).rejects.toMatchObject({ code: "42501" })
         expect((await read(ipas.id)).computationStatus).toBe("encoding")
       })
 
       it("keeps each move in history with what it was", async () => {
         const ipas = await raise()
         await ipasService.setComputationStatus(ipas.id, "encoded")
-        await ipasService.setComputationStatus(ipas.id, "costs_complete")
+        await ipasService.setComputationStatus(ipas.id, "lc_odoo_done")
 
         const trail = db.rows("ipas_events").filter((e) => e.kind === "header_changed")
         expect(trail.map((e) => e.detail.fields.computation_status)).toEqual([
           { from: "encoding", to: "encoded" },
-          { from: "encoded", to: "costs_complete" },
+          { from: "encoded", to: "lc_odoo_done" },
         ])
       })
     })

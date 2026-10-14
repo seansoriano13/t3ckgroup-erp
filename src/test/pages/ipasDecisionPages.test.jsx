@@ -128,14 +128,14 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(within(region).getByText("Next: Waiting for you")).toBeInTheDocument();
   });
 
-  it("keeps Mark costs complete in its own group below the sign-offs, with a divider", async () => {
-    const row = ipas({ computation_status: "encoded" });
+  it("keeps the next LC step in its own group below the sign-offs, with a divider", async () => {
+    const row = ipas({ computation_status: "lc_gs_done" });
     signoff(row.id, 1, "prepared", purchaser);
     signoff(row.id, 1, "approved", approver);
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    const costs = within(region).getByRole("button", { name: "Mark costs complete" });
+    const costs = within(region).getByRole("button", { name: "Mark LC Odoo Done" });
     const group = costs.closest("ul");
     expect(group).toHaveClass("border-t");
     expect(group).not.toBe(within(region).getByRole("button", { name: "Prepare section 2 · Purchasing & Finance" }).closest("ul"));
@@ -153,7 +153,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     await screen.findByRole("region", { name: "Your move" });
     expect(screen.getByRole("group", { name: "Section 1, Purchasing, Approved, done" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Section 2, Purchasing & Finance, Approved, done" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Section 3, Computation status & Landed Cost, Costs complete, waiting" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Section 3, Computation status & Landed Cost, LC Odoo Done, waiting" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Section 4, Filing, Received, now" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Section 4, Filing, Noted and Checked, waiting" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Section 4, Filing, Approved, waiting" })).toBeInTheDocument();
@@ -185,11 +185,11 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
 
     const region = await screen.findByRole("region", { name: "Your move" });
     expect(within(region).getByText("Nothing needs you right now. Waiting on 4 · Filing.")).toBeInTheDocument();
-    // Costs complete is not offered until the computation status is Encoded: it is not the Now gate.
-    expect(within(region).queryByRole("button", { name: "Mark costs complete" })).not.toBeInTheDocument();
+    // The LC steps are not offered until the computation status is Encoded: the costs gate is not Now.
+    expect(within(region).queryByRole("button", { name: /^Mark LC/ })).not.toBeInTheDocument();
   });
 
-  it("offers an approver only Approve and Send back on their section, never a Purchasing move", async () => {
+  it("offers an approver only Approve and Return on their section, never a Purchasing move", async () => {
     const row = ipas();
     signoff(row.id, 1, "prepared", purchaser);
     signIn(approver);
@@ -197,9 +197,10 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
 
     const region = await screen.findByRole("region", { name: "Your move" });
     expect(within(region).getByRole("button", { name: "Approve section 1 · Purchasing" })).toBeInTheDocument();
-    expect(within(region).getByRole("button", { name: "Send section 1 · Purchasing back" })).toBeInTheDocument();
+    // One Return button on the card; its dialog picks the section.
+    expect(within(region).getByRole("button", { name: "Return…" })).toBeInTheDocument();
     expect(within(region).queryByRole("button", { name: /^Prepare/ })).not.toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: "Mark costs complete" })).not.toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: /^Mark LC/ })).not.toBeInTheDocument();
     expect(within(region).queryByRole("button", { name: /Approve section 2/ })).not.toBeInTheDocument();
   });
 
@@ -222,7 +223,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     signoff(row.id, 7, "received", approver);
     signoff(row.id, 7, "noted", approver);
     signoff(row.id, 7, "checked", approver);
-    // Costs are not encoded yet, so Costs complete is not Now and filing waits on it: nothing is Now.
+    // Costs are not encoded yet, so the costs gate is not Now and filing waits on it: nothing is Now.
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });

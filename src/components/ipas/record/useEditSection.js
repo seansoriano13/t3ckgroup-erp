@@ -9,14 +9,16 @@ const PARAM = "edit";
  * the drawer replaces the `?open=` entry, so the history reads [overview,
  * overview with ?edit=] and Back lands on the overview; entering it any other
  * way pushes an entry. Leaving (its link, or Back) replaces the entry. Entering
- * it drops `?open=`: the drawer closes as the view opens.
+ * it drops `?open=`: the drawer closes as the view opens. Leaving (its link, or
+ * Back) replaces the entry and lands on that section's drawer (`?open=`), where
+ * the person was before editing.
  */
 export function useEditSection() {
   const [params, setParams] = useSearchParams();
   const raw = params.get(PARAM);
   const key = SECTIONS.some((section) => section.key === raw) ? raw : null;
 
-  const write = (next, { replace }) =>
+  const write = (next, { replace, openKey = null }) =>
     setParams(
       (prev) => {
         const nextParams = new URLSearchParams(prev);
@@ -25,6 +27,7 @@ export function useEditSection() {
           nextParams.delete("open");
         } else {
           nextParams.delete(PARAM);
+          if (openKey) nextParams.set("open", openKey);
         }
         return nextParams;
       },
@@ -34,6 +37,7 @@ export function useEditSection() {
   return {
     key,
     edit: (next) => write(next, { replace: params.has("open") }),
-    leave: () => write(null, { replace: true }),
+    // `openKey` is the section whose drawer comes back; without it the overview shows.
+    leave: (openKey = null) => write(null, { replace: true, openKey }),
   };
 }

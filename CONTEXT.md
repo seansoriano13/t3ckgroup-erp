@@ -686,7 +686,7 @@ _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 **Filing**:
 The last sign-off on an IPAS — section 7's Approved, given once Finance has
 received the IPAS and it has been noted and checked, and only after sections 1
-and 3 are approved and the purchase's costs are marked complete, since filing
+and 3 are approved and the Computation status is LC Odoo Done, since filing
 freezes a Landed Cost that would otherwise still be provisional. A filed IPAS is frozen: its copy of the Odoo purchase order,
 its payments and charges, its Purpose and its SORs no longer change. Earlier
 approvals block nothing; filing is the one point that locks. Required documents
@@ -694,6 +694,30 @@ that nobody has ticked only warn. A Super Admin can reopen a filed IPAS with a
 reason, which clears section 7 and leaves sections 1 and 3 approved; a filed IPAS
 can't be cancelled until it is reopened.
 _Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 3)
+
+**Return** (an IPAS section):
+A signer on the section's approval list sends the section back to its preparer
+with a reason, to be redone: the section's Prepared and Approved sign-offs are
+cleared and kept as history, the section's data is untouched. Offered while the
+section is prepared and not yet approved; once approved the move is Undo
+approval. Returning section 1 or 2 after section 4 has begun also clears section
+4's open sign-offs, which the signer confirms first, naming who gave them.
+_Avoid_: Send back, Reject, Reopen (that is a filed IPAS)
+
+**Undo approval**:
+A signer on the section's approval list takes back an Approved on section 1 or 2
+with a reason. Only the Approved sign-off is cleared; the Prepared stays, so the
+section waits for an approver again and the preparer redoes nothing. Same
+section 4 consequence and confirmation as a Return.
+_Avoid_: Unapprove, Revert
+
+**Computation status**:
+Where an IPAS's cost work stands, in order: Encoding, Encoded, LC GS Done, LC
+Odoo Done, Checked by. Purchasing moves it up to LC Odoo Done (Landed Cost goes
+final there, which is what Filing waits on); Finance, Purchasing or a Super
+Admin gives Checked by. Shown on the record, the IPAS list (with a filter) and
+the printed IPAS.
+_Avoid_: Costs complete (the old name for LC Odoo Done), Costing status
 
 **Finance access**:
 Who counts as Finance — granted per employee by its own access flag, the way
@@ -754,7 +778,7 @@ An item's true unit cost once everything is apportioned onto it —
 same way for Local and Import purchases. The unit price is the purchase order's,
 before VAT and withholding, turned into PHP at the rate actually paid so far;
 Charges and shipping fees are spread over the order's lines. Provisional until
-Purchasing marks the purchase's costs complete, final after. The basis every
+the IPAS's Computation status reaches LC Odoo Done, final after. The basis every
 markup and income figure is taken from.
 _Avoid_: Cost, Unit Cost, Acquire Cost, Local Cost
 

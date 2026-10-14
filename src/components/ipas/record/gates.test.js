@@ -6,7 +6,7 @@ const who = (name, signedAt = "2026-09-05T06:40:00.000Z") => ({ signedBy: { name
 
 /** A digest with just what the gates read. */
 function digestOf({ status = "encoding", s1 = {}, s3 = {}, s7 = {}, open = true, filed = false, cancelled = false } = {}) {
-  const costsComplete = status === "costs_complete" || status === "checked";
+  const costsComplete = status === "lc_odoo_done" || status === "checked";
   return {
     open,
     filed,
@@ -24,14 +24,14 @@ const byKey = (gates, key) => gates.find((gate) => gate.key === key);
 const approvedBoth = { s1: { approved: who("Ana") }, s3: { approved: who("Ben") } };
 
 describe("gatesFor: the one Now", () => {
-  it("is Received, not Costs complete, when the status is encoding and sections 1 and 2 are approved", () => {
+  it("is Received, not LC Odoo Done, when the status is encoding and sections 1 and 2 are approved", () => {
     const gates = gatesOf({ status: "encoding", ...approvedBoth });
     expect(nowGate(gates)?.key).toBe("received");
     expect(byKey(gates, "costs").now).toBe(false);
     expect(byKey(gates, "costs").state).toBe("waiting");
   });
 
-  it("is Costs complete once the status is encoded and sections 1 and 2 are approved", () => {
+  it("is the costs gate once the status is encoded and sections 1 and 2 are approved", () => {
     const gates = gatesOf({ status: "encoded", ...approvedBoth });
     expect(nowGate(gates)?.key).toBe("costs");
     expect(byKey(gates, "received").state).toBe("waiting");
@@ -58,13 +58,19 @@ describe("gatesFor: the one Now", () => {
     expect(byKey(gates, "costs").state).toBe("waiting");
   });
 
-  it("is Costs complete once the status is encoded and every earlier gate is given", () => {
+  it("is the costs gate once the status is encoded and every earlier gate is given", () => {
     const gates = gatesOf({ status: "encoded", ...approvedBoth, s7: { received: who("Fi"), noted: who("No"), checked: who("Ch") } });
     expect(nowGate(gates)?.key).toBe("costs");
   });
 
+  it("stays the costs gate through LC GS Done, until LC Odoo Done", () => {
+    const upTo = { ...approvedBoth, s7: { received: who("Fi"), noted: who("No"), checked: who("Ch") } };
+    expect(nowGate(gatesOf({ status: "lc_gs_done", ...upTo }))?.key).toBe("costs");
+    expect(nowGate(gatesOf({ status: "lc_odoo_done", ...upTo }))?.key).toBe("approved");
+  });
+
   it("is never more than one gate", () => {
-    const statuses = ["encoding", "encoded", "costs_complete", "checked"];
+    const statuses = ["encoding", "encoded", "lc_gs_done", "lc_odoo_done", "checked"];
     const flags = [null, who("X")];
     for (const status of statuses) {
       for (const s1Approved of flags) {
@@ -110,7 +116,7 @@ describe("gatesFor: names, states and lines", () => {
     expect(gates.map((gate) => [gate.label, gate.role])).toEqual([
       ["1 · Purchasing", "Approved"],
       ["2 · Purchasing & Finance", "Approved"],
-      ["3 · Computation status & Landed Cost", "Costs complete"],
+      ["3 · Computation status & Landed Cost", "LC Odoo Done"],
       ["4 · Filing", "Received"],
       ["4 · Filing", "Noted and Checked"],
       ["4 · Filing", "Approved"],

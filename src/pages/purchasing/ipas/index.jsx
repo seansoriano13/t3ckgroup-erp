@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { Building2, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
+import { Building2, Calculator, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import PageShell from "../../../components/ui/PageShell";
@@ -24,6 +24,8 @@ import { ipasService } from "../../../services/ipasService";
 import { getPermissionContext } from "../../../utils/permissions";
 import { filterIpas } from "../../../utils/ipas";
 import {
+  IPAS_COMPUTATION_STATUSES,
+  IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_PURPOSES,
   IPAS_PURPOSE_LABELS,
   IPAS_STATE,
@@ -43,7 +45,7 @@ const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 const ALL = "__all__";
 
-// Supplier, Entity, SORs and Raised hide below md so the number, Purpose and State stay in view.
+// Supplier, Entity, SORs and Raised hide below md so the number, Purpose, Costing and State stay in view.
 const NARROW_HIDDEN = new Set(["Supplier", "Entity", "SORs", "Raised"]);
 
 const IPAS_SORT = {
@@ -52,10 +54,16 @@ const IPAS_SORT = {
   supplier: (r) => r.supplier,
   entity: (r) => r.entity,
   purpose: (r) => IPAS_PURPOSE_LABELS[r.purpose],
+  costing: (r) => IPAS_COMPUTATION_STATUSES.indexOf(r.computation_status),
   sors: (r) => r.sors[0]?.salesReference,
   raised: (r) => new Date(r.created_at).getTime(),
   state: (r) => r.state,
 };
+
+const COSTING_OPTIONS = [
+  { value: ALL, label: "Any costing status" },
+  ...IPAS_COMPUTATION_STATUSES.map((value) => ({ value, label: IPAS_COMPUTATION_STATUS_LABELS[value] })),
+];
 
 const PURPOSE_OPTIONS = [
   { value: ALL, label: "Any Purpose" },
@@ -74,6 +82,7 @@ function IpasList() {
   const [state, setState] = useState(IPAS_STATE.OPEN);
   const [entity, setEntity] = useState(null);
   const [purpose, setPurpose] = useState(null);
+  const [costing, setCosting] = useState(null);
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -91,13 +100,13 @@ function IpasList() {
   );
 
   // Search, entity and Purpose narrow first; the state pills count within that.
-  const scoped = useMemo(() => filterIpas(rows, { entity, purpose, search }), [rows, entity, purpose, search]);
+  const scoped = useMemo(() => filterIpas(rows, { entity, purpose, computationStatus: costing, search }), [rows, entity, purpose, costing, search]);
   const filtered = useMemo(() => filterIpas(scoped, { state }), [scoped, state]);
   const { sorted: visible, sort, toggle } = useTableSort(filtered, IPAS_SORT);
   const paging = usePaging(visible);
 
   const count = (s) => filterIpas(scoped, { state: s }).length;
-  const hasActiveFilters = search !== "" || entity !== null || purpose !== null;
+  const hasActiveFilters = search !== "" || entity !== null || purpose !== null || costing !== null;
 
   const toolbar = (
     <>
@@ -137,6 +146,16 @@ function IpasList() {
               className={CHIP}
               wrapperClassName={CHIP_WRAPPER}
             />
+            <FilterSelect
+              icon={Calculator}
+              label="Costing"
+              options={COSTING_OPTIONS}
+              value={costing ?? ALL}
+              onChange={(v) => setCosting(v === ALL ? null : v)}
+              allValue={ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
           </>
         }
         hasActiveFilters={hasActiveFilters}
@@ -144,6 +163,7 @@ function IpasList() {
           setSearch("");
           setEntity(null);
           setPurpose(null);
+          setCosting(null);
         }}
       />
     </>
@@ -199,7 +219,7 @@ function IpasList() {
               <Table tableId="ipas" className="md:min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "SORs", "Raised", "State"].map((heading) => (
+                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "Costing", "SORs", "Raised", "State"].map((heading) => (
                       <SortHead
                         key={heading}
                         id={slug(heading)}

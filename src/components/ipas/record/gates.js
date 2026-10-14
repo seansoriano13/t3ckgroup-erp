@@ -54,10 +54,12 @@ function gateDefs(digest) {
     {
       key: "costs",
       part: "costing",
-      role: "Costs complete",
+      role: "LC Odoo Done",
       done: Boolean(costsComplete),
-      // Its turn is once the computation status reaches Encoded.
-      prereqMet: computationStatus === IPAS_COMPUTATION_STATUS.ENCODED,
+      // Its turn is once the computation status reaches Encoded, until LC Odoo Done.
+      prereqMet:
+        computationStatus === IPAS_COMPUTATION_STATUS.ENCODED ||
+        computationStatus === IPAS_COMPUTATION_STATUS.LC_GS_DONE,
       waitsOn: "Purchasing",
       line: `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[computationStatus] ?? "not set"}`,
       at: null,
@@ -104,7 +106,7 @@ function gateDefs(digest) {
       done: Boolean(s7.approved),
       prereqMet: noteAndCheck && Boolean(costsComplete),
       waitsOn: "the filing approvers",
-      line: s7.approved ? `Approved by ${name(s7.approved)}` : "Files the IPAS, after Noted, Checked and Costs complete",
+      line: s7.approved ? `Approved by ${name(s7.approved)}` : "Files the IPAS, after Noted, Checked and LC Odoo Done",
       at: s7.approved?.signedAt ?? null,
       moveKeys: ["file"],
     },

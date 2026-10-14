@@ -1,6 +1,12 @@
-import { Check, CornerUpLeft, FileCheck2, PenLine } from "lucide-react";
+import { Check, CornerUpLeft, FileCheck2, PenLine, Undo2 } from "lucide-react";
 
-import { IPAS_COMPUTATION_STATUS, IPAS_SECTION_PART, IPAS_SIGNOFF_ROLE, ipasSectionLabel } from "@/constants/ipas";
+import {
+  IPAS_COMPUTATION_STATUS,
+  IPAS_COMPUTATION_STATUS_LABELS,
+  IPAS_SECTION_PART,
+  IPAS_SIGNOFF_ROLE,
+  ipasSectionLabel,
+} from "@/constants/ipas";
 import { hintFor } from "./moveCopy";
 
 /**
@@ -18,7 +24,7 @@ function move(key, section, { kind, icon, label, verb, confirm = true, run }, di
 
 const FILING = ipasSectionLabel(7);
 const PART = IPAS_SECTION_PART;
-// The two sections a Finance or purchasing signer can approve or send back from the card.
+// The two sections a Finance or purchasing signer can approve or return from the card.
 const MOVE_SECTIONS = [1, 3];
 // The filing section: its sign-offs are steps, not Prepare and Approve.
 const FILING_SECTION = 7;
@@ -27,8 +33,9 @@ const FILING_SECTION = 7;
  * Everything the signed-in person may do on this IPAS right now, in three groups:
  *   moves    the sign-offs: Approve and Prepare for sections 1 and 2, then the
  *            section 4 steps they may give
- *   costs    Mark costs complete, its own group below the sign-offs
- *   returns  the send-backs, in pale red
+ *   costs    The next LC step, its own group below the sign-offs
+ *   returns  the Return, in pale red: one button whose dialog picks the section
+ *   bySection  the per-section Return / Undo approval moves, for the drawer footer
  * Only what the rights say the person may do is offered, so nothing is shown
  * that the database would refuse. Reopen is not a move: it lives in the filed
  * banner, for a Super Admin only.
@@ -87,52 +94,81 @@ export function movesFor(ctx, digest) {
   }
 
   const costs = [];
-  // Offered only on the Costs complete gate's own turn (gates.js), so the card's status
+  // Offered only on the costs gate's own turn (gates.js), so the card's status
   // line, which says what it waits on until then, and this move never disagree.
+  // One step at a time: LC GS Done after Encoded, LC Odoo Done after that.
   const costsGate = digest.gates.find((gate) => gate.key === "costs");
   if (can.change && !digest.costsComplete && costsGate?.prereqMet) {
+    const next =
+      digest.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED
+        ? IPAS_COMPUTATION_STATUS.LC_GS_DONE
+        : IPAS_COMPUTATION_STATUS.LC_ODOO_DONE;
+    const nextLabel = IPAS_COMPUTATION_STATUS_LABELS[next];
     costs.push(
       move("costs", "costing", {
         kind: "neutral",
         icon: Check,
-        label: "Mark costs complete",
-        verb: "Mark complete",
+        label: `Mark ${nextLabel}`,
+        verb: "Mark done",
         // Undoable from its toast, so no question first (and no "You sign as" line).
         confirm: false,
-        run: (from) => on.setComputationStatus(IPAS_COMPUTATION_STATUS.COSTS_COMPLETE, from),
+        run: (from) => on.setComputationStatus(next, from),
       }, digest),
     );
   }
 
-  const returns = [];
+  // Returns and undos, one entry each per section. The card shows them as the one
+  // "Return…" button (below); the drawer's footer shows its own section's.
+  const bySection = [];
   for (const section of MOVE_SECTIONS) {
-    if (rights[section].canSendBack) {
-      returns.push(
-        move(`return-${section}`, PART[section], {
-          kind: "return",
-          icon: CornerUpLeft,
-          label: `Send section ${ipasSectionLabel(section)} back`,
-          verb: "Send back",
-          confirm: false,
-          run: () => on.sendBack(section),
-        }, digest),
-      );
-    }
+    const mode = rights[section].returnMode;
+    if (!mode) continue;
+    const label = ipasSectionLabel(section);
+    const undo = mode === "undo";
+    bySection.push(
+      move(`${undo ? "undo" : "return"}-${section}`, PART[section], {
+        kind: "return",
+        icon: undo ? Undo2 : CornerUpLeft,
+        label: undo ? `Undo approval of section ${label}` : `Return section ${label}`,
+        verb: undo ? "Undo approval" : "Return",
+        confirm: false,
+        // Both ask in their own dialog (reason, and what else it clears).
+        run: (from) => on.openReturn(section, from),
+      }, digest),
+    );
   }
   if (rights.sendBack7) {
-    returns.push(
+    bySection.push(
       move("return-7", "filing", {
         kind: "return",
         icon: CornerUpLeft,
-        label: `Send section ${FILING} back`,
-        verb: "Send back",
+        label: `Return section ${FILING}`,
+        verb: "Return",
         confirm: false,
-        run: () => on.sendBack(FILING_SECTION),
+        run: (from) => on.openReturn(FILING_SECTION, from),
       }, digest),
     );
   }
 
-  return { moves, costs, returns };
+  // The card's single button: a dialog picks the section.
+  const returns = [];
+  if (bySection.length > 0) {
+    const allUndo = bySection.every((item) => item.key.startsWith("undo-"));
+    returns.push({
+      ...move("return", bySection[0].section, {
+        kind: "return",
+        icon: allUndo ? Undo2 : CornerUpLeft,
+        label: allUndo ? "Undo approval…" : "Return…",
+        verb: allUndo ? "Undo approval" : "Return",
+        confirm: false,
+        run: (from) => on.openReturn(null, from),
+      }, digest),
+      // No single section to review.
+      section: null,
+    });
+  }
+
+  return { moves, costs, returns, bySection };
 }
 
 /**
@@ -148,6 +184,7 @@ export function canEditSection(key, { can }) {
     case "finance":
       return can.record || can.change || can.tickFinance;
     case "costing":
+      return can.change || can.check;
     case "sales":
     case "header":
       return can.change;
@@ -158,6 +195,6 @@ export function canEditSection(key, { can }) {
 
 /** The moves a section's drawer footer offers: the same moves as the card, for that section. */
 export function footerMovesFor(ctx, digest, sectionKey) {
-  const { moves, costs, returns } = movesFor(ctx, digest);
-  return [...moves, ...costs, ...returns].filter((item) => item.section === sectionKey);
+  const { moves, costs, bySection } = movesFor(ctx, digest);
+  return [...moves, ...costs, ...bySection].filter((item) => item.section === sectionKey);
 }

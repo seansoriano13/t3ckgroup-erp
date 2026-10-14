@@ -177,9 +177,12 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
       expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 640, php_debited: 36160 });
       // 640 of USD for PHP 36,160 is a rate; Landed Cost is available from it.
-      // The payment dialog closes; the edit view stays. Back to the overview, then open Costing in the drawer.
+      // The payment dialog closes; the edit view stays. Back to the section's drawer, close it,
+      // then open Costing from its row.
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-      await user.click(screen.getByRole("button", { name: "Back to overview" }));
+      await user.click(screen.getByRole("button", { name: "Back to preview" }));
+      await user.click(within(await screen.findByRole("dialog", { name: "1 · Purchasing" })).getByRole("button", { name: "Close" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
       // The section row (its number first); the card's "Review section 3 · …" link names it too.
       await user.click(await screen.findByRole("button", { name: /^3 · Computation status & Landed Cost/ }));
       expect(await screen.findByTestId("ipas-landed-line")).toBeInTheDocument();
@@ -228,6 +231,9 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.click(await screen.findByRole("button", { name: "Edit P.I/QT Amount" }));
       let dialog = await topDialog();
       const field = within(dialog).getByRole("textbox");
+      // The currency is fixed in front, so what is typed reads as a real amount.
+      expect(within(dialog).getByText("PHP")).toBeInTheDocument();
+      expect(field).toHaveAttribute("placeholder", "0.00");
       await user.type(field, "12k");
       await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -312,9 +318,52 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       cleanup();
 
       renderDetail(row.id, "costing", "edit");
-      expect(await screen.findByRole("button", { name: "Back to overview" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Costs complete" })).not.toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "LC Odoo Done" })).not.toBeInTheDocument();
       expect(screen.queryByRole("combobox", { name: "Spread charges" })).not.toBeInTheDocument();
+    });
+
+    it("lets Finance give and take back Checked by, and no other step", async () => {
+      mockUser.current = finance;
+      stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
+      const row = ipas({ po_number: "P02552", computation_status: "lc_odoo_done" });
+      const user = setupUser();
+
+      renderDetail(row.id, "costing", "edit");
+      const checked = await screen.findByRole("button", { name: "Checked by" });
+      expect(checked).toBeEnabled();
+      // Purchasing's steps are read-only for Finance.
+      expect(screen.getByRole("button", { name: "LC GS Done" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toHaveAttribute("aria-pressed", "true");
+
+      await user.click(checked);
+      await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("checked"));
+      // And back one step.
+      await user.click(await screen.findByRole("button", { name: "LC Odoo Done" }));
+      await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("lc_odoo_done"));
+    });
+
+    it("gives Finance no status step before LC Odoo Done", async () => {
+      mockUser.current = finance;
+      stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
+      const row = ipas({ po_number: "P02552", computation_status: "encoded" });
+
+      renderDetail(row.id, "costing", "edit");
+
+      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "LC GS Done" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Checked by" })).not.toBeInTheDocument();
+    });
+
+    it("moves the status one step either way for Purchasing, and no further", async () => {
+      const row = ipas({ po_number: "P02552", computation_status: "encoded" });
+
+      renderDetail(row.id, "costing", "edit");
+
+      expect(await screen.findByRole("button", { name: "LC GS Done" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Encoding" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Checked by" })).toBeDisabled();
     });
 
     it("gives a reader with neither access no way to record anything", async () => {
@@ -345,25 +394,25 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       const payments = renderDetail(row.id, "purchasing", "edit");
 
-      expect(await screen.findByRole("button", { name: "Back to overview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Add payment/ })).not.toBeInTheDocument();
       payments.unmount();
 
       renderDetail(row.id, "costing", "edit");
-      expect(await screen.findByRole("button", { name: "Back to overview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
       expect(screen.getAllByText("Final").length).toBeGreaterThan(0);
       expect(screen.queryByText("Provisional")).not.toBeInTheDocument();
       cleanup();
 
       renderDetail(row.id, "finance", "edit");
-      expect(await screen.findByRole("button", { name: "Back to overview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Add charge/ })).not.toBeInTheDocument();
     });
   });
 
   describe("Landed Cost", () => {
-    it("shows each line per unit, provisional until Costs complete and then final", async () => {
-      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+    it("shows each line per unit, provisional until LC Odoo Done and then final", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id, computation_status: "lc_gs_done" });
       db.seed("ipas_charges", {
         ipas_id: row.id,
         kind_id: options.charge_kind["Brokerage Fee"].id,
@@ -382,9 +431,9 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.getAllByText("Provisional").length).toBeGreaterThan(0);
       expect(screen.queryByText("Final")).not.toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Costs complete" }));
+      await user.click(screen.getByRole("button", { name: "LC Odoo Done" }));
 
-      await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("costs_complete"));
+      await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("lc_odoo_done"));
       expect((await screen.findAllByText("Final")).length).toBeGreaterThan(0);
       expect(screen.queryByText("Provisional")).not.toBeInTheDocument();
     });

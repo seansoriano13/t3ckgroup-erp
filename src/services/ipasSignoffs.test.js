@@ -240,8 +240,8 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       expect(opened.signoffSections[1].status).toBe("not_prepared")
       expect(opened.signoffSections[1].history.map((s) => [s.role, s.clearedReason])).toEqual(
         expect.arrayContaining([
-          ["prepared", "Sent back: Supplier is wrong"],
-          ["approved", "Sent back: Supplier is wrong"],
+          ["prepared", "Returned: Supplier is wrong"],
+          ["approved", "Returned: Supplier is wrong"],
         ]),
       )
       expect(opened.signoffSections[1].history[0].clearedBy).toMatchObject({ id: approver.id })
@@ -291,6 +291,109 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
     })
   })
 
+  describe("undoing an approval", () => {
+    async function approvedSections() {
+      addToList("s1_approved", approver, otherApprover)
+      addToList("s3_approved", approver)
+      const ipas = await raise()
+      await ipasService.sign(ipas.id, 1, "prepared")
+      await ipasService.sign(ipas.id, 3, "prepared")
+      as(approver)
+      await ipasService.sign(ipas.id, 1, "approved")
+      await ipasService.sign(ipas.id, 3, "approved")
+      return ipas
+    }
+
+    it("takes back only the Approved, keeps Prepared, and keeps the history", async () => {
+      const ipas = await approvedSections()
+
+      const out = await ipasService.undoApproval(ipas.id, 3, "  Approved too fast ")
+      await waitForNetworkIdle()
+
+      expect(out).toMatchObject({ clearedSection7: [], notified: 0 })
+      expect(live()).toEqual(["1/approved", "1/prepared", "3/prepared"])
+      const section = (await read(ipas.id)).signoffSections[3]
+      expect(section.status).toBe("awaiting_approval")
+      expect(section.history[0]).toMatchObject({ role: "approved", clearedReason: "Approval undone: Approved too fast" })
+      expect(events("approval_undone")[0].detail).toMatchObject({ section: 3, reason: "Approved too fast" })
+    })
+
+    it("tells the approver when someone else undoes it, with the reason", async () => {
+      const ipas = await approvedSections()
+      as(otherApprover)
+
+      const out = await ipasService.undoApproval(ipas.id, 1, "Wrong PO")
+      await waitForNetworkIdle()
+
+      expect(out.notified).toBe(1)
+      const notices = sent(IPAS_NOTIFICATION.APPROVAL_UNDONE)
+      expect(notices).toHaveLength(1)
+      expect(notices[0]).toMatchObject({ recipient_id: approver.id, sender_id: otherApprover.id, reference_id: ipas.id })
+      expect(notices[0].title).toBe("IPAS approval undone")
+      expect(notices[0].message).toContain("Wrong PO")
+      expect(notices[0].message).toContain("1 · Purchasing")
+    })
+
+    it("needs a reason, a section 1 or 3, a live approval and a signer of the section", async () => {
+      const ipas = await approvedSections()
+      for (const reason of ["", "   ", undefined]) {
+        await expect(ipasService.undoApproval(ipas.id, 1, reason)).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
+      }
+      await expect(ipasService.undoApproval(ipas.id, 7, "No")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
+      await expect(ipasService.undoApproval(ipas.id, 5, "No")).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
+
+      as(buyer)
+      await expect(ipasService.undoApproval(ipas.id, 1, "No")).rejects.toMatchObject({ code: "42501" })
+      as(superAdmin)
+      await expect(ipasService.undoApproval(ipas.id, 1, "No")).rejects.toMatchObject({ code: "42501" })
+      expect(live()).toHaveLength(4)
+
+      as(approver)
+      await ipasService.undoApproval(ipas.id, 1, "First")
+      await expect(ipasService.undoApproval(ipas.id, 1, "Again")).rejects.toMatchObject({ code: "55000" })
+    })
+  })
+
+  describe("returning a section after section 4 has begun", () => {
+    it("clears Received and Noted with it and tells whoever gave them", async () => {
+      const receiver = makeEmployee({ name: "Rita Receiver" })
+      const noter = makeEmployee({ name: "Nina Noter" })
+      addToList("s1_approved", approver)
+      addToList("s3_approved", approver)
+      addToList("s7_received", receiver)
+      addToList("s7_noted", noter)
+      const ipas = await raise()
+      await ipasService.sign(ipas.id, 1, "prepared")
+      await ipasService.sign(ipas.id, 3, "prepared")
+      as(approver)
+      await ipasService.sign(ipas.id, 1, "approved")
+      await ipasService.sign(ipas.id, 3, "approved")
+      as(receiver)
+      await ipasService.sign(ipas.id, 7, "received")
+      as(noter)
+      await ipasService.sign(ipas.id, 7, "noted")
+      await waitForNetworkIdle()
+      const before = sent(IPAS_NOTIFICATION.SENT_BACK).length
+
+      as(approver)
+      const out = await ipasService.sendBack(ipas.id, 3, "Freight is missing")
+      await waitForNetworkIdle()
+
+      expect(out.clearedSection7).toEqual(["noted", "received"])
+      expect(live()).toEqual(["1/approved", "1/prepared"])
+      const seven = (await read(ipas.id)).signoffSections[7]
+      expect(seven.received).toBeNull()
+      expect(seven.history.map((entry) => entry.clearedReason)).toEqual(
+        Array(2).fill("Section 3 returned: Freight is missing"),
+      )
+      // The preparer and each section 4 signer, once.
+      const notices = sent(IPAS_NOTIFICATION.SENT_BACK).slice(before)
+      expect(notices.map((n) => n.recipient_id).sort()).toEqual([buyer.id, receiver.id, noter.id].sort())
+      expect(notices[0].message).toContain("4 · Filing")
+      expect(notices[0].title).toBe("IPAS returned")
+    })
+  })
+
   describe("sending back section 7", () => {
     let receiver, noter, checker
 
@@ -333,9 +436,9 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       expect(seven.received).toBeNull()
       expect(seven.history.map((s) => [s.role, s.clearedReason])).toEqual(
         expect.arrayContaining([
-          ["received", "Sent back: Landed cost is off"],
-          ["noted", "Sent back: Landed cost is off"],
-          ["checked", "Sent back: Landed cost is off"],
+          ["received", "Returned: Landed cost is off"],
+          ["noted", "Returned: Landed cost is off"],
+          ["checked", "Returned: Landed cost is off"],
         ]),
       )
       expect(events("sent_back").at(-1).detail).toMatchObject({ section: 7, reason: "Landed cost is off" })
@@ -343,7 +446,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       const notices = sent(IPAS_NOTIFICATION.SENT_BACK).slice(before)
       expect(notices.map((n) => n.recipient_id).sort()).toEqual([receiver.id, noter.id].sort())
       expect(notices.every((n) => n.sender_id === checker.id && n.reference_id === ipas.id)).toBe(true)
-      expect(notices[0].message).toContain("section 7")
+      expect(notices[0].message).toContain("section 4 · Filing")
       expect(notices[0].message).toContain("Landed cost is off")
     })
 

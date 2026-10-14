@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { requiredDocuments, shapeDocuments, unfiledRequiredDocuments } from "./ipasDocuments"
 import {
   FILING_STATUS,
-  isCostsComplete,
+  isLandedCostFinal,
   section7Rights,
   section7Signoffs,
   shapeSignoffs,
@@ -192,8 +192,8 @@ describe("section 7", () => {
   })
 
   it("knows Costs complete and later", () => {
-    expect(["encoding", "encoded"].map(isCostsComplete)).toEqual([false, false])
-    expect(["costs_complete", "checked"].map(isCostsComplete)).toEqual([true, true])
-    expect(isCostsComplete(undefined)).toBe(false)
+    expect(["encoding", "encoded"].map(isLandedCostFinal)).toEqual([false, false])
+    expect(["lc_odoo_done", "checked"].map(isLandedCostFinal)).toEqual([true, true])
+    expect(isLandedCostFinal(undefined)).toBe(false)
   })
 })

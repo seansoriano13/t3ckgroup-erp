@@ -163,7 +163,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id, "history");
 
       const drawer = await screen.findByRole("dialog", { name: "History" });
-      expect(within(drawer).queryByRole("button", { name: /^Prepare|^Approve|^Send|^Edit section/ })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: /^Prepare|^Approve|^Return|^Undo|^Edit section/ })).not.toBeInTheDocument();
     });
 
     // #533: money reads in the drawer; editing is in the edit view.
@@ -185,7 +185,7 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(drawer).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
     });
 
-    it("Edit section opens the edit view with the tables editable, and Back to overview focuses the row", async () => {
+    it("Edit section opens the edit view with the tables editable, and Back to preview returns to that section's drawer", async () => {
       const row = ipas();
       renderRouted(row.id);
       const user = setupUser();
@@ -198,9 +198,9 @@ describe("IPAS signing with the evidence in view", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(screen.queryByRole("region", { name: "Your move" })).not.toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Back to overview" }));
-      const trigger = await screen.findByRole("button", { name: /^1 · Purchasing/ });
-      expect(trigger).toHaveFocus();
+      await user.click(screen.getByRole("button", { name: "Back to preview" }));
+      // The drawer it was opened from comes back, with the section's read-only body.
+      expect(await screen.findByRole("dialog", { name: "1 · Purchasing" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
     });
 
@@ -212,7 +212,7 @@ describe("IPAS signing with the evidence in view", () => {
       await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Edit section" }));
-      await screen.findByRole("button", { name: "Back to overview" });
+      await screen.findByRole("button", { name: "Back to preview" });
       // The drawer's entry was replaced, not stacked under the edit view.
       expect(router.state.location.search).toBe("?edit=purchasing");
 
@@ -231,14 +231,14 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       await act(() => router.navigate(`/purchasing/ipas/${row.id}?edit=costing`));
-      await user.click(await screen.findByRole("button", { name: "Costs complete" }));
+      await user.click(await screen.findByRole("button", { name: "Encoded" }));
       const alert = await screen.findByRole("alert");
       expect(within(alert).getByRole("button", { name: "Retry" })).toBeInTheDocument();
       expect(rowOf(row.id).computation_status).toBe("encoding");
 
       signIn(purchaser);
       await user.click(within(alert).getByRole("button", { name: "Retry" }));
-      await waitFor(() => expect(rowOf(row.id).computation_status).toBe("costs_complete"));
+      await waitFor(() => expect(rowOf(row.id).computation_status).toBe("encoded"));
       await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
     });
 
@@ -248,7 +248,7 @@ describe("IPAS signing with the evidence in view", () => {
       await screen.findByRole("button", { name: /^2 · Purchasing & Finance/ });
 
       await act(() => router.navigate(`/purchasing/ipas/${row.id}?edit=finance`));
-      expect(await screen.findByRole("button", { name: "Back to overview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
       await act(() => router.navigate(-1));
 
       await waitFor(() => expect(router.state.location.search).toBe(""));
@@ -360,7 +360,7 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" })).toBeInTheDocument();
     });
 
-    it("marks costs complete with no question, toasts with Undo, and Undo restores the status", async () => {
+    it("marks the next LC step with no question, toasts with Undo, and Undo restores the status", async () => {
       const row = ipas({ computation_status: "encoded" });
       // No Toaster in the page tests: draw the undoable toast where it is asked for.
       toastSpy = vi.spyOn(toast, "custom").mockImplementation((render) => {
@@ -370,15 +370,30 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await yourMove()).getByRole("button", { name: "Mark costs complete" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Mark LC GS Done" }));
       // Undoable from its toast, so it asks nothing first.
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-      await waitFor(() => expect(rowOf(row.id).computation_status).toBe("costs_complete"));
+      await waitFor(() => expect(rowOf(row.id).computation_status).toBe("lc_gs_done"));
       expect(toastSpy).toHaveBeenCalled();
       await user.click(await screen.findByRole("button", { name: "Undo" }));
 
       await waitFor(() => expect(rowOf(row.id).computation_status).toBe("encoded"));
+    });
+
+    it("goes on to LC Odoo Done from LC GS Done, which makes Landed Cost final", async () => {
+      const row = ipas({ computation_status: "lc_gs_done" });
+      toastSpy = vi.spyOn(toast, "custom").mockImplementation((render) => {
+        renderWithProviders(render({ id: "undo", visible: true }));
+        return "undo";
+      });
+      renderDetail(row.id);
+      const user = setupUser();
+
+      await user.click(within(await yourMove()).getByRole("button", { name: "Mark LC Odoo Done" }));
+
+      await waitFor(() => expect(rowOf(row.id).computation_status).toBe("lc_odoo_done"));
+      expect(within(await yourMove()).queryByRole("button", { name: /^Mark LC/ })).not.toBeInTheDocument();
     });
 
     it("a failed sign-off shows the error under its move, with Retry running it again", async () => {
@@ -422,28 +437,88 @@ describe("IPAS signing with the evidence in view", () => {
       await waitFor(() => expect(within(drawer).queryByRole("alert")).not.toBeInTheDocument());
     });
 
-    it("a failed send back keeps the dialog open with the reason and the error in it, and Retry sends it", async () => {
+    it("a failed return closes the dialog at once, puts the section back with the error and Retry, and Retry returns it", async () => {
       const row = ipas();
       signoff(row.id, 1, "prepared", purchaser);
-      // The page offers the send back; the database says the viewer isn't on the list.
+      // The page offers the return; the database says the viewer isn't on the list.
       signIn(approver, { actorId: other.id });
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await yourMove()).getByRole("button", { name: "Send section 1 · Purchasing back" }));
-      const dialog = await screen.findByRole("dialog", { name: "Send section 1 · Purchasing back?" });
+      await user.click(within(await yourMove()).getByRole("button", { name: "Return…" }));
+      const dialog = await screen.findByRole("dialog", { name: "Return section 1 · Purchasing?" });
       await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "Wrong supplier");
-      await user.click(within(dialog).getByRole("button", { name: "Send back" }));
+      await user.click(within(dialog).getByRole("button", { name: "Return" }));
 
-      const alert = await within(dialog).findByRole("alert");
-      expect(within(dialog).getByPlaceholderText(/What does the preparer need to fix/)).toHaveValue("Wrong supplier");
+      // UI first: the dialog is gone, the failure is kept on the page with Retry.
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      const alert = await screen.findByRole("alert");
       expect(db.rows("ipas_signoffs").some((s) => s.cleared_reason)).toBe(false);
 
       signIn(approver);
       await user.click(within(alert).getByRole("button", { name: "Retry" }));
 
-      await waitFor(() => expect(db.rows("ipas_signoffs").some((s) => s.cleared_reason === "Sent back: Wrong supplier")).toBe(true));
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(db.rows("ipas_signoffs").some((s) => s.cleared_reason === "Returned: Wrong supplier")).toBe(true));
+      await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    });
+
+    it("offers one Return button that asks which section, and makes a hard-to-get section 4 sign-off a deliberate click", async () => {
+      onList("s3_approved", approver);
+      const row = ipas({ created_by: purchaser.id });
+      signoff(row.id, 1, "prepared", purchaser);
+      signoff(row.id, 1, "approved", approver);
+      signoff(row.id, 3, "prepared", purchaser);
+      signoff(row.id, 3, "approved", approver);
+      signoff(row.id, 7, "received", other);
+      signIn(approver);
+      renderDetail(row.id);
+      const user = setupUser();
+
+      // One button, not one per section.
+      const region = await yourMove();
+      expect(within(region).queryByRole("button", { name: /^Return section/ })).not.toBeInTheDocument();
+      expect(within(region).getAllByRole("button", { name: "Undo approval…" })).toHaveLength(1);
+      await user.click(within(region).getByRole("button", { name: "Undo approval…" }));
+
+      const dialog = await screen.findByRole("dialog", { name: "Return or undo an approval" });
+      const choices = within(dialog).getAllByRole("radio");
+      expect(choices.map((choice) => choice.textContent)).toEqual([
+        expect.stringContaining("Undo approval · 1 · Purchasing"),
+        expect.stringContaining("Undo approval · 2 · Purchasing & Finance"),
+      ]);
+
+      // Section 4 has begun: what goes with it is named, and needs its own click.
+      expect(within(dialog).getByText("4 · Filing: Received by Co Approver")).toBeInTheDocument();
+      const submit = within(dialog).getByRole("button", { name: "Undo approval" });
+      await user.type(within(dialog).getByPlaceholderText(/Why is this approval being taken back/), "Wrong PO");
+      expect(submit).toBeDisabled();
+      await user.click(within(dialog).getByRole("checkbox", { name: /They will have to be given again/ }));
+      expect(submit).toBeEnabled();
+      await user.click(submit);
+
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Return or undo an approval" })).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(db.rows("ipas_signoffs").filter((r) => !r.cleared_at).map((r) => `${r.section}/${r.role}`).sort()).toEqual([
+          "1/prepared",
+          "3/approved",
+          "3/prepared",
+        ]),
+      );
+      const received = db.rows("ipas_signoffs").find((r) => r.section === 7 && r.role === "received");
+      expect(received.cleared_reason).toBe("Section 1 approval undone: Wrong PO");
+    });
+
+    it("asks for no second click when section 4 had not begun", async () => {
+      const row = ipas({ created_by: purchaser.id });
+      signoff(row.id, 1, "prepared", purchaser);
+      signIn(approver);
+      renderDetail(row.id);
+      const user = setupUser();
+
+      await user.click(within(await yourMove()).getByRole("button", { name: "Return…" }));
+      const dialog = await screen.findByRole("dialog", { name: "Return section 1 · Purchasing?" });
+      expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText(/hard to get again/)).not.toBeInTheDocument();
     });
 
     it("names the next IPAS waiting for the viewer after a sign-off, and none when there is none", async () => {

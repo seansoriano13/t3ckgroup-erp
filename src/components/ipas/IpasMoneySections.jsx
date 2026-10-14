@@ -106,7 +106,7 @@ export function IpasPaymentsBlock({
         <DetailRow label="FP">{sum.fullPayment > 0 ? <Amt>{formatAmount(sum.fullPayment, currency)}</Amt> : null}</DetailRow>
       </dl>
 
-      <SectionHeader title="Payments" className="pb-2">
+      <SectionHeader title="Payments" className="border-b-0 pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddPayment}>
             <Plus size={14} />
@@ -240,7 +240,7 @@ export function IpasChargesSection({
 
   return (
     <IpasSection title={ipasSectionLabel("finance")}>
-      <SectionHeader title="Importation charges" className="pb-2">
+      <SectionHeader title="Importation charges" className="border-b-0 pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddCharge}>
             <Plus size={14} />
@@ -325,33 +325,42 @@ export function LandedCostBadge({ status }) {
 }
 
 /**
- * Section 6's costing: the computation status (Encoding, Encoded, Costs
- * complete, Checked by; set by Purchasing) and Landed Cost per line and per
- * unit with its provisional or final mark and how it was spread.
+ * Section 3's costing: the computation status (Encoding, Encoded, LC GS Done,
+ * LC Odoo Done, Checked by) and Landed Cost per line and per unit with its
+ * provisional or final mark and how it was spread.
+ *
+ * The status moves one step either way. Purchasing moves every step; Finance
+ * (or a Super Admin) only gives and takes back Checked by, which `canSetStatus
+ * (from, to)` says.
  */
-export function IpasCostingSection({ ipas, canChange: granted = false, onSetStatus, onSetSplit }) {
+export function IpasCostingSection({ ipas, canChange: granted = false, canSetStatus, onSetStatus, onSetSplit }) {
   const canChange = useEditable(granted);
+  const canStep = useEditable(true) && Boolean(onSetStatus);
   const lc = ipas.landedCost;
   const currentIndex = IPAS_COMPUTATION_STATUSES.indexOf(ipas.computationStatus);
   const unavailable = lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE;
   const foreign = lc.isForeign;
+  const mayStep = (status, index) =>
+    Math.abs(index - currentIndex) === 1 && (canSetStatus ? canSetStatus(ipas.computationStatus, status) : granted);
+  const anyStep = IPAS_COMPUTATION_STATUSES.some((status, index) => mayStep(status, index));
 
   return (
     <IpasSection title={ipasSectionLabel("costing")}>
       <div className="space-y-4">
         <div>
-          <SectionHeader title="Computation status" className="pb-2" />
+          <SectionHeader title="Computation status" className="border-b-0 pb-2" />
           <ol className="mt-2 flex flex-wrap items-center gap-2" aria-label="Computation status">
             {IPAS_COMPUTATION_STATUSES.map((status, index) => {
               const done = index <= currentIndex;
               const current = index === currentIndex;
               return (
                 <li key={status}>
-                  {canChange ? (
+                  {canStep && anyStep ? (
                     <Button
                       size="sm"
                       variant={current ? "secondary" : "outline"}
                       aria-pressed={current}
+                      disabled={!current && !mayStep(status, index)}
                       className="gap-1.5"
                       onClick={() => !current && onSetStatus(status)}
                     >
@@ -380,7 +389,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, onSetStat
         </div>
 
         <div className="space-y-3">
-          <SectionHeader title="Landed Cost" className="pb-2">
+          <SectionHeader title="Landed Cost" className="border-b-0 pb-2">
             <LandedCostBadge status={lc.status} />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Spread charges</span>

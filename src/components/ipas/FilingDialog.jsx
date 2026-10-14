@@ -23,7 +23,7 @@ import { ipasFilingWarningsKey } from "./ipasKeys";
  * Approving section 7 files the IPAS (#248): one deliberate act that freezes
  * it. This is where the page and the Approval Center ask for it. The required
  * documents nobody has ticked only warn: they are listed, and filing goes
- * ahead on confirm. Costs complete is not a warning (the database refuses
+ * ahead on confirm. LC Odoo Done is not a warning (the database refuses
  * Approved before it, and the page doesn't offer the button until then).
  *
  * `onConfirm()` returns a promise (the caller calls `ipasService.sign(...,

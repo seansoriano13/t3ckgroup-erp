@@ -15,7 +15,7 @@
  *    `unavailable`: never guessed, never taken from Odoo's rate.
  *  - Spread: every charge, every charge fee and every shipping fee, none
  *    excluded, by value (the default), by quantity or equally.
- *  - `provisional` until the computation status reaches Costs complete, then
+ *  - `provisional` until the computation status reaches LC Odoo Done, then
  *    `final`. A filed IPAS is final.
  *
  * Money is carried in centavos inside, and the spread is a largest-remainder
@@ -30,7 +30,7 @@ import {
   IPAS_PAYMENT_KIND,
 } from "../constants/ipas";
 
-const FINAL_STATUSES = new Set([IPAS_COMPUTATION_STATUS.COSTS_COMPLETE, IPAS_COMPUTATION_STATUS.CHECKED]);
+const FINAL_STATUSES = new Set([IPAS_COMPUTATION_STATUS.LC_ODOO_DONE, IPAS_COMPUTATION_STATUS.CHECKED]);
 
 /** A finite number, or null. Numeric columns can arrive as strings. */
 export function finiteNumber(value) {

@@ -102,6 +102,24 @@ describe("IPAS pages", () => {
       expect(within(screen.getByTestId("ipas-row")).getByText("TGIPAS_050")).toBeInTheDocument();
     });
 
+    it("shows where each IPAS's costing stands, and filters by it", async () => {
+      ipas({ po_number: "P02552", computation_status: "encoded" });
+      ipas({ po_number: "P02553", computation_status: "lc_odoo_done" });
+      const user = setupUser();
+
+      renderList();
+
+      const rows = await screen.findAllByTestId("ipas-row");
+      expect(rows).toHaveLength(2);
+      expect(rows.map((r) => within(r).getByTestId("ipas-row-costing").textContent).sort()).toEqual(["Encoded", "LC Odoo Done"]);
+
+      await user.click(screen.getByRole("button", { name: /Any costing status/ }));
+      await user.click(await screen.findByRole("button", { name: "LC Odoo Done" }));
+
+      await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+      expect(within(screen.getByTestId("ipas-row")).getByText("P02553")).toBeInTheDocument();
+    });
+
     it("shows a Project IPAS's SORs", async () => {
       const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" });
       const row = ipas({ purpose: "project" });
@@ -497,7 +515,7 @@ describe("IPAS pages", () => {
       const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
-      await user.click(await screen.findByRole("button", { name: "Edit Contact" }));
+      await user.click(await screen.findByRole("button", { name: "Edit Supplier's name" }));
       const dialog = await screen.findByRole("dialog");
       const field = within(dialog).getByRole("textbox");
       await user.clear(field);

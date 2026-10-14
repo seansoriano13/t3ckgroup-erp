@@ -18,8 +18,10 @@ import {
   IPAS_PURPOSE,
   IPAS_PURPOSES,
   IPAS_SEND_BACK_SECTIONS,
+  IPAS_UNDO_APPROVAL_SECTIONS,
   IPAS_SECTION_7_LIST,
   IPAS_SECTION_7_ROLES,
+  ipasSectionLabel,
   ipasSectionName,
   IPAS_SIGNER_LISTS,
   IPAS_SIGNOFF_ROLE,
@@ -44,7 +46,8 @@ import {
 } from "../utils/ipas";
 import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
-import { isCostsComplete, shapeSignoff } from "../utils/ipasSignoffs";
+import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
+import { rawOf } from "../utils/ipasOptimistic";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
 
 const IPAS_SELECT =
@@ -279,14 +282,20 @@ export const ipasService = {
       if (result.error) throw result.error;
     }
 
+    const sors = sorsByIpas.get(id) ?? [];
+    const sections = {
+      payments: payments.data || [],
+      charges: charges.data || [],
+      documents: documents.data || [],
+      options: options.data || [],
+      signoffs: signoffs.data || [],
+    };
+
     return {
-      ...shapeIpas(row, sorsByIpas.get(id) ?? [], {
-        payments: payments.data || [],
-        charges: charges.data || [],
-        documents: documents.data || [],
-        options: options.data || [],
-        signoffs: signoffs.data || [],
-      }),
+      ...shapeIpas(row, sors, sections),
+      // The rows it was shaped from, so the page can show an edit before the
+      // server has answered (utils/ipasOptimistic.js).
+      raw: rawOf({ row, sors, ...sections }),
       // Every option row, inactive ones too: a row that holds a deactivated
       // option still resolves it, and the pickers filter it out for new rows.
       options: options.data || [],
@@ -434,7 +443,7 @@ export const ipasService = {
    *                                currency; blank clears. Typed, never computed.
    *   freightServiceId             an active freight service, or null to clear
    *   landedCostSplit              value | quantity | equal
-   *   computationStatus            encoding | encoded | costs_complete | checked
+   *   computationStatus            encoding | encoded | lc_gs_done | lc_odoo_done | checked
    *   googleSheet, ganttChart      section 2's ticks: true or false (never sign-off gated)
    * Half-typed numbers are refused with a sentence (IpasError INVALID), never a
    * cast error. Returns the row.
@@ -460,7 +469,7 @@ export const ipasService = {
       requireOneOf(
         computationStatus,
         IPAS_COMPUTATION_STATUSES,
-        "The computation status is Encoding, Encoded, Costs complete or Checked by.",
+        "The computation status is Encoding, Encoded, LC GS Done, LC Odoo Done or Checked by.",
       );
       fields.computation_status = computationStatus;
     }
@@ -480,7 +489,7 @@ export const ipasService = {
     return data;
   },
 
-  /** The computation status, set by Purchasing. Landed Cost is final from Costs complete. */
+  /** The computation status, set by Purchasing (Finance gives Checked by). Landed Cost is final from LC Odoo Done. */
   setComputationStatus(id, status) {
     return ipasService.setHeader(id, { computationStatus: status });
   },
@@ -893,7 +902,7 @@ export const ipasService = {
    * and "checked" in either order, then "approved", which files the IPAS; each
    * is its own list's, and section 7 opens once sections 1 and 3 are approved.
    * The database decides and refuses with its own sentence (42501 not yours to
-   * give, 55000 wrong state, Approved before Costs complete included).
+   * give, 55000 wrong state, Approved before LC Odoo Done included).
    * `declineSignature` signs without the stored signature, so the printed form
    * shows the name only.
    *
@@ -1015,15 +1024,17 @@ export const ipasService = {
   },
 
   /**
-   * Returns a section with a reason. Section 1 or 3: clears its live Prepared
-   * and Approved (kept as history) and notifies whoever prepared it. Section 7:
-   * while it is open and the IPAS isn't filed, clears the live Received, Noted
-   * and Checked and notifies whoever gave them. Only a signer of that section
-   * may (section 7: anyone on a section 7 list); the database refuses anyone
-   * else, a Super Admin off the list included, and a section with nothing
-   * signed. The reason is required and is in the notification.
+   * Returns a section with a reason (the Return). Section 1 or 3: clears its
+   * live Prepared and Approved (kept as history), clears section 4's live
+   * Received, Noted and Checked with them, and notifies whoever prepared it and
+   * whoever gave those. Section 7: while it is open and the IPAS isn't filed,
+   * clears the live Received, Noted and Checked and notifies whoever gave them.
+   * Only a signer of that section may (section 7: anyone on a section 7 list);
+   * the database refuses anyone else, a Super Admin off the list included, and
+   * a section with nothing signed. The reason is required and is in the
+   * notification.
    *
-   * Returns { clearedRoles, notified }.
+   * Returns { clearedRoles, clearedSection7, notified }.
    */
   async sendBack(id, section, reason) {
     requireSendBackSection(section);
@@ -1037,25 +1048,50 @@ export const ipasService = {
     });
     if (error) throw error;
 
-    const senderId = data?.actor_id ?? null;
-    const recipients = (data?.notify_ids ?? data?.preparer_ids ?? []).filter((recipient) => recipient !== senderId);
-    if (recipients.length > 0) {
-      const ipas = await readIpasLabel(id, data?.ipas);
-      await Promise.all(
-        recipients.map((recipient_id) =>
-          notificationService.createNotification({
-            recipient_id,
-            sender_id: senderId,
-            type: IPAS_NOTIFICATION.SENT_BACK,
-            title: "IPAS sent back",
-            message: `${ipas}: section ${section} (${ipasSectionName(section)}) was sent back. ${why}`,
-            reference_id: id,
-          }),
-        ),
-      );
-    }
+    const clearedSection7 = data?.cleared_section_7 ?? [];
+    const notified = await notifyAbout(id, data, {
+      type: IPAS_NOTIFICATION.SENT_BACK,
+      title: "IPAS returned",
+      message: (label) =>
+        `${label}: section ${ipasSectionLabel(section)} was returned. ${why}` +
+        (clearedSection7.length > 0 ? ` Section ${ipasSectionLabel("filing")} sign-offs were cleared with it.` : ""),
+    });
 
-    return { clearedRoles: data?.cleared_roles ?? [], notified: recipients.length };
+    return { clearedRoles: data?.cleared_roles ?? [], clearedSection7, notified };
+  },
+
+  /**
+   * Takes back one section's Approved (section 1 or 3) with a reason. Prepared
+   * stays, so the section waits for an approver again. Section 4's live
+   * Received, Noted and Checked are cleared with it. Whoever approved it (when
+   * not the person undoing) and whoever gave those are told.
+   *
+   * Returns { clearedSection7, notified }.
+   */
+  async undoApproval(id, section, reason) {
+    if (!IPAS_UNDO_APPROVAL_SECTIONS.includes(section)) {
+      throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1 and 2 have an approval to undo.");
+    }
+    const why = (reason || "").trim();
+    if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give a reason, so the approver knows why.");
+
+    const { data, error } = await supabase.rpc("ipas_undo_approval", {
+      p_ipas_id: id,
+      p_section: section,
+      p_reason: why,
+    });
+    if (error) throw error;
+
+    const clearedSection7 = data?.cleared_section_7 ?? [];
+    const notified = await notifyAbout(id, data, {
+      type: IPAS_NOTIFICATION.APPROVAL_UNDONE,
+      title: "IPAS approval undone",
+      message: (label) =>
+        `${label}: the approval of section ${ipasSectionLabel(section)} was undone. ${why}` +
+        (clearedSection7.length > 0 ? ` Section ${ipasSectionLabel("filing")} sign-offs were cleared with it.` : ""),
+    });
+
+    return { clearedSection7, notified };
   },
 
   /**
@@ -1318,10 +1354,10 @@ function requireSignoffSection(section) {
   }
 }
 
-/** Sections 1, 3 and 7 are sent back. */
+/** Sections 1, 3 and 7 are returned. */
 function requireSendBackSection(section) {
   if (!IPAS_SEND_BACK_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1, 3 and 7 can be sent back.");
+    throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1, 3 and 7 can be returned.");
   }
 }
 
@@ -1380,10 +1416,35 @@ async function readFilingState(id) {
   const given = new Set((signoffs.data || []).map((row) => row.role));
   const ready =
     ipas.data.state === IPAS_STATE.OPEN &&
-    isCostsComplete(ipas.data.computation_status) &&
+    isLandedCostFinal(ipas.data.computation_status) &&
     [IPAS_SIGNOFF_ROLE.RECEIVED, IPAS_SIGNOFF_ROLE.NOTED, IPAS_SIGNOFF_ROLE.CHECKED].every((role) => given.has(role));
   const shaped = shapeDocuments(documents.data || [], options.data || []);
   return { ready, warnings: unfiledRequiredDocuments(shaped, ipas.data.source) };
+}
+
+/**
+ * Tells everyone an RPC's `notify_ids` names, except the person who acted, with
+ * `message(label)` as the text. Returns how many were told.
+ */
+async function notifyAbout(id, data, { type, title, message }) {
+  const senderId = data?.actor_id ?? null;
+  const recipients = (data?.notify_ids ?? data?.preparer_ids ?? []).filter((recipient) => recipient !== senderId);
+  if (recipients.length === 0) return 0;
+  const label = await readIpasLabel(id, data?.ipas);
+  const text = message(label);
+  await Promise.all(
+    recipients.map((recipient_id) =>
+      notificationService.createNotification({
+        recipient_id,
+        sender_id: senderId,
+        type,
+        title,
+        message: text,
+        reference_id: id,
+      }),
+    ),
+  );
+  return recipients.length;
 }
 
 /** "TGIPAS_052 (P02552)" for a notification, from the RPC's row or one read. */

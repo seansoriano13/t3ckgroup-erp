@@ -114,7 +114,7 @@ describe("ipasService: section 7 and Filing", () => {
 
   async function costsComplete(ipas) {
     as(buyer)
-    await ipasService.setComputationStatus(ipas.id, "costs_complete")
+    await ipasService.setComputationStatus(ipas.id, "lc_odoo_done")
   }
 
   /** Every step done, nothing unticked: the IPAS is filed. */
@@ -208,7 +208,7 @@ describe("ipasService: section 7 and Filing", () => {
   })
 
   describe("Filing", () => {
-    it("refuses Approved before Costs complete, with the reason, and signs nothing", async () => {
+    it("refuses Approved before LC Odoo Done, with the reason, and signs nothing", async () => {
       const ipas = await raise()
       tickEverything()
       await approveFirstSections(ipas)
@@ -220,7 +220,7 @@ describe("ipasService: section 7 and Filing", () => {
         as(approver)
         await expect(ipasService.sign(ipas.id, 7, "approved", { confirm: true }), status).rejects.toMatchObject({
           code: "55000",
-          message: expect.stringMatching(/Costs complete/),
+          message: expect.stringMatching(/LC Odoo Done/),
         })
       }
       expect(rowOf(ipas.id)).toMatchObject({ state: "open", filed_at: null })
@@ -231,11 +231,11 @@ describe("ipasService: section 7 and Filing", () => {
       const ipas = await raise()
       await approveFirstSections(ipas)
       await receivedNotedChecked(ipas)
-      // Documents are unticked, but Costs complete comes first: no confirm will help.
+      // Documents are unticked, but LC Odoo Done comes first: no confirm will help.
       as(approver)
       await expect(ipasService.sign(ipas.id, 7, "approved")).rejects.toMatchObject({
         code: "55000",
-        message: expect.stringMatching(/Costs complete/),
+        message: expect.stringMatching(/LC Odoo Done/),
       })
     })
 

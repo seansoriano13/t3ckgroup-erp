@@ -25,7 +25,7 @@ const WIDE = "(min-width: 1280px)";
 function statusLine(digest, gates, offered) {
   if (digest.filed) return "Filed. Nothing left to do.";
   if (digest.cancelled) return "Cancelled. Nothing to do.";
-  // No gate is Now only while Costs complete waits for Purchasing's encoding (gates.js).
+  // No gate is Now only while LC Odoo Done waits for Purchasing's encoding (gates.js).
   const now = nowGate(gates);
   if (!now) return offered.length === 0 ? `Nothing needs you right now. ${COSTS_WAITING}` : COSTS_WAITING;
   if (offered.length === 0) {
@@ -60,7 +60,7 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
   const doneCount = gates.filter((gate) => gate.done).length;
   const busyNow = busy.signoff || busy.give;
 
-  // A card move asks first, unless it asks in its own dialog (the filing dialog, the reason of a send back).
+  // A card move asks first, unless it asks in its own dialog (the filing dialog, the reason of a return).
   const { run: runFromCard, dialog: confirmDialog } = useMoveConfirm({ digest, viewer, origin: CHROME.CARD });
   const rest = { disabled: busyNow, busy: busyNow, failure, onRun: runFromCard, onReview };
 

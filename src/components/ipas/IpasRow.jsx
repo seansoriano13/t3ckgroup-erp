@@ -1,6 +1,13 @@
 import { TableCell, TableRow } from "../ui/table";
 import { formatDate } from "../../utils/formatDate.js";
-import { IPAS_PRIORITY_LABELS, IPAS_PURPOSE_LABELS, IPAS_SOURCE_LABELS, IPAS_STATE } from "../../constants/ipas";
+import {
+  IPAS_COMPUTATION_STATUS,
+  IPAS_COMPUTATION_STATUS_LABELS,
+  IPAS_PRIORITY_LABELS,
+  IPAS_PURPOSE_LABELS,
+  IPAS_SOURCE_LABELS,
+  IPAS_STATE,
+} from "../../constants/ipas";
 import IpasStateBadge from "./IpasStateBadge";
 
 /**
@@ -39,6 +46,11 @@ export default function IpasRow({ row, onOpen }) {
       </TableCell>
       <TableCell>
         <span className="text-xs font-medium text-foreground">{IPAS_PURPOSE_LABELS[row.purpose]}</span>
+      </TableCell>
+      <TableCell>
+        <span className="text-xs text-foreground" data-testid="ipas-row-costing">
+          {IPAS_COMPUTATION_STATUS_LABELS[row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING] ?? "—"}
+        </span>
       </TableCell>
       <TableCell className="hidden md:table-cell">
         {row.sors.length === 0 ? (

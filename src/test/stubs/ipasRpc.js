@@ -515,7 +515,7 @@ export function stubIpasRpcs({
     "gantt_chart",
   ]
   const SPLITS = ["value", "quantity", "equal"]
-  const STATUSES = ["encoding", "encoded", "costs_complete", "checked"]
+  const STATUSES = ["encoding", "encoded", "lc_gs_done", "lc_odoo_done", "checked"]
 
   const optionOf = (id) => findRow("ipas_options", id)
 
@@ -533,7 +533,8 @@ export function stubIpasRpcs({
   const round2 = (n) => Math.round(n * 100) / 100
 
   stubRpc("ipas_set_header", (args) => {
-    requirePurchasing("ipas_set_header")
+    const mayCheck = !purchasing && (hasFinance || superAdmin)
+    if (!purchasing && !mayCheck) requirePurchasing("ipas_set_header")
     const fields = args.p_fields
     if (!fields || typeof fields !== "object") refuse("22023", "ipas_set_header: the fields must be an object")
     for (const key of Object.keys(fields)) {
@@ -543,6 +544,10 @@ export function stubIpasRpcs({
     }
     const row = findRow("ipas", args.p_ipas_id)
     requireOpen("ipas_set_header", row)
+    // Finance (or a Super Admin who isn't Purchasing) only moves Checked by, and nothing else with it.
+    if (mayCheck && (Object.keys(fields).length !== 1 || !("computation_status" in fields))) {
+      refuse("42501", "ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by")
+    }
 
     const next = {}
     const changes = {}
@@ -600,7 +605,18 @@ export function stubIpasRpcs({
     if ("computation_status" in fields) {
       const to = fields.computation_status
       if (!STATUSES.includes(to)) {
-        refuse("22023", "ipas_set_header: the computation status is Encoding, Encoded, Costs complete or Checked")
+        refuse(
+          "22023",
+          "ipas_set_header: the computation status is Encoding, Encoded, LC GS Done, LC Odoo Done or Checked by",
+        )
+      }
+      if (mayCheck) {
+        const from = row.computation_status ?? "encoding"
+        const onlyStatus = Object.keys(fields).length === 1
+        const ok = onlyStatus && ((from === "lc_odoo_done" && to === "checked") || (from === "checked" && to === "lc_odoo_done"))
+        if (!ok) {
+          refuse("42501", "ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by")
+        }
       }
       if (to !== (row.computation_status ?? "encoding")) {
         next.computation_status = to
@@ -1182,10 +1198,10 @@ export function stubIpasRpcs({
         if (!has(7, "received") || !has(7, "noted") || !has(7, "checked")) {
           refuse("55000", "ipas_sign: Approved needs Received, Noted and Checked first")
         }
-        if (!["costs_complete", "checked"].includes(ipas.computation_status)) {
+        if (!["lc_odoo_done", "checked"].includes(ipas.computation_status)) {
           refuse(
             "55000",
-            `ipas_sign: ${ipas.number} can't be filed until Costs complete: Landed Cost is still provisional, and Filing freezes it as final`,
+            `ipas_sign: ${ipas.number} can't be filed until LC Odoo Done: Landed Cost is still provisional, and Filing freezes it as final`,
           )
         }
       }
@@ -1261,6 +1277,19 @@ export function stubIpasRpcs({
     return { ipas: updated, actor_id: actorId, cleared_roles: roles }
   })
 
+  /** Clears section 4's live Received, Noted and Checked: a returned section no longer backs them. */
+  const clearSectionSeven = (ipasId, why) => {
+    const live = liveSignoffs(ipasId).filter((s) => s.section === 7 && ["received", "noted", "checked"].includes(s.role))
+    for (const s of live) {
+      updateRow("ipas_signoffs", s, {
+        cleared_at: new Date().toISOString(),
+        cleared_by: actorId,
+        cleared_reason: why,
+      })
+    }
+    return live
+  }
+
   stubRpc("ipas_send_back", (args) => {
     const reason = String(args.p_reason || "").trim()
     if (!reason) refuse("22023", "ipas_send_back: give a reason, so the people who signed know what to fix")
@@ -1272,7 +1301,7 @@ export function stubIpasRpcs({
     const mayReturn = sectionSeven
       ? SECTION_7_LISTS.some((listKey) => onList(listKey, actorId))
       : onList(SEND_BACK_LIST[section], actorId)
-    if (!mayReturn) refuse("42501", `ipas_send_back: only a signer of section ${section} sends it back`)
+    if (!mayReturn) refuse("42501", `ipas_send_back: only a signer of section ${section} returns it`)
 
     if (sectionSeven) {
       const everything = liveSignoffs(ipas.id)
@@ -1284,24 +1313,69 @@ export function stubIpasRpcs({
 
     const returned = sectionSeven ? ["received", "noted", "checked"] : ["prepared", "approved"]
     const live = liveSignoffs(ipas.id).filter((s) => s.section === section && returned.includes(s.role))
-    if (live.length === 0) refuse("55000", `ipas_send_back: section ${section} has nothing to send back`)
+    if (live.length === 0) refuse("55000", `ipas_send_back: section ${section} has nothing to return`)
     for (const s of live) {
       updateRow("ipas_signoffs", s, {
         cleared_at: new Date().toISOString(),
         cleared_by: actorId,
-        cleared_reason: `Sent back: ${reason}`,
+        cleared_reason: `Returned: ${reason}`,
       })
     }
     const roles = live.map((s) => s.role).sort()
-    event(ipas.id, "sent_back", { section, reason, cleared: roles })
+    const cascade = sectionSeven ? [] : clearSectionSeven(ipas.id, `Section ${section} returned: ${reason}`)
+    const cascadeRoles = cascade.map((s) => s.role).sort()
+    event(ipas.id, "sent_back", { section, reason, cleared: roles, cleared_section_7: cascadeRoles })
     const preparers = sectionSeven ? [] : [...new Set(live.filter((s) => s.role === "prepared").map((s) => s.signed_by))]
-    const notify = sectionSeven ? [...new Set(live.map((s) => s.signed_by).filter((id) => id !== actorId))] : preparers
+    const cascadeIds = cascade.map((s) => s.signed_by).filter((id) => id !== actorId)
+    const notify = sectionSeven
+      ? [...new Set(live.map((s) => s.signed_by).filter((id) => id !== actorId))]
+      : [...new Set([...preparers, ...cascadeIds])]
     return {
       ipas,
       section,
       actor_id: actorId,
       cleared_roles: roles,
+      cleared_section_7: cascadeRoles,
       preparer_ids: preparers,
+      notify_ids: notify,
+    }
+  })
+
+  stubRpc("ipas_undo_approval", (args) => {
+    const reason = String(args.p_reason || "").trim()
+    if (!reason) refuse("22023", "ipas_undo_approval: give a reason, so the approver knows why")
+    const section = args.p_section
+    if (![1, 3].includes(section)) {
+      refuse("22023", "ipas_undo_approval: only sections 1 and 3 have an approval to undo")
+    }
+    const ipas = requireOpenIpas("ipas_undo_approval", args.p_ipas_id)
+    if (!onList(SEND_BACK_LIST[section], actorId)) {
+      refuse("42501", `ipas_undo_approval: only a signer of section ${section} undoes its approval`)
+    }
+    const approved = liveSignoffs(ipas.id).find((s) => s.section === section && s.role === "approved")
+    if (!approved) refuse("55000", `ipas_undo_approval: section ${section} has no approval to undo`)
+    updateRow("ipas_signoffs", approved, {
+      cleared_at: new Date().toISOString(),
+      cleared_by: actorId,
+      cleared_reason: `Approval undone: ${reason}`,
+    })
+    const cascade = clearSectionSeven(ipas.id, `Section ${section} approval undone: ${reason}`)
+    const cascadeRoles = cascade.map((s) => s.role).sort()
+    event(ipas.id, "approval_undone", {
+      section,
+      reason,
+      approver_id: approved.signed_by,
+      cleared_section_7: cascadeRoles,
+    })
+    const notify = [
+      ...new Set([approved.signed_by, ...cascade.map((s) => s.signed_by)].filter((id) => id && id !== actorId)),
+    ]
+    return {
+      ipas,
+      section,
+      actor_id: actorId,
+      approver_id: approved.signed_by,
+      cleared_section_7: cascadeRoles,
       notify_ids: notify,
     }
   })

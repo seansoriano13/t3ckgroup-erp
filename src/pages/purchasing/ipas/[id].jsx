@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ArrowLeft, ReceiptText } from "lucide-react";
@@ -21,6 +21,7 @@ import BankDetailsDialog from "../../../components/ipas/BankDetailsDialog";
 import DocumentDialog from "../../../components/ipas/DocumentDialog";
 import DatesDialog from "../../../components/ipas/DatesDialog";
 import SendBackDialog from "../../../components/ipas/SendBackDialog";
+import ReturnDialog from "../../../components/ipas/ReturnDialog";
 import FilingDialog from "../../../components/ipas/FilingDialog";
 import { IpasFiledNotice } from "../../../components/ipas/IpasFiling";
 import { IpasWarnings } from "../../../components/ipas/IpasSections";
@@ -44,12 +45,20 @@ import {
   ipasSignerListsKey,
 } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
+import * as optimistic from "../../../utils/ipasOptimistic";
 import { openPrintWindow, printIpas } from "../../../lib/pdf/ipasPrinter";
 import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage } from "../../../utils/ipas";
-import { canSendBackSection7, isCostsComplete, section7Rights, signoffRights } from "../../../utils/ipasSignoffs";
+import { parseAmountInput } from "../../../utils/ipasPayments";
+import {
+  canSendBackSection7,
+  canSetComputationStatus,
+  isLandedCostFinal,
+  section7Rights,
+  signoffRights,
+} from "../../../utils/ipasSignoffs";
 import { formatDate } from "../../../utils/formatDate.js";
 import {
   IPAS_COMPUTATION_STATUS,
@@ -66,10 +75,15 @@ import {
 } from "../../../constants/ipas";
 
 const HEADER_LABELS = {
-  [IPAS_HEADER_FIELD.SUPPLIER_CONTACT]: "Contact",
+  [IPAS_HEADER_FIELD.SUPPLIER_CONTACT]: "Supplier's name",
   [IPAS_HEADER_FIELD.PI_NUMBER]: "P.I #",
   [IPAS_HEADER_FIELD.PI_QT_AMOUNT]: "P.I/QT Amount",
 };
+
+/** The fixed currency shown before a typed amount ("PHP", "USD"; pesos when the PO has none). */
+function currencyPrefix(currency) {
+  return (currency || "PHP").toString().toUpperCase();
+}
 
 /** The value a typed header field starts from in its dialog. */
 function typingInitialValue(field, ipas) {
@@ -113,7 +127,7 @@ function typingInitialValue(field, ipas) {
  *
  * #247 adds the sign-offs of sections 1 and 3 at the foot of each: Prepared
  * (Purchasing access), Approved (the section's list, never the preparer) and
- * Send back with a reason (the section's list). Each person is offered only
+ * Return with a reason (the section's list). Each person is offered only
  * what the database will let them do; it refuses the rest.
  *
  * #248 adds section 7 (Received, Noted and Checked, then Approved, which files
@@ -123,11 +137,26 @@ function typingInitialValue(field, ipas) {
  */
 function IpasPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
-  const [sendingBack, setSendingBack] = useState(null); // the section being sent back
+  const by = user ? { id: user.id, name: user.name, avatarPath: user.avatarPath ?? user.avatar_path ?? null } : null;
+
+  // UI first: apply `edit` to the cached IPAS at once and return what undoes it. The
+  // server catches up behind (each mutation refetches when it settles); a failure
+  // puts the page back and says why, with Retry.
+  const patchCache = (edit) => {
+    const key = ipasKey(id);
+    queryClient.cancelQueries({ queryKey: key });
+    const previous = queryClient.getQueryData(key);
+    if (previous?.raw) queryClient.setQueryData(key, optimistic.reshapeIpas(previous, edit));
+    return () => {
+      if (previous) queryClient.setQueryData(key, previous);
+      queryClient.invalidateQueries({ queryKey: key });
+    };
+  };
+  // The Return dialog: { section | null, from } while open. `section` null lists every section the viewer may return.
+  const [returning, setReturning] = useState(null);
   // The Approve and file dialog, and where it was started ({ from }), or null when shut.
   const [filing, setFiling] = useState(null);
   const [reopening, setReopening] = useState(false);
@@ -158,22 +187,9 @@ function IpasPage() {
   const { key: editKey, edit: openEdit, leave: leaveEdit } = useEditSection();
   const editedKey = useRef(null);
   const rowEls = useRef({});
-  // Set when the drawer was opened from the overview on this page: the edit view then replaces
-  // that entry, so the overview is one Back away. Otherwise (a link opened straight into the
-  // drawer or the edit view) "Back to overview" replaces the entry instead.
-  const overviewBehind = useRef(false);
-  const openSection = (key) => {
-    overviewBehind.current = Boolean(key);
-    openDrawer(key);
-  };
-  const backToOverview = () => {
-    if (overviewBehind.current) {
-      overviewBehind.current = false;
-      navigate(-1);
-    } else {
-      leaveEdit();
-    }
-  };
+  const openSection = (key) => openDrawer(key);
+  // Back from the edit view lands on that section's drawer, where it was opened from.
+  const backToPreview = () => leaveEdit(editKey);
 
   // The stored copy, at once. The refresh below catches it up.
   const { data: ipas, isLoading, isError, refetch } = useQuery({
@@ -194,7 +210,7 @@ function IpasPage() {
     refetchOnWindowFocus: false,
   });
 
-  // Who is on each sign-off list, so the page offers Approve and Send back only
+  // Who is on each sign-off list, so the page offers Approve and Return only
   // to people on one. It never fails the page: no lists reads as nobody.
   const { data: signerLists } = useQuery({
     queryKey: ipasSignerListsKey,
@@ -254,6 +270,9 @@ function IpasPage() {
 
   const signoff = useMutation({
     mutationFn: ({ section, role }) => ipasService.sign(id, section, role),
+    onMutate: ({ section, role }) => ({
+      rollback: patchCache(optimistic.giveSignoff({ section, role, by, ipasId: id })),
+    }),
     onSuccess: ({ notified }, { section, role }) => {
       if (role === IPAS_SIGNOFF_ROLE.PREPARED) {
         toast.success(
@@ -268,13 +287,21 @@ function IpasPage() {
       markSigned();
       signoffChanged();
     },
-    onError: (error, vars) => failMove(error, vars.from, () => signoff.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failMove(error, vars.from, () => signoff.mutate(vars));
+    },
   });
 
   // Section 7's steps. Approved files the IPAS and goes through the dialog that
   // lists the required documents nobody has ticked; `confirm` is the user's yes.
   const give = useMutation({
     mutationFn: ({ role, confirm }) => ipasService.sign(id, 7, role, { confirm }),
+    // Filing (Approved) waits for the server: it freezes the IPAS.
+    onMutate: ({ role }) =>
+      role === IPAS_SIGNOFF_ROLE.APPROVED
+        ? {}
+        : { rollback: patchCache(optimistic.giveSignoff({ section: 7, role, by, ipasId: id })) },
     onSuccess: (result, { role }) => {
       if (result.filed) toast.success(`${ipas.number} is filed.`);
       else toast.success(`Section ${ipasSectionLabel(7)} ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()}.`);
@@ -282,28 +309,39 @@ function IpasPage() {
       markSigned();
       signoffChanged();
     },
-    onError: (error, vars) => failMove(error, vars.from, () => give.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failMove(error, vars.from, () => give.mutate(vars));
+    },
   });
 
-  // Mark costs complete, or any computation status the body's control picks.
-  // Costs complete is undoable: its toast restores the status it came from,
+  // The card's next computation status, or any step the body's control picks.
+  // The card's step is undoable: its toast restores the status it came from,
   // through this same mutation.
   const setStatus = useMutation({
     mutationFn: ({ computationStatus }) => ipasService.setHeader(id, { computationStatus }),
-    onSuccess: (_, { computationStatus, undoTo, undo }) => {
+    onMutate: ({ computationStatus }) => ({
+      rollback: patchCache(optimistic.setRow({ computation_status: computationStatus })),
+    }),
+    onSuccess: (_, { computationStatus, undoTo, undo, from }) => {
       setFailure(null);
       changed();
       if (undo) {
         toast.success(`Computation status is back to ${IPAS_COMPUTATION_STATUS_LABELS[computationStatus]}.`);
-      } else if (undoTo !== undefined && computationStatus === IPAS_COMPUTATION_STATUS.COSTS_COMPLETE) {
-        undoableSuccessToast("Costs marked complete. Landed Cost is final.", "Undo", () =>
+      } else if (undoTo !== undefined && from && computationStatus === IPAS_COMPUTATION_STATUS.LC_ODOO_DONE) {
+        undoableSuccessToast("LC Odoo Done. Landed Cost is final.", "Undo", () =>
+          setStatus.mutate({ computationStatus: undoTo, undo: true }),
+        );
+      } else if (undoTo !== undefined && from) {
+        undoableSuccessToast(`${IPAS_COMPUTATION_STATUS_LABELS[computationStatus]} marked.`, "Undo", () =>
           setStatus.mutate({ computationStatus: undoTo, undo: true }),
         );
       }
     },
-    onError: (error, vars) => {
+    onError: (error, vars, context) => {
+      context?.rollback?.();
       const retry = () => setStatus.mutate(vars);
-      // From the card (Mark costs complete) the failure shows there; from the edit view, in its header.
+      // From the card (the next LC step) the failure shows there; from the edit view, in its header.
       if (vars.from) failMove(error, vars.from, retry);
       else failChange(error, retry);
     },
@@ -326,35 +364,58 @@ function IpasPage() {
     onError: (error) => toast.error(ipasErrorMessage(error)),
   });
 
-  const sendBack = useMutation({
-    mutationFn: ({ section, reason }) => ipasService.sendBack(id, section, reason),
-    onSuccess: (_, { section }) => {
-      toast.success(
-        section === 7
-          ? `Section ${ipasSectionLabel(7)} sent back. Received, Noted and Checked were cleared and the people who gave them were told.`
-          : `Section ${ipasSectionLabel(section)} sent back to its preparer.`,
-      );
+  // A Return, or an Undo approval: both leave the card at once and the server follows.
+  const returnSection = useMutation({
+    mutationFn: ({ section, mode, reason }) =>
+      mode === "undo" ? ipasService.undoApproval(id, section, reason) : ipasService.sendBack(id, section, reason),
+    onMutate: ({ section, mode, reason }) => ({
+      rollback: patchCache(optimistic.returnSection({ section, undo: mode === "undo", by, reason })),
+    }),
+    onSuccess: (_, { section, mode }) => {
+      setChangeFailure(null);
+      if (mode === "undo") {
+        toast.success(`Approval of section ${ipasSectionLabel(section)} undone. It waits for an approver again.`);
+      } else if (section === 7) {
+        toast.success(
+          `Section ${ipasSectionLabel(7)} returned. Received, Noted and Checked were cleared and the people who gave them were told.`,
+        );
+      } else {
+        toast.success(`Section ${ipasSectionLabel(section)} returned to its preparer.`);
+      }
       signoffChanged();
     },
-    onError: (error) => toast.error(ipasErrorMessage(error)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => returnSection.mutate(vars));
+    },
   });
 
   const override = useMutation({
     mutationFn: ({ field, value }) => ipasService.overrideField(id, field, value),
+    onMutate: ({ field, value }) => ({
+      rollback: patchCache(optimistic.setRow({ [IPAS_OVERRIDE_FIELDS[field].column]: (value ?? "").trim() || null })),
+    }),
     onSuccess: (_, { field }) => {
       toast.success(`${IPAS_OVERRIDE_FIELDS[field].label} overridden. Odoo's value stays beside it.`);
       changed();
     },
-    onError: (error, vars) => failChange(error, () => override.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => override.mutate(vars));
+    },
   });
 
   const reset = useMutation({
     mutationFn: (field) => ipasService.resetOverride(id, field),
+    onMutate: (field) => ({ rollback: patchCache(optimistic.setRow({ [IPAS_OVERRIDE_FIELDS[field].column]: null })) }),
     onSuccess: (_, field) => {
       toast.success(`${IPAS_OVERRIDE_FIELDS[field].label} is back to Odoo's value.`);
       changed();
     },
-    onError: (error, field) => failChange(error, () => reset.mutate(field)),
+    onError: (error, field, context) => {
+      context?.rollback?.();
+      failChange(error, () => reset.mutate(field));
+    },
   });
 
   const typeHeader = useMutation({
@@ -364,19 +425,37 @@ function IpasPage() {
         piNumber: field === IPAS_HEADER_FIELD.PI_NUMBER ? value : undefined,
         piQtAmount: field === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? value : undefined,
       }),
+    onMutate: ({ field, value }) => ({
+      rollback: patchCache(
+        optimistic.setRow(
+          optimistic.headerColumns({
+            supplierContact: field === IPAS_HEADER_FIELD.SUPPLIER_CONTACT ? value : undefined,
+            piNumber: field === IPAS_HEADER_FIELD.PI_NUMBER ? value : undefined,
+            piQtAmount: field === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? value : undefined,
+          }),
+        ),
+      ),
+    }),
     onSuccess: (_, { field }) => {
       toast.success(`${HEADER_LABELS[field]} saved.`);
       changed();
     },
-    onError: (error, vars) => failChange(error, () => typeHeader.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => typeHeader.mutate(vars));
+    },
   });
 
   // Freight service, the computation status and how charges are spread: one
   // picked value each, kept in history with what it was.
   const pick = useMutation({
     mutationFn: (values) => ipasService.setHeader(id, values),
+    onMutate: (values) => ({ rollback: patchCache(optimistic.setRow(optimistic.headerColumns(values))) }),
     onSuccess: () => changed(),
-    onError: (error, vars) => failChange(error, () => pick.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => pick.mutate(vars));
+    },
   });
 
   // Section 2's two ticks (#241): plain, not sign-off gated.
@@ -386,36 +465,65 @@ function IpasPage() {
         googleSheet: field === IPAS_HEADER_FIELD.GOOGLE_SHEET ? value : undefined,
         ganttChart: field === IPAS_HEADER_FIELD.GANTT_CHART ? value : undefined,
       }),
+    onMutate: ({ field, value }) => ({
+      rollback: patchCache(
+        optimistic.setRow(
+          optimistic.headerColumns({
+            googleSheet: field === IPAS_HEADER_FIELD.GOOGLE_SHEET ? value : undefined,
+            ganttChart: field === IPAS_HEADER_FIELD.GANTT_CHART ? value : undefined,
+          }),
+        ),
+      ),
+    }),
     onSuccess: () => changed(),
-    onError: (error, vars) => failChange(error, () => tickSheet.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => tickSheet.mutate(vars));
+    },
   });
 
   const remove = useMutation({
     mutationFn: ({ type, row }) =>
       type === "payment" ? ipasService.removePayment(row.id) : ipasService.removeCharge(row.id),
+    onMutate: ({ type, row }) => {
+      setRemoving(null);
+      return {
+        rollback: patchCache(type === "payment" ? optimistic.removePayment(row.id) : optimistic.removeCharge(row.id)),
+      };
+    },
     onSuccess: (_, { type }) => {
       toast.success(type === "payment" ? "Payment removed." : "Charge removed.");
-      setRemoving(null);
       changed();
     },
-    onError: (error, vars) => failChange(error, () => remove.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => remove.mutate(vars));
+    },
   });
 
   // Documents (#246). Each tick is its own department's: the database refuses
   // the other's, and the page only offers each person their own box.
   const tick = useMutation({
     mutationFn: ({ document, side, value }) => ipasService.tickDocument(document.id, side, value),
+    onMutate: ({ document, side, value }) => ({ rollback: patchCache(optimistic.tickDocument(document.id, side, value)) }),
     onSuccess: changed,
-    onError: (error, vars) => failChange(error, () => tick.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => tick.mutate(vars));
+    },
   });
 
   const attach = useMutation({
     mutationFn: ({ document, url }) => ipasService.setDocument(document.id, { attachmentUrl: url }),
+    onMutate: ({ document, url }) => ({ rollback: patchCache(optimistic.attachDocument(document.id, url)) }),
     onSuccess: (_, { url }) => {
       toast.success(url ? "File attached." : "Attachment removed.");
       changed();
     },
-    onError: (error, vars) => failChange(error, () => attach.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => attach.mutate(vars));
+    },
   });
 
   const suggest = useMutation({
@@ -429,43 +537,148 @@ function IpasPage() {
 
   const removeDocument = useMutation({
     mutationFn: (document) => ipasService.removeDocument(document.id),
+    onMutate: (document) => {
+      setRemovingDocument(null);
+      return { rollback: patchCache(optimistic.removeDocument(document.id)) };
+    },
     onSuccess: () => {
       toast.success("Document removed.");
-      setRemovingDocument(null);
       changed();
     },
-    onError: (error, document) => {
+    onError: (error, document, context) => {
+      context?.rollback?.();
       failChange(error, () => removeDocument.mutate(document));
-      setRemovingDocument(null);
+    },
+  });
+
+  // The payment, charge, bank and document forms close the moment they are saved: the
+  // row (or the new figures) shows now, and a failure puts the page back with Retry.
+  const savePayment = useMutation({
+    mutationFn: ({ payment, values, isPhpPo }) =>
+      payment ? ipasService.updatePayment(payment.id, values, { isPhpPo }) : ipasService.addPayment(id, values, { isPhpPo }),
+    onMutate: ({ payment, values, isPhpPo }) => ({
+      rollback: patchCache(
+        optimistic.savePayment({ paymentId: payment?.id ?? null, values, isPhpPo, ipasId: id, by }),
+      ),
+    }),
+    onSuccess: (_, { payment }) => {
+      toast.success(payment ? "Payment updated." : "Payment recorded.");
+      changed();
+    },
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => savePayment.mutate(vars));
+    },
+  });
+
+  const saveCharge = useMutation({
+    mutationFn: ({ charge, values }) =>
+      charge ? ipasService.updateCharge(charge.id, values) : ipasService.addCharge(id, values),
+    onMutate: ({ charge, values }) => ({
+      rollback: patchCache(optimistic.saveCharge({ chargeId: charge?.id ?? null, values, ipasId: id, by })),
+    }),
+    onSuccess: (_, { charge }) => {
+      toast.success(charge ? "Charge updated." : "Charge recorded.");
+      changed();
+    },
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => saveCharge.mutate(vars));
+    },
+  });
+
+  const saveBank = useMutation({
+    mutationFn: (values) => ipasService.setBankDetails(id, values),
+    onMutate: (values) => {
+      const key = ipasKey(id);
+      queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData(key);
+      if (previous) queryClient.setQueryData(key, optimistic.withBankDetails(previous, values));
+      return {
+        rollback: () => {
+          if (previous) queryClient.setQueryData(key, previous);
+          queryClient.invalidateQueries({ queryKey: key });
+        },
+      };
+    },
+    onSuccess: (result) => {
+      if (result.flagged && result.accountChanged) {
+        toast.error("Account # differs from this supplier's last IPAS. It is flagged and its approvals were cleared.", {
+          duration: 8000,
+        });
+      } else {
+        toast.success("Bank details saved.");
+      }
+      signoffChanged();
+    },
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => saveBank.mutate(vars));
+    },
+  });
+
+  const addDocument = useMutation({
+    mutationFn: (choice) => ipasService.addDocument(id, choice),
+    onMutate: (choice) => ({ rollback: patchCache(optimistic.addDocument({ ...choice, ipasId: id })) }),
+    onSuccess: () => {
+      toast.success("Document added.");
+      changed();
+    },
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => addDocument.mutate(vars));
     },
   });
 
   // Supplier Origin, the typed statuses, Actual Checking and Item Location.
+  // `kind` is "origin" or a typed status key; it travels with the values, so Retry
+  // still knows what it was saving after the dialog has closed.
   const saveDates = useMutation({
-    mutationFn: (values) =>
-      dates === "origin"
+    mutationFn: ({ kind, values }) =>
+      kind === "origin"
         ? ipasService.setSupplierOrigin(id, values)
-        : ipasService.setTypedStatus(id, dates, Object.values(values)[0] ?? ""),
-    onSuccess: () => {
-      toast.success(dates === "origin" ? "Supplier Origin saved." : `${IPAS_TYPED_STATUS_LABELS[dates]} saved.`);
+        : ipasService.setTypedStatus(id, kind, Object.values(values)[0] ?? ""),
+    onMutate: ({ kind, values }) => {
+      if (kind !== "origin") {
+        return { rollback: patchCache(optimistic.setTypedStatus({ status: kind, date: Object.values(values)[0] ?? "", by })) };
+      }
+      const columns = {};
+      for (const { field, column } of IPAS_SUPPLIER_ORIGIN_FIELDS) {
+        if (values[field] !== undefined) columns[column] = (values[field] ?? "").trim() || null;
+      }
+      return { rollback: patchCache(optimistic.setOriginDates(columns)) };
+    },
+    onSuccess: (_, { kind }) => {
+      toast.success(kind === "origin" ? "Supplier Origin saved." : `${IPAS_TYPED_STATUS_LABELS[kind]} saved.`);
       changed();
     },
-    onError: (error, vars) => failChange(error, () => saveDates.mutate(vars)),
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => saveDates.mutate(vars));
+    },
   });
 
   const stamp = useMutation({
     mutationFn: (stamped) => ipasService.stampActualChecking(id, { stamped }),
+    onMutate: (stamped) => ({ rollback: patchCache(optimistic.stampActualChecking({ stamped, by })) }),
     onSuccess: (_, stamped) => {
       toast.success(stamped ? "Actual Checking stamped." : "Actual Checking stamp cleared.");
       changed();
     },
-    onError: (error, stamped) => failChange(error, () => stamp.mutate(stamped)),
+    onError: (error, stamped, context) => {
+      context?.rollback?.();
+      failChange(error, () => stamp.mutate(stamped));
+    },
   });
 
   const locate = useMutation({
     mutationFn: (optionId) => ipasService.setItemLocation(id, optionId),
+    onMutate: (optionId) => ({ rollback: patchCache(optimistic.setItemLocation(optionId)) }),
     onSuccess: changed,
-    onError: (error, optionId) => failChange(error, () => locate.mutate(optionId)),
+    onError: (error, optionId, context) => {
+      context?.rollback?.();
+      failChange(error, () => locate.mutate(optionId));
+    },
   });
 
   const cancel = useMutation({
@@ -565,7 +778,7 @@ function IpasPage() {
     userId: user?.id,
     lists: signerLists,
     ipasState: ipas.state,
-    costsComplete: isCostsComplete(ipas.computationStatus),
+    costsComplete: isLandedCostFinal(ipas.computationStatus),
   });
   const canReturnSection7 = canSendBackSection7({
     state: ipas.signoffSections[7],
@@ -596,6 +809,41 @@ function IpasPage() {
             },
           ]
         : [];
+
+  // The Return dialog's choices: each section the viewer may return or undo, with what it
+  // would clear in section 4 (named, so the signer is mindful).
+  const filingGiven = [IPAS_SIGNOFF_ROLE.RECEIVED, IPAS_SIGNOFF_ROLE.NOTED, IPAS_SIGNOFF_ROLE.CHECKED]
+    .map((role) => {
+      const signed = ipas.signoffSections[7][role];
+      return signed ? `${IPAS_SIGNOFF_ROLE_LABELS[role]} by ${signed.signedBy?.name ?? "someone"}` : null;
+    })
+    .filter(Boolean);
+  const returnTargets = [1, 3]
+    .filter((section) => sectionRights(section).returnMode)
+    .map((section) => {
+      const undo = sectionRights(section).returnMode === "undo";
+      return {
+        section,
+        mode: undo ? "undo" : "return",
+        label: ipasSectionLabel(section),
+        effect: undo
+          ? "Takes back the approval only. Prepared stays, so it waits for an approver again."
+          : "Clears Prepared and Approved and tells whoever prepared it.",
+        clears: filingGiven.map((line) => `${ipasSectionLabel(7)}: ${line}`),
+      };
+    });
+  if (canReturnSection7) {
+    returnTargets.push({
+      section: 7,
+      mode: "return",
+      label: ipasSectionLabel(7),
+      effect: `Clears Received, Noted and Checked and tells who gave them. Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved.`,
+      placeholder: "What needs fixing before it is filed?",
+      clears: [],
+    });
+  }
+  const shownReturnTargets =
+    returning?.section == null ? returnTargets : returnTargets.filter((target) => target.section === returning.section);
 
   // Everything the record's header, decider and sections can ask the page to do.
   const on = {
@@ -634,7 +882,7 @@ function IpasPage() {
     setSplit: (landedCostSplit) => pick.mutate({ landedCostSplit }),
     prepare: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.PREPARED, from }),
     approve: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.APPROVED, from }),
-    sendBack: (section) => setSendingBack(section),
+    openReturn: (section, from) => setReturning({ section, from }),
     give: giveSignoff,
   };
 
@@ -646,13 +894,17 @@ function IpasPage() {
       change: canChange,
       record: canRecord,
       tickFinance: canTickFinance,
+      // Purchasing or Finance, or a Super Admin, may give Checked by (the rest of the steps are Purchasing's).
+      check: open && (hasPurchasingFlow || hasFinanceFlow || isSuperAdmin),
+      setStatus: (from, to) =>
+        open && canSetComputationStatus({ from, to, hasPurchasingFlow, hasFinanceFlow, isSuperAdmin }),
       reopen: isSuperAdmin && filed,
       printFiling: filed && ipas.canReadBankDetails,
     },
     rights: { 1: sectionRights(1), 3: sectionRights(3), 7: filingRights, sendBack7: canReturnSection7 },
     busy: {
-      signoff: signoff.isPending || sendBack.isPending,
-      give: give.isPending || sendBack.isPending,
+      signoff: signoff.isPending || returnSection.isPending,
+      give: give.isPending || returnSection.isPending,
       print: print.isPending,
     },
     on,
@@ -671,9 +923,9 @@ function IpasPage() {
   const editView = editKey ? (
     <div className="space-y-6">
       <div>
-        <Button variant="ghost" size="sm" className="gap-1.5" onClick={backToOverview}>
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={backToPreview}>
           <ArrowLeft size={14} aria-hidden="true" />
-          Back to overview
+          Back to preview
         </Button>
         {shownFailure && (
           <InlineError
@@ -782,7 +1034,7 @@ function IpasPage() {
         onOpenChange={(next) => !next && setPaymentDialog(null)}
         ipas={ipas}
         payment={paymentDialog?.payment ?? null}
-        onFailed={failChange}
+        onSave={(values, isPhpPo) => savePayment.mutate({ payment: paymentDialog?.payment ?? null, values, isPhpPo })}
       />
 
       <ChargeDialog
@@ -790,23 +1042,26 @@ function IpasPage() {
         onOpenChange={(next) => !next && setChargeDialog(null)}
         ipas={ipas}
         charge={chargeDialog?.charge ?? null}
-        onFailed={failChange}
+        onSave={(values) => saveCharge.mutate({ charge: chargeDialog?.charge ?? null, values })}
       />
 
-      <BankDetailsDialog open={bankDialog} onOpenChange={setBankDialog} ipas={ipas} onFailed={failChange} />
+      <BankDetailsDialog
+        open={bankDialog}
+        onOpenChange={setBankDialog}
+        ipas={ipas}
+        onSave={(values) => saveBank.mutate(values)}
+      />
 
-      <SendBackDialog
-        open={sendingBack !== null}
-        onOpenChange={(next) => !next && setSendingBack(null)}
-        title={`Send section ${sendingBack === null ? "" : ipasSectionLabel(sendingBack)} back?`}
-        description={
-          sendingBack === 7
-            ? `It clears Received, Noted and Checked and tells the people who gave them. Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved. The history keeps what was cleared.`
-            : "It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
-        }
-        placeholder={sendingBack === 7 ? "What needs fixing before it is filed?" : undefined}
-        inlineError
-        onSubmit={(reason) => sendBack.mutateAsync({ section: sendingBack, reason })}
+      <ReturnDialog
+        open={returning !== null && shownReturnTargets.length > 0}
+        onOpenChange={(next) => !next && setReturning(null)}
+        targets={shownReturnTargets}
+        initial={returning?.section ?? null}
+        onSubmit={(values) => {
+          // UI first: the card moves on now; a failure comes back as a page notice with Retry.
+          returnSection.mutate(values);
+          return Promise.resolve();
+        }}
       />
 
       <FilingDialog
@@ -839,8 +1094,7 @@ function IpasPage() {
         open={documentDialog}
         onOpenChange={setDocumentDialog}
         ipas={ipas}
-        onAdded={changed}
-        onFailed={failChange}
+        onSave={(choice) => addDocument.mutate(choice)}
       />
 
       <DatesDialog
@@ -853,7 +1107,10 @@ function IpasPage() {
             : "Who typed it and when is kept with the date and in history."
         }
         fields={dateFields}
-        onSubmit={(values) => saveDates.mutateAsync(values)}
+        onSubmit={(values) => {
+          saveDates.mutate({ kind: dates, values });
+          return Promise.resolve();
+        }}
       />
 
       <ConfirmDialog
@@ -887,7 +1144,10 @@ function IpasPage() {
         initialValue={overriding ? (ipas.overrides[overriding].value ?? "") : ""}
         odooValue={overriding ? (ipas.overrides[overriding].odoo ?? "blank") : null}
         submitLabel="Override"
-        onSubmit={(value) => override.mutateAsync({ field: overriding, value })}
+        onSubmit={(value) => {
+          override.mutate({ field: overriding, value });
+          return Promise.resolve();
+        }}
       />
 
       <EditValueDialog
@@ -896,9 +1156,20 @@ function IpasPage() {
         title={`Edit ${HEADER_LABELS[typing] ?? ""}`}
         description="What you type is kept; Odoo fills this only while it is blank."
         label={HEADER_LABELS[typing] ?? ""}
+        prefix={typing === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? currencyPrefix(ipas.currency) : undefined}
+        placeholder={typing === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? "0.00" : undefined}
         initialValue={typingInitialValue(typing, ipas)}
         allowBlank
-        onSubmit={(value) => typeHeader.mutateAsync({ field: typing, value })}
+        onSubmit={(value) => {
+          // A half-typed amount is refused here, so the dialog stays for fixing it.
+          if (typing === IPAS_HEADER_FIELD.PI_QT_AMOUNT && !parseAmountInput(value).ok) {
+            const message = "P.I/QT Amount must be a number.";
+            toast.error(message);
+            return Promise.reject(new Error(message));
+          }
+          typeHeader.mutate({ field: typing, value });
+          return Promise.resolve();
+        }}
       />
 
       <ConfirmDialog

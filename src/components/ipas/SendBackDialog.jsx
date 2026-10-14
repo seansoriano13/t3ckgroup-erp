@@ -39,8 +39,8 @@ function Body({
   onSubmit,
   onClose,
   placeholder = "What does the preparer need to fix?",
-  submitLabel = "Send back",
-  busyLabel = "Sending back…",
+  submitLabel = "Return",
+  busyLabel = "Returning…",
   inlineError = false,
 }) {
   const [reason, setReason] = useState("");

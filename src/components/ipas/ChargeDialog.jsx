@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,12 +12,10 @@ import {
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
-import { ipasService } from "../../services/ipasService";
 import { IPAS_OPTION_LIST } from "../../constants/ipas";
 import { getCurrentLocalDate } from "../../utils/formatDate.js";
-import { ipasErrorMessage } from "../../utils/ipas";
 import { isIsoDate, optionsForPicker, parseAmountInput } from "../../utils/ipasPayments";
-import { ipasKey, ipasListKey } from "./ipasKeys";
+import AmountInput from "./AmountInput";
 
 const asText = (value) => (value === null || value === undefined ? "" : String(value));
 
@@ -29,17 +25,16 @@ const asText = (value) => (value === null || value === undefined ? "" : String(v
  * entered as this IPAS's own share, worked out by Purchasing, so it counts
  * once across purchases. `charge` null adds one. Mounted only while open.
  */
-/** `onFailed(error, retry)`, when given, shows a failed save in the page (with Retry) instead of a toast alone. */
-export default function ChargeDialog({ open, onOpenChange, ipas, charge = null, onFailed }) {
+/** `onSave(values)` is the page's: the dialog closes at once and the page saves behind it. */
+export default function ChargeDialog({ open, onOpenChange, ipas, charge = null, onSave }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body ipas={ipas} charge={charge} onFailed={onFailed} onClose={() => onOpenChange(false)} />}
+      {open && <Body ipas={ipas} charge={charge} onSave={onSave} onClose={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function Body({ ipas, charge, onFailed, onClose }) {
-  const queryClient = useQueryClient();
+function Body({ ipas, charge, onSave, onClose }) {
   const editing = Boolean(charge);
 
   const [form, setForm] = useState({
@@ -61,19 +56,10 @@ function Body({ ipas, charge, onFailed, onClose }) {
   if (!amount.ok || amount.value === null || amount.value <= 0) problems.push("Amount must be a number more than zero.");
   const ready = problems.length === 0;
 
-  const save = useMutation({
-    mutationFn: () => {
-      const values = { kindId: form.kindId, chargedOn: form.chargedOn, amountPhp: form.amountPhp };
-      return editing ? ipasService.updateCharge(charge.id, values) : ipasService.addCharge(ipas.id, values);
-    },
-    onSuccess: () => {
-      toast.success(editing ? "Charge updated." : "Charge recorded.");
-      queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) });
-      queryClient.invalidateQueries({ queryKey: ipasListKey });
-      onClose();
-    },
-    onError: (error) => (onFailed ? onFailed(error, () => save.mutate()) : toast.error(ipasErrorMessage(error))),
-  });
+  const save = () => {
+    onSave({ kindId: form.kindId, chargedOn: form.chargedOn, amountPhp: form.amountPhp });
+    onClose();
+  };
 
   return (
     <DialogContent className="sm:max-w-md">
@@ -93,8 +79,8 @@ function Body({ ipas, charge, onFailed, onClose }) {
             <Input type="date" value={form.chargedOn} onChange={(e) => set("chargedOn")(e.target.value)} />
           </FieldBox>
           <FieldBox label="Amount (PHP)" bare>
-            <Input
-              inputMode="decimal"
+            <AmountInput
+              prefix="PHP"
               value={form.amountPhp}
               onChange={(e) => set("amountPhp")(e.target.value)}
               placeholder="0.00"
@@ -115,8 +101,8 @@ function Body({ ipas, charge, onFailed, onClose }) {
         <Button variant="outline" size="lg" onClick={onClose}>
           Cancel
         </Button>
-        <Button size="lg" disabled={!ready || save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? "Saving…" : editing ? "Save charge" : "Record charge"}
+        <Button size="lg" disabled={!ready} onClick={save}>
+          {editing ? "Save charge" : "Record charge"}
         </Button>
       </DialogFooter>
     </DialogContent>

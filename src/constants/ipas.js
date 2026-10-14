@@ -167,25 +167,30 @@ export const IPAS_LANDED_COST_SPLIT_LABELS = {
 export const IPAS_COMPUTATION_STATUS = {
   ENCODING: "encoding",
   ENCODED: "encoded",
-  COSTS_COMPLETE: "costs_complete",
+  LC_GS_DONE: "lc_gs_done",
+  LC_ODOO_DONE: "lc_odoo_done",
   CHECKED: "checked",
 };
 
 export const IPAS_COMPUTATION_STATUSES = [
   IPAS_COMPUTATION_STATUS.ENCODING,
   IPAS_COMPUTATION_STATUS.ENCODED,
-  IPAS_COMPUTATION_STATUS.COSTS_COMPLETE,
+  IPAS_COMPUTATION_STATUS.LC_GS_DONE,
+  IPAS_COMPUTATION_STATUS.LC_ODOO_DONE,
   IPAS_COMPUTATION_STATUS.CHECKED,
 ];
 
 export const IPAS_COMPUTATION_STATUS_LABELS = {
   [IPAS_COMPUTATION_STATUS.ENCODING]: "Encoding",
   [IPAS_COMPUTATION_STATUS.ENCODED]: "Encoded",
-  [IPAS_COMPUTATION_STATUS.COSTS_COMPLETE]: "Costs complete",
+  [IPAS_COMPUTATION_STATUS.LC_GS_DONE]: "LC GS Done",
+  [IPAS_COMPUTATION_STATUS.LC_ODOO_DONE]: "LC Odoo Done",
   [IPAS_COMPUTATION_STATUS.CHECKED]: "Checked by",
+  // Stored in history before LC GS Done and LC Odoo Done replaced it.
+  costs_complete: "LC Odoo Done",
 };
 
-/** Landed Cost is `unavailable`, or `provisional` until Costs complete, then `final`. */
+/** Landed Cost is `unavailable`, or `provisional` until LC Odoo Done, then `final`. */
 export const IPAS_LANDED_COST_STATUS = {
   UNAVAILABLE: "unavailable",
   PROVISIONAL: "provisional",
@@ -361,6 +366,7 @@ export const IPAS_NOTIFICATION = {
   ACCOUNT_FLAGGED: "IPAS_ACCOUNT_FLAGGED",
   SIGNOFF_READY: "IPAS_SIGNOFF_READY",
   SENT_BACK: "IPAS_SENT_BACK",
+  APPROVAL_UNDONE: "IPAS_APPROVAL_UNDONE",
   SECTION_7_READY: "IPAS_SECTION_7_READY",
 };
 
@@ -400,6 +406,8 @@ export const IPAS_SIGNOFF_ROLE_ACTIONS = {
 
 export const IPAS_SIGNOFF_SECTIONS = [1, 3, 7];
 export const IPAS_SEND_BACK_SECTIONS = [1, 3, 7];
+/** The sections whose Approved can be undone, leaving Prepared. */
+export const IPAS_UNDO_APPROVAL_SECTIONS = [1, 3];
 
 /** Section 7's sign-offs in the order they are given (Noted and Checked in either order). */
 export const IPAS_SECTION_7_ROLES = [
@@ -528,7 +536,8 @@ export const IPAS_EVENT_LABELS = {
   odoo_changed_since_filing: "Odoo has changed since filing",
   approvals_cleared: "Approvals cleared",
   signed: "Signed off",
-  sent_back: "Sent back",
+  sent_back: "Returned",
+  approval_undone: "Approval undone",
   filed: "Filed",
   reopened: "Reopened",
   payment_added: "Payment added",

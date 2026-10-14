@@ -1,6 +1,23 @@
 [
     {
         "date": "2026-10-14",
+        "title": "IPAS: edits show at once, Return and Undo approval, new costing steps",
+        "version": "1.9.28",
+        "changes": [
+            "IPAS: what you type, tick, pick or sign shows at once; the save happens behind it. If it fails, the page puts it back and says why, with Retry.",
+            "IPAS: Back from a section's edit view returns to that section's panel.",
+            "IPAS: Contact is now Supplier's name, and the P.I/QT Amount and payment amounts show their currency in front.",
+            "IPAS: Send back is now Return. One Return button on Your move asks which section and why.",
+            "IPAS: once a section is approved the move is Undo approval, which takes back only the approval and leaves it prepared.",
+            "IPAS: returning or undoing section 1 or 2 after Filing has begun also clears Received, Noted and Checked. It names who gave them and asks for a second click.",
+            "IPAS: the computation status is Encoding, Encoded, LC GS Done, LC Odoo Done, Checked by. It moves one step at a time. Finance can give Checked by.",
+            "IPAS: the list shows each IPAS's costing step and can be filtered by it.",
+            "IPAS: documents and payment proofs accept the common file types, not only images and PDFs.",
+            "IPAS: the line under a section's heading no longer sits above its Add button."
+        ]
+    },
+    {
+        "date": "2026-10-14",
         "title": "IPAS: sign-offs ask first, in the panel too",
         "version": "1.9.27",
         "changes": [

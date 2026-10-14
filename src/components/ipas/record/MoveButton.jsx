@@ -1,5 +1,5 @@
 // One move as both the card and the drawer's footer draw it: the button (green
-// Approve, outline Prepare and Mark costs, pale red Send back), its consequence
+// Approve, outline Prepare and Mark costs, pale red Return), its consequence
 // hint, and, when it failed from here, the inline error. The card adds a
 // "Review section" link, which opens the section in the drawer.
 
@@ -47,7 +47,7 @@ export default function MoveButton({ move, origin, disabled = false, onRun, onRe
         <p id={`move-hint-${origin}-${key}`} className="text-xs leading-relaxed text-muted-foreground">
           {hint}
         </p>
-        {onReview && (
+        {onReview && move.section && (
           <Button
             variant="link"
             size="sm"

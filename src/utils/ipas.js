@@ -291,15 +291,16 @@ export function ipasErrorMessage(error, fallback = "Something went wrong.") {
 
 /**
  * The IPAS list's slices over shaped rows. `state` is a lifecycle state or
- * "all"; `entity` and `purpose` are exact; `search` matches the number, PO,
+ * "all"; `entity`, `purpose` and `computationStatus` are exact; `search` matches the number, PO,
  * supplier and SOR references and titles.
  */
-export function filterIpas(rows, { state = "all", entity = null, purpose = null, search = "" } = {}) {
+export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, search = "" } = {}) {
   const term = search.trim().toLowerCase();
   return rows.filter((row) => {
     if (state !== "all" && row.state !== state) return false;
     if (entity && row.entity !== entity) return false;
     if (purpose && row.purpose !== purpose) return false;
+    if (computationStatus && (row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING) !== computationStatus) return false;
     if (!term) return true;
     const haystack = [
       row.number,

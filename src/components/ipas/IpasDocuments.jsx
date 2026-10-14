@@ -19,6 +19,7 @@ import {
 } from "../../constants/ipas";
 import ReadTick from "./record/ReadTick";
 import { useEditable, useInDrawer } from "./record/sectionChrome";
+import { ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
 import { uploadDocumentFile } from "./uploadDocumentFile";
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
@@ -69,7 +70,7 @@ export function IpasDocuments({
 
   return (
     <div className="mt-5 space-y-3" data-testid="ipas-documents">
-      <SectionHeader title="Documents" className="pb-2">
+      <SectionHeader title="Documents" className="border-b-0 pb-2">
         {canChange && (
           <>
             {suggested.length > 0 && (
@@ -158,7 +159,7 @@ export function IpasDocuments({
                       </span>
                     ) : canChange ? (
                       <FileInput
-                        accept="image/*,application/pdf"
+                        accept={ALLOWED_EXTENSIONS_STRING}
                         disabled={uploadingId === document.id}
                         onFiles={(files) => attach(document, files)}
                         size="xs"

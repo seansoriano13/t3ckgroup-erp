@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Paperclip, X } from "lucide-react";
 
@@ -18,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
 import { ExternalLink } from "@/components/ui/external-link";
 import Spinner from "@/components/ui/Spinner";
-import { ipasService } from "../../services/ipasService";
 import { storageService } from "../../services/storageService";
 import {
   IPAS_OPTION_LIST,
@@ -26,12 +24,16 @@ import {
   IPAS_PAYMENT_KINDS,
   IPAS_PAYMENT_KIND_LABELS,
 } from "../../constants/ipas";
-import { MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "../../utils/attachments";
+import {
+  ALLOWED_EXTENSIONS_STRING,
+  MAX_ATTACHMENT_BYTES,
+  formatBytes,
+  isAllowedAttachment,
+} from "../../utils/attachments";
 import { getCurrentLocalDate } from "../../utils/formatDate.js";
-import { ipasErrorMessage } from "../../utils/ipas";
 import { isIsoDate, optionsForPicker, parseAmountInput } from "../../utils/ipasPayments";
 import { isPhpCurrency } from "../../utils/landedCost";
-import { ipasKey, ipasListKey } from "./ipasKeys";
+import AmountInput from "./AmountInput";
 
 const KIND_OPTIONS = IPAS_PAYMENT_KINDS.map((value) => ({ value, label: IPAS_PAYMENT_KIND_LABELS[value] }));
 
@@ -49,17 +51,20 @@ const asText = (value) => (value === null || value === undefined ? "" : String(v
  * `payment` null adds one. A deactivated method already on the payment stays
  * pickable; new payments only offer active ones.
  */
-/** `onFailed(error, retry)`, when given, shows a failed save in the page (with Retry) instead of a toast alone. */
-export default function PaymentDialog({ open, onOpenChange, ipas, payment = null, onFailed }) {
+/**
+ * `onSave(values, isPhpPo)` is the page's: the dialog closes at once and the
+ * page shows the payment now, saves it behind and, on a failure, puts it back
+ * with Retry.
+ */
+export default function PaymentDialog({ open, onOpenChange, ipas, payment = null, onSave }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body ipas={ipas} payment={payment} onFailed={onFailed} onClose={() => onOpenChange(false)} />}
+      {open && <Body ipas={ipas} payment={payment} onSave={onSave} onClose={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function Body({ ipas, payment, onFailed, onClose }) {
-  const queryClient = useQueryClient();
+function Body({ ipas, payment, onSave, onClose }) {
   const editing = Boolean(payment);
   const isPhpPo = isPhpCurrency(ipas.currency);
   const currency = ipas.currency || "Odoo PO currency";
@@ -97,9 +102,9 @@ function Body({ ipas, payment, onFailed, onClose }) {
   if (!form.methodId) problems.push("Pick the payment method.");
   const ready = problems.length === 0;
 
-  const save = useMutation({
-    mutationFn: () => {
-      const values = {
+  const save = () => {
+    onSave(
+      {
         kind: form.kind,
         paidOn: form.paidOn,
         amount: form.amount,
@@ -108,19 +113,11 @@ function Body({ ipas, payment, onFailed, onClose }) {
         methodId: form.methodId,
         checkNo: form.checkNo,
         proofUrl,
-      };
-      return editing
-        ? ipasService.updatePayment(payment.id, values, { isPhpPo })
-        : ipasService.addPayment(ipas.id, values, { isPhpPo });
-    },
-    onSuccess: () => {
-      toast.success(editing ? "Payment updated." : "Payment recorded.");
-      queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) });
-      queryClient.invalidateQueries({ queryKey: ipasListKey });
-      onClose();
-    },
-    onError: (error) => (onFailed ? onFailed(error, () => save.mutate()) : toast.error(ipasErrorMessage(error))),
-  });
+      },
+      isPhpPo,
+    );
+    onClose();
+  };
 
   const attach = async ([file]) => {
     if (!file) return;
@@ -164,8 +161,8 @@ function Body({ ipas, payment, onFailed, onClose }) {
             <Input type="date" value={form.paidOn} onChange={(e) => set("paidOn")(e.target.value)} />
           </FieldBox>
           <FieldBox label={isPhpPo ? "Amount (PHP)" : `Amount (${currency})`} bare>
-            <Input
-              inputMode="decimal"
+            <AmountInput
+              prefix={isPhpPo ? "PHP" : currency}
               value={form.amount}
               onChange={(e) => set("amount")(e.target.value)}
               placeholder="0.00"
@@ -174,8 +171,8 @@ function Body({ ipas, payment, onFailed, onClose }) {
           </FieldBox>
           {!isPhpPo && (
             <FieldBox label="PHP debited" bare>
-              <Input
-                inputMode="decimal"
+              <AmountInput
+                prefix="PHP"
                 value={form.phpDebited}
                 onChange={(e) => set("phpDebited")(e.target.value)}
                 placeholder="0.00"
@@ -184,8 +181,8 @@ function Body({ ipas, payment, onFailed, onClose }) {
             </FieldBox>
           )}
           <FieldBox label="Charge fee (PHP)" bare>
-            <Input
-              inputMode="decimal"
+            <AmountInput
+              prefix="PHP"
               value={form.chargeFeePhp}
               onChange={(e) => set("chargeFeePhp")(e.target.value)}
               placeholder="0.00"
@@ -237,7 +234,7 @@ function Body({ ipas, payment, onFailed, onClose }) {
               </>
             ) : (
               <FileInput
-                accept="image/*,application/pdf"
+                accept={ALLOWED_EXTENSIONS_STRING}
                 disabled={uploading}
                 onFiles={attach}
                 size="sm"
@@ -264,8 +261,8 @@ function Body({ ipas, payment, onFailed, onClose }) {
         <Button variant="outline" size="lg" onClick={onClose}>
           Cancel
         </Button>
-        <Button size="lg" disabled={!ready || save.isPending || uploading} onClick={() => save.mutate()}>
-          {save.isPending ? "Saving…" : editing ? "Save payment" : "Record payment"}
+        <Button size="lg" disabled={!ready || uploading} onClick={save}>
+          {editing ? "Save payment" : "Record payment"}
         </Button>
       </DialogFooter>
     </DialogContent>

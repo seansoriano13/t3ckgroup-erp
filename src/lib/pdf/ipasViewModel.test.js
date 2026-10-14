@@ -98,15 +98,15 @@ describe("bank details and account numbers", () => {
 })
 
 describe("Landed Cost mark", () => {
-  it("is provisional on an unfiled IPAS before Costs complete", () => {
+  it("is provisional on an unfiled IPAS before LC Odoo Done", () => {
     const { landedCost } = vm({ row: { computation_status: "encoded" } }).section6
 
     expect(landedCost.status).toBe("provisional")
     expect(landedCost.label).toBe("Provisional")
   })
 
-  it("turns final once Costs complete is reached", () => {
-    expect(vm({ row: { computation_status: "costs_complete" } }).section6.landedCost.status).toBe("final")
+  it("turns final once LC Odoo Done is reached", () => {
+    expect(vm({ row: { computation_status: "lc_odoo_done" } }).section6.landedCost.status).toBe("final")
     expect(vm({ row: { computation_status: "checked" } }).section6.landedCost.status).toBe("final")
   })
 
@@ -377,11 +377,12 @@ describe("the page's content", () => {
     expect(model.section6.computation.map((c) => [c.label, c.reached, c.current])).toEqual([
       ["Encoding", true, false],
       ["Encoded", true, true],
-      ["Costs complete", false, false],
+      ["LC GS Done", false, false],
+      ["LC Odoo Done", false, false],
       ["Checked by", false, false],
     ])
     expect(model.section7.checklist).toEqual([
-      expect.objectContaining({ label: "Costs complete", ticked: false }),
+      expect.objectContaining({ label: "LC Odoo Done", ticked: false }),
       expect.objectContaining({ label: "Waybill", ticked: true, detail: "Purchasing" }),
       expect.objectContaining({ label: "BIR 2307", ticked: false }),
     ])

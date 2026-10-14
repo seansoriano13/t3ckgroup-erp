@@ -6,7 +6,7 @@ import SettingsPage from "@/pages/settings";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
-import { stubEdgeFunction } from "@/test/msw/server";
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -140,6 +140,57 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
       await waitFor(() => expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).purchasing_has).toBe(true));
       expect(db.rows("ipas_events").at(-1)).toMatchObject({ kind: "document_ticked", detail: { side: "purchasing", value: true, label: "Waybill" } });
+    });
+
+    it("shows a tick the moment it is made, before the server has answered, and keeps it when it does", async () => {
+      const row = ipas({ source: "import", created_by: purchaser.id });
+      giveDocuments(row);
+      let release;
+      const held = new Promise((resolve) => {
+        release = resolve;
+      });
+      // The server is slow: the tick must not wait for it.
+      stubRpc("ipas_tick_document", async (args) => {
+        await held;
+        const doc = db.internal.rowsOf("ipas_documents").find((d) => d.id === args.p_document_id);
+        doc.purchasing_has = args.p_value;
+        return doc;
+      });
+      const user = setupUser();
+
+      renderDetail(row.id, "finance", "edit");
+      const waybill = await documentRow("Waybill");
+      const box = within(waybill).getByRole("checkbox", { name: /Purchasing has it/ });
+      await user.click(box);
+
+      await waitFor(async () =>
+        expect(within(await documentRow("Waybill")).getByRole("checkbox", { name: /Purchasing has it/ })).toBeChecked(),
+      );
+      expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).purchasing_has).toBe(false);
+
+      release();
+      await waitFor(() => expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).purchasing_has).toBe(true));
+      expect(within(await documentRow("Waybill")).getByRole("checkbox", { name: /Purchasing has it/ })).toBeChecked();
+    });
+
+    it("puts the tick back and says why when the server refuses it", async () => {
+      const row = ipas({ source: "import", created_by: purchaser.id });
+      giveDocuments(row);
+      stubRpc("ipas_tick_document", () => {
+        const error = new Error("ipas_tick_document: only Purchasing ticks Purchasing has it");
+        error.code = "42501";
+        throw error;
+      });
+      const user = setupUser();
+
+      renderDetail(row.id, "finance", "edit");
+      const waybill = await documentRow("Waybill");
+      await user.click(within(waybill).getByRole("checkbox", { name: /Purchasing has it/ }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/only Purchasing ticks/i);
+      await waitFor(async () =>
+        expect(within(await documentRow("Waybill")).getByRole("checkbox", { name: /Purchasing has it/ })).not.toBeChecked(),
+      );
     });
 
     it("offers Finance only its own tick and no way to change the list", async () => {

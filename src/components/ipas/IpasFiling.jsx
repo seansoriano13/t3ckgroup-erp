@@ -14,7 +14,7 @@ import {
   ipasSectionLabel,
 } from "../../constants/ipas";
 import { filingChecklist } from "../../utils/ipasDocuments";
-import { FILING_STATUS, isCostsComplete } from "../../utils/ipasSignoffs";
+import { FILING_STATUS, isLandedCostFinal } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
 import { useInDrawer } from "./record/sectionChrome";
 
@@ -41,7 +41,7 @@ function waitingText(role, state) {
 
 const WHY_NOT = {
   costs_incomplete:
-    "Approved files the IPAS and freezes Landed Cost, so it waits for the computation status to reach Costs complete.",
+    "Approved files the IPAS and freezes Landed Cost, so it waits for the computation status to reach LC Odoo Done.",
 };
 
 /**
@@ -60,7 +60,7 @@ export function IpasFilingSection({ ipas, rights, canSendBack = false }) {
   const state = ipas.signoffSections[7];
   const badge = STATUS_BADGE[state.status];
   const checklist = filingChecklist(ipas.documents ?? []);
-  const costsComplete = isCostsComplete(ipas.computationStatus);
+  const costsComplete = isLandedCostFinal(ipas.computationStatus);
   const filed = ipas.state === IPAS_STATE.FILED;
   const offered = IPAS_SECTION_7_ROLES.filter((role) => rights[role]?.canGive);
   const hint = rights[IPAS_SIGNOFF_ROLE.APPROVED]?.why === "costs_incomplete" ? WHY_NOT.costs_incomplete : null;
@@ -74,11 +74,11 @@ export function IpasFilingSection({ ipas, rights, canSendBack = false }) {
     >
       <div className="space-y-4" data-testid="ipas-filing">
         <div>
-          <SectionHeader title="Checklist" className="pb-2" />
+          <SectionHeader title="Checklist" className="border-b-0 pb-2" />
           <ul className="mt-1 divide-y divide-border">
             <ChecklistItem
               ticked={costsComplete}
-              label="Costs complete"
+              label="LC Odoo Done"
               detail={`Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[ipas.computationStatus] ?? "—"}`}
             />
             {checklist.length === 0 ? (
@@ -105,12 +105,12 @@ export function IpasFilingSection({ ipas, rights, canSendBack = false }) {
             )}
           </ul>
           <p className="mt-1 text-xs text-muted-foreground">
-            Missing documents only warn: Approved lists them and goes ahead on confirm. Costs complete is required.
+            Missing documents only warn: Approved lists them and goes ahead on confirm. LC Odoo Done is required.
           </p>
         </div>
 
         <div className="space-y-3">
-          <SectionHeader title="Sign-offs" className="pb-2" />
+          <SectionHeader title="Sign-offs" className="border-b-0 pb-2" />
           {!inDrawer && (offered.length > 0 || canSendBack) && (
             <p className="text-xs text-muted-foreground">Sign-offs are in Your move.</p>
           )}

@@ -16,7 +16,7 @@ import {
 } from "@/constants/ipas";
 import { formatAmount } from "@/utils/ipas";
 import { filingChecklist } from "@/utils/ipasDocuments";
-import { FILING_STATUS, SIGNOFF_STATUS, isCostsComplete } from "@/utils/ipasSignoffs";
+import { FILING_STATUS, SIGNOFF_STATUS, isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { formatDay } from "@/utils/ipasPayments";
 import { formatDate } from "@/utils/formatDate.js";
 import { gatesFor } from "./gates";
@@ -81,7 +81,7 @@ export function digestIpas(ipas) {
   const s1 = ipas.signoffSections[1];
   const s3 = ipas.signoffSections[3];
   const s7 = ipas.signoffSections[7];
-  const costsComplete = isCostsComplete(ipas.computationStatus);
+  const costsComplete = isLandedCostFinal(ipas.computationStatus);
   const given7 = IPAS_SECTION_7_ROLES.filter((role) => s7[role]).length;
   const purchasingLabel = ipasSectionLabel("purchasing");
   const financeLabel = ipasSectionLabel("finance");

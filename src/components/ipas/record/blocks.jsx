@@ -75,7 +75,13 @@ export function buildBlocks(ctx) {
       </IpasChargesSection>
     ),
     costing: (
-      <IpasCostingSection ipas={ipas} canChange={can.change} onSetStatus={on.setComputationStatus} onSetSplit={on.setSplit} />
+      <IpasCostingSection
+        ipas={ipas}
+        canChange={can.change}
+        canSetStatus={can.setStatus}
+        onSetStatus={on.setComputationStatus}
+        onSetSplit={on.setSplit}
+      />
     ),
     filing: (
       <IpasFilingSection ipas={ipas} rights={rights[7]} canSendBack={rights.sendBack7} />

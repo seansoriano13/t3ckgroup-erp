@@ -545,8 +545,8 @@ describe("ipas_send_back", () => {
         const cleared = rows.filter((r) => r.cleared_at)
         expect(cleared.map((r) => [r.section, r.role, r.cleared_reason, r.cleared_by])).toEqual(
             expect.arrayContaining([
-                [1, "prepared", "Sent back: Supplier is wrong", ids.ipasSigner],
-                [1, "approved", "Sent back: Supplier is wrong", ids.ipasSigner],
+                [1, "prepared", "Returned: Supplier is wrong", ids.ipasSigner],
+                [1, "approved", "Returned: Supplier is wrong", ids.ipasSigner],
             ]),
         )
         expect(cleared).toHaveLength(2)

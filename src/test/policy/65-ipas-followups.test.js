@@ -260,7 +260,7 @@ describe("sending back section 7", () => {
         expect(cleared).toHaveLength(3)
         for (const row of cleared) {
             expect(row.cleared_by).toBe(ids.finance)
-            expect(row.cleared_reason).toBe("Sent back: Wrong landed cost split")
+            expect(row.cleared_reason).toBe("Returned: Wrong landed cost split")
         }
         const [event] = (await events(ipas.id, "sent_back")).slice(-1)
         expect(event.detail).toMatchObject({ section: 7, reason: "Wrong landed cost split", cleared: ["checked", "noted", "received"] })
@@ -337,8 +337,170 @@ describe("sending back section 7", () => {
     it("leaves sections 1 and 3 as they were", async () => {
         const ipas = await opened()
         await signOk("ipasSigner", ipas.id, 7, "received")
-        expect((await sendBack("ipasSigner", ipas.id, 1, "Wrong supplier")).data.cleared_roles).toEqual(["approved", "prepared"])
-        expect(await liveKeys(ipas.id)).toContain("7/received")
+        const back = await sendBack("finance", ipas.id, 7, "Hold on")
+        expect(back.error).toBeNull()
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared"])
+    })
+})
+
+describe("returning section 1 or 3 after section 4 has begun", () => {
+    beforeEach(listsForSectionSeven)
+
+    it("also clears Received, Noted and Checked, and tells the people who gave them", async () => {
+        const ipas = await opened()
+        await receivedNotedChecked(ipas)
+
+        const back = await sendBack("ipasSigner", ipas.id, 1, "Wrong supplier")
+        expect(back.error).toBeNull()
+        expect(back.data.cleared_roles).toEqual(["approved", "prepared"])
+        expect(back.data.cleared_section_7).toEqual(["checked", "noted", "received"])
+        // The preparer is told, and so is each person whose section 4 sign-off went (not the sender).
+        expect([...back.data.notify_ids].sort()).toEqual([ids.outsider, ids.superAdmin, ids.finance].sort())
+        expect(await liveKeys(ipas.id)).toEqual(["3/approved", "3/prepared"])
+
+        const history = await signoffs(ipas.id)
+        const cleared = history.filter((r) => r.cleared_at && r.section === 7)
+        expect(cleared.map((r) => r.cleared_reason)).toEqual(Array(3).fill("Section 1 returned: Wrong supplier"))
+        expect((await events(ipas.id, "sent_back")).at(-1).detail).toMatchObject({
+            section: 1,
+            reason: "Wrong supplier",
+            cleared_section_7: ["checked", "noted", "received"],
+        })
+    })
+
+    it("leaves section 4 alone when it had not begun", async () => {
+        const ipas = await opened()
+        const back = await sendBack("ipasSigner", ipas.id, 3, "Freight")
+        expect(back.error).toBeNull()
+        expect(back.data.cleared_section_7).toEqual([])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared"])
+    })
+})
+
+describe("undoing an approval", () => {
+    beforeEach(listsForSectionSeven)
+
+    const undo = (who, ipasId, section, reason) =>
+        rpc(who, "ipas_undo_approval", { p_ipas_id: ipasId, p_section: section, p_reason: reason })
+
+    it("takes back only the Approved, keeps Prepared, and writes the history and the event", async () => {
+        const ipas = await opened()
+
+        const out = await undo("ipasSigner", ipas.id, 3, "  Approved too fast ")
+        expect(out.error).toBeNull()
+        expect(out.data).toMatchObject({ section: 3, cleared_section_7: [] })
+        // The approver is the person undoing it, so nobody else is told.
+        expect(out.data.notify_ids).toEqual([])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/prepared"])
+
+        const cleared = (await signoffs(ipas.id)).filter((r) => r.cleared_at)
+        expect(cleared).toHaveLength(1)
+        expect(cleared[0]).toMatchObject({
+            section: 3,
+            role: "approved",
+            cleared_by: ids.ipasSigner,
+            cleared_reason: "Approval undone: Approved too fast",
+        })
+        expect((await events(ipas.id, "approval_undone")).at(-1).detail).toMatchObject({
+            section: 3,
+            reason: "Approved too fast",
+            approver_id: ids.ipasSigner,
+        })
+    })
+
+    it("tells the approver when someone else undoes it, and can be approved again by another", async () => {
+        await onList("s3_approved", "hr")
+        const ipas = await opened()
+
+        const out = await undo("hr", ipas.id, 3, "Not yet")
+        expect(out.error).toBeNull()
+        expect(out.data.notify_ids).toEqual([ids.ipasSigner])
+        // Prepared stays, so another approver (not the preparer) can approve straight away.
+        expect((await sign("hr", ipas.id, 3, "approved")).error).toBeNull()
+    })
+
+    it("also clears section 4's open sign-offs, and says which", async () => {
+        const ipas = await opened()
+        await receivedNotedChecked(ipas)
+
+        const out = await undo("ipasSigner", ipas.id, 1, "Wrong PO")
+        expect(out.error).toBeNull()
+        expect(out.data.cleared_section_7).toEqual(["checked", "noted", "received"])
+        expect([...out.data.notify_ids].sort()).toEqual([ids.superAdmin, ids.finance].sort())
+        expect(await liveKeys(ipas.id)).toEqual(["1/prepared", "3/approved", "3/prepared"])
+    })
+
+    it("is refused with no approval, no reason, a long reason, a section that has none, or a stranger", async () => {
+        const fresh = await raise()
+        await signOk("outsider", fresh.id, 1, "prepared")
+        expect((await undo("ipasSigner", fresh.id, 1, "Nothing approved")).error?.code).toBe("55000")
+
+        const ipas = await opened()
+        expect((await undo("ipasSigner", ipas.id, 1, "   ")).error?.code).toBe("22023")
+        expect((await undo("ipasSigner", ipas.id, 1, "x".repeat(501))).error?.code).toBe("22023")
+        expect((await undo("ipasSigner", ipas.id, 7, "Section 4 has no approval to undo here")).error?.code).toBe("22023")
+        for (const who of ["outsider", "superAdmin", "finance", "ordinary"]) {
+            expect((await undo(who, ipas.id, 1, "No")).error?.code, who).toBe("42501")
+        }
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared"])
+    })
+
+    it("is refused on a filed or cancelled IPAS", async () => {
+        const ipas = await opened()
+        await receivedNotedChecked(ipas)
+        await sql().query(`update public.ipas set computation_status = 'lc_odoo_done' where id = $1`, [ipas.id])
+        await file(ipas.id)
+        expect((await undo("ipasSigner", ipas.id, 1, "Too late")).error?.code).toBe("55000")
+
+        const cancelled = await raise()
+        expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Duplicate" })).error).toBeNull()
+        expect((await undo("ipasSigner", cancelled.id, 1, "Gone")).error?.code).toBe("55000")
+    })
+})
+
+describe("Checked by", () => {
+    const setStatus = (who, ipasId, status, extra = {}) =>
+        rpc(who, "ipas_set_header", { p_ipas_id: ipasId, p_fields: { computation_status: status, ...extra } })
+    const statusOf = async (ipasId) => {
+        const { data } = await svc().from("ipas").select("computation_status").eq("id", ipasId).single()
+        return data.computation_status
+    }
+
+    it("knows the five steps, and refuses the old Costs complete", async () => {
+        const ipas = await raise()
+        for (const status of ["encoded", "lc_gs_done", "lc_odoo_done", "checked"]) {
+            expect((await setStatus("outsider", ipas.id, status)).error, status).toBeNull()
+        }
+        expect((await setStatus("outsider", ipas.id, "costs_complete")).error?.code).toBe("22023")
+    })
+
+    it("lets Finance give and take back Checked by, and nothing else", async () => {
+        const ipas = await raise()
+        await setStatus("outsider", ipas.id, "lc_odoo_done")
+
+        expect((await setStatus("finance", ipas.id, "checked")).error).toBeNull()
+        expect(await statusOf(ipas.id)).toBe("checked")
+        expect((await setStatus("finance", ipas.id, "lc_odoo_done")).error).toBeNull()
+
+        // Not an earlier step, not a jump, not with another field beside it.
+        expect((await setStatus("finance", ipas.id, "encoded")).error?.code).toBe("42501")
+        expect((await setStatus("finance", ipas.id, "checked", { pi_number: "X1" })).error?.code).toBe("42501")
+        expect((await rpc("finance", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { pi_number: "X1" } })).error?.code).toBe("42501")
+        await setStatus("outsider", ipas.id, "encoded")
+        expect((await setStatus("finance", ipas.id, "checked")).error?.code).toBe("42501")
+    })
+
+    it("lets a Super Admin who is not Purchasing give Checked by too, and nobody else", async () => {
+        const ipas = await raise()
+        await setStatus("outsider", ipas.id, "lc_odoo_done")
+        expect((await setStatus("superAdmin", ipas.id, "checked")).error).toBeNull()
+        expect((await setStatus("ordinary", ipas.id, "lc_odoo_done")).error?.code).toBe("42501")
+    })
+
+    it("holds no row on the old status any more", async () => {
+        const { data, error } = await svc().from("ipas").select("id").eq("computation_status", "costs_complete")
+        expect(error).toBeNull()
+        expect(data).toEqual([])
     })
 })
 

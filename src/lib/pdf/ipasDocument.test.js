@@ -164,7 +164,7 @@ describe("marks and the legend", () => {
 
   it("prints Landed Cost provisional before Costs complete and final after", () => {
     const provisional = doc({ row: { computation_status: "encoded" } })
-    const final = doc({ row: { computation_status: "costs_complete" } })
+    const final = doc({ row: { computation_status: "lc_odoo_done" } })
     const filed = doc({ row: { state: "filed", filed_at: "2026-09-20T02:00:00.000Z", computation_status: "encoding" } })
 
     expect(provisional).toContain('<span class="prov ">Provisional</span>')

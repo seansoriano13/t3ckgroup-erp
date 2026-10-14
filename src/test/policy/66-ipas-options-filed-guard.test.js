@@ -95,7 +95,7 @@ async function fileWith(o) {
     }))
     must("freight", await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { freight_service_id: o.freight.id } }))
     must("location", await rpc("outsider", "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: o.location.id }))
-    must("status", await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { computation_status: "costs_complete" } }))
+    must("status", await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { computation_status: "lc_odoo_done" } }))
     for (const section of [1, 3]) {
         await signOk("outsider", ipas.id, section, "prepared")
         await signOk("ipasSigner", ipas.id, section, "approved")
