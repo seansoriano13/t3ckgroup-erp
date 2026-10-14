@@ -29,14 +29,20 @@ export default function StatusBadge({
   const appliedStyle = themeStyles[theme] || themeStyles.mauve;
   const content = children || label || (status ? String(status).replace(/_/g, " ") : "UNKNOWN");
 
+  // Plain text is the badge's own text node, so a label wider than its column
+  // ends in an ellipsis (text-overflow needs a block-level box, not a flex one).
+  // A badge handed children (an icon and a label) stays a flex row.
+  const isText = typeof content === "string";
+  const shape = isText
+    ? "inline-block max-w-full truncate text-center leading-[18px] align-middle"
+    : "inline-flex items-center justify-center max-w-full";
+
   return (
     <span
       title={title}
-      className={`inline-flex items-center justify-center h-5 px-2 text-label font-bold uppercase tracking-wider border rounded-full whitespace-nowrap leading-none shrink-0 max-w-full ${appliedStyle} ${className}`}
+      className={`${shape} h-5 px-2 text-label font-bold uppercase tracking-wider border rounded-full whitespace-nowrap shrink-0 ${isText ? "" : "leading-none"} ${appliedStyle} ${className}`}
     >
-      {/* A plain-text badge ends in an ellipsis when its column is narrower than
-          its words; a badge with an icon keeps its own children as they are. */}
-      {typeof content === "string" ? <span className="min-w-0 truncate">{content}</span> : content}
+      {content}
     </span>
   );
 }
