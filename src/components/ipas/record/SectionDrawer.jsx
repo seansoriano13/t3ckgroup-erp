@@ -3,8 +3,9 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
-import { SECTIONS, sectionBadge, sectionDot } from "./digest";
-import { Caption, Pill, StateDot } from "./parts";
+import { SECTIONS, sectionState } from "./digest";
+import { Caption } from "./parts";
+import { StateWord } from "./StateMark";
 import { IpasSectionChrome } from "./sectionChrome";
 
 /**
@@ -22,6 +23,7 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
   }, [current]);
 
   const returnFocus = () => getRow(lastKey.current) ?? true;
+  const state = current ? sectionState(current.key, digest) : null;
 
   return (
     <Drawer open={Boolean(current)} onOpenChange={(next) => !next && close()}>
@@ -32,10 +34,8 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
               <div className="min-w-0 flex-1">
                 <Caption>{ipas.number}</Caption>
                 <div className="mt-1 flex flex-wrap items-center gap-2.5">
-                  <StateDot tone={sectionDot(current.key, digest)} />
                   <DrawerTitle className="min-w-0 text-lg font-bold">{current.title}</DrawerTitle>
-                  {/* Costing's Landed Cost mark sits in its body, next to the figure: not again here. */}
-                  {current.key !== "costing" && <Pill badge={sectionBadge(current.key, digest, ipas)} />}
+                  {state && <StateWord state={state.state} detail={state.detail} />}
                 </div>
                 <DrawerDescription className="mt-0.5 text-sm">{digest.lines[current.key]}</DrawerDescription>
               </div>

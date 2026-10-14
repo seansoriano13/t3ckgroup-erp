@@ -1,142 +1,113 @@
-// The decider: one card that answers the two questions a person opens an IPAS
-// with. "What can I do here": their own sign-offs as full-width buttons, green
-// to approve, pale red to send back, nothing they would be refused. "Where does
-// it stand": the gates as one chain, with who passed each and when.
+// The decider: "Your move" answers what this person can do here, and says what
+// happens next for whoever is up. The moves are the ones `movesFor` allows, and
+// each one carries its consequence. Below the wide breakpoint the chain sits
+// behind a toggle; above it the chain is always shown beside the moves.
+
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { ApprovalChain } from "@/components/ui/DetailParts";
-import { IPAS_COMPUTATION_STATUS_LABELS, IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "@/constants/ipas";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
 import { APPROVE_CLASS } from "@/pages/approvals/_components/approvalUi";
+import IpasChain from "./IpasChain";
+import { nowGate, waitingSections } from "./gates";
 import { movesFor } from "./moves";
-import { Caption } from "./parts";
 
-const name = (signoff) => signoff?.signedBy?.name ?? "someone";
+/** The wide breakpoint (Tailwind xl): the card sits beside the sections and shows its chain. */
+const WIDE = "(min-width: 1280px)";
 
-/** The IPAS as a chain of gates, each one who passed it, or who it waits on. */
-function gatesOf(digest, ipas) {
-  const section = (part, state) => ({
-    label: ipasSectionLabel(part),
-    who: state.approved
-      ? `Approved by ${name(state.approved)}`
-      : state.prepared
-        ? `Prepared by ${name(state.prepared)}, waiting for an approver`
-        : "Waiting for Purchasing to prepare it",
-    at: state.approved?.signedAt ?? null,
-    state: state.approved ? "done" : digest.open ? "current" : "next",
-  });
-  const s7 = digest.s7;
-  const filing = ipasSectionLabel("filing");
-  const given = (role, label) => ({
-    label,
-    who: s7[role] ? name(s7[role]) : `${filing}, waiting`,
-    at: s7[role]?.signedAt ?? null,
-    state: s7[role] ? "done" : digest.open && s7.next.includes(role) ? "current" : "next",
-  });
-  const notedAndChecked = Boolean(s7.noted && s7.checked);
-  return [
-    section("purchasing", digest.s1),
-    section("finance", digest.s3),
-    {
-      label: ipasSectionLabel("costing"),
-      who: `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[ipas.computationStatus]}`,
-      at: null,
-      state: digest.costsComplete ? "done" : digest.open ? "current" : "next",
-    },
-    given(IPAS_SIGNOFF_ROLE.RECEIVED, `${filing}: ${IPAS_SIGNOFF_ROLE_LABELS[IPAS_SIGNOFF_ROLE.RECEIVED]}`),
-    {
-      label: `${filing}: Noted and Checked`,
-      who: notedAndChecked
-        ? `${name(s7.noted)} and ${name(s7.checked)}`
-        : s7.noted
-          ? `Noted by ${name(s7.noted)}, Checked still open`
-          : s7.checked
-            ? `Checked by ${name(s7.checked)}, Noted still open`
-            : "Noted and Checked, in either order",
-      at: notedAndChecked ? s7.checked.signedAt : null,
-      state: notedAndChecked ? "done" : digest.open && s7.received ? "current" : "next",
-    },
-    given(IPAS_SIGNOFF_ROLE.APPROVED, `${filing}: Approved and filed`),
-  ];
-}
-
-const MOVE = {
-  primary: { variant: "default", className: "" },
+const LOOK = {
   approve: { variant: "default", className: APPROVE_CLASS },
-  outline: { variant: "outline", className: "" },
+  prepare: { variant: "outline", className: "" },
+  neutral: { variant: "outline", className: "" },
+  return: { variant: "destructive", className: "" },
 };
 
+/** One line under "Your move": what the viewer can do, or who the IPAS waits on. */
+function statusLine(digest, gates, offered) {
+  if (digest.filed) return "Filed. Nothing left to do.";
+  if (digest.cancelled) return "Cancelled. Nothing to do.";
+  if (offered.length === 0) {
+    const waiting = waitingSections(gates);
+    return waiting ? `Nothing needs you right now. Waiting on ${waiting}.` : "Nothing needs you right now.";
+  }
+  const now = nowGate(gates);
+  if (!now) return "";
+  const mine = now.moveKeys.some((key) => offered.some((move) => move.key === key));
+  return `Next: ${mine ? "Waiting for you" : `Waiting for ${now.waitsOn}`}`;
+}
+
+/** A group of moves, each with its label and its one-line consequence under it. */
+function MoveGroup({ items, disabled, className }) {
+  return (
+    <ul className={cn("space-y-3", className)}>
+      {items.map(({ key, kind, icon: Icon, label, hint, run }) => (
+        <li key={key} className="space-y-1.5">
+          <Button
+            size="lg"
+            variant={LOOK[kind].variant}
+            disabled={disabled}
+            onClick={run}
+            aria-describedby={`your-move-hint-${key}`}
+            className={cn("w-full justify-center gap-2 font-semibold", LOOK[kind].className)}
+          >
+            <Icon size={16} aria-hidden="true" />
+            {label}
+          </Button>
+          <p id={`your-move-hint-${key}`} className="text-xs text-muted-foreground">
+            {hint}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function DecisionCard({ ctx, digest }) {
-  const { ipas, busy } = ctx;
-  const { moves, returns } = movesFor(ctx, digest);
-  const gates = gatesOf(digest, ipas);
-  const waiting = digest.todo[0];
-  const isBusy = busy.signoff || busy.give;
+  const { busy } = ctx;
+  const wide = useMediaQuery(WIDE);
+  const [chainOpen, setChainOpen] = useState(false);
+  const { moves, costs, returns } = movesFor(ctx, digest);
+  const offered = [...moves, ...costs, ...returns];
+  const { gates } = digest;
+  const doneCount = gates.filter((gate) => gate.done).length;
+  const busyNow = busy.signoff || busy.give;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="space-y-3 p-5">
-        <Caption>Your move</Caption>
-        {moves.length > 0 ? (
-          <div className="space-y-2">
-            {moves.map(({ key, kind, icon: Icon, label, run }) => (
-              <Button
-                key={key}
-                variant={MOVE[kind].variant}
-                disabled={isBusy}
-                onClick={run}
-                className={cn("h-11 w-full justify-center gap-2 text-sm font-semibold", MOVE[kind].className)}
-              >
-                <Icon size={16} />
-                {label}
-              </Button>
-            ))}
-          </div>
-        ) : (
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              {digest.filed
-                ? "Filed. Nothing left to do."
-                : digest.cancelled
-                  ? "Cancelled. Nothing to do."
-                  : "Nothing needs you right now."}
-            </p>
-            {waiting && digest.open && <p className="mt-1 text-sm text-muted-foreground">Waiting on {waiting.owner}.</p>}
-          </div>
-        )}
-        {returns.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {returns.map(({ key, icon: Icon, label, run }) => (
-              <Button key={key} variant="destructive" size="sm" disabled={isBusy} onClick={run} className="flex-1 gap-1.5">
-                <Icon size={14} />
-                {label}
-              </Button>
-            ))}
-          </div>
-        )}
+    <section
+      id="your-move"
+      aria-labelledby="your-move-heading"
+      className="overflow-hidden rounded-2xl border border-border bg-card"
+    >
+      <div className="space-y-4 p-5">
+        <h2 id="your-move-heading" className="text-base font-semibold text-foreground">
+          Your move
+        </h2>
+        <p className="text-sm text-foreground">{statusLine(digest, gates, offered)}</p>
+
+        {moves.length > 0 && <MoveGroup items={moves} disabled={busyNow} />}
+        {returns.length > 0 && <MoveGroup items={returns} disabled={busyNow} />}
+        {costs.length > 0 && <MoveGroup items={costs} disabled={busyNow} className="border-t border-border pt-4" />}
       </div>
 
-      <div className="border-t border-border p-5">
-        <Caption className="mb-4">
-          Where it stands · {gates.filter((gate) => gate.state === "done").length} of {gates.length}
-        </Caption>
-        <ApprovalChain chain={gates} />
-      </div>
-
-      <dl className="space-y-2.5 border-t border-border bg-muted/30 p-5 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <dt className="text-muted-foreground">Documents in hand</dt>
-          <dd className="font-medium tabular-nums">
-            {digest.docs.ticked} of {digest.docs.total}
-          </dd>
+      {!wide && (
+        <div className="border-t border-border px-5 py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={chainOpen}
+            aria-controls="your-move-chain"
+            onClick={() => setChainOpen((open) => !open)}
+          >
+            {chainOpen ? "Hide where it stands" : `Where it stands · ${doneCount} of ${gates.length}`}
+          </Button>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <dt className="text-muted-foreground">Buyer track</dt>
-          <dd className="font-medium tabular-nums">
-            {digest.track.done} of {digest.track.total}
-          </dd>
+      )}
+      {(wide || chainOpen) && (
+        <div id="your-move-chain" className="border-t border-border p-5">
+          <IpasChain gates={gates} />
         </div>
-      </dl>
-    </div>
+      )}
+    </section>
   );
 }
