@@ -64,6 +64,7 @@ import {
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TYPED_STATUS,
   IPAS_TYPED_STATUS_LABELS,
+  ipasSectionLabel,
 } from "../../../constants/ipas";
 
 const HEADER_LABELS = {
@@ -195,11 +196,11 @@ function IpasPage() {
       if (role === IPAS_SIGNOFF_ROLE.PREPARED) {
         toast.success(
           notified > 0
-            ? `Section ${section} prepared. The approvers were told.`
-            : `Section ${section} prepared. Nobody is on its approval list yet.`,
+            ? `Section ${ipasSectionLabel(section)} prepared. The approvers were told.`
+            : `Section ${ipasSectionLabel(section)} prepared. Nobody is on its approval list yet.`,
         );
       } else {
-        toast.success(`Section ${section} approved.`);
+        toast.success(`Section ${ipasSectionLabel(section)} approved.`);
       }
       signoffChanged();
     },
@@ -212,7 +213,7 @@ function IpasPage() {
     mutationFn: ({ role, confirm }) => ipasService.sign(id, 7, role, { confirm }),
     onSuccess: (result, { role }) => {
       if (result.filed) toast.success(`${ipas.number} is filed.`);
-      else toast.success(`Section 7 ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()}.`);
+      else toast.success(`Section ${ipasSectionLabel(7)} ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()}.`);
       signoffChanged();
     },
     onError: (error) => toast.error(ipasErrorMessage(error)),
@@ -221,7 +222,7 @@ function IpasPage() {
   const reopen = useMutation({
     mutationFn: (reason) => ipasService.reopen(id, reason),
     onSuccess: () => {
-      toast.success(`${ipas.number} is open again. Section 7's sign-offs were cleared.`);
+      toast.success(`${ipas.number} is open again. The sign-offs of section ${ipasSectionLabel(7)} were cleared.`);
       signoffChanged();
     },
     onError: (error) => toast.error(ipasErrorMessage(error)),
@@ -232,8 +233,8 @@ function IpasPage() {
     onSuccess: (_, { section }) => {
       toast.success(
         section === 7
-          ? "Section 7 sent back. Received, Noted and Checked were cleared and the people who gave them were told."
-          : `Section ${section} sent back to its preparer.`,
+          ? `Section ${ipasSectionLabel(7)} sent back. Received, Noted and Checked were cleared and the people who gave them were told.`
+          : `Section ${ipasSectionLabel(section)} sent back to its preparer.`,
       );
       signoffChanged();
     },
@@ -660,10 +661,10 @@ function IpasPage() {
       <SendBackDialog
         open={sendingBack !== null}
         onOpenChange={(next) => !next && setSendingBack(null)}
-        title={`Send section ${sendingBack ?? ""} back?`}
+        title={`Send section ${sendingBack === null ? "" : ipasSectionLabel(sendingBack)} back?`}
         description={
           sendingBack === 7
-            ? "It clears Received, Noted and Checked and tells the people who gave them. Sections 1 and 3 stay approved. The history keeps what was cleared."
+            ? `It clears Received, Noted and Checked and tells the people who gave them. Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved. The history keeps what was cleared.`
             : "It clears Prepared and Approved for this section and tells whoever prepared it. The history keeps what was cleared."
         }
         placeholder={sendingBack === 7 ? "What needs fixing before it is filed?" : undefined}
@@ -682,7 +683,7 @@ function IpasPage() {
         open={reopening}
         onOpenChange={setReopening}
         title={`Reopen ${ipas.number}?`}
-        description="It returns to open and section 7's sign-offs are cleared (the history keeps them). Sections 1 and 3 stay approved. Filing it again takes section 7 from Received."
+        description={`It returns to open and the sign-offs of section ${ipasSectionLabel(7)} are cleared (the history keeps them). Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved. Filing it again takes section ${ipasSectionLabel(7)} from Received.`}
         placeholder="Why is this filed IPAS being reopened?"
         submitLabel="Reopen"
         busyLabel="Reopening…"

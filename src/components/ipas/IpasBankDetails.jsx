@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 import { DetailRow } from "../ui/DetailParts";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
+import { ipasSectionLabel } from "../../constants/ipas";
 
 /**
  * Bank details inside section 3 (#245): Bank Name, Account Name and Account #,
@@ -39,7 +40,7 @@ export function IpasBankDetails({ ipas, canChange = false, onEdit }) {
             <p className="font-semibold">Account # changed</p>
             <p className="mt-0.5 text-xs opacity-90">
               It differs from this supplier&apos;s last IPAS. Confirm it with the supplier before anyone approves or
-              pays. Any approvals given on sections 1 and 3 were cleared.
+              pays. Any approvals given on sections {ipasSectionLabel(1)} and {ipasSectionLabel(3)} were cleared.
             </p>
           </div>
         </div>

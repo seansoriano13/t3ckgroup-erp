@@ -24,6 +24,7 @@ import {
   IPAS_SOURCE_LABELS,
   IPAS_WARNING,
   ODOO_PO_STATE_LABELS,
+  ipasSectionLabel,
 } from "../../constants/ipas";
 import { changeNoteSummary, formatAmount } from "../../utils/ipas";
 import { buildBuyerTrack } from "../../utils/ipasDocuments";
@@ -293,7 +294,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
     <IpasSection
       title={
         <span className="flex flex-wrap items-center gap-2">
-          1 · Purchasing
+          {ipasSectionLabel("purchasing")}
           <span className="font-mono text-xs font-semibold text-muted-foreground">{ipas.po_number}</span>
         </span>
       }
@@ -404,7 +405,7 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange = fa
  */
 export function IpasSalesSection({ ipas, canChange = false, onEditOverride, onResetOverride, onTick }) {
   return (
-    <IpasSection title="2 · Sales & Operation">
+    <IpasSection title={ipasSectionLabel("sales")}>
       <dl className="divide-y divide-border">
         <DetailRow label="SORs">
           {ipas.sors.length === 0 ? (
@@ -599,7 +600,7 @@ export function IpasStatusSection({ ipas, canChange = false, onEditOrigin, onEdi
   const track = ipas.buyerTrack ?? buildBuyerTrack(ipas, ipas.statuses);
 
   return (
-    <IpasSection title="6 · Status" aside="Each status shows where it came from.">
+    <IpasSection title={ipasSectionLabel("status")} aside="Each status shows where it came from.">
       <div className="space-y-4">
         <SupplierOrigin ipas={ipas} canChange={canChange} onEdit={onEditOrigin} />
         <div>
@@ -732,25 +733,25 @@ function eventDetail(event) {
       return parts.join(", ") || null;
     }
     case "approvals_cleared": {
-      const sections = (detail.sections ?? []).map((s) => `section ${s}`).join(" and ");
+      const sections = (detail.sections ?? []).map((s) => ipasSectionLabel(s)).join(" and ");
       return [detail.reason, sections ? `${sections} back to awaiting approval` : null].filter(Boolean).join(" · ") || null;
     }
     case "signed":
       return [
-        `Section ${detail.section} ${IPAS_SIGNOFF_ROLE_LABELS[detail.role]?.toLowerCase() ?? detail.role}`,
+        `Section ${ipasSectionLabel(detail.section)} ${IPAS_SIGNOFF_ROLE_LABELS[detail.role]?.toLowerCase() ?? detail.role}`,
         detail.signature_declined ? "without a signature" : null,
       ]
         .filter(Boolean)
         .join(" · ");
     case "sent_back":
-      return [`Section ${detail.section}`, detail.reason ? `“${detail.reason}”` : null].filter(Boolean).join(" · ");
+      return [`Section ${ipasSectionLabel(detail.section)}`, detail.reason ? `“${detail.reason}”` : null].filter(Boolean).join(" · ");
     case "filed":
-      return `Section 7 approved · ${IPAS_COMPUTATION_STATUS_LABELS[detail.computation_status] ?? "Costs complete"}`;
+      return `Section ${ipasSectionLabel("filing")} approved · ${IPAS_COMPUTATION_STATUS_LABELS[detail.computation_status] ?? "Costs complete"}`;
     case "reopened": {
       const cleared = (detail.cleared ?? []).map((role) => IPAS_SIGNOFF_ROLE_LABELS[role]?.toLowerCase() ?? role);
       return [
         detail.reason ? `“${detail.reason}”` : null,
-        cleared.length ? `cleared section 7: ${cleared.join(", ")}` : null,
+        cleared.length ? `cleared section ${ipasSectionLabel("filing")}: ${cleared.join(", ")}` : null,
       ]
         .filter(Boolean)
         .join(" · ");

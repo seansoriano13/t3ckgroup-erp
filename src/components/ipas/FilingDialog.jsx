@@ -12,7 +12,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ipasService } from "../../services/ipasService";
-import { IPAS_DOCUMENT_APPLIES_TO_LABELS, IPAS_DOCUMENT_USED_FOR_LABELS } from "../../constants/ipas";
+import {
+  IPAS_DOCUMENT_APPLIES_TO_LABELS,
+  IPAS_DOCUMENT_USED_FOR_LABELS,
+  ipasSectionLabel,
+} from "../../constants/ipas";
 import { ipasFilingWarningsKey } from "./ipasKeys";
 
 /**
@@ -65,7 +69,7 @@ function Body({ ipasId, number, onConfirm, onClose }) {
       <DialogHeader className="shrink-0 pr-10">
         <DialogTitle>File {number}?</DialogTitle>
         <DialogDescription>
-          Approving section 7 files this IPAS. It freezes Landed Cost as final and locks its payments, charges,
+          Approving section {ipasSectionLabel(7)} files this IPAS. It freezes Landed Cost as final and locks its payments, charges,
           documents, bank details, SORs and Purpose. Only a Super Admin can reopen it.
         </DialogDescription>
       </DialogHeader>

@@ -138,7 +138,7 @@ describe("IPAS page: bank details", () => {
 
     renderDetail(row.id);
 
-    expect(await screen.findByText("3 · Purchasing & Finance")).toBeInTheDocument();
+    expect(await screen.findByText("2 · Purchasing & Finance")).toBeInTheDocument();
     expect(screen.queryByTestId("ipas-bank-details")).not.toBeInTheDocument();
     expect(screen.queryByText(/Bank details/)).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("0099887766");
