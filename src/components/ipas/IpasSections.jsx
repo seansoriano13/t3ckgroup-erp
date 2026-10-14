@@ -471,6 +471,7 @@ export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverr
               checked={ipas.googleSheet}
               disabled={!canChange}
               aria-label="Googlesheet"
+              tone="neutral"
               onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
             />
           )}
@@ -483,6 +484,7 @@ export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverr
               checked={ipas.ganttChart}
               disabled={!canChange}
               aria-label="Gantt Chart"
+              tone="neutral"
               onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
             />
           )}

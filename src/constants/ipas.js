@@ -423,7 +423,7 @@ export const IPAS_SIGNOFF_STAGE = {
  * the order the module shows them (money and sign-offs first). The paper sheet
  * numbered them differently. Only what a person reads changes: the stored
  * sign-off sections stay 1, 3 and 7 (`ipas_signoffs.section`, the signer lists,
- * the RPCs), which `IPAS_SECTION_NO` maps to these numbers.
+ * the RPCs).
  */
 export const IPAS_PART_NO = {
   purchasing: 1,
@@ -453,16 +453,6 @@ export const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 7: "filing" };
 export function ipasSectionName(section) {
   return IPAS_PART_NAMES[IPAS_SECTION_PART[section]] ?? "";
 }
-
-/** The number a stored sign-off section (1, 3 or 7) shows as. */
-export const IPAS_SECTION_NO = {
-  1: IPAS_PART_NO[IPAS_SECTION_PART[1]],
-  3: IPAS_PART_NO[IPAS_SECTION_PART[3]],
-  7: IPAS_PART_NO[IPAS_SECTION_PART[7]],
-};
-
-/** A stored sign-off section as the number a person reads; anything unknown reads as it is. */
-export const ipasSectionNo = (section) => IPAS_SECTION_NO[section] ?? section;
 
 /**
  * A section as a person reads it: "<no> · <name>", e.g. "2 · Purchasing & Finance".

@@ -13,7 +13,8 @@ import {
 import { formatAmount } from "../../../utils/ipas";
 import { canSendBackItem } from "../../../utils/ipasSignoffs";
 import { relativeAge } from "../../../utils/approvalItems.js";
-import { APPROVE_CLASS, whyYouSeeThis } from "./approvalUi";
+import { whyYouSeeThis } from "./approvalUi";
+import { APPROVE_CLASS } from "@/constants/approveClass";
 
 /**
  * Reviewing one IPAS sign-off as its signer (#247, sections 1 and 3; #248,

@@ -17,7 +17,8 @@ import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import { ApprovalTable } from "./ApprovalTable";
 import { ApprovalSheet } from "./ApprovalSheet";
-import { APPROVE_CLASS, NOTE_PRESETS } from "./approvalUi";
+import { NOTE_PRESETS } from "./approvalUi";
+import { APPROVE_CLASS } from "@/constants/approveClass";
 
 const QUEUE = { label: "Group Tasks", icon: Users };
 

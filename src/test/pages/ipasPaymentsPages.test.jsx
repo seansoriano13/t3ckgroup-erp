@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import SettingsPage from "@/pages/settings";
 import IpasSettingsRedirect from "@/pages/purchasing/ipas/settings";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -107,7 +106,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
   describe("payments", () => {
     it("records a payment from the page, and shows it with the header amounts derived from the rows", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
@@ -134,7 +133,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
     it("keeps Record payment disabled and explains why while a number is half typed, without breaking", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
@@ -156,7 +155,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
     it("asks for the PHP debited on a foreign-currency PO and won't save without it", { timeout: 20000 }, async () => {
       const row = ipas({ po_number: "P02445", source: "import", odoo_copy: poCopy("P02445", { currency: "USD" }), created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02445", { currency: "USD" }) });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
@@ -200,7 +199,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         proof_url: null,
         created_by: purchaser.id,
       });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: /^Edit Payment of Oct 1, 2026/ }));
@@ -223,7 +222,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
     it("types P.I/QT Amount, and refuses a half-typed one with a sentence", { timeout: 20000 }, async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: "Edit P.I/QT Amount" }));
@@ -249,7 +248,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
     it("picks the one freight service", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("combobox", { name: "Freight service" }));
@@ -262,7 +261,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
   describe("charges", () => {
     it("records a charge in section 3 and totals the list", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "finance", "edit");
       await user.click(await screen.findByRole("button", { name: /Add charge/ }));
@@ -372,7 +371,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         amount_php: 600,
         created_by: purchaser.id,
       });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "costing", "edit");
 
@@ -420,7 +419,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         amount_php: 1000,
         created_by: purchaser.id,
       });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "costing", "edit");
       await screen.findAllByTestId("ipas-landed-line");
@@ -451,7 +450,7 @@ describe("IPAS settings", () => {
   });
 
   it("lists the payment methods first, in order, and the other lists on their tabs", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderSettings();
 
@@ -468,7 +467,7 @@ describe("IPAS settings", () => {
   });
 
   it("adds an option, refusing a name that is already there", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderSettings();
     await screen.findAllByTestId("ipas-option-row");
@@ -487,7 +486,7 @@ describe("IPAS settings", () => {
   });
 
   it("deactivates an option rather than deleting it, and offers it again when switched back", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderSettings();
     await screen.findAllByTestId("ipas-option-row");
@@ -503,7 +502,7 @@ describe("IPAS settings", () => {
   });
 
   it("reorders an option up", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderSettings();
     await screen.findAllByTestId("ipas-option-row");
@@ -517,7 +516,7 @@ describe("IPAS settings", () => {
   });
 
   it("renames an option, keeping it the same option", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const id = options.payment_method["Credit Card"].id;
 
     renderSettings();
@@ -549,7 +548,7 @@ describe("IPAS settings", () => {
     }
 
     it("can't be renamed: Rename is off and the hint shows, while Deactivate and reorder stay", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       useOnFiled();
 
       renderSettings();
@@ -580,7 +579,7 @@ describe("IPAS settings", () => {
     });
 
     it("freezes a document kind's Source and used-for marks too", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       const filed = ipas({ po_number: "P02601", state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
       const waybill = options.document_kind.Waybill;
       db.seed("ipas_documents", { ipas_id: filed.id, kind_id: waybill.id, purchasing_has: true, finance_has: true });

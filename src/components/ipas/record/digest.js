@@ -129,7 +129,9 @@ export function digestIpas(ipas) {
       ipas.ganttChart ? "Gantt Chart ticked" : null,
     ]),
     finance: join([
-      ipas.charges.length > 0 ? plural(ipas.charges.length, "charge", "charges") : "no charges yet",
+      ipas.charges.length > 0
+        ? `${plural(ipas.charges.length, "charge", "charges")}, ${pesos(sum.chargesPhp)}`
+        : "no charges yet",
       `documents ${docs.ticked} of ${docs.total} in hand`,
       ipas.canReadBankDetails
         ? ipas.bankDetails

@@ -35,7 +35,7 @@ export function IpasBankDetails({ ipas, canChange: granted = false, onEdit }) {
       {flagged && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-400 bg-red-3/40 p-3 text-sm text-red-11"
+          className="flex items-start gap-2 rounded-xl border border-red-7 bg-red-3/40 p-3 text-sm text-red-11"
         >
           <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
           <div>

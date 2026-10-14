@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import SettingsPage from "@/pages/settings";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -128,7 +127,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
     it("lets Purchasing tick Purchasing has it, and leaves Finance has it to Finance", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "finance", "edit");
       const waybill = await documentRow("Waybill");
@@ -148,7 +147,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "finance", "edit");
       const waybill = await documentRow("Waybill");
@@ -168,7 +167,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
       db.seed("ipas_documents", { ipas_id: row.id, kind_id: null, label: "Warranty card", attachment_url: null, purchasing_has: false, finance_has: false });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "finance", "edit");
       const waybill = await documentRow("Waybill");
@@ -187,7 +186,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
     it("adds a document by hand, with its own name", async () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
       giveDocuments(row);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "finance", "edit");
       await user.click(await screen.findByRole("button", { name: "Add document" }));
@@ -205,7 +204,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
       db.seed("ipas_options", { list: "document_kind", label: "Insurance Certificate", sort: 500, active: true, applies_to: "import", used_for: "documentation" });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "finance", "edit");
       await user.click(await screen.findByRole("button", { name: "Add 1 suggested" }));
@@ -230,7 +229,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
   describe("Item Location", () => {
     it("types an Item Location from the list, in section 5", async () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "logistics");
       // The row and the drawer both name the section.
@@ -257,7 +256,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
   describe("Supplier Origin", () => {
     it("shows the four dates on an Import IPAS, typed from a dialog", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "status");
       const block = await screen.findByTestId("ipas-supplier-origin");
@@ -313,7 +312,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
     it("types Delivered with who and when, and shows it", async () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "status");
       const delivered = await screen.findByTestId("ipas-track-delivered");
@@ -329,7 +328,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
     it("stamps Actual Checking by Purchasing, naming who, and can clear the stamp", async () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "status");
       const checking = await screen.findByTestId("ipas-track-actual_checking");
@@ -389,7 +388,7 @@ describe("IPAS settings: document kinds and Item Locations", () => {
   }
 
   it("offers the Document kinds and Item locations lists", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderSettings();
     await user.click(await screen.findByRole("tab", { name: "Document kinds" }));
@@ -403,7 +402,7 @@ describe("IPAS settings: document kinds and Item Locations", () => {
   });
 
   it("adds a document kind marked Import and filing", { timeout: 20000 }, async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderSettings();
     await user.click(await screen.findByRole("tab", { name: "Document kinds" }));

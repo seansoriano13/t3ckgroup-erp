@@ -22,7 +22,7 @@ import { useEmployeeAvatarMap } from "../../hooks/useEmployeeAvatarMap";
 import { useRecordParam } from "../../hooks/useRecordParam";
 import { bugReportService } from "../../services/bugReportService";
 import { getPermissionContext } from "../../utils/permissions";
-import { APPROVE_CLASS } from "../approvals/_components/approvalUi";
+import { APPROVE_CLASS } from "@/constants/approveClass";
 import { formatDateWith } from "../../utils/formatDate";
 import { FieldBox } from "@/components/ui/FieldBox";
 

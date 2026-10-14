@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import SettingsPage from "@/pages/settings";
 import IpasSignoffsQueuePage from "@/pages/approvals/ipas";
-import { renderWithProviders } from "@/test/support";
+import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { waitForNetworkIdle } from "@/test/network";
@@ -102,7 +101,7 @@ describe("IPAS sign-offs", () => {
     it("lets Purchasing prepare a section, which then waits for approval and tells the approvers", async () => {
       onList("s1_approved", approver, other);
       const row = ipas({ created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing");
       // The drawer's footer carries the move; the body only reads.
@@ -112,6 +111,7 @@ describe("IPAS sign-offs", () => {
       expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
 
       await user.click(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" }));
+      await confirmMove(user, "Prepare section 1 · Purchasing", "Prepare");
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Awaiting approval")).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-prepared")).getByText("Buyer")).toBeInTheDocument();
@@ -125,13 +125,14 @@ describe("IPAS sign-offs", () => {
       const row = ipas();
       signoff(row.id, 1, "prepared", purchaser);
       signIn(approver);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing");
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(one).queryByRole("button", { name: /Prepare section/ })).not.toBeInTheDocument();
       await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
+      await confirmMove(user, "Approve section 1 · Purchasing", "Approve");
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-approved")).getByText("Boss Lito")).toBeInTheDocument();
@@ -172,7 +173,7 @@ describe("IPAS sign-offs", () => {
       signoff(row.id, 3, "prepared", purchaser);
       signoff(row.id, 3, "approved", approver);
       signIn(approver);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "finance");
       const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
@@ -244,11 +245,12 @@ describe("IPAS sign-offs", () => {
       signoff(row.id, 1, "prepared", purchaser);
       // The page thinks the viewer is on the list; the database disagrees.
       signIn(approver, { actorId: other.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing");
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
+      await confirmMove(user, "Approve section 1 · Purchasing", "Approve");
 
       await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/^you are not on the list that may give this sign-off/i)));
       expect(toastError.mock.calls.at(-1)[0]).not.toMatch(/ipas_sign|42501/);
@@ -267,7 +269,7 @@ describe("IPAS sign-offs", () => {
         { ipas_id: row.id, actor_id: purchaser.id, kind: "approvals_cleared", detail: { reason: "PO changed in Odoo", sections: [1, 3] } },
       ]);
       signIn(approver);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       const view = renderDetail(row.id, "finance");
       const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
@@ -316,7 +318,7 @@ describe("IPAS sign-offs", () => {
       onList("s1_approved", approver, other);
       onList("s3_approved", approver);
       signIn(superAdmin, { superAdmin: true });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderSettings();
       await user.click(await screen.findByRole("tab", { name: "Sign-off lists" }));
@@ -337,7 +339,7 @@ describe("IPAS sign-offs", () => {
       onList("s1_approved", approver);
       db.seed("ipas_signer_list_log", { list_key: "s7_noted", employee_id: other.id, action: "added", actor_id: superAdmin.id, created_at: "2026-10-12T02:00:00.000Z" });
       signIn(superAdmin, { superAdmin: true });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderSettings();
       await user.click(await screen.findByRole("tab", { name: "Sign-off lists" }));
@@ -357,7 +359,7 @@ describe("IPAS sign-offs", () => {
 
     it("says there are no changes yet when the log is empty", async () => {
       signIn(superAdmin, { superAdmin: true });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderSettings();
       await user.click(await screen.findByRole("tab", { name: "Sign-off lists" }));
@@ -403,7 +405,7 @@ describe("IPAS sign-offs", () => {
       signoff(row.id, 1, "prepared", purchaser);
       signIn(approver);
       mockUser.current = { ...approver, isIpasApprover: true };
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 1` }));
@@ -418,7 +420,7 @@ describe("IPAS sign-offs", () => {
       signoff(row.id, 3, "prepared", purchaser);
       signIn(approver);
       mockUser.current = { ...approver, isIpasApprover: true };
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Send back ${row.number} section 3` }));
@@ -438,7 +440,7 @@ describe("IPAS sign-offs", () => {
       signoff(row.id, 1, "prepared", purchaser);
       signIn(approver);
       mockUser.current = { ...approver, isIpasApprover: true };
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderQueue();
       await user.click(await screen.findByText("Scorpe Technologies"));

@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import toast from "react-hot-toast";
 import { MemoryRouter, Route, Routes, RouterProvider, createMemoryRouter } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import { renderWithProviders } from "@/test/support";
+import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -171,7 +170,7 @@ describe("IPAS signing with the evidence in view", () => {
     it("Edit section opens the edit view with the tables editable, and Back to overview focuses the row", async () => {
       const row = ipas();
       renderRouted(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
@@ -190,7 +189,7 @@ describe("IPAS signing with the evidence in view", () => {
     it("Edit section from the drawer, then Back, lands on the overview with the row focused and no drawer", async () => {
       const row = ipas();
       const router = renderRouted(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
@@ -211,7 +210,7 @@ describe("IPAS signing with the evidence in view", () => {
       // The page offers the change to Purchasing; the database refuses it for this caller.
       signIn(purchaser, { purchasing: false });
       const router = renderRouted(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await act(() => router.navigate(`/purchasing/ipas/${row.id}?edit=costing`));
       await user.click(await screen.findByRole("button", { name: "Costs complete" }));
@@ -238,22 +237,26 @@ describe("IPAS signing with the evidence in view", () => {
       expect(await screen.findByRole("button", { name: /^2 · Purchasing & Finance/ })).toHaveFocus();
     });
 
-    it("signs from the footer without a second question", async () => {
+    it("asks in a dialog that names the section and the signer, then signs from the footer", async () => {
       const row = ipas();
       renderDetail(row.id, "purchasing");
-      const user = userEvent.setup();
+      const user = setupUser();
 
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" }));
 
+      const dialog = await screen.findByRole("dialog", { name: "Prepare section 1 · Purchasing?" });
+      expect(within(dialog).getByText(/^You sign/)).toBeInTheDocument();
+      expect(db.rows("ipas_signoffs").filter((s) => s.role === "prepared")).toHaveLength(0);
+      await user.click(within(dialog).getByRole("button", { name: "Prepare" }));
+
       await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.role === "prepared")).toHaveLength(1));
-      expect(screen.queryByRole("dialog", { name: "Prepare section 1 · Purchasing?" })).not.toBeInTheDocument();
     });
 
     it("steps with J and K, and Back closes it (opening pushed the entry)", async () => {
       const row = ipas();
       const router = renderRouted(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
       await screen.findByRole("dialog", { name: "1 · Purchasing" });
@@ -300,7 +303,7 @@ describe("IPAS signing with the evidence in view", () => {
       const row = ipas();
       signoff(row.id, 1, "prepared", purchaser);
       renderDetail(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       const region = await yourMove();
       await user.click(within(region).getByRole("button", { name: "Approve section 1 · Purchasing" }));
@@ -319,7 +322,7 @@ describe("IPAS signing with the evidence in view", () => {
       const row = ipas();
       signoff(row.id, 1, "prepared", purchaser);
       renderDetail(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
       const dialog = await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" });
@@ -332,7 +335,7 @@ describe("IPAS signing with the evidence in view", () => {
     it("offers a Review section link that opens the drawer for that move's section", async () => {
       const row = ipas();
       renderDetail(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Review section 1 · Purchasing" }));
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
@@ -347,7 +350,7 @@ describe("IPAS signing with the evidence in view", () => {
         return "undo";
       });
       renderDetail(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Mark costs complete" }));
       // Undoable from its toast, so it asks nothing first.
@@ -366,7 +369,7 @@ describe("IPAS signing with the evidence in view", () => {
       // The page thinks the viewer may approve; the database says they aren't on the list.
       signIn(approver, { actorId: other.id });
       renderDetail(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
       await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" })).getByRole("button", { name: "Approve" }));
@@ -388,10 +391,11 @@ describe("IPAS signing with the evidence in view", () => {
       signoff(row.id, 1, "prepared", purchaser);
       signIn(approver, { actorId: other.id });
       renderDetail(row.id, "purchasing");
-      const user = userEvent.setup();
+      const user = setupUser();
 
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
+      await confirmMove(user, "Approve section 1 · Purchasing", "Approve");
 
       const alert = await within(drawer).findByRole("alert");
       // The drawer is modal, so the card is out of reach; check its markup directly: no error there.
@@ -406,7 +410,7 @@ describe("IPAS signing with the evidence in view", () => {
       // The page offers the send back; the database says the viewer isn't on the list.
       signIn(approver, { actorId: other.id });
       renderDetail(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Send section 1 · Purchasing back" }));
       const dialog = await screen.findByRole("dialog", { name: "Send section 1 · Purchasing back?" });
@@ -431,7 +435,7 @@ describe("IPAS signing with the evidence in view", () => {
       signoff(first.id, 1, "prepared", purchaser);
       signoff(second.id, 1, "prepared", purchaser);
       renderDetail(first.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       expect(screen.queryByRole("link", { name: /Next IPAS waiting for me/ })).not.toBeInTheDocument();
       await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
@@ -446,7 +450,7 @@ describe("IPAS signing with the evidence in view", () => {
       const only = ipas();
       signoff(only.id, 1, "prepared", purchaser);
       renderDetail(only.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
       await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" })).getByRole("button", { name: "Approve" }));
@@ -465,7 +469,7 @@ describe("IPAS signing with the evidence in view", () => {
       }
       onList("s3_approved", approver);
       renderDetail(first.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       // A sign-off on the first IPAS succeeds, which names the second as the next one waiting.
       await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));

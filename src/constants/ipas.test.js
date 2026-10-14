@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   IPAS_PART_NAMES,
   IPAS_PART_NO,
-  IPAS_SECTION_NO,
-  IPAS_SIGNOFF_SECTIONS,
   ipasSectionLabel,
-  ipasSectionNo,
 } from "./ipas";
 
 /**
@@ -30,13 +27,7 @@ describe("the IPAS section numbers", () => {
     expect(Object.keys(IPAS_PART_NAMES).sort()).toEqual(Object.keys(IPAS_PART_NO).sort());
   });
 
-  it("maps each stored sign-off section to its displayed number", () => {
-    expect(IPAS_SECTION_NO).toEqual({ 1: 1, 3: 2, 7: 4 });
-    expect(IPAS_SIGNOFF_SECTIONS.map(ipasSectionNo)).toEqual([1, 2, 4]);
-  });
-
   it("reads anything it doesn't know as it is given", () => {
-    expect(ipasSectionNo(2)).toBe(2);
     expect(ipasSectionLabel("nope")).toBe("nope");
   });
 });

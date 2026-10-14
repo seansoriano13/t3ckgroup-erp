@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -175,7 +174,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(within(notedAndChecked).getByText("Noted and Checked, in either order, after Received")).toBeInTheDocument();
   });
 
-  it("reads the next step to the viewer: Waiting for Finance when the Now gate is Finance's", async () => {
+  it("says nothing needs the purchaser while the Now gate waits on Finance, and names the section", async () => {
     const row = ipas({ computation_status: "encoding" });
     signoff(row.id, 1, "prepared", purchaser);
     signoff(row.id, 1, "approved", approver);
@@ -184,9 +183,9 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText("Next: Waiting for Finance")).toBeInTheDocument();
-    // The purchaser may still mark costs complete: offered, but not the Now gate.
-    expect(within(region).getByRole("button", { name: "Mark costs complete" })).toBeInTheDocument();
+    expect(within(region).getByText("Nothing needs you right now. Waiting on 4 · Filing.")).toBeInTheDocument();
+    // Costs complete is not offered until the computation status is Encoded: it is not the Now gate.
+    expect(within(region).queryByRole("button", { name: "Mark costs complete" })).not.toBeInTheDocument();
   });
 
   it("offers an approver only Approve and Send back on their section, never a Purchasing move", async () => {
@@ -226,7 +225,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText("Waiting for Purchasing to finish encoding costs.")).toBeInTheDocument();
+    expect(within(region).getByText(/Waiting for Purchasing to finish encoding costs\.$/)).toBeInTheDocument();
     expect(screen.queryAllByRole("group", { name: /, now$/ })).toHaveLength(0);
   });
 
@@ -253,7 +252,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
     const region2 = await screen.findByRole("region", { name: "Your move" });
     expect(within(region2).queryByRole("button", { name: "Reopen" })).not.toBeInTheDocument();
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(within(await screen.findByTestId("ipas-filed-notice")).getByRole("button", { name: "Reopen" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByPlaceholderText("Why is this filed IPAS being reopened?")).toBeInTheDocument();
@@ -271,18 +270,21 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(screen.queryByRole("group", { name: /^Section 1, Purchasing/ })).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: "Where it stands · 0 of 6" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(toggle);
     expect(screen.getByRole("button", { name: "Hide where it stands" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("group", { name: "Section 1, Purchasing, Approved, now" })).toBeInTheDocument();
   });
 
-  it("keeps the moves visible below the wide breakpoint, collapsed", async () => {
+  it("collapses the card below the wide breakpoint to its status line, and opens the moves on request", async () => {
     stubWide(false);
     const row = ipas();
+    const user = setupUser();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
+    expect(within(region).queryByRole("button", { name: "Prepare section 1 · Purchasing" })).not.toBeInTheDocument();
+    await user.click(within(region).getByRole("button", { name: /Show my moves/ }));
     expect(within(region).getByRole("button", { name: "Prepare section 1 · Purchasing" })).toBeInTheDocument();
   });
 });

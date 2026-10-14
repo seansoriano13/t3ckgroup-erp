@@ -13,7 +13,8 @@ import { relativeAge } from "../../../utils/approvalItems.js";
 import { checklistProgressLabel, isChecklistDescription, resolveApprovalShortcut } from "../../../utils/approvalQueue.js";
 import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
-import { APPROVE_CLASS, NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
+import { NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
+import { APPROVE_CLASS } from "@/constants/approveClass";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**

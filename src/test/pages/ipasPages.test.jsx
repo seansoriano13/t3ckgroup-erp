@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasListPage from "@/pages/purchasing/ipas/index";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee, makeFlowStage, makeOpportunity } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -86,7 +85,7 @@ describe("IPAS pages", () => {
     it("lists the open IPAS with number, PO, supplier, entity and Purpose, and counts each state", async () => {
       ipas({ po_number: "P02552", purpose: "supplies", created_by: purchaser.id });
       ipas({ state: "cancelled", cancel_reason: "Dropped", cancelled_at: "2026-10-13T03:00:00.000Z" });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderList();
 
@@ -147,7 +146,7 @@ describe("IPAS pages", () => {
     };
 
     it("says Odoo has no such PO, apart from Odoo not answering", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       stubEdgeFunction("odoo-po-ipas", { success: true, found: false });
       const dialog = await openDialog(user);
 
@@ -159,7 +158,7 @@ describe("IPAS pages", () => {
     });
 
     it("says it couldn't check when Odoo doesn't answer", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" });
       const dialog = await openDialog(user);
 
@@ -170,7 +169,7 @@ describe("IPAS pages", () => {
     });
 
     it("refuses a number that isn't an Odoo PO without asking Odoo", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       let asked = false;
       stubEdgeFunction("odoo-po-ipas", () => {
         asked = true;
@@ -186,7 +185,7 @@ describe("IPAS pages", () => {
     });
 
     it("shows the PO Odoo found and asks for the header", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...copy("P02552", { po: { id: 1, name: "P02552", state: "draft", company: "TG Enterprise", currency: "USD", origin: null } }) });
       const dialog = await openDialog(user);
 
@@ -201,7 +200,7 @@ describe("IPAS pages", () => {
     });
 
     it("blocks a PO that already has a live IPAS, and names it", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       ipas({ po_number: "P02552" });
       stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...copy("P02552") });
       const dialog = await openDialog(user);
@@ -246,7 +245,7 @@ describe("IPAS pages", () => {
 
     it("keeps Cancel IPAS in the More menu, with Print", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id);
       await openMore(user);
@@ -277,7 +276,7 @@ describe("IPAS pages", () => {
 
     it("cancels with a reason and keeps the IPAS readable with its number", { timeout: 20000 }, async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id);
       await openMore(user);
@@ -311,7 +310,7 @@ describe("IPAS pages", () => {
 
     it("ticks Googlesheet and Gantt Chart in section 2, each saved as it's ticked", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "sales", "edit");
       expect(await screen.findByRole("checkbox", { name: "Googlesheet" })).not.toBeChecked();
@@ -344,7 +343,7 @@ describe("IPAS pages", () => {
 
     it("opens a section from ?open=, and Escape returns focus to its row", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "header");
       const dialog = await screen.findByRole("dialog");
@@ -369,7 +368,7 @@ describe("IPAS pages", () => {
 
     it("toggles a short section in place from its row, and J skips it in the drawer", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = userEvent.setup();
+      const user = setupUser();
       renderDetail(row.id);
 
       const trigger = await screen.findByRole("button", { name: /^6 · Logistics/ });
@@ -435,7 +434,7 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const requests = vi.fn(() => ({ success: false, message: "Odoo is rate-limiting requests" }));
       stubEdgeFunction("odoo-po-ipas", requests);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       // No section open: the banner sits on the page, and a drawer would make it inert.
       renderDetail(row.id);
@@ -456,7 +455,7 @@ describe("IPAS pages", () => {
     it("dismisses the Odoo banner, and the stored copy stays on the page", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", { success: false, message: "Odoo is rate-limiting requests" });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id);
       const banner = await screen.findByRole("alert");
@@ -470,7 +469,7 @@ describe("IPAS pages", () => {
     it("overrides Entity with Odoo's value beside it, and resets in one action", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", answer("P02552"));
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "header", "edit");
       await user.click(await screen.findByRole("button", { name: "Override Entity" }));
@@ -495,7 +494,7 @@ describe("IPAS pages", () => {
     it("types the contact, which Odoo then leaves alone", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id, supplier_contact: null });
       stubEdgeFunction("odoo-po-ipas", answer("P02552"));
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: "Edit Contact" }));
@@ -514,7 +513,7 @@ describe("IPAS pages", () => {
       stubEdgeFunction("odoo-po-ipas", answer("P02552", { po: { id: 1, name: "P02552", state: "cancel", company: "T3ck Trading", currency: "Php", origin: null, partner_ref: null } }));
 
       renderDetail(row.id);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       expect(await screen.findByText("Odoo PO cancelled")).toBeInTheDocument();
       expect(screen.getByText(/stays open until Purchasing cancels it/)).toBeInTheDocument();

@@ -8,8 +8,7 @@ import { hintFor } from "./moveCopy";
  * belongs to (the drawer's footer and "Review section" use it), how it looks,
  * its label, its consequence hint, and what it does.
  *   kind     "approve" (green) | "prepare" or "neutral" (outline) | "return" (pale red)
- *   confirm  the card asks first, with the restatement; the drawer footer signs
- *            straight away, because the evidence is in view
+ *   confirm  the card and the drawer footer ask first, with the restatement
  *   run(from)  `from` is { key, origin } where the move was started; the page
  *            passes it to the mutation so a failure shows at its origin
  */
@@ -19,6 +18,8 @@ function move(key, section, { kind, icon, label, verb, confirm = true, run }, di
 
 const FILING = ipasSectionLabel(7);
 const PART = IPAS_SECTION_PART;
+// The two sections a Finance or purchasing signer can approve or send back from the card.
+const MOVE_SECTIONS = [1, 3];
 
 /**
  * Everything the signed-in person may do on this IPAS right now, in three groups:
@@ -34,7 +35,7 @@ export function movesFor(ctx, digest) {
   const { rights, can, on } = ctx;
   const moves = [];
 
-  for (const section of [1, 3]) {
+  for (const section of MOVE_SECTIONS) {
     const mine = rights[section];
     const label = ipasSectionLabel(section);
     if (mine.canApprove) {
@@ -84,7 +85,8 @@ export function movesFor(ctx, digest) {
   }
 
   const costs = [];
-  if (can.change && !digest.costsComplete) {
+  // Offered only once the computation status is Encoded: until then the card says what it waits on.
+  if (can.change && !digest.costsComplete && digest.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED) {
     costs.push(
       move("costs", "costing", {
         kind: "neutral",
@@ -99,7 +101,7 @@ export function movesFor(ctx, digest) {
   }
 
   const returns = [];
-  for (const section of [1, 3]) {
+  for (const section of MOVE_SECTIONS) {
     if (rights[section].canSendBack) {
       returns.push(
         move(`return-${section}`, PART[section], {

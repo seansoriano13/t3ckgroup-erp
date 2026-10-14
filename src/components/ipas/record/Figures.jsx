@@ -2,7 +2,6 @@ import { ArrowUpRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { LANDED_BADGE } from "./digest";
 
 /**
  * The four headline amounts, the only place they show on the record page. Each
@@ -41,8 +40,6 @@ export default function Figures({ digest, onOpen }) {
       key: "costing",
       label: "Landed Cost",
       value: money.landedText,
-      // Unavailable already reads "Not available yet" in the value: one line says it.
-      sub: money.landedPhp === null ? undefined : LANDED_BADGE[money.landedStatus]?.label,
     },
   ];
 

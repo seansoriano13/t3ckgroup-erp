@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import IpasSignoffsQueuePage from "@/pages/approvals/ipas";
-import { renderWithProviders } from "@/test/support";
+import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { waitForNetworkIdle } from "@/test/network";
@@ -161,7 +160,7 @@ describe("IPAS section 7 and Filing", () => {
       const row = ipas();
       approvedFirstSections(row);
       signIn(receiver);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "filing");
       // The drawer's footer carries the step; the card repeats it.
@@ -170,6 +169,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(within(drawer).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
 
       await user.click(within(drawer).getByRole("button", { name: /Receive/ }));
+      await confirmMove(user, "Receive section 4 · Filing", "Receive");
 
       await waitFor(() =>
         expect(within(screen.getByTestId("ipas-signoff-7-received")).getByText("Rita Receiver")).toBeInTheDocument(),
@@ -187,7 +187,7 @@ describe("IPAS section 7 and Filing", () => {
       approvedFirstSections(row);
       givenThroughChecked(row);
       signIn(noter);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "filing");
       const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
@@ -270,7 +270,7 @@ describe("IPAS section 7 and Filing", () => {
       givenThroughChecked(row);
       quotation(row);
       signIn(boss);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "filing");
       const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
@@ -295,7 +295,7 @@ describe("IPAS section 7 and Filing", () => {
       givenThroughChecked(row);
       quotation(row, { purchasing_has: true });
       signIn(boss);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id, "filing");
       const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
@@ -316,7 +316,7 @@ describe("IPAS section 7 and Filing", () => {
       signIn(boss);
       // The page thinks the viewer may approve; the database says costs aren't complete.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoded";
-      const user = userEvent.setup();
+      const user = setupUser();
       renderDetail(row.id, "filing");
       // Offered from a stale read: Costs complete here, then the status moves underneath.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "costs_complete";
@@ -405,7 +405,7 @@ describe("IPAS section 7 and Filing", () => {
     it("lets a Super Admin reopen it with a required reason, and the edit controls come back", async () => {
       const row = filedRow();
       signIn(superAdmin, { superAdmin: true });
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderDetail(row.id);
       await user.click(await within(await screen.findByTestId("ipas-filed-notice")).findByRole("button", { name: "Reopen" }));
@@ -446,7 +446,7 @@ describe("IPAS section 7 and Filing", () => {
       const row = ipas();
       approvedFirstSections(row);
       signIn(receiver);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Receive ${row.number} section 7` }));
@@ -471,7 +471,7 @@ describe("IPAS section 7 and Filing", () => {
       approvedFirstSections(row);
       signoff(row.id, 7, "received", receiver);
       signIn(noter);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Send back ${row.number} section 7` }));
@@ -493,7 +493,7 @@ describe("IPAS section 7 and Filing", () => {
       givenThroughChecked(row);
       quotation(row);
       signIn(boss);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 7` }));
@@ -511,7 +511,7 @@ describe("IPAS section 7 and Filing", () => {
       const row = ipas();
       approvedFirstSections(row);
       signIn(receiver);
-      const user = userEvent.setup();
+      const user = setupUser();
 
       renderQueue();
       await user.click(await screen.findByText("Scorpe Technologies"));

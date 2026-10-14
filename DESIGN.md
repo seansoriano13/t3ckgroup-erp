@@ -12,7 +12,7 @@ colors:
   desk-hover: "#eae7ec"
   seam: "#e3dfe6"
   border: "#dbd8e0"
-  focus-ring: "#bcbac7"
+  focus-ring: "#65636d"
   ink-faint: "#8e8c99"
   ink-muted: "#65636d"
   ink: "#211f26"
@@ -149,7 +149,7 @@ A cool-warm mauve ramp carries the whole interface. One saturated red is reserve
 - **Hover Desk** (`desk-hover`, mauve-4): sidebar item hover (`sidebar-accent`).
 - **Seam** (`seam`, mauve-5): card borders and sidebar border, the quietest structural line.
 - **Border** (`border`, mauve-6): input strokes and the global default `border` token.
-- **Focus Grey** (`focus-ring`, mauve-8): the `ring` token. Focus is neutral, never red.
+- **Focus Grey** (`focus-ring`, mauve-11): the `ring` token. Focus is neutral, never red.
 - **Faint Ink** (`ink-faint`, mauve-9): disabled glyphs, day-name headers.
 - **Muted Ink** (`ink-muted`, mauve-11): descriptions, inactive tabs, secondary text.
 - **Ink** (`ink`, mauve-12): primary text.
@@ -498,7 +498,7 @@ Sentence-case title with an optional one-line description. Uppercase tracked lab
 - **Do** keep motion between 150 and 400ms on `cubic-bezier(0.16, 1, 0.3, 1)`, and keep the global reduced-motion guard intact.
 
 ### Don't:
-- **Don't** use red for focus rings, hover tints, or decorative backgrounds. Focus is neutral grey (mauve-8).
+- **Don't** use red for focus rings, hover tints, or decorative backgrounds. Focus is neutral grey (mauve-11).
 - **Don't** copy the Card component's **indigo-tinted shadow** (`rgba(79,70,229,…)`). It is template drift from a stock theme and not part of this system; shadows here are neutral black.
 - **Don't** use `hover:bg-primary-hover`. That token is **not defined**, so the hover silently does nothing. Use the `Button` primary variant, or `hover:bg-red-10`.
 - **Don't** reach for **Russo One** or **Inter**. Both are imported in `src/index.css` but unused. Plus Jakarta Sans is the only screen face.

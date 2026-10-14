@@ -1,12 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Pencil, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
-import { DRAWER_SECTIONS, sectionState } from "./digest";
+import { DRAWER_SECTIONS } from "./digest";
 import MoveButton from "./MoveButton";
 import { canEditSection, footerMovesFor } from "./moves";
-import { StateWord } from "./StateMark";
 import { CHROME, IpasSectionChrome } from "./sectionChrome";
 
 /** Marks the drawer's own dialog, so J and K can tell it from a dialog opened on top of it. */
@@ -33,9 +33,9 @@ function otherDialogOpen() {
  * was opened directly.
  *
  * A pinned footer carries the viewer's moves for this section (the same moves
- * as the card, signed straight away) and nothing else. Where the viewer may
- * edit the section, a small Edit section button at the top of the body opens
- * the edit view. The money in the body is read-only here.
+ * as the card, each asking first) and, where the viewer may edit the section,
+ * an Edit section button that opens the edit view. The money in the body is
+ * read-only here.
  */
 export default function SectionDrawer({ ctx, blocks, digest, index, current, step, close, getRow, onEdit }) {
   const { ipas, busy, failure } = ctx;
@@ -65,10 +65,20 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
   }, [current, index, step]);
 
   const returnFocus = () => getRow(lastKey.current) ?? true;
-  const state = current ? sectionState(current.key, digest) : null;
   const moves = current ? footerMovesFor(ctx, digest, current.key) : [];
   const editable = Boolean(current) && canEditSection(current.key, ctx);
   const busyNow = busy.signoff || busy.give;
+  // A move that signs asks first, restating what it signs, the same as the card does.
+  const [asked, setAsked] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const runFromFooter = (item, origin) => {
+    if (item.confirm) {
+      setAsked(item);
+      setConfirmOpen(true);
+    } else {
+      item.run({ key: item.key, origin });
+    }
+  };
 
   return (
     <Drawer open={Boolean(current)} onOpenChange={(next) => !next && close()}>
@@ -80,7 +90,6 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
                 <p className="font-mono text-xs font-medium tabular-nums text-muted-foreground">{ipas.number}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2.5">
                   <DrawerTitle className="min-w-0 text-lg font-bold">{current.title}</DrawerTitle>
-                  {state && <StateWord state={state.state} detail={state.detail} />}
                 </div>
                 <DrawerDescription className="mt-0.5 text-sm">{digest.lines[current.key]}</DrawerDescription>
               </div>
@@ -109,34 +118,51 @@ export default function SectionDrawer({ ctx, blocks, digest, index, current, ste
             {/* Keyed by section, so stepping with previous and next eases the body in. */}
             <div
               key={current.key}
-              className="min-h-0 flex-1 animate-in overflow-y-auto px-7 py-6 duration-300 ease-out fade-in-0 slide-in-from-right-2"
+              className="min-h-0 flex-1 animate-in overflow-y-auto px-7 py-6 duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] fade-in-0 slide-in-from-right-2"
             >
-              {editable && (
-                <Button size="sm" variant="outline" className="mb-5 gap-1.5" onClick={() => onEdit(current.key)}>
-                  <Pencil size={14} aria-hidden="true" />
-                  Edit section
-                </Button>
-              )}
               <IpasSectionChrome.Provider value={CHROME.DRAWER}>{blocks[current.key]}</IpasSectionChrome.Provider>
             </div>
-            {/* The pinned footer is the decision area only: the viewer's moves for this section. */}
-            {moves.length > 0 && (
+            {/* The pinned footer holds the section's edit and the viewer's moves for it. */}
+            {(moves.length > 0 || editable) && (
               <div className="border-t border-border bg-muted/30 px-7 py-4">
-                <ul className="grid gap-4 sm:grid-cols-2">
-                  {moves.map((item) => (
-                    <MoveButton
-                      key={item.key}
-                      move={item}
-                      origin="drawer"
-                      disabled={busyNow}
-                      busy={busyNow}
-                      failure={failure}
-                      onRun={(move, origin) => move.run({ key: move.key, origin })}
-                    />
-                  ))}
-                </ul>
+                {editable && (
+                  <Button size="sm" variant="outline" className="mb-4 gap-1.5" onClick={() => onEdit(current.key)}>
+                    <Pencil size={14} aria-hidden="true" />
+                    Edit section
+                  </Button>
+                )}
+                {moves.length > 0 && (
+                  <ul className="grid gap-4 sm:grid-cols-2">
+                    {moves.map((item) => (
+                      <MoveButton
+                        key={item.key}
+                        move={item}
+                        origin="drawer"
+                        disabled={busyNow}
+                        busy={busyNow}
+                        failure={failure}
+                        onRun={runFromFooter}
+                      />
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
+            <ConfirmDialog
+              open={confirmOpen}
+              onOpenChange={setConfirmOpen}
+              title={`${asked?.label ?? ""}?`}
+              confirmLabel={asked?.verb ?? "Confirm"}
+              tone={asked?.kind === "return" ? "default" : "approve"}
+              onConfirm={() => asked?.run({ key: asked.key, origin: "drawer" })}
+            >
+              <div className="space-y-1.5 text-sm">
+                <p className="text-muted-foreground">{asked ? digest.lines[asked.section] : ""}</p>
+                <p className="font-medium text-foreground">
+                  {ctx.viewer ? `You sign as ${ctx.viewer}.` : "You sign with this account."}
+                </p>
+              </div>
+            </ConfirmDialog>
           </>
         )}
       </DrawerContent>

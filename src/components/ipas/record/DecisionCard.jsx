@@ -51,6 +51,8 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
   const { busy, failure, viewer } = ctx;
   const wide = useMediaQuery(WIDE);
   const [chainOpen, setChainOpen] = useState(false);
+  // Below the wide breakpoint the card is its heading and status line; the moves open on request.
+  const [movesOpen, setMovesOpen] = useState(false);
   // The card move waiting for the viewer's yes, with its restatement. `asked`
   // keeps the move while the dialog animates shut, so its title does not blank.
   const [asked, setAsked] = useState(null);
@@ -95,10 +97,25 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
           </p>
         )}
 
-        {moves.length > 0 && <MoveGroup items={moves} origin="card" {...rest} />}
-        {returns.length > 0 && <MoveGroup items={returns} origin="card" {...rest} />}
-        {costs.length > 0 && (
-          <MoveGroup items={costs} origin="card" className="border-t border-border pt-4" {...rest} />
+        {!wide && offered.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-expanded={movesOpen}
+            aria-controls="your-move-moves"
+            onClick={() => setMovesOpen((open) => !open)}
+          >
+            {movesOpen ? "Hide my moves" : `Show my moves · ${offered.length}`}
+          </Button>
+        )}
+        {(wide || movesOpen) && (
+          <div id="your-move-moves" className="space-y-4">
+            {moves.length > 0 && <MoveGroup items={moves} origin="card" {...rest} />}
+            {returns.length > 0 && <MoveGroup items={returns} origin="card" {...rest} />}
+            {costs.length > 0 && (
+              <MoveGroup items={costs} origin="card" className="border-t border-border pt-4" {...rest} />
+            )}
+          </div>
         )}
       </div>
 

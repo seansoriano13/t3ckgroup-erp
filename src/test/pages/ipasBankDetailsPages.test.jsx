@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -77,7 +76,7 @@ describe("IPAS page: bank details", () => {
 
   it("lets Purchasing type bank details from section 3, and shows them without a flag", async () => {
     const row = ipas({ po_number: "P03001", created_by: purchaser.id });
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderDetail(row.id, "finance", "edit");
     expect(await screen.findByText("No bank details typed yet.")).toBeInTheDocument();

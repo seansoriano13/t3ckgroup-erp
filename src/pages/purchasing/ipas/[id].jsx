@@ -137,6 +137,8 @@ function IpasPage() {
   const [signedId, setSignedId] = useState(null);
   // A failed change made in the edit view, shown in its header with Retry (see failEdit).
   const [editFailure, setEditFailure] = useState(null);
+  // A failed change made on the overview (a Logistics pick, the status stamp, Mark costs undo), shown in the page with Retry.
+  const [overviewFailure, setOverviewFailure] = useState(null);
 
   const [editing, setEditing] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(null); // { payment | null }
@@ -225,13 +227,14 @@ function IpasPage() {
     queryClient.invalidateQueries({ queryKey: ipasListKey });
   };
 
-  // A failed edit-view change: the toast as ever, and the message kept in the edit
-  // view's header with Retry, which runs the same change again. Tagged with the
-  // section it was made in, so it shows only there.
+  // A failed change: the toast as ever, and the message kept with Retry, which runs
+  // the same change again. In the edit view it sits in that view's header, tagged
+  // with its section; on the overview it sits at the top of the page.
   const failEdit = (error, retry) => {
     const message = ipasErrorMessage(error);
     toast.error(message);
-    setEditFailure({ key: editKey, message, retry });
+    if (editKey) setEditFailure({ key: editKey, message, retry });
+    else setOverviewFailure({ message, retry });
   };
 
   // A sign-off moves the Approval Center queue and its badge too.
@@ -705,6 +708,13 @@ function IpasPage() {
             </Link>
           )}
           <div className="space-y-2 empty:hidden">
+            {overviewFailure && (
+              <InlineError
+                message={overviewFailure.message}
+                onRetry={overviewFailure.retry}
+                onDismiss={() => setOverviewFailure(null)}
+              />
+            )}
             {cancelled && (
               <div role="status" className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
                 <p className="font-semibold text-foreground">

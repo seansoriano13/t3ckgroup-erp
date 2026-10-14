@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db, updateRow } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
@@ -90,7 +89,7 @@ describe("IPAS page: print", () => {
     const win = { name: "print-window" };
     printer.openPrintWindow.mockReturnValue(win);
     printer.printIpas.mockResolvedValue(undefined);
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderDetail(row.id);
     await openMore(user);
@@ -110,7 +109,7 @@ describe("IPAS page: print", () => {
     printer.openPrintWindow.mockReturnValue(win);
     printer.printIpas.mockResolvedValue(undefined);
     patchIpas(row.id, { state: "filed", filed_at: "2026-10-13T03:00:00.000Z" });
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderDetail(row.id);
     await openMore(user);
@@ -121,7 +120,7 @@ describe("IPAS page: print", () => {
   });
 
   it("offers only the plain Print on an open IPAS", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderDetail(row.id);
     await openMore(user);
 
@@ -130,7 +129,7 @@ describe("IPAS page: print", () => {
   });
 
   it("previews the document that prints, in a dialog with one close", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderDetail(row.id);
 
     await user.click(await screen.findByRole("button", { name: "Preview" }));
@@ -142,7 +141,7 @@ describe("IPAS page: print", () => {
 
   it("offers only the plain Print on a cancelled IPAS", async () => {
     patchIpas(row.id, { state: "cancelled", cancelled_at: "2026-10-13T03:00:00.000Z", cancel_reason: "Duplicate" });
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderDetail(row.id);
     await openMore(user);
@@ -154,7 +153,7 @@ describe("IPAS page: print", () => {
   it("offers no filing copy on a filed IPAS to someone who can't read bank details", async () => {
     patchIpas(row.id, { state: "filed", filed_at: "2026-10-13T03:00:00.000Z" });
     stubIpasRpcs({ actorId: finance.id, bankReader: false });
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderDetail(row.id);
     await openMore(user);
@@ -165,7 +164,7 @@ describe("IPAS page: print", () => {
 
   it("prints nothing, and says why, when the popup is blocked", async () => {
     printer.openPrintWindow.mockReturnValue(null);
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderDetail(row.id);
     await openMore(user);
@@ -178,7 +177,7 @@ describe("IPAS page: print", () => {
   it("says so when the print couldn't be prepared", async () => {
     printer.openPrintWindow.mockReturnValue({});
     printer.printIpas.mockRejectedValue(new Error("That IPAS isn't there, or you don't have access to it."));
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderDetail(row.id);
     await openMore(user);

@@ -5,7 +5,7 @@ import Dot from '@/components/ui/Dot';
 import SlideOver, { SlideOverBody, SlideOverFooter } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
 import { AttachmentList } from '../../../../components/ui/Attachments';
-import { APPROVE_CLASS } from '../../../approvals/_components/approvalUi';
+import { APPROVE_CLASS } from '@/constants/approveClass';
 import { StatusPill } from './LeaveParts';
 import { LABEL, TYPE_META, ago, balanceFor, fmtDay, fmtRange, hoursOf, recordKey, statusOf, windowOf } from './leaveDisplay';
 

@@ -61,7 +61,7 @@ function Row({ section, digest, onOpen, rowRef, expanded, body }) {
           size={16}
           aria-hidden="true"
           className={cn(
-            "mt-0.5 shrink-0 text-muted-foreground transition-transform duration-200",
+            "mt-0.5 shrink-0 text-muted-foreground transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
             section.inPlace ? (expanded ? "rotate-90" : "") : "group-hover/row:translate-x-0.5",
           )}
         />

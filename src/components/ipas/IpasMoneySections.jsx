@@ -365,7 +365,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, onSetStat
                     <span
                       className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[0.8rem] font-medium ${
                         current
-                          ? "border-foreground bg-foreground text-background"
+                          ? "border-border bg-secondary text-foreground"
                           : done
                             ? "border-green-400 text-green-11"
                             : "border-border text-muted-foreground"
