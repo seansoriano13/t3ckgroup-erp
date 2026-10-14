@@ -37,7 +37,7 @@ const slug = (key) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
 const email = (key) => `${slug(key)}@${FIXTURE_DOMAIN}`
 
 /**
- * Fifteen identities, covering every distinct shape the policies discriminate on.
+ * Nineteen identities, covering every distinct shape the policies discriminate on.
  * `deleted` is soft-deleted rather than absent, because `is_deleted` is a
  * column the application filters on and a policy mostly does not.
  */
@@ -146,6 +146,33 @@ export const CAST = {
         // that needs it (#242): no flag of any kind, so reading an IPAS can
         // only be list membership doing the work.
         name: "IPAS Signer",
+        department: "ADMINISTRATION",
+        sub_department: null,
+        role: "GENERAL MANAGER",
+    },
+    // Transmittal staff (#252): plain employees, no flags. Each is put on one
+    // Transmittal staff list by the test that needs it, so reading a Transmittal
+    // can only be list membership doing the work.
+    warehouse: {
+        name: "Warehouse Staff",
+        department: "OPERATIONS",
+        sub_department: "WAREHOUSE",
+        role: "WAREHOUSE STAFF",
+    },
+    technical: {
+        name: "TCA Technical",
+        department: "OPERATIONS",
+        sub_department: "TECHNICAL",
+        role: "TECHNICAL STAFF",
+    },
+    logistics: {
+        name: "Logistics Staff",
+        department: "OPERATIONS",
+        sub_department: "LOGISTICS",
+        role: "LOGISTICS STAFF",
+    },
+    checkByTwo: {
+        name: "Check By Second Signer",
         department: "ADMINISTRATION",
         sub_department: null,
         role: "GENERAL MANAGER",

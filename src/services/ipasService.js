@@ -49,6 +49,7 @@ import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
+import { TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
@@ -1234,7 +1235,8 @@ export const ipasService = {
       .order("created_at", { ascending: true });
     if (error) throw error;
 
-    const lists = Object.fromEntries(IPAS_SIGNER_LISTS.map((key) => [key, []]));
+    // The Transmittal staff lists (#252) live in the same table.
+    const lists = Object.fromEntries([...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS].map((key) => [key, []]));
     for (const row of data || []) {
       if (!lists[row.list_key]) continue;
       lists[row.list_key].push({

@@ -35,12 +35,14 @@ describe("the seeded cast", () => {
         employees = Object.fromEntries(data.map((e) => [e.email, e]))
     })
 
-    it("creates every one of the fifteen identities the matrix discriminates on", () => {
+    it("creates every one of the nineteen identities the matrix discriminates on", () => {
         // #295 (ADR 0021) added `stageParticipant` — called into a single
         // Stage's work with no Deal Team role and no Always-sees grant. #242
         // (IPAS) added `finance` (Finance access alone) and `ipasSigner` (a
-        // plain employee a test puts on a sign-off list).
-        expect(CAST_KEYS).toHaveLength(15)
+        // plain employee a test puts on a sign-off list). #252 (Transmittals)
+        // added `warehouse`, `technical`, `logistics` and a second `checkByTwo`,
+        // all flag-free and put on their lists by the test that needs them.
+        expect(CAST_KEYS).toHaveLength(19)
         for (const key of CAST_KEYS) {
             expect(employees[castEmail(key)], `missing employee row for ${key}`).toBeTruthy()
         }

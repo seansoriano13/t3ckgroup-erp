@@ -332,6 +332,9 @@ export const IPAS_OPTION_LIST_LABELS = {
   [IPAS_OPTION_LIST.FREIGHT_SERVICE]: "Freight services",
   [IPAS_OPTION_LIST.DOCUMENT_KIND]: "Document kinds",
   [IPAS_OPTION_LIST.ITEM_LOCATION]: "Item locations",
+  // The Transmittal lists (#252) are edited on the same screen.
+  transmittal_product: "Transmittal products",
+  transmittal_reference: "Transmittal reference checklist",
 };
 
 /** What one option of each list is called, singular. */
@@ -341,6 +344,8 @@ export const IPAS_OPTION_LIST_NOUNS = {
   [IPAS_OPTION_LIST.FREIGHT_SERVICE]: "freight service",
   [IPAS_OPTION_LIST.DOCUMENT_KIND]: "document kind",
   [IPAS_OPTION_LIST.ITEM_LOCATION]: "item location",
+  transmittal_product: "Transmittal product",
+  transmittal_reference: "Transmittal reference",
 };
 
 /**

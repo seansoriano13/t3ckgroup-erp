@@ -3,10 +3,15 @@ import { useState } from "react";
 import TabGroup from "../ui/TabGroup";
 import IpasOptionListEditor from "../ipas/IpasOptionListEditor";
 import IpasSignerListEditor from "../ipas/IpasSignerListEditor";
+import TransmittalFirstNumber from "../transmittals/TransmittalFirstNumber";
 import { IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../constants/ipas";
+import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
 
 /** The sub-tab for the sign-off lists, offered to Super Admins only. */
 const SIGNERS_TAB = "signers";
+
+/** The Transmittal option lists (#252), edited beside the IPAS ones. */
+const TRANSMITTAL_LISTS = [TRANSMITTAL_OPTION_LIST.PRODUCT, TRANSMITTAL_OPTION_LIST.REFERENCE];
 
 /**
  * The Purchasing section of Settings (issue #244, #247; spec #241): the IPAS
@@ -22,6 +27,7 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
   const [list, setList] = useState(IPAS_OPTION_LISTS[0]);
   const tabs = [
     ...IPAS_OPTION_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
+    ...TRANSMITTAL_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
     ...(isSuperAdmin ? [{ value: SIGNERS_TAB, label: "Sign-off lists" }] : []),
   ];
   // The sign-off lists tab only exists for Super Admins; anyone else stays on an option list.
@@ -33,12 +39,19 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
       <div>
         <h2 className="text-sm font-semibold text-foreground">IPAS lists</h2>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          The lists that payments, charges, freight, documents and Item Location pick from. Changes apply to new
-          rows; existing rows keep their option.
+          The lists that payments, charges, freight, documents, Item Location and Transmittals pick from. Changes
+          apply to new rows; existing rows keep their option.
         </p>
       </div>
       <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : optionList} onChange={setList} tabs={tabs} />
-      {showSigners ? <IpasSignerListEditor /> : <IpasOptionListEditor key={optionList} list={optionList} />}
+      {showSigners ? (
+        <>
+          {isSuperAdmin && <TransmittalFirstNumber />}
+          <IpasSignerListEditor />
+        </>
+      ) : (
+        <IpasOptionListEditor key={optionList} list={optionList} />
+      )}
     </div>
   );
 }

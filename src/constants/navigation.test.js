@@ -270,6 +270,7 @@ describe("navigation registry", () => {
       expect(purchasingGroup.links.map((l) => l.label)).toEqual([
         "Purchase Requests",
         "IPAS",
+        "Transmittals",
       ]);
     });
 
@@ -283,7 +284,14 @@ describe("navigation registry", () => {
     ])("offers IPAS to someone with %s", (_, flags) => {
       const groups = getFilteredNavigationGroups({ id: "reader", ...flags });
       const purchasing = groups.find((g) => g.key === "purchasing");
-      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests", "IPAS"]);
+      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests", "IPAS", "Transmittals"]);
+    });
+
+    // Transmittals (#252): the four Transmittal staff lists reach the slips, not the IPAS.
+    it("offers Transmittals, and not IPAS, to someone on a Transmittal staff list", () => {
+      const groups = getFilteredNavigationGroups({ id: "warehouse", isTransmittalStaff: true });
+      const purchasing = groups.find((g) => g.key === "purchasing");
+      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests", "Transmittals"]);
     });
 
     // IPAS sign-offs (#247): the Approval Center link is for the people on a

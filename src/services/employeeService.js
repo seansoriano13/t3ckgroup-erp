@@ -57,15 +57,19 @@ async function prepareEmailForSave(email, currentEmployeeId = null) {
  * the gate (the database is).
  */
 async function ipasListMembership(employee) {
-  const none = { isIpasSigner: false, isIpasApprover: false };
+  const none = { isIpasSigner: false, isIpasApprover: false, isTransmittalStaff: false };
   try {
     const { data, error } = await supabase.from("ipas_signer_lists").select("list_key").eq("employee_id", employee.id);
     if (error) return none;
+    // The Transmittal staff lists (#252) read Transmittals, not the IPAS: a
+    // member of only those is not an IPAS signer.
     const keys = (data || []).map((row) => row.list_key);
+    const ipasKeys = keys.filter((key) => !key.startsWith("transmittal_"));
     const readsAnyway = employee.has_purchasing_flow || employee.has_finance_flow || employee.is_super_admin;
     return {
-      isIpasSigner: !readsAnyway && keys.length > 0,
-      isIpasApprover: keys.some((key) => IPAS_SIGNER_LISTS.includes(key)),
+      isIpasSigner: !readsAnyway && ipasKeys.length > 0,
+      isIpasApprover: ipasKeys.some((key) => IPAS_SIGNER_LISTS.includes(key)),
+      isTransmittalStaff: keys.some((key) => key.startsWith("transmittal_")),
     };
   } catch {
     return none;
@@ -109,6 +113,8 @@ export const employeeService = {
       isIpasSigner: ipasLists.isIpasSigner,
       // On the section 1 or 3 approval list: the Approval Center's IPAS queue.
       isIpasApprover: ipasLists.isIpasApprover,
+      // On a Transmittal staff list (#252): the nav shows Transmittals.
+      isTransmittalStaff: ipasLists.isTransmittalStaff,
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,

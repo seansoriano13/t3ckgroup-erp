@@ -656,7 +656,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
 
       const lists = await ipasService.getSignerLists()
 
-      expect(Object.keys(lists).sort()).toEqual([...IPAS_SIGNER_LISTS].sort())
+      expect(Object.keys(lists).sort()).toEqual([...IPAS_SIGNER_LISTS, "transmittal_check_by", "transmittal_logistics", "transmittal_technical", "transmittal_warehouse"].sort())
       expect(lists.s7_noted).toEqual([])
       expect(lists.s1_approved.map((m) => [m.employeeId, m.name, m.callSign])).toEqual([
         [approver.id, "Boss Lito", "101"],
