@@ -15,6 +15,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { API_URL, ANON_KEY, serviceClient, sql } from "./stack.js"
 import { purgeFixtureIpas } from "./ipas.js"
+import { purgeFixtureTransmittals } from "./transmittals.js"
 
 /** Shared by every cast member. Local stack only; nothing here is a secret. */
 export const CAST_PASSWORD = "policy-tier-fixture-password"
@@ -273,6 +274,8 @@ export async function teardownCast() {
 
     // IPAS history can't be deleted by anyone, so IPAS go by the one route
     // that switches the triggers off (support/ipas.js), before their employees.
+    // Transmittals and Packing Lists hold IPAS, SORs and employees, so they go first.
+    await purgeFixtureTransmittals(`%@${FIXTURE_DOMAIN}`)
     await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)
 
     // Rows this tier creates reference employees, so they go first. Each entry

@@ -144,6 +144,61 @@ describe("the TSR a Technical inspection gives", () => {
     expect(tsr.evidence).toEqual([{ kind: "picture", storagePath: "p/1.jpg", fileName: "1.jpg" }]);
   });
 
+  it("gives one unit row per serial on a line, and one row for a line with no serial", () => {
+    const slip = shapeTransmittal({
+      id: "t5",
+      number: "TG03-529",
+      state: "awaiting_check",
+      check_warehouse: false,
+      check_technical: true,
+      products: [],
+      references: [],
+      stages: [{ id: "s5", stage: "technical_inspection", first_signer: null, first_signed_at: null }],
+      evidence: [],
+      lines: [
+        { id: "a", position: 1, description: "Cutter", serial_numbers: "SN1, SN2\nSN3;", tech_rating: "gc" },
+        { id: "b", position: 2, description: "Drill", serial_numbers: " ", tech_rating: "na", tech_remark: "Cracked" },
+        { id: "c", position: 3, description: "Bit", serial_numbers: null, tech_rating: "gc" },
+        { id: "d", position: 4, description: "Unrated", serial_numbers: "SN9", tech_rating: null },
+      ],
+    });
+
+    const tsr = tsrOf(slip);
+
+    expect(tsr.units).toEqual([
+      { serial: "SN1", verdict: "pass", remark: "" },
+      { serial: "SN2", verdict: "pass", remark: "" },
+      { serial: "SN3", verdict: "pass", remark: "" },
+      { serial: "Drill", verdict: "fail", remark: "Cracked" },
+      { serial: "Bit", verdict: "pass", remark: "" },
+    ]);
+  });
+
+  it("lists the distinct items, SORs and POs across every rated line, not the first only", () => {
+    const slip = shapeTransmittal({
+      id: "t6",
+      number: "TG03-530",
+      state: "awaiting_check",
+      check_warehouse: false,
+      check_technical: true,
+      products: [],
+      references: [],
+      stages: [{ id: "s6", stage: "technical_inspection", first_signer: null, first_signed_at: null }],
+      evidence: [],
+      lines: [
+        { id: "a", position: 1, description: "Cutter", serial_numbers: "", tech_rating: "gc", ipas: { po_number: "P1" }, sor: { id: "s1", sales_reference: "S1" } },
+        { id: "b", position: 2, description: "Drill", serial_numbers: "", tech_rating: "gc", ipas: { po_number: "P2" }, sor: { id: "s2", sales_reference: "S2" } },
+        { id: "c", position: 3, description: "Bit", serial_numbers: "", tech_rating: "gc", ipas: { po_number: "P1" }, sor: { id: "s1", sales_reference: "S1" } },
+      ],
+    });
+
+    const tsr = tsrOf(slip);
+
+    expect(tsr.item).toBe("Cutter, Drill, Bit");
+    expect(tsr.sor).toBe("S1, S2");
+    expect(tsr.po).toBe("P1, P2");
+  });
+
   it("is null on a slip with no Technical inspection", () => {
     expect(tsrOf(shapeTransmittal({ id: "t4", number: "x", check_warehouse: true, check_technical: false, stages: [], lines: [] }))).toBeNull();
   });

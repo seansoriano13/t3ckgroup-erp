@@ -134,29 +134,47 @@ export function hasNaLine(transmittal) {
   );
 }
 
+/** The distinct, non-blank values of a list, in the order first seen. */
+function distinct(values) {
+  return [...new Set(values.filter((v) => v != null && String(v).trim() !== "").map((v) => String(v).trim()))];
+}
+
 /**
- * The Technical Service Report a slip's Technical inspection stage gives (#259,
- * spec #251). There is no separate TSR record: its units are the rated lines,
- * its verdicts the TCA ratings, its signers the stage's two plates. Null when
- * the slip has no Technical inspection. Shaped for tsrViewModel.js.
+ * Splits a line's SN# field into its serials: one per comma, semicolon or
+ * line break. Blank gives none, so the caller falls back to one unit per line.
+ */
+export function splitSerials(serialNumbers) {
+  return distinct(String(serialNumbers ?? "").split(/[,;\n]+/));
+}
+
+/**
+ * The TSR a Technical inspection stage gives (#259, spec #251). There is no
+ * separate TSR record. Units are one row per serial on each rated line (one
+ * row for the line when its SN# is blank), verdicts come from the TCA rating,
+ * and item, SOR, PO and line are the distinct values across every rated line.
+ * Null when the slip has no Technical inspection. Shaped for tsrViewModel.js.
  */
 export function tsrOf(transmittal) {
   if (!transmittal || !stagesOf(transmittal).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION)) return null;
   const stage = stageRowOf(transmittal, TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
   const rated = (transmittal.lines ?? []).filter((line) => line.techRating);
-  const first = rated[0] ?? null;
+  const joined = (values) => distinct(values).join(", ") || null;
   return {
     number: transmittal.number,
-    item: first ? (rated.length === 1 ? first.description : `${rated.length} items`) : null,
+    item: joined(rated.map((line) => line.description)),
     transmittal: { number: transmittal.number },
-    line: first ? { position: first.position, description: first.description } : null,
-    sor: first?.sor?.salesReference ?? null,
-    po: first?.poNumber ?? null,
-    units: rated.map((line) => ({
-      serial: line.serialNumbers || line.description,
-      verdict: line.techRating === TRANSMITTAL_RATING.NA ? "fail" : "pass",
-      remark: line.techRemark || "",
-    })),
+    line: rated.length
+      ? { position: rated.map((line) => line.position).join(", "), description: null }
+      : null,
+    sor: joined(rated.map((line) => line.sor?.salesReference)),
+    po: joined(rated.map((line) => line.poNumber)),
+    units: rated.flatMap((line) => {
+      const verdict = line.techRating === TRANSMITTAL_RATING.NA ? "fail" : "pass";
+      const remark = line.techRemark || "";
+      const serials = splitSerials(line.serialNumbers);
+      if (serials.length === 0) return [{ serial: line.description, verdict, remark }];
+      return serials.map((serial) => ({ serial, verdict, remark }));
+    }),
     remarks: stage?.remarks || "",
     checkedBy: { name: stage?.first_signer?.name ?? null, at: stage?.first_signed_at ?? null },
     notedBy:

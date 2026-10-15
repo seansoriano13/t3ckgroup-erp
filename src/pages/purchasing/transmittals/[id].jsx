@@ -177,7 +177,7 @@ function TransmittalPage() {
   // The TSR is the Technical inspection stage printed as a report (#259).
   const hasTechnical = stagesOf(t).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
 
-  const printTsrForm = async () => {
+  const printTsrForm = async ({ withPhotographs = false } = {}) => {
     const printWindow = openTsrPrintWindow();
     if (!printWindow) {
       toast.error("Popup blocked. Allow popups to print.");
@@ -186,7 +186,7 @@ function TransmittalPage() {
     try {
       const tsr = await transmittalService.getTsr(id);
       if (!tsr) throw new Error("This Transmittal has no Technical inspection to report.");
-      await printTsr(tsr, { printWindow });
+      await printTsr(tsr, { printWindow, withPhotographs });
     } catch (error) {
       try {
         printWindow.close();
@@ -218,9 +218,15 @@ function TransmittalPage() {
             </Button>
           )}
           {canPrint && hasTechnical && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={printTsrForm}>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => printTsrForm()}>
               <Printer size={14} />
               Print TSR
+            </Button>
+          )}
+          {canPrint && hasTechnical && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => printTsrForm({ withPhotographs: true })}>
+              <Printer size={14} />
+              Print with photographs
             </Button>
           )}
           {isDraft && canChange && !editing && (
