@@ -4,6 +4,7 @@
 
 import { computeLandedCost, finiteNumber } from "./landedCost";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
+import { deriveTransmittalTrack } from "./ipasTransmittals";
 import {
   buildBuyerTrack,
   missingSuggestions,
@@ -372,14 +373,29 @@ function shapeMoney(row, { payments = [], charges = [], options = [] }) {
  * With P.O.P is derived from the payments (any carries proof of payment), so it
  * appears when a payment gets a proof and goes when the proof is removed.
  */
-function shapeDocumentsAndTrack(row, { documents = [], options = [], payments = [] }, statuses, paymentSummary) {
+function shapeDocumentsAndTrack(row, { documents = [], options = [], payments = [], slips = [] }, statuses, paymentSummary) {
   const shapedDocuments = shapeDocuments(documents, options);
   const proofCount = payments.filter((payment) => Boolean(payment?.proof_url)).length;
+  // Section 5 and the derived track (#256): the typed columns win where they
+  // are set; the Transmittals fill what they don't.
+  const derived = deriveTransmittalTrack(slips, {
+    itemLocationId: row.item_location_id,
+    deliveredOn: row.delivered_on,
+    actualCheckingBy: row.actual_checking_by,
+    actualCheckingAt: row.actual_checking_at,
+  });
+  const locationId = derived.itemLocation.id;
   return {
     documents: shapedDocuments,
     suggestedDocuments: missingSuggestions(options, documents, row.source),
-    itemLocation: row.item_location_id ? (options.find((option) => option.id === row.item_location_id) ?? null) : null,
-    buyerTrack: buildBuyerTrack(row, statuses, { hasProof: Boolean(paymentSummary?.hasProof), proofCount }),
+    itemLocation: locationId ? (options.find((option) => option.id === locationId) ?? null) : null,
+    itemLocationSource: derived.itemLocation.source,
+    slips: derived.transmittals,
+    buyerTrack: buildBuyerTrack(row, statuses, {
+      hasProof: Boolean(paymentSummary?.hasProof),
+      proofCount,
+      transmittal: derived.governed ? derived : null,
+    }),
   };
 }
 

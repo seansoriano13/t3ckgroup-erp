@@ -418,8 +418,20 @@ function logistics(vm) {
   return section(
     esc(ipasSectionLabel('logistics')),
     '',
-    `<div class="fields n2">${field('Item Location', esc(vm.section5.itemLocation ?? '—'))}</div>`,
+    `<div class="fields n2">${field('Item Location', esc(vm.section5.itemLocation ?? '—'))}</div>${tg03Rows(vm.section5.tg03)}`,
   );
+}
+
+/** Section 5's Transmittals (#256): number, date, priority, stage or state, NA count. */
+function tg03Rows(slips = []) {
+  if (slips.length === 0) return '';
+  const rows = slips
+    .map(
+      (slip) =>
+        `<tr><td>${esc(slip.number ?? '')}</td><td>${esc(slip.date ?? '')}</td><td>${esc(slip.priority ?? '')}</td><td>${esc(slip.stateLabel ?? '')}</td><td>${slip.naCount ? `${slip.naCount} NA` : ''}</td></tr>`,
+    )
+    .join('');
+  return `<table class="transmittals"><thead><tr><th>TG03</th><th>Date</th><th>Priority</th><th>Stage / state</th><th>NA</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 const statusChip = (item) =>
