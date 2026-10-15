@@ -2794,7 +2794,7 @@ create policy "ipas_options_read" on public."ipas_options"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using ((ipas_can_read() OR ((list = ANY (ARRAY['transmittal_product'::text, 'transmittal_reference'::text, 'item_location'::text])) AND (transmittal_on_list('transmittal_warehouse'::text) OR transmittal_on_list('transmittal_technical'::text) OR transmittal_on_list('transmittal_logistics'::text) OR transmittal_on_list('transmittal_check_by'::text)))));
 create policy "ipas_options_update" on public."ipas_options"
   as permissive
   for update

@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 /**
- * Seeds (or refreshes) the mock employee cast on STAGING — one sign-in per
+ * Seeds (or refreshes) the mock employee cast on STAGING (or the local stack
+ * with --local) — one sign-in per
  * role shape the app discriminates on, for manual and AI-driven testing.
  *
  * Credentials live in docs/mock-employees.md. They are staging-only test
- * accounts; this script refuses to run against anything but STAGING_DB_URL.
+ * accounts; this script runs only against STAGING_DB_URL or, with --local,
+ * LOCAL_DB_URL / the default `supabase start` database.
  * Idempotent: re-running resets each password and flag to what's below.
  *
- *   node scripts/seed-mock-employees.mjs
+ *   node scripts/seed-mock-employees.mjs [--local]
  */
 import pg from "pg"
 import path from "path"
 import { fileURLToPath } from "url"
-import { loadDotEnvLocal } from "./lib/seedShared.mjs"
+import { DEFAULT_LOCAL_DB_URL, loadDotEnvLocal } from "./lib/seedShared.mjs"
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..")
 
@@ -28,7 +30,7 @@ export const MOCK = {
   "hr": { name: "Mock HR Officer", department: "ADMIN", sub_department: "HR", role: "HR OFFICER", is_hr: true },
   "leave-manager": { name: "Mock Leave Manager", department: "ADMIN", sub_department: "HR", role: "HR ASSISTANT", can_manage_leaves: true },
   "admin-head": { name: "Mock Admin Head", department: "ADMIN", sub_department: "ADMIN", role: "ADMIN MANAGER", is_head: true, has_task_flow: true },
-  "finance": { name: "Mock Finance Staff", department: "ADMIN", sub_department: "FINANCE", role: "ACCOUNTING STAFF", has_task_flow: true },
+  "finance": { name: "Mock Finance Staff", department: "ADMIN", sub_department: "FINANCE", role: "ACCOUNTING STAFF", has_task_flow: true, has_finance_flow: true },
   "ops-head": { name: "Mock Operations Head", department: "OPERATIONS", role: "OPERATIONS MANAGER", is_head: true, has_task_flow: true },
   "purchaser": { name: "Mock Purchaser", department: "OPERATIONS", sub_department: "PURCHASING", role: "PURCHASER", has_purchasing_flow: true, has_task_flow: true },
   "logistics": { name: "Mock Logistics Staff", department: "OPERATIONS", sub_department: "LOGISTICS", role: "LOGISTICS ASSISTANT", has_task_flow: true },
@@ -37,11 +39,26 @@ export const MOCK = {
   "plain": { name: "Mock Plain Employee", department: "OPERATIONS", sub_department: "WAREHOUSE", role: "WAREHOUSE STAFF" },
 }
 
-const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow", "has_retail_access"]
+const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow", "has_finance_flow", "has_retail_access"]
+
+// Local stack only: put the cast on the Transmittal staff lists (#251) and give
+// the two Check by members the paper call signs. Staging's lists stay real config.
+const LOCAL_LISTS = {
+  transmittal_warehouse: ["plain"],
+  transmittal_technical: ["technical"],
+  transmittal_logistics: ["logistics"],
+  transmittal_check_by: ["ops-head", "admin-head"],
+}
+const LOCAL_CALL_SIGNS = { "ops-head": "1001", "admin-head": "102" }
 
 async function main() {
-  const url = loadDotEnvLocal(repoRoot).STAGING_DB_URL ?? process.env.STAGING_DB_URL
+  const env = loadDotEnvLocal(repoRoot)
+  const local = process.argv.includes("--local")
+  const url = local
+    ? process.env.LOCAL_DB_URL || env.LOCAL_DB_URL || DEFAULT_LOCAL_DB_URL
+    : env.STAGING_DB_URL ?? process.env.STAGING_DB_URL
   if (!url) throw new Error("STAGING_DB_URL is not set (.env.local or the environment).")
+  console.log(local ? "Target: LOCAL stack" : "Target: STAGING")
   const c = new pg.Client({ connectionString: url })
   await c.connect()
   try {
@@ -84,6 +101,21 @@ async function main() {
       )
       await c.query("commit")
       console.log(`ok  ${email}`)
+    }
+    if (local) {
+      for (const [key, sign] of Object.entries(LOCAL_CALL_SIGNS)) {
+        await c.query("update public.employees set call_sign = $2 where email = $1", [`${key}@${MOCK_DOMAIN}`, sign])
+      }
+      for (const [list, keys] of Object.entries(LOCAL_LISTS)) {
+        for (const key of keys) {
+          await c.query(
+            `insert into public.ipas_signer_lists (list_key, employee_id)
+             select $1, id from public.employees where email = $2 on conflict (list_key, employee_id) do nothing`,
+            [list, `${key}@${MOCK_DOMAIN}`],
+          )
+        }
+        console.log(`ok  ${list}: ${keys.join(", ")}`)
+      }
     }
   } catch (e) {
     await c.query("rollback").catch(() => {})

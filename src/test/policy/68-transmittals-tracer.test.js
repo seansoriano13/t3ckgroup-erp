@@ -125,6 +125,22 @@ describe("who reads a Transmittal", () => {
         expect(await canRead(await clientFor("ordinary"), "transmittals", slip.id)).toBe(false)
     })
 
+    it("lets every staff list member read the slip's option lists, and no other IPAS option list", async () => {
+        const options = async (who) => {
+            const { data, error } = await (await clientFor(who)).from("ipas_options").select("list")
+            if (error) throw error
+            return new Set(data.map((r) => r.list))
+        }
+        for (const [who] of STAFF) {
+            const lists = await options(who)
+            expect(lists, `${who} reads the Product list`).toContain("transmittal_product")
+            expect(lists, `${who} reads the Reference Checklist`).toContain("transmittal_reference")
+            expect(lists, `${who} reads Item Locations`).toContain("item_location")
+            expect(lists, `${who} reads an IPAS-only list`).not.toContain("payment_method")
+        }
+        expect((await options("ordinary")).size).toBe(0)
+    })
+
     it("does not give a Transmittal staff list member the IPAS (no prices)", async () => {
         const ipas = await raiseIpas()
         expect(await canRead(await clientFor("warehouse"), "ipas", ipas.id)).toBe(false)

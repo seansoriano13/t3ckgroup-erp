@@ -15,7 +15,7 @@ Sign in with **email + password** on the login page (not Google).
 | hr@mock.t3ck.test | Mock HR Officer | ADMIN / HR | HR OFFICER | is_hr |
 | leave-manager@mock.t3ck.test | Mock Leave Manager | ADMIN / HR | HR ASSISTANT | can_manage_leaves |
 | admin-head@mock.t3ck.test | Mock Admin Head | ADMIN / ADMIN | ADMIN MANAGER | is_head, has_task_flow |
-| finance@mock.t3ck.test | Mock Finance Staff | ADMIN / FINANCE | ACCOUNTING STAFF | has_task_flow |
+| finance@mock.t3ck.test | Mock Finance Staff | ADMIN / FINANCE | ACCOUNTING STAFF | has_task_flow, has_finance_flow |
 | ops-head@mock.t3ck.test | Mock Operations Head | OPERATIONS | OPERATIONS MANAGER | is_head, has_task_flow |
 | purchaser@mock.t3ck.test | Mock Purchaser | OPERATIONS / PURCHASING | PURCHASER | has_purchasing_flow, has_task_flow |
 | logistics@mock.t3ck.test | Mock Logistics Staff | OPERATIONS / LOGISTICS | LOGISTICS ASSISTANT | has_task_flow |
@@ -23,5 +23,7 @@ Sign in with **email + password** on the login page (not Google).
 | flow-editor@mock.t3ck.test | Mock Flow Editor | OPERATIONS / IT | IT STAFF | can_edit_sales_flows |
 | plain@mock.t3ck.test | Mock Plain Employee | OPERATIONS / WAREHOUSE | WAREHOUSE STAFF | none |
 
-Re-create or reset (passwords, flags) any time: `node scripts/seed-mock-employees.mjs` (needs `STAGING_DB_URL` in `.env.local`).
+Re-create or reset (passwords, flags) any time: `node scripts/seed-mock-employees.mjs` (needs `STAGING_DB_URL` in `.env.local`). Local stack: add `--local`.
 To add a role, add it to `MOCK` in that script and to this table.
+
+**Local stack only (`--local`):** also puts the cast on the Transmittal staff lists (#251) — Warehouse: plain, Technical: technical, Logistics: logistics, Check by: ops-head (call sign 1001) + admin-head (call sign 102). Staging's lists are left alone.
