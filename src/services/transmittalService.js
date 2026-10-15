@@ -6,21 +6,27 @@ import {
   TRANSMITTAL_PRIORITIES,
   TRANSMITTAL_ORIGIN,
   TRANSMITTAL_LINE_KIND,
+  TRANSMITTAL_STAFF_LISTS,
 } from "../constants/transmittals";
 import { shapeTransmittal, transmittalStateLabel } from "../utils/transmittals";
+
+/** The private bucket for stage pictures and videos (#253). Paths: <transmittal>/<stage>/<uuid>-<name>. */
+export const PMS_EVIDENCE_BUCKET = "pms-evidence";
+export const PMS_EVIDENCE_MAX_BYTES = 52428800;
 
 const TRANSMITTAL_SELECT =
   "*, preparer:employees!transmittals_prepared_by_fkey(id, name)," +
   " item_location:ipas_options!transmittals_item_location_id_fkey(id, label)," +
   " products:transmittal_products(option:ipas_options(id, label))," +
   " references:transmittal_references(option:ipas_options(id, label))," +
-  " stages:transmittal_stages(*)," +
+  " stages:transmittal_stages(*, first_signer:employees!transmittal_stages_first_signer_id_fkey(id, name))," +
+  " evidence:pms_evidence(id, record_id, kind, storage_path, file_name, mime_type, size_bytes, uploaded_by, created_at)," +
   " lines:transmittal_lines(*, ipas:ipas!transmittal_lines_ipas_id_fkey(id, number, po_number)," +
   " sor:sales_opportunities!transmittal_lines_opportunity_id_fkey(id, sales_reference, project_title))";
 
 const TRANSMITTAL_LIST_SELECT =
   "id, number, prepared_on, prepared_by, origin, priority, entity, state, submitted_at, created_at," +
-  " preparer:employees!transmittals_prepared_by_fkey(id, name), lines:transmittal_lines(id)";
+  " preparer:employees!transmittals_prepared_by_fkey(id, name), lines:transmittal_lines(id, wh_rating)";
 
 /**
  * A Transmittal error the screen can word: `code` is one of TRANSMITTAL_ERROR.
@@ -106,6 +112,7 @@ export const transmittalService = {
       state: row.state,
       stateLabel: transmittalStateLabel(row.state),
       lineCount: (row.lines ?? []).length,
+      hasNa: (row.lines ?? []).some((line) => line.wh_rating === "na"),
       submittedAt: row.submitted_at ?? null,
       createdAt: row.created_at,
     }));
@@ -173,6 +180,178 @@ export const transmittalService = {
       });
     }
     return data;
+  },
+
+  /** The four Transmittal staff lists the employee is on (ipas_signer_lists keys). Own rows only. */
+  async myStaffLists(employeeId) {
+    if (!employeeId) return [];
+    const { data, error } = await supabase
+      .from("ipas_signer_lists")
+      .select("list_key")
+      .eq("employee_id", employeeId);
+    if (error) throw error;
+    return (data ?? []).map((row) => row.list_key).filter((key) => TRANSMITTAL_STAFF_LISTS.includes(key));
+  },
+
+  /** The active members of one staff list, for a signatory picker: `[{ id, name }]`. */
+  async stageListMembers(id, listKey) {
+    const { data, error } = await supabase.rpc("transmittal_stage_list_members", {
+      p_transmittal_id: id,
+      p_list_key: listKey,
+    });
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  /**
+   * Rates a Warehouse checking stage's lines. `ratings` are
+   * `{ lineId, rating ('gc'|'na'), remark, inChargeId, quantityReceived }`.
+   */
+  async rateLines(id, ratings = []) {
+    const { data, error } = await supabase.rpc("transmittal_rate", {
+      p_transmittal_id: id,
+      p_line_ratings: ratings.map((r) => ({
+        line_id: r.lineId,
+        rating: r.rating ?? null,
+        remark: r.remark ?? null,
+        in_charge_id: r.inChargeId ?? null,
+        quantity_received: r.quantityReceived == null || r.quantityReceived === "" ? null : Number(r.quantityReceived),
+      })),
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Signs a Warehouse stage (`stage` is warehouse_checking or warehouse_releasing).
+   * `otherSignerId` names the other signatory from a list, or `otherSignerName`
+   * types one (releasing, when no Technical stage follows). Sends the notices
+   * the database owes. Returns the RPC result.
+   */
+  async completeStage(id, { stage, otherSignerId = null, otherSignerName = null, remarks = null, noPicturesReason = null }) {
+    const { data, error } = await supabase.rpc("transmittal_complete_stage", {
+      p_transmittal_id: id,
+      p_stage: stage,
+      p_other_signer_id: otherSignerId,
+      p_other_signer_name: otherSignerName,
+      p_remarks: remarks,
+      p_no_pictures_reason: noPicturesReason,
+    });
+    if (error) throw error;
+
+    const number = data.number;
+    const stageName = transmittalStateLabel(data.state);
+    await Promise.all([
+      ...(data.notify_next_ids ?? []).map((recipient_id) =>
+        notificationService.createNotification({
+          recipient_id,
+          type: TRANSMITTAL_NOTIFICATION.STAGE_READY,
+          title: `${number} is waiting on you`,
+          message: `TG03 ${number} is ${stageName.toLowerCase()}.`,
+          reference_id: id,
+        }),
+      ),
+      data.notify_confirm_id
+        ? notificationService.createNotification({
+            recipient_id: data.notify_confirm_id,
+            type: TRANSMITTAL_NOTIFICATION.CONFIRM_SIGNATURE,
+            title: `Confirm your signature on ${number}`,
+            message: `You are the second signatory on TG03 ${number}. Confirm or decline it.`,
+            reference_id: id,
+          })
+        : null,
+      ...(data.notify_na_ids ?? []).map((recipient_id) =>
+        notificationService.createNotification({
+          recipient_id,
+          type: TRANSMITTAL_NOTIFICATION.NA_RAISED,
+          title: `${number} has NA lines`,
+          message: `TG03 ${number} was checked with ${data.na_count} line${data.na_count === 1 ? "" : "s"} rated NA.`,
+          reference_id: id,
+        }),
+      ),
+    ]);
+    return data;
+  },
+
+  /** The co-signer confirms (or declines) the signature stored for them on a signed stage. */
+  async confirmSignature(stageId, confirm = true) {
+    const { data, error } = await supabase.rpc("transmittal_confirm_signature", {
+      p_stage_id: stageId,
+      p_confirm: !!confirm,
+    });
+    if (error) throw error;
+
+    if (data?.notify_id) {
+      await notificationService.createNotification({
+        recipient_id: data.notify_id,
+        type: TRANSMITTAL_NOTIFICATION.SIGNATURE_DECLINED,
+        title: `${data.number ?? "A Transmittal"}: signature declined`,
+        message: "The co-signer declined the signature on your stage. Check it with them.",
+        reference_id: data.id,
+      });
+    }
+    return data;
+  },
+
+  /** Records the slip's receipt into Odoo: the signer, the time and the Odoo reference (optional). */
+  async receivedInOdoo(id, ref = "") {
+    const { data, error } = await supabase.rpc("transmittal_received_in_odoo", {
+      p_transmittal_id: id,
+      p_ref: ref ?? "",
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Uploads a picture or video for an open stage and records it. The file is
+   * checked here for size and kind; the database checks who may add it. A
+   * file the database then refuses is removed again.
+   */
+  async attachEvidence(transmittalId, stageId, file) {
+    if (!file) throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "Pick a file.");
+    if (file.size > PMS_EVIDENCE_MAX_BYTES) {
+      throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "A file is 50 MB or less.");
+    }
+    const kind = (file.type ?? "").startsWith("video/") ? "video" : (file.type ?? "").startsWith("image/") ? "picture" : null;
+    if (!kind) throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "Pictures and videos only.");
+
+    const safeName = file.name.replace(/[^\w.\- ]+/g, "_");
+    const path = `${transmittalId}/${stageId}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage
+      .from(PMS_EVIDENCE_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (uploadError) throw uploadError;
+
+    const { data, error } = await supabase.rpc("transmittal_attach_evidence", {
+      p_stage_id: stageId,
+      p_kind: kind,
+      p_path: path,
+      p_file_name: file.name,
+      p_mime: file.type,
+      p_size: file.size,
+    });
+    if (error) {
+      await supabase.storage.from(PMS_EVIDENCE_BUCKET).remove([path]);
+      throw error;
+    }
+    return data;
+  },
+
+  /** Removes a picture the caller added, while its stage is open: the stored file first, then its record. */
+  async removeEvidence(evidence) {
+    const { error: removeError } = await supabase.storage.from(PMS_EVIDENCE_BUCKET).remove([evidence.storagePath]);
+    if (removeError) throw removeError;
+    const { data, error } = await supabase.rpc("transmittal_remove_evidence", { p_evidence_id: evidence.id });
+    if (error) throw error;
+    return data;
+  },
+
+  /** A time-limited link to a picture or video the bucket holds for a reader of the slip. */
+  async evidenceUrl(storagePath, expiresIn = 3600) {
+    const { data, error } = await supabase.storage.from(PMS_EVIDENCE_BUCKET).createSignedUrl(storagePath, expiresIn);
+    if (error) throw error;
+    return data.signedUrl;
   },
 
   /** Super Admins only, and only before any Transmittal exists: the first TG03 number. */

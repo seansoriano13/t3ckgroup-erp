@@ -16,6 +16,11 @@ import { Textarea } from "../../../components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import StatusBadge from "../../../components/StatusBadge";
 import TransmittalForm from "../../../components/transmittals/TransmittalForm";
+import {
+  OdooReceiptSection,
+  WarehouseRatings,
+  WarehouseStageSignoff,
+} from "../../../components/transmittals/WarehouseStages";
 import { transmittalKeys } from "../../../components/transmittals/transmittalKeys";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
@@ -24,15 +29,18 @@ import { stagesOf, transmittalStateLabel } from "../../../utils/transmittals";
 import {
   TRANSMITTAL_ORIGIN_LABELS,
   TRANSMITTAL_PRIORITY_LABELS,
+  TRANSMITTAL_RATING_LABELS,
+  TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STAGE,
   TRANSMITTAL_STATE,
 } from "../../../constants/transmittals";
 
 /**
- * One Transmittal (#252): its header as on the paper, its lines, and its stages.
- * A draft can be edited and submitted by its preparer or Purchasing; a slip with
- * no signed stage can be cancelled with a reason. The stages' ratings and
- * signatures arrive with their tickets, so they show here read-only.
+ * One Transmittal (#252, #253): its header as on the paper, its lines, its
+ * stages and Received in Odoo. A draft can be edited and submitted by its
+ * preparer or Purchasing; a slip with no signed stage can be cancelled with a
+ * reason. The Warehouse rates and signs its stages here (#253); Technical's
+ * inspection arrives with #254.
  */
 
 const STAGE_LABEL = {
@@ -60,6 +68,25 @@ function TransmittalPage() {
     enabled: Boolean(id),
   });
 
+  // The caller's own Transmittal staff lists, and the names on the two lists
+  // the signatory pickers need. A failure reads as "not on it"; the database
+  // still refuses.
+  const { data: myLists = [] } = useQuery({
+    queryKey: [...transmittalKeys.detail(id), "my-lists", user?.id],
+    queryFn: () => transmittalService.myStaffLists(user?.id),
+    enabled: Boolean(id && user?.id),
+  });
+  const { data: warehouseMembers = [] } = useQuery({
+    queryKey: [...transmittalKeys.detail(id), "members", TRANSMITTAL_STAFF_LIST.WAREHOUSE],
+    queryFn: () => transmittalService.stageListMembers(id, TRANSMITTAL_STAFF_LIST.WAREHOUSE),
+    enabled: Boolean(id),
+  });
+  const { data: technicalMembers = [] } = useQuery({
+    queryKey: [...transmittalKeys.detail(id), "members", TRANSMITTAL_STAFF_LIST.TECHNICAL],
+    queryFn: () => transmittalService.stageListMembers(id, TRANSMITTAL_STAFF_LIST.TECHNICAL),
+    enabled: Boolean(id),
+  });
+
   if (isLoading) return <PageLoading label="Transmittal" />;
   if (isError) return <QueryError title="The Transmittal could not be loaded." onRetry={refetch} />;
   if (!transmittal) {
@@ -74,6 +101,19 @@ function TransmittalPage() {
   const t = transmittal;
   const isPreparer = t.preparedById === user?.id;
   const canChange = isPreparer || hasPurchasingFlow || isSuperAdmin;
+  const onWarehouse = myLists.includes(TRANSMITTAL_STAFF_LIST.WAREHOUSE);
+  const isOpen = !ENDED.includes(t.state) && t.state !== TRANSMITTAL_STATE.DRAFT;
+  const canRate = onWarehouse && t.state === TRANSMITTAL_STATE.WAREHOUSE_CHECKING;
+  const canSignChecking = onWarehouse && t.state === TRANSMITTAL_STATE.WAREHOUSE_CHECKING;
+  // Releasing is signed in its state on a Warehouse + Technical slip; on a
+  // Warehouse-only slip it is optional and signable until the slip closes.
+  const canSignReleasing =
+    onWarehouse &&
+    (t.checkTechnical ? t.state === TRANSMITTAL_STATE.WAREHOUSE_RELEASING : isOpen);
+  const showReleasing = stagesOf(t).includes(TRANSMITTAL_STAGE.WAREHOUSE_RELEASING) || (t.checkWarehouse && !t.checkTechnical && isOpen);
+  const canRecordOdoo =
+    (onWarehouse || hasPurchasingFlow || isSuperAdmin) && isOpen && !t.odooReceivedAt;
+  const members = { warehouse: warehouseMembers, technical: technicalMembers };
   const isDraft = t.state === TRANSMITTAL_STATE.DRAFT;
   const canCancel = !ENDED.includes(t.state) && !t.stages.some((s) => s.completed_at) && canChange;
 
@@ -185,7 +225,7 @@ function TransmittalPage() {
                   <Table tableId="transmittal-lines" className="md:min-w-[48rem]">
                     <TableHeader>
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        {["#", "Item", "PO", "Project Name (S.O)", "Quantity", "SN#", "Quantity of Box"].map((h) => (
+                        {["#", "Item", "PO", "Project Name (S.O)", "Quantity", "SN#", "Quantity of Box", "Whs GC/NA"].map((h) => (
                           <TableHead key={h} className="text-label font-bold uppercase tracking-wider">
                             {h}
                           </TableHead>
@@ -204,6 +244,7 @@ function TransmittalPage() {
                           </TableCell>
                           <TableCell>{line.serialNumbers || "—"}</TableCell>
                           <TableCell>{line.boxQuantity || "—"}</TableCell>
+                          <TableCell>{TRANSMITTAL_RATING_LABELS[line.whRating] ?? "—"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -233,6 +274,46 @@ function TransmittalPage() {
               </ul>
             )}
           </section>
+
+          {stages.includes(TRANSMITTAL_STAGE.WAREHOUSE_CHECKING) && (
+            <section className="space-y-3">
+              <p className="text-sm font-semibold">Warehouse checking</p>
+              {canRate ? (
+                <WarehouseRatings transmittal={t} canRate onSaved={refresh} />
+              ) : (
+                <p className="text-[13px] text-muted-foreground">
+                  Lines are rated GC or NA by the Warehouse while checking is open.
+                </p>
+              )}
+              <WarehouseStageSignoff
+                transmittal={t}
+                stage={TRANSMITTAL_STAGE.WAREHOUSE_CHECKING}
+                canSign={canSignChecking}
+                currentUserId={user?.id}
+                members={members}
+                onChanged={refresh}
+              />
+            </section>
+          )}
+
+          {showReleasing && (
+            <section className="space-y-3">
+              <WarehouseStageSignoff
+                transmittal={t}
+                stage={TRANSMITTAL_STAGE.WAREHOUSE_RELEASING}
+                canSign={canSignReleasing}
+                currentUserId={user?.id}
+                members={members}
+                onChanged={refresh}
+              />
+            </section>
+          )}
+
+          {(t.checkWarehouse || t.stages.length > 0) && (
+            <section>
+              <OdooReceiptSection transmittal={t} canRecord={canRecordOdoo} onRecorded={refresh} />
+            </section>
+          )}
         </>
       )}
 

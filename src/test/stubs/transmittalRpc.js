@@ -276,4 +276,223 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
     nextNumber = Number(p_number)
     return { first_number: Number(p_number), number_format: `TG03-${p_number}` }
   })
+
+  // ---- Issue #253: Warehouse checking, releasing, confirm, Odoo receipt, files
+
+  const employeeName = (id) => findRow("employees", id)?.name ?? null
+  const listIds = (key) => rowsOf("ipas_signer_lists").filter((row) => row.list_key === key).map((row) => row.employee_id)
+  const onKey = (key) => listIds(key).includes(actorId)
+  const stageOf = (transmittalId, stage) =>
+    rowsOf("transmittal_stages").find((s) => s.transmittal_id === transmittalId && s.stage === stage) ?? null
+  const WAREHOUSE_OPEN = ["warehouse_checking", "warehouse_releasing", "technical_inspection", "awaiting_check"]
+
+  stubRpc("transmittal_stage_list_members", ({ p_transmittal_id, p_list_key }) => {
+    if (!findRow("transmittals", p_transmittal_id)) refuse("42501", "transmittal_stage_list_members: that Transmittal doesn't exist or you can't read it")
+    return listIds(p_list_key)
+      .map((id) => ({ id, name: employeeName(id) }))
+      .filter((m) => m.name)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  })
+
+  stubRpc("transmittal_rate", ({ p_transmittal_id, p_line_ratings }) => {
+    const t = findRow("transmittals", p_transmittal_id)
+    if (!t) refuse("P0002", "transmittal_rate: that Transmittal doesn't exist")
+    if (!onKey("transmittal_warehouse")) refuse("42501", "transmittal_rate: only the Warehouse list rates the lines")
+    const stage = stageOf(t.id, "warehouse_checking")
+    if (!stage || stage.completed_at != null || t.state !== "warehouse_checking") {
+      refuse("42501", `transmittal_rate: Warehouse checking is not open on ${t.number}`)
+    }
+    let count = 0
+    for (const item of p_line_ratings ?? []) {
+      const line = rowsOf("transmittal_lines").find((l) => l.id === item.line_id && l.transmittal_id === t.id)
+      if (!line) refuse("22023", `transmittal_rate: that line isn't on ${t.number}`)
+      const rating = String(item.rating ?? "").toLowerCase()
+      if (!["gc", "na"].includes(rating)) refuse("22023", "transmittal_rate: each line is GC or NA")
+      const remark = (item.remark ?? "").trim() || null
+      if (rating === "na" && !remark) refuse("22023", "transmittal_rate: an NA needs a remark")
+      const inCharge = item.in_charge_id ?? actorId
+      if (!listIds("transmittal_warehouse").includes(inCharge)) {
+        refuse("22023", "transmittal_rate: the in-charge is on the Warehouse list")
+      }
+      let received = item.quantity_received == null || item.quantity_received === "" ? null : Number(item.quantity_received)
+      if (received !== null && received < 0) refuse("22023", "transmittal_rate: a quantity received is zero or more")
+      if (received === Number(line.quantity)) received = null
+      updateRow("transmittal_lines", line, {
+        wh_in_charge_id: inCharge,
+        wh_rating: rating,
+        wh_remark: remark,
+        quantity_received: received,
+      })
+      count++
+    }
+    event(t.id, "rated", { number: t.number, lines: count })
+    return { id: t.id, number: t.number, rated: count }
+  })
+
+  stubRpc("transmittal_complete_stage", ({ p_transmittal_id, p_stage, p_other_signer_id, p_other_signer_name, p_remarks, p_no_pictures_reason }) => {
+    const t = findRow("transmittals", p_transmittal_id)
+    if (!t) refuse("P0002", "transmittal_complete_stage: that Transmittal doesn't exist")
+    if (["closed", "cancelled"].includes(t.state)) refuse("42501", `transmittal_complete_stage: ${t.number} is ${t.state}`)
+    if (!["warehouse_checking", "warehouse_releasing"].includes(p_stage)) {
+      refuse("22023", "transmittal_complete_stage: the Warehouse signs Warehouse checking or releasing")
+    }
+    if (!onKey("transmittal_warehouse")) refuse("42501", "transmittal_complete_stage: only the Warehouse list signs the Warehouse stages")
+
+    let stage = stageOf(t.id, p_stage)
+    if (!stage) {
+      if (p_stage === "warehouse_releasing" && !t.check_technical) {
+        insertRow("transmittal_stages", { transmittal_id: t.id, stage: p_stage })
+        stage = stageOf(t.id, p_stage) // insertRow returns a copy; update the stored row
+      } else {
+        refuse("P0002", `transmittal_complete_stage: ${t.number} has no ${p_stage} stage`)
+      }
+    }
+    if (stage.completed_at != null) refuse("42501", `transmittal_complete_stage: the ${p_stage} stage of ${t.number} is already signed`)
+    if (p_stage === "warehouse_checking" && t.state !== "warehouse_checking") {
+      refuse("42501", `transmittal_complete_stage: Warehouse checking is not open on ${t.number}`)
+    }
+    if (p_stage === "warehouse_releasing" && t.check_technical && t.state !== "warehouse_releasing") {
+      refuse("42501", `transmittal_complete_stage: releasing is not open on ${t.number}`)
+    }
+
+    const otherList = p_stage === "warehouse_checking" ? "transmittal_warehouse" : t.check_technical ? "transmittal_technical" : null
+    if (otherList && (!p_other_signer_id || !listIds(otherList).includes(p_other_signer_id))) {
+      refuse(
+        "22023",
+        p_stage === "warehouse_checking"
+          ? "transmittal_complete_stage: name the other signatory from the Warehouse list"
+          : "transmittal_complete_stage: Received by is on the Technical list",
+      )
+    }
+    if (p_other_signer_id === actorId) refuse("22023", "transmittal_complete_stage: the other signatory is someone else")
+    const otherName = p_other_signer_id ? employeeName(p_other_signer_id) : (p_other_signer_name ?? "").trim() || null
+    if (!otherName) refuse("22023", "transmittal_complete_stage: name who signs with you")
+
+    const pictures = rowsOf("pms_evidence").filter((e) => e.record_id === stage.id).length
+    const reason = (p_no_pictures_reason ?? "").trim() || null
+    let naLines = []
+    if (p_stage === "warehouse_checking") {
+      const lines = rowsOf("transmittal_lines").filter((l) => l.transmittal_id === t.id)
+      if (lines.some((l) => !l.wh_rating || !l.wh_in_charge_id)) {
+        refuse("22023", `transmittal_complete_stage: lines of ${t.number} still need a GC or NA rating`)
+      }
+      if (pictures === 0 && !reason) {
+        refuse("22023", "transmittal_complete_stage: attach a picture or video, or give the reason none")
+      }
+      naLines = lines.filter((l) => l.wh_rating === "na")
+    }
+
+    const now = new Date().toISOString()
+    updateRow("transmittal_stages", stage, {
+      remarks: (p_remarks ?? "").trim() || null,
+      no_pictures_reason: pictures > 0 ? null : reason,
+      completed_by: actorId,
+      completed_at: now,
+      first_signer_id: actorId,
+      first_signed_at: now,
+      first_confirmed: true,
+      second_signer_id: p_other_signer_id ?? null,
+      second_signer_name: otherName,
+      second_signed_at: now,
+    })
+
+    let nextState = t.state
+    let nextList = null
+    if (p_stage === "warehouse_checking") {
+      nextState = t.check_technical ? "warehouse_releasing" : "awaiting_check"
+      nextList = t.check_technical ? "transmittal_warehouse" : "transmittal_check_by"
+    } else if (t.check_technical) {
+      nextState = "technical_inspection"
+      nextList = "transmittal_technical"
+    }
+    if (nextState !== t.state) updateRow("transmittals", t, { state: nextState })
+
+    const naIds = naLines.length ? [...new Set([t.prepared_by, ...listIds("transmittal_check_by")])] : []
+    event(t.id, "stage_signed", { number: t.number, stage: p_stage, state_to: nextState, na_count: naLines.length })
+    return {
+      id: t.id,
+      number: t.number,
+      stage: p_stage,
+      state: nextState,
+      na_count: naLines.length,
+      notify_next_list: nextList,
+      notify_next_ids: nextList ? listIds(nextList) : [],
+      notify_confirm_id: p_other_signer_id ?? null,
+      notify_na_ids: naIds,
+    }
+  })
+
+  stubRpc("transmittal_confirm_signature", ({ p_stage_id, p_confirm }) => {
+    const stage = rowsOf("transmittal_stages").find((s) => s.id === p_stage_id)
+    if (!stage) refuse("P0002", "transmittal_confirm_signature: that stage doesn't exist")
+    if (stage.completed_at == null) refuse("22023", "transmittal_confirm_signature: the stage isn't signed yet")
+    if (stage.second_signer_id !== actorId) refuse("42501", "transmittal_confirm_signature: only the co-signer confirms this signature")
+    const confirm = !!p_confirm
+    updateRow(
+      "transmittal_stages",
+      stage,
+      confirm ? { second_confirmed: true, second_signature_declined: false } : { second_confirmed: false, second_signature_declined: true },
+    )
+    return {
+      id: stage.transmittal_id,
+      stage_id: p_stage_id,
+      confirmed: confirm,
+      notify_id: confirm ? null : stage.first_signer_id,
+    }
+  })
+
+  stubRpc("transmittal_received_in_odoo", ({ p_transmittal_id, p_ref }) => {
+    const t = findRow("transmittals", p_transmittal_id)
+    if (!t) refuse("P0002", "transmittal_received_in_odoo: that Transmittal doesn't exist")
+    if (!(onKey("transmittal_warehouse") || purchasing)) {
+      refuse("42501", "transmittal_received_in_odoo: only the Warehouse list or Purchasing records the Odoo receipt")
+    }
+    if (!WAREHOUSE_OPEN.includes(t.state)) {
+      refuse("22023", `transmittal_received_in_odoo: ${t.number} is ${t.state}; the Odoo receipt is recorded from submission until close`)
+    }
+    if (t.odoo_received_at) refuse("22023", `transmittal_received_in_odoo: ${t.number} already has its Odoo receipt`)
+    const at = new Date().toISOString()
+    const ref = (p_ref ?? "").trim() || null
+    updateRow("transmittals", t, { odoo_received_by: actorId, odoo_received_at: at, odoo_receipt_ref: ref })
+    event(t.id, "received_in_odoo", { number: t.number, receipt_ref: ref })
+    return { id: t.id, number: t.number, received_at: at, receipt_ref: ref }
+  })
+
+  stubRpc("transmittal_attach_evidence", ({ p_stage_id, p_kind, p_path, p_file_name, p_mime, p_size }) => {
+    const stage = rowsOf("transmittal_stages").find((s) => s.id === p_stage_id)
+    if (!stage) refuse("P0002", "transmittal_attach_evidence: that stage doesn't exist")
+    const t = findRow("transmittals", stage.transmittal_id)
+    if (stage.completed_at != null || ["closed", "cancelled"].includes(t.state)) {
+      refuse("42501", `transmittal_attach_evidence: the stage of ${t.number} is signed; its files can't change`)
+    }
+    const listKey = stage.stage === "technical_inspection" ? "transmittal_technical" : "transmittal_warehouse"
+    if (!onKey(listKey)) refuse("42501", "transmittal_attach_evidence: only the stage's list adds files")
+    if (!["picture", "video"].includes(p_kind)) refuse("22023", "transmittal_attach_evidence: a file is a picture or a video")
+    if (!(p_size > 0 && p_size <= 52428800)) refuse("22023", "transmittal_attach_evidence: a file is 50 MB or less")
+    if (!p_path || !p_path.startsWith(`${t.id}/${stage.id}/`)) {
+      refuse("22023", "transmittal_attach_evidence: that file isn't stored for this stage")
+    }
+    const row = insertRow("pms_evidence", {
+      record_type: "transmittal_stage",
+      record_id: stage.id,
+      transmittal_id: t.id,
+      kind: p_kind,
+      storage_path: p_path,
+      file_name: (p_file_name ?? "").trim() || "file",
+      mime_type: p_mime ?? null,
+      size_bytes: p_size,
+      uploaded_by: actorId,
+    })
+    return { id: row.id, transmittal_id: t.id, stage_id: stage.id }
+  })
+
+  stubRpc("transmittal_remove_evidence", ({ p_evidence_id }) => {
+    const ev = rowsOf("pms_evidence").find((e) => e.id === p_evidence_id)
+    if (!ev) refuse("P0002", "transmittal_remove_evidence: that file doesn't exist")
+    if (ev.uploaded_by !== actorId) refuse("42501", "transmittal_remove_evidence: only the uploader removes a file")
+    const stage = rowsOf("transmittal_stages").find((s) => s.id === ev.record_id)
+    if (stage?.completed_at != null) refuse("42501", "transmittal_remove_evidence: the stage is signed; its files can't change")
+    deleteRows("pms_evidence", [ev])
+    return { id: p_evidence_id, storage_path: ev.storage_path }
+  })
 }
