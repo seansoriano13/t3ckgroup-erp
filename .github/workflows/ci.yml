@@ -48,12 +48,14 @@ jobs:
       # ADR 0029: so does a routed Page that bypasses PageShell. Only these
       # rules are a gate; they have no baseline, so any violation fails.
       - name: Lint Primitives
+        if: always()
         run: pnpm lint:primitives
 
       # The application has a pre-existing lint backlog (~38 errors) that
       # predates this workflow. Reported so it stays visible, but not yet a
       # merge blocker — flip this to a hard gate once the backlog is cleared.
       - name: Lint application
+        if: always()
         run: pnpm lint
         continue-on-error: true
 
@@ -87,6 +89,7 @@ jobs:
       # The suite talks to a fake Supabase, so no secrets are needed here —
       # .env.test supplies the placeholder values Vite expects.
       - name: Build
+        if: always()
         run: pnpm build
 
   test:
