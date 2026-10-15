@@ -38,9 +38,9 @@ let lineCounter = 0;
 const nextLineKey = () => `line-${++lineCounter}`;
 
 /** A saved Transmittal's header as the form holds it. */
-function headerFrom(existing) {
+function headerFrom(existing, defaultOrigin = "") {
   return {
-    origin: existing?.origin ?? "",
+    origin: existing?.origin ?? defaultOrigin,
     originOther: existing?.originOther ?? "",
     checkWarehouse: existing ? existing.checkWarehouse : true,
     checkTechnical: existing ? existing.checkTechnical : false,
@@ -113,9 +113,9 @@ function typedLine() {
  * draft; "Submit" saves and submits it, which fixes it and opens the first
  * stage. The database refuses anything the screen lets through.
  */
-export default function TransmittalForm({ existing = null, onSaved, onCancel }) {
+export default function TransmittalForm({ existing = null, defaultOrigin = "", onSaved, onCancel }) {
   const queryClient = useQueryClient();
-  const [header, setHeader] = useState(() => headerFrom(existing));
+  const [header, setHeader] = useState(() => headerFrom(existing, defaultOrigin));
   const [productIds, setProductIds] = useState(() => existing?.products.map((p) => p.id) ?? []);
   const [referenceIds, setReferenceIds] = useState(() => existing?.references.map((r) => r.id) ?? []);
   const [lines, setLines] = useState(() => (existing ? existing.lines.map(lineFrom) : []));
@@ -323,7 +323,7 @@ export default function TransmittalForm({ existing = null, onSaved, onCancel }) 
 
         {lines.map((line, index) => (
           <div key={line.key} className="grid grid-cols-1 gap-3 rounded-lg border border-border p-3 md:grid-cols-12">
-            <div className="md:col-span-4">
+            <div className="md:col-span-3">
               <p className="text-[12px] text-muted-foreground">
                 {index + 1}. {line.kind === TRANSMITTAL_LINE_KIND.PO_LINE ? `${line.poNumber} · ${line.ipasNumber}` : "Typed"}
               </p>
@@ -344,7 +344,7 @@ export default function TransmittalForm({ existing = null, onSaved, onCancel }) 
                 </div>
               )}
             </div>
-            <FieldBox label="Quantity" bare className="md:col-span-1">
+            <FieldBox label="Quantity" bare className="md:col-span-2">
               <Input
                 type="number"
                 min="0"

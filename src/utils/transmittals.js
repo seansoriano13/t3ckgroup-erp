@@ -79,7 +79,9 @@ export function shapeTransmittal(row) {
         : null,
     },
     odooReceivedAt: row.odoo_received_at ?? null,
-    odooReceivedBy: row.odoo_received_by ?? null,
+    odooReceivedBy: row.odoo_received_by
+      ? { id: row.odoo_received_by, name: row.odoo_receiver?.name ?? null }
+      : null,
     odooReceiptRef: row.odoo_receipt_ref ?? null,
     lines,
     ipasNumbers,

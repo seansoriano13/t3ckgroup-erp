@@ -310,10 +310,9 @@ begin
     end if;
   end if;
 
-  if p_stage in ('warehouse_checking', 'technical_inspection') then
-    if v_pictures = 0 and v_reason is null then
-      raise exception 'transmittal_complete_stage: attach a picture or video, or give the reason none' using errcode = '22023';
-    end if;
+  -- Every stage: "Provided Pictures & Videos" is No only with a reason (spec #251).
+  if v_pictures = 0 and v_reason is null then
+    raise exception 'transmittal_complete_stage: attach a picture or video, or give the reason none' using errcode = '22023';
   end if;
 
   if p_stage = 'warehouse_checking' then

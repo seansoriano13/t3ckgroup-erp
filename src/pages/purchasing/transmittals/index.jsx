@@ -16,7 +16,6 @@ import { TablePager } from "../../../components/ui/TablePager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { usePaging } from "../../../hooks/usePaging";
 import { useAuth } from "../../../context/AuthContext";
-import { getPermissionContext } from "../../../utils/permissions";
 import { transmittalService } from "../../../services/transmittalService";
 import { transmittalKeys } from "../../../components/transmittals/transmittalKeys";
 import {
@@ -62,8 +61,13 @@ const HEAD = "text-label font-bold uppercase tracking-wider";
 function TransmittalsList() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { hasPurchasingFlow, isTransmittalStaff, isSuperAdmin } = getPermissionContext(user);
-  const canRaise = hasPurchasingFlow || isTransmittalStaff || isSuperAdmin;
+  // Raising follows the database's rule (Purchasing, or the Warehouse or
+  // Logistics list); a Super Admin or a Technical member reads but doesn't raise.
+  const { data: canRaise = false } = useQuery({
+    queryKey: [...transmittalKeys.list, "can-prepare", user?.id],
+    queryFn: () => transmittalService.canPrepare(),
+    enabled: Boolean(user?.id),
+  });
 
   const [tab, setTab] = useState(TAB.OPEN);
   const [mineOnly, setMineOnly] = useState(false);

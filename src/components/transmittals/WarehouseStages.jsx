@@ -13,6 +13,13 @@ import { transmittalService } from "../../services/transmittalService";
 import { evidenceOf, stageRowOf } from "../../utils/transmittals";
 import { TRANSMITTAL_RATING, TRANSMITTAL_STAGE } from "../../constants/transmittals";
 
+/** The slip state while each stage is the one being worked. */
+const OPEN_STATE = {
+  [TRANSMITTAL_STAGE.WAREHOUSE_CHECKING]: "warehouse_checking",
+  [TRANSMITTAL_STAGE.WAREHOUSE_RELEASING]: "warehouse_releasing",
+  [TRANSMITTAL_STAGE.TECHNICAL_INSPECTION]: "technical_inspection",
+};
+
 /**
  * The Warehouse's sections of a Transmittal (#253, spec #251): the line
  * ratings during Warehouse checking, the Warehouse checking and releasing
@@ -23,7 +30,7 @@ import { TRANSMITTAL_RATING, TRANSMITTAL_STAGE } from "../../constants/transmitt
 const STAGE_SIGNERS = {
   [TRANSMITTAL_STAGE.WAREHOUSE_CHECKING]: { first: "Received by", second: "Inspected by" },
   [TRANSMITTAL_STAGE.WAREHOUSE_RELEASING]: { first: "Released by", second: "Received by" },
-  [TRANSMITTAL_STAGE.TECHNICAL_INSPECTION]: { first: "Inspected by", second: "Received by" },
+  [TRANSMITTAL_STAGE.TECHNICAL_INSPECTION]: { first: "Received by", second: "Inspected by" },
 };
 
 const STAGE_TITLE = {
@@ -41,8 +48,11 @@ const caption = "text-label font-bold uppercase tracking-wider text-muted-foregr
  * gives a quantity received where it differs; `technical` rates the TCA side
  * (Technical inspection) instead, with no quantity.
  */
-export function WarehouseRatings({ transmittal, canRate, onSaved, technical = false }) {
+export function WarehouseRatings({ transmittal, canRate, onSaved, technical = false, members = [], currentUserId = null }) {
   const ratingOf = (line) => (technical ? line.techRating : line.whRating);
+  const inChargeOf = (line) => (technical ? line.techInChargeId : line.whInChargeId);
+  const inChargeNameOf = (line) => (technical ? line.techInChargeName : line.whInChargeName);
+  const inChargeOptions = members.map((m) => ({ value: m.id, label: m.name }));
   const remarkOf = (line) => (technical ? line.techRemark : line.whRemark);
   const initial = Object.fromEntries(
     transmittal.lines.map((line) => [
@@ -50,6 +60,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
       {
         rating: ratingOf(line),
         remark: remarkOf(line) ?? "",
+        inChargeId: inChargeOf(line) ?? (members.some((m) => m.id === currentUserId) ? currentUserId : ""),
         quantityReceived: line.quantityReceived == null ? "" : String(line.quantityReceived),
       },
     ]),
@@ -66,6 +77,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
         lineId: line.id,
         rating: draft[line.id].rating,
         remark: draft[line.id].remark,
+        inChargeId: draft[line.id].inChargeId || null,
         quantityReceived: technical ? null : draft[line.id].quantityReceived,
       }));
     setBusy(true);
@@ -86,7 +98,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
         <Table tableId="transmittal-ratings" className="md:min-w-[48rem]">
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              {["#", "Item", "Quantity", "Rating", "Remark (NA needs one)", ...(technical ? [] : ["Quantity received"])].map((h) => (
+              {["#", "Item", "Quantity", "In-charge", "Rating", "Remark (NA needs one)", ...(technical ? [] : ["Quantity received"])].map((h) => (
                 <TableHead key={h} className={caption}>
                   {h}
                 </TableHead>
@@ -102,6 +114,19 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
                   <TableCell>{line.description}</TableCell>
                   <TableCell>
                     {line.quantity} {line.unit ?? ""}
+                  </TableCell>
+                  <TableCell>
+                    {canRate ? (
+                      <SelectField
+                        options={inChargeOptions}
+                        value={row.inChargeId ?? ""}
+                        onChange={(v) => setRow(line.id, { inChargeId: v })}
+                        placeholder="Pick"
+                        aria-label={`In-charge for line ${line.position}`}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">{inChargeNameOf(line) || "—"}</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
@@ -192,7 +217,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
   const unrated = transmittal.lines.filter((line) =>
     isTechnicalStage ? !line.techRating || !line.techInChargeId : !line.whRating || !line.whInChargeId,
   ).length;
-  const needsReason = (isCheckingStage || isTechnicalStage) && files.length === 0;
+  const needsReason = files.length === 0;
   const blocker = (isCheckingStage || isTechnicalStage) && unrated > 0
     ? `${unrated} line${unrated === 1 ? "" : "s"} still need a GC or NA rating.`
     : needsReason && noPicturesReason.trim() === ""
@@ -281,7 +306,13 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold">{STAGE_TITLE[stage]}</p>
         <span className="text-muted-foreground">
-          {signed ? "Signed" : row ? "Open" : stage === TRANSMITTAL_STAGE.WAREHOUSE_RELEASING && !transmittal.checkTechnical ? "Optional" : "Not yet"}
+          {signed
+            ? "Signed"
+            : row && (transmittal.state === OPEN_STATE[stage] || (stage === TRANSMITTAL_STAGE.WAREHOUSE_RELEASING && !transmittal.checkTechnical))
+              ? stage === TRANSMITTAL_STAGE.WAREHOUSE_RELEASING && !transmittal.checkTechnical
+                ? "Optional"
+                : "Open"
+              : "Not yet"}
         </span>
       </div>
 
@@ -362,7 +393,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
               </FieldBox>
             )}
             {pickOther && (
-              <FieldBox label={isCheckingStage ? "Inspected by" : "Received by"} bare>
+              <FieldBox label={signers.second} bare>
                 <SelectField options={otherOptions} value={otherId} onChange={setOtherId} placeholder="Pick a name" />
               </FieldBox>
             )}
@@ -408,7 +439,7 @@ export function OdooReceiptSection({ transmittal, canRecord, onRecorded }) {
       <p className="text-sm font-semibold">Received in Odoo by</p>
       {received ? (
         <p>
-          Recorded {formatWhen(transmittal.odooReceivedAt)}
+          {transmittal.odooReceivedBy?.name ?? "Recorded"} · {formatWhen(transmittal.odooReceivedAt)}
           {transmittal.odooReceiptRef ? ` · ${transmittal.odooReceiptRef}` : ""}
         </p>
       ) : canRecord ? (

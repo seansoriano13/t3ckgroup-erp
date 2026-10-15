@@ -40,9 +40,16 @@ export function packingListTotals(boxes = []) {
   };
 }
 
+/** "PURCHASING" -> "Purchasing"; blank stays blank. */
+function titleCase(value) {
+  const text = String(value ?? '').trim().toLowerCase();
+  return text.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /** Packed by: the three signature states `sigBlock` draws. */
 export function packedBySignature(list) {
-  const base = { role: 'Packed by', title: 'Warehouse' };
+  // The packer's own sub-department: Purchasing, Logistics and the Warehouse all pack.
+  const base = { role: 'Packed by', title: titleCase(list.packerDepartment) };
   if (list.state !== 'packed') return { ...base, who: '', state: 'awaiting' };
   const who = list.packerName || 'Unknown signer';
   const when = printDateTime(list.packedAt);

@@ -376,10 +376,11 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
       if (lines.some((l) => !l.wh_rating || !l.wh_in_charge_id)) {
         refuse("22023", `transmittal_complete_stage: lines of ${t.number} still need a GC or NA rating`)
       }
-      if (pictures === 0 && !reason) {
-        refuse("22023", "transmittal_complete_stage: attach a picture or video, or give the reason none")
-      }
       naLines = lines.filter((l) => l.wh_rating === "na")
+    }
+    // Every stage: no pictures needs a reason.
+    if (pictures === 0 && !reason) {
+      refuse("22023", "transmittal_complete_stage: attach a picture or video, or give the reason none")
     }
 
     const now = new Date().toISOString()
@@ -457,6 +458,24 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
     event(t.id, "received_in_odoo", { number: t.number, receipt_ref: ref })
     return { id: t.id, number: t.number, received_at: at, receipt_ref: ref }
   })
+
+  stubRpc("transmittal_line_refs", ({ p_transmittal_id }) =>
+    rowsOf("transmittal_lines")
+      .filter((l) => l.transmittal_id === p_transmittal_id)
+      .sort((a, b) => a.position - b.position)
+      .map((l) => {
+        const ipas = l.ipas_id ? findRow("ipas", l.ipas_id) : null
+        const sor = l.opportunity_id ? findRow("sales_opportunities", l.opportunity_id) : null
+        return {
+          line_id: l.id,
+          ipas_number: ipas?.number ?? null,
+          po_number: ipas?.po_number ?? null,
+          sor_id: sor?.id ?? null,
+          sor_reference: sor?.sales_reference ?? null,
+          sor_project: sor?.project_title ?? null,
+        }
+      }),
+  )
 
   stubRpc("transmittal_attach_evidence", ({ p_stage_id, p_kind, p_path, p_file_name, p_mime, p_size }) => {
     const stage = rowsOf("transmittal_stages").find((s) => s.id === p_stage_id)

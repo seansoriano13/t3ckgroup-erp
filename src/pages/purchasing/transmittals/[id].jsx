@@ -310,8 +310,8 @@ function TransmittalPage() {
                           </TableCell>
                           <TableCell>{line.serialNumbers || "—"}</TableCell>
                           <TableCell>{line.boxQuantity || "—"}</TableCell>
-                          <TableCell>{TRANSMITTAL_RATING_LABELS[line.whRating] ?? "—"}</TableCell>
-                          <TableCell>{TRANSMITTAL_RATING_LABELS[line.techRating] ?? "—"}</TableCell>
+                          <TableCell>{ratingWithInCharge(line.whRating, line.whInChargeName)}</TableCell>
+                          <TableCell>{ratingWithInCharge(line.techRating, line.techInChargeName)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -346,7 +346,7 @@ function TransmittalPage() {
             <section className="space-y-3">
               <p className="text-sm font-semibold">Warehouse checking</p>
               {canRate ? (
-                <WarehouseRatings transmittal={t} canRate onSaved={refresh} />
+                <WarehouseRatings transmittal={t} canRate onSaved={refresh} members={warehouseMembers} currentUserId={user?.id} />
               ) : (
                 <p className="text-[13px] text-muted-foreground">
                   Lines are rated GC or NA by the Warehouse while checking is open.
@@ -380,7 +380,14 @@ function TransmittalPage() {
             <section className="space-y-3">
               <p className="text-sm font-semibold">Technical inspection</p>
               {canRateTech ? (
-                <WarehouseRatings transmittal={t} canRate technical onSaved={refresh} />
+                <WarehouseRatings
+                  transmittal={t}
+                  canRate
+                  technical
+                  onSaved={refresh}
+                  members={technicalMembers}
+                  currentUserId={user?.id}
+                />
               ) : (
                 <p className="text-[13px] text-muted-foreground">
                   Lines are rated GC or NA by Technical while inspection is open.
@@ -428,6 +435,13 @@ function TransmittalPage() {
       </Dialog>
     </PageShell>
   );
+}
+
+/** "NA · Carl Aldrin Barojabo": the rating and who was in charge of it. */
+function ratingWithInCharge(rating, inChargeName) {
+  const label = TRANSMITTAL_RATING_LABELS[rating];
+  if (!label) return "—";
+  return inChargeName ? `${label} · ${inChargeName}` : label;
 }
 
 function Fact({ label, value }) {

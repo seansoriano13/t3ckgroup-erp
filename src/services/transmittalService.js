@@ -21,6 +21,7 @@ const TRANSMITTAL_SELECT =
   " item_location:ipas_options!transmittals_item_location_id_fkey(id, label)," +
   " products:transmittal_products(option:ipas_options(id, label))," +
   " references:transmittal_references(option:ipas_options(id, label))," +
+  " odoo_receiver:employees!transmittals_odoo_received_by_fkey(id, name)," +
   " check_by_first:employees!transmittals_check_by_first_id_fkey(id, name, call_sign)," +
   " check_by_second:employees!transmittals_check_by_second_id_fkey(id, name, call_sign)," +
   " stages:transmittal_stages(*, first_signer:employees!transmittal_stages_first_signer_id_fkey(id, name, signature_path)," +
@@ -34,6 +35,32 @@ const TRANSMITTAL_SELECT =
 const TRANSMITTAL_LIST_SELECT =
   "id, number, prepared_on, prepared_by, origin, priority, entity, state, submitted_at, created_at," +
   " preparer:employees!transmittals_prepared_by_fkey(id, name), lines:transmittal_lines(id, wh_rating, tech_rating)";
+
+/**
+ * Fills each line's IPAS and SOR reference from `transmittal_line_refs`. The
+ * embedded reads come back empty for a reader who can't read that IPAS or SOR
+ * (the Warehouse, Technical, or Purchasing off the deal team), but the slip
+ * still names them.
+ */
+async function withLineRefs(row) {
+  const { data, error } = await supabase.rpc("transmittal_line_refs", { p_transmittal_id: row.id });
+  if (error) throw error;
+  const refs = new Map((data ?? []).map((ref) => [ref.line_id, ref]));
+  return {
+    ...row,
+    lines: (row.lines ?? []).map((line) => {
+      const ref = refs.get(line.id);
+      if (!ref) return line;
+      return {
+        ...line,
+        ipas: line.ipas ?? (ref.ipas_number ? { id: line.ipas_id, number: ref.ipas_number, po_number: ref.po_number } : null),
+        sor:
+          line.sor ??
+          (ref.sor_id ? { id: ref.sor_id, sales_reference: ref.sor_reference, project_title: ref.sor_project } : null),
+      };
+    }),
+  };
+}
 
 /**
  * A Transmittal error the screen can word: `code` is one of TRANSMITTAL_ERROR.
@@ -120,7 +147,8 @@ export const transmittalService = {
   async get(id) {
     const { data, error } = await supabase.from("transmittals").select(TRANSMITTAL_SELECT).eq("id", id).maybeSingle();
     if (error) throw error;
-    return shapeTransmittal(data);
+    if (!data) return null;
+    return shapeTransmittal(await withLineRefs(data));
   },
 
   /**
@@ -224,6 +252,17 @@ export const transmittalService = {
       });
     }
     return data;
+  },
+
+  /**
+   * Whether the signed-in employee may raise a Transmittal: Purchasing access,
+   * or the Warehouse or Logistics list. The database's own rule, so the screen
+   * never offers a form the database would refuse.
+   */
+  async canPrepare() {
+    const { data, error } = await supabase.rpc("transmittal_can_prepare");
+    if (error) throw error;
+    return data === true;
   },
 
   /** The four Transmittal staff lists the employee is on (ipas_signer_lists keys). Own rows only. */

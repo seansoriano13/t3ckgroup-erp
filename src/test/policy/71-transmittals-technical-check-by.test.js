@@ -101,7 +101,7 @@ async function toTechnical(slipId) {
         p_other_signer_id: ids.technical,
         p_other_signer_name: null,
         p_remarks: null,
-        p_no_pictures_reason: null,
+        p_no_pictures_reason: "none",
     })
     if (releasing.error) throw new Error(`releasing: ${releasing.error.message}`)
     expect(await slipState(slipId)).toBe("technical_inspection")

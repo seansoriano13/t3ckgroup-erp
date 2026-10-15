@@ -39,7 +39,13 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * viewer's timezone can't move it a day. Anything else comes back as is.
  */
 export function formatDay(value) {
-  if (!isIsoDate(value)) return value ? String(value) : "—";
+  if (!isIsoDate(value)) {
+    if (!value) return "—";
+    // A timestamp (a stamp from the TG03 slips) reads as its day where the viewer is.
+    const at = typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value) ? new Date(value) : null;
+    if (at && !Number.isNaN(at.getTime())) return `${MONTHS[at.getMonth()]} ${at.getDate()}, ${at.getFullYear()}`;
+    return String(value);
+  }
   const [year, month, day] = value.split("-").map(Number);
   return `${MONTHS[month - 1]} ${day}, ${year}`;
 }

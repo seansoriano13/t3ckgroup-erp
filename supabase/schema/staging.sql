@@ -8486,18 +8486,18 @@ AS $function$
         jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
         jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
         jsonb_build_object('key', 'import_clearance', 'ticked', i.import_clearance_on is not null, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null, 'partial', false),
+        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
         jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
         jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null, 'partial', false)
+        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
       )
       else jsonb_build_array(
         jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
         jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null, 'partial', false),
+        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
         jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
         jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null, 'partial', false)
+        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
       )
     end,
     i.computation_status,
@@ -8548,6 +8548,30 @@ AS $function$
     from public.ipas_signoffs so
     where so.ipas_id = i.id and so.cleared_at is null
   ) lv
+  cross join lateral (
+    -- #256: the submitted, uncancelled TG03 slips carrying this IPAS's lines.
+    -- Delivered once any slip's first stage is signed; Actual Checking once
+    -- every slip's checking stage is.
+    select
+      coalesce(bool_or(first_done), false) as delivered,
+      coalesce(count(*) > 0 and bool_and(check_done), false) as checked
+    from (
+      select
+        exists (
+          select 1 from public.transmittal_stages st
+           where st.transmittal_id = t.id and st.completed_at is not null
+             and st.stage = case when t.check_warehouse then 'warehouse_checking' else 'technical_inspection' end
+        ) as first_done,
+        exists (
+          select 1 from public.transmittal_stages st
+           where st.transmittal_id = t.id and st.completed_at is not null
+             and st.stage = case when t.check_technical then 'technical_inspection' else 'warehouse_checking' end
+        ) as check_done
+      from public.transmittals t
+      where t.state not in ('draft', 'cancelled')
+        and exists (select 1 from public.transmittal_lines l where l.transmittal_id = t.id and l.ipas_id = i.id)
+    ) slips
+  ) tg
   where (select public.sor_access_level(p_opportunity_id)) = 'full'
     and i.purpose = 'project'
     and exists (
@@ -9322,6 +9346,26 @@ begin
     'box_no', v_box.box_no,
     'lines', v_pos
   ));
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_sor_refs(p_packing_list_ids uuid[])
+ RETURNS TABLE(packing_list_id uuid, sor_id uuid, sor_reference text, sor_project text, client_name text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null then
+    raise exception 'packing_list_sor_refs: not signed in' using errcode = '42501';
+  end if;
+
+  return query
+    select p.id, o.id, o.sales_reference, o.project_title, o.client_name
+      from public.packing_lists p
+      join public.sales_opportunities o on o.id = p.opportunity_id
+     where p.id = any (coalesce(p_packing_list_ids, '{}'::uuid[]))
+       and public.packing_list_can_read(p.id);
 end;
 $function$
 ;
@@ -13936,10 +13980,9 @@ begin
     end if;
   end if;
 
-  if p_stage in ('warehouse_checking', 'technical_inspection') then
-    if v_pictures = 0 and v_reason is null then
-      raise exception 'transmittal_complete_stage: attach a picture or video, or give the reason none' using errcode = '22023';
-    end if;
+  -- Every stage: "Provided Pictures & Videos" is No only with a reason (spec #251).
+  if v_pictures = 0 and v_reason is null then
+    raise exception 'transmittal_complete_stage: attach a picture or video, or give the reason none' using errcode = '22023';
   end if;
 
   if p_stage = 'warehouse_checking' then
@@ -14124,6 +14167,30 @@ begin
   ));
 
   return jsonb_build_object('id', v_row.id, 'number', v_row.number, 'warnings', v_warnings);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_line_refs(p_transmittal_id uuid)
+ RETURNS TABLE(line_id uuid, ipas_number text, po_number text, sor_id uuid, sor_reference text, sor_project text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null then
+    raise exception 'transmittal_line_refs: not signed in' using errcode = '42501';
+  end if;
+  if not public.transmittal_can_read(p_transmittal_id) then
+    return;
+  end if;
+
+  return query
+    select l.id, i.number, i.po_number, o.id, o.sales_reference, o.project_title
+      from public.transmittal_lines l
+      left join public.ipas i on i.id = l.ipas_id
+      left join public.sales_opportunities o on o.id = l.opportunity_id
+     where l.transmittal_id = p_transmittal_id
+     order by l.position;
 end;
 $function$
 ;

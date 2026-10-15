@@ -10,6 +10,7 @@ import { Button } from "../../../components/ui/button";
 import PageShell from "../../../components/ui/PageShell";
 import PageLoading from "../../../components/ui/PageLoading";
 import EmptyState from "../../../components/ui/EmptyState";
+import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import QueryError from "../../../components/ui/QueryError";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { FieldBox } from "../../../components/ui/FieldBox";
@@ -213,6 +214,7 @@ function PackingListPage() {
   const [boxDialog, setBoxDialog] = useState({ open: false, box: null });
   const [contentsBox, setContentsBox] = useState(null);
   const [packing, setPacking] = useState(false);
+  const [confirmingPack, setConfirmingPack] = useState(false);
 
   const { data: list, isLoading, isError, refetch } = useQuery({
     queryKey: KEY(id),
@@ -250,7 +252,7 @@ function PackingListPage() {
   };
 
   const pack = async () => {
-    if (!window.confirm(`Sign Packed by and close ${list.number}? It can't be changed after.`)) return;
+    setConfirmingPack(false);
     setPacking(true);
     try {
       await packingListService.pack(id);
@@ -368,7 +370,7 @@ function PackingListPage() {
                 <Plus size={14} />
                 Add a box
               </Button>
-              <Button className="gap-1.5" onClick={pack} disabled={packing || list.boxes.length === 0}>
+              <Button className="gap-1.5" onClick={() => setConfirmingPack(true)} disabled={packing || list.boxes.length === 0}>
                 <Send size={14} />
                 {packing ? "Packing…" : "Sign Packed by"}
               </Button>
@@ -396,6 +398,15 @@ function PackingListPage() {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={confirmingPack}
+        onOpenChange={setConfirmingPack}
+        title={`Sign Packed by and close ${list?.number ?? "this list"}?`}
+        description="The boxes and their contents can't be changed after."
+        confirmLabel="Sign Packed by"
+        cancelLabel="Not yet"
+        onConfirm={pack}
+      />
     </PageShell>
   );
 }

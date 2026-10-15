@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase";
 
 const PACKING_LIST_SELECT =
   "*, creator:employees!packing_lists_created_by_fkey(id, name)," +
-  " packer:employees!packing_lists_packed_by_fkey(id, name)," +
+  " packer:employees!packing_lists_packed_by_fkey(id, name, sub_department)," +
   " sor:sales_opportunities!packing_lists_opportunity_id_fkey(id, sales_reference, project_title, client_name)," +
   " boxes:packing_list_boxes(*, contents:packing_list_contents(*))";
 
@@ -10,6 +10,27 @@ const PACKING_LIST_LIST_SELECT =
   "id, number, state, odoo_delivery_ref, created_at, packed_at, opportunity_id," +
   " sor:sales_opportunities!packing_lists_opportunity_id_fkey(id, sales_reference, project_title)," +
   " boxes:packing_list_boxes(id)";
+
+/**
+ * Fills each row's `sor` from `packing_list_sor_refs` where the embedded SOR
+ * read came back empty: the Warehouse and Purchasing read a Packing List
+ * without always reading its SOR, but the list still names it.
+ */
+async function withSorRefs(rows) {
+  const missing = rows.filter((row) => !row.sor).map((row) => row.id);
+  if (missing.length === 0) return rows;
+  const { data, error } = await supabase.rpc("packing_list_sor_refs", { p_packing_list_ids: missing });
+  if (error) throw error;
+  const refs = new Map((data ?? []).map((ref) => [ref.packing_list_id, ref]));
+  return rows.map((row) => {
+    const ref = refs.get(row.id);
+    if (row.sor || !ref) return row;
+    return {
+      ...row,
+      sor: { id: ref.sor_id, sales_reference: ref.sor_reference, project_title: ref.sor_project, client_name: ref.client_name },
+    };
+  });
+}
 
 /**
  * Packing Lists (#255, spec #251): the boxes the Warehouse packs for one SOR.
@@ -48,7 +69,9 @@ export const packingListService = {
       .eq("id", id)
       .maybeSingle();
     if (error) throw error;
-    return data ? shapePackingList(data) : null;
+    if (!data) return null;
+    const [row] = await withSorRefs([data]);
+    return shapePackingList(row);
   },
 
   /**
@@ -62,7 +85,7 @@ export const packingListService = {
     if (state) query = query.eq("state", state);
     const { data, error } = await query;
     if (error) throw error;
-    return (data ?? []).map((row) => ({
+    return (await withSorRefs(data ?? [])).map((row) => ({
       id: row.id,
       number: row.number,
       state: row.state,
@@ -155,6 +178,7 @@ export function shapePackingList(row) {
     creatorName: row.creator?.name ?? null,
     createdById: row.created_by,
     packerName: row.packer?.name ?? null,
+    packerDepartment: row.packer?.sub_department ?? null,
     packedAt: row.packed_at ?? null,
     signatureDeclined: Boolean(row.signature_declined),
     boxes: [...(row.boxes ?? [])]

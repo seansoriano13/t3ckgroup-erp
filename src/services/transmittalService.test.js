@@ -303,8 +303,13 @@ describe("transmittalService", () => {
         transmittalService.completeStage(id, { stage: "warehouse_releasing", otherSignerId: whs2.id }),
       ).rejects.toThrow(/Received by is on the Technical list/)
 
+      // Every stage, releasing too: no pictures needs a reason.
+      await expect(
+        transmittalService.completeStage(id, { stage: "warehouse_releasing", otherSignerId: tech.id }),
+      ).rejects.toThrow(/give the reason none/)
+
       notify.mockClear()
-      await transmittalService.completeStage(id, { stage: "warehouse_releasing", otherSignerId: tech.id })
+      await transmittalService.completeStage(id, { stage: "warehouse_releasing", otherSignerId: tech.id, noPicturesReason: "No camera" })
 
       expect(slipRow(id).state).toBe("technical_inspection")
       expect(notify.mock.calls.map(([args]) => [args.recipient_id, args.type])).toEqual(
@@ -324,7 +329,7 @@ describe("transmittalService", () => {
       expect(slipRow(id).state).toBe("awaiting_check")
       expect(notify.mock.calls.map(([args]) => args.recipient_id)).toEqual(expect.arrayContaining([checkBy.id]))
 
-      await transmittalService.completeStage(id, { stage: "warehouse_releasing", otherSignerName: "Typed Receiver" })
+      await transmittalService.completeStage(id, { stage: "warehouse_releasing", otherSignerName: "Typed Receiver", noPicturesReason: "No camera" })
       expect(stageRow(id, "warehouse_releasing")).toMatchObject({ second_signer_name: "Typed Receiver", second_signer_id: null })
       expect(slipRow(id).state).toBe("awaiting_check")
     })

@@ -237,7 +237,7 @@ describe("releasing's Received by follows the Technical list on a Technical slip
             p_other_signer_id: ids.technical,
             p_other_signer_name: null,
             p_remarks: null,
-            p_no_pictures_reason: null,
+            p_no_pictures_reason: "none",
         })
         expect(onList.error).toBeNull()
         expect(await slipState(slip)).toBe("technical_inspection")
@@ -257,13 +257,24 @@ describe("releasing's Received by follows the Technical list on a Technical slip
         })
         expect(await slipState(slip)).toBe("awaiting_check")
 
-        const { error } = await rpc("warehouse", "transmittal_complete_stage", {
+        // Releasing too: no pictures needs a reason.
+        const noReason = await rpc("warehouse", "transmittal_complete_stage", {
             p_transmittal_id: slip,
             p_stage: "warehouse_releasing",
             p_other_signer_id: null,
             p_other_signer_name: "Typed Receiver",
             p_remarks: null,
             p_no_pictures_reason: null,
+        })
+        expect(noReason.error?.message).toMatch(/give the reason none/)
+
+        const { error } = await rpc("warehouse", "transmittal_complete_stage", {
+            p_transmittal_id: slip,
+            p_stage: "warehouse_releasing",
+            p_other_signer_id: null,
+            p_other_signer_name: "Typed Receiver",
+            p_remarks: null,
+            p_no_pictures_reason: "none",
         })
         expect(error).toBeNull()
         expect((await stageOf(slip, "warehouse_releasing")).second_signer_name).toBe("Typed Receiver")
