@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-10-15",
+        "title": "Packing Lists: printed Packing List",
+        "version": "1.9.29",
+        "changes": [
+            "Packing Lists: Print on a Packing List prints one A4 sheet: the customer and SOR, the Odoo delivery reference, each box with its marks, seal number, gross weight and contents, the box count and total known weight, and Packed by.",
+            "Packing Lists: when some boxes have no weight, the footer says how many were weighed."
+        ]
+    },
+    {
+        "date": "2026-10-15",
         "title": "Packing Lists: record and pack boxes for an SOR",
         "version": "1.9.29",
         "changes": [

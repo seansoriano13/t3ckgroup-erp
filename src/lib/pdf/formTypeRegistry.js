@@ -11,6 +11,7 @@
 
 import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './formViewModel';
 import { buildIpasViewModel } from './ipasViewModel';
+import { buildPackingListViewModel } from './packingListViewModel';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 
@@ -38,6 +39,13 @@ const FORM_TYPES = {
   // no-op that keeps the registry's contract (every type has one).
   IPAS: {
     buildViewModel: buildIpasViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #260: the Packing List prints as one A4 sheet (packingListDocument.js)
+  // from `packingListService.get`'s shape. Printing stamps nothing, so markPrinted
+  // is a no-op, as for the IPAS.
+  PACKING_LIST: {
+    buildViewModel: buildPackingListViewModel,
     markPrinted: async () => {},
   },
 };

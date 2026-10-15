@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 const PACKING_LIST_SELECT =
   "*, creator:employees!packing_lists_created_by_fkey(id, name)," +
   " packer:employees!packing_lists_packed_by_fkey(id, name)," +
-  " sor:sales_opportunities!packing_lists_opportunity_id_fkey(id, sales_reference, project_title)," +
+  " sor:sales_opportunities!packing_lists_opportunity_id_fkey(id, sales_reference, project_title, client_name)," +
   " boxes:packing_list_boxes(*, contents:packing_list_contents(*))";
 
 const PACKING_LIST_LIST_SELECT =
@@ -151,10 +151,12 @@ export function shapePackingList(row) {
     sorId: row.opportunity_id,
     sorReference: row.sor?.sales_reference ?? null,
     projectTitle: row.sor?.project_title ?? null,
+    customerName: row.sor?.client_name ?? null,
     creatorName: row.creator?.name ?? null,
     createdById: row.created_by,
     packerName: row.packer?.name ?? null,
     packedAt: row.packed_at ?? null,
+    signatureDeclined: Boolean(row.signature_declined),
     boxes: [...(row.boxes ?? [])]
       .sort((a, b) => a.box_no - b.box_no)
       .map((box) => ({
