@@ -11,6 +11,7 @@ import PageLoading from "../../../components/ui/PageLoading";
 import TabGroup from "../../../components/ui/TabGroup";
 import { Button } from "../../../components/ui/button";
 import { Checkbox } from "../../../components/ui/checkbox";
+import { SelectField } from "../../../components/ui/SelectField";
 import { TablePager } from "../../../components/ui/TablePager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { usePaging } from "../../../hooks/usePaging";
@@ -21,6 +22,7 @@ import { transmittalKeys } from "../../../components/transmittals/transmittalKey
 import {
   TRANSMITTAL_ORIGIN_LABELS,
   TRANSMITTAL_PRIORITY_LABELS,
+  TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STATE,
 } from "../../../constants/transmittals";
 
@@ -38,6 +40,23 @@ const TAB = {
   ALL: "all",
 };
 
+/** The list filters (#254): what each slip is waiting on, and whether any line is NA. */
+const FILTER = {
+  ALL: "all",
+  WAITING_WAREHOUSE: "waiting_warehouse",
+  WAITING_TECHNICAL: "waiting_technical",
+  HAS_NA: "has_na",
+  AWAITING_MY_CHECK: "awaiting_my_check",
+};
+
+const FILTER_OPTIONS = [
+  { value: FILTER.ALL, label: "All slips" },
+  { value: FILTER.WAITING_WAREHOUSE, label: "Waiting on Warehouse" },
+  { value: FILTER.WAITING_TECHNICAL, label: "Waiting on Technical" },
+  { value: FILTER.HAS_NA, label: "Has NA" },
+  { value: FILTER.AWAITING_MY_CHECK, label: "Awaiting my Check by" },
+];
+
 const HEAD = "text-label font-bold uppercase tracking-wider";
 
 function TransmittalsList() {
@@ -48,6 +67,7 @@ function TransmittalsList() {
 
   const [tab, setTab] = useState(TAB.OPEN);
   const [mineOnly, setMineOnly] = useState(false);
+  const [filter, setFilter] = useState(FILTER.ALL);
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: [...transmittalKeys.list],
@@ -60,8 +80,29 @@ function TransmittalsList() {
     if (t === TAB.CANCELLED) return row.state === TRANSMITTAL_STATE.CANCELLED;
     return true;
   };
+  const { data: myLists = [] } = useQuery({
+    queryKey: [...transmittalKeys.list, "my-lists", user?.id],
+    queryFn: () => transmittalService.myStaffLists(user?.id),
+    enabled: Boolean(user?.id),
+  });
+  const onCheckBy = myLists.includes(TRANSMITTAL_STAFF_LIST.CHECK_BY);
+
+  const matchesFilter = (row) => {
+    if (filter === FILTER.WAITING_WAREHOUSE) {
+      return [TRANSMITTAL_STATE.WAREHOUSE_CHECKING, TRANSMITTAL_STATE.WAREHOUSE_RELEASING].includes(row.state);
+    }
+    if (filter === FILTER.WAITING_TECHNICAL) return row.state === TRANSMITTAL_STATE.TECHNICAL_INSPECTION;
+    if (filter === FILTER.HAS_NA) return row.hasNa;
+    if (filter === FILTER.AWAITING_MY_CHECK) {
+      return row.state === TRANSMITTAL_STATE.AWAITING_CHECK && onCheckBy && row.preparedById !== user?.id;
+    }
+    return true;
+  };
+
   const count = (t) => rows.filter((row) => inTab(row, t)).length;
-  const visible = rows.filter((row) => inTab(row, tab) && (!mineOnly || row.preparedById === user?.id));
+  const visible = rows.filter(
+    (row) => inTab(row, tab) && (!mineOnly || row.preparedById === user?.id) && matchesFilter(row),
+  );
   const paging = usePaging(visible);
 
   const toolbar = (
@@ -78,9 +119,14 @@ function TransmittalsList() {
           { value: TAB.ALL, label: "All", badge: rows.length },
         ]}
       />
-      <div className="flex items-center gap-2 text-[13px]">
-        <Checkbox checked={mineOnly} onCheckedChange={(v) => setMineOnly(Boolean(v))} aria-label="Prepared by me" />
-        <span>Prepared by me</span>
+      <div className="flex flex-wrap items-center gap-3 text-[13px]">
+        <div className="w-56">
+          <SelectField options={FILTER_OPTIONS} value={filter} onChange={setFilter} placeholder="Filter" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox checked={mineOnly} onCheckedChange={(v) => setMineOnly(Boolean(v))} aria-label="Prepared by me" />
+          <span>Prepared by me</span>
+        </div>
       </div>
     </div>
   );

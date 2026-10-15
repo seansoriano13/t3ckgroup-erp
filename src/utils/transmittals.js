@@ -66,6 +66,14 @@ export function shapeTransmittal(row) {
     cancelReason: row.cancel_reason ?? null,
     stages: row.stages ?? [],
     evidence: row.evidence ?? [],
+    checkBy: {
+      first: row.check_by_first_id
+        ? { id: row.check_by_first_id, name: row.check_by_first?.name ?? null, at: row.check_by_first_at }
+        : null,
+      second: row.check_by_second_id
+        ? { id: row.check_by_second_id, name: row.check_by_second?.name ?? null, at: row.check_by_second_at }
+        : null,
+    },
     odooReceivedAt: row.odoo_received_at ?? null,
     odooReceivedBy: row.odoo_received_by ?? null,
     odooReceiptRef: row.odoo_receipt_ref ?? null,
@@ -94,6 +102,9 @@ export function shapeLine(row) {
     whInChargeId: row.wh_in_charge_id ?? null,
     whRating: row.wh_rating ?? null,
     whRemark: row.wh_remark ?? "",
+    techInChargeId: row.tech_in_charge_id ?? null,
+    techRating: row.tech_rating ?? null,
+    techRemark: row.tech_remark ?? "",
     quantityReceived: row.quantity_received == null ? null : Number(row.quantity_received),
   };
 }
@@ -110,9 +121,9 @@ export function evidenceOf(transmittal, stage) {
   return (transmittal?.evidence ?? []).filter((e) => e.record_id === row.id);
 }
 
-/** Whether the slip's Warehouse checking has NA on any line. */
+/** Whether the slip has NA on any line, from the Warehouse or the Technical rating. */
 export function hasNaLine(transmittal) {
-  return (transmittal?.lines ?? []).some((line) => line.whRating === "na");
+  return (transmittal?.lines ?? []).some((line) => line.whRating === "na" || line.techRating === "na");
 }
 
 /** The label a line's PO picks show: product name, then quantity and unit. */

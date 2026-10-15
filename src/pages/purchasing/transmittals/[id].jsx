@@ -16,6 +16,7 @@ import { Textarea } from "../../../components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import StatusBadge from "../../../components/StatusBadge";
 import TransmittalForm from "../../../components/transmittals/TransmittalForm";
+import { CheckBySection } from "../../../components/transmittals/CheckBySection";
 import {
   OdooReceiptSection,
   WarehouseRatings,
@@ -36,11 +37,11 @@ import {
 } from "../../../constants/transmittals";
 
 /**
- * One Transmittal (#252, #253): its header as on the paper, its lines, its
- * stages and Received in Odoo. A draft can be edited and submitted by its
- * preparer or Purchasing; a slip with no signed stage can be cancelled with a
- * reason. The Warehouse rates and signs its stages here (#253); Technical's
- * inspection arrives with #254.
+ * One Transmittal (#252, #253, #254): its header as on the paper, its lines, its
+ * stages, Received in Odoo and the Check by plates. A draft can be edited and
+ * submitted by its preparer or Purchasing; a slip with no signed stage can be
+ * cancelled with a reason. The Warehouse rates and signs its stages (#253);
+ * Technical rates and inspects (#254), then Check by signs the slip closed.
  */
 
 const STAGE_LABEL = {
@@ -111,6 +112,12 @@ function TransmittalPage() {
     onWarehouse &&
     (t.checkTechnical ? t.state === TRANSMITTAL_STATE.WAREHOUSE_RELEASING : isOpen);
   const showReleasing = stagesOf(t).includes(TRANSMITTAL_STAGE.WAREHOUSE_RELEASING) || (t.checkWarehouse && !t.checkTechnical && isOpen);
+  const onTechnical = myLists.includes(TRANSMITTAL_STAFF_LIST.TECHNICAL);
+  const onCheckBy = myLists.includes(TRANSMITTAL_STAFF_LIST.CHECK_BY);
+  const canRateTech = onTechnical && t.state === TRANSMITTAL_STATE.TECHNICAL_INSPECTION;
+  const canSignTech = canRateTech;
+  const showTechnical = stagesOf(t).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
+  const canCheck = onCheckBy;
   const canRecordOdoo =
     (onWarehouse || hasPurchasingFlow || isSuperAdmin) && isOpen && !t.odooReceivedAt;
   const members = { warehouse: warehouseMembers, technical: technicalMembers };
@@ -225,7 +232,7 @@ function TransmittalPage() {
                   <Table tableId="transmittal-lines" className="md:min-w-[48rem]">
                     <TableHeader>
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        {["#", "Item", "PO", "Project Name (S.O)", "Quantity", "SN#", "Quantity of Box", "Whs GC/NA"].map((h) => (
+                        {["#", "Item", "PO", "Project Name (S.O)", "Quantity", "SN#", "Quantity of Box", "Whs GC/NA", "TCA GC/NA"].map((h) => (
                           <TableHead key={h} className="text-label font-bold uppercase tracking-wider">
                             {h}
                           </TableHead>
@@ -245,6 +252,7 @@ function TransmittalPage() {
                           <TableCell>{line.serialNumbers || "—"}</TableCell>
                           <TableCell>{line.boxQuantity || "—"}</TableCell>
                           <TableCell>{TRANSMITTAL_RATING_LABELS[line.whRating] ?? "—"}</TableCell>
+                          <TableCell>{TRANSMITTAL_RATING_LABELS[line.techRating] ?? "—"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -308,6 +316,29 @@ function TransmittalPage() {
               />
             </section>
           )}
+
+          {showTechnical && (
+            <section className="space-y-3">
+              <p className="text-sm font-semibold">Technical inspection</p>
+              {canRateTech ? (
+                <WarehouseRatings transmittal={t} canRate technical onSaved={refresh} />
+              ) : (
+                <p className="text-[13px] text-muted-foreground">
+                  Lines are rated GC or NA by Technical while inspection is open.
+                </p>
+              )}
+              <WarehouseStageSignoff
+                transmittal={t}
+                stage={TRANSMITTAL_STAGE.TECHNICAL_INSPECTION}
+                canSign={canSignTech}
+                currentUserId={user?.id}
+                members={members}
+                onChanged={refresh}
+              />
+            </section>
+          )}
+
+          <CheckBySection transmittal={t} canCheck={canCheck} currentUserId={user?.id} onChanged={refresh} />
 
           {(t.checkWarehouse || t.stages.length > 0) && (
             <section>
