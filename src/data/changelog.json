@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-15",
+        "title": "Packing Lists: record and pack boxes for an SOR",
+        "version": "1.9.29",
+        "changes": [
+            "Packing Lists: the Warehouse records what is in each box packed for an SOR, with its marks, seal number and weight.",
+            "Packing Lists: each box's contents are typed or picked from the SOR's Product List, and keep the line as it was when picked.",
+            "Packing Lists: signing Packed by closes the list. A Packing List is under Purchasing, numbered PKL_."
+        ]
+    },
+    {
+        "date": "2026-10-15",
         "title": "Transmittals: raise and submit a TG03 slip",
         "version": "1.9.29",
         "changes": [

@@ -21,6 +21,8 @@ export function getPermissionContext(user) {
   const isIpasApprover = !!(user?.is_ipas_approver ?? user?.isIpasApprover);
   // On a Transmittal staff list (#252): reads Transmittals and the nav entry.
   const isTransmittalStaff = !!(user?.is_transmittal_staff ?? user?.isTransmittalStaff);
+  // On the Transmittal Warehouse list (#255): makes Packing Lists.
+  const isTransmittalWarehouse = !!(user?.is_transmittal_warehouse ?? user?.isTransmittalWarehouse);
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
@@ -41,6 +43,7 @@ export function getPermissionContext(user) {
     isIpasSigner,
     isIpasApprover,
     isTransmittalStaff,
+    isTransmittalWarehouse,
     hasRetailAccess,
     hasBugReportAccess,
     isRoleSimulator,

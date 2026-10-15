@@ -271,6 +271,7 @@ describe("navigation registry", () => {
         "Purchase Requests",
         "IPAS",
         "Transmittals",
+        "Packing Lists",
       ]);
     });
 
@@ -284,7 +285,7 @@ describe("navigation registry", () => {
     ])("offers IPAS to someone with %s", (_, flags) => {
       const groups = getFilteredNavigationGroups({ id: "reader", ...flags });
       const purchasing = groups.find((g) => g.key === "purchasing");
-      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests", "IPAS", "Transmittals"]);
+      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests", "IPAS", "Transmittals", "Packing Lists"]);
     });
 
     // Transmittals (#252): the four Transmittal staff lists reach the slips, not the IPAS.
