@@ -13,6 +13,10 @@ import {
 } from "../constants/transmittals";
 import { shapeTransmittal, transmittalStateLabel, tsrOf } from "../utils/transmittals";
 
+/** The raw lines of a list row that either stage rated NA. */
+const naLines = (row) =>
+  (row.lines ?? []).filter((line) => line.wh_rating === TRANSMITTAL_RATING.NA || line.tech_rating === TRANSMITTAL_RATING.NA);
+
 /** The private bucket for stage pictures and videos (#253). Paths: <transmittal>/<stage>/<uuid>-<name>. */
 export const PMS_EVIDENCE_BUCKET = "pms-evidence";
 export const PMS_EVIDENCE_MAX_BYTES = 52428800;
@@ -188,8 +192,8 @@ export const transmittalService = {
       state: row.state,
       stateLabel: transmittalStateLabel(row.state),
       lineCount: (row.lines ?? []).length,
-      naCount: (row.lines ?? []).filter((line) => line.wh_rating === TRANSMITTAL_RATING.NA || line.tech_rating === TRANSMITTAL_RATING.NA).length,
-      hasNa: (row.lines ?? []).some((line) => line.wh_rating === TRANSMITTAL_RATING.NA || line.tech_rating === TRANSMITTAL_RATING.NA),
+      naCount: naLines(row).length,
+      hasNa: naLines(row).length > 0,
       submittedAt: row.submitted_at ?? null,
       createdAt: row.created_at,
     }));

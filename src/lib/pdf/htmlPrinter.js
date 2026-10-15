@@ -255,3 +255,13 @@ export function openPrintWindow(label) {
   printWindow.document.close();
   return printWindow;
 }
+
+/** A Blob as a data URI, so a printed page holds the image without a link. */
+export function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}

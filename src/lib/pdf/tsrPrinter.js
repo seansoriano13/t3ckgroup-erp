@@ -13,7 +13,7 @@
 import { transmittalService } from '../../services/transmittalService';
 import { buildTsrDocument } from './tsrDocument';
 import { buildTsrViewModel } from './tsrViewModel';
-import { openPrintWindow, printIntoWindow } from './htmlPrinter';
+import { blobToDataUrl, openPrintWindow, printIntoWindow } from './htmlPrinter';
 
 /** Opens the window the TSR will print into. Call it synchronously in the click. Null when a popup blocker refused. */
 export function openTsrPrintWindow() {
@@ -25,13 +25,7 @@ async function dataUriOf(storagePath) {
   const url = await transmittalService.evidenceUrl(storagePath);
   const response = await fetch(url);
   if (!response.ok) throw new Error('A photograph could not be loaded for printing.');
-  const blob = await response.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
+  return blobToDataUrl(await response.blob());
 }
 
 /** Every picture on the TSR as `{ src, fileName }`. Videos are left out. */
