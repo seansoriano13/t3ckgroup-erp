@@ -13,7 +13,9 @@ const PACKING_STATE_LABELS = { draft: "Draft", packed: "Packed" };
 export const sorHandoffsService = {
   async forSor(opportunityId) {
     if (!opportunityId) return { transmittals: [], packingLists: [] };
-    const { data, error } = await supabase.rpc("handoffs_for_sor", { p_opportunity_id: opportunityId });
+    const { data, error } = await supabase.rpc("handoffs_for_sor", {
+      p_opportunity_id: opportunityId,
+    });
     if (error) throw error;
     return {
       transmittals: (data?.transmittals ?? []).map((row) => ({
@@ -21,7 +23,8 @@ export const sorHandoffsService = {
         number: row.number,
         preparedOn: row.prepared_on,
         priority: row.priority,
-        priorityLabel: TRANSMITTAL_PRIORITY_LABELS[row.priority] ?? row.priority,
+        priorityLabel:
+          TRANSMITTAL_PRIORITY_LABELS[row.priority] ?? row.priority,
         state: row.state,
         stateLabel: transmittalStateLabel(row.state),
         naCount: row.na_count ?? 0,

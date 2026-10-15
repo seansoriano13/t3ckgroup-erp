@@ -7,7 +7,8 @@ import StatusBadge from "../StatusBadge";
 import { sorHandoffsService } from "../../services/sorHandoffsService";
 
 /** Opens the full record in its own tab, so the SOR stays where it is. */
-const openTransmittal = (id) => window.open(`/purchasing/transmittals/${id}`, "_blank", "noopener");
+const openTransmittal = (id) =>
+  window.open(`/purchasing/transmittals/${id}`, "_blank", "noopener");
 
 /**
  * The Transmittals and Packing Lists section of an SOR (#257): each Transmittal
@@ -55,7 +56,12 @@ export default function HandoffsSorSection({ opportunityId }) {
               </p>
             </div>
             {t.canOpen && (
-              <Button type="button" variant="outline" size="sm" onClick={() => openTransmittal(t.id)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => openTransmittal(t.id)}
+              >
                 Open Transmittal
               </Button>
             )}
@@ -73,7 +79,10 @@ export default function HandoffsSorSection({ opportunityId }) {
                 <StatusBadge status={p.state}>{p.stateLabel}</StatusBadge>
               </p>
               <p className="text-xs text-muted-foreground">
-                {[`${p.boxCount} ${p.boxCount === 1 ? "box" : "boxes"}`, p.odooDeliveryRef && `Delivery ${p.odooDeliveryRef}`]
+                {[
+                  `${p.boxCount} ${p.boxCount === 1 ? "box" : "boxes"}`,
+                  p.odooDeliveryRef && `Delivery ${p.odooDeliveryRef}`,
+                ]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
