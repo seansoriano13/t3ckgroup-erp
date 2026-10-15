@@ -96,6 +96,27 @@ export const TRANSMITTAL_OPTION_LIST = {
 export const TRANSMITTAL_NOTIFICATION = {
   SUBMITTED: "TRANSMITTAL_SUBMITTED",
   CANCELLED: "TRANSMITTAL_CANCELLED",
+  STAGE_READY: "TRANSMITTAL_STAGE_READY",
+  CONFIRM_SIGNATURE: "TRANSMITTAL_CONFIRM_SIGNATURE",
+  NA_RAISED: "TRANSMITTAL_NA_RAISED",
+  SIGNATURE_DECLINED: "TRANSMITTAL_SIGNATURE_DECLINED",
+};
+
+/** Pictures and videos a stage may hold (pms_evidence.kind). */
+export const TRANSMITTAL_EVIDENCE_KIND = {
+  PICTURE: "picture",
+  VIDEO: "video",
+};
+
+/** GC (Good Condition) or NA (Need Attention): a line's Warehouse or TCA rating. */
+export const TRANSMITTAL_RATING = {
+  GC: "gc",
+  NA: "na",
+};
+
+export const TRANSMITTAL_RATING_LABELS = {
+  [TRANSMITTAL_RATING.GC]: "GC",
+  [TRANSMITTAL_RATING.NA]: "NA",
 };
 
 /** Error codes the service raises (TransmittalError.code). */

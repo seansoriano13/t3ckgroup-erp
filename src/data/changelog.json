@@ -17,7 +17,9 @@
             "Transmittals: a purchaser, or someone on the Warehouse or Logistics list, raises a TG03 slip from Purchasing. Its number continues the paper series.",
             "Transmittals: a slip carries PO lines from the IPAS (with their quantity), typed lines, its origin, checking, priority, products and reference checklist.",
             "Transmittals: Submit opens the first stage and tells that list. A draft can be edited until it is submitted; a slip can be cancelled with a reason until a stage is signed.",
-            "Transmittals: a new Transmittals page under Purchasing lists the slips you can read. Super Admins set the first TG03 number once, in IPAS lists settings."
+            "Transmittals: a new Transmittals page under Purchasing lists the slips you can read. Super Admins set the first TG03 number once, in IPAS lists settings.",
+            "Transmittals: the Warehouse rates each line GC or NA (an NA needs a remark), signs Warehouse checking and releasing with pictures or videos, and its co-signer confirms the signature.",
+            "Transmittals: Received in Odoo is recorded by the Warehouse or Purchasing, with its Odoo receipt reference. Pictures are readable only by the slip's readers."
         ]
     },
     {
