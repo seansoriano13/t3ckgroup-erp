@@ -13,16 +13,11 @@
 import { transmittalService } from '../../services/transmittalService';
 import { buildTsrDocument } from './tsrDocument';
 import { buildTsrViewModel } from './tsrViewModel';
-import { printIntoWindow } from './htmlPrinter';
+import { openPrintWindow, printIntoWindow } from './htmlPrinter';
 
 /** Opens the window the TSR will print into. Call it synchronously in the click. Null when a popup blocker refused. */
 export function openTsrPrintWindow() {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return null;
-  printWindow.document.open();
-  printWindow.document.write('<!DOCTYPE html><title>TSR</title><body style="font-family:system-ui,sans-serif;color:#334155;padding:32px">Preparing the TSR for printing…</body>');
-  printWindow.document.close();
-  return printWindow;
+  return openPrintWindow('TSR');
 }
 
 /** A picture's bytes as a data URI, so the printed page holds it without a link. */

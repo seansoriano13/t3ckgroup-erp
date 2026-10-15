@@ -240,3 +240,18 @@ export function printIntoWindow(printWindow, html) {
     }, 750);
   });
 }
+
+/**
+ * Opens the blank window a form will print into, with a "Preparing…" note. Call
+ * it synchronously in the click so popup blockers allow it. Null when refused.
+ */
+export function openPrintWindow(label) {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return null;
+  printWindow.document.open();
+  printWindow.document.write(
+    `<!DOCTYPE html><title>${label}</title><body style="font-family:system-ui,sans-serif;color:#334155;padding:32px">Preparing the ${label} for printing…</body>`,
+  );
+  printWindow.document.close();
+  return printWindow;
+}

@@ -14,16 +14,11 @@ import { transmittalService } from '../../services/transmittalService';
 import { signatureService } from '../../services/signatureService';
 import { buildTransmittalDocument } from './transmittalDocument';
 import { buildTransmittalViewModel } from './transmittalViewModel';
-import { printIntoWindow } from './htmlPrinter';
+import { openPrintWindow, printIntoWindow } from './htmlPrinter';
 
 /** Opens the window the Transmittal will print into. Call it synchronously in the click. Null when a popup blocker refused. */
 export function openTransmittalPrintWindow() {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return null;
-  printWindow.document.open();
-  printWindow.document.write('<!DOCTYPE html><title>Transmittal</title><body style="font-family:system-ui,sans-serif;color:#334155;padding:32px">Preparing the Transmittal for printing…</body>');
-  printWindow.document.close();
-  return printWindow;
+  return openPrintWindow('Transmittal');
 }
 
 /** A stored signature file as a data URI, so the printed plate holds the image. */

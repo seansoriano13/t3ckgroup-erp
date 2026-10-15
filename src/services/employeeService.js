@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { IPAS_SIGNER_LISTS } from "../constants/ipas";
+import { TRANSMITTAL_STAFF_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 async function prepareEmailForSave(email, currentEmployeeId = null) {
   if (!email) return null;
@@ -70,16 +71,16 @@ async function ipasListMembership(employee) {
     // The Transmittal staff lists (#252) read Transmittals, not the IPAS: a
     // member of only those is not an IPAS signer.
     const keys = (data || []).map((row) => row.list_key);
-    const ipasKeys = keys.filter((key) => !key.startsWith("transmittal_"));
+    const ipasKeys = keys.filter((key) => !TRANSMITTAL_STAFF_LISTS.includes(key));
     const readsAnyway = employee.has_purchasing_flow || employee.has_finance_flow || employee.is_super_admin;
     return {
       isIpasSigner: !readsAnyway && ipasKeys.length > 0,
       isIpasApprover: ipasKeys.some((key) => IPAS_SIGNER_LISTS.includes(key)),
-      isTransmittalStaff: keys.some((key) => key.startsWith("transmittal_")),
+      isTransmittalStaff: keys.some((key) => TRANSMITTAL_STAFF_LISTS.includes(key)),
       // On the Transmittal Warehouse list (#255): makes Packing Lists.
-      isTransmittalWarehouse: keys.includes("transmittal_warehouse"),
+      isTransmittalWarehouse: keys.includes(TRANSMITTAL_STAFF_LIST.WAREHOUSE),
       // On the Check by list: the Approval Center's Transmittal queue.
-      isTransmittalCheckBy: keys.includes("transmittal_check_by"),
+      isTransmittalCheckBy: keys.includes(TRANSMITTAL_STAFF_LIST.CHECK_BY),
     };
   } catch {
     return none;

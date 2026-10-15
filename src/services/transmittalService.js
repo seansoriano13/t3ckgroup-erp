@@ -9,6 +9,7 @@ import {
   TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STAFF_LISTS,
   TRANSMITTAL_OPTION_LIST,
+  TRANSMITTAL_RATING,
 } from "../constants/transmittals";
 import { shapeTransmittal, transmittalStateLabel, tsrOf } from "../utils/transmittals";
 
@@ -187,8 +188,8 @@ export const transmittalService = {
       state: row.state,
       stateLabel: transmittalStateLabel(row.state),
       lineCount: (row.lines ?? []).length,
-      naCount: (row.lines ?? []).filter((line) => line.wh_rating === "na" || line.tech_rating === "na").length,
-      hasNa: (row.lines ?? []).some((line) => line.wh_rating === "na" || line.tech_rating === "na"),
+      naCount: (row.lines ?? []).filter((line) => line.wh_rating === TRANSMITTAL_RATING.NA || line.tech_rating === TRANSMITTAL_RATING.NA).length,
+      hasNa: (row.lines ?? []).some((line) => line.wh_rating === TRANSMITTAL_RATING.NA || line.tech_rating === TRANSMITTAL_RATING.NA),
       submittedAt: row.submitted_at ?? null,
       createdAt: row.created_at,
     }));

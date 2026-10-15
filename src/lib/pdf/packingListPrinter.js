@@ -13,16 +13,11 @@
 import { packingListService } from '../../services/packingListService';
 import { buildPackingListDocument } from './packingListDocument';
 import { buildPackingListViewModel } from './packingListViewModel';
-import { printIntoWindow } from './htmlPrinter';
+import { openPrintWindow, printIntoWindow } from './htmlPrinter';
 
 /** Opens the window the Packing List will print into. Call it synchronously in the click. Null when a popup blocker refused. */
 export function openPackingListPrintWindow() {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return null;
-  printWindow.document.open();
-  printWindow.document.write('<!DOCTYPE html><title>Packing List</title><body style="font-family:system-ui,sans-serif;color:#334155;padding:32px">Preparing the Packing List for printing…</body>');
-  printWindow.document.close();
-  return printWindow;
+  return openPrintWindow('Packing List');
 }
 
 /** Prints one Packing List into `printWindow`. Closes the window and rethrows on failure, so no blank tab is left. */
