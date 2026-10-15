@@ -28,7 +28,7 @@ import { escapeHtml as esc, sigBlock } from './sigBlock';
 
 const PAGE_COUNT = 2;
 
-const CSS = `
+export const CSS = `
   :root {
     --paper: #ffffff; --ink: #221F1A; --ink-mid: #4A463F; --ink-soft: #4A463F; --ink-faint: #6E6A61;
     --rule: #C6C1B8; --hair: #E3E0D9; --wash: #F2F0EA;

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Printer, Send, Trash2 } from "lucide-react";
+import { openPackingListPrintWindow, printPackingList } from "../../../lib/pdf/packingListPrinter";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
@@ -234,6 +235,20 @@ function PackingListPage() {
     }
   };
 
+  // The window opens in the click (popup blockers allow only that); the list loads into it.
+  const printList = async () => {
+    const printWindow = openPackingListPrintWindow();
+    if (!printWindow) {
+      toast.error("Popup blocked. Allow popups to print.");
+      return;
+    }
+    try {
+      await printPackingList(id, { printWindow });
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
   const pack = async () => {
     if (!window.confirm(`Sign Packed by and close ${list.number}? It can't be changed after.`)) return;
     setPacking(true);
@@ -261,12 +276,20 @@ function PackingListPage() {
       title={list ? list.number : "Packing List"}
       description={list ? `${list.sorReference ?? ""}${list.projectTitle ? ` · ${list.projectTitle}` : ""}` : undefined}
       action={
-        <Button variant="outline" size="sm" asChild className="gap-1.5">
-          <Link to="/purchasing/packing-lists">
-            <ArrowLeft size={14} />
-            Packing Lists
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {list && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={printList}>
+              <Printer size={14} />
+              Print
+            </Button>
+          )}
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <Link to="/purchasing/packing-lists">
+              <ArrowLeft size={14} />
+              Packing Lists
+            </Link>
+          </Button>
+        </div>
       }
     >
       {isLoading && <PageLoading label="Packing List" />}
