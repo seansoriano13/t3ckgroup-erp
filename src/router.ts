@@ -32,6 +32,8 @@ export type Path =
   | `/purchasing/ipas`
   | `/purchasing/ipas/:id`
   | `/purchasing/ipas/settings`
+  | `/purchasing/packing-lists`
+  | `/purchasing/packing-lists/:id`
   | `/purchasing/transmittals`
   | `/purchasing/transmittals/:id`
   | `/purchasing/transmittals/new`
@@ -54,6 +56,7 @@ export type Path =
 export type Params = {
   '/flow-versions/:snapshotId': { snapshotId: string }
   '/purchasing/ipas/:id': { id: string }
+  '/purchasing/packing-lists/:id': { id: string }
   '/purchasing/transmittals/:id': { id: string }
   '/verify/:token': { token: string }
 }
