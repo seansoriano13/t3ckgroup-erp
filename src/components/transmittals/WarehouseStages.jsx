@@ -23,25 +23,33 @@ import { TRANSMITTAL_RATING, TRANSMITTAL_STAGE } from "../../constants/transmitt
 const STAGE_SIGNERS = {
   [TRANSMITTAL_STAGE.WAREHOUSE_CHECKING]: { first: "Received by", second: "Inspected by" },
   [TRANSMITTAL_STAGE.WAREHOUSE_RELEASING]: { first: "Released by", second: "Received by" },
+  [TRANSMITTAL_STAGE.TECHNICAL_INSPECTION]: { first: "Inspected by", second: "Received by" },
 };
 
 const STAGE_TITLE = {
   [TRANSMITTAL_STAGE.WAREHOUSE_CHECKING]: "Warehouse checking",
   [TRANSMITTAL_STAGE.WAREHOUSE_RELEASING]: "Warehouse releasing",
+  [TRANSMITTAL_STAGE.TECHNICAL_INSPECTION]: "Technical inspection",
 };
 
 const formatWhen = (value) => (value ? new Date(value).toLocaleString() : "");
 
 const caption = "text-label font-bold uppercase tracking-wider text-muted-foreground";
 
-/** The ratings table: GC or NA per line, a remark on NA, a quantity received where it differs. */
-export function WarehouseRatings({ transmittal, canRate, onSaved }) {
+/**
+ * The ratings table: GC or NA per line, a remark on NA. The Warehouse also
+ * gives a quantity received where it differs; `technical` rates the TCA side
+ * (Technical inspection) instead, with no quantity.
+ */
+export function WarehouseRatings({ transmittal, canRate, onSaved, technical = false }) {
+  const ratingOf = (line) => (technical ? line.techRating : line.whRating);
+  const remarkOf = (line) => (technical ? line.techRemark : line.whRemark);
   const initial = Object.fromEntries(
     transmittal.lines.map((line) => [
       line.id,
       {
-        rating: line.whRating,
-        remark: line.whRemark ?? "",
+        rating: ratingOf(line),
+        remark: remarkOf(line) ?? "",
         quantityReceived: line.quantityReceived == null ? "" : String(line.quantityReceived),
       },
     ]),
@@ -58,7 +66,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved }) {
         lineId: line.id,
         rating: draft[line.id].rating,
         remark: draft[line.id].remark,
-        quantityReceived: draft[line.id].quantityReceived,
+        quantityReceived: technical ? null : draft[line.id].quantityReceived,
       }));
     setBusy(true);
     try {
@@ -78,7 +86,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved }) {
         <Table tableId="transmittal-ratings" className="md:min-w-[48rem]">
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              {["#", "Item", "Quantity", "Rating", "Remark (NA needs one)", "Quantity received"].map((h) => (
+              {["#", "Item", "Quantity", "Rating", "Remark (NA needs one)", ...(technical ? [] : ["Quantity received"])].map((h) => (
                 <TableHead key={h} className={caption}>
                   {h}
                 </TableHead>
@@ -120,22 +128,24 @@ export function WarehouseRatings({ transmittal, canRate, onSaved }) {
                         onChange={(e) => setRow(line.id, { remark: e.target.value })}
                       />
                     ) : (
-                      <span className="text-muted-foreground">{line.whRemark || "—"}</span>
+                      <span className="text-muted-foreground">{remarkOf(line) || "—"}</span>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="any"
-                      className="w-28"
-                      value={row.quantityReceived ?? ""}
-                      disabled={!canRate || busy}
-                      aria-label={`Quantity received for line ${line.position}`}
-                      placeholder="Same"
-                      onChange={(e) => setRow(line.id, { quantityReceived: e.target.value })}
-                    />
-                  </TableCell>
+                  {!technical && (
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="w-28"
+                        value={row.quantityReceived ?? ""}
+                        disabled={!canRate || busy}
+                        aria-label={`Quantity received for line ${line.position}`}
+                        placeholder="Same"
+                        onChange={(e) => setRow(line.id, { quantityReceived: e.target.value })}
+                      />
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}
@@ -154,7 +164,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved }) {
 }
 
 /**
- * One Warehouse stage (checking or releasing): its pictures and videos, its
+ * One stage (Warehouse checking, releasing or Technical inspection): its pictures and videos, its
  * remarks, the other signatory, and Complete. Once signed, the signatures and
  * the co-signer's confirm / decline. `members` are the staff lists' names for
  * the pickers: `{ warehouse, technical }`.
@@ -171,20 +181,25 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
   const [busy, setBusy] = useState(false);
 
   const isCheckingStage = stage === TRANSMITTAL_STAGE.WAREHOUSE_CHECKING;
+  const isTechnicalStage = stage === TRANSMITTAL_STAGE.TECHNICAL_INSPECTION;
   const receiverFromTechnical = stage === TRANSMITTAL_STAGE.WAREHOUSE_RELEASING && transmittal.checkTechnical;
-  const otherOptions = (isCheckingStage ? members.warehouse : receiverFromTechnical ? members.technical : [])
+  // The other signatory is picked from a list on every stage but a typed Warehouse releasing.
+  const pickOther = isCheckingStage || isTechnicalStage || receiverFromTechnical;
+  const otherOptions = (isCheckingStage ? members.warehouse : pickOther ? members.technical : [])
     .filter((m) => m.id !== currentUserId)
     .map((m) => ({ value: m.id, label: m.name }));
 
-  const unrated = transmittal.lines.filter((line) => !line.whRating || !line.whInChargeId).length;
-  const needsReason = isCheckingStage && files.length === 0;
-  const blocker = isCheckingStage && unrated > 0
+  const unrated = transmittal.lines.filter((line) =>
+    isTechnicalStage ? !line.techRating || !line.techInChargeId : !line.whRating || !line.whInChargeId,
+  ).length;
+  const needsReason = (isCheckingStage || isTechnicalStage) && files.length === 0;
+  const blocker = (isCheckingStage || isTechnicalStage) && unrated > 0
     ? `${unrated} line${unrated === 1 ? "" : "s"} still need a GC or NA rating.`
     : needsReason && noPicturesReason.trim() === ""
       ? "Attach a picture or video, or give the reason none."
-      : (receiverFromTechnical || isCheckingStage) && !otherId
+      : pickOther && !otherId
         ? "Pick the other signatory."
-        : !receiverFromTechnical && !isCheckingStage && !otherName.trim()
+        : !pickOther && !otherName.trim()
           ? "Type who received the goods."
           : null;
 
@@ -346,12 +361,12 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
                 <Input value={noPicturesReason} onChange={(e) => setNoPicturesReason(e.target.value)} disabled={busy} />
               </FieldBox>
             )}
-            {(isCheckingStage || receiverFromTechnical) && (
+            {pickOther && (
               <FieldBox label={isCheckingStage ? "Inspected by" : "Received by"} bare>
                 <SelectField options={otherOptions} value={otherId} onChange={setOtherId} placeholder="Pick a name" />
               </FieldBox>
             )}
-            {!isCheckingStage && !receiverFromTechnical && (
+            {!pickOther && (
               <FieldBox label="Received by (typed name)" bare>
                 <Input value={otherName} onChange={(e) => setOtherName(e.target.value)} disabled={busy} />
               </FieldBox>

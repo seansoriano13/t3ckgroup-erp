@@ -19,6 +19,8 @@ const TRANSMITTAL_SELECT =
   " item_location:ipas_options!transmittals_item_location_id_fkey(id, label)," +
   " products:transmittal_products(option:ipas_options(id, label))," +
   " references:transmittal_references(option:ipas_options(id, label))," +
+  " check_by_first:employees!transmittals_check_by_first_id_fkey(id, name)," +
+  " check_by_second:employees!transmittals_check_by_second_id_fkey(id, name)," +
   " stages:transmittal_stages(*, first_signer:employees!transmittal_stages_first_signer_id_fkey(id, name))," +
   " evidence:pms_evidence(id, record_id, kind, storage_path, file_name, mime_type, size_bytes, uploaded_by, created_at)," +
   " lines:transmittal_lines(*, ipas:ipas!transmittal_lines_ipas_id_fkey(id, number, po_number)," +
@@ -26,7 +28,7 @@ const TRANSMITTAL_SELECT =
 
 const TRANSMITTAL_LIST_SELECT =
   "id, number, prepared_on, prepared_by, origin, priority, entity, state, submitted_at, created_at," +
-  " preparer:employees!transmittals_prepared_by_fkey(id, name), lines:transmittal_lines(id, wh_rating)";
+  " preparer:employees!transmittals_prepared_by_fkey(id, name), lines:transmittal_lines(id, wh_rating, tech_rating)";
 
 /**
  * A Transmittal error the screen can word: `code` is one of TRANSMITTAL_ERROR.
@@ -112,7 +114,7 @@ export const transmittalService = {
       state: row.state,
       stateLabel: transmittalStateLabel(row.state),
       lineCount: (row.lines ?? []).length,
-      hasNa: (row.lines ?? []).some((line) => line.wh_rating === "na"),
+      hasNa: (row.lines ?? []).some((line) => line.wh_rating === "na" || line.tech_rating === "na"),
       submittedAt: row.submitted_at ?? null,
       createdAt: row.created_at,
     }));
@@ -288,6 +290,26 @@ export const transmittalService = {
         title: `${data.number ?? "A Transmittal"}: signature declined`,
         message: "The co-signer declined the signature on your stage. Check it with them.",
         reference_id: data.id,
+      });
+    }
+    return data;
+  },
+
+  /**
+   * Signs one Check by slot (1 or 2) on a slip awaiting Check by. The second
+   * signature closes the slip and the preparer hears of it. Returns the RPC result.
+   */
+  async checkBy(id, slot) {
+    const { data, error } = await supabase.rpc("transmittal_check", { p_transmittal_id: id, p_slot: slot });
+    if (error) throw error;
+
+    if (data?.notify_id) {
+      await notificationService.createNotification({
+        recipient_id: data.notify_id,
+        type: TRANSMITTAL_NOTIFICATION.CLOSED,
+        title: `${data.number} is closed`,
+        message: `TG03 ${data.number} passed Check by and is closed.`,
+        reference_id: id,
       });
     }
     return data;
