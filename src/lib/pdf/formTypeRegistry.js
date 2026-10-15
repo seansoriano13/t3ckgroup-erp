@@ -13,6 +13,7 @@ import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './fo
 import { buildIpasViewModel } from './ipasViewModel';
 import { buildPackingListViewModel } from './packingListViewModel';
 import { buildTransmittalViewModel } from './transmittalViewModel';
+import { buildTsrViewModel } from './tsrViewModel';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 
@@ -53,6 +54,12 @@ const FORM_TYPES = {
   // `transmittalService.get`'s shape. Printing stamps nothing, so markPrinted is a no-op.
   TRANSMITTAL: {
     buildViewModel: buildTransmittalViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #259: the TSR prints as one A4 sheet (tsrDocument.js) from a TSR record.
+  // Printing stamps nothing, so markPrinted is a no-op.
+  TSR: {
+    buildViewModel: buildTsrViewModel,
     markPrinted: async () => {},
   },
 };
