@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
+import { transmittalService } from "./transmittalService";
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUSES,
@@ -255,7 +256,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, documents, bank, signoffs] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -277,6 +278,7 @@ export const ipasService = {
       supabase.from("ipas_options").select("*"),
       supabase.from("ipas_documents").select("*").eq("ipas_id", id).order("created_at", { ascending: true }),
       readBankDetails(id),
+      transmittalService.forIpas(id),
       supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
     ]);
     for (const result of [events, payments, charges, options, documents, signoffs]) {
@@ -290,6 +292,7 @@ export const ipasService = {
       documents: documents.data || [],
       options: options.data || [],
       signoffs: signoffs.data || [],
+      slips,
     };
 
     return {

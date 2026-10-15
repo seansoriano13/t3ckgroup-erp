@@ -1,15 +1,17 @@
+import { Link } from "react-router";
 import { DetailRow } from "../ui/DetailParts";
 import { SelectField } from "../ui/SelectField";
 import { IpasSection } from "./IpasSections";
 import { IPAS_OPTION_LIST, ipasSectionLabel } from "../../constants/ipas";
-import { optionsForPicker } from "../../utils/ipasPayments";
+import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
 import { useEditable } from "./record/sectionChrome";
 
 const NONE = "__none__";
 
 /**
- * Section 5, Logistics (#246): the typed Item Location, picked from the list the
- * business edits. TG03 Location is gone.
+ * Section 5, Logistics (#246, #256): the typed Item Location, picked from the
+ * list the business edits (the Transmittals' Item Location shows until one is
+ * typed), and the TG03 Transmittals carrying this IPAS's lines, with links.
  *
  *   canChange   Purchasing on an open IPAS
  */
@@ -22,6 +24,7 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick 
       label: option.active ? option.label : `${option.label} (deactivated)`,
     })),
   ];
+  const transmittals = ipas.slips ?? [];
 
   return (
     <IpasSection title={ipasSectionLabel("logistics")}>
@@ -36,10 +39,39 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick 
               aria-label="Item Location"
             />
           ) : (
-            ipas.itemLocation?.label
+            <>
+              {ipas.itemLocation?.label}
+              {ipas.itemLocation && ipas.itemLocationSource === "transmittals" && (
+                <span className="ml-2 text-xs text-muted-foreground">from the TG03 Transmittals</span>
+              )}
+            </>
           )}
         </DetailRow>
       </dl>
+      <div className="mt-3" data-testid="ipas-transmittals">
+        <p className="text-xs font-medium text-muted-foreground">Transmittals (TG03)</p>
+        {transmittals.length === 0 ? (
+          <p className="mt-1 text-sm text-muted-foreground">No Transmittal carries this IPAS yet.</p>
+        ) : (
+          <ul className="mt-1 divide-y divide-border">
+            {transmittals.map((slip) => (
+              <li key={slip.id} className="flex flex-wrap items-center gap-x-3 py-2 text-sm">
+                <Link to={`/purchasing/transmittals/${slip.id}`} className="font-medium text-foreground underline-offset-2 hover:underline">
+                  {slip.number}
+                </Link>
+                {slip.date && <span className="text-xs text-muted-foreground">{formatDay(slip.date)}</span>}
+                {slip.priority && <span className="text-xs capitalize text-muted-foreground">{slip.priority}</span>}
+                <span className="text-xs text-muted-foreground">{slip.stateLabel}</span>
+                {slip.naCount > 0 && (
+                  <span className="text-xs font-medium text-amber-11">
+                    {slip.naCount} NA {slip.naCount === 1 ? "line" : "lines"}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </IpasSection>
   );
 }

@@ -83,6 +83,34 @@ export const transmittalService = {
     return data;
   },
 
+  /**
+   * The submitted, uncancelled Transmittals that carry a PO line of this IPAS,
+   * with their stages and ratings (#256). Raw rows, for utils/ipasTransmittals.js.
+   * The database returns only what the caller may read.
+   */
+  async forIpas(ipasId) {
+    if (!ipasId) return [];
+    const { data: links, error: linkError } = await supabase
+      .from("transmittal_lines")
+      .select("transmittal_id")
+      .eq("ipas_id", ipasId);
+    if (linkError) throw linkError;
+    const ids = [...new Set((links ?? []).map((row) => row.transmittal_id))];
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from("transmittals")
+      .select(
+        "id, number, prepared_on, created_at, priority, state, check_warehouse, check_technical, item_location_id," +
+          " stages:transmittal_stages(stage, completed_at), lines:transmittal_lines(wh_rating, tech_rating)",
+      )
+      .in("id", ids)
+      .neq("state", "draft")
+      .neq("state", "cancelled");
+    if (error) throw error;
+    return data ?? [];
+  },
+
   /** One Transmittal, shaped for the page (see utils/transmittals.js). Null when it isn't visible. */
   async get(id) {
     const { data, error } = await supabase.from("transmittals").select(TRANSMITTAL_SELECT).eq("id", id).maybeSingle();
