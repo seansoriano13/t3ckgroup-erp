@@ -14,7 +14,7 @@ const svc = () => serviceClient()
 const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 
 let poSeq = 0
-const nextPo = () => `P9${String(95000 + (poSeq += 1)).padStart(6, "0")}`
+const nextPo = () => `P8${String(30000 + (poSeq += 1)).padStart(6, "0")}`
 
 const odooCopy = (po) => ({
     po: { id: 992000 + poSeq, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },

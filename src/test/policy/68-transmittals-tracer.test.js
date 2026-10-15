@@ -21,7 +21,7 @@ const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 
 let poSeq = 0
 /** A PO number nothing else in the tier uses. */
-const nextPo = () => `P9${String(80000 + (poSeq += 1)).padStart(6, "0")}`
+const nextPo = () => `P8${String(10000 + (poSeq += 1)).padStart(6, "0")}`
 
 const odooCopy = (po, company = "T3ck Trading") => ({
     po: { id: 881000 + poSeq, name: po, state: "purchase", company, company_id: 1, currency: "Php", origin: null, partner_ref: null },

@@ -6182,10 +6182,13 @@ declare
   v_packing_lists jsonb := '[]'::jsonb;
 begin
   select * into v_sor from public.sales_opportunities o where o.id = p_opportunity_id;
-  if not found or not (
+  -- coalesce: an SOR with an empty deal-team column makes sor_is_deal_team NULL,
+  -- and `not NULL` would skip this refusal and leak the handoffs to a non-reader.
+  if not found or not coalesce(
     public.is_super_admin()
     or public.sor_is_deal_team(v_sor, v_actor)
-    or public.sor_always_sees(v_sor, v_actor)
+    or public.sor_always_sees(v_sor, v_actor),
+    false
   ) then
     return jsonb_build_object('transmittals', v_transmittals, 'packing_lists', v_packing_lists);
   end if;
