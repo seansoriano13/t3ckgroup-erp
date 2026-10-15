@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
+import { transmittalService } from "./transmittalService";
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUSES,
@@ -49,6 +50,7 @@ import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
+import { TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
@@ -254,7 +256,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, documents, bank, signoffs] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -276,6 +278,7 @@ export const ipasService = {
       supabase.from("ipas_options").select("*"),
       supabase.from("ipas_documents").select("*").eq("ipas_id", id).order("created_at", { ascending: true }),
       readBankDetails(id),
+      transmittalService.forIpas(id),
       supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
     ]);
     for (const result of [events, payments, charges, options, documents, signoffs]) {
@@ -289,6 +292,7 @@ export const ipasService = {
       documents: documents.data || [],
       options: options.data || [],
       signoffs: signoffs.data || [],
+      slips,
     };
 
     return {
@@ -1234,7 +1238,8 @@ export const ipasService = {
       .order("created_at", { ascending: true });
     if (error) throw error;
 
-    const lists = Object.fromEntries(IPAS_SIGNER_LISTS.map((key) => [key, []]));
+    // The Transmittal staff lists (#252) live in the same table.
+    const lists = Object.fromEntries([...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS].map((key) => [key, []]));
     for (const row of data || []) {
       if (!lists[row.list_key]) continue;
       lists[row.list_key].push({

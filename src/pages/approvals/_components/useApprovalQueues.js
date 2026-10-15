@@ -1,10 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, ClipboardCheck, ReceiptText, ShieldCheck } from "lucide-react";
+import { CalendarClock, ClipboardCheck, PackageCheck, ReceiptText, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { taskService } from "../../../services/taskService.js";
 import { headApprovalService } from "../../../services/headApprovalService";
+import { transmittalService } from "../../../services/transmittalService";
+import { TRANSMITTAL_STAFF_LIST } from "../../../constants/transmittals";
 import {
   selectHrPending,
   selectHrVerified,
@@ -46,10 +48,24 @@ export const APPROVAL_QUEUES = [
     icon: ReceiptText,
     can: (r) => r.isIpasApprover,
   },
+  {
+    key: "transmittals",
+    path: "/approvals/transmittals",
+    label: "Transmittal Check by",
+    icon: PackageCheck,
+    can: (r) => r.isTransmittalCheckBy,
+  },
 ];
 
 export function useApprovalRoles() {
   const { user } = useAuth();
+  // The Transmittal staff lists the signed-in person is on (own rows only).
+  const listsQuery = useQuery({
+    queryKey: ["transmittalStaffLists", user?.id],
+    queryFn: () => transmittalService.myStaffLists(user.id),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
   return {
     user,
     isSuperAdmin: user?.is_super_admin === true || user?.isSuperAdmin === true,
@@ -58,6 +74,9 @@ export function useApprovalRoles() {
     isHr: user?.is_hr === true || user?.isHr === true,
     // On the section 1 or 3 approval list; a Super Admin only when on one.
     isIpasApprover: user?.is_ipas_approver === true || user?.isIpasApprover === true,
+    // On the Transmittal Check by list (#254); only a list member sees the queue.
+    isTransmittalCheckBy: (listsQuery.data ?? []).includes(TRANSMITTAL_STAFF_LIST.CHECK_BY),
+    isTransmittalListsLoading: !!user?.id && listsQuery.isLoading,
   };
 }
 

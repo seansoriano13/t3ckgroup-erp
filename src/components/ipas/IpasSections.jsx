@@ -512,6 +512,13 @@ function SourceNote({ item }) {
     case IPAS_STATUS_SOURCE.ODOO:
       return <OdooMark>stamped from Odoo</OdooMark>;
     case IPAS_STATUS_SOURCE.DERIVED:
+      if (item.via === "transmittals") {
+        return (
+          <span className="text-xs font-medium text-muted-foreground">
+            {item.ticked ? "stamped from TG03 Transmittals" : "from TG03 Transmittals"}
+          </span>
+        );
+      }
       return <span className="text-xs font-medium text-muted-foreground">derived from payments</span>;
     case IPAS_STATUS_SOURCE.TYPED:
       return (

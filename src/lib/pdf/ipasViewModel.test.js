@@ -358,7 +358,7 @@ describe("the page's content", () => {
   })
 
   it("carries section 5's Item Location", () => {
-    expect(vm().section5).toEqual({ itemLocation: "BM Office" })
+    expect(vm().section5).toEqual({ itemLocation: "BM Office", tg03: [] })
   })
 
   it("prints Supplier Origin on an Import IPAS and leaves it out of a Local one", () => {

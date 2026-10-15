@@ -15,6 +15,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { API_URL, ANON_KEY, serviceClient, sql } from "./stack.js"
 import { purgeFixtureIpas } from "./ipas.js"
+import { purgeFixtureTransmittals } from "./transmittals.js"
 
 /** Shared by every cast member. Local stack only; nothing here is a secret. */
 export const CAST_PASSWORD = "policy-tier-fixture-password"
@@ -37,7 +38,7 @@ const slug = (key) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
 const email = (key) => `${slug(key)}@${FIXTURE_DOMAIN}`
 
 /**
- * Fifteen identities, covering every distinct shape the policies discriminate on.
+ * Nineteen identities, covering every distinct shape the policies discriminate on.
  * `deleted` is soft-deleted rather than absent, because `is_deleted` is a
  * column the application filters on and a policy mostly does not.
  */
@@ -150,6 +151,33 @@ export const CAST = {
         sub_department: null,
         role: "GENERAL MANAGER",
     },
+    // Transmittal staff (#252): plain employees, no flags. Each is put on one
+    // Transmittal staff list by the test that needs it, so reading a Transmittal
+    // can only be list membership doing the work.
+    warehouse: {
+        name: "Warehouse Staff",
+        department: "OPERATIONS",
+        sub_department: "WAREHOUSE",
+        role: "WAREHOUSE STAFF",
+    },
+    technical: {
+        name: "TCA Technical",
+        department: "OPERATIONS",
+        sub_department: "TECHNICAL",
+        role: "TECHNICAL STAFF",
+    },
+    logistics: {
+        name: "Logistics Staff",
+        department: "OPERATIONS",
+        sub_department: "LOGISTICS",
+        role: "LOGISTICS STAFF",
+    },
+    checkByTwo: {
+        name: "Check By Second Signer",
+        department: "ADMINISTRATION",
+        sub_department: null,
+        role: "GENERAL MANAGER",
+    },
     superAdmin: {
         name: "Super Admin",
         department: "ADMINISTRATION",
@@ -246,6 +274,8 @@ export async function teardownCast() {
 
     // IPAS history can't be deleted by anyone, so IPAS go by the one route
     // that switches the triggers off (support/ipas.js), before their employees.
+    // Transmittals and Packing Lists hold IPAS, SORs and employees, so they go first.
+    await purgeFixtureTransmittals(`%@${FIXTURE_DOMAIN}`)
     await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)
 
     // Rows this tier creates reference employees, so they go first. Each entry

@@ -373,8 +373,17 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     signoffs: signoffPair(3, ipas.signoffSections?.[3]),
   };
 
-  // ── Section 5 ── (the Transmittals list joins in build step 2)
-  const section5 = { itemLocation: text(ipas.itemLocation?.label) };
+  // ── Section 5 ── Item Location and the Transmittals carrying the IPAS (#256)
+  const section5 = {
+    itemLocation: text(ipas.itemLocation?.label),
+    tg03: (ipas.slips ?? []).map((slip) => ({
+      number: text(slip.number),
+      date: text(slip.date),
+      priority: text(slip.priority),
+      stateLabel: text(slip.stateLabel),
+      naCount: slip.naCount ?? 0,
+    })),
+  };
 
   // ── Section 6 ──
   const origin = ipas.supplierOrigin

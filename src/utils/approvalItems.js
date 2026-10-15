@@ -11,6 +11,7 @@
 
 import { TASK_STATUS } from "../constants/status.js";
 import { IPAS_PRIORITY, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../constants/ipas.js";
+import { TRANSMITTAL_ORIGIN_LABELS, TRANSMITTAL_PRIORITY } from "../constants/transmittals.js";
 import { checklistProgressLabel, isChecklistDescription, isStaleSince } from "./approvalQueue.js";
 
 export const LEAVE_LABEL = { SIL: "SIL Leave", OFFSET: "Offset", OVERTIME: "Overtime", UNDERTIME: "Undertime" };
@@ -166,6 +167,36 @@ export function leaveToItem(request, now = Date.now()) {
         attachmentCount: 0,
         chain: leaveChain(request),
         source: request,
+    };
+}
+
+/**
+ * A Transmittal slip awaiting Check by as an ApprovalItem (#254). The slip is
+ * the source; the row opens its page, where the Check by plates are signed.
+ */
+export function transmittalToItem(slip, now = Date.now()) {
+    const clockAt = slip.submittedAt ?? slip.createdAt;
+    return {
+        id: slip.id,
+        queue: "transmittals",
+        ref: slip.number,
+        title: slip.entity || slip.number,
+        typeLabel: "TG03 · Check by",
+        // `list()` shapes the preparer as a plain name.
+        person: {
+            id: slip.preparedById,
+            name: slip.preparedBy || "Unknown",
+            avatarPath: null,
+            dept: TRANSMITTAL_ORIGIN_LABELS[slip.origin] ?? "",
+        },
+        submittedAt: clockAt,
+        clockAt,
+        isStale: isStaleSince(clockAt, now),
+        done: false,
+        isHighPriority: slip.priority === TRANSMITTAL_PRIORITY.HIGH,
+        attachmentCount: 0,
+        chain: [],
+        source: slip,
     };
 }
 

@@ -159,7 +159,7 @@ const person = (embed) => (embed?.id ? { id: embed.id, name: embed.name ?? null 
  * `odoo` is `odooStatuses(copy)`, `hasProof` is `paymentSummary.hasProof`, and
  * `row` is the ipas row with its typist embeds.
  */
-export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0 } = {}) {
+export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, transmittal = null } = {}) {
   const isImport = row?.source === IPAS_SOURCE.IMPORT;
 
   const items = [
@@ -198,17 +198,7 @@ export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0 } 
   }
 
   items.push(
-    {
-      key: "delivered",
-      label: "Delivered",
-      ticked: Boolean(row?.delivered_on),
-      partial: false,
-      source: IPAS_STATUS_SOURCE.TYPED,
-      detail: null,
-      on: row?.delivered_on ?? null,
-      by: person(row?.delivered_typer),
-      at: row?.delivered_typed_at ?? null,
-    },
+    deliveredItem(row, transmittal),
     {
       key: "received_in_odoo",
       label: "Received in Odoo",
@@ -225,17 +215,75 @@ export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0 } 
       source: IPAS_STATUS_SOURCE.ODOO,
       detail: null,
     },
-    {
-      key: "actual_checking",
-      label: "Actual Checking",
-      ticked: Boolean(row?.actual_checking_by),
-      partial: false,
-      source: IPAS_STATUS_SOURCE.STAMPED,
-      detail: null,
-      by: person(row?.actual_checker),
-      at: row?.actual_checking_at ?? null,
-    },
+    actualCheckingItem(row, transmittal),
   );
 
   return items;
+}
+
+/**
+ * Delivered (#256): the typed date when one is typed, else the earliest
+ * first-stage completion over the Transmittals (stamped from them), else typed.
+ */
+function deliveredItem(row, transmittal) {
+  const derived = transmittal?.delivered;
+  if (derived && derived.source !== IPAS_STATUS_SOURCE.TYPED) {
+    return {
+      key: "delivered",
+      label: "Delivered",
+      ticked: Boolean(derived.on),
+      partial: false,
+      source: IPAS_STATUS_SOURCE.DERIVED,
+      via: "transmittals",
+      detail: null,
+      on: derived.on,
+      by: null,
+      at: derived.on,
+    };
+  }
+  return {
+    key: "delivered",
+    label: "Delivered",
+    ticked: Boolean(row?.delivered_on),
+    partial: false,
+    source: IPAS_STATUS_SOURCE.TYPED,
+    detail: null,
+    on: row?.delivered_on ?? null,
+    by: person(row?.delivered_typer),
+    at: row?.delivered_typed_at ?? null,
+  };
+}
+
+/**
+ * Actual Checking (#256): with no Transmittal, the hand stamp (Purchasing). With
+ * one, pending (n of m) until every slip has completed its checking stage, then
+ * stamped at the latest completion. The hand stamp is refused by then.
+ */
+function actualCheckingItem(row, transmittal) {
+  const checking = transmittal?.actualChecking;
+  if (checking && checking.status !== "none") {
+    const stamped = checking.status === "stamped";
+    return {
+      key: "actual_checking",
+      label: "Actual Checking",
+      ticked: stamped,
+      partial: !stamped,
+      source: IPAS_STATUS_SOURCE.DERIVED,
+      via: "transmittals",
+      detail: stamped ? null : `pending (${checking.done} of ${checking.total})`,
+      on: stamped ? checking.at : null,
+      by: null,
+      at: stamped ? checking.at : null,
+    };
+  }
+  return {
+    key: "actual_checking",
+    label: "Actual Checking",
+    ticked: Boolean(row?.actual_checking_by),
+    partial: false,
+    source: IPAS_STATUS_SOURCE.STAMPED,
+    detail: null,
+    by: person(row?.actual_checker),
+    at: row?.actual_checking_at ?? null,
+  };
 }

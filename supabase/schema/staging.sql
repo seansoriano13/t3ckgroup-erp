@@ -710,6 +710,64 @@ create table if not exists public."overtime_requests" (
   "company_id" uuid
 );
 
+create table if not exists public."packing_list_boxes" (
+  "id" uuid not null default gen_random_uuid(),
+  "packing_list_id" uuid not null,
+  "box_no" integer not null,
+  "marks" text,
+  "seal_no" text,
+  "gross_weight_kg" numeric,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."packing_list_contents" (
+  "id" uuid not null default gen_random_uuid(),
+  "box_id" uuid not null,
+  "position" integer not null,
+  "description" text not null,
+  "quantity" numeric not null,
+  "unit" text,
+  "sor_line_snapshot" jsonb,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."packing_lists" (
+  "id" uuid not null default gen_random_uuid(),
+  "number" text not null default ('PKL_'::text || lpad((nextval('packing_list_number_seq'::regclass))::text, 3, '0'::text)),
+  "opportunity_id" uuid not null,
+  "odoo_delivery_ref" text,
+  "state" text not null default 'draft'::text,
+  "packed_by" uuid,
+  "packed_at" timestamp with time zone,
+  "signature_declined" boolean not null default false,
+  "created_by" uuid not null,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."pms_evidence" (
+  "id" uuid not null default gen_random_uuid(),
+  "record_type" text not null,
+  "record_id" uuid not null,
+  "transmittal_id" uuid not null,
+  "kind" text not null,
+  "storage_path" text not null,
+  "file_name" text not null,
+  "mime_type" text,
+  "size_bytes" bigint not null,
+  "uploaded_by" uuid,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."pms_handoff_events" (
+  "id" uuid not null default gen_random_uuid(),
+  "record_type" text not null,
+  "record_id" uuid not null,
+  "actor_id" uuid,
+  "kind" text not null,
+  "detail" jsonb not null default '{}'::jsonb,
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."purchase_request_items" (
   "id" uuid not null default gen_random_uuid(),
   "request_id" uuid not null,
@@ -1218,6 +1276,108 @@ create table if not exists public."tasks" (
   "cancelled_by_visit_id" uuid
 );
 
+create table if not exists public."transmittal_ipas" (
+  "id" uuid not null default gen_random_uuid(),
+  "transmittal_id" uuid not null,
+  "ipas_id" uuid not null,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."transmittal_lines" (
+  "id" uuid not null default gen_random_uuid(),
+  "transmittal_id" uuid not null,
+  "position" integer not null,
+  "kind" text not null,
+  "ipas_id" uuid,
+  "odoo_po_line_id" integer,
+  "description" text not null,
+  "quantity" numeric not null,
+  "unit" text,
+  "opportunity_id" uuid,
+  "serial_numbers" text,
+  "box_quantity" text,
+  "wh_in_charge_id" uuid,
+  "wh_rating" text,
+  "wh_remark" text,
+  "tech_in_charge_id" uuid,
+  "tech_rating" text,
+  "tech_remark" text,
+  "quantity_received" numeric,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."transmittal_products" (
+  "id" uuid not null default gen_random_uuid(),
+  "transmittal_id" uuid not null,
+  "option_id" uuid not null,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."transmittal_references" (
+  "id" uuid not null default gen_random_uuid(),
+  "transmittal_id" uuid not null,
+  "option_id" uuid not null,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."transmittal_sors" (
+  "id" uuid not null default gen_random_uuid(),
+  "transmittal_id" uuid not null,
+  "opportunity_id" uuid not null,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."transmittal_stages" (
+  "id" uuid not null default gen_random_uuid(),
+  "transmittal_id" uuid not null,
+  "stage" text not null,
+  "remarks" text,
+  "no_pictures_reason" text,
+  "completed_by" uuid,
+  "completed_at" timestamp with time zone,
+  "first_signer_id" uuid,
+  "first_signed_at" timestamp with time zone,
+  "first_confirmed" boolean not null default false,
+  "first_signature_declined" boolean not null default false,
+  "second_signer_id" uuid,
+  "second_signer_name" text,
+  "second_signed_at" timestamp with time zone,
+  "second_confirmed" boolean not null default false,
+  "second_signature_declined" boolean not null default false,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."transmittals" (
+  "id" uuid not null default gen_random_uuid(),
+  "number" text not null default ('TG03-'::text || (nextval('transmittal_number_seq'::regclass))::text),
+  "prepared_on" date not null default CURRENT_DATE,
+  "origin" text not null,
+  "origin_other" text,
+  "check_warehouse" boolean not null default false,
+  "check_technical" boolean not null default false,
+  "check_other" text,
+  "priority" text not null,
+  "entity" text not null,
+  "product_other" text,
+  "item_location_id" uuid,
+  "odoo_received_by" uuid,
+  "odoo_received_at" timestamp with time zone,
+  "odoo_receipt_ref" text,
+  "state" text not null default 'draft'::text,
+  "prepared_by" uuid not null,
+  "submitted_at" timestamp with time zone,
+  "closed_at" timestamp with time zone,
+  "cancelled_by" uuid,
+  "cancelled_at" timestamp with time zone,
+  "cancel_reason" text,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now(),
+  "check_by_first_id" uuid,
+  "check_by_first_at" timestamp with time zone,
+  "check_by_second_id" uuid,
+  "check_by_second_at" timestamp with time zone
+);
+
 create table if not exists public."undertime_requests" (
   "id" uuid not null default gen_random_uuid(),
   "employee_id" uuid not null,
@@ -1317,6 +1477,11 @@ alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_pkey" PRIMARY KEY (id);
 alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
 alter table overtime_requests add constraint "overtime_requests_pkey" PRIMARY KEY (id);
+alter table packing_list_boxes add constraint "packing_list_boxes_pkey" PRIMARY KEY (id);
+alter table packing_list_contents add constraint "packing_list_contents_pkey" PRIMARY KEY (id);
+alter table packing_lists add constraint "packing_lists_pkey" PRIMARY KEY (id);
+alter table pms_evidence add constraint "pms_evidence_pkey" PRIMARY KEY (id);
+alter table pms_handoff_events add constraint "pms_handoff_events_pkey" PRIMARY KEY (id);
 alter table purchase_request_items add constraint "purchase_request_items_pkey" PRIMARY KEY (id);
 alter table purchase_request_members add constraint "purchase_request_members_pkey" PRIMARY KEY (id);
 alter table purchase_request_messages add constraint "purchase_request_messages_pkey" PRIMARY KEY (id);
@@ -1351,6 +1516,13 @@ alter table system_updates add constraint "system_updates_pkey" PRIMARY KEY (id)
 alter table task_activity add constraint "task_activity_pkey" PRIMARY KEY (id);
 alter table task_tags add constraint "task_tags_pkey" PRIMARY KEY (id);
 alter table tasks add constraint "tasks_pkey" PRIMARY KEY (id);
+alter table transmittal_ipas add constraint "transmittal_ipas_pkey" PRIMARY KEY (id);
+alter table transmittal_lines add constraint "transmittal_lines_pkey" PRIMARY KEY (id);
+alter table transmittal_products add constraint "transmittal_products_pkey" PRIMARY KEY (id);
+alter table transmittal_references add constraint "transmittal_references_pkey" PRIMARY KEY (id);
+alter table transmittal_sors add constraint "transmittal_sors_pkey" PRIMARY KEY (id);
+alter table transmittal_stages add constraint "transmittal_stages_pkey" PRIMARY KEY (id);
+alter table transmittals add constraint "transmittals_pkey" PRIMARY KEY (id);
 alter table undertime_requests add constraint "undertime_requests_pkey" PRIMARY KEY (id);
 alter table verification_rate_limits add constraint "verification_rate_limits_pkey" PRIMARY KEY (ip_address);
 alter table categories add constraint "categories_category_id_key" UNIQUE (category_id);
@@ -1372,6 +1544,10 @@ alter table ipas_sors add constraint "ipas_sors_ipas_opportunity_key" UNIQUE (ip
 alter table odoo_retail_queue add constraint "odoo_retail_queue_odoo_so_number_key" UNIQUE (odoo_so_number);
 alter table offset_leaves add constraint "offset_leaves_verification_token_key" UNIQUE (verification_token);
 alter table overtime_requests add constraint "overtime_requests_verification_token_key" UNIQUE (verification_token);
+alter table packing_list_boxes add constraint "packing_list_boxes_key" UNIQUE (packing_list_id, box_no);
+alter table packing_list_contents add constraint "packing_list_contents_key" UNIQUE (box_id, "position");
+alter table packing_lists add constraint "packing_lists_number_key" UNIQUE (number);
+alter table pms_evidence add constraint "pms_evidence_path_key" UNIQUE (storage_path);
 alter table purchase_request_members add constraint "purchase_request_members_request_employee_key" UNIQUE (request_id, employee_id);
 alter table push_subscriptions add constraint "push_subscriptions_employee_endpoint_key" UNIQUE (employee_id, endpoint);
 alter table retail_orders add constraint "retail_orders_odoo_so_number_key" UNIQUE (odoo_so_number);
@@ -1387,6 +1563,13 @@ alter table sor_mention_viewers add constraint "sor_mention_viewers_window_key" 
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_unique" UNIQUE (opportunity_id, po_number);
 alter table sor_stage_field_values add constraint "sor_stage_field_values_unique" UNIQUE (stage_visit_id, field_id);
 alter table sor_stage_visits add constraint "sor_stage_visits_unique_sequence" UNIQUE (opportunity_id, sequence);
+alter table transmittal_ipas add constraint "transmittal_ipas_key" UNIQUE (transmittal_id, ipas_id);
+alter table transmittal_lines add constraint "transmittal_lines_position_key" UNIQUE (transmittal_id, "position");
+alter table transmittal_products add constraint "transmittal_products_key" UNIQUE (transmittal_id, option_id);
+alter table transmittal_references add constraint "transmittal_references_key" UNIQUE (transmittal_id, option_id);
+alter table transmittal_sors add constraint "transmittal_sors_key" UNIQUE (transmittal_id, opportunity_id);
+alter table transmittal_stages add constraint "transmittal_stages_key" UNIQUE (transmittal_id, stage);
+alter table transmittals add constraint "transmittals_number_key" UNIQUE (number);
 alter table undertime_requests add constraint "undertime_requests_verification_token_key" UNIQUE (verification_token);
 alter table app_settings add constraint "app_settings_id_check" CHECK ((id = true));
 alter table bug_report_notes add constraint "bug_report_notes_kind_check" CHECK ((kind = ANY (ARRAY['note'::text, 'resolved'::text, 'reopened'::text])));
@@ -1440,7 +1623,7 @@ alter table ipas_options add constraint "ipas_options_applies_to_chk" CHECK (((a
 alter table ipas_options add constraint "ipas_options_document_columns_chk" CHECK (((list = 'document_kind'::text) OR ((applies_to IS NULL) AND (used_for IS NULL))));
 alter table ipas_options add constraint "ipas_options_document_kind_marked_chk" CHECK (((list <> 'document_kind'::text) OR ((applies_to IS NOT NULL) AND (used_for IS NOT NULL))));
 alter table ipas_options add constraint "ipas_options_label_chk" CHECK ((length(btrim(label)) > 0));
-alter table ipas_options add constraint "ipas_options_list_chk" CHECK ((list = ANY (ARRAY['payment_method'::text, 'charge_kind'::text, 'document_kind'::text, 'freight_service'::text, 'item_location'::text])));
+alter table ipas_options add constraint "ipas_options_list_chk" CHECK ((list = ANY (ARRAY['payment_method'::text, 'charge_kind'::text, 'document_kind'::text, 'freight_service'::text, 'item_location'::text, 'transmittal_product'::text, 'transmittal_reference'::text])));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
 alter table ipas_payments add constraint "ipas_payments_amount_chk" CHECK ((amount > (0)::numeric));
 alter table ipas_payments add constraint "ipas_payments_charge_fee_chk" CHECK ((charge_fee_php >= (0)::numeric));
@@ -1449,8 +1632,8 @@ alter table ipas_payments add constraint "ipas_payments_kind_chk" CHECK ((kind =
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_action_chk" CHECK ((action = ANY (ARRAY['added'::text, 'removed'::text])));
-alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text])));
-alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text])));
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL) AND (cleared_by IS NULL)) OR ((cleared_at IS NOT NULL) AND (cleared_reason IS NOT NULL) AND (length(btrim(cleared_reason)) > 0))));
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
@@ -1460,6 +1643,21 @@ alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table overtime_requests add constraint "overtime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED_PAID'::text, 'APPROVED_OFFSET'::text, 'REJECTED'::text, 'CANCELLED'::text])));
+alter table packing_list_boxes add constraint "packing_list_boxes_box_no_chk" CHECK ((box_no >= 1));
+alter table packing_list_boxes add constraint "packing_list_boxes_weight_chk" CHECK (((gross_weight_kg IS NULL) OR (gross_weight_kg >= (0)::numeric)));
+alter table packing_list_contents add constraint "packing_list_contents_description_chk" CHECK ((length(btrim(description)) > 0));
+alter table packing_list_contents add constraint "packing_list_contents_quantity_chk" CHECK ((quantity > (0)::numeric));
+alter table packing_list_contents add constraint "packing_list_contents_snapshot_chk" CHECK (((sor_line_snapshot IS NULL) OR (jsonb_typeof(sor_line_snapshot) = 'object'::text)));
+alter table packing_lists add constraint "packing_lists_delivery_ref_chk" CHECK (((odoo_delivery_ref IS NULL) OR (length(btrim(odoo_delivery_ref)) > 0)));
+alter table packing_lists add constraint "packing_lists_packed_chk" CHECK (((state <> 'packed'::text) OR ((packed_by IS NOT NULL) AND (packed_at IS NOT NULL))));
+alter table packing_lists add constraint "packing_lists_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'packed'::text])));
+alter table pms_evidence add constraint "pms_evidence_kind_chk" CHECK ((kind = ANY (ARRAY['picture'::text, 'video'::text])));
+alter table pms_evidence add constraint "pms_evidence_name_chk" CHECK ((length(btrim(file_name)) > 0));
+alter table pms_evidence add constraint "pms_evidence_record_type_chk" CHECK ((record_type = 'transmittal_stage'::text));
+alter table pms_evidence add constraint "pms_evidence_size_chk" CHECK (((size_bytes > 0) AND (size_bytes <= 52428800)));
+alter table pms_handoff_events add constraint "pms_handoff_events_detail_chk" CHECK ((jsonb_typeof(detail) = 'object'::text));
+alter table pms_handoff_events add constraint "pms_handoff_events_kind_chk" CHECK ((length(btrim(kind)) > 0));
+alter table pms_handoff_events add constraint "pms_handoff_events_record_type_chk" CHECK ((record_type = ANY (ARRAY['transmittal'::text, 'packing_list'::text])));
 alter table purchase_request_items add constraint "purchase_request_items_images_chk" CHECK ((jsonb_typeof(images) = 'array'::text));
 alter table purchase_request_items add constraint "purchase_request_items_name_chk" CHECK ((length(btrim(name)) > 0));
 alter table purchase_request_items add constraint "purchase_request_items_po_verification_chk" CHECK ((po_verification = ANY (ARRAY['UNVERIFIED'::text, 'VERIFIED'::text, 'PENDING_VERIFICATION'::text, 'NOT_FOUND'::text])));
@@ -1494,6 +1692,27 @@ alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_chec
 alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
+alter table transmittal_lines add constraint "transmittal_lines_description_chk" CHECK ((length(btrim(description)) > 0));
+alter table transmittal_lines add constraint "transmittal_lines_kind_chk" CHECK ((kind = ANY (ARRAY['po_line'::text, 'typed'::text])));
+alter table transmittal_lines add constraint "transmittal_lines_po_chk" CHECK ((((kind = 'po_line'::text) AND (ipas_id IS NOT NULL) AND (odoo_po_line_id IS NOT NULL)) OR ((kind = 'typed'::text) AND (ipas_id IS NULL) AND (odoo_po_line_id IS NULL))));
+alter table transmittal_lines add constraint "transmittal_lines_quantity_chk" CHECK ((quantity > (0)::numeric));
+alter table transmittal_lines add constraint "transmittal_lines_quantity_received_chk" CHECK (((quantity_received IS NULL) OR (quantity_received >= (0)::numeric)));
+alter table transmittal_lines add constraint "transmittal_lines_tech_na_remark_chk" CHECK (((tech_rating IS DISTINCT FROM 'na'::text) OR ((tech_remark IS NOT NULL) AND (length(btrim(tech_remark)) > 0))));
+alter table transmittal_lines add constraint "transmittal_lines_tech_rating_chk" CHECK (((tech_rating IS NULL) OR (tech_rating = ANY (ARRAY['gc'::text, 'na'::text]))));
+alter table transmittal_lines add constraint "transmittal_lines_wh_na_remark_chk" CHECK (((wh_rating IS DISTINCT FROM 'na'::text) OR ((wh_remark IS NOT NULL) AND (length(btrim(wh_remark)) > 0))));
+alter table transmittal_lines add constraint "transmittal_lines_wh_rating_chk" CHECK (((wh_rating IS NULL) OR (wh_rating = ANY (ARRAY['gc'::text, 'na'::text]))));
+alter table transmittal_stages add constraint "transmittal_stages_completed_chk" CHECK (((completed_at IS NULL) OR (completed_by IS NOT NULL)));
+alter table transmittal_stages add constraint "transmittal_stages_stage_chk" CHECK ((stage = ANY (ARRAY['warehouse_checking'::text, 'warehouse_releasing'::text, 'technical_inspection'::text])));
+alter table transmittals add constraint "transmittals_cancelled_chk" CHECK (((state <> 'cancelled'::text) OR ((cancelled_at IS NOT NULL) AND (cancel_reason IS NOT NULL) AND (length(btrim(cancel_reason)) > 0))));
+alter table transmittals add constraint "transmittals_check_by_chk" CHECK ((((check_by_first_id IS NULL) = (check_by_first_at IS NULL)) AND ((check_by_second_id IS NULL) = (check_by_second_at IS NULL)) AND ((check_by_second_id IS NULL) OR (check_by_first_id IS NULL) OR (check_by_second_id <> check_by_first_id)) AND ((state <> 'closed'::text) OR (check_by_second_id IS NOT NULL))));
+alter table transmittals add constraint "transmittals_checking_chk" CHECK ((check_warehouse OR check_technical));
+alter table transmittals add constraint "transmittals_closed_chk" CHECK (((state <> 'closed'::text) OR (closed_at IS NOT NULL)));
+alter table transmittals add constraint "transmittals_entity_chk" CHECK ((length(btrim(entity)) > 0));
+alter table transmittals add constraint "transmittals_origin_chk" CHECK ((origin = ANY (ARRAY['purchasing'::text, 'logistics'::text, 'warehouse'::text, 'other'::text])));
+alter table transmittals add constraint "transmittals_origin_other_chk" CHECK (((origin <> 'other'::text) OR ((origin_other IS NOT NULL) AND (length(btrim(origin_other)) > 0))));
+alter table transmittals add constraint "transmittals_priority_chk" CHECK ((priority = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text])));
+alter table transmittals add constraint "transmittals_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'warehouse_checking'::text, 'warehouse_releasing'::text, 'technical_inspection'::text, 'awaiting_check'::text, 'closed'::text, 'cancelled'::text])));
+alter table transmittals add constraint "transmittals_submitted_chk" CHECK (((state = 'draft'::text) OR (submitted_at IS NOT NULL)));
 alter table undertime_requests add constraint "undertime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table undertime_requests add constraint "undertime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table bug_report_notes add constraint "bug_report_notes_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
@@ -1591,6 +1810,14 @@ alter table overtime_requests add constraint "overtime_requests_employee_id_fkey
 alter table overtime_requests add constraint "overtime_requests_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
+alter table packing_list_boxes add constraint "packing_list_boxes_packing_list_id_fkey" FOREIGN KEY (packing_list_id) REFERENCES packing_lists(id) ON DELETE CASCADE;
+alter table packing_list_contents add constraint "packing_list_contents_box_id_fkey" FOREIGN KEY (box_id) REFERENCES packing_list_boxes(id) ON DELETE CASCADE;
+alter table packing_lists add constraint "packing_lists_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table packing_lists add constraint "packing_lists_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
+alter table packing_lists add constraint "packing_lists_packed_by_fkey" FOREIGN KEY (packed_by) REFERENCES employees(id);
+alter table pms_evidence add constraint "pms_evidence_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
+alter table pms_evidence add constraint "pms_evidence_uploaded_by_fkey" FOREIGN KEY (uploaded_by) REFERENCES employees(id);
+alter table pms_handoff_events add constraint "pms_handoff_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table purchase_request_items add constraint "purchase_request_items_request_id_fkey" FOREIGN KEY (request_id) REFERENCES purchase_requests(id) ON DELETE CASCADE;
 alter table purchase_request_items add constraint "purchase_request_items_requested_by_fkey" FOREIGN KEY (requested_by) REFERENCES employees(id);
 alter table purchase_request_items add constraint "purchase_request_items_status_changed_by_fkey" FOREIGN KEY (status_changed_by) REFERENCES employees(id);
@@ -1711,6 +1938,29 @@ alter table tasks add constraint "tasks_opportunity_id_fkey" FOREIGN KEY (opport
 alter table tasks add constraint "tasks_reported_to_fkey" FOREIGN KEY (reported_to) REFERENCES employees(id);
 alter table tasks add constraint "tasks_stage_action_id_fkey" FOREIGN KEY (stage_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
+alter table transmittal_ipas add constraint "transmittal_ipas_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE RESTRICT;
+alter table transmittal_ipas add constraint "transmittal_ipas_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
+alter table transmittal_lines add constraint "transmittal_lines_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE RESTRICT;
+alter table transmittal_lines add constraint "transmittal_lines_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
+alter table transmittal_lines add constraint "transmittal_lines_tech_in_charge_id_fkey" FOREIGN KEY (tech_in_charge_id) REFERENCES employees(id);
+alter table transmittal_lines add constraint "transmittal_lines_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
+alter table transmittal_lines add constraint "transmittal_lines_wh_in_charge_id_fkey" FOREIGN KEY (wh_in_charge_id) REFERENCES employees(id);
+alter table transmittal_products add constraint "transmittal_products_option_id_fkey" FOREIGN KEY (option_id) REFERENCES ipas_options(id) ON DELETE RESTRICT;
+alter table transmittal_products add constraint "transmittal_products_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
+alter table transmittal_references add constraint "transmittal_references_option_id_fkey" FOREIGN KEY (option_id) REFERENCES ipas_options(id) ON DELETE RESTRICT;
+alter table transmittal_references add constraint "transmittal_references_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
+alter table transmittal_sors add constraint "transmittal_sors_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
+alter table transmittal_sors add constraint "transmittal_sors_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
+alter table transmittal_stages add constraint "transmittal_stages_completed_by_fkey" FOREIGN KEY (completed_by) REFERENCES employees(id);
+alter table transmittal_stages add constraint "transmittal_stages_first_signer_id_fkey" FOREIGN KEY (first_signer_id) REFERENCES employees(id);
+alter table transmittal_stages add constraint "transmittal_stages_second_signer_id_fkey" FOREIGN KEY (second_signer_id) REFERENCES employees(id);
+alter table transmittal_stages add constraint "transmittal_stages_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
+alter table transmittals add constraint "transmittals_cancelled_by_fkey" FOREIGN KEY (cancelled_by) REFERENCES employees(id);
+alter table transmittals add constraint "transmittals_check_by_first_id_fkey" FOREIGN KEY (check_by_first_id) REFERENCES employees(id);
+alter table transmittals add constraint "transmittals_check_by_second_id_fkey" FOREIGN KEY (check_by_second_id) REFERENCES employees(id);
+alter table transmittals add constraint "transmittals_item_location_id_fkey" FOREIGN KEY (item_location_id) REFERENCES ipas_options(id) ON DELETE RESTRICT;
+alter table transmittals add constraint "transmittals_odoo_received_by_fkey" FOREIGN KEY (odoo_received_by) REFERENCES employees(id);
+alter table transmittals add constraint "transmittals_prepared_by_fkey" FOREIGN KEY (prepared_by) REFERENCES employees(id);
 alter table undertime_requests add constraint "undertime_requests_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
 alter table undertime_requests add constraint "undertime_requests_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id);
 alter table undertime_requests add constraint "undertime_requests_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
@@ -1791,6 +2041,15 @@ CREATE INDEX offset_leaves_head_id_idx ON public.offset_leaves USING btree (head
 CREATE INDEX offset_leaves_leave_group_id_idx ON public.offset_leaves USING btree (leave_group_id);
 CREATE INDEX overtime_requests_company_id_idx ON public.overtime_requests USING btree (company_id);
 CREATE INDEX overtime_requests_head_id_idx ON public.overtime_requests USING btree (head_id);
+CREATE INDEX packing_list_boxes_packing_list_id_idx ON public.packing_list_boxes USING btree (packing_list_id);
+CREATE INDEX packing_list_contents_box_id_idx ON public.packing_list_contents USING btree (box_id);
+CREATE INDEX packing_lists_created_by_idx ON public.packing_lists USING btree (created_by);
+CREATE INDEX packing_lists_opportunity_id_idx ON public.packing_lists USING btree (opportunity_id);
+CREATE INDEX pms_evidence_record_idx ON public.pms_evidence USING btree (record_type, record_id);
+CREATE INDEX pms_evidence_transmittal_id_idx ON public.pms_evidence USING btree (transmittal_id);
+CREATE INDEX pms_evidence_uploaded_by_idx ON public.pms_evidence USING btree (uploaded_by);
+CREATE INDEX pms_handoff_events_actor_id_idx ON public.pms_handoff_events USING btree (actor_id);
+CREATE INDEX pms_handoff_events_record_idx ON public.pms_handoff_events USING btree (record_type, record_id, created_at);
 CREATE UNIQUE INDEX purchase_request_items_legacy_procurement_request_id_key ON public.purchase_request_items USING btree (legacy_procurement_request_id) WHERE (legacy_procurement_request_id IS NOT NULL);
 CREATE INDEX purchase_request_items_request_id_idx ON public.purchase_request_items USING btree (request_id);
 CREATE INDEX purchase_request_members_employee_id_idx ON public.purchase_request_members USING btree (employee_id);
@@ -1844,6 +2103,17 @@ CREATE INDEX stage_conditions_stage_idx ON public.stage_conditions USING btree (
 CREATE UNIQUE INDEX task_tags_active_name_key ON public.task_tags USING btree (lower(name)) WHERE (archived_at IS NULL);
 CREATE INDEX tasks_opportunity_id_idx ON public.tasks USING btree (opportunity_id);
 CREATE INDEX tasks_stage_visit_id_idx ON public.tasks USING btree (stage_visit_id);
+CREATE INDEX transmittal_ipas_ipas_id_idx ON public.transmittal_ipas USING btree (ipas_id);
+CREATE INDEX transmittal_lines_ipas_id_idx ON public.transmittal_lines USING btree (ipas_id);
+CREATE INDEX transmittal_lines_opportunity_id_idx ON public.transmittal_lines USING btree (opportunity_id);
+CREATE INDEX transmittal_lines_transmittal_id_idx ON public.transmittal_lines USING btree (transmittal_id);
+CREATE INDEX transmittal_products_option_id_idx ON public.transmittal_products USING btree (option_id);
+CREATE INDEX transmittal_references_option_id_idx ON public.transmittal_references USING btree (option_id);
+CREATE INDEX transmittal_sors_opportunity_id_idx ON public.transmittal_sors USING btree (opportunity_id);
+CREATE INDEX transmittal_stages_transmittal_id_idx ON public.transmittal_stages USING btree (transmittal_id);
+CREATE INDEX transmittals_item_location_id_idx ON public.transmittals USING btree (item_location_id);
+CREATE INDEX transmittals_prepared_by_idx ON public.transmittals USING btree (prepared_by);
+CREATE INDEX transmittals_state_idx ON public.transmittals USING btree (state, created_at DESC);
 CREATE INDEX undertime_requests_employee_id_idx ON public.undertime_requests USING btree (employee_id);
 CREATE INDEX undertime_requests_head_id_idx ON public.undertime_requests USING btree (head_id);
 
@@ -1902,6 +2172,11 @@ alter table public."notifications" enable row level security;
 alter table public."odoo_retail_queue" enable row level security;
 alter table public."offset_leaves" enable row level security;
 alter table public."overtime_requests" enable row level security;
+alter table public."packing_list_boxes" enable row level security;
+alter table public."packing_list_contents" enable row level security;
+alter table public."packing_lists" enable row level security;
+alter table public."pms_evidence" enable row level security;
+alter table public."pms_handoff_events" enable row level security;
 alter table public."purchase_request_items" enable row level security;
 alter table public."purchase_request_members" enable row level security;
 alter table public."purchase_request_messages" enable row level security;
@@ -1934,6 +2209,13 @@ alter table public."system_audit_logs" enable row level security;
 alter table public."task_activity" enable row level security;
 alter table public."task_tags" enable row level security;
 alter table public."tasks" enable row level security;
+alter table public."transmittal_ipas" enable row level security;
+alter table public."transmittal_lines" enable row level security;
+alter table public."transmittal_products" enable row level security;
+alter table public."transmittal_references" enable row level security;
+alter table public."transmittal_sors" enable row level security;
+alter table public."transmittal_stages" enable row level security;
+alter table public."transmittals" enable row level security;
 alter table public."undertime_requests" enable row level security;
 alter table public."verification_rate_limits" enable row level security;
 
@@ -2529,6 +2811,11 @@ create policy "ipas_signer_list_log_read" on public."ipas_signer_list_log"
   for select
   to authenticated
   using (COALESCE(is_super_admin(), false));
+create policy "ipas_signer_lists_own_read" on public."ipas_signer_lists"
+  as permissive
+  for select
+  to authenticated
+  using ((employee_id = get_employee_id()));
 create policy "ipas_signer_lists_read" on public."ipas_signer_lists"
   as permissive
   for select
@@ -2661,6 +2948,36 @@ create policy "overtime_requests_withdraw" on public."overtime_requests"
   to authenticated
   using (((employee_id = get_employee_id()) AND (status = 'PENDING'::text)))
   with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
+create policy "packing_list_boxes_read" on public."packing_list_boxes"
+  as permissive
+  for select
+  to authenticated
+  using (packing_list_can_read(packing_list_id));
+create policy "packing_list_contents_read" on public."packing_list_contents"
+  as permissive
+  for select
+  to authenticated
+  using (packing_list_box_can_read(box_id));
+create policy "packing_lists_read" on public."packing_lists"
+  as permissive
+  for select
+  to authenticated
+  using (packing_list_can_read(id));
+create policy "pms_evidence_read" on public."pms_evidence"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(transmittal_id));
+create policy "pms_handoff_events_packing_list_read" on public."pms_handoff_events"
+  as permissive
+  for select
+  to authenticated
+  using (((record_type = 'packing_list'::text) AND packing_list_can_read(record_id)));
+create policy "pms_handoff_events_read" on public."pms_handoff_events"
+  as permissive
+  for select
+  to authenticated
+  using (((record_type = 'transmittal'::text) AND transmittal_can_read(record_id)));
 create policy "purchase_request_items_read" on public."purchase_request_items"
   as permissive
   for select
@@ -3128,6 +3445,41 @@ create policy "Users and Managers can update tasks" on public."tasks"
   for update
   to public
   using (((logged_by = get_employee_id()) OR is_head() OR is_hr() OR is_super_admin()));
+create policy "transmittal_ipas_read" on public."transmittal_ipas"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(transmittal_id));
+create policy "transmittal_lines_read" on public."transmittal_lines"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(transmittal_id));
+create policy "transmittal_products_read" on public."transmittal_products"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(transmittal_id));
+create policy "transmittal_references_read" on public."transmittal_references"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(transmittal_id));
+create policy "transmittal_sors_read" on public."transmittal_sors"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(transmittal_id));
+create policy "transmittal_stages_read" on public."transmittal_stages"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(transmittal_id));
+create policy "transmittals_read" on public."transmittals"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(id));
 create policy "undertime_requests_head_select" on public."undertime_requests"
   as permissive
   for select
@@ -3760,6 +4112,91 @@ CREATE OR REPLACE FUNCTION public._ipas_write_event(p_ipas_id uuid, p_actor uuid
 AS $function$
   insert into public.ipas_events (ipas_id, actor_id, kind, detail)
   values (p_ipas_id, p_actor, p_kind, coalesce(p_detail, '{}'::jsonb));
+$function$
+;
+CREATE OR REPLACE FUNCTION public._packing_list_editable(p_packing_list_id uuid)
+ RETURNS packing_lists
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.packing_lists;
+begin
+  if v_actor is null then
+    raise exception 'packing list: not signed in' using errcode = '42501';
+  end if;
+  select * into v_row from public.packing_lists where id = p_packing_list_id for update;
+  if not found then
+    raise exception 'packing list: no such Packing List' using errcode = 'P0002';
+  end if;
+  if not (coalesce(public.has_purchasing_access(), false) or v_row.created_by = v_actor) then
+    raise exception 'packing list: only its creator or Purchasing changes a Packing List' using errcode = '42501';
+  end if;
+  if v_row.state <> 'draft' then
+    raise exception 'packing list: % is packed and can''t be changed', v_row.number using errcode = '42501';
+  end if;
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._packing_list_event(p_packing_list_id uuid, p_actor uuid, p_kind text, p_detail jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.pms_handoff_events (record_type, record_id, actor_id, kind, detail)
+  values ('packing_list', p_packing_list_id, p_actor, p_kind, coalesce(p_detail, '{}'::jsonb));
+$function$
+;
+CREATE OR REPLACE FUNCTION public._pms_evidence_stage_open(p_name text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'storage'
+AS $function$
+declare
+  v_stage_id uuid;
+  v_row record;
+begin
+  begin
+    v_stage_id := (storage.foldername(p_name))[2]::uuid;
+  exception when others then
+    return false;
+  end;
+
+  select s.stage, s.completed_at, s.transmittal_id, t.state
+    into v_row
+    from public.transmittal_stages s
+    join public.transmittals t on t.id = s.transmittal_id
+   where s.id = v_stage_id;
+
+  if not found or v_row.completed_at is not null or v_row.state in ('closed', 'cancelled') then
+    return false;
+  end if;
+  if v_row.transmittal_id::text is distinct from (storage.foldername(p_name))[1] then
+    return false;
+  end if;
+
+  return public.transmittal_on_list(
+    case when v_row.stage = 'technical_inspection' then 'transmittal_technical' else 'transmittal_warehouse' end
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._pms_evidence_transmittal_id(p_name text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'storage'
+AS $function$
+begin
+  return (storage.foldername(p_name))[1]::uuid;
+exception when others then
+  return null;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._purchase_request_add_member(p_request_id uuid, p_employee_id uuid, p_actor uuid)
@@ -4486,6 +4923,251 @@ AS $function$
         and coalesce(s.terminal_outcome, 'lost') = 'lost'
     ) then 'lost'
   end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_clean_header(p_fields jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_origin text := nullif(btrim(p_fields->>'origin'), '');
+  v_origin_other text := nullif(btrim(p_fields->>'origin_other'), '');
+  v_check_wh boolean := coalesce((p_fields->>'check_warehouse')::boolean, false);
+  v_check_tech boolean := coalesce((p_fields->>'check_technical')::boolean, false);
+  v_check_other text := nullif(btrim(p_fields->>'check_other'), '');
+  v_priority text := nullif(btrim(p_fields->>'priority'), '');
+  v_entity text := nullif(btrim(p_fields->>'entity'), '');
+  v_product_other text := nullif(btrim(p_fields->>'product_other'), '');
+  v_location uuid := nullif(p_fields->>'item_location_id', '')::uuid;
+begin
+  if v_origin is null or v_origin not in ('purchasing', 'logistics', 'warehouse', 'other') then
+    raise exception 'transmittal: % isn''t an Origin', coalesce(v_origin, 'null') using errcode = '22023';
+  end if;
+  if v_origin = 'other' and v_origin_other is null then
+    raise exception 'transmittal: Origin Others needs its text' using errcode = '22023';
+  end if;
+  if not (v_check_wh or v_check_tech) then
+    raise exception 'transmittal: tick Warehouse or TCA Technical under Checking' using errcode = '22023';
+  end if;
+  if v_priority is null or v_priority not in ('high', 'medium', 'low') then
+    raise exception 'transmittal: % isn''t a Priority', coalesce(v_priority, 'null') using errcode = '22023';
+  end if;
+  if v_entity is null then
+    raise exception 'transmittal: a Company is needed' using errcode = '22023';
+  end if;
+  if v_location is not null and not exists (
+    select 1 from public.ipas_options o
+     where o.id = v_location and o.list = 'item_location' and o.active
+  ) then
+    raise exception 'transmittal: that Item Location isn''t on the list' using errcode = '22023';
+  end if;
+
+  return jsonb_build_object(
+    'origin', v_origin,
+    'origin_other', case when v_origin = 'other' then v_origin_other end,
+    'check_warehouse', v_check_wh,
+    'check_technical', v_check_tech,
+    'check_other', v_check_other,
+    'priority', v_priority,
+    'entity', v_entity,
+    'product_other', v_product_other,
+    'item_location_id', v_location
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_event(p_transmittal_id uuid, p_actor uuid, p_kind text, p_detail jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.pms_handoff_events (record_type, record_id, actor_id, kind, detail)
+  values ('transmittal', p_transmittal_id, p_actor, p_kind, coalesce(p_detail, '{}'::jsonb));
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_list_ids(p_list_key text)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(jsonb_agg(l.employee_id order by l.employee_id), '[]'::jsonb)
+    from public.ipas_signer_lists l
+    join public.employees e on e.id = l.employee_id
+   where l.list_key = p_list_key
+     and not coalesce(e.is_deleted, false);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_sync_links(p_transmittal_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  delete from public.transmittal_ipas where transmittal_id = p_transmittal_id;
+  delete from public.transmittal_sors where transmittal_id = p_transmittal_id;
+
+  insert into public.transmittal_ipas (transmittal_id, ipas_id)
+  select distinct p_transmittal_id, l.ipas_id
+    from public.transmittal_lines l
+   where l.transmittal_id = p_transmittal_id and l.ipas_id is not null;
+
+  insert into public.transmittal_sors (transmittal_id, opportunity_id)
+  select distinct p_transmittal_id, l.opportunity_id
+    from public.transmittal_lines l
+   where l.transmittal_id = p_transmittal_id and l.opportunity_id is not null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_write_children(p_transmittal_id uuid, p_product_ids uuid[], p_reference_ids uuid[], p_lines jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_entity text;
+  v_number text;
+  v_line jsonb;
+  v_position integer := 0;
+  v_kind text;
+  v_ipas public.ipas;
+  v_po_line jsonb;
+  v_ipas_entity text;
+  v_quantity numeric;
+  v_opportunity uuid;
+  v_sor_count integer;
+  v_warnings jsonb := '[]'::jsonb;
+  v_products uuid[];
+  v_references uuid[];
+begin
+  select t.entity, t.number into v_entity, v_number from public.transmittals t where t.id = p_transmittal_id;
+
+  v_products := coalesce(p_product_ids, '{}'::uuid[]);
+  v_references := coalesce(p_reference_ids, '{}'::uuid[]);
+
+  if cardinality(v_products) > 0 and (
+       select count(*) from public.ipas_options o
+        where o.id = any (v_products) and o.list = 'transmittal_product' and o.active
+     ) <> (select count(distinct x) from unnest(v_products) x) then
+    raise exception 'transmittal: a Product isn''t on the list' using errcode = '22023';
+  end if;
+  if cardinality(v_references) > 0 and (
+       select count(*) from public.ipas_options o
+        where o.id = any (v_references) and o.list = 'transmittal_reference' and o.active
+     ) <> (select count(distinct x) from unnest(v_references) x) then
+    raise exception 'transmittal: a Reference Checklist item isn''t on the list' using errcode = '22023';
+  end if;
+
+  delete from public.transmittal_lines where transmittal_id = p_transmittal_id;
+  delete from public.transmittal_products where transmittal_id = p_transmittal_id;
+  delete from public.transmittal_references where transmittal_id = p_transmittal_id;
+
+  insert into public.transmittal_products (transmittal_id, option_id)
+  select p_transmittal_id, x from unnest(v_products) as x;
+
+  insert into public.transmittal_references (transmittal_id, option_id)
+  select p_transmittal_id, x from unnest(v_references) as x;
+
+  for v_line in select value from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) as value loop
+    v_position := v_position + 1;
+    v_kind := nullif(btrim(v_line->>'kind'), '');
+    v_quantity := nullif(v_line->>'quantity', '')::numeric;
+
+    if v_quantity is null or v_quantity <= 0 then
+      raise exception 'transmittal: line % needs a quantity above zero', v_position using errcode = '22023';
+    end if;
+
+    if v_kind = 'po_line' then
+      select * into v_ipas
+        from public.ipas i
+       where i.id = nullif(v_line->>'ipas_id', '')::uuid;
+      if not found or v_ipas.state = 'cancelled' then
+        raise exception 'transmittal: line % names an IPAS that isn''t live', v_position using errcode = 'P0002';
+      end if;
+
+      select l into v_po_line
+        from jsonb_array_elements(coalesce(v_ipas.odoo_copy -> 'lines', '[]'::jsonb)) as l
+       where (l->>'line_id')::integer = (v_line->>'odoo_po_line_id')::integer
+       limit 1;
+      if v_po_line is null then
+        raise exception 'transmittal: line % isn''t on % Odoo copy', v_position, v_ipas.po_number
+          using errcode = '22023';
+      end if;
+
+      v_ipas_entity := coalesce(
+        nullif(btrim(v_ipas.entity_override), ''),
+        nullif(btrim(v_ipas.odoo_copy #>> '{po,company}'), '')
+      );
+      if v_ipas_entity is not null and v_ipas_entity is distinct from v_entity then
+        v_warnings := v_warnings || jsonb_build_array(jsonb_build_object(
+          'kind', 'entity', 'position', v_position, 'po_number', v_ipas.po_number, 'entity', v_ipas_entity
+        ));
+      end if;
+
+      v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
+      if v_opportunity is null then
+        select count(*) into v_sor_count from public.ipas_sors s where s.ipas_id = v_ipas.id;
+        if v_sor_count = 1 then
+          select s.opportunity_id into v_opportunity from public.ipas_sors s where s.ipas_id = v_ipas.id;
+        end if;
+      end if;
+      if v_opportunity is not null and not exists (
+           select 1 from public.sales_opportunities o
+            where o.id = v_opportunity and not coalesce(o.is_deleted, false)
+         ) then
+        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = 'P0002';
+      end if;
+
+      insert into public.transmittal_lines (
+        transmittal_id, position, kind, ipas_id, odoo_po_line_id, description, quantity, unit,
+        opportunity_id, serial_numbers, box_quantity
+      ) values (
+        p_transmittal_id, v_position, 'po_line', v_ipas.id, (v_po_line->>'line_id')::integer,
+        coalesce(nullif(btrim(v_po_line->>'name'), ''), 'PO line ' || (v_po_line->>'line_id')),
+        v_quantity,
+        nullif(btrim(v_po_line->>'unit'), ''),
+        v_opportunity,
+        nullif(btrim(v_line->>'serial_numbers'), ''),
+        nullif(btrim(v_line->>'box_quantity'), '')
+      );
+
+    elsif v_kind = 'typed' then
+      if nullif(btrim(v_line->>'description'), '') is null then
+        raise exception 'transmittal: line % needs a description', v_position using errcode = '22023';
+      end if;
+      if nullif(btrim(v_line->>'unit'), '') is null then
+        raise exception 'transmittal: line % needs a unit', v_position using errcode = '22023';
+      end if;
+      v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
+      if v_opportunity is not null and not exists (
+           select 1 from public.sales_opportunities o
+            where o.id = v_opportunity and not coalesce(o.is_deleted, false)
+         ) then
+        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = 'P0002';
+      end if;
+
+      insert into public.transmittal_lines (
+        transmittal_id, position, kind, description, quantity, unit,
+        opportunity_id, serial_numbers, box_quantity
+      ) values (
+        p_transmittal_id, v_position, 'typed', btrim(v_line->>'description'), v_quantity,
+        btrim(v_line->>'unit'), v_opportunity,
+        nullif(btrim(v_line->>'serial_numbers'), ''),
+        nullif(btrim(v_line->>'box_quantity'), '')
+      );
+
+    else
+      raise exception 'transmittal: line % has no kind (po_line or typed)', v_position using errcode = '22023';
+    end if;
+  end loop;
+
+  return v_warnings;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.add_bug_report_note(p_report_id uuid, p_body text)
@@ -5487,6 +6169,67 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.handoffs_for_sor(p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_sor public.sales_opportunities;
+  v_transmittals jsonb := '[]'::jsonb;
+  v_packing_lists jsonb := '[]'::jsonb;
+begin
+  select * into v_sor from public.sales_opportunities o where o.id = p_opportunity_id;
+  -- coalesce: an SOR with an empty deal-team column makes sor_is_deal_team NULL,
+  -- and `not NULL` would skip this refusal and leak the handoffs to a non-reader.
+  if not found or not coalesce(
+    public.is_super_admin()
+    or public.sor_is_deal_team(v_sor, v_actor)
+    or public.sor_always_sees(v_sor, v_actor),
+    false
+  ) then
+    return jsonb_build_object('transmittals', v_transmittals, 'packing_lists', v_packing_lists);
+  end if;
+
+  select coalesce(jsonb_agg(to_jsonb(t) order by t.prepared_on desc, t.number desc), '[]'::jsonb)
+    into v_transmittals
+    from (
+      select tr.id,
+             tr.number,
+             tr.prepared_on,
+             tr.priority,
+             tr.state,
+             (select count(*)::int
+                from public.transmittal_lines l
+               where l.transmittal_id = tr.id
+                 and (l.wh_rating = 'na' or l.tech_rating = 'na')) as na_count,
+             public.transmittal_can_read(tr.id) as can_open
+        from public.transmittals tr
+       where exists (
+         select 1 from public.transmittal_lines l
+          where l.transmittal_id = tr.id and l.opportunity_id = p_opportunity_id
+       )
+    ) t;
+
+  select coalesce(jsonb_agg(to_jsonb(p) order by p.number desc), '[]'::jsonb)
+    into v_packing_lists
+    from (
+      select pl.id,
+             pl.number,
+             pl.state,
+             (select count(*)::int from public.packing_list_boxes b where b.packing_list_id = pl.id) as box_count,
+             pl.odoo_delivery_ref,
+             public.packing_list_can_read(pl.id) as can_open
+        from public.packing_lists pl
+       where pl.opportunity_id = p_opportunity_id
+    ) p;
+
+  return jsonb_build_object('transmittals', v_transmittals, 'packing_lists', v_packing_lists);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.has_finance_access()
  RETURNS boolean
  LANGUAGE sql
@@ -5565,6 +6308,29 @@ CREATE OR REPLACE FUNCTION public.invoke_sor_follow_up_reminders()
  SET search_path TO ''
 AS $function$
   select public.invoke_cron_edge_function('sor-follow-up-reminders');
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_actual_checking_hand_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.actual_checking_by is not null
+     and (new.actual_checking_by is distinct from old.actual_checking_by
+          or new.actual_checking_at is distinct from old.actual_checking_at)
+     and exists (
+       select 1
+         from public.transmittal_lines l
+         join public.transmittals t on t.id = l.transmittal_id
+        where l.ipas_id = new.id
+          and t.state not in ('draft', 'cancelled')
+     ) then
+    raise exception 'Actual Checking is stamped by the Transmittals once one is submitted for this IPAS'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_add_charge(p_ipas_id uuid, p_kind_id uuid, p_charged_on date, p_amount_php numeric)
@@ -5723,7 +6489,11 @@ AS $function$
         coalesce(e.has_purchasing_flow, false)
         or coalesce(e.has_finance_flow, false)
         or coalesce(e.is_super_admin, false)
-        or exists (select 1 from ipas_signer_lists l where l.employee_id = e.id)
+        or exists (
+          select 1 from ipas_signer_lists l
+           where l.employee_id = e.id
+             and l.list_key not like 'transmittal\_%' escape '\'
+        )
       )
   );
 $function$
@@ -7194,7 +7964,10 @@ begin
   if not coalesce(public.is_super_admin(), false) then
     raise exception 'ipas_set_signer_list: only a Super Admin changes who is on a sign-off list' using errcode = '42501';
   end if;
-  if p_list_key is null or p_list_key not in ('s1_approved', 's3_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved') then
+  if p_list_key is null or p_list_key not in (
+    's1_approved', 's3_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved',
+    'transmittal_warehouse', 'transmittal_technical', 'transmittal_logistics', 'transmittal_check_by'
+  ) then
     raise exception 'ipas_set_signer_list: % isn''t a sign-off list', coalesce(p_list_key, 'null') using errcode = '22023';
   end if;
 
@@ -7211,8 +7984,6 @@ begin
     from public.ipas_signer_lists l
    where l.list_key = p_list_key;
 
-  -- Everyone newly added must be a live employee. Someone already on the list
-  -- who has since left can still be taken off it.
   select x into v_missing
     from unnest(v_wanted) as x
    where x <> all (v_have)
@@ -7715,18 +8486,18 @@ AS $function$
         jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
         jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
         jsonb_build_object('key', 'import_clearance', 'ticked', i.import_clearance_on is not null, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null, 'partial', false),
+        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
         jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
         jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null, 'partial', false)
+        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
       )
       else jsonb_build_array(
         jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
         jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null, 'partial', false),
+        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
         jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
         jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null, 'partial', false)
+        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
       )
     end,
     i.computation_status,
@@ -7777,6 +8548,30 @@ AS $function$
     from public.ipas_signoffs so
     where so.ipas_id = i.id and so.cleared_at is null
   ) lv
+  cross join lateral (
+    -- #256: the submitted, uncancelled TG03 slips carrying this IPAS's lines.
+    -- Delivered once any slip's first stage is signed; Actual Checking once
+    -- every slip's checking stage is.
+    select
+      coalesce(bool_or(first_done), false) as delivered,
+      coalesce(count(*) > 0 and bool_and(check_done), false) as checked
+    from (
+      select
+        exists (
+          select 1 from public.transmittal_stages st
+           where st.transmittal_id = t.id and st.completed_at is not null
+             and st.stage = case when t.check_warehouse then 'warehouse_checking' else 'technical_inspection' end
+        ) as first_done,
+        exists (
+          select 1 from public.transmittal_stages st
+           where st.transmittal_id = t.id and st.completed_at is not null
+             and st.stage = case when t.check_technical then 'technical_inspection' else 'warehouse_checking' end
+        ) as check_done
+      from public.transmittals t
+      where t.state not in ('draft', 'cancelled')
+        and exists (select 1 from public.transmittal_lines l where l.transmittal_id = t.id and l.ipas_id = i.id)
+    ) slips
+  ) tg
   where (select public.sor_access_level(p_opportunity_id)) = 'full'
     and i.purpose = 'project'
     and exists (
@@ -8310,6 +9105,380 @@ begin
   end loop;
 
   return jsonb_build_object('moved', v_moved, 'failed', v_failed);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_add_box(p_packing_list_id uuid, p_marks text DEFAULT NULL::text, p_seal_no text DEFAULT NULL::text, p_gross_weight_kg numeric DEFAULT NULL::numeric)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.packing_lists := public._packing_list_editable(p_packing_list_id);
+  v_box public.packing_list_boxes;
+begin
+  insert into public.packing_list_boxes (packing_list_id, box_no, marks, seal_no, gross_weight_kg)
+  values (
+    v_row.id,
+    (select coalesce(max(b.box_no), 0) + 1 from public.packing_list_boxes b where b.packing_list_id = v_row.id),
+    nullif(btrim(coalesce(p_marks, '')), ''),
+    nullif(btrim(coalesce(p_seal_no, '')), ''),
+    p_gross_weight_kg
+  )
+  returning * into v_box;
+
+  perform public._packing_list_event(v_row.id, public.get_employee_id(), 'box_added', jsonb_build_object('box_no', v_box.box_no));
+  return jsonb_build_object('id', v_box.id, 'box_no', v_box.box_no);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_box_can_read(p_box_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select public.packing_list_can_read(b.packing_list_id)
+    from public.packing_list_boxes b
+   where b.id = p_box_id;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_boxes_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_list uuid := coalesce(new.packing_list_id, old.packing_list_id);
+begin
+  if exists (select 1 from public.packing_lists p where p.id = v_list and p.state = 'packed') then
+    raise exception 'packing_list_boxes: a packed Packing List''s boxes can''t be changed' using errcode = '42501';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_can_create()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.has_purchasing_access(), false)
+    or public.transmittal_on_list('transmittal_warehouse');
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_can_read(p_packing_list_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select public.ipas_can_read()
+    or public.transmittal_on_list('transmittal_warehouse')
+    or exists (
+      select 1 from public.packing_lists p
+       where p.id = p_packing_list_id
+         and (p.created_by = public.get_employee_id() or p.packed_by = public.get_employee_id())
+    )
+    or exists (
+      select 1 from public.packing_lists p
+        join public.sales_opportunities o on o.id = p.opportunity_id
+       where p.id = p_packing_list_id
+         and (
+           public.is_super_admin()
+           or public.sor_is_deal_team(o, public.get_employee_id())
+           or public.sor_always_sees(o, public.get_employee_id())
+         )
+    );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_contents_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_box uuid := coalesce(new.box_id, old.box_id);
+begin
+  if exists (
+    select 1
+      from public.packing_list_boxes b
+      join public.packing_lists p on p.id = b.packing_list_id
+     where b.id = v_box and p.state = 'packed'
+  ) then
+    raise exception 'packing_list_contents: a packed Packing List''s contents can''t be changed' using errcode = '42501';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_create(p_opportunity_id uuid, p_odoo_delivery_ref text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.packing_lists;
+begin
+  if v_actor is null then
+    raise exception 'packing_list_create: not signed in' using errcode = '42501';
+  end if;
+  if not public.packing_list_can_create() then
+    raise exception 'packing_list_create: only Purchasing, or the Warehouse list, makes a Packing List'
+      using errcode = '42501';
+  end if;
+  if p_opportunity_id is null or not exists (
+    select 1 from public.sales_opportunities o where o.id = p_opportunity_id and not coalesce(o.is_deleted, false)
+  ) then
+    raise exception 'packing_list_create: a Packing List is for one SOR' using errcode = '22023';
+  end if;
+
+  insert into public.packing_lists (opportunity_id, odoo_delivery_ref, created_by)
+  values (p_opportunity_id, nullif(btrim(coalesce(p_odoo_delivery_ref, '')), ''), v_actor)
+  returning * into v_row;
+
+  perform public._packing_list_event(v_row.id, v_actor, 'created', jsonb_build_object('number', v_row.number));
+
+  return jsonb_build_object('id', v_row.id, 'number', v_row.number);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_pack(p_packing_list_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.packing_lists := public._packing_list_editable(p_packing_list_id);
+  v_boxes integer;
+  v_empty integer;
+begin
+  select count(*), count(*) filter (where not exists (
+           select 1 from public.packing_list_contents c where c.box_id = b.id))
+    into v_boxes, v_empty
+    from public.packing_list_boxes b
+   where b.packing_list_id = v_row.id;
+
+  if v_boxes = 0 then
+    raise exception 'packing list: % has no boxes, so it can''t be packed', v_row.number using errcode = '22023';
+  end if;
+  if v_empty > 0 then
+    raise exception 'packing list: % has % box(es) with no contents', v_row.number, v_empty using errcode = '22023';
+  end if;
+
+  update public.packing_lists
+     set state = 'packed', packed_by = v_actor, packed_at = now()
+   where id = v_row.id;
+
+  perform public._packing_list_event(v_row.id, v_actor, 'packed', jsonb_build_object(
+    'number', v_row.number,
+    'boxes', v_boxes
+  ));
+
+  return jsonb_build_object('id', v_row.id, 'number', v_row.number, 'boxes', v_boxes);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_remove_box(p_box_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_box public.packing_list_boxes;
+  v_row public.packing_lists;
+begin
+  select * into v_box from public.packing_list_boxes where id = p_box_id;
+  if not found then
+    raise exception 'packing list: no such box' using errcode = 'P0002';
+  end if;
+  v_row := public._packing_list_editable(v_box.packing_list_id);
+  delete from public.packing_list_boxes where id = v_box.id;
+  perform public._packing_list_event(v_row.id, public.get_employee_id(), 'box_removed', jsonb_build_object('box_no', v_box.box_no));
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_set_contents(p_box_id uuid, p_contents jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_box public.packing_list_boxes;
+  v_row public.packing_lists;
+  v_item jsonb;
+  v_pos integer := 0;
+begin
+  select * into v_box from public.packing_list_boxes where id = p_box_id;
+  if not found then
+    raise exception 'packing list: no such box' using errcode = 'P0002';
+  end if;
+  v_row := public._packing_list_editable(v_box.packing_list_id);
+
+  delete from public.packing_list_contents where box_id = v_box.id;
+
+  for v_item in select * from jsonb_array_elements(coalesce(p_contents, '[]'::jsonb)) loop
+    v_pos := v_pos + 1;
+    insert into public.packing_list_contents (box_id, position, description, quantity, unit, sor_line_snapshot)
+    values (
+      v_box.id,
+      v_pos,
+      btrim(coalesce(v_item->>'description', '')),
+      (v_item->>'quantity')::numeric,
+      nullif(btrim(coalesce(v_item->>'unit', '')), ''),
+      case when jsonb_typeof(v_item->'snapshot') = 'object' then v_item->'snapshot' else null end
+    );
+  end loop;
+
+  perform public._packing_list_event(v_row.id, public.get_employee_id(), 'contents_set', jsonb_build_object(
+    'box_no', v_box.box_no,
+    'lines', v_pos
+  ));
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_sor_refs(p_packing_list_ids uuid[])
+ RETURNS TABLE(packing_list_id uuid, sor_id uuid, sor_reference text, sor_project text, client_name text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null then
+    raise exception 'packing_list_sor_refs: not signed in' using errcode = '42501';
+  end if;
+
+  return query
+    select p.id, o.id, o.sales_reference, o.project_title, o.client_name
+      from public.packing_lists p
+      join public.sales_opportunities o on o.id = p.opportunity_id
+     where p.id = any (coalesce(p_packing_list_ids, '{}'::uuid[]))
+       and public.packing_list_can_read(p.id);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_update_box(p_box_id uuid, p_marks text DEFAULT NULL::text, p_seal_no text DEFAULT NULL::text, p_gross_weight_kg numeric DEFAULT NULL::numeric)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_box public.packing_list_boxes;
+  v_row public.packing_lists;
+begin
+  select * into v_box from public.packing_list_boxes where id = p_box_id;
+  if not found then
+    raise exception 'packing list: no such box' using errcode = 'P0002';
+  end if;
+  v_row := public._packing_list_editable(v_box.packing_list_id);
+  update public.packing_list_boxes
+     set marks = nullif(btrim(coalesce(p_marks, '')), ''),
+         seal_no = nullif(btrim(coalesce(p_seal_no, '')), ''),
+         gross_weight_kg = p_gross_weight_kg
+   where id = v_box.id;
+  perform public._packing_list_event(v_row.id, public.get_employee_id(), 'box_updated', jsonb_build_object('box_no', v_box.box_no));
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_update_header(p_packing_list_id uuid, p_odoo_delivery_ref text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.packing_lists := public._packing_list_editable(p_packing_list_id);
+begin
+  update public.packing_lists
+     set odoo_delivery_ref = nullif(btrim(coalesce(p_odoo_delivery_ref, '')), '')
+   where id = v_row.id;
+  perform public._packing_list_event(v_row.id, public.get_employee_id(), 'header_updated', jsonb_build_object(
+    'odoo_delivery_ref', nullif(btrim(coalesce(p_odoo_delivery_ref, '')), '')
+  ));
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_lists_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'packing_lists: a Packing List is never deleted' using errcode = '42501';
+  end if;
+  if old.state = 'packed' then
+    raise exception 'packing_lists: % is packed and can''t be changed', old.number using errcode = '42501';
+  end if;
+  if new.state = 'packed' and (new.packed_by is null or new.packed_at is null) then
+    raise exception 'packing_lists: packing signs Packed by' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.pms_evidence_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_stage_id uuid := coalesce(new.record_id, old.record_id);
+  v_stage_tx uuid;
+  v_done timestamptz;
+  v_state text;
+  v_number text;
+begin
+  if tg_op = 'UPDATE' then
+    raise exception 'pms_evidence: a file is added or removed, never changed' using errcode = '42501';
+  end if;
+
+  select s.transmittal_id, s.completed_at, t.state, t.number
+    into v_stage_tx, v_done, v_state, v_number
+    from public.transmittal_stages s
+    join public.transmittals t on t.id = s.transmittal_id
+   where s.id = v_stage_id;
+
+  if not found then
+    raise exception 'pms_evidence: that stage doesn''t exist' using errcode = 'P0002';
+  end if;
+  if v_done is not null or v_state in ('closed', 'cancelled') then
+    raise exception 'transmittal: the stage of % is signed or ended; its files can''t change', v_number
+      using errcode = '42501';
+  end if;
+  if tg_op = 'INSERT' and new.transmittal_id is distinct from v_stage_tx then
+    raise exception 'pms_evidence: the file must belong to its stage''s Transmittal' using errcode = '22023';
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.pms_handoff_events_append_only()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  raise exception 'pms_handoff_events is append-only: history can''t be changed (% refused)', tg_op
+    using errcode = '42501';
 end;
 $function$
 ;
@@ -12436,6 +13605,1184 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.transmittal_attach_evidence(p_stage_id uuid, p_kind text, p_path text, p_file_name text, p_mime text, p_size bigint)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'storage'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_stage public.transmittal_stages;
+  v_row public.transmittals;
+  v_id uuid;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_attach_evidence: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_stage from public.transmittal_stages s where s.id = p_stage_id;
+  if not found then
+    raise exception 'transmittal_attach_evidence: that stage doesn''t exist' using errcode = 'P0002';
+  end if;
+  select * into v_row from public.transmittals t where t.id = v_stage.transmittal_id;
+
+  if v_stage.completed_at is not null or v_row.state in ('closed', 'cancelled') then
+    raise exception 'transmittal_attach_evidence: the stage of % is signed; its files can''t change', v_row.number
+      using errcode = '42501';
+  end if;
+  if not public.transmittal_on_list(
+       case when v_stage.stage = 'technical_inspection' then 'transmittal_technical' else 'transmittal_warehouse' end
+     ) then
+    raise exception 'transmittal_attach_evidence: only the stage''s list adds files' using errcode = '42501';
+  end if;
+  if p_kind not in ('picture', 'video') then
+    raise exception 'transmittal_attach_evidence: a file is a picture or a video' using errcode = '22023';
+  end if;
+  if p_size is null or p_size <= 0 or p_size > 52428800 then
+    raise exception 'transmittal_attach_evidence: a file is 50 MB or less' using errcode = '22023';
+  end if;
+  if p_path is null
+     or public._pms_evidence_transmittal_id(p_path) is distinct from v_row.id
+     or (storage.foldername(p_path))[2] is distinct from p_stage_id::text then
+    raise exception 'transmittal_attach_evidence: that file isn''t stored for this stage' using errcode = '22023';
+  end if;
+
+  insert into public.pms_evidence (
+    record_type, record_id, transmittal_id, kind, storage_path, file_name, mime_type, size_bytes, uploaded_by
+  ) values (
+    'transmittal_stage', p_stage_id, v_row.id, p_kind, p_path,
+    coalesce(nullif(btrim(p_file_name), ''), 'file'), p_mime, p_size, v_actor
+  )
+  returning id into v_id;
+
+  return jsonb_build_object('id', v_id, 'transmittal_id', v_row.id, 'stage_id', p_stage_id);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_can_prepare()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.has_purchasing_access(), false)
+    or public.transmittal_on_list('transmittal_warehouse')
+    or public.transmittal_on_list('transmittal_logistics');
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_can_read(p_transmittal_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select public.ipas_can_read()
+    or public.transmittal_on_list('transmittal_warehouse')
+    or public.transmittal_on_list('transmittal_technical')
+    or public.transmittal_on_list('transmittal_logistics')
+    or public.transmittal_on_list('transmittal_check_by')
+    or exists (
+      select 1 from public.transmittals t
+       where t.id = p_transmittal_id
+         and t.prepared_by = public.get_employee_id()
+    );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_cancel(p_transmittal_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_reason text := nullif(btrim(p_reason), '');
+begin
+  if v_actor is null then
+    raise exception 'transmittal_cancel: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_cancel: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+  if not (v_row.prepared_by = v_actor or coalesce(public.has_purchasing_access(), false)) then
+    raise exception 'transmittal_cancel: only the preparer or Purchasing cancels a slip' using errcode = '42501';
+  end if;
+  if v_row.state in ('closed', 'cancelled') then
+    raise exception 'transmittal_cancel: % is already %', v_row.number, v_row.state using errcode = '22023';
+  end if;
+  if v_reason is null then
+    raise exception 'transmittal_cancel: a cancel needs a reason' using errcode = '22023';
+  end if;
+  if exists (
+       select 1 from public.transmittal_stages s
+        where s.transmittal_id = p_transmittal_id and s.completed_at is not null
+     ) then
+    raise exception 'transmittal_cancel: % has a signed stage and can''t be cancelled', v_row.number
+      using errcode = '42501';
+  end if;
+
+  update public.transmittals
+     set state = 'cancelled',
+         cancelled_by = v_actor,
+         cancelled_at = now(),
+         cancel_reason = v_reason
+   where id = p_transmittal_id;
+
+  perform public._transmittal_event(p_transmittal_id, v_actor, 'cancelled', jsonb_build_object(
+    'number', v_row.number,
+    'reason', v_reason,
+    'from_state', v_row.state
+  ));
+
+  -- The preparer hears of a cancel by someone else; nobody hears their own.
+  return jsonb_build_object(
+    'id', p_transmittal_id,
+    'number', v_row.number,
+    'notify_id', case when v_row.prepared_by = v_actor then null else v_row.prepared_by end
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_check(p_transmittal_id uuid, p_slot integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_open_stages int;
+  v_po_lines int;
+  v_closed boolean := false;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_check: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_check: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+  if not public.transmittal_on_list('transmittal_check_by') then
+    raise exception 'transmittal_check: only the Check by list signs a Transmittal' using errcode = '42501';
+  end if;
+  if p_slot is null or p_slot not in (1, 2) then
+    raise exception 'transmittal_check: the slot is 1 or 2' using errcode = '22023';
+  end if;
+  if v_row.state <> 'awaiting_check' then
+    raise exception 'transmittal_check: % is %, not awaiting Check by', v_row.number, v_row.state using errcode = '42501';
+  end if;
+  if v_row.prepared_by = v_actor then
+    raise exception 'transmittal_check: the preparer can''t check their own slip' using errcode = '42501';
+  end if;
+
+  if p_slot = 1 and v_row.check_by_first_id is not null
+     or p_slot = 2 and v_row.check_by_second_id is not null then
+    raise exception 'transmittal_check: that Check by slot is signed already' using errcode = '22023';
+  end if;
+  if (v_row.check_by_first_id = v_actor and p_slot = 2)
+     or (v_row.check_by_second_id = v_actor and p_slot = 1) then
+    raise exception 'transmittal_check: the same person can''t sign both Check by slots' using errcode = '42501';
+  end if;
+
+  select count(*) into v_open_stages from public.transmittal_stages s
+   where s.transmittal_id = p_transmittal_id and s.completed_at is null;
+  if v_open_stages > 0 then
+    raise exception 'transmittal_check: % has a stage still open', v_row.number using errcode = '22023';
+  end if;
+
+  select count(*) into v_po_lines from public.transmittal_lines l
+   where l.transmittal_id = p_transmittal_id and l.kind = 'po_line';
+  if v_po_lines > 0 and v_row.odoo_received_at is null then
+    raise exception 'transmittal_check: % is a PO slip; record Received in Odoo first', v_row.number using errcode = '22023';
+  end if;
+
+  if p_slot = 1 then
+    update public.transmittals
+       set check_by_first_id = v_actor, check_by_first_at = now()
+     where id = p_transmittal_id;
+  else
+    update public.transmittals
+       set check_by_second_id = v_actor, check_by_second_at = now()
+     where id = p_transmittal_id;
+  end if;
+
+  -- The second signature closes the slip.
+  if (p_slot = 1 and v_row.check_by_second_id is not null)
+     or (p_slot = 2 and v_row.check_by_first_id is not null) then
+    v_closed := true;
+    update public.transmittals
+       set state = 'closed', closed_at = now()
+     where id = p_transmittal_id;
+  end if;
+
+  perform public._transmittal_event(p_transmittal_id, v_actor,
+    case when v_closed then 'closed' else 'check_signed' end,
+    jsonb_build_object('number', v_row.number, 'slot', p_slot));
+
+  return jsonb_build_object(
+    'id', p_transmittal_id,
+    'number', v_row.number,
+    'slot', p_slot,
+    'state', case when v_closed then 'closed' else 'awaiting_check' end,
+    'closed', v_closed,
+    'notify_id', case when v_closed then v_row.prepared_by else null end
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_children_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_id uuid := coalesce(new.transmittal_id, old.transmittal_id);
+  v_state text;
+  v_number text;
+begin
+  select state, number into v_state, v_number from public.transmittals where id = v_id;
+  if v_state is distinct from 'draft' then
+    raise exception 'transmittal: % is %, and its % can''t change', v_number, v_state, tg_table_name
+      using errcode = '42501';
+  end if;
+  return coalesce(new, old);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_complete_stage(p_transmittal_id uuid, p_stage text, p_other_signer_id uuid, p_other_signer_name text, p_remarks text, p_no_pictures_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_stage public.transmittal_stages;
+  v_other_name text;
+  v_reason text := nullif(btrim(coalesce(p_no_pictures_reason, '')), '');
+  v_remarks text := nullif(btrim(coalesce(p_remarks, '')), '');
+  v_unrated int;
+  v_na int := 0;
+  v_pictures int;
+  v_next_state text;
+  v_next_list text := null;
+  v_next_ids jsonb := '[]'::jsonb;
+  v_na_ids uuid[] := '{}';
+  v_tech boolean := p_stage = 'technical_inspection';
+begin
+  if v_actor is null then
+    raise exception 'transmittal_complete_stage: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_complete_stage: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+  if v_row.state in ('closed', 'cancelled') then
+    raise exception 'transmittal_complete_stage: % is %', v_row.number, v_row.state using errcode = '42501';
+  end if;
+  if p_stage not in ('warehouse_checking', 'warehouse_releasing', 'technical_inspection') then
+    raise exception 'transmittal_complete_stage: the stage is Warehouse checking, releasing or Technical inspection'
+      using errcode = '22023';
+  end if;
+  if v_tech then
+    if not public.transmittal_on_list('transmittal_technical') then
+      raise exception 'transmittal_complete_stage: only the Technical list signs Technical inspection' using errcode = '42501';
+    end if;
+  elsif not public.transmittal_on_list('transmittal_warehouse') then
+    raise exception 'transmittal_complete_stage: only the Warehouse list signs the Warehouse stages' using errcode = '42501';
+  end if;
+
+  select * into v_stage from public.transmittal_stages s
+   where s.transmittal_id = p_transmittal_id and s.stage = p_stage
+   for update;
+  if not found then
+    if p_stage = 'warehouse_releasing' and not v_row.check_technical then
+      insert into public.transmittal_stages (transmittal_id, stage)
+      values (p_transmittal_id, p_stage)
+      returning * into v_stage;
+    else
+      raise exception 'transmittal_complete_stage: % has no % stage', v_row.number, p_stage using errcode = 'P0002';
+    end if;
+  end if;
+
+  if v_stage.completed_at is not null then
+    raise exception 'transmittal_complete_stage: the % stage of % is already signed', p_stage, v_row.number
+      using errcode = '42501';
+  end if;
+  if p_stage = 'warehouse_checking' and v_row.state <> 'warehouse_checking' then
+    raise exception 'transmittal_complete_stage: Warehouse checking is not open on %', v_row.number using errcode = '42501';
+  end if;
+  if p_stage = 'warehouse_releasing' and v_row.check_technical and v_row.state <> 'warehouse_releasing' then
+    raise exception 'transmittal_complete_stage: releasing is not open on %', v_row.number using errcode = '42501';
+  end if;
+  if v_tech and v_row.state <> 'technical_inspection' then
+    raise exception 'transmittal_complete_stage: Technical inspection is not open on %', v_row.number using errcode = '42501';
+  end if;
+
+  -- The other signatory.
+  if p_stage = 'warehouse_checking' then
+    if p_other_signer_id is null or not exists (
+         select 1 from public.ipas_signer_lists l
+          where l.list_key = 'transmittal_warehouse' and l.employee_id = p_other_signer_id
+       ) then
+      raise exception 'transmittal_complete_stage: name the other signatory from the Warehouse list' using errcode = '22023';
+    end if;
+  elsif v_tech or v_row.check_technical then
+    if p_other_signer_id is null or not exists (
+         select 1 from public.ipas_signer_lists l
+          where l.list_key = 'transmittal_technical' and l.employee_id = p_other_signer_id
+       ) then
+      raise exception 'transmittal_complete_stage: the other signatory is on the Technical list' using errcode = '22023';
+    end if;
+  end if;
+
+  if p_other_signer_id = v_actor then
+    raise exception 'transmittal_complete_stage: the other signatory is someone else' using errcode = '22023';
+  end if;
+
+  if p_other_signer_id is not null then
+    select e.name into v_other_name from public.employees e where e.id = p_other_signer_id;
+    if not found then
+      raise exception 'transmittal_complete_stage: that signatory doesn''t exist' using errcode = 'P0002';
+    end if;
+  else
+    v_other_name := nullif(btrim(coalesce(p_other_signer_name, '')), '');
+  end if;
+  if v_other_name is null then
+    raise exception 'transmittal_complete_stage: name who signs with you' using errcode = '22023';
+  end if;
+
+  select count(*) into v_pictures from public.pms_evidence e
+   where e.record_type = 'transmittal_stage' and e.record_id = v_stage.id;
+
+  if p_stage = 'warehouse_checking' then
+    select count(*) into v_unrated from public.transmittal_lines l
+     where l.transmittal_id = p_transmittal_id and (l.wh_rating is null or l.wh_in_charge_id is null);
+    if v_unrated > 0 then
+      raise exception 'transmittal_complete_stage: % line(s) of % still need a GC or NA rating',
+        v_unrated, v_row.number using errcode = '22023';
+    end if;
+  elsif v_tech then
+    select count(*) into v_unrated from public.transmittal_lines l
+     where l.transmittal_id = p_transmittal_id and (l.tech_rating is null or l.tech_in_charge_id is null);
+    if v_unrated > 0 then
+      raise exception 'transmittal_complete_stage: % line(s) of % still need a GC or NA rating from Technical',
+        v_unrated, v_row.number using errcode = '22023';
+    end if;
+  end if;
+
+  -- Every stage: "Provided Pictures & Videos" is No only with a reason (spec #251).
+  if v_pictures = 0 and v_reason is null then
+    raise exception 'transmittal_complete_stage: attach a picture or video, or give the reason none' using errcode = '22023';
+  end if;
+
+  if p_stage = 'warehouse_checking' then
+    select count(*) into v_na from public.transmittal_lines l
+     where l.transmittal_id = p_transmittal_id and l.wh_rating = 'na';
+  elsif v_tech then
+    select count(*) into v_na from public.transmittal_lines l
+     where l.transmittal_id = p_transmittal_id and l.tech_rating = 'na';
+  end if;
+
+  update public.transmittal_stages
+     set remarks = v_remarks,
+         no_pictures_reason = case when v_pictures > 0 then null else v_reason end,
+         completed_by = v_actor,
+         completed_at = now(),
+         first_signer_id = v_actor,
+         first_signed_at = now(),
+         first_confirmed = true,
+         second_signer_id = p_other_signer_id,
+         second_signer_name = v_other_name,
+         second_signed_at = now()
+   where id = v_stage.id;
+
+  -- Advance the slip.
+  if p_stage = 'warehouse_checking' then
+    if v_row.check_technical then
+      v_next_state := 'warehouse_releasing';
+      v_next_list := 'transmittal_warehouse';
+    else
+      v_next_state := 'awaiting_check';
+      v_next_list := 'transmittal_check_by';
+    end if;
+  elsif v_tech then
+    v_next_state := 'awaiting_check';
+    v_next_list := 'transmittal_check_by';
+  elsif v_row.check_technical then
+    v_next_state := 'technical_inspection';
+    v_next_list := 'transmittal_technical';
+  else
+    v_next_state := v_row.state;
+  end if;
+
+  if v_next_state is distinct from v_row.state then
+    update public.transmittals set state = v_next_state where id = p_transmittal_id;
+  end if;
+
+  if v_next_list is not null then
+    v_next_ids := public._transmittal_list_ids(v_next_list);
+  end if;
+
+  if v_na > 0 then
+    v_na_ids := array(
+      select distinct u from unnest(
+        array_cat(
+          array[v_row.prepared_by],
+          array(
+            select l.employee_id from public.ipas_signer_lists l
+              join public.employees e on e.id = l.employee_id
+             where l.list_key = 'transmittal_check_by' and not coalesce(e.is_deleted, false)
+          )
+        )
+      ) as u
+    );
+  end if;
+
+  perform public._transmittal_event(p_transmittal_id, v_actor, 'stage_signed', jsonb_build_object(
+    'number', v_row.number,
+    'stage', p_stage,
+    'state_to', v_next_state,
+    'na_count', v_na,
+    'other_signer', v_other_name
+  ));
+
+  return jsonb_build_object(
+    'id', p_transmittal_id,
+    'number', v_row.number,
+    'stage', p_stage,
+    'state', v_next_state,
+    'na_count', v_na,
+    'notify_next_list', v_next_list,
+    'notify_next_ids', v_next_ids,
+    'notify_confirm_id', p_other_signer_id,
+    'notify_na_ids', case when v_na > 0 then to_jsonb(v_na_ids) else '[]'::jsonb end
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_confirm_signature(p_stage_id uuid, p_confirm boolean)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_stage public.transmittal_stages;
+  v_number text;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_confirm_signature: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_stage from public.transmittal_stages s where s.id = p_stage_id for update;
+  if not found then
+    raise exception 'transmittal_confirm_signature: that stage doesn''t exist' using errcode = 'P0002';
+  end if;
+  if v_stage.completed_at is null then
+    raise exception 'transmittal_confirm_signature: the stage isn''t signed yet' using errcode = '22023';
+  end if;
+  if v_stage.second_signer_id is distinct from v_actor then
+    raise exception 'transmittal_confirm_signature: only the co-signer confirms this signature' using errcode = '42501';
+  end if;
+
+  if coalesce(p_confirm, false) then
+    update public.transmittal_stages
+       set second_confirmed = true, second_signature_declined = false
+     where id = p_stage_id;
+  else
+    update public.transmittal_stages
+       set second_confirmed = false, second_signature_declined = true
+     where id = p_stage_id;
+  end if;
+
+  select number into v_number from public.transmittals where id = v_stage.transmittal_id;
+  perform public._transmittal_event(v_stage.transmittal_id, v_actor,
+    case when coalesce(p_confirm, false) then 'signature_confirmed' else 'signature_declined' end,
+    jsonb_build_object('number', v_number, 'stage', v_stage.stage));
+
+  return jsonb_build_object(
+    'id', v_stage.transmittal_id,
+    'stage_id', p_stage_id,
+    'confirmed', coalesce(p_confirm, false),
+    'notify_id', case when coalesce(p_confirm, false) then null else v_stage.first_signer_id end
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_create(p_fields jsonb, p_product_ids uuid[], p_reference_ids uuid[], p_lines jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_header jsonb;
+  v_row public.transmittals;
+  v_warnings jsonb;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_create: not signed in' using errcode = '42501';
+  end if;
+  if not public.transmittal_can_prepare() then
+    raise exception 'transmittal_create: only Purchasing, or the Warehouse or Logistics list, raises a Transmittal'
+      using errcode = '42501';
+  end if;
+
+  v_header := public._transmittal_clean_header(coalesce(p_fields, '{}'::jsonb));
+
+  insert into public.transmittals (
+    origin, origin_other, check_warehouse, check_technical, check_other, priority, entity,
+    product_other, item_location_id, prepared_by
+  ) values (
+    v_header->>'origin',
+    v_header->>'origin_other',
+    (v_header->>'check_warehouse')::boolean,
+    (v_header->>'check_technical')::boolean,
+    v_header->>'check_other',
+    v_header->>'priority',
+    v_header->>'entity',
+    v_header->>'product_other',
+    nullif(v_header->>'item_location_id', '')::uuid,
+    v_actor
+  )
+  returning * into v_row;
+
+  v_warnings := public._transmittal_write_children(v_row.id, p_product_ids, p_reference_ids, p_lines);
+
+  perform public._transmittal_event(v_row.id, v_actor, 'created', jsonb_build_object(
+    'number', v_row.number,
+    'lines', coalesce(jsonb_array_length(coalesce(p_lines, '[]'::jsonb)), 0)
+  ));
+
+  return jsonb_build_object('id', v_row.id, 'number', v_row.number, 'warnings', v_warnings);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_line_refs(p_transmittal_id uuid)
+ RETURNS TABLE(line_id uuid, ipas_number text, po_number text, sor_id uuid, sor_reference text, sor_project text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null then
+    raise exception 'transmittal_line_refs: not signed in' using errcode = '42501';
+  end if;
+  if not public.transmittal_can_read(p_transmittal_id) then
+    return;
+  end if;
+
+  return query
+    select l.id, i.number, i.po_number, o.id, o.sales_reference, o.project_title
+      from public.transmittal_lines l
+      left join public.ipas i on i.id = l.ipas_id
+      left join public.sales_opportunities o on o.id = l.opportunity_id
+     where l.transmittal_id = p_transmittal_id
+     order by l.position;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_lines_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_id uuid := coalesce(new.transmittal_id, old.transmittal_id);
+  v_state text;
+  v_number text;
+begin
+  select state, number into v_state, v_number from public.transmittals where id = v_id;
+
+  if tg_op = 'DELETE' then
+    if v_state is distinct from 'draft' then
+      raise exception 'transmittal: % is %, and its lines can''t change', v_number, v_state using errcode = '42501';
+    end if;
+    return old;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if v_state is distinct from 'draft' then
+      raise exception 'transmittal: % is %, and its lines can''t change', v_number, v_state using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  -- UPDATE
+  if v_state in ('closed', 'cancelled') then
+    raise exception 'transmittal: % is %, and its lines can''t change', v_number, v_state using errcode = '42501';
+  end if;
+  if v_state = 'draft' then
+    return new;
+  end if;
+
+  if (new.position, new.kind, new.ipas_id, new.odoo_po_line_id, new.description, new.quantity,
+      new.unit, new.opportunity_id, new.serial_numbers, new.box_quantity)
+     is distinct from
+     (old.position, old.kind, old.ipas_id, old.odoo_po_line_id, old.description, old.quantity,
+      old.unit, old.opportunity_id, old.serial_numbers, old.box_quantity) then
+    raise exception 'transmittal: % is submitted; its lines are fixed', v_number using errcode = '42501';
+  end if;
+
+  if (new.wh_in_charge_id, new.wh_rating, new.wh_remark, new.quantity_received)
+     is distinct from
+     (old.wh_in_charge_id, old.wh_rating, old.wh_remark, old.quantity_received) then
+    if exists (
+      select 1 from public.transmittal_stages s
+       where s.transmittal_id = v_id and s.stage = 'warehouse_checking' and s.completed_at is not null
+    ) then
+      raise exception 'transmittal: % Warehouse checking is signed; its ratings can''t change', v_number
+        using errcode = '42501';
+    end if;
+  end if;
+
+  if (new.tech_in_charge_id, new.tech_rating, new.tech_remark)
+     is distinct from
+     (old.tech_in_charge_id, old.tech_rating, old.tech_remark) then
+    if exists (
+      select 1 from public.transmittal_stages s
+       where s.transmittal_id = v_id and s.stage = 'technical_inspection' and s.completed_at is not null
+    ) then
+      raise exception 'transmittal: % Technical inspection is signed; its ratings can''t change', v_number
+        using errcode = '42501';
+    end if;
+  end if;
+
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_lines_sync_links()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform public._transmittal_sync_links(new.transmittal_id);
+  end if;
+  if tg_op = 'DELETE' or (tg_op = 'UPDATE' and old.transmittal_id is distinct from new.transmittal_id) then
+    perform public._transmittal_sync_links(old.transmittal_id);
+  end if;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_on_list(p_list_key text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1
+      from public.ipas_signer_lists l
+      join public.employees e on e.id = l.employee_id
+     where l.list_key = p_list_key
+       and l.employee_id = public.get_employee_id()
+       and not coalesce(e.is_deleted, false)
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_pickable_po_lines(p_search text DEFAULT NULL::text)
+ RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.transmittal_can_prepare() then
+    raise exception 'transmittal_pickable_po_lines: only a Transmittal preparer picks PO lines' using errcode = '42501';
+  end if;
+
+  return query
+  select
+    i.id,
+    i.number,
+    i.po_number,
+    (l->>'line_id')::integer,
+    nullif(btrim(l->>'name'), ''),
+    nullif(l->>'quantity', '')::numeric,
+    nullif(btrim(l->>'unit'), ''),
+    coalesce(nullif(btrim(i.entity_override), ''), nullif(btrim(i.odoo_copy #>> '{po,company}'), '')),
+    coalesce((
+      select jsonb_agg(jsonb_build_object(
+          'id', o.id, 'sales_reference', o.sales_reference, 'project_title', o.project_title
+        ) order by o.sales_reference)
+        from public.ipas_sors s
+        join public.sales_opportunities o on o.id = s.opportunity_id
+       where s.ipas_id = i.id
+    ), '[]'::jsonb)
+  from public.ipas i
+  cross join lateral jsonb_array_elements(coalesce(i.odoo_copy -> 'lines', '[]'::jsonb)) as l
+  where i.state <> 'cancelled'
+    and (
+      nullif(btrim(p_search), '') is null
+      or i.po_number ilike '%' || btrim(p_search) || '%'
+      or (l->>'name') ilike '%' || btrim(p_search) || '%'
+    )
+  order by i.po_number, (l->>'line_id')::integer
+  limit 200;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_rate(p_transmittal_id uuid, p_line_ratings jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_stage public.transmittal_stages;
+  v_item jsonb;
+  v_line public.transmittal_lines;
+  v_rating text;
+  v_remark text;
+  v_in_charge uuid;
+  v_received numeric;
+  v_count int := 0;
+  v_tech boolean;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_rate: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_rate: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+
+  -- Technical inspection is rated by the Technical list; Warehouse checking by the Warehouse list.
+  v_tech := v_row.state = 'technical_inspection';
+  if v_tech then
+    if not public.transmittal_on_list('transmittal_technical') then
+      raise exception 'transmittal_rate: only the Technical list rates the lines' using errcode = '42501';
+    end if;
+  elsif not public.transmittal_on_list('transmittal_warehouse') then
+    raise exception 'transmittal_rate: only the Warehouse list rates the lines' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_line_ratings) is distinct from 'array' then
+    raise exception 'transmittal_rate: the ratings are a list' using errcode = '22023';
+  end if;
+
+  select * into v_stage from public.transmittal_stages s
+   where s.transmittal_id = p_transmittal_id
+     and s.stage = case when v_tech then 'technical_inspection' else 'warehouse_checking' end;
+  if not found or v_stage.completed_at is not null
+     or v_row.state not in ('warehouse_checking', 'technical_inspection') then
+    raise exception 'transmittal_rate: % is not open on %', case when v_tech then 'Technical inspection' else 'Warehouse checking' end,
+      v_row.number using errcode = '42501';
+  end if;
+  if not v_tech and v_row.state <> 'warehouse_checking' then
+    raise exception 'transmittal_rate: Warehouse checking is not open on %', v_row.number using errcode = '42501';
+  end if;
+
+  for v_item in select value from jsonb_array_elements(p_line_ratings) loop
+    select * into v_line from public.transmittal_lines l
+     where l.id = nullif(v_item->>'line_id', '')::uuid and l.transmittal_id = p_transmittal_id;
+    if not found then
+      raise exception 'transmittal_rate: that line isn''t on %', v_row.number using errcode = '22023';
+    end if;
+
+    v_rating := lower(coalesce(v_item->>'rating', ''));
+    if v_rating not in ('gc', 'na') then
+      raise exception 'transmittal_rate: each line is GC or NA' using errcode = '22023';
+    end if;
+
+    v_remark := nullif(btrim(coalesce(v_item->>'remark', '')), '');
+    if v_rating = 'na' and v_remark is null then
+      raise exception 'transmittal_rate: an NA needs a remark' using errcode = '22023';
+    end if;
+
+    v_in_charge := coalesce(nullif(v_item->>'in_charge_id', '')::uuid, v_actor);
+    if not exists (
+      select 1 from public.ipas_signer_lists l
+       where l.list_key = case when v_tech then 'transmittal_technical' else 'transmittal_warehouse' end
+         and l.employee_id = v_in_charge
+    ) then
+      raise exception 'transmittal_rate: the in-charge is on the % list',
+        case when v_tech then 'Technical' else 'Warehouse' end using errcode = '22023';
+    end if;
+
+    if v_tech then
+      update public.transmittal_lines
+         set tech_in_charge_id = v_in_charge,
+             tech_rating = v_rating,
+             tech_remark = v_remark
+       where id = v_line.id;
+    else
+      v_received := nullif(v_item->>'quantity_received', '')::numeric;
+      if v_received is not null and v_received < 0 then
+        raise exception 'transmittal_rate: a quantity received is zero or more' using errcode = '22023';
+      end if;
+      if v_received = v_line.quantity then
+        v_received := null;
+      end if;
+
+      update public.transmittal_lines
+         set wh_in_charge_id = v_in_charge,
+             wh_rating = v_rating,
+             wh_remark = v_remark,
+             quantity_received = v_received
+       where id = v_line.id;
+    end if;
+    v_count := v_count + 1;
+  end loop;
+
+  perform public._transmittal_event(p_transmittal_id, v_actor, 'rated', jsonb_build_object(
+    'number', v_row.number,
+    'lines', v_count,
+    'stage', case when v_tech then 'technical_inspection' else 'warehouse_checking' end
+  ));
+
+  return jsonb_build_object('id', p_transmittal_id, 'number', v_row.number, 'rated', v_count);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_received_in_odoo(p_transmittal_id uuid, p_ref text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_ref text := nullif(btrim(coalesce(p_ref, '')), '');
+  v_at timestamptz := now();
+begin
+  if v_actor is null then
+    raise exception 'transmittal_received_in_odoo: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_received_in_odoo: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+  if not (public.transmittal_on_list('transmittal_warehouse') or coalesce(public.has_purchasing_access(), false)) then
+    raise exception 'transmittal_received_in_odoo: only the Warehouse list or Purchasing records the Odoo receipt'
+      using errcode = '42501';
+  end if;
+  if v_row.state not in ('warehouse_checking', 'warehouse_releasing', 'technical_inspection', 'awaiting_check') then
+    raise exception 'transmittal_received_in_odoo: % is %; the Odoo receipt is recorded from submission until close',
+      v_row.number, v_row.state using errcode = '22023';
+  end if;
+  if v_row.odoo_received_at is not null then
+    raise exception 'transmittal_received_in_odoo: % already has its Odoo receipt', v_row.number using errcode = '22023';
+  end if;
+
+  update public.transmittals
+     set odoo_received_by = v_actor, odoo_received_at = v_at, odoo_receipt_ref = v_ref
+   where id = p_transmittal_id;
+
+  perform public._transmittal_event(p_transmittal_id, v_actor, 'received_in_odoo', jsonb_build_object(
+    'number', v_row.number,
+    'receipt_ref', v_ref
+  ));
+
+  return jsonb_build_object('id', p_transmittal_id, 'number', v_row.number, 'received_at', v_at, 'receipt_ref', v_ref);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_remove_evidence(p_evidence_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_ev public.pms_evidence;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_remove_evidence: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_ev from public.pms_evidence e where e.id = p_evidence_id for update;
+  if not found then
+    raise exception 'transmittal_remove_evidence: that file doesn''t exist' using errcode = 'P0002';
+  end if;
+  if v_ev.uploaded_by is distinct from v_actor then
+    raise exception 'transmittal_remove_evidence: only the uploader removes a file' using errcode = '42501';
+  end if;
+
+  delete from public.pms_evidence where id = p_evidence_id;
+
+  perform public._transmittal_event(v_ev.transmittal_id, v_actor, 'evidence_removed', jsonb_build_object(
+    'file_name', v_ev.file_name,
+    'stage_id', v_ev.record_id
+  ));
+
+  return jsonb_build_object('id', p_evidence_id, 'storage_path', v_ev.storage_path);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_set_first_number(p_number bigint)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not coalesce(public.is_super_admin(), false) then
+    raise exception 'transmittal_set_first_number: only a Super Admin sets the first number' using errcode = '42501';
+  end if;
+  if p_number is null or p_number < 1 then
+    raise exception 'transmittal_set_first_number: the first number must be 1 or more' using errcode = '22023';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('transmittal_number_seq'));
+  if exists (select 1 from public.transmittals) then
+    raise exception 'transmittal_set_first_number: a Transmittal already exists; the first number is fixed'
+      using errcode = '42501';
+  end if;
+
+  perform setval('public.transmittal_number_seq', p_number, false);
+
+  return jsonb_build_object('first_number', p_number, 'number_format', 'TG03-' || p_number);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_stage_list_members(p_transmittal_id uuid, p_list_key text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.transmittal_can_read(p_transmittal_id) then
+    raise exception 'transmittal_stage_list_members: that Transmittal doesn''t exist or you can''t read it'
+      using errcode = '42501';
+  end if;
+  if p_list_key not in ('transmittal_warehouse', 'transmittal_technical', 'transmittal_logistics', 'transmittal_check_by') then
+    raise exception 'transmittal_stage_list_members: % isn''t a Transmittal list', p_list_key using errcode = '22023';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', e.id, 'name', e.name) order by e.name)
+      from public.ipas_signer_lists l
+      join public.employees e on e.id = l.employee_id
+     where l.list_key = p_list_key
+       and not coalesce(e.is_deleted, false)
+  ), '[]'::jsonb);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_stages_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_number text;
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'transmittal: a stage is never deleted' using errcode = '42501';
+  end if;
+
+  if old.completed_at is null then
+    return new;
+  end if;
+
+  if (new.id, new.transmittal_id, new.stage, new.remarks, new.no_pictures_reason, new.completed_by,
+      new.completed_at, new.first_signer_id, new.first_signed_at, new.first_confirmed,
+      new.first_signature_declined, new.second_signer_id, new.second_signer_name, new.second_signed_at,
+      new.created_at)
+     is distinct from
+     (old.id, old.transmittal_id, old.stage, old.remarks, old.no_pictures_reason, old.completed_by,
+      old.completed_at, old.first_signer_id, old.first_signed_at, old.first_confirmed,
+      old.first_signature_declined, old.second_signer_id, old.second_signer_name, old.second_signed_at,
+      old.created_at) then
+    select number into v_number from public.transmittals where id = old.transmittal_id;
+    raise exception 'transmittal: the % stage of % is signed; its remarks and signatures can''t change',
+      old.stage, v_number using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_submit(p_transmittal_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_first text;
+  v_notify text;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_submit: not signed in' using errcode = '42501';
+  end if;
+  if not public.transmittal_can_prepare() then
+    raise exception 'transmittal_submit: only a Transmittal preparer submits a slip' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_submit: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+  if not (v_row.prepared_by = v_actor or coalesce(public.has_purchasing_access(), false)) then
+    raise exception 'transmittal_submit: only the preparer or Purchasing submits a slip' using errcode = '42501';
+  end if;
+  if v_row.state <> 'draft' then
+    raise exception 'transmittal_submit: % is already %', v_row.number, v_row.state using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.transmittal_lines l where l.transmittal_id = p_transmittal_id) then
+    raise exception 'transmittal_submit: % needs at least one line', v_row.number using errcode = '22023';
+  end if;
+
+  v_first := case when v_row.check_warehouse then 'warehouse_checking' else 'technical_inspection' end;
+  v_notify := case when v_row.check_warehouse then 'transmittal_warehouse' else 'transmittal_technical' end;
+
+  if v_row.check_warehouse then
+    insert into public.transmittal_stages (transmittal_id, stage) values (p_transmittal_id, 'warehouse_checking');
+  end if;
+  if v_row.check_warehouse and v_row.check_technical then
+    insert into public.transmittal_stages (transmittal_id, stage) values (p_transmittal_id, 'warehouse_releasing');
+  end if;
+  if v_row.check_technical then
+    insert into public.transmittal_stages (transmittal_id, stage) values (p_transmittal_id, 'technical_inspection');
+  end if;
+
+  update public.transmittals
+     set state = v_first, submitted_at = now()
+   where id = p_transmittal_id;
+
+  perform public._transmittal_event(p_transmittal_id, v_actor, 'submitted', jsonb_build_object(
+    'number', v_row.number,
+    'first_stage', v_first
+  ));
+
+  -- The list's members are read here, not by the caller: the staff lists are
+  -- not readable to a preparer under row level security.
+  return jsonb_build_object(
+    'id', p_transmittal_id,
+    'number', v_row.number,
+    'state', v_first,
+    'notify_list', v_notify,
+    'notify_ids', coalesce((
+      select jsonb_agg(l.employee_id)
+        from public.ipas_signer_lists l
+        join public.employees e on e.id = l.employee_id
+       where l.list_key = v_notify
+         and not coalesce(e.is_deleted, false)
+    ), '[]'::jsonb)
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_update_draft(p_transmittal_id uuid, p_fields jsonb, p_product_ids uuid[], p_reference_ids uuid[], p_lines jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_header jsonb;
+  v_warnings jsonb;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_update_draft: not signed in' using errcode = '42501';
+  end if;
+  if not public.transmittal_can_prepare() then
+    raise exception 'transmittal_update_draft: only a Transmittal preparer changes a slip' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_update_draft: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+  if not (v_row.prepared_by = v_actor or coalesce(public.has_purchasing_access(), false)) then
+    raise exception 'transmittal_update_draft: only the preparer or Purchasing changes a slip' using errcode = '42501';
+  end if;
+  if v_row.state <> 'draft' then
+    raise exception 'transmittal_update_draft: % is %; only a draft changes', v_row.number, v_row.state
+      using errcode = '42501';
+  end if;
+
+  v_header := public._transmittal_clean_header(coalesce(p_fields, '{}'::jsonb));
+
+  update public.transmittals set
+    origin = v_header->>'origin',
+    origin_other = v_header->>'origin_other',
+    check_warehouse = (v_header->>'check_warehouse')::boolean,
+    check_technical = (v_header->>'check_technical')::boolean,
+    check_other = v_header->>'check_other',
+    priority = v_header->>'priority',
+    entity = v_header->>'entity',
+    product_other = v_header->>'product_other',
+    item_location_id = nullif(v_header->>'item_location_id', '')::uuid
+   where id = p_transmittal_id;
+
+  v_warnings := public._transmittal_write_children(p_transmittal_id, p_product_ids, p_reference_ids, p_lines);
+
+  perform public._transmittal_event(p_transmittal_id, v_actor, 'draft_updated', jsonb_build_object(
+    'number', v_row.number,
+    'lines', coalesce(jsonb_array_length(coalesce(p_lines, '[]'::jsonb)), 0)
+  ));
+
+  return jsonb_build_object('id', p_transmittal_id, 'number', v_row.number, 'warnings', v_warnings);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittals_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'transmittal: a Transmittal is never deleted; cancel it instead' using errcode = '42501';
+  end if;
+
+  if old.state in ('closed', 'cancelled') then
+    raise exception 'transmittal: % is %, and can''t change', old.number, old.state using errcode = '42501';
+  end if;
+
+  if new.number is distinct from old.number
+     or new.prepared_by is distinct from old.prepared_by
+     or new.prepared_on is distinct from old.prepared_on then
+    raise exception 'transmittal: the number, preparer and date of % can''t change', old.number using errcode = '42501';
+  end if;
+
+  if old.state <> 'draft' and (
+       new.origin, new.origin_other, new.check_warehouse, new.check_technical, new.check_other,
+       new.priority, new.entity, new.product_other, new.item_location_id
+     ) is distinct from (
+       old.origin, old.origin_other, old.check_warehouse, old.check_technical, old.check_other,
+       old.priority, old.entity, old.product_other, old.item_location_id
+     ) then
+    raise exception 'transmittal: % is submitted; its header is fixed', old.number using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.undo_offset_leave_decision(p_group_id uuid, p_hr_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -12938,6 +15285,7 @@ CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_fl
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
+CREATE TRIGGER ipas_actual_checking_hand_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_actual_checking_hand_guard();
 CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_fill_from_odoo_copy();
 CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
@@ -12966,6 +15314,12 @@ CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER overtime_requests_guard_head_status BEFORE UPDATE ON public.overtime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
+CREATE TRIGGER packing_list_boxes_guard BEFORE INSERT OR DELETE OR UPDATE ON public.packing_list_boxes FOR EACH ROW EXECUTE FUNCTION packing_list_boxes_guard();
+CREATE TRIGGER packing_list_contents_guard BEFORE INSERT OR DELETE OR UPDATE ON public.packing_list_contents FOR EACH ROW EXECUTE FUNCTION packing_list_contents_guard();
+CREATE TRIGGER packing_lists_guard BEFORE DELETE OR UPDATE ON public.packing_lists FOR EACH ROW EXECUTE FUNCTION packing_lists_guard();
+CREATE TRIGGER pms_evidence_guard BEFORE INSERT OR DELETE OR UPDATE ON public.pms_evidence FOR EACH ROW EXECUTE FUNCTION pms_evidence_guard();
+CREATE TRIGGER pms_handoff_events_no_change BEFORE DELETE OR UPDATE ON public.pms_handoff_events FOR EACH ROW EXECUTE FUNCTION pms_handoff_events_append_only();
+CREATE TRIGGER pms_handoff_events_no_truncate BEFORE TRUNCATE ON public.pms_handoff_events FOR EACH STATEMENT EXECUTE FUNCTION pms_handoff_events_append_only();
 CREATE TRIGGER purchase_request_messages_broadcast_change_trigger AFTER INSERT ON public.purchase_request_messages FOR EACH ROW EXECUTE FUNCTION purchase_request_messages_broadcast_change();
 CREATE TRIGGER purchase_request_messages_notify AFTER INSERT ON public.purchase_request_messages FOR EACH ROW EXECUTE FUNCTION _purchase_request_message_notify();
 CREATE TRIGGER purchase_requests_updated_at BEFORE UPDATE ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION set_purchase_requests_updated_at();
@@ -12992,6 +15346,12 @@ CREATE TRIGGER trg_sor_procurement_requests_touch BEFORE UPDATE ON public.sor_pr
 CREATE TRIGGER trg_sor_purchase_order_links_touch BEFORE UPDATE ON public.sor_purchase_order_links FOR EACH ROW EXECUTE FUNCTION sor_purchase_order_links_touch();
 CREATE TRIGGER enforce_task_verification_security BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION protect_task_verification();
 CREATE TRIGGER tasks_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION tasks_broadcast_change();
+CREATE TRIGGER transmittal_lines_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_lines FOR EACH ROW EXECUTE FUNCTION transmittal_lines_guard();
+CREATE TRIGGER transmittal_lines_sync_links AFTER INSERT OR DELETE OR UPDATE ON public.transmittal_lines FOR EACH ROW EXECUTE FUNCTION transmittal_lines_sync_links();
+CREATE TRIGGER transmittal_products_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_products FOR EACH ROW EXECUTE FUNCTION transmittal_children_guard();
+CREATE TRIGGER transmittal_references_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_references FOR EACH ROW EXECUTE FUNCTION transmittal_children_guard();
+CREATE TRIGGER transmittal_stages_guard BEFORE DELETE OR UPDATE ON public.transmittal_stages FOR EACH ROW EXECUTE FUNCTION transmittal_stages_guard();
+CREATE TRIGGER transmittals_guard BEFORE DELETE OR UPDATE ON public.transmittals FOR EACH ROW EXECUTE FUNCTION transmittals_guard();
 CREATE TRIGGER undertime_requests_guard_head_status BEFORE UPDATE ON public.undertime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 
 -- ============================================================

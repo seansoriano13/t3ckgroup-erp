@@ -17,6 +17,7 @@ import {
   Sparkles,
   Handshake,
   Bug,
+  PackageOpen,
   ReceiptText,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
@@ -166,6 +167,35 @@ export const NAV_MODULES = {
         icon: ReceiptText,
         isPermitted: (ctx) =>
           ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow || ctx.isIpasSigner,
+      },
+      // Transmittals (#252): the TG03 slips. Read by the IPAS readers and the
+      // four Transmittal staff lists; the database refuses everyone else.
+      {
+        key: "purchasing.transmittals",
+        label: "Transmittals",
+        link: "/purchasing/transmittals",
+        icon: ReceiptText,
+        isPermitted: (ctx) =>
+          ctx.isSuperAdmin ||
+          ctx.hasPurchasingFlow ||
+          ctx.hasFinanceFlow ||
+          ctx.isIpasSigner ||
+          ctx.isIpasApprover ||
+          ctx.isTransmittalStaff,
+      },
+      // Packing Lists (#255): the boxes packed for an SOR. Read by the IPAS
+      // readers and the Warehouse list; the database refuses everyone else.
+      {
+        key: "purchasing.packing_lists",
+        label: "Packing Lists",
+        link: "/purchasing/packing-lists",
+        icon: PackageOpen,
+        isPermitted: (ctx) =>
+          ctx.isSuperAdmin ||
+          ctx.hasPurchasingFlow ||
+          ctx.hasFinanceFlow ||
+          ctx.isIpasSigner ||
+          ctx.isTransmittalWarehouse,
       },
     ],
   },

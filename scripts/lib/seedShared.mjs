@@ -115,6 +115,22 @@ export const SEED_TABLES = [
   // Who changed those lists (#241): history about employees, no sensitive data.
   "ipas_signer_list_log",
   "odoo_retail_queue",
+  // TG03 Transmittals (#251) point at employees, ipas, ipas_options and SORs;
+  // the lines, links and stages point at the slip. pms_evidence holds storage
+  // paths, never the files.
+  "transmittals",
+  "transmittal_products",
+  "transmittal_references",
+  "transmittal_lines",
+  "transmittal_ipas",
+  "transmittal_sors",
+  "transmittal_stages",
+  "pms_handoff_events",
+  "pms_evidence",
+  // Packing Lists (#255) point at SORs; boxes at the list, contents at the box.
+  "packing_lists",
+  "packing_list_boxes",
+  "packing_list_contents",
 ]
 
 /** Tables the migrations build that the seed deliberately leaves out, each with why. */

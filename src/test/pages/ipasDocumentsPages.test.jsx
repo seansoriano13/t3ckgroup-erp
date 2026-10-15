@@ -289,7 +289,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       await user.click(await screen.findByRole("option", { name: "BM Office" }));
 
       await waitFor(() => expect(db.rows("ipas")[0].item_location_id).toBe(options.item_location["BM Office"].id));
-      expect(screen.queryByText(/TG03/)).not.toBeInTheDocument();
+      expect(screen.queryByText("from the TG03 Transmittals")).not.toBeInTheDocument();
     });
 
     it("shows the location read-only to Finance", async () => {

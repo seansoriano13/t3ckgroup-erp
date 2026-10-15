@@ -8,6 +8,7 @@ import PendingActionDecisions from "../PendingActionDecisions";
 import TaskRow from "./TaskRow";
 import PurchaseRequestCard from "./PurchaseRequestCard";
 import IpasSorSection from "../../ipas/IpasSorSection";
+import HandoffsSorSection from "../HandoffsSorSection";
 import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
 import { Button } from "../../ui/button";
@@ -233,6 +234,9 @@ export default function NowTab({ ctx }) {
 
       {/* #249: renders nothing when no IPAS names this SOR (or the viewer cannot read it). */}
       <IpasSorSection opportunityId={id} />
+
+      {/* #257: renders nothing when no Transmittal or Packing List names this SOR. */}
+      <HandoffsSorSection opportunityId={id} />
     </div>
   );
 }
