@@ -10,6 +10,9 @@ import { sorHandoffsService } from "../../services/sorHandoffsService";
 const openTransmittal = (id) =>
   window.open(`/purchasing/transmittals/${id}`, "_blank", "noopener");
 
+const openPackingList = (id) =>
+  window.open(`/purchasing/packing-lists/${id}`, "_blank", "noopener");
+
 /**
  * The Transmittals and Packing Lists section of an SOR (#257): each Transmittal
  * naming it (number, priority, stage, NA count) and each Packing List (number,
@@ -87,6 +90,11 @@ export default function HandoffsSorSection({ opportunityId }) {
                   .join(" · ")}
               </p>
             </div>
+            {p.canOpen && (
+              <Button type="button" variant="outline" size="sm" onClick={() => openPackingList(p.id)}>
+                Open Packing List
+              </Button>
+            )}
           </div>
         ))}
       </div>

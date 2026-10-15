@@ -10,6 +10,7 @@ export type Path =
   | `/approvals/ipas`
   | `/approvals/leaves`
   | `/approvals/tasks`
+  | `/approvals/transmittals`
   | `/bug-reports`
   | `/crm`
   | `/crm/commission`

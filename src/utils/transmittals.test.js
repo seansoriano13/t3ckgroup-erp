@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { firstStageOf, pickedLineLabel, shapeTransmittal, stagesOf } from "./transmittals";
+import { checkingStageOf, firstStageOf, pickedLineLabel, shapeTransmittal, stagesOf, tsrOf } from "./transmittals";
 
 describe("which stages a Transmittal has", () => {
   it("opens Warehouse checking first, with releasing and Technical when both are ticked", () => {
-    const both = { check_warehouse: true, check_technical: true };
+    const both = { checkWarehouse: true, checkTechnical: true };
     expect(firstStageOf(both)).toBe("warehouse_checking");
     expect(stagesOf(both)).toEqual(["warehouse_checking", "warehouse_releasing", "technical_inspection"]);
   });
 
   it("opens Technical inspection on a Technical-only slip, with no releasing", () => {
-    const technical = { check_warehouse: false, check_technical: true };
+    const technical = { checkWarehouse: false, checkTechnical: true };
     expect(firstStageOf(technical)).toBe("technical_inspection");
     expect(stagesOf(technical)).toEqual(["technical_inspection"]);
   });
@@ -17,6 +17,39 @@ describe("which stages a Transmittal has", () => {
   it("has no stages before it is read", () => {
     expect(firstStageOf(null)).toBeNull();
     expect(stagesOf(null)).toEqual([]);
+  });
+});
+
+describe("stages read from a shaped slip", () => {
+  const shapedSlip = (overrides) =>
+    shapeTransmittal({
+      id: "t2",
+      number: "TG03-527",
+      origin: "purchasing",
+      priority: "low",
+      entity: "T3ck Trading",
+      state: "submitted",
+      check_warehouse: true,
+      check_technical: true,
+      preparer: null,
+      products: [],
+      references: [],
+      stages: [],
+      lines: [],
+      ...overrides,
+    });
+
+  it("lists the Technical inspection stage on a shaped slip that has it", () => {
+    const slip = shapedSlip({});
+    expect(stagesOf(slip)).toEqual(["warehouse_checking", "warehouse_releasing", "technical_inspection"]);
+    expect(firstStageOf(slip)).toBe("warehouse_checking");
+    expect(checkingStageOf(slip)).toBe("technical_inspection");
+  });
+
+  it("opens Technical on a shaped Technical-only slip", () => {
+    const slip = shapedSlip({ check_warehouse: false, check_technical: true });
+    expect(stagesOf(slip)).toEqual(["technical_inspection"]);
+    expect(firstStageOf(slip)).toBe("technical_inspection");
   });
 });
 
@@ -68,6 +101,51 @@ describe("shaping a Transmittal row", () => {
     expect(shaped.products).toEqual([{ id: "p1", label: "Marwa" }]);
     expect(shaped.checkWarehouse).toBe(true);
     expect(shaped.checkTechnical).toBe(false);
+  });
+});
+
+describe("the TSR a Technical inspection gives", () => {
+  it("derives units from the rated lines, with NA as a fail, and the signers from the stage", () => {
+    const slip = shapeTransmittal({
+      id: "t3",
+      number: "TG03-528",
+      state: "awaiting_check",
+      check_warehouse: false,
+      check_technical: true,
+      products: [],
+      references: [],
+      stages: [
+        {
+          id: "s1",
+          stage: "technical_inspection",
+          remarks: "Scratch on housing",
+          first_signer: { id: "e1", name: "Inspector" },
+          first_signed_at: "2026-10-15T01:00:00Z",
+          second_signed_at: null,
+        },
+      ],
+      evidence: [{ id: "v1", record_id: "s1", kind: "picture", storage_path: "p/1.jpg", file_name: "1.jpg" }],
+      lines: [
+        { id: "l1", position: 1, description: "Cutter", serial_numbers: "SN1", tech_rating: "gc", tech_remark: "" },
+        { id: "l2", position: 2, description: "Drill", serial_numbers: "SN2", tech_rating: "na", tech_remark: "Cracked" },
+        { id: "l3", position: 3, description: "Bit", tech_rating: null },
+      ],
+    });
+
+    const tsr = tsrOf(slip);
+
+    expect(tsr.units).toEqual([
+      { serial: "SN1", verdict: "pass", remark: "" },
+      { serial: "SN2", verdict: "fail", remark: "Cracked" },
+    ]);
+    expect(tsr.checkedBy).toEqual({ name: "Inspector", at: "2026-10-15T01:00:00Z" });
+    expect(tsr.notedBy).toBeNull();
+    expect(tsr.remarks).toBe("Scratch on housing");
+    expect(tsr.evidence).toEqual([{ kind: "picture", storagePath: "p/1.jpg", fileName: "1.jpg" }]);
+  });
+
+  it("is null on a slip with no Technical inspection", () => {
+    expect(tsrOf(shapeTransmittal({ id: "t4", number: "x", check_warehouse: true, check_technical: false, stages: [], lines: [] }))).toBeNull();
   });
 });
 

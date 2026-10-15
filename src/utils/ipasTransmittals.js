@@ -9,24 +9,14 @@
  * completed_at }], lines: [{ wh_rating, tech_rating }] }`.
  */
 
-import {
-  TRANSMITTAL_STAGE,
-  TRANSMITTAL_STATE,
-} from "../constants/transmittals";
-import { stageRowOf, transmittalStateLabel } from "./transmittals";
+import { TRANSMITTAL_STATE } from "../constants/transmittals";
+import { checkingStageOf, firstStageOf, stageRowOf, transmittalStateLabel } from "./transmittals";
 
 /** Where the derived values come from. */
 export const IPAS_TRANSMITTAL_VIA = "transmittals";
 
-/** The first stage a slip opens: Warehouse checking, or Technical on a Technical-only slip. */
-export function firstStageOfSlip(slip) {
-  return slip?.check_warehouse ? TRANSMITTAL_STAGE.WAREHOUSE_CHECKING : TRANSMITTAL_STAGE.TECHNICAL_INSPECTION;
-}
-
-/** The checking stage: Technical inspection where the slip has one, otherwise Warehouse checking. */
-export function checkingStageOfSlip(slip) {
-  return slip?.check_technical ? TRANSMITTAL_STAGE.TECHNICAL_INSPECTION : TRANSMITTAL_STAGE.WAREHOUSE_CHECKING;
-}
+/** The shaped stage flags of a raw slip row (forIpas returns snake_case columns). */
+const flagsOf = (slip) => ({ checkWarehouse: slip?.check_warehouse, checkTechnical: slip?.check_technical });
 
 const completedAt = (slip, stage) => stageRowOf(slip, stage)?.completed_at ?? null;
 
@@ -69,7 +59,7 @@ export function section5Rows(slips = []) {
 export function derivedItemLocationId(slips = []) {
   let found = null;
   for (const slip of inDateOrder(slips)) {
-    if (completedAt(slip, firstStageOfSlip(slip))) found = slip.item_location_id ?? null;
+    if (completedAt(slip, firstStageOf(flagsOf(slip)))) found = slip.item_location_id ?? null;
   }
   return found;
 }
@@ -81,7 +71,7 @@ export function derivedItemLocationId(slips = []) {
 export function derivedDelivered(slips = []) {
   let earliest = null;
   for (const slip of slips) {
-    const at = completedAt(slip, firstStageOfSlip(slip));
+    const at = completedAt(slip, firstStageOf(flagsOf(slip)));
     if (at && (earliest === null || at < earliest)) earliest = at;
   }
   return earliest ? { on: earliest, stamped: true } : null;
@@ -95,7 +85,7 @@ export function derivedDelivered(slips = []) {
  */
 export function derivedActualChecking(slips = []) {
   if (slips.length === 0) return { status: "none" };
-  const completions = slips.map((slip) => completedAt(slip, checkingStageOfSlip(slip)));
+  const completions = slips.map((slip) => completedAt(slip, checkingStageOf(flagsOf(slip))));
   const done = completions.filter(Boolean).length;
   if (done < slips.length) return { status: "pending", done, total: slips.length };
   const at = completions.reduce((latest, value) => (value > latest ? value : latest), completions[0]);

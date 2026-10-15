@@ -81,7 +81,14 @@ function gridHtml(page) {
 /** A plate: a signed signer through `sigBlock`, a waiting one blank with its role. */
 function plateHtml(p) {
   if (p.state === 'signed') {
-    return sigBlock({ role: esc(p.role), who: esc(p.who), title: '', state: 'signed', stamp: esc(p.stamp) });
+    return sigBlock({
+      role: esc(p.role),
+      who: esc(p.who),
+      title: '',
+      state: 'signed',
+      stamp: esc(p.stamp),
+      signatureBase64: p.signatureBase64 || undefined,
+    });
   }
   return `<div class="sig waiting"><div class="k">${esc(p.role)}</div><div class="plate"></div><div class="who"></div></div>`;
 }

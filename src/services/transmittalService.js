@@ -6,9 +6,11 @@ import {
   TRANSMITTAL_PRIORITIES,
   TRANSMITTAL_ORIGIN,
   TRANSMITTAL_LINE_KIND,
+  TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STAFF_LISTS,
+  TRANSMITTAL_OPTION_LIST,
 } from "../constants/transmittals";
-import { shapeTransmittal, transmittalStateLabel } from "../utils/transmittals";
+import { shapeTransmittal, transmittalStateLabel, tsrOf } from "../utils/transmittals";
 
 /** The private bucket for stage pictures and videos (#253). Paths: <transmittal>/<stage>/<uuid>-<name>. */
 export const PMS_EVIDENCE_BUCKET = "pms-evidence";
@@ -19,12 +21,15 @@ const TRANSMITTAL_SELECT =
   " item_location:ipas_options!transmittals_item_location_id_fkey(id, label)," +
   " products:transmittal_products(option:ipas_options(id, label))," +
   " references:transmittal_references(option:ipas_options(id, label))," +
-  " check_by_first:employees!transmittals_check_by_first_id_fkey(id, name)," +
-  " check_by_second:employees!transmittals_check_by_second_id_fkey(id, name)," +
-  " stages:transmittal_stages(*, first_signer:employees!transmittal_stages_first_signer_id_fkey(id, name))," +
+  " check_by_first:employees!transmittals_check_by_first_id_fkey(id, name, call_sign)," +
+  " check_by_second:employees!transmittals_check_by_second_id_fkey(id, name, call_sign)," +
+  " stages:transmittal_stages(*, first_signer:employees!transmittal_stages_first_signer_id_fkey(id, name, signature_path)," +
+  " second_signer:employees!transmittal_stages_second_signer_id_fkey(id, name, signature_path))," +
   " evidence:pms_evidence(id, record_id, kind, storage_path, file_name, mime_type, size_bytes, uploaded_by, created_at)," +
   " lines:transmittal_lines(*, ipas:ipas!transmittal_lines_ipas_id_fkey(id, number, po_number)," +
-  " sor:sales_opportunities!transmittal_lines_opportunity_id_fkey(id, sales_reference, project_title))";
+  " sor:sales_opportunities!transmittal_lines_opportunity_id_fkey(id, sales_reference, project_title)," +
+  " wh_in_charge:employees!transmittal_lines_wh_in_charge_id_fkey(id, name)," +
+  " tech_in_charge:employees!transmittal_lines_tech_in_charge_id_fkey(id, name))";
 
 const TRANSMITTAL_LIST_SELECT =
   "id, number, prepared_on, prepared_by, origin, priority, entity, state, submitted_at, created_at," +
@@ -116,6 +121,15 @@ export const transmittalService = {
     const { data, error } = await supabase.from("transmittals").select(TRANSMITTAL_SELECT).eq("id", id).maybeSingle();
     if (error) throw error;
     return shapeTransmittal(data);
+  },
+
+  /**
+   * The Technical Service Report of one slip, derived from its Technical
+   * inspection stage (#259): null when the slip has none or isn't visible.
+   */
+  async getTsr(id) {
+    const slip = await transmittalService.get(id);
+    return tsrOf(slip);
   },
 
   /**
@@ -221,6 +235,34 @@ export const transmittalService = {
       .eq("employee_id", employeeId);
     if (error) throw error;
     return (data ?? []).map((row) => row.list_key).filter((key) => TRANSMITTAL_STAFF_LISTS.includes(key));
+  },
+
+  /**
+   * The Check by list's call signs, for the blank Check by plates on the
+   * printed Transmittal (#258): `[{ name, callSign }]`, in list order.
+   */
+  async checkByRoster() {
+    const { data, error } = await supabase
+      .from("ipas_signer_lists")
+      .select("employees(name, call_sign)")
+      .eq("list_key", TRANSMITTAL_STAFF_LIST.CHECK_BY);
+    if (error) throw error;
+    return (data ?? [])
+      .map((row) => row.employees)
+      .filter(Boolean)
+      .map((e) => ({ name: e.name ?? "", callSign: e.call_sign ?? "" }));
+  },
+
+  /** Every active reference option, in order, for the printed reference checklist (#258). */
+  async referenceOptions() {
+    const { data, error } = await supabase
+      .from("ipas_options")
+      .select("id, label")
+      .eq("list", TRANSMITTAL_OPTION_LIST.REFERENCE)
+      .eq("active", true)
+      .order("sort", { ascending: true });
+    if (error) throw error;
+    return data ?? [];
   },
 
   /** The active members of one staff list, for a signatory picker: `[{ id, name }]`. */

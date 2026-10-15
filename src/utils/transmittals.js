@@ -1,29 +1,33 @@
-import { TRANSMITTAL_STAGE, TRANSMITTAL_STAGE_LIST, TRANSMITTAL_STATE_LABELS } from "../constants/transmittals";
+import { TRANSMITTAL_RATING, TRANSMITTAL_STAGE, TRANSMITTAL_STATE_LABELS } from "../constants/transmittals";
 
 /**
  * Pure reads of a Transmittal row as the service fetches it (#252). The
  * database holds the rules; these only shape what the screens show.
  */
 
-/** The first stage a submitted slip opens: Warehouse checking, or Technical on a Technical-only slip. */
+/**
+ * The first stage a submitted slip opens: Warehouse checking, or Technical on a
+ * Technical-only slip. Reads the shaped flags, `checkWarehouse` and `checkTechnical`.
+ */
 export function firstStageOf(transmittal) {
   if (!transmittal) return null;
-  return transmittal.check_warehouse ? TRANSMITTAL_STAGE.WAREHOUSE_CHECKING : TRANSMITTAL_STAGE.TECHNICAL_INSPECTION;
+  return transmittal.checkWarehouse ? TRANSMITTAL_STAGE.WAREHOUSE_CHECKING : TRANSMITTAL_STAGE.TECHNICAL_INSPECTION;
+}
+
+/** The checking stage: Technical inspection where the slip has one, otherwise Warehouse checking. */
+export function checkingStageOf(transmittal) {
+  if (!transmittal) return null;
+  return transmittal.checkTechnical ? TRANSMITTAL_STAGE.TECHNICAL_INSPECTION : TRANSMITTAL_STAGE.WAREHOUSE_CHECKING;
 }
 
 /** The stages a slip has, in order (Warehouse releasing only when both are ticked). */
 export function stagesOf(transmittal) {
   if (!transmittal) return [];
   const stages = [];
-  if (transmittal.check_warehouse) stages.push(TRANSMITTAL_STAGE.WAREHOUSE_CHECKING);
-  if (transmittal.check_warehouse && transmittal.check_technical) stages.push(TRANSMITTAL_STAGE.WAREHOUSE_RELEASING);
-  if (transmittal.check_technical) stages.push(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
+  if (transmittal.checkWarehouse) stages.push(TRANSMITTAL_STAGE.WAREHOUSE_CHECKING);
+  if (transmittal.checkWarehouse && transmittal.checkTechnical) stages.push(TRANSMITTAL_STAGE.WAREHOUSE_RELEASING);
+  if (transmittal.checkTechnical) stages.push(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
   return stages;
-}
-
-/** The staff list a stage's people come from. */
-export function stageListOf(stage) {
-  return TRANSMITTAL_STAGE_LIST[stage] ?? null;
 }
 
 export function transmittalStateLabel(state) {
@@ -68,10 +72,10 @@ export function shapeTransmittal(row) {
     evidence: row.evidence ?? [],
     checkBy: {
       first: row.check_by_first_id
-        ? { id: row.check_by_first_id, name: row.check_by_first?.name ?? null, at: row.check_by_first_at }
+        ? { id: row.check_by_first_id, name: row.check_by_first?.name ?? null, callSign: row.check_by_first?.call_sign ?? null, at: row.check_by_first_at }
         : null,
       second: row.check_by_second_id
-        ? { id: row.check_by_second_id, name: row.check_by_second?.name ?? null, at: row.check_by_second_at }
+        ? { id: row.check_by_second_id, name: row.check_by_second?.name ?? null, callSign: row.check_by_second?.call_sign ?? null, at: row.check_by_second_at }
         : null,
     },
     odooReceivedAt: row.odoo_received_at ?? null,
@@ -100,6 +104,8 @@ export function shapeLine(row) {
     serialNumbers: row.serial_numbers ?? "",
     boxQuantity: row.box_quantity ?? "",
     whInChargeId: row.wh_in_charge_id ?? null,
+    whInChargeName: row.wh_in_charge?.name ?? null,
+    techInChargeName: row.tech_in_charge?.name ?? null,
     whRating: row.wh_rating ?? null,
     whRemark: row.wh_remark ?? "",
     techInChargeId: row.tech_in_charge_id ?? null,
@@ -123,7 +129,46 @@ export function evidenceOf(transmittal, stage) {
 
 /** Whether the slip has NA on any line, from the Warehouse or the Technical rating. */
 export function hasNaLine(transmittal) {
-  return (transmittal?.lines ?? []).some((line) => line.whRating === "na" || line.techRating === "na");
+  return (transmittal?.lines ?? []).some(
+    (line) => line.whRating === TRANSMITTAL_RATING.NA || line.techRating === TRANSMITTAL_RATING.NA,
+  );
+}
+
+/**
+ * The Technical Service Report a slip's Technical inspection stage gives (#259,
+ * spec #251). There is no separate TSR record: its units are the rated lines,
+ * its verdicts the TCA ratings, its signers the stage's two plates. Null when
+ * the slip has no Technical inspection. Shaped for tsrViewModel.js.
+ */
+export function tsrOf(transmittal) {
+  if (!transmittal || !stagesOf(transmittal).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION)) return null;
+  const stage = stageRowOf(transmittal, TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
+  const rated = (transmittal.lines ?? []).filter((line) => line.techRating);
+  const first = rated[0] ?? null;
+  return {
+    number: transmittal.number,
+    item: first ? (rated.length === 1 ? first.description : `${rated.length} items`) : null,
+    transmittal: { number: transmittal.number },
+    line: first ? { position: first.position, description: first.description } : null,
+    sor: first?.sor?.salesReference ?? null,
+    po: first?.poNumber ?? null,
+    units: rated.map((line) => ({
+      serial: line.serialNumbers || line.description,
+      verdict: line.techRating === TRANSMITTAL_RATING.NA ? "fail" : "pass",
+      remark: line.techRemark || "",
+    })),
+    remarks: stage?.remarks || "",
+    checkedBy: { name: stage?.first_signer?.name ?? null, at: stage?.first_signed_at ?? null },
+    notedBy:
+      stage?.second_signed_at && !stage.second_signature_declined
+        ? { name: stage.second_signer_name ?? stage.second_signer?.name ?? null, at: stage.second_signed_at }
+        : null,
+    evidence: evidenceOf(transmittal, TRANSMITTAL_STAGE.TECHNICAL_INSPECTION).map((e) => ({
+      kind: e.kind === "video" ? "video" : "picture",
+      storagePath: e.storage_path,
+      fileName: e.file_name,
+    })),
+  };
 }
 
 /** The label a line's PO picks show: product name, then quantity and unit. */

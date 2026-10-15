@@ -16,6 +16,7 @@
  */
 
 import { printDate, printDateTime } from './ipasViewModel';
+import { stagesOf } from '../../utils/transmittals';
 import {
   TRANSMITTAL_ORIGIN,
   TRANSMITTAL_ORIGIN_LABELS,
@@ -93,11 +94,11 @@ export function gridPages(lines = []) {
 }
 
 /** A signature plate: waiting prints blank; signed prints the name with its stamp and any note. */
-export function plate(role, { who = null, at = null, note = null, waiting = false } = {}) {
+export function plate(role, { who = null, at = null, note = null, waiting = false, signatureBase64 = null } = {}) {
   if (waiting || !who) return { role, state: 'waiting', who: '', stamp: '' };
   const when = printDateTime(at);
   const stamp = [when ? `signed ${when}` : 'signed', note].filter(Boolean).join(' · ');
-  return { role, state: 'signed', who, stamp };
+  return { role, state: 'signed', who, stamp, signatureBase64: signatureBase64 || null };
 }
 
 /** The second plate of a stage: a declined or unconfirmed co-signer prints name only, with the note. */
@@ -106,40 +107,43 @@ function coSignerPlate(role, row) {
   let note = null;
   if (row.second_signature_declined) note = 'signature not applied';
   else if (!row.second_confirmed) note = 'name only, not yet confirmed';
-  return plate(role, { who: row.second_signer_name ?? row.second_signer?.name ?? null, at: row.second_signed_at, note });
-}
-
-/**
- * The stages a shaped slip has, in order. Reads the shaped flags (checkWarehouse,
- * checkTechnical): `stagesOf` in utils/transmittals.js reads the raw snake_case row.
- */
-function presentStages(t) {
-  const stages = [];
-  if (t.checkWarehouse) stages.push(TRANSMITTAL_STAGE.WAREHOUSE_CHECKING);
-  if (t.checkWarehouse && t.checkTechnical) stages.push(TRANSMITTAL_STAGE.WAREHOUSE_RELEASING);
-  if (t.checkTechnical) stages.push(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
-  return stages;
+  const signed = !row.second_signature_declined && row.second_confirmed;
+  return plate(role, {
+    who: row.second_signer_name ?? row.second_signer?.name ?? null,
+    at: row.second_signed_at,
+    note,
+    signatureBase64: signed ? (row.second_signer?.signatureBase64 ?? null) : null,
+  });
 }
 
 /** One stage's section: its remarks, its two plates, and whether it holds pictures. */
 function stageSection(transmittal, section) {
-  const present = presentStages(transmittal).includes(section.stage);
+  const present = stagesOf(transmittal).includes(section.stage);
   const row = (transmittal.stages ?? []).find((s) => s.stage === section.stage) ?? null;
   const pictures = row ? (transmittal.evidence ?? []).some((e) => e.record_id === row.id) : false;
   const base = { title: section.title, present, remarks: row?.remarks || '', pictures: pictures ? 'Yes' : 'No' };
   if (!present || !row) {
     return { ...base, plates: section.roles.map((role) => plate(role, { waiting: true })) };
   }
-  const first = plate(section.roles[0], { who: row.first_signer?.name ?? null, at: row.first_signed_at, waiting: !row.first_signed_at });
+  const first = plate(section.roles[0], {
+    who: row.first_signer?.name ?? null,
+    at: row.first_signed_at,
+    waiting: !row.first_signed_at,
+    signatureBase64: row.first_signer?.signatureBase64 ?? null,
+  });
   return { ...base, plates: [first, coSignerPlate(section.roles[1], row)] };
 }
 
-/** Check by: two plates, blank until signed, each with the signer's call sign beneath. */
-function checkByPlates(checkBy) {
-  const slot = (label, entry) => ({
-    ...(entry?.name ? plate(label, { who: entry.name, at: entry.at }) : plate(label, { waiting: true })),
-    callSign: entry?.name ? (entry.callSign ?? '') : '',
-  });
+/**
+ * Check by: two plates, blank until signed. A signed plate prints its signer's
+ * call sign beneath; a blank one prints the Check by list's call signs (#258).
+ */
+function checkByPlates(checkBy, roster = []) {
+  const rosterSigns = roster.map((r) => r.callSign).filter(Boolean).join(' · ');
+  const slot = (label, entry) =>
+    entry?.name
+      ? { ...plate(label, { who: entry.name, at: entry.at }), callSign: entry.callSign ?? '' }
+      : { ...plate(label, { waiting: true }), callSign: rosterSigns };
   return [slot('Check by (1)', checkBy?.first), slot('Check by (2)', checkBy?.second)];
 }
 
@@ -159,8 +163,13 @@ export function tickRows(t) {
     TRANSMITTAL_PRIORITIES.map((key) => ({ key, label: TRANSMITTAL_PRIORITY_LABELS[key] })),
     t.priority,
   );
-  // The reference list's unticked items are not on the shape: only the ticked ones print.
-  const references = (t.references ?? []).map((r) => ({ key: r.id, label: r.label, ticked: true }));
+  // The full checklist, every active reference option, ticked where the slip has it (#258).
+  const selectedRefs = new Set((t.references ?? []).map((r) => r.id));
+  const references = (t.referenceOptions ?? t.references ?? []).map((r) => ({
+    key: r.id,
+    label: r.label,
+    ticked: selectedRefs.has(r.id),
+  }));
   const products = (t.products ?? []).map((p) => p.label);
   if (t.productOther) products.push(t.productOther);
   return {
@@ -190,6 +199,6 @@ export function buildTransmittalViewModel(t) {
       at: printDateTime(t.odooReceivedAt) || '',
       ref: t.odooReceiptRef || '',
     },
-    checkBy: checkByPlates(t.checkBy),
+    checkBy: checkByPlates(t.checkBy, t.checkByRoster ?? []),
   };
 }

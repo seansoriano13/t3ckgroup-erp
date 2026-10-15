@@ -8,6 +8,7 @@ const TITLES = [
   ["/approvals/ipas", "IPAS Sign-offs"],
   ["/approvals/leaves", "Leave Approvals"],
   ["/approvals/tasks", "Task Approvals"],
+  ["/approvals/transmittals", "Transmittal Check by"],
   ["/approvals", "Approvals"],
   ["/bug-reports", "Bug Reports"],
   ["/flow-versions", "Flow Snapshot"],

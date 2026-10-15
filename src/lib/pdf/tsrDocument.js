@@ -68,6 +68,7 @@ export function buildTsrSheetHtml(vm, { withPhotographs = false, photos = [] } =
       ${fact('SOR', f.sor)}
       ${fact('PO', f.po)}
       ${fact('Checked by', `${f.checkedBy} · ${f.checkedAt}`)}
+      ${fact('Remarks', f.remarks)}
     </div>
     <section class="sec"><h3><span>Units</span></h3><div class="body">${unitsHtml(vm.units)}</div></section>
     <div class="tsr-evidence"><div class="k">Evidence</div><div>${esc(vm.evidence.summary)}</div>${pictures}</div>

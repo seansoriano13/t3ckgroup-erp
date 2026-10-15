@@ -79,6 +79,7 @@ export function buildTsrViewModel(tsr) {
       po: tsr.po || BLANK,
       checkedBy: tsr.checkedBy?.name || BLANK,
       checkedAt: printDate(tsr.checkedBy?.at) || BLANK,
+      remarks: tsr.remarks || BLANK,
     },
     units,
     evidence: {

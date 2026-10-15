@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ArrowLeft, Pencil, Printer, Send, XCircle } from "lucide-react";
 import { openTransmittalPrintWindow, printTransmittal } from "../../../lib/pdf/transmittalPrinter";
+import { openTsrPrintWindow, printTsr } from "../../../lib/pdf/tsrPrinter";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
@@ -173,6 +174,29 @@ function TransmittalPage() {
     }
   };
 
+  // The TSR is the Technical inspection stage printed as a report (#259).
+  const hasTechnical = stagesOf(t).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
+
+  const printTsrForm = async () => {
+    const printWindow = openTsrPrintWindow();
+    if (!printWindow) {
+      toast.error("Popup blocked. Allow popups to print.");
+      return;
+    }
+    try {
+      const tsr = await transmittalService.getTsr(id);
+      if (!tsr) throw new Error("This Transmittal has no Technical inspection to report.");
+      await printTsr(tsr, { printWindow });
+    } catch (error) {
+      try {
+        printWindow.close();
+      } catch {
+        // Already closed.
+      }
+      toast.error(error.message || "The TSR could not be printed.");
+    }
+  };
+
   const stages = stagesOf(t);
 
   return (
@@ -191,6 +215,12 @@ function TransmittalPage() {
             <Button variant="outline" size="sm" className="gap-1.5" onClick={printTransmittalForm}>
               <Printer size={14} />
               Print
+            </Button>
+          )}
+          {canPrint && hasTechnical && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={printTsrForm}>
+              <Printer size={14} />
+              Print TSR
             </Button>
           )}
           {isDraft && canChange && !editing && (
