@@ -23,8 +23,8 @@ const EXTRA_CSS = `
   .tg-ticks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 14px; font-size: 8pt; padding: 6px 0; border-bottom: 1px solid var(--hair); }
   .tg-ticks .g { display: flex; flex-direction: column; gap: 2px; }
   .tg-ticks .g > b { font-weight: 600; font-size: 7.6pt; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-mid); }
-  .tg-ticks .o { display: flex; gap: 5px; align-items: baseline; }
-  .tg-ticks .box { display: inline-block; width: 9px; height: 9px; border: 1px solid var(--ink); text-align: center; line-height: 9px; font-size: 7pt; flex: none; }
+  .tg-ticks .o { display: flex; gap: 5px; align-items: center; }
+  .tg-ticks .box { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 10px; height: 10px; border: 1px solid var(--ink); line-height: 1; font-size: 7pt; overflow: hidden; flex: none; }
   .tg-ticks .other { font-style: italic; }
   .tg-grid { width: 100%; border-collapse: collapse; font-size: 7.6pt; table-layout: fixed; margin-top: 6px; }
   .tg-grid th, .tg-grid td { border: 1px solid var(--ink-faint); padding: 3px 4px; vertical-align: top; height: 17px; text-align: left; }
@@ -106,7 +106,7 @@ function stageHtml(s) {
 /** Check by: two plates, blank until signed, each with the call sign beneath. */
 function checkByHtml(plates) {
   return `<div class="tg-plates">${plates
-    .map((p) => `${plateHtml(p)}<div class="tg-cs">${esc(p.callSign)}</div>`)
+    .map((p) => `<div>${plateHtml(p)}<div class="tg-cs">${esc(p.callSign)}</div></div>`)
     .join('')}</div>`;
 }
 

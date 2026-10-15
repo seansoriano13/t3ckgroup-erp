@@ -334,18 +334,28 @@ describe("transmittalService", () => {
       expect(slipRow(id).state).toBe("awaiting_check")
     })
 
-    it("refuses a signature from someone off the Warehouse list, and naming oneself as the other", async () => {
+    it("refuses a signature from someone off the Warehouse list", async () => {
       const id = await submittedSlip()
       const outsider = makeEmployee({ name: "Outsider" })
       stubTransmittalRpcs({ actorId: outsider.id })
       await expect(
         transmittalService.completeStage(id, { stage: "warehouse_checking", otherSignerId: whs2.id, noPicturesReason: "x" }),
       ).rejects.toThrow(/only the Warehouse list signs/)
+    })
 
+    it("lets one person sign as both signatories, their second signature waiting on their own confirm", async () => {
+      const id = await submittedSlip({ header: { ...HEADER, checkTechnical: false } })
       stubTransmittalRpcs({ actorId: whs.id })
-      await expect(
-        transmittalService.completeStage(id, { stage: "warehouse_checking", otherSignerId: whs.id, noPicturesReason: "x" }),
-      ).rejects.toThrow(/someone else/)
+      await transmittalService.rateLines(id, [{ lineId: lineRows(id)[0].id, rating: "gc" }])
+      await transmittalService.completeStage(id, { stage: "warehouse_checking", otherSignerId: whs.id, noPicturesReason: "x" })
+      expect(stageRow(id, "warehouse_checking")).toMatchObject({
+        first_signer_id: whs.id,
+        second_signer_id: whs.id,
+        first_confirmed: true,
+        second_confirmed: false,
+      })
+      await transmittalService.confirmSignature(stageRow(id, "warehouse_checking").id)
+      expect(stageRow(id, "warehouse_checking").second_confirmed).toBe(true)
     })
 
     it("confirms a signature for the co-signer only, and tells the first signatory of a decline", async () => {

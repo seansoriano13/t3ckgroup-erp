@@ -23,6 +23,8 @@ export function getPermissionContext(user) {
   const isTransmittalStaff = !!(user?.is_transmittal_staff ?? user?.isTransmittalStaff);
   // On the Transmittal Warehouse list (#255): makes Packing Lists.
   const isTransmittalWarehouse = !!(user?.is_transmittal_warehouse ?? user?.isTransmittalWarehouse);
+  // On the Transmittal Check by list (#254): the Approval Center's Check by queue.
+  const isTransmittalCheckBy = !!(user?.is_transmittal_check_by ?? user?.isTransmittalCheckBy);
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
@@ -44,6 +46,7 @@ export function getPermissionContext(user) {
     isIpasApprover,
     isTransmittalStaff,
     isTransmittalWarehouse,
+    isTransmittalCheckBy,
     hasRetailAccess,
     hasBugReportAccess,
     isRoleSimulator,

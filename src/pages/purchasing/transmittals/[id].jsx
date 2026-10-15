@@ -37,6 +37,7 @@ import {
   TRANSMITTAL_STAGE,
   TRANSMITTAL_STATE,
 } from "../../../constants/transmittals";
+import { ipasErrorMessage } from "../../../utils/ipas";
 
 /**
  * One Transmittal (#252, #253, #254): its header as on the paper, its lines, its
@@ -58,7 +59,7 @@ function TransmittalPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { hasPurchasingFlow, isSuperAdmin } = getPermissionContext(user);
+  const { hasPurchasingFlow } = getPermissionContext(user);
 
   const [editing, setEditing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -103,7 +104,8 @@ function TransmittalPage() {
 
   const t = transmittal;
   const isPreparer = t.preparedById === user?.id;
-  const canChange = isPreparer || hasPurchasingFlow || isSuperAdmin;
+  // As the database decides: the preparer or Purchasing access (a Super Admin alone is neither).
+  const canChange = isPreparer || hasPurchasingFlow;
   const onWarehouse = myLists.includes(TRANSMITTAL_STAFF_LIST.WAREHOUSE);
   const isOpen = !ENDED.includes(t.state) && t.state !== TRANSMITTAL_STATE.DRAFT;
   const canRate = onWarehouse && t.state === TRANSMITTAL_STATE.WAREHOUSE_CHECKING;
@@ -121,7 +123,7 @@ function TransmittalPage() {
   const showTechnical = stagesOf(t).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
   const canCheck = onCheckBy;
   const canRecordOdoo =
-    (onWarehouse || hasPurchasingFlow || isSuperAdmin) && isOpen && !t.odooReceivedAt;
+    (onWarehouse || hasPurchasingFlow) && isOpen && !t.odooReceivedAt;
   const members = { warehouse: warehouseMembers, technical: technicalMembers };
   const isDraft = t.state === TRANSMITTAL_STATE.DRAFT;
   const canCancel = !ENDED.includes(t.state) && !t.stages.some((s) => s.completed_at) && canChange;
@@ -137,7 +139,7 @@ function TransmittalPage() {
       toast.success(`${done.number} submitted.`);
       refresh();
     } catch (error) {
-      toast.error(error.message || "The Transmittal could not be submitted.");
+      toast.error(ipasErrorMessage(error, "The Transmittal could not be submitted."));
     } finally {
       setBusy(false);
     }
@@ -152,7 +154,7 @@ function TransmittalPage() {
       setReason("");
       refresh();
     } catch (error) {
-      toast.error(error.message || "The Transmittal could not be cancelled.");
+      toast.error(ipasErrorMessage(error, "The Transmittal could not be cancelled."));
     } finally {
       setBusy(false);
     }
@@ -170,7 +172,7 @@ function TransmittalPage() {
     try {
       await printTransmittal(id, { printWindow });
     } catch (error) {
-      toast.error(error.message || "The Transmittal could not be printed.");
+      toast.error(ipasErrorMessage(error, "The Transmittal could not be printed."));
     }
   };
 
@@ -193,7 +195,7 @@ function TransmittalPage() {
       } catch {
         // Already closed.
       }
-      toast.error(error.message || "The TSR could not be printed.");
+      toast.error(ipasErrorMessage(error, "The TSR could not be printed."));
     }
   };
 
@@ -307,11 +309,20 @@ function TransmittalPage() {
                           <TableCell>{line.sor?.salesReference ?? "—"}</TableCell>
                           <TableCell>
                             {line.quantity} {line.unit ?? ""}
+                            {line.quantityReceived != null && (
+                              <span className="block text-xs text-muted-foreground">{line.quantityReceived} received</span>
+                            )}
                           </TableCell>
                           <TableCell>{line.serialNumbers || "—"}</TableCell>
                           <TableCell>{line.boxQuantity || "—"}</TableCell>
-                          <TableCell>{ratingWithInCharge(line.whRating, line.whInChargeName)}</TableCell>
-                          <TableCell>{ratingWithInCharge(line.techRating, line.techInChargeName)}</TableCell>
+                          <TableCell>
+                            {ratingWithInCharge(line.whRating, line.whInChargeName)}
+                            {line.whRemark && <span className="block text-xs text-muted-foreground">{line.whRemark}</span>}
+                          </TableCell>
+                          <TableCell>
+                            {ratingWithInCharge(line.techRating, line.techInChargeName)}
+                            {line.techRemark && <span className="block text-xs text-muted-foreground">{line.techRemark}</span>}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -348,9 +359,11 @@ function TransmittalPage() {
               {canRate ? (
                 <WarehouseRatings transmittal={t} canRate onSaved={refresh} members={warehouseMembers} currentUserId={user?.id} />
               ) : (
-                <p className="text-[13px] text-muted-foreground">
-                  Lines are rated GC or NA by the Warehouse while checking is open.
-                </p>
+                t.state === TRANSMITTAL_STATE.WAREHOUSE_CHECKING && (
+                  <p className="text-[13px] text-muted-foreground">
+                    Lines are rated GC or NA by the Warehouse while checking is open.
+                  </p>
+                )
               )}
               <WarehouseStageSignoff
                 transmittal={t}
@@ -389,9 +402,11 @@ function TransmittalPage() {
                   currentUserId={user?.id}
                 />
               ) : (
-                <p className="text-[13px] text-muted-foreground">
-                  Lines are rated GC or NA by Technical while inspection is open.
-                </p>
+                t.state === TRANSMITTAL_STATE.TECHNICAL_INSPECTION && (
+                  <p className="text-[13px] text-muted-foreground">
+                    Lines are rated GC or NA by Technical while inspection is open.
+                  </p>
+                )
               )}
               <WarehouseStageSignoff
                 transmittal={t}

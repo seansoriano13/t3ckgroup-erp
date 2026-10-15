@@ -18,8 +18,8 @@ import { Input } from "../../../components/ui/input";
 import { SelectField } from "../../../components/ui/SelectField";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
-import { opportunityService } from "../../../services/opportunityService";
 import { packingListService, sorLineSnapshot } from "../../../services/packingListService";
+import { ipasErrorMessage } from "../../../utils/ipas";
 
 /**
  * One Packing List (#255, spec #251): its header, its boxes with marks, seal
@@ -50,7 +50,7 @@ function BoxDialog({ open, onOpenChange, box, listId, onSaved }) {
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(ipasErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -108,7 +108,7 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
   // box's current contents as editable rows.
   const { data: productList = [] } = useQuery({
     queryKey: ["sor-product-list", sorId],
-    queryFn: () => opportunityService.getItems(sorId),
+    queryFn: () => packingListService.sorProducts(sorId),
     enabled: open && Boolean(sorId),
   });
 
@@ -144,7 +144,7 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(ipasErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -182,6 +182,8 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
                     value=""
                     onChange={(lineId) => pick(index, lineId)}
                     placeholder="Pick from the Product List…"
+                    className="w-full"
+                    aria-label="Pick from the Product List"
                   />
                 </div>
               )}
@@ -211,7 +213,8 @@ function PackingListPage() {
   const { user } = useAuth();
   const { hasPurchasingFlow, isSuperAdmin } = getPermissionContext(user);
 
-  const [boxDialog, setBoxDialog] = useState({ open: false, box: null });
+  // `seq` remounts the box dialog on every open, so a new box starts blank.
+  const [boxDialog, setBoxDialog] = useState({ open: false, box: null, seq: 0 });
   const [contentsBox, setContentsBox] = useState(null);
   const [packing, setPacking] = useState(false);
   const [confirmingPack, setConfirmingPack] = useState(false);
@@ -233,7 +236,7 @@ function PackingListPage() {
       await packingListService.removeBox(box.id);
       refresh();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(ipasErrorMessage(error));
     }
   };
 
@@ -247,7 +250,7 @@ function PackingListPage() {
     try {
       await printPackingList(id, { printWindow });
     } catch (error) {
-      toast.error(error.message);
+      toast.error(ipasErrorMessage(error));
     }
   };
 
@@ -259,7 +262,7 @@ function PackingListPage() {
       toast.success(`${list.number} packed`);
       refresh();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(ipasErrorMessage(error));
     } finally {
       setPacking(false);
     }
@@ -339,7 +342,7 @@ function PackingListPage() {
                   </div>
                   {canEdit && (
                     <div className="flex items-center gap-1">
-                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBoxDialog({ open: true, box })}>
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box, seq: s.seq + 1 }))}>
                         <Pencil size={13} />
                         Box
                       </Button>
@@ -366,7 +369,7 @@ function PackingListPage() {
 
           {canEdit && (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <Button variant="outline" className="gap-1.5" onClick={() => setBoxDialog({ open: true, box: null })}>
+              <Button variant="outline" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}>
                 <Plus size={14} />
                 Add a box
               </Button>
@@ -380,6 +383,7 @@ function PackingListPage() {
 
           {canEdit && (
             <BoxDialog
+              key={boxDialog.seq}
               open={boxDialog.open}
               onOpenChange={(open) => setBoxDialog((s) => ({ ...s, open }))}
               box={boxDialog.box}

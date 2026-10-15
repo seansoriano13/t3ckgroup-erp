@@ -22,6 +22,7 @@ import {
 import { pickedLineLabel } from "@/utils/transmittals";
 import PoLinePicker from "./PoLinePicker";
 import { transmittalKeys } from "./transmittalKeys";
+import { ipasErrorMessage } from "../../utils/ipas";
 
 const ORIGIN_OPTIONS = Object.values(TRANSMITTAL_ORIGIN).map((value) => ({
   value,
@@ -182,7 +183,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
       queryClient.invalidateQueries({ queryKey: transmittalKeys.all });
       onSaved?.(saved.id);
     } catch (error) {
-      toast.error(error.message || "The Transmittal could not be saved.");
+      toast.error(ipasErrorMessage(error, "The Transmittal could not be saved."));
     } finally {
       setBusy(false);
     }

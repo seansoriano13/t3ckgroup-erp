@@ -95,6 +95,46 @@ describe("the SOR's handoffs, to a reader of the SOR only", () => {
         ])
     })
 
+    it("leaves out a draft Transmittal", async () => {
+        const sor = await makeSor({ registeredBy: ids.outsider, dealOwnerId: ids.dealOwner })
+        const ipas = await raiseIpasFor(sor)
+        const { error: draftError } = await rpc("warehouse", "transmittal_create", {
+            p_fields: { origin: "purchasing", check_warehouse: true, check_technical: false, priority: "low", entity: "T3ck Trading" },
+            p_product_ids: [],
+            p_reference_ids: [],
+            p_lines: [{ kind: "po_line", ipas_id: ipas.id, odoo_po_line_id: ipas.odoo_copy.lines[0].line_id, quantity: 1 }],
+        })
+        expect(draftError).toBeNull()
+        const { data, error } = await rpc("dealOwner", "handoffs_for_sor", { p_opportunity_id: sor })
+        expect(error).toBeNull()
+        expect(data.transmittals).toEqual([])
+    })
+
+    it("lets the Warehouse list find the SOR and read its Product List without prices; refuses anyone else", async () => {
+        const sor = await makeSor({ registeredBy: ids.outsider, dealOwnerId: ids.dealOwner })
+        const ref = { sales_reference: `S9${String(Date.now()).slice(-5)}` }
+        const { error: refError } = await svc().from("sales_opportunities").update(ref).eq("id", sor)
+        expect(refError).toBeNull()
+        const { error: itemError } = await svc()
+            .from("sales_opportunity_items")
+            .insert({ opportunity_id: sor, product_name: "Rope kit", quantity: 3, unit: "set", unit_price: 999, sort_order: 1 })
+        expect(itemError).toBeNull()
+
+        const found = await rpc("warehouse", "ipas_find_sors", { p_refs: [ref.sales_reference], p_search: null })
+        expect(found.error).toBeNull()
+        expect(found.data.map((r) => r.opportunity_id)).toContain(sor)
+
+        const products = await rpc("warehouse", "packing_list_sor_products", { p_opportunity_id: sor })
+        expect(products.error).toBeNull()
+        expect(products.data).toEqual([expect.objectContaining({ product_name: "Rope kit", quantity: 3, unit: "set" })])
+        expect(Object.keys(products.data[0])).not.toContain("unit_price")
+
+        for (const who of ["ordinary", "dealOwner"]) {
+            const refused = await rpc(who, "packing_list_sor_products", { p_opportunity_id: sor })
+            expect(refused.error?.code, who).toBe("42501")
+        }
+    })
+
     it("returns nothing to an employee who cannot read the SOR", async () => {
         const sor = await makeSor({ registeredBy: ids.outsider, dealOwnerId: ids.dealOwner })
         await submittedSlipFor(sor)

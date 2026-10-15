@@ -57,7 +57,13 @@ async function prepareEmailForSave(email, currentEmployeeId = null) {
  * the gate (the database is).
  */
 async function ipasListMembership(employee) {
-  const none = { isIpasSigner: false, isIpasApprover: false, isTransmittalStaff: false, isTransmittalWarehouse: false };
+  const none = {
+    isIpasSigner: false,
+    isIpasApprover: false,
+    isTransmittalStaff: false,
+    isTransmittalWarehouse: false,
+    isTransmittalCheckBy: false,
+  };
   try {
     const { data, error } = await supabase.from("ipas_signer_lists").select("list_key").eq("employee_id", employee.id);
     if (error) return none;
@@ -72,6 +78,8 @@ async function ipasListMembership(employee) {
       isTransmittalStaff: keys.some((key) => key.startsWith("transmittal_")),
       // On the Transmittal Warehouse list (#255): makes Packing Lists.
       isTransmittalWarehouse: keys.includes("transmittal_warehouse"),
+      // On the Check by list: the Approval Center's Transmittal queue.
+      isTransmittalCheckBy: keys.includes("transmittal_check_by"),
     };
   } catch {
     return none;
@@ -119,6 +127,8 @@ export const employeeService = {
       isTransmittalStaff: ipasLists.isTransmittalStaff,
       // On the Transmittal Warehouse list (#255): the nav shows Packing Lists.
       isTransmittalWarehouse: ipasLists.isTransmittalWarehouse,
+      // On the Transmittal Check by list: the nav shows the Check by queue.
+      isTransmittalCheckBy: ipasLists.isTransmittalCheckBy,
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,

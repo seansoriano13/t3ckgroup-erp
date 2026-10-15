@@ -122,6 +122,18 @@ export const packingListService = {
     if (error) throw error;
   },
 
+  /**
+   * The SOR's Product List lines a box's contents can be picked from:
+   * `[{ id, product_name, quantity, unit }]`, no prices. Purchasing or the
+   * Warehouse list (`packing_list_sor_products`).
+   */
+  async sorProducts(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("packing_list_sor_products", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data ?? [];
+  },
+
   /** Removes a box and its contents from a draft. */
   async removeBox(boxId) {
     const { error } = await supabase.rpc("packing_list_remove_box", { p_box_id: boxId });

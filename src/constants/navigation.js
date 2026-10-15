@@ -19,6 +19,7 @@ import {
   Bug,
   PackageOpen,
   ReceiptText,
+  PackageCheck,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -247,6 +248,16 @@ export const NAV_MODULES = {
         icon: ReceiptText,
         badgeKey: "ipasSignoffs",
         isPermitted: (ctx) => ctx.isIpasApprover,
+        exactMatch: true,
+      },
+      {
+        // Transmittal Check by (#254): slips awaiting the two Check by
+        // signatures, for the Check by list only.
+        key: "approvals.transmittals",
+        label: "Transmittal Check by",
+        link: "/approvals/transmittals",
+        icon: PackageCheck,
+        isPermitted: (ctx) => ctx.isTransmittalCheckBy,
         exactMatch: true,
       },
     ],

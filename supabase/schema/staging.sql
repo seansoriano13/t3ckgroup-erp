@@ -2794,7 +2794,7 @@ create policy "ipas_options_read" on public."ipas_options"
   as permissive
   for select
   to authenticated
-  using ((ipas_can_read() OR ((list = ANY (ARRAY['transmittal_product'::text, 'transmittal_reference'::text, 'item_location'::text])) AND (transmittal_on_list('transmittal_warehouse'::text) OR transmittal_on_list('transmittal_technical'::text) OR transmittal_on_list('transmittal_logistics'::text) OR transmittal_on_list('transmittal_check_by'::text)))));
+  using ((( SELECT ipas_can_read() AS ipas_can_read) OR ((list = ANY (ARRAY['transmittal_product'::text, 'transmittal_reference'::text, 'item_location'::text])) AND ( SELECT (transmittal_on_list('transmittal_warehouse'::text) OR transmittal_on_list('transmittal_technical'::text) OR transmittal_on_list('transmittal_logistics'::text) OR transmittal_on_list('transmittal_check_by'::text))))));
 create policy "ipas_options_update" on public."ipas_options"
   as permissive
   for update
@@ -6207,7 +6207,8 @@ begin
                  and (l.wh_rating = 'na' or l.tech_rating = 'na')) as na_count,
              public.transmittal_can_read(tr.id) as can_open
         from public.transmittals tr
-       where exists (
+       where tr.state <> 'draft'
+         and exists (
          select 1 from public.transmittal_lines l
           where l.transmittal_id = tr.id and l.opportunity_id = p_opportunity_id
        )
@@ -6775,8 +6776,8 @@ begin
   if public.get_employee_id() is null then
     raise exception 'ipas_find_sors: not signed in' using errcode = '42501';
   end if;
-  if not public.has_purchasing_access() then
-    raise exception 'ipas_find_sors: only Purchasing picks an IPAS''s SORs' using errcode = '42501';
+  if not (coalesce(public.has_purchasing_access(), false) or public.transmittal_on_list('transmittal_warehouse')) then
+    raise exception 'ipas_find_sors: only Purchasing or the Warehouse list looks up SORs' using errcode = '42501';
   end if;
 
   select coalesce(array_agg(distinct upper(btrim(r))), '{}'::text[]) into v_refs
@@ -9346,6 +9347,27 @@ begin
     'box_no', v_box.box_no,
     'lines', v_pos
   ));
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.packing_list_sor_products(p_opportunity_id uuid)
+ RETURNS TABLE(id uuid, product_name text, quantity numeric, unit text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.get_employee_id() is null then
+    raise exception 'packing_list_sor_products: not signed in' using errcode = '42501';
+  end if;
+  if not (coalesce(public.has_purchasing_access(), false) or public.transmittal_on_list('transmittal_warehouse')) then
+    raise exception 'packing_list_sor_products: only Purchasing or the Warehouse list packs an SOR' using errcode = '42501';
+  end if;
+  return query
+    select i.id, i.product_name, i.quantity, i.unit
+      from public.sales_opportunity_items i
+     where i.opportunity_id = p_opportunity_id
+     order by i.sort_order, i.created_at;
 end;
 $function$
 ;
@@ -13943,10 +13965,6 @@ begin
        ) then
       raise exception 'transmittal_complete_stage: the other signatory is on the Technical list' using errcode = '22023';
     end if;
-  end if;
-
-  if p_other_signer_id = v_actor then
-    raise exception 'transmittal_complete_stage: the other signatory is someone else' using errcode = '22023';
   end if;
 
   if p_other_signer_id is not null then

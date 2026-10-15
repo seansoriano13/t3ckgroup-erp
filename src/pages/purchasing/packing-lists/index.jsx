@@ -19,6 +19,7 @@ import SorPicker from "../../../components/ipas/SorPicker";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { packingListService } from "../../../services/packingListService";
+import { ipasErrorMessage } from "../../../utils/ipas";
 
 /**
  * The Packing Lists list (#255, spec #251): every Packing List the signed-in
@@ -51,7 +52,7 @@ function NewPackingListDialog({ open, onOpenChange }) {
       reset();
       navigate(`/purchasing/packing-lists/${made.id}`);
     } catch (error) {
-      toast.error(error.message);
+      toast.error(ipasErrorMessage(error));
     } finally {
       setSaving(false);
     }

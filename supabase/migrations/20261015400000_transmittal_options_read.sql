@@ -6,20 +6,21 @@
 -- Warehouse or Logistics preparer saw no Product, Reference Checklist or Item
 -- Location to tick, and Technical saw the slip's ticks blank. They now read
 -- those three lists only; payment methods, charge kinds and the rest stay
--- with IPAS readers.
+-- with IPAS readers. Each helper sits in a scalar subquery so it runs once
+-- per query, not once per row.
 
 drop policy if exists ipas_options_read on public.ipas_options;
 create policy ipas_options_read on public.ipas_options
   for select to authenticated
   using (
-    public.ipas_can_read()
+    (select public.ipas_can_read())
     or (
       list in ('transmittal_product', 'transmittal_reference', 'item_location')
       and (
-        public.transmittal_on_list('transmittal_warehouse')
-        or public.transmittal_on_list('transmittal_technical')
-        or public.transmittal_on_list('transmittal_logistics')
-        or public.transmittal_on_list('transmittal_check_by')
+        select public.transmittal_on_list('transmittal_warehouse')
+            or public.transmittal_on_list('transmittal_technical')
+            or public.transmittal_on_list('transmittal_logistics')
+            or public.transmittal_on_list('transmittal_check_by')
       )
     )
   );

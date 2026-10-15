@@ -296,6 +296,8 @@ export async function teardownCast() {
         ["bug_reports", "reporter_id"],
         // Members, items and messages go with their request.
         ["purchase_requests", "created_by"],
+        // Stage participants can sit on an SOR the fixture didn't make.
+        ["sor_stage_participants", "employee_id"],
         ["sales_opportunities", "registered_by"],
         ["sales_opportunities", "deal_owner_id"],
     ]

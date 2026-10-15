@@ -62,6 +62,9 @@ async function withLineRefs(row) {
   };
 }
 
+/** "Waiting on Warehouse" → "waiting on Warehouse": a stage name mid-sentence keeps its proper nouns. */
+const lowerFirst = (text) => (text ? text.charAt(0).toLowerCase() + text.slice(1) : text);
+
 /**
  * A Transmittal error the screen can word: `code` is one of TRANSMITTAL_ERROR.
  * Database refusals come through as the Supabase error, whose message the
@@ -184,6 +187,7 @@ export const transmittalService = {
       state: row.state,
       stateLabel: transmittalStateLabel(row.state),
       lineCount: (row.lines ?? []).length,
+      naCount: (row.lines ?? []).filter((line) => line.wh_rating === "na" || line.tech_rating === "na").length,
       hasNa: (row.lines ?? []).some((line) => line.wh_rating === "na" || line.tech_rating === "na"),
       submittedAt: row.submitted_at ?? null,
       createdAt: row.created_at,
@@ -227,7 +231,7 @@ export const transmittalService = {
           recipient_id,
           type: TRANSMITTAL_NOTIFICATION.SUBMITTED,
           title: `${data.number} is waiting on you`,
-          message: `TG03 ${data.number} was submitted and is ${stageName.toLowerCase()}.`,
+          message: `${data.number} was submitted and is ${lowerFirst(stageName)}.`,
           reference_id: id,
         }),
       ),
@@ -247,7 +251,7 @@ export const transmittalService = {
         recipient_id: data.notify_id,
         type: TRANSMITTAL_NOTIFICATION.CANCELLED,
         title: `${data.number} was cancelled`,
-        message: `TG03 ${data.number} was cancelled: ${why}`,
+        message: `${data.number} was cancelled: ${why}`,
         reference_id: id,
       });
     }
@@ -358,7 +362,7 @@ export const transmittalService = {
           recipient_id,
           type: TRANSMITTAL_NOTIFICATION.STAGE_READY,
           title: `${number} is waiting on you`,
-          message: `TG03 ${number} is ${stageName.toLowerCase()}.`,
+          message: `${number} is ${lowerFirst(stageName)}.`,
           reference_id: id,
         }),
       ),
@@ -367,7 +371,7 @@ export const transmittalService = {
             recipient_id: data.notify_confirm_id,
             type: TRANSMITTAL_NOTIFICATION.CONFIRM_SIGNATURE,
             title: `Confirm your signature on ${number}`,
-            message: `You are the second signatory on TG03 ${number}. Confirm or decline it.`,
+            message: `You are the second signatory on ${number}. Confirm or decline it.`,
             reference_id: id,
           })
         : null,
@@ -376,7 +380,7 @@ export const transmittalService = {
           recipient_id,
           type: TRANSMITTAL_NOTIFICATION.NA_RAISED,
           title: `${number} has NA lines`,
-          message: `TG03 ${number} was checked with ${data.na_count} line${data.na_count === 1 ? "" : "s"} rated NA.`,
+          message: `${number} was checked with ${data.na_count} line${data.na_count === 1 ? "" : "s"} rated NA.`,
           reference_id: id,
         }),
       ),
@@ -417,7 +421,7 @@ export const transmittalService = {
         recipient_id: data.notify_id,
         type: TRANSMITTAL_NOTIFICATION.CLOSED,
         title: `${data.number} is closed`,
-        message: `TG03 ${data.number} passed Check by and is closed.`,
+        message: `${data.number} passed Check by and is closed.`,
         reference_id: id,
       });
     }
@@ -442,7 +446,7 @@ export const transmittalService = {
   async attachEvidence(transmittalId, stageId, file) {
     if (!file) throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "Pick a file.");
     if (file.size > PMS_EVIDENCE_MAX_BYTES) {
-      throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "A file is 50 MB or less.");
+      throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "Each file must be 50 MB or less.");
     }
     const kind = (file.type ?? "").startsWith("video/") ? "video" : (file.type ?? "").startsWith("image/") ? "picture" : null;
     if (!kind) throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "Pictures and videos only.");

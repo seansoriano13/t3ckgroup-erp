@@ -97,7 +97,9 @@ export function gridPages(lines = []) {
 export function plate(role, { who = null, at = null, note = null, waiting = false, signatureBase64 = null } = {}) {
   if (waiting || !who) return { role, state: 'waiting', who: '', stamp: '' };
   const when = printDateTime(at);
-  const stamp = [when ? `signed ${when}` : 'signed', note].filter(Boolean).join(' · ');
+  // Without an image the plate prints the name, so it says so (as the IPAS print does).
+  const why = note ?? (signatureBase64 ? null : 'name only, no signature on file');
+  const stamp = [when ? `signed ${when}` : 'signed', why].filter(Boolean).join(' · ');
   return { role, state: 'signed', who, stamp, signatureBase64: signatureBase64 || null };
 }
 

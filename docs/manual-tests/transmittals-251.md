@@ -32,10 +32,10 @@ Spec #251, tickets #252–#260. Local stack. Tick each box; write feedback under
 - [x] 1.4 Fixed wording: once a slip exists the field is replaced by "Numbering started at TG03-N. It can't change now that a Transmittal has been raised."; a late refusal reads "TG03 numbering has already started, so the first number can't be changed." Every DB refusal now drops its function-name prefix (was only `ipas_*`).
 - [x] General: field labels were 16px. `cn()` (tailwind-merge) dropped `text-label` as a colour clash, app-wide. Now 11px everywhere `text-label` meets a text colour — **review other screens too.**
 
-## 2. Nav & access (#251 access)
+## 2. Nav & access — browser-run 2026-10-15
 
-- [ ] 2.1 "Transmittals" nav shows for: purchaser, finance, super-admin, plain, technical, logistics, ops-head. "Packing Lists" shows for purchaser, finance, super-admin, plain — **not** technical/logistics.
-- [ ] 2.2 hr: no nav entries; opening `/purchasing/transmittals` directly shows nothing / refused.
+- [x] 2.1 Nav matches spec for purchaser, finance, super-admin, plain, technical, logistics, ops-head.
+- [x] 2.2 hr: no nav; `/purchasing/transmittals` returns no rows. Copy says "No Transmittals yet" (misleading — they exist, hr just can't see them).
 
 ## 3. Raise & submit (#252) — browser-run 2026-10-15
 
@@ -64,78 +64,67 @@ Spec #251, tickets #252–#260. Local stack. Tick each box; write feedback under
 - Missing priority → only a toast "Pick a Priority."; field not highlighted.
 - Unverified: a burst of repeated `employees` + `ipas_signer_lists` fetches around sign-in (none at idle).
 
-## 4. Warehouse checking (#253) — slip A, as plain
+## 4–14 — browser-run 2026-10-15 (TG03-2 end to end; TG03-33 typed Warehouse-only via RPC; PKL_007)
 
-- [ ] 4.1 Rating columns editable only for Warehouse; TCA columns locked.
-- [ ] 4.2 Rate a line **NA** with no remark → refused. Add remark → ok. Other line GC.
-- [ ] 4.3 Record **quantity received** on one line (different from sent).
-- [ ] 4.4 Try to sign with a line unrated → refused.
-- [ ] 4.5 Sign with **no pictures and no reason** → refused. Upload a photo + a video (≤50 MB; try >50 MB → refused with message). "Provided Pictures & Videos" = Yes.
-- [ ] 4.6 Sign as Received by, name the co-signer (Inspected by) — pick plain again (same person allowed). Date/time recorded.
-- [ ] 4.7 After signing: ratings, remarks, files locked. Slip moves to **Warehouse releasing** (required because both ticked).
-- [ ] 4.8 NA notification reached purchaser + ops-head + admin-head.
-- [ ] 4.9 Co-signer confirm: if a different co-signer named, they see "confirm" and can confirm or decline stored signature.
+| # | Result |
+|---|---|
+| 4.2 NA needs remark | ✓ refused |
+| 4.3 qty received | ✓ saved |
+| 4.5 no file + no reason | ✓ blocked; 51 MB file refused |
+| 4.6 sign checking | **was blocked** — see B1, fixed |
+| 4.7 freeze + move to releasing | ✓ |
+| 4.8 NA notifies preparer + Check by | ✓ |
+| 4.9 co-signer confirm | ✓ |
+| 5.1 Received by = Technical list only | ✓ |
+| 5.2 → Technical inspection, technical notified | ✓ |
+| 5.3 W-only: optional releasing w/ typed driver, never blocks | ✓ (RPC) |
+| 6.1 Received in Odoo by purchaser + ref | ✓ |
+| 6.2 technical/logistics can't | ✓ (no form) |
+| 7.1–7.4 Technical rate/sign → Awaiting Check | ✓ |
+| 8.1 no receipt → Check refused | ✓ (DB) — UI still offers the button |
+| 8.2 preparer / Super Admin can't check | ✓ |
+| 8.3 same person can't take slot 2 | ✓ |
+| 8.4 second check closes, preparer notified | ✓ |
+| 8.5 typed-only closes without receipt | ✓ (RPC) |
+| 9.1 filters | ✓ Has NA works; see B6 |
+| 10.1 IPAS lists TG03-1/2 (draft excluded), NA count | ✓ |
+| 10.2 Delivered stamped from TG03 | ✓ |
+| 10.3 Actual Checking "pending (1 of 2)" | ✓ |
+| 11.1–11.3 PKL create/boxes/contents/pack, empty box refused | ✓ as purchaser; see B2–B4 |
+| 11.4 technical/logistics/hr can't create | ✓ (RPC) |
+| 12.1 Deal Owner sees slips + PKL, no remarks/files | ✓; see B7 |
+| 12.2 non-reader gets nothing | ✓ (hr/plain); sales-exec-2 can read that SOR so sees it — correct |
+| 13.1–13.3 TG03 print | ✓ layout; see B8 |
+| 13.5–13.6 TSR print | see B5 |
+| 13.7 Packing List print | ✓ "1 of 2 boxes weighed" |
+| 14.1 release notes | in What's New popup; Release Notes page window still ends 30 Sep (bump at prod merge) |
 
-## 5. Warehouse releasing (#253)
+### Bugs
 
-- [ ] 5.1 As plain: Released by = plain; Received by must be on **Technical list** (technical). Pick a non-Technical person → refused.
-- [ ] 5.2 Sign → state **Technical inspection**; technical gets notification.
-- [ ] 5.3 On a **Warehouse-only** slip: releasing is optional, can be opened and signed any time before close, Received by = any employee or **typed name** (driver). Never blocks Check by.
+- **B1 FIXED** Stage signing refused the same person as both signatories (DB + UI + test), contrary to spec #251. With one Warehouse member nobody could sign. Migration `20261015500000_transmittal_same_signatory.sql`, UI picker, stub, service + policy tests.
+- **B2 FIXED** Warehouse member can't start a Packing List: SOR picker calls `ipas_find_sors` → 403, silently (no error, no results).
+- **B3 FIXED** "Pick from the SOR's Product List" never appears for packers: `sales_opportunity_items` is deal-team only, so the list is empty for Purchasing/Warehouse.
+- **B4 FIXED** Add-a-box dialog keeps the previous box's marks/seal/weight (box 2 inherited box 1's).
+- **B5 FIXED** TSR "Noted by" prints the Technical inspector; spec says optional Purchasing block.
+- **B6 FIXED** No sidebar entry for the Approval Center Transmittal Check by queue (`/approvals/transmittals`); Check by members reach it only via notification/URL. Queue row headline is the Company, not TG03-n.
+- **B7 FIXED** SOR section lists a **draft** slip (TG03-3) to the Deal Owner, and omits the date (spec: number, date, priority, state, NA count).
+- **B8 FIXED** Printed tick boxes misaligned (✕ glyph overflows `.box`); Check by call signs float top-right, not beneath the plates.
 
-## 6. Received in Odoo (#253)
+Fixes: migration `20261015600000_handoff_walkthrough_reads.sql` (B2, B3, B7: `ipas_find_sors` open to the Warehouse list, new `packing_list_sor_products`, drafts left out of `handoffs_for_sor`); box dialog remounts per open (B4); TSR Checked by = Inspected by, Noted by blank for Purchasing (B5); "Transmittal Check by" nav for the Check by list, queue rows lead with TG03-n (B6); SOR rows show the date (B7); print tick boxes and Check by plates/call signs (B8).
 
-- [ ] 6.1 plain or purchaser signs "Received in Odoo by" with ref `WH/IN/01234`. Available from submission onward.
-- [ ] 6.2 technical / logistics cannot sign it.
+### Smaller issues (fixed unless marked)
 
-## 7. Technical inspection (#254) — as technical
-
-- [ ] 7.1 TCA in-charge + GC/NA per line; NA needs remark; Warehouse ratings visible but locked.
-- [ ] 7.2 Inspection Remarks & Recommendations, files or No-reason, sign Received by + Inspected by.
-- [ ] 7.3 plain can NOT rate/sign Technical stage.
-- [ ] 7.4 After sign → **Awaiting Check**.
-
-## 8. Check by (#254)
-
-- [ ] 8.1 ops-head: `/approvals/transmittals` lists the slip. Slip **without** Received in Odoo → Check refused (test before step 6 on another slip).
-- [ ] 8.2 purchaser (preparer) can't Check. super-admin (not on list) can't Check.
-- [ ] 8.3 ops-head signs slot 1; ops-head can't sign slot 2.
-- [ ] 8.4 admin-head signs slot 2 → **Closed**; purchaser notified. Everything on the slip locked.
-- [ ] 8.5 Typed-only slip (3.9) closes without Received in Odoo.
-
-## 9. Lists & filters (#252)
-
-- [ ] 9.1 `/purchasing/transmittals`: filters state, stage, waiting on Warehouse / Technical, awaiting my Check by (as ops-head), prepared by me, priority, has NA. Priority chips, NA marks, TG03 numbers.
-
-## 10. IPAS reads (#256) — `/purchasing/ipas/<TGIPAS_049>` as purchaser/finance
-
-- [ ] 10.1 Section 5 lists slips carrying its PO line, date order, number/date/priority/stage/NA count, links work.
-- [ ] 10.2 **Delivered** stamped from first-stage signature, marked "stamped".
-- [ ] 10.3 **Actual Checking**: "Pending (n of m)" while Technical not signed; stamped after; hand-stamp refused once a slip submitted.
-- [ ] 10.4 **Item Location** follows latest slip past first stage; typed override wins.
-
-## 11. Packing Lists (#255)
-
-- [ ] 11.1 As plain: `/purchasing/packing-lists` → new, SOR S07761 → number `PKL_001`-style.
-- [ ] 11.2 Add 2 boxes (no., marks, seal no., weight on one only). Contents typed + picked from SOR Product List.
-- [ ] 11.3 Pack with zero boxes / empty box → refused. Pack → Packed by stamped, everything locked.
-- [ ] 11.4 technical / logistics / hr can't create.
-
-## 12. SOR section (#257)
-
-- [ ] 12.1 sales-exec opens SOR S07761: Transmittals + Packing Lists section — number, date, priority, stage, NA count; PL number, state, box count, delivery ref. **No remarks, ratings remarks, files.**
-- [ ] 12.2 sales-exec-2 (can't read the SOR): sees nothing.
-- [ ] 12.3 SOR with no slips: section hidden.
-
-## 13. Printing (#258, #259, #260)
-
-- [ ] 13.1 Draft → no Print. Submitted → Print (TG03 A4): header, TN, "To be checked by Technical" box, tick rows, grid padded to paper length, legend GC/NA, 3 sections, Received in Odoo, Check by plates with **1001 / 102** under them.
-- [ ] 13.2 Unrated / unsigned cells blank. Warehouse-only slip prints Technical section struck through.
-- [ ] 13.3 Many lines → 2nd page, header repeated.
-- [ ] 13.4 Signatures: stored sig prints as image; declined / unconfirmed co-signer → name only; waiting → blank.
-- [ ] 13.5 **Print TSR** (Technical slips): one A4, units per serial with verdict/remark, evidence summary ("2 photographs, 1 video (00:42)"), failure footer.
-- [ ] 13.6 **Print with photographs**: photos embedded, no video.
-- [ ] 13.7 Packing List print: box by box, footer box count + "total … of N boxes weighed", Packed by.
-
-## 14. Release notes
-
-- [ ] 14.1 Release Notes page has entries for these features.
+- FIXED: Raw DB errors on the Transmittal page keep the prefix: "transmittal_rate: an NA needs a remark", "transmittal_check: TG03-2 is a PO slip; record Received in Odoo first", "packing list: PKL_007 has 2 box(es) with no contents". The page doesn't use `ipasErrorMessage`.
+- FIXED: Check by buttons enabled before Received in Odoo; now disabled with a hint.
+- FIXED: Line NA remarks and qty received weren't shown once the stage was signed; now under each line.
+- FIXED: List filter dropdown clipped labels; added Priority filter and NA column.
+- FIXED: "A file is 50 MB or less." → "Each file must be 50 MB or less."
+- FIXED: Notification copy doubled the prefix ("TG03 TG03-2…") and lowercased stage names.
+- FIXED: Signed stages still showed "Lines are rated … while checking is open."
+- FIXED: Transmittal/TSR prints now say "name only, no signature on file" like the IPAS and Packing List prints.
+- FIXED: Super Admin saw Cancel/Edit/Record receipt the DB refuses them; UI now follows the DB (preparer or Purchasing; Warehouse or Purchasing for the receipt).
+- NOT FIXED: What's New popup announces Packing List printing to everyone. The changelog has no audience field; targeting is a feature, needs your call.
+- Local only: policy-test runs leave fixture slips and burn TG03/PKL sequence numbers.
+- FIXED (found while fixing): the new options-read policy ran its helpers per row (5.4 s for 10 rows); now evaluated once per query (~0.4 s). Root cost: `get_employee_id()` takes ~30 ms per call locally — affects every policy that calls it per row.
+- FIXED: policy tier's cast teardown failed when `sor_stage_participants` held fixture rows; teardown now clears them.
+- NOT FIXED (pre-existing): `67-ipas-sor-lookup-locked-summary` can't seed its SOR (`sales_opportunities_flow_pairing_chk`).

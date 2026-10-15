@@ -4,7 +4,8 @@ import { Check } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { transmittalService } from "../../services/transmittalService";
-import { TRANSMITTAL_STATE } from "../../constants/transmittals";
+import { TRANSMITTAL_LINE_KIND, TRANSMITTAL_STATE } from "../../constants/transmittals";
+import { ipasErrorMessage } from "../../utils/ipas";
 
 /**
  * The Check by plates (#254, spec #251): two signature slots, each signed by a
@@ -17,7 +18,7 @@ const caption = "text-label font-bold uppercase tracking-wider text-muted-foregr
 
 const formatWhen = (value) => (value ? new Date(value).toLocaleString() : "");
 
-function Plate({ label, plate, canSign, busy, onSign }) {
+function Plate({ label, plate, canSign, blocked, busy, onSign }) {
   return (
     <div className="flex-1 space-y-1 rounded-lg border border-border p-3">
       <p className={caption}>{label}</p>
@@ -26,7 +27,7 @@ function Plate({ label, plate, canSign, busy, onSign }) {
           {plate.name ?? "—"} · {formatWhen(plate.at)}
         </p>
       ) : canSign ? (
-        <Button size="sm" className="gap-1.5" onClick={onSign} disabled={busy}>
+        <Button size="sm" className="gap-1.5" onClick={onSign} disabled={busy || blocked}>
           <Check size={14} />
           Sign Check by
         </Button>
@@ -47,6 +48,11 @@ export function CheckBySection({ transmittal, canCheck, currentUserId, onChanged
   const mayTakeFirst = canCheck && awaiting && !first && second?.id !== currentUserId;
   const mayTakeSecond = canCheck && awaiting && !second && first?.id !== currentUserId;
 
+  // A slip carrying a PO line is checked only once Received in Odoo is signed.
+  const needsReceipt =
+    !transmittal.odooReceivedAt && transmittal.lines.some((line) => line.kind === TRANSMITTAL_LINE_KIND.PO_LINE);
+  const blocked = needsReceipt && (mayTakeFirst || mayTakeSecond);
+
   const sign = async (slot) => {
     setBusy(true);
     try {
@@ -54,7 +60,7 @@ export function CheckBySection({ transmittal, canCheck, currentUserId, onChanged
       toast.success("Check by signed.");
       onChanged?.();
     } catch (error) {
-      toast.error(error.message || "The Check by could not be signed.");
+      toast.error(ipasErrorMessage(error, "The Check by could not be signed."));
     } finally {
       setBusy(false);
     }
@@ -64,9 +70,10 @@ export function CheckBySection({ transmittal, canCheck, currentUserId, onChanged
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 text-[13px]">
       <p className="text-sm font-semibold">Check by</p>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <Plate label="Check by (1)" plate={first} canSign={mayTakeFirst} busy={busy} onSign={() => sign(1)} />
-        <Plate label="Check by (2)" plate={second} canSign={mayTakeSecond} busy={busy} onSign={() => sign(2)} />
+        <Plate label="Check by (1)" plate={first} canSign={mayTakeFirst} blocked={blocked} busy={busy} onSign={() => sign(1)} />
+        <Plate label="Check by (2)" plate={second} canSign={mayTakeSecond} blocked={blocked} busy={busy} onSign={() => sign(2)} />
       </div>
+      {blocked && <p className="text-xs text-muted-foreground">Received in Odoo by is signed first: this slip carries a PO line.</p>}
     </div>
   );
 }

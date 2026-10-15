@@ -12,6 +12,7 @@ import { Textarea } from "../ui/textarea";
 import { transmittalService } from "../../services/transmittalService";
 import { evidenceOf, stageRowOf } from "../../utils/transmittals";
 import { TRANSMITTAL_RATING, TRANSMITTAL_STAGE } from "../../constants/transmittals";
+import { ipasErrorMessage } from "../../utils/ipas";
 
 /** The slip state while each stage is the one being worked. */
 const OPEN_STATE = {
@@ -86,7 +87,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
       toast.success("Ratings saved.");
       onSaved?.();
     } catch (error) {
-      toast.error(error.message || "The ratings could not be saved.");
+      toast.error(ipasErrorMessage(error, "The ratings could not be saved."));
     } finally {
       setBusy(false);
     }
@@ -210,9 +211,11 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
   const receiverFromTechnical = stage === TRANSMITTAL_STAGE.WAREHOUSE_RELEASING && transmittal.checkTechnical;
   // The other signatory is picked from a list on every stage but a typed Warehouse releasing.
   const pickOther = isCheckingStage || isTechnicalStage || receiverFromTechnical;
-  const otherOptions = (isCheckingStage ? members.warehouse : pickOther ? members.technical : [])
-    .filter((m) => m.id !== currentUserId)
-    .map((m) => ({ value: m.id, label: m.name }));
+  // The two signatories may be the same person (spec #251), so the signer stays on the list.
+  const otherOptions = (isCheckingStage ? members.warehouse : pickOther ? members.technical : []).map((m) => ({
+    value: m.id,
+    label: m.name,
+  }));
 
   const unrated = transmittal.lines.filter((line) =>
     isTechnicalStage ? !line.techRating || !line.techInChargeId : !line.whRating || !line.whInChargeId,
@@ -240,7 +243,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
       toast.success("Files added.");
       afterChange();
     } catch (error) {
-      toast.error(error.message || "The files could not be added.");
+      toast.error(ipasErrorMessage(error, "The files could not be added."));
     } finally {
       setBusy(false);
     }
@@ -252,7 +255,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
       await transmittalService.removeEvidence({ id: file.id, storagePath: file.storage_path });
       afterChange();
     } catch (error) {
-      toast.error(error.message || "The file could not be removed.");
+      toast.error(ipasErrorMessage(error, "The file could not be removed."));
     } finally {
       setBusy(false);
     }
@@ -262,7 +265,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
     try {
       window.open(await transmittalService.evidenceUrl(file.storage_path), "_blank", "noopener");
     } catch (error) {
-      toast.error(error.message || "The file could not be opened.");
+      toast.error(ipasErrorMessage(error, "The file could not be opened."));
     }
   };
 
@@ -279,7 +282,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
       toast.success(`${STAGE_TITLE[stage]} signed.`);
       afterChange();
     } catch (error) {
-      toast.error(error.message || "The stage could not be signed.");
+      toast.error(ipasErrorMessage(error, "The stage could not be signed."));
     } finally {
       setBusy(false);
     }
@@ -292,7 +295,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
       toast.success(value ? "Signature confirmed." : "Signature declined.");
       afterChange();
     } catch (error) {
-      toast.error(error.message || "The signature could not be updated.");
+      toast.error(ipasErrorMessage(error, "The signature could not be updated."));
     } finally {
       setBusy(false);
     }
@@ -428,7 +431,7 @@ export function OdooReceiptSection({ transmittal, canRecord, onRecorded }) {
       toast.success("Received in Odoo recorded.");
       onRecorded?.();
     } catch (error) {
-      toast.error(error.message || "The Odoo receipt could not be recorded.");
+      toast.error(ipasErrorMessage(error, "The Odoo receipt could not be recorded."));
     } finally {
       setBusy(false);
     }

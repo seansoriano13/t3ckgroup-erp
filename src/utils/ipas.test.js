@@ -139,6 +139,9 @@ describe("ipasErrorMessage", () => {
       "The preparer can't check their own slip",
     )
     expect(ipasErrorMessage({ message: "packing_list_pack: add a box first" })).toBe("Add a box first")
+    expect(ipasErrorMessage({ message: "packing list: PKL_007 has 2 box(es) with no contents" })).toBe(
+      "PKL_007 has 2 box(es) with no contents",
+    )
   })
 
   it("says a dropped connection in plain words, whatever the browser calls it", () => {

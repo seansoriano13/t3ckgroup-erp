@@ -364,7 +364,6 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
           : "transmittal_complete_stage: Received by is on the Technical list",
       )
     }
-    if (p_other_signer_id === actorId) refuse("22023", "transmittal_complete_stage: the other signatory is someone else")
     const otherName = p_other_signer_id ? employeeName(p_other_signer_id) : (p_other_signer_name ?? "").trim() || null
     if (!otherName) refuse("22023", "transmittal_complete_stage: name who signs with you")
 

@@ -6,6 +6,10 @@ import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { sorHandoffsService } from "../../services/sorHandoffsService";
 
+/** "Oct 15, 2026" from a date-only `prepared_on`, read as a local date. */
+const preparedDate = (day) =>
+  new Date(`${day}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
 /** Opens the full record in its own tab, so the SOR stays where it is. */
 const openTransmittal = (id) =>
   window.open(`/purchasing/transmittals/${id}`, "_blank", "noopener");
@@ -55,7 +59,7 @@ export default function HandoffsSorSection({ opportunityId }) {
                 <StatusBadge status={t.state}>{t.stateLabel}</StatusBadge>
               </p>
               <p className="text-xs text-muted-foreground">
-                Priority {t.priorityLabel} · NA {t.naCount}
+                {t.preparedOn && <>{preparedDate(t.preparedOn)} · </>}Priority {t.priorityLabel} · NA {t.naCount}
               </p>
             </div>
             {t.canOpen && (

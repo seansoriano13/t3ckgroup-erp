@@ -19,10 +19,12 @@ import { printDate, printDateTime } from './ipasViewModel';
 const BLANK = '—';
 
 /** A signature plate for the TSR: waiting (no name or no time) prints blank; signed prints the name and its stamp. */
-export function tsrPlate(role, { who = null, at = null } = {}) {
+export function tsrPlate(role, { who = null, at = null, signatureBase64 = null } = {}) {
   if (!who || !at) return { role, state: 'waiting', who: '', stamp: '' };
   const when = printDateTime(at);
-  return { role, state: 'signed', who, stamp: when ? `signed ${when}` : 'signed' };
+  const stamp = when ? `signed ${when}` : 'signed';
+  // Without an image the plate prints the name, so it says so (as the IPAS print does).
+  return { role, state: 'signed', who, stamp: signatureBase64 ? stamp : `${stamp} · name only, no signature on file`, signatureBase64 };
 }
 
 /** "4 photographs, 1 video (00:42)": what the ERP holds for the TSR. The videos never print. */

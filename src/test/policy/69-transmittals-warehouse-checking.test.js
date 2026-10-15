@@ -205,6 +205,29 @@ describe("who rates and signs the Warehouse stages", () => {
     })
 })
 
+describe("one person may be both signatories", () => {
+    it("signs checking as Received by and Inspected by, the second slot waiting on their own confirm", async () => {
+        const ipas = await raiseIpas()
+        const slip = await submittedSlip(ipas, WAREHOUSE_ONLY)
+        await rateAll(slip)
+        const { error } = await rpc("warehouse", "transmittal_complete_stage", {
+            p_transmittal_id: slip,
+            p_stage: "warehouse_checking",
+            p_other_signer_id: ids.warehouse,
+            p_other_signer_name: null,
+            p_remarks: null,
+            p_no_pictures_reason: "none",
+        })
+        expect(error).toBeNull()
+        expect(await stageOf(slip, "warehouse_checking")).toMatchObject({
+            first_signer_id: ids.warehouse,
+            second_signer_id: ids.warehouse,
+            second_confirmed: false,
+        })
+        expect(await slipState(slip)).toBe("awaiting_check")
+    })
+})
+
 describe("releasing's Received by follows the Technical list on a Technical slip", () => {
     it("refuses a Received by off the Technical list, then opens Technical inspection", async () => {
         const ipas = await raiseIpas()

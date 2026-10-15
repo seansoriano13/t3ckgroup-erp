@@ -105,7 +105,7 @@ describe("shaping a Transmittal row", () => {
 });
 
 describe("the TSR a Technical inspection gives", () => {
-  it("derives units from the rated lines, with NA as a fail, and the signers from the stage", () => {
+  it("derives units from the rated lines, with NA as a fail, Checked by from Inspected by", () => {
     const slip = shapeTransmittal({
       id: "t3",
       number: "TG03-528",
@@ -119,9 +119,10 @@ describe("the TSR a Technical inspection gives", () => {
           id: "s1",
           stage: "technical_inspection",
           remarks: "Scratch on housing",
-          first_signer: { id: "e1", name: "Inspector" },
+          first_signer: { id: "e0", name: "Receiver" },
           first_signed_at: "2026-10-15T01:00:00Z",
-          second_signed_at: null,
+          second_signer: { id: "e1", name: "Inspector" },
+          second_signed_at: "2026-10-15T01:00:00Z",
         },
       ],
       evidence: [{ id: "v1", record_id: "s1", kind: "picture", storage_path: "p/1.jpg", file_name: "1.jpg" }],
@@ -139,7 +140,8 @@ describe("the TSR a Technical inspection gives", () => {
       { serial: "SN2", verdict: "fail", remark: "Cracked" },
     ]);
     expect(tsr.checkedBy).toEqual({ name: "Inspector", at: "2026-10-15T01:00:00Z" });
-    expect(tsr.notedBy).toBeNull();
+    // Purchasing's Noted by isn't on the slip: a blank plate, signed by hand.
+    expect(tsr.notedBy).toEqual({ name: null, at: null });
     expect(tsr.remarks).toBe("Scratch on housing");
     expect(tsr.evidence).toEqual([{ kind: "picture", storagePath: "p/1.jpg", fileName: "1.jpg" }]);
   });

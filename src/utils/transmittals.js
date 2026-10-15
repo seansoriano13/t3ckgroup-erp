@@ -178,11 +178,14 @@ export function tsrOf(transmittal) {
       return serials.map((serial) => ({ serial, verdict, remark }));
     }),
     remarks: stage?.remarks || "",
-    checkedBy: { name: stage?.first_signer?.name ?? null, at: stage?.first_signed_at ?? null },
-    notedBy:
-      stage?.second_signed_at && !stage.second_signature_declined
-        ? { name: stage.second_signer_name ?? stage.second_signer?.name ?? null, at: stage.second_signed_at }
-        : null,
+    // Technical inspection's Inspected by is who checked the units. Noted by is
+    // Purchasing's, which the TG03 slip doesn't record: it prints blank, for
+    // signing by hand.
+    checkedBy: {
+      name: stage?.second_signer?.name ?? stage?.second_signer_name ?? null,
+      at: stage?.second_signed_at ?? null,
+    },
+    notedBy: { name: null, at: null },
     evidence: evidenceOf(transmittal, TRANSMITTAL_STAGE.TECHNICAL_INSPECTION).map((e) => ({
       kind: e.kind === "video" ? "video" : "picture",
       storagePath: e.storage_path,

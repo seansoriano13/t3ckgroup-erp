@@ -31,7 +31,7 @@ export default function SorPicker({ selected, onChange, suggestions = [], disabl
   const [term, setTerm] = useState("");
   const search = term.trim();
 
-  const { data: results = [], isFetching } = useQuery({
+  const { data: results = [], isFetching, isError } = useQuery({
     queryKey: ipasSorSearchKey(search),
     queryFn: () => ipasService.searchSors(search),
     enabled: search.length >= 2,
@@ -93,7 +93,7 @@ export default function SorPicker({ selected, onChange, suggestions = [], disabl
         </ul>
       )}
 
-      <FieldBox label="Find another SOR" bare>
+      <FieldBox label={picked.length || suggestions.length ? "Find another SOR" : "Find an SOR"} bare>
         <Input
           value={term}
           disabled={disabled}
@@ -122,8 +122,11 @@ export default function SorPicker({ selected, onChange, suggestions = [], disabl
               </Button>
             </li>
           ))}
-          {!isFetching && addable.length === 0 && (
-            <li className="px-2.5 py-1.5 text-xs text-muted-foreground">No other SOR matches.</li>
+          {isError ? (
+            <li className="px-2.5 py-1.5 text-xs text-destructive">SORs couldn't be searched. Try again.</li>
+          ) : (
+            !isFetching &&
+            addable.length === 0 && <li className="px-2.5 py-1.5 text-xs text-muted-foreground">No other SOR matches.</li>
           )}
         </ul>
       )}

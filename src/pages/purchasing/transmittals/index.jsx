@@ -20,6 +20,7 @@ import { transmittalService } from "../../../services/transmittalService";
 import { transmittalKeys } from "../../../components/transmittals/transmittalKeys";
 import {
   TRANSMITTAL_ORIGIN_LABELS,
+  TRANSMITTAL_PRIORITIES,
   TRANSMITTAL_PRIORITY_LABELS,
   TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STATE,
@@ -56,6 +57,12 @@ const FILTER_OPTIONS = [
   { value: FILTER.AWAITING_MY_CHECK, label: "Awaiting my Check by" },
 ];
 
+const ANY_PRIORITY = "any";
+const PRIORITY_OPTIONS = [
+  { value: ANY_PRIORITY, label: "Any priority" },
+  ...TRANSMITTAL_PRIORITIES.map((p) => ({ value: p, label: TRANSMITTAL_PRIORITY_LABELS[p] })),
+];
+
 const HEAD = "text-label font-bold uppercase tracking-wider";
 
 function TransmittalsList() {
@@ -72,6 +79,7 @@ function TransmittalsList() {
   const [tab, setTab] = useState(TAB.OPEN);
   const [mineOnly, setMineOnly] = useState(false);
   const [filter, setFilter] = useState(FILTER.ALL);
+  const [priority, setPriority] = useState(ANY_PRIORITY);
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: [...transmittalKeys.list],
@@ -105,7 +113,11 @@ function TransmittalsList() {
 
   const count = (t) => rows.filter((row) => inTab(row, t)).length;
   const visible = rows.filter(
-    (row) => inTab(row, tab) && (!mineOnly || row.preparedById === user?.id) && matchesFilter(row),
+    (row) =>
+      inTab(row, tab) &&
+      (!mineOnly || row.preparedById === user?.id) &&
+      (priority === ANY_PRIORITY || row.priority === priority) &&
+      matchesFilter(row),
   );
   const paging = usePaging(visible);
 
@@ -125,7 +137,24 @@ function TransmittalsList() {
       />
       <div className="flex flex-wrap items-center gap-3 text-[13px]">
         <div className="w-56">
-          <SelectField options={FILTER_OPTIONS} value={filter} onChange={setFilter} placeholder="Filter" />
+          <SelectField
+            options={FILTER_OPTIONS}
+            value={filter}
+            onChange={setFilter}
+            placeholder="Filter"
+            className="w-full"
+            aria-label="Filter"
+          />
+        </div>
+        <div className="w-40">
+          <SelectField
+            options={PRIORITY_OPTIONS}
+            value={priority}
+            onChange={setPriority}
+            placeholder="Priority"
+            className="w-full"
+            aria-label="Priority"
+          />
         </div>
         <div className="flex items-center gap-2">
           <Checkbox checked={mineOnly} onCheckedChange={(v) => setMineOnly(Boolean(v))} aria-label="Prepared by me" />
@@ -170,7 +199,7 @@ function TransmittalsList() {
             <Table tableId="transmittals" className="md:min-w-[48rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  {["TG03", "Prepared", "Origin", "Company", "Priority", "Lines", "State"].map((heading) => (
+                  {["TG03", "Prepared", "Origin", "Company", "Priority", "Lines", "NA", "State"].map((heading) => (
                     <TableHead key={heading} className={HEAD}>
                       {heading}
                     </TableHead>
@@ -190,6 +219,9 @@ function TransmittalsList() {
                     <TableCell>{row.entity}</TableCell>
                     <TableCell>{TRANSMITTAL_PRIORITY_LABELS[row.priority] ?? row.priority}</TableCell>
                     <TableCell>{row.lineCount}</TableCell>
+                    <TableCell className={row.naCount ? "font-semibold text-destructive" : "text-muted-foreground"}>
+                      {row.naCount || "—"}
+                    </TableCell>
                     <TableCell>{row.stateLabel}</TableCell>
                   </TableRow>
                 ))}

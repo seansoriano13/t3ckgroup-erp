@@ -179,9 +179,10 @@ export function transmittalToItem(slip, now = Date.now()) {
     return {
         id: slip.id,
         queue: "transmittals",
-        ref: slip.number,
-        title: slip.entity || slip.number,
-        typeLabel: "TG03 · Check by",
+        // The TG03 number leads, as staff quote it; the Company sits under it.
+        ref: slip.entity || "TG03",
+        title: slip.number,
+        typeLabel: "Check by",
         // `list()` shapes the preparer as a plain name.
         person: {
             id: slip.preparedById,
