@@ -12,6 +12,7 @@
 import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './formViewModel';
 import { buildIpasViewModel } from './ipasViewModel';
 import { buildPackingListViewModel } from './packingListViewModel';
+import { buildTransmittalViewModel } from './transmittalViewModel';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 
@@ -46,6 +47,12 @@ const FORM_TYPES = {
   // is a no-op, as for the IPAS.
   PACKING_LIST: {
     buildViewModel: buildPackingListViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #258: the Transmittal prints as TG03 (transmittalDocument.js) from
+  // `transmittalService.get`'s shape. Printing stamps nothing, so markPrinted is a no-op.
+  TRANSMITTAL: {
+    buildViewModel: buildTransmittalViewModel,
     markPrinted: async () => {},
   },
 };

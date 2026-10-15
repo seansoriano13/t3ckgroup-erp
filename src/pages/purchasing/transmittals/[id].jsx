@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Pencil, Send, XCircle } from "lucide-react";
+import { ArrowLeft, Pencil, Printer, Send, XCircle } from "lucide-react";
+import { openTransmittalPrintWindow, printTransmittal } from "../../../lib/pdf/transmittalPrinter";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
@@ -156,6 +157,22 @@ function TransmittalPage() {
     }
   };
 
+  // A slip prints once submitted: any stage, awaiting Check by, or closed. Not a draft, not cancelled.
+  const canPrint = t.state !== TRANSMITTAL_STATE.DRAFT && t.state !== TRANSMITTAL_STATE.CANCELLED;
+
+  const printTransmittalForm = async () => {
+    const printWindow = openTransmittalPrintWindow();
+    if (!printWindow) {
+      toast.error("Popup blocked. Allow popups to print.");
+      return;
+    }
+    try {
+      await printTransmittal(id, { printWindow });
+    } catch (error) {
+      toast.error(error.message || "The Transmittal could not be printed.");
+    }
+  };
+
   const stages = stagesOf(t);
 
   return (
@@ -170,6 +187,12 @@ function TransmittalPage() {
               Transmittals
             </Link>
           </Button>
+          {canPrint && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={printTransmittalForm}>
+              <Printer size={14} />
+              Print
+            </Button>
+          )}
           {isDraft && canChange && !editing && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditing(true)}>
               <Pencil size={14} />
