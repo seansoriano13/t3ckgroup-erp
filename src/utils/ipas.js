@@ -287,7 +287,9 @@ export function ipasErrorMessage(error, fallback = "Something went wrong.") {
   const raw = error?.message;
   if (!raw || typeof raw !== "string") return fallback;
   if (NETWORK_FAILURE.test(raw.trim())) return IPAS_OFFLINE_MESSAGE;
-  return raw.replace(/^ipas_[a-z_]+:\s*/i, "");
+  // Database refusals lead with the function name (ipas_create:, transmittal_check:).
+  const text = raw.replace(/^[a-z]+(?:_[a-z]+)+:\s*/i, "");
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /**

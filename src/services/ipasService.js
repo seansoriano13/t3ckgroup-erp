@@ -50,7 +50,7 @@ import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
-import { TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
+import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
@@ -780,7 +780,7 @@ export const ipasService = {
    * unique within its list, ignoring case.
    */
   async saveOption({ id = null, list, label, appliesTo, usedFor }) {
-    requireOneOf(list, Object.values(IPAS_OPTION_LIST), "Pick a list.");
+    requireOneOf(list, [...Object.values(IPAS_OPTION_LIST), ...Object.values(TRANSMITTAL_OPTION_LIST)], "Pick a list.");
     const name = (label || "").trim();
     if (!name) {
       throw new IpasError(IPAS_ERROR.INVALID, `Type the ${IPAS_OPTION_LIST_NOUNS[list] ?? "option"}'s name.`);
@@ -1260,7 +1260,7 @@ export const ipasService = {
    * Nobody's past sign-offs change. Returns the list as `getSignerLists` gives it.
    */
   async setSignerList(listKey, employeeIds = []) {
-    requireOneOf(listKey, IPAS_SIGNER_LISTS, "That isn't a sign-off list.");
+    requireOneOf(listKey, [...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS], "That isn't a sign-off list.");
     const wanted = [...new Set((employeeIds || []).filter(Boolean))];
 
     const { error } = await supabase.rpc("ipas_set_signer_list", {

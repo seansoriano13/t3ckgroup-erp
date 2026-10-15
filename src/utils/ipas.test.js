@@ -134,6 +134,13 @@ describe("ipasErrorMessage", () => {
     expect(ipasErrorMessage({})).toBe("Something went wrong.")
   })
 
+  it("drops any function name, not only an IPAS one, and starts with a capital", () => {
+    expect(ipasErrorMessage({ message: "transmittal_check: the preparer can't check their own slip" })).toBe(
+      "The preparer can't check their own slip",
+    )
+    expect(ipasErrorMessage({ message: "packing_list_pack: add a box first" })).toBe("Add a box first")
+  })
+
   it("says a dropped connection in plain words, whatever the browser calls it", () => {
     const offline = "Can't reach the server. Check your connection and try again."
     expect(ipasErrorMessage(new TypeError("Failed to fetch"))).toBe(offline)

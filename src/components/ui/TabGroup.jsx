@@ -101,7 +101,7 @@ export default function TabGroup({
   // Wrapper classes
   const wrapperCls = cn(
     "flex overflow-x-auto shrink-0 relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
-    variant === "pill" && "bg-muted p-1 rounded-xl w-fit",
+    variant === "pill" && "bg-muted p-1 rounded-xl w-fit max-w-full",
     (variant === "primary" ||
       variant === "success" ||
       variant === "violet" ||

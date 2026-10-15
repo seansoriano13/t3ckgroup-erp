@@ -25,6 +25,11 @@ describe("cn", () => {
         expect(cn(["px-2", "py-1"], "gap-1")).toBe("px-2 py-1 gap-1")
     })
 
+    it("keeps the text-label size beside a text colour, and lets a later size replace it", () => {
+        expect(cn("text-label font-bold", "text-muted-foreground")).toBe("text-label font-bold text-muted-foreground")
+        expect(cn("text-label", "text-xs")).toBe("text-xs")
+    })
+
     it("lets a later class override an earlier one in the same Tailwind group", () => {
         expect(cn("px-2", "px-4")).toBe("px-4")
     })

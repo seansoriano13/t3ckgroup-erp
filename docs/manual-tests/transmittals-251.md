@@ -24,12 +24,13 @@ Spec #251, tickets #252–#260. Local stack. Tick each box; write feedback under
 
 4. Test data: one IPAS **TGIPAS_049** (PO **P02692**, 1 PO line, SOR S07761). Need more PO lines / a 2nd IPAS → needs Odoo (`supabase functions serve odoo-po-ipas`).
 
-## 1. Settings & first number (#252)
+## 1. Settings & first number (#252) — your feedback 2026-10-15, fixed
 
-- [ ] 1.1 super-admin → `/settings?tab=purchasing`: option lists **Transmittal products** (Marwa, BM, Office) and **Transmittal references** (Data Sheet / Brochure, Packing List / Picking List, Manual, Video & Photo). Add / reorder / deactivate works.
-- [ ] 1.2 Sign-off lists sub-tab shows the 4 staff lists with the mock members above. Add/remove someone, history logs it.
-- [ ] 1.3 **First TG03 number**: set e.g. `600`. Purchaser does NOT see this control.
-- [ ] 1.4 After the first Transmittal exists (step 2), the first-number control is refused/hidden.
+- [x] 1.1 Option lists. Fixed: adding to Transmittal products / references said "Pick a list." (service didn't know those lists). Fixed: tab strip overflowed; now scrolls with edge fades.
+- [x] 1.2 Staff lists. Fixed: adding said "That isn't a sign-off list." (service + test stub didn't know the 4 keys).
+- [x] 1.3 First number set.
+- [x] 1.4 Fixed wording: once a slip exists the field is replaced by "Numbering started at TG03-N. It can't change now that a Transmittal has been raised."; a late refusal reads "TG03 numbering has already started, so the first number can't be changed." Every DB refusal now drops its function-name prefix (was only `ipas_*`).
+- [x] General: field labels were 16px. `cn()` (tailwind-merge) dropped `text-label` as a colour clash, app-wide. Now 11px everywhere `text-label` meets a text colour — **review other screens too.**
 
 ## 2. Nav & access (#251 access)
 

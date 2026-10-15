@@ -416,6 +416,9 @@ describe("transmittalService", () => {
     })
     expect(made.number).toBe("TG03-526")
 
-    await expect(transmittalService.setFirstNumber(600)).rejects.toThrow(/already exists/)
+    await expect(transmittalService.setFirstNumber(600)).rejects.toThrow(
+      "TG03 numbering has already started, so the first number can't be changed.",
+    )
+    expect(await transmittalService.firstNumber()).toBe("TG03-526")
   })
 })

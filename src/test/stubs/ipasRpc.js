@@ -1385,7 +1385,9 @@ export function stubIpasRpcs({
   stubRpc("ipas_set_signer_list", (args) => {
     if (!superAdmin) refuse("42501", "ipas_set_signer_list: only a Super Admin changes who is on a sign-off list")
     const listKey = args.p_list_key
-    if (!["s1_approved", "s3_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved"].includes(listKey)) {
+    const keys = ["s1_approved", "s3_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved"]
+    keys.push("transmittal_warehouse", "transmittal_technical", "transmittal_logistics", "transmittal_check_by")
+    if (!keys.includes(listKey)) {
       refuse("22023", `ipas_set_signer_list: ${listKey} isn't a sign-off list`)
     }
     const wanted = [...new Set((args.p_employee_ids || []).filter(Boolean))]

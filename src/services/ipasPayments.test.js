@@ -622,6 +622,16 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       ).resolves.toMatchObject({ list: "charge_kind" })
     })
 
+    it("adds to the Transmittal Product and Reference Checklist lists", async () => {
+      await expect(ipasService.saveOption({ list: "transmittal_product", label: "Solar" })).resolves.toMatchObject({
+        list: "transmittal_product",
+        label: "Solar",
+      })
+      await expect(ipasService.saveOption({ list: "transmittal_reference", label: "Warranty Card" })).resolves.toMatchObject({
+        list: "transmittal_reference",
+      })
+    })
+
     it("reorders a list, and leaves any option not named at the end", async () => {
       const list = IPAS_OPTION_LIST.FREIGHT_SERVICE
       const before = await ipasService.listOptions(list)

@@ -492,8 +492,25 @@ export const transmittalService = {
       throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "The first number is a whole number from 1.");
     }
     const { data, error } = await supabase.rpc("transmittal_set_first_number", { p_number: value });
+    if (error && /already exists/.test(error.message ?? "")) {
+      throw new TransmittalError(
+        TRANSMITTAL_ERROR.INVALID,
+        "TG03 numbering has already started, so the first number can't be changed.",
+      );
+    }
     if (error) throw error;
     return data;
+  },
+
+  /** The first Transmittal's number (e.g. "TG03-526"), or null while none exists and the first number is still open. */
+  async firstNumber() {
+    const { data, error } = await supabase
+      .from("transmittals")
+      .select("number")
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (error) throw error;
+    return data?.[0]?.number ?? null;
   },
 };
 

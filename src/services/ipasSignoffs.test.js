@@ -686,6 +686,12 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       await expect(ipasService.setSignerList("s2_approved", [approver.id])).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
     })
 
+    it("sets a Transmittal staff list", async () => {
+      asAdmin()
+      const after = await ipasService.setSignerList("transmittal_warehouse", [bystander.id])
+      expect(after.map((m) => m.employeeId)).toEqual([bystander.id])
+    })
+
     it("takes someone off a list without touching what they already signed", async () => {
       addToList("s1_approved", approver)
       const ipas = await raise()
