@@ -48,3 +48,5 @@ create trigger ipas_actual_checking_hand_guard
   before update on public.ipas
   for each row
   execute function public.ipas_actual_checking_hand_guard();
+
+revoke all on function public.ipas_actual_checking_hand_guard() from public, anon, authenticated;
