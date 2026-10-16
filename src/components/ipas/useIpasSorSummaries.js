@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ipasService } from "../../services/ipasService";
+import { ipasSorStandingService } from "../../services/ipasSorStandingService";
 import { ipasSorSummariesKey } from "./ipasKeys";
 
 /**
@@ -10,7 +10,7 @@ import { ipasSorSummariesKey } from "./ipasKeys";
 export function useIpasSorSummaries(opportunityId, { enabled } = {}) {
   return useQuery({
     queryKey: ipasSorSummariesKey(opportunityId),
-    queryFn: () => ipasService.summariesForSor(opportunityId),
+    queryFn: () => ipasSorStandingService.summariesForSor(opportunityId),
     // Leave `enabled` unset when the caller does not say, so the Release Notes
     // SampleProvider's off-by-default queries keep this off the network.
     ...(opportunityId ? (enabled === undefined ? {} : { enabled }) : { enabled: false }),

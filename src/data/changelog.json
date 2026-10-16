@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-16",
+        "title": "SOR: where its orders stand",
+        "version": "1.9.34",
+        "changes": [
+            "The IPAS section on an SOR now says the one next thing for each order, who owes it, and how many days it has waited.",
+            "An order past its step's ageing rule shows a Late mark. It is the same answer the Order Monitoring page gives.",
+            "You still see only that SOR's orders, and still no money."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "Purchasing: Order Monitoring",
         "version": "1.9.33",
         "changes": [
