@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { componentTotals, costRowsTotals, costRowTotals, extended, lineTotals, matrixTotals, percentOf } from "./costingMath";
+import { componentTotals, costRowsTotals, costRowTotals, extended, finalAcquireTotal, lineTotals, matrixTotals, percentOf, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -200,5 +200,166 @@ describe("matrixTotals", () => {
   it("gives nothing for an empty matrix", () => {
     expect(matrixTotals([])).toEqual({ abcTotal: null, finalOfferTotal: null, missingAbc: 0, missingOffer: 0, overAbc: false, percentOfAbc: null });
     expect(matrixTotals(undefined).missingOffer).toBe(0);
+  });
+});
+
+describe("summary", () => {
+  const settings = { vatDivisor: 1.12, taxRate: 0.06, retentionRate: 0.01, itrRate: 0.08, itrAllowance: 250000 };
+
+  /** One Tender Line at the given Final Offer (and ABC), with Components carrying the given Final Acquire totals. */
+  const matrix = ({ offer, abc, acquires = [], costRows = [], money } = {}) => ({
+    tenderLines: [
+      {
+        quantity: 1,
+        final_offer_unit: offer,
+        abc_unit: abc,
+        components: acquires.map((final_acquire_unit) => ({ quantity: 1, final_acquire_unit })),
+      },
+    ],
+    costRows,
+    money,
+  });
+
+  it("works the sheet's figures to the centavo when Final Acquire is blank (#213)", () => {
+    const s = summary(matrix({ offer: 2980000, acquires: [null] }), settings);
+    expect(s).toMatchObject({
+      finalOfferTotal: 2980000,
+      vatExclusive: 2660714.29,
+      tax: 178800,
+      retention: 29800,
+      collected: 2771400,
+      itr: 218400,
+      operationalExpenses: null,
+      revenue: null,
+    });
+    expect(s.incomplete).toMatchObject({ missingCost: 1, missingOffer: 0 });
+  });
+
+  it("works Collected, ITR and Revenue once every cost is in (#213)", () => {
+    const s = summary(matrix({ offer: 3930715, acquires: [1156780] }), settings);
+    expect(s).toMatchObject({
+      tax: 235842.9,
+      retention: 39307.15,
+      collected: 3655564.95,
+      itr: 294457.2,
+      operationalExpenses: 1156780,
+      revenue: 2479477.8,
+    });
+    expect(s.incomplete).toMatchObject({ missingCost: 0, missingOffer: 0 });
+  });
+
+  it("matches the #229 sample: Revenue 423,100.00 at 93.1% of a 3,200,000 ABC", () => {
+    const s = summary(matrix({ offer: 2980000, abc: 3200000, acquires: [2338500] }), settings);
+    expect(s.revenue).toBe(423100);
+    expect(s.percentOfAbc.toFixed(1)).toBe("93.1");
+    expect(s.overAbc).toBe(false);
+  });
+
+  it("adds Components of every line and the cost-only rows into Operational Expenses", () => {
+    const s = summary(
+      {
+        tenderLines: [
+          { quantity: 2, final_offer_unit: 500000, components: [{ quantity: 2, final_acquire_unit: 100000 }, { quantity: 1, final_acquire_unit: 50000 }] },
+          { quantity: 1, final_offer_unit: 2000000, components: [{ quantity: 1, final_acquire_unit: 900000 }] },
+        ],
+        costRows: [{ quantity: 1, final_acquire_unit: 25000.5 }],
+      },
+      settings,
+    );
+    expect(s.finalOfferTotal).toBe(3000000);
+    expect(s.operationalExpenses).toBe(1175000.5);
+    // (3,000,000 - 1,175,000.50) - (2,750,000 x 8%) = 1,824,999.50 - 220,000
+    expect(s.revenue).toBe(1604999.5);
+  });
+
+  it("changes every figure with a rate", () => {
+    const changed = summary(matrix({ offer: 2980000, acquires: [2338500] }), { ...settings, taxRate: 0.05, itrAllowance: 0, vatDivisor: 1.1 });
+    expect(changed).toMatchObject({ vatExclusive: 2709090.91, tax: 149000, itr: 238400, revenue: 403100 });
+  });
+
+  it("marks the offer figures incomplete while a Tender Line has no Final Offer, and never treats it as zero", () => {
+    const s = summary(
+      {
+        tenderLines: [
+          { quantity: 1, final_offer_unit: 1000000, components: [{ quantity: 1, final_acquire_unit: 400000 }] },
+          { quantity: 1, final_offer_unit: null, components: [] },
+          { quantity: 1, components: [] },
+        ],
+        costRows: [],
+      },
+      settings,
+    );
+    expect(s.incomplete.missingOffer).toBe(2);
+    for (const figure of ["finalOfferTotal", "vatExclusive", "tax", "retention", "collected", "itr", "revenue"]) expect(s[figure], figure).toBeNull();
+    // The cost side does not need the offer.
+    expect(s.operationalExpenses).toBe(400000);
+  });
+
+  it("counts a Component or cost-only row with no Final Acquire, and keeps Operational Expenses blank", () => {
+    const s = summary(matrix({ offer: 1000000, acquires: [100, null], costRows: [{ quantity: 1, final_acquire_unit: null }] }), settings);
+    expect(s.incomplete.missingCost).toBe(2);
+    expect(s.operationalExpenses).toBeNull();
+    expect(s.revenue).toBeNull();
+    expect(s.tax).toBe(60000);
+  });
+
+  it("follows the sheet's ITR literally: negative below the allowance", () => {
+    const s = summary(matrix({ offer: 100000, acquires: [40000] }), settings);
+    // (100,000 - 250,000) x 8% = -12,000, and Revenue is (100,000 - 40,000) - (-12,000)
+    expect(s.itr).toBe(-12000);
+    expect(s.revenue).toBe(72000);
+  });
+
+  it("rounds half away from zero once, on return", () => {
+    // 1,000,000.01 / 1.12 = 892,857.1517857... -> 892,857.15
+    expect(summary(matrix({ offer: 1000000.01, acquires: [1] }), settings).vatExclusive).toBe(892857.15);
+    // 0.5 centavo of tax rounds up: 1,000.25 x 6% = 60.015
+    expect(summary(matrix({ offer: 1000.25, acquires: [1] }), settings).tax).toBe(60.02);
+  });
+
+  it("says an empty matrix has nothing to add up rather than reading as zero", () => {
+    const s = summary({ tenderLines: [], costRows: [] }, settings);
+    expect(s.incomplete).toMatchObject({ noTenderLines: true, noCostRows: true, missingOffer: 0, missingCost: 0 });
+    expect(s.finalOfferTotal).toBeNull();
+    expect(s.revenue).toBeNull();
+    const noRows = summary(matrix({ offer: 1000000 }), settings);
+    expect(noRows.incomplete.noCostRows).toBe(true);
+    expect(noRows.revenue).toBeNull();
+  });
+
+  it("checks the matrix against the ABC only when every Tender Line has one", () => {
+    const partial = summary(
+      {
+        tenderLines: [
+          { quantity: 1, final_offer_unit: 900, abc_unit: 1000, components: [] },
+          { quantity: 1, final_offer_unit: 900, components: [] },
+        ],
+        costRows: [],
+      },
+      settings,
+    );
+    expect(partial.abcTotal).toBeNull();
+    expect(partial.percentOfAbc).toBeNull();
+    expect(partial.overAbc).toBe(false);
+    expect(summary(matrix({ offer: 1100, abc: 1000, acquires: [1] }), settings).overAbc).toBe(true);
+  });
+
+  it("carries Marketing and OPEX as typed, blank staying blank", () => {
+    expect(summary(matrix({ offer: 1000, acquires: [1], money: { marketing: "12000.50", opex: null } }), settings)).toMatchObject({ marketing: 12000.5, opex: null });
+    expect(summary(matrix({ offer: 1000, acquires: [1] }), settings)).toMatchObject({ marketing: null, opex: null });
+  });
+
+  it("reads rates that arrive as text, as PostgREST sends numeric columns", () => {
+    const text = { vatDivisor: "1.120000", taxRate: "0.060000", retentionRate: "0.010000", itrRate: "0.080000", itrAllowance: "250000.00" };
+    expect(summary(matrix({ offer: 3930715, acquires: [1156780] }), text).revenue).toBe(2479477.8);
+  });
+});
+
+describe("finalAcquireTotal", () => {
+  it("adds Final Acquire x quantity, and stays blank while any row has none", () => {
+    expect(finalAcquireTotal([{ quantity: 2, final_acquire_unit: 100.25 }, { quantity: 1, final_acquire_unit: 50 }])).toBe(250.5);
+    expect(finalAcquireTotal([{ quantity: 2, final_acquire_unit: 100 }, { quantity: 1 }])).toBeNull();
+    expect(finalAcquireTotal([])).toBeNull();
+    expect(finalAcquireTotal(undefined)).toBeNull();
   });
 });

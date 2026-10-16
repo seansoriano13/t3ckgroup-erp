@@ -7,5 +7,24 @@ export const refusalMessage = (error) =>
     ? error.message
     : (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
 
-/** A peso figure, or a dash when the figure is blank (never a zero for an unknown). */
-export const pesos = (value) => (value === null || value === undefined ? "—" : formatPHP(value));
+/** A peso figure, or a dash when the figure is blank (never a zero for an unknown). A negative reads -₱1,000.00. */
+export const pesos = (value) => {
+  if (value === null || value === undefined) return "—";
+  return Number(value) < 0 ? `-${formatPHP(-Number(value))}` : formatPHP(value);
+};
+
+const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+
+/** What stands in for an offer-based summary figure while a Tender Line has no Final Offer (or there is none). Null when nothing is missing. */
+export function offerIncomplete(incomplete) {
+  if (incomplete.missingOffer > 0) {
+    return `Incomplete — ${plural(incomplete.missingOffer, "tender line has", "tender lines have")} no Final Offer`;
+  }
+  return incomplete.noTenderLines ? "Incomplete — no Tender Lines yet" : null;
+}
+
+/** What stands in for a cost-based summary figure while a Component or cost-only row has no Final Acquire. Null when nothing is missing. */
+export function costIncomplete(incomplete) {
+  if (incomplete.missingCost > 0) return `Incomplete — ${plural(incomplete.missingCost, "row has", "rows have")} no cost`;
+  return incomplete.noCostRows ? "Incomplete — no Components or cost-only rows yet" : null;
+}

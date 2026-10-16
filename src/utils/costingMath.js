@@ -105,6 +105,15 @@ export function costRowsTotals(rows) {
 }
 
 /**
+ * The Final Acquire of a set of Components or cost-only rows added up (#270), or null when there are
+ * none or any one has no Final Acquire. Closed Book only: no other tier is sent the figures.
+ */
+export function finalAcquireTotal(rows) {
+  const list = rows ?? [];
+  return pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.final_acquire_unit, r?.quantity))));
+}
+
+/**
  * A Tender Line's totals. `tenderLine` carries `quantity`, and `abc_unit` and
  * `final_offer_unit` when the viewer's tier received them. `components` are the line's Components,
  * each with `quantity` and the unit costs the viewer's tier received (`acquire_unit`, `odoo_unit`).
@@ -167,5 +176,88 @@ export function matrixTotals(tenderLines) {
     missingOffer,
     overAbc: both && finalOfferTotal > abcTotal,
     percentOfAbc: both ? percentOf(pesosFromCentavos(finalOfferTotal), pesosFromCentavos(abcTotal)) : null,
+  };
+}
+
+/**
+ * The summary, copied from the PMS sheet (#270, #213). Closed Book (#319): the caller passes the
+ * matrix as shaped from what the tier received, and only the Closed Book tier receives the Final
+ * Acquire figures, so only it can compute this; every other tier is given no summary at all.
+ *
+ *   matrix.tenderLines   each with `quantity`, `final_offer_unit`, `abc_unit` and its `components`
+ *                        (each with `quantity` and `final_acquire_unit`)
+ *   matrix.costRows      the cost-only rows (`quantity`, `final_acquire_unit`)
+ *   matrix.money         `{ marketing, opex }`, typed by Finance access or the Final Acquire list
+ *   settings             `{ vatDivisor, taxRate, retentionRate, itrRate, itrAllowance }`
+ *
+ * Returns, in pesos to the centavo (each worked in exact decimals and rounded half away from zero
+ * once, on return):
+ *
+ *   finalOfferTotal       the Tender Lines' Final Offers added up
+ *   vatExclusive          Final Offer / VAT divisor (1.12)
+ *   tax                   Final Offer x tax rate (6%), on the gross offer
+ *   retention             Final Offer x retention rate (1%)
+ *   collected             Final Offer - tax - retention
+ *   operationalExpenses   the Final Acquire total (every Component and cost-only row)
+ *   marketing, opex       as typed
+ *   itr                   (Final Offer - allowance) x ITR rate (8%); negative below the allowance, as the sheet has it
+ *   revenue               (Final Offer - Final Acquire total) - ITR
+ *   abcTotal, percentOfAbc, overAbc   the ABC ceiling, only when every Tender Line has an ABC
+ *
+ * A figure that cannot be computed is null and says why in `incomplete`: `missingOffer` Tender Lines
+ * have no Final Offer (every offer figure is null), `missingCost` Components and cost-only rows have
+ * no Final Acquire (operational expenses and revenue are null). `noTenderLines` and `noCostRows`
+ * say the matrix has nothing to add up yet, so an empty matrix never reads as zero cost.
+ * A blank is never zero.
+ */
+export function summary(matrix, settings) {
+  const lines = matrix?.tenderLines ?? [];
+  const costed = [...lines.flatMap((line) => line?.components ?? []), ...(matrix?.costRows ?? [])];
+
+  const offers = lines.map((line) => extendedCentavos(line?.final_offer_unit, line?.quantity));
+  const missingOffer = offers.filter((o) => o === null).length;
+  const offer = lines.length > 0 && missingOffer === 0 ? offers.reduce((sum, o) => sum + o, 0n) : null;
+
+  const costs = costed.map((row) => extendedCentavos(row?.final_acquire_unit, row?.quantity));
+  const missingCost = costs.filter((c) => c === null).length;
+  const acquire = costed.length > 0 && missingCost === 0 ? costs.reduce((sum, c) => sum + c, 0n) : null;
+
+  const divisor = scaled(settings?.vatDivisor);
+  const taxRate = scaled(settings?.taxRate);
+  const retentionRate = scaled(settings?.retentionRate);
+  const itrRate = scaled(settings?.itrRate);
+  const allowance = extendedCentavos(settings?.itrAllowance, 1);
+
+  // Rates are scaled by 10^6, so a rate times a centavo amount divides back by 10^6 once.
+  const byRate = (centavos, rate) => (centavos === null || rate === null ? null : roundDiv(centavos * rate, MICRO));
+
+  const vatExclusive = offer === null || divisor === null || divisor <= 0n ? null : roundDiv(offer * MICRO, divisor);
+  const tax = byRate(offer, taxRate);
+  const retention = byRate(offer, retentionRate);
+  const collected =
+    offer === null || taxRate === null || retentionRate === null ? null : roundDiv(offer * (MICRO - taxRate - retentionRate), MICRO);
+  const itr = offer === null || allowance === null || itrRate === null ? null : roundDiv((offer - allowance) * itrRate, MICRO);
+  const revenue =
+    offer === null || acquire === null || allowance === null || itrRate === null
+      ? null
+      : roundDiv((offer - acquire) * MICRO - (offer - allowance) * itrRate, MICRO);
+
+  const ceiling = matrixTotals(lines);
+
+  return {
+    finalOfferTotal: pesosFromCentavos(offer),
+    vatExclusive: pesosFromCentavos(vatExclusive),
+    tax: pesosFromCentavos(tax),
+    retention: pesosFromCentavos(retention),
+    collected: pesosFromCentavos(collected),
+    operationalExpenses: pesosFromCentavos(acquire),
+    marketing: pesosFromCentavos(extendedCentavos(matrix?.money?.marketing, 1)),
+    opex: pesosFromCentavos(extendedCentavos(matrix?.money?.opex, 1)),
+    itr: pesosFromCentavos(itr),
+    revenue: pesosFromCentavos(revenue),
+    abcTotal: ceiling.abcTotal,
+    percentOfAbc: ceiling.percentOfAbc,
+    overAbc: ceiling.overAbc,
+    incomplete: { missingCost, missingOffer, noTenderLines: lines.length === 0, noCostRows: costed.length === 0 },
   };
 }

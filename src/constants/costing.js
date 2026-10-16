@@ -103,6 +103,44 @@ export const COST_ROW_BANDS = {
   ...COMPONENT_COST_BANDS,
 };
 
+/**
+ * The columns #270 adds to the matrix's money row (costing_matrix_money): Marketing and OPEX, typed on
+ * the summary. Closed Book reads them; Finance access or the Final Acquire list writes them (policy
+ * test 81 proves these equal the registries).
+ */
+export const MATRIX_MONEY_TIERS = {
+  marketing: [COSTING_TIER.CLOSED_BOOK],
+  opex: [COSTING_TIER.CLOSED_BOOK],
+};
+
+export const MATRIX_MONEY_BANDS = {
+  marketing: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
+  opex: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
+};
+
+/** Does this tier receive the summary? Only Closed Book does: the figures it works from are Closed Book's. */
+export const tierReadsSummary = (tier) => tier === COSTING_TIER.CLOSED_BOOK;
+
+/** The signer lists of `costing_signer_lists`: who writes Final Acquire, and who approves an Evaluation of Specification (#271). */
+export const COSTING_SIGNER_LIST = { FINAL_ACQUIRE: "final_acquire", EVALUATION: "evaluation" };
+
+export const COSTING_SIGNER_LIST_LABEL = {
+  [COSTING_SIGNER_LIST.FINAL_ACQUIRE]: "Final Acquire list",
+  [COSTING_SIGNER_LIST.EVALUATION]: "Evaluation of Specification list",
+};
+
+/**
+ * The summary's rates as the sheet has them (the `costing_settings` row's defaults). The screen
+ * reads the live row; these only stand in when it cannot be read, so the summary still adds up.
+ */
+export const DEFAULT_COSTING_SETTINGS = {
+  vatDivisor: 1.12,
+  taxRate: 0.06,
+  retentionRate: 0.01,
+  itrRate: 0.08,
+  itrAllowance: 250000,
+};
+
 /** Who adds and removes Components, Inclusions and cost-only rows. */
 export const ROW_EDIT_BANDS = [SALES, PURCHASING];
 
@@ -167,6 +205,8 @@ export const COSTING_COLUMN_LABEL = {
   "costing_cost_rows.odoo_unit": "Odoo unit cost",
   "costing_cost_rows.final_acquire_unit": "Final Acquire",
   "costing_cost_rows.markup_factor": "The markup factor",
+  "costing_matrix_money.marketing": "Marketing",
+  "costing_matrix_money.opex": "OPEX",
 };
 
 /** Words for a refused write: "Final Offer is written by Sales (the Deal Team)." */

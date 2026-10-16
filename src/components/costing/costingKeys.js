@@ -6,4 +6,7 @@ export const costingKeys = {
   stock: (opportunityId) => ["costing", opportunityId, "stock"],
   requests: (opportunityId) => ["costing", opportunityId, "requests"],
   sorLines: (opportunityId) => ["costing", opportunityId, "sorLines"],
+  /** The rates and the signer lists (#270) belong to no SOR; the "costing" prefix still refreshes them with the rest. */
+  settings: ["costing", "settings"],
+  signerLists: ["costing", "signer-lists"],
 };

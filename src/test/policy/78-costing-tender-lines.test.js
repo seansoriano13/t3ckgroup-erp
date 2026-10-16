@@ -658,16 +658,16 @@ describe("the registries and signer lists", () => {
     expect(asOrdinary).toMatchObject({ ok: false, code: RLS_VIOLATION })
     const asAdmin = await (await clientFor("superAdmin")).from("costing_signer_lists").insert({ list_key: "evaluation", employee_id: ids.checkByTwo }).select("id").single()
     expect(asAdmin.error).toBeNull()
-    expect((await (await clientFor("ordinary")).from("costing_signer_lists").select("id")).data).toEqual([])
-    const own = await (await clientFor("ipasSigner")).from("costing_signer_lists").select("list_key")
-    expect(own.data).toEqual([{ list_key: "final_acquire" }])
+    // Who is on a list is not secret (#270): any signed-in employee reads the lists; only Super Admins write them.
+    const everyone = await (await clientFor("ordinary")).from("costing_signer_lists").select("list_key, employee_id").eq("list_key", "final_acquire")
+    expect(everyone.data.some((r) => r.employee_id === ids.ipasSigner)).toBe(true)
     await svc().from("costing_signer_lists").delete().eq("id", asAdmin.data.id)
   })
 
-  it("starts with no one on a list", async () => {
-    // The migration seeds nothing; the one row here is this file's own.
-    const rows = await asSvc(svc().from("costing_signer_lists").select("employee_id"), "lists")
-    expect(rows.every((r) => r.employee_id === ids.ipasSigner)).toBe(true)
+  it("starts with no one on a list but the employee whose call sign is 101", async () => {
+    // #270 seeds 101 on the Final Acquire list; the other row here is this file's own.
+    const rows = await asSvc(svc().from("costing_signer_lists").select("employee_id, employee:employees!costing_signer_lists_employee_id_fkey(call_sign)"), "lists")
+    expect(rows.every((r) => r.employee_id === ids.ipasSigner || r.employee?.call_sign === "101")).toBe(true)
   })
 
   it("registers every column it reads and writes, and never lets a client change a registry", async () => {
