@@ -6,6 +6,7 @@ import ConfirmDialog from "../ui/ConfirmDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { COST_ROW_BANDS, ROW_EDIT_BANDS, inAnyBand, tierReadsCost } from "../../constants/costing";
+import { extended, finalAcquireTotal } from "../../utils/costingMath";
 import { Cell } from "./GridCell";
 import { pesos } from "./gridFormat";
 import BandHeader from "./BandHeader";
@@ -25,6 +26,7 @@ export default function CostRowGrid({ matrix, writes }) {
   const can = (column) => inAnyBand(bands, COST_ROW_BANDS[column]);
   const showAcquire = tierReadsCost(tier, "acquire_unit");
   const showOdoo = tierReadsCost(tier, "odoo_unit");
+  const showFinal = tierReadsCost(tier, "final_acquire_unit");
 
   if (costRows.length === 0 && !canEditRows) return null;
 
@@ -35,6 +37,7 @@ export default function CostRowGrid({ matrix, writes }) {
 
   const salesColumns = showOdoo ? 2 : 0;
   const pmsColumns = showAcquire ? 2 : 0;
+  const mngtColumns = showFinal ? 2 : 0;
 
   return (
     <section className="space-y-2" aria-label="Cost-only rows" data-testid="cost-rows">
@@ -57,7 +60,7 @@ export default function CostRowGrid({ matrix, writes }) {
         <div className="rounded-xl border border-border/70 bg-card">
           <Table>
             <TableHeader>
-              {(salesColumns > 0 || pmsColumns > 0) && (
+              {(salesColumns > 0 || pmsColumns > 0 || mngtColumns > 0) && (
                 <TableRow>
                   <TableHead colSpan={3} />
                   {salesColumns > 0 && (
@@ -68,6 +71,11 @@ export default function CostRowGrid({ matrix, writes }) {
                   {pmsColumns > 0 && (
                     <BandHeader band="pms" span={pmsColumns}>
                       PMS
+                    </BandHeader>
+                  )}
+                  {mngtColumns > 0 && (
+                    <BandHeader band="mngt" span={mngtColumns}>
+                      MNGT
                     </BandHeader>
                   )}
                   <TableHead />
@@ -81,6 +89,8 @@ export default function CostRowGrid({ matrix, writes }) {
                 {showOdoo && <TableHead className="w-32 text-right">Odoo total</TableHead>}
                 {showAcquire && <TableHead className="w-36 text-right">Acquire / unit</TableHead>}
                 {showAcquire && <TableHead className="w-32 text-right">Acquire total</TableHead>}
+                {showFinal && <TableHead className="w-36 text-right">Final Acquire / unit</TableHead>}
+                {showFinal && <TableHead className="w-32 text-right">Final Acquire total</TableHead>}
                 <TableHead className="w-16">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -142,6 +152,21 @@ export default function CostRowGrid({ matrix, writes }) {
                     </TableCell>
                   )}
                   {showAcquire && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(row.totals.acquireTotal)}</TableCell>}
+                  {showFinal && (
+                    <TableCell className="align-top">
+                      <Cell
+                        label={`Cost-only row ${row.number} Final Acquire`}
+                        noun="Final Acquire"
+                        value={row.final_acquire_unit}
+                        numeric
+                        money
+                        align="right"
+                        readOnly={!can("final_acquire_unit")}
+                        onSave={(value) => save(row, { finalAcquireUnit: value })}
+                      />
+                    </TableCell>
+                  )}
+                  {showFinal && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(extended(row.final_acquire_unit, row.quantity))}</TableCell>}
                   <TableCell className="align-top">
                     {canEditRows && (
                       <div className="flex justify-end">
@@ -153,7 +178,7 @@ export default function CostRowGrid({ matrix, writes }) {
                   </TableCell>
                 </TableRow>
               ))}
-              {(showAcquire || showOdoo) && (
+              {(showAcquire || showOdoo || showFinal) && (
                 <TableRow data-testid="cost-row-totals">
                   <TableCell colSpan={3} className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Cost-only total
@@ -162,6 +187,8 @@ export default function CostRowGrid({ matrix, writes }) {
                   {showOdoo && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(costRowsTotals.odooTotal)}</TableCell>}
                   {showAcquire && <TableCell />}
                   {showAcquire && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(costRowsTotals.acquireTotal)}</TableCell>}
+                  {showFinal && <TableCell />}
+                  {showFinal && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(finalAcquireTotal(costRows))}</TableCell>}
                   <TableCell />
                 </TableRow>
               )}

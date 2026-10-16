@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-16",
+        "title": "Costing Matrix: the summary, Final Acquire and rates",
+        "version": "1.9.38",
+        "changes": [
+            "The Costing Matrix now works out the sheet's summary for you: VAT-exclusive, Tax, Retention, Collected Amount, ITR and Revenue, to the centavo.",
+            "Management types Final Acquire on each Component and cost-only row. Until every row has one, Revenue says how many rows still have no cost instead of showing a number.",
+            "The Final Acquire list can type Marketing and OPEX under the summary. Finance and Super Admins can change the rates in Settings under Costing Matrix.",
+            "Only Super Admins and the Final Acquire list see the summary. Super Admins choose who is on that list in Settings."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "SOR: costing Components and cost-only rows",
         "version": "1.9.37",
         "changes": [

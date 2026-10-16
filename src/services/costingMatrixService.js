@@ -180,8 +180,8 @@ function groupInclusions(inclusions) {
  * totals and, for a bundle, its Inclusions under their headings and the Completeness
  * count); the cost-only rows come beneath, outside every line's totals.
  *
- * Closed Book only: `money` (Marketing and OPEX as typed) and `summary`, worked by
- * `costingMath.summary` from the rates in `settings`. Any other tier gets neither key.
+ * Closed Book only: `money` (Marketing and OPEX as typed), `rates` (the settings it used) and `summary`, worked by
+ * `costingMath.summary` from the rates in `settings`. Any other tier gets none of the three.
  */
 export function shapeMatrix(read, settings = null) {
   if (!read) return null;
@@ -236,7 +236,8 @@ export function shapeMatrix(read, settings = null) {
   if (tierReadsSummary(read.tier)) {
     const money = (tables.costing_matrix_money ?? [])[0] ?? null;
     shaped.money = money;
-    shaped.summary = summary({ tenderLines, costRows, money }, settings ?? DEFAULT_COSTING_SETTINGS);
+    shaped.rates = settings ?? DEFAULT_COSTING_SETTINGS;
+    shaped.summary = summary({ tenderLines, costRows, money }, shaped.rates);
   }
   return shaped;
 }

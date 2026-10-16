@@ -22,6 +22,7 @@ import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
 import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
 import PurchasingSettings from "../../components/settings/PurchasingSettings";
+import CostingMatrixSettings from "../../components/settings/CostingMatrixSettings";
 import SystemUpdateBanner from "../../components/SystemUpdateBanner";
 import SystemUpdateManager from "../../components/SystemUpdateManager";
 import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications } from "../../utils/pushNotifications";
@@ -322,6 +323,16 @@ function PurchasingPanel() {
   return <PurchasingSettings isSuperAdmin={isSuperAdmin} />;
 }
 
+/**
+ * The Costing Matrix's rates and signer lists (#270). Finance access sees the Rates and edits them;
+ * Super Admins also keep the Final Acquire list.
+ */
+function CostingMatrixPanel() {
+  const { user } = useAuth();
+  const { isSuperAdmin, hasFinanceFlow } = getPermissionContext(user);
+  return <CostingMatrixSettings isSuperAdmin={isSuperAdmin} hasFinanceAccess={hasFinanceFlow} />;
+}
+
 function EmployeeGroupsPanel() {
   return (
     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
@@ -362,6 +373,7 @@ const TAB_DEFS = [
   { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: HrPanel },
   { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
   { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow, Panel: PurchasingPanel },
+  { value: "costing", label: "Costing Matrix", isPermitted: (c) => c.isSuperAdmin || c.hasFinanceFlow, Panel: CostingMatrixPanel },
   { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin, Panel: EmployeeGroupsPanel },
   { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin, Panel: AnnouncementsPanel },
 ];

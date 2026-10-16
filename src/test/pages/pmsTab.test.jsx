@@ -495,4 +495,149 @@ describe("the PMS tab", () => {
       expect(screen.getByLabelText("Purchasing incharge").tagName).not.toBe("SPAN");
     });
   });
+
+  describe("the summary and Final Acquire (#270)", () => {
+    let matrix;
+    let component;
+
+    // One Tender Line at a Final Offer of 2,980,000 against an ABC of 3,200,000, with one Component.
+    function seedSummary({ finalAcquire = null, extraLine = false } = {}) {
+      matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+      db.seed("costing_settings", { id: 1 });
+      const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Rescue vehicle", unit: "unit", quantity: 1 });
+      db.seed("costing_tender_line_prices", { tender_line_id: line.id, abc_unit: 3200000, final_offer_unit: 2980000 });
+      if (extraLine) {
+        const second = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 2, tender_specification: "Spare kit", unit: "set", quantity: 1 });
+        db.seed("costing_tender_line_prices", { tender_line_id: second.id, abc_unit: 100 });
+      }
+      component = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "4x4 pick-up", quantity: 1, unit: "unit" });
+      db.seed("costing_component_costs", { component_id: component.id, acquire_unit: 2300000, final_acquire_unit: finalAcquire });
+    }
+
+    it("renders the incomplete summary in words while a Component has no Final Acquire", async () => {
+      seedSummary();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
+      openModal(deal);
+
+      await openPms();
+
+      const summary = await screen.findByTestId("costing-summary");
+      expect(within(summary).getByTestId("summary-revenue")).toHaveTextContent("Incomplete — 1 row has no cost");
+      expect(within(summary).getByTestId("summary-opex-total")).toHaveTextContent("Incomplete — 1 row has no cost");
+      // The offer figures still work, to the centavo.
+      expect(within(summary).getByTestId("summary-final-offer")).toHaveTextContent("₱2,980,000.00");
+      expect(within(summary).getByTestId("summary-vat")).toHaveTextContent("₱2,660,714.29");
+      expect(within(summary).getByTestId("summary-tax")).toHaveTextContent("₱178,800.00");
+      expect(within(summary).getByTestId("summary-retention")).toHaveTextContent("₱29,800.00");
+      expect(within(summary).getByTestId("summary-collected")).toHaveTextContent("₱2,771,400.00");
+      expect(within(summary).getByTestId("summary-itr")).toHaveTextContent("₱218,400.00");
+    });
+
+    it("shows Revenue and the ABC gauge once every cost is in (#229 sample)", async () => {
+      seedSummary({ finalAcquire: 2338500 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
+      openModal(deal);
+
+      await openPms();
+
+      const summary = await screen.findByTestId("costing-summary");
+      expect(within(summary).getByTestId("summary-opex-total")).toHaveTextContent("₱2,338,500.00");
+      expect(within(summary).getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00");
+      expect(within(summary).queryByText(/Incomplete/)).not.toBeInTheDocument();
+      expect(screen.getByTestId("abc-percent")).toHaveTextContent("93.1%");
+    });
+
+    it("marks the offer figures incomplete while a Tender Line has no Final Offer", async () => {
+      seedSummary({ finalAcquire: 2338500, extraLine: true });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
+      openModal(deal);
+
+      await openPms();
+
+      const summary = await screen.findByTestId("costing-summary");
+      for (const id of ["summary-final-offer", "summary-vat", "summary-tax", "summary-retention", "summary-collected", "summary-itr", "summary-revenue"]) {
+        expect(within(summary).getByTestId(id), id).toHaveTextContent("Incomplete — 1 tender line has no Final Offer");
+      }
+    });
+
+    it("lets the Final Acquire list type Final Acquire and Marketing, and the summary follows", async () => {
+      seedSummary();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
+      const user = openModal(deal);
+
+      await openPms();
+      const row = await screen.findByTestId("component");
+      await user.type(within(row).getByLabelText("Final Acquire 1.1"), "2338500");
+      await user.tab();
+      await waitFor(() => expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00"));
+      expect(db.rows("costing_component_costs")[0].final_acquire_unit).toBe(2338500);
+
+      await user.type(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing"), "12000");
+      await user.tab();
+      await waitFor(() => expect(db.rows("costing_matrix_money")[0]?.marketing).toBe(12000));
+    });
+
+    it("makes Final Acquire, Marketing and OPEX read-only for a Super Admin off the list", async () => {
+      seedSummary({ finalAcquire: 2338500 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
+      openModal(deal);
+
+      await openPms();
+
+      const row = await screen.findByTestId("component");
+      expect(within(row).getByLabelText("Final Acquire 1.1")).toHaveTextContent("₱2,338,500.00");
+      expect(within(row).getByLabelText("Final Acquire 1.1").tagName).toBe("SPAN");
+      expect(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing").tagName).toBe("SPAN");
+      expect(within(screen.getByTestId("summary-opex")).getByLabelText("OPEX").tagName).toBe("SPAN");
+    });
+
+    it("shows a refused Final Acquire beside its cell", async () => {
+      seedSummary();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management"] });
+      const user = openModal(deal);
+      await openPms();
+      const row = await screen.findByTestId("component");
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
+
+      await user.type(within(row).getByLabelText("Final Acquire 1.1"), "5");
+      await user.tab();
+
+      expect(await within(row).findByRole("alert")).toHaveTextContent("Final Acquire is written by the Final Acquire list.");
+    });
+
+    it("types a cost-only row's Final Acquire in the MNGT columns", async () => {
+      seedSummary({ finalAcquire: 100 });
+      const costRow = db.seed("costing_cost_rows", { matrix_id: matrix.id, position: 1, description: "Delivery Charge", quantity: 1 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management"] });
+      const user = openModal(deal);
+
+      await openPms();
+      const rows = await screen.findByTestId("cost-rows");
+      expect(within(rows).getAllByText("MNGT").length).toBeGreaterThan(0);
+      await user.type(within(rows).getByLabelText("Cost-only row 1 Final Acquire"), "2500");
+      await user.tab();
+
+      await waitFor(() => expect(db.rows("costing_cost_rows").find((r) => r.id === costRow.id).final_acquire_unit).toBe(2500));
+      // (2,980,000 - 2,600) - ITR of 218,400
+      await waitFor(() => expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱2,759,000.00"));
+    });
+
+    it.each([
+      ["price", ["sales"]],
+      ["cost", ["purchasing"]],
+      ["participant", []],
+    ])("gives the %s tier no summary and no Final Acquire column", async (tier, bands) => {
+      seedSummary({ finalAcquire: 2338500 });
+      stubCostingMatrixRpcs({ tier, bands });
+      openModal(deal);
+
+      await openPms();
+
+      await screen.findByTestId("component");
+      expect(screen.queryByTestId("costing-summary")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Final Acquire 1.1")).not.toBeInTheDocument();
+      expect(screen.queryByText("MNGT")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Incomplete/)).not.toBeInTheDocument();
+    });
+  });
 });

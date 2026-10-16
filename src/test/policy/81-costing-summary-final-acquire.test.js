@@ -19,7 +19,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, rlsStatus } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
-import { tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
+import { tryInsert, tryDelete, RLS_VIOLATION } from "./support/access.js"
 import { purgeCostingForSors } from "./support/costing.js"
 import { MATRIX_MONEY_BANDS, MATRIX_MONEY_TIERS, COMPONENT_COST_TIERS } from "../../constants/costing.js"
 

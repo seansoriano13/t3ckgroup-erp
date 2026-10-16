@@ -15,6 +15,7 @@ import { Cell, StockBadge } from "./GridCell";
 import { pesos } from "./gridFormat";
 import { useCostingWrites, useInchargeOptions } from "./useCostingWrites";
 import ComponentBlock from "./ComponentBlock";
+import CostingSummary from "./CostingSummary";
 import CostRowGrid from "./CostRowGrid";
 import InchargeSelects from "./InchargeSelects";
 import SorLinePicker from "./SorLinePicker";
@@ -265,6 +266,8 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
       )}
 
       <CostRowGrid matrix={matrix} writes={writes} />
+
+      <CostingSummary matrix={matrix} writes={writes} />
 
       <ConfirmDialog
         open={Boolean(removing)}

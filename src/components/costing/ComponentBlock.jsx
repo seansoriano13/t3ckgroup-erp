@@ -16,6 +16,7 @@ import {
   inAnyBand,
   tierReadsCost,
 } from "../../constants/costing";
+import { extended, finalAcquireTotal } from "../../utils/costingMath";
 import { Cell, SelectCell, StockBadge } from "./GridCell";
 import { pesos } from "./gridFormat";
 import BandHeader from "./BandHeader";
@@ -45,10 +46,12 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
   const canCost = (column) => inAnyBand(bands, COMPONENT_COST_BANDS[column]);
   const showAcquire = tierReadsCost(tier, "acquire_unit");
   const showOdoo = tierReadsCost(tier, "odoo_unit");
+  const showFinal = tierReadsCost(tier, "final_acquire_unit");
 
   const salesColumns = 2 + (showOdoo ? 2 : 0);
   const pmsColumns = 3 + (showAcquire ? 2 : 0);
-  const columnCount = 4 + salesColumns + pmsColumns + 1;
+  const mngtColumns = showFinal ? 2 : 0;
+  const columnCount = 4 + salesColumns + pmsColumns + mngtColumns + 1;
 
   const saveComponent = async (component, fields) => {
     await costingMatrixService.updateComponent(component.id, fields);
@@ -65,6 +68,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
 
   const { components } = line;
   const withoutAcquire = components.filter((c) => c.acquire_unit === null || c.acquire_unit === undefined).length;
+  const withoutFinal = components.filter((c) => c.final_acquire_unit === null || c.final_acquire_unit === undefined).length;
 
   return (
     <div className="space-y-2 px-3 py-3" data-testid="components" aria-label={`Components of Tender Line ${line.number}`}>
@@ -99,6 +103,11 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                 <BandHeader band="pms" span={pmsColumns}>
                   PMS
                 </BandHeader>
+                {showFinal && (
+                  <BandHeader band="mngt" span={mngtColumns}>
+                    MNGT
+                  </BandHeader>
+                )}
                 <TableHead />
               </TableRow>
               <TableRow>
@@ -115,6 +124,8 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                 <TableHead className="w-32">Source</TableHead>
                 {showAcquire && <TableHead className="w-36 text-right">Acquire / unit</TableHead>}
                 {showAcquire && <TableHead className="w-32 text-right">Acquire total</TableHead>}
+                {showFinal && <TableHead className="w-36 text-right">Final Acquire / unit</TableHead>}
+                {showFinal && <TableHead className="w-32 text-right">Final Acquire total</TableHead>}
                 <TableHead className="w-24">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -288,6 +299,23 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                         </TableCell>
                       )}
                       {showAcquire && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(component.totals.acquireTotal)}</TableCell>}
+                      {showFinal && (
+                        <TableCell className="align-top">
+                          <Cell
+                            label={label("Final Acquire")}
+                            noun="Final Acquire"
+                            value={component.final_acquire_unit}
+                            numeric
+                            money
+                            align="right"
+                            readOnly={!canCost("final_acquire_unit")}
+                            onSave={(value) => saveComponent(component, { finalAcquireUnit: value })}
+                          />
+                        </TableCell>
+                      )}
+                      {showFinal && (
+                        <TableCell className="text-right align-top text-sm tabular-nums">{pesos(extended(component.final_acquire_unit, component.quantity))}</TableCell>
+                      )}
                       <TableCell className="align-top">
                         {canEditRows && (
                           <div className="flex justify-end">
@@ -314,7 +342,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                   </Fragment>
                 );
               })}
-              {(showAcquire || showOdoo) && (
+              {(showAcquire || showOdoo || showFinal) && (
                 <TableRow data-testid="component-totals">
                   <TableCell colSpan={6} className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Components total
@@ -330,6 +358,15 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                         <span className="block text-xs font-normal text-muted-foreground">
                           {withoutAcquire} without Acquire
                         </span>
+                      )}
+                    </TableCell>
+                  )}
+                  {showFinal && <TableCell />}
+                  {showFinal && (
+                    <TableCell className="text-right text-sm font-semibold tabular-nums">
+                      {pesos(finalAcquireTotal(components))}
+                      {withoutFinal > 0 && (
+                        <span className="block text-xs font-normal text-muted-foreground">{withoutFinal} without Final Acquire</span>
                       )}
                     </TableCell>
                   )}
