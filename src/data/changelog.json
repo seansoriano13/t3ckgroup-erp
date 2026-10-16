@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-16",
+        "title": "SOR: evaluating the offer against the specification",
+        "version": "1.9.41",
+        "changes": [
+            "On the PMS tab each Component now shows the Tender Specification beside its Offer Specification, so you can see what was asked next to what we are offering.",
+            "Technical marks each Component Complies or Deviates. A deviation needs a note and can name the compliant alternative we recommend instead. Purchasing, Super Admins and the members of the SOR's Evaluation of Specification task can do this.",
+            "Each Tender Line and the top of the matrix count the gaps, like '2 of 5 deviate · 1 not evaluated'. A deviation never blocks anything and never changes a price or a total.",
+            "Someone on the evaluation list can approve the evaluation once for the whole matrix, after every Component has a verdict. Changing a specification, a verdict or its note, or adding or removing a Tender Line or Component, takes the approval back and says why.",
+            "Settings has a Costing Matrix tab where Super Admins pick the Evaluation of Specification task template and who is on the evaluation list."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "SOR: markup on the Costing Matrix",
         "version": "1.9.40",
         "changes": [

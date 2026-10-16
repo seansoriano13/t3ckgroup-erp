@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { componentTotals, costRowsTotals, costRowTotals, extended, finalAcquireTotal, lineTotals, matrixTotals, percentOf, summary } from "./costingMath";
+import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, percentOf, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -361,5 +361,49 @@ describe("finalAcquireTotal", () => {
     expect(finalAcquireTotal([{ quantity: 2, final_acquire_unit: 100 }, { quantity: 1 }])).toBeNull();
     expect(finalAcquireTotal([])).toBeNull();
     expect(finalAcquireTotal(undefined)).toBeNull();
+  });
+});
+
+describe("complianceRollup", () => {
+  const verdicts = (...list) => list.map((compliance) => ({ compliance }));
+
+  it("counts the Components that deviate and the ones with no verdict yet", () => {
+    const rollup = complianceRollup(verdicts("complies", "deviates", null, "deviates", "complies"));
+    expect(rollup).toEqual({ deviates: 2, notEvaluated: 1, total: 5 });
+  });
+
+  it("reads a missing or unknown verdict as not evaluated, never as complying", () => {
+    expect(complianceRollup([{}, { compliance: undefined }, { compliance: "" }, { compliance: "maybe" }, null])).toEqual({ deviates: 0, notEvaluated: 5, total: 5 });
+  });
+
+  it("counts a Component that complies as neither", () => {
+    expect(complianceRollup(verdicts("complies", "complies"))).toEqual({ deviates: 0, notEvaluated: 0, total: 2 });
+  });
+
+  it("is zero for no Components", () => {
+    expect(complianceRollup([])).toEqual({ deviates: 0, notEvaluated: 0, total: 0 });
+    expect(complianceRollup(undefined)).toEqual({ deviates: 0, notEvaluated: 0, total: 0 });
+  });
+
+  it("rolls up a whole offer when handed every line's Components", () => {
+    const line1 = verdicts("deviates", "complies");
+    const line2 = verdicts(null, "deviates", "complies");
+    expect(complianceRollup([...line1, ...line2])).toEqual({ deviates: 2, notEvaluated: 1, total: 5 });
+  });
+});
+
+describe("describeComplianceRollup", () => {
+  it("says it the way the Tender Line and the header show it", () => {
+    expect(describeComplianceRollup({ deviates: 2, notEvaluated: 1, total: 5 })).toBe("2 of 5 deviate · 1 not evaluated");
+    expect(describeComplianceRollup({ deviates: 1, notEvaluated: 0, total: 4 })).toBe("1 of 4 deviate");
+    expect(describeComplianceRollup({ deviates: 1, notEvaluated: 0, total: 1 })).toBe("1 of 1 deviates");
+    expect(describeComplianceRollup({ deviates: 0, notEvaluated: 3, total: 3 })).toBe("3 not evaluated");
+  });
+
+  it("says when everything complies, and nothing when there is nothing to judge", () => {
+    expect(describeComplianceRollup({ deviates: 0, notEvaluated: 0, total: 4 })).toBe("All 4 comply");
+    expect(describeComplianceRollup({ deviates: 0, notEvaluated: 0, total: 1 })).toBe("Complies");
+    expect(describeComplianceRollup({ deviates: 0, notEvaluated: 0, total: 0 })).toBeNull();
+    expect(describeComplianceRollup(undefined)).toBeNull();
   });
 });

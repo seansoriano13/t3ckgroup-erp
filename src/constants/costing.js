@@ -83,6 +83,10 @@ export const COMPONENT_BANDS = {
   po_rfq_no: [PURCHASING],
   sales_incharge_id: [SALES],
   purchasing_incharge_id: [PURCHASING],
+  // The Evaluation of Specification (#271): written by members of the SOR's evaluation task, and by Purchasing access.
+  compliance: [TECHNICAL],
+  compliance_note: [TECHNICAL],
+  recommended_alternative: [TECHNICAL],
 };
 
 export const COMPONENT_COST_BANDS = {
@@ -163,6 +167,10 @@ export const COMPONENT_STATUS_LABEL = { source_out: "Source Out", stockable: "St
 export const COMPONENT_AVAILABILITY_LABEL = { available: "Available", for_order: "For Order" };
 export const COMPONENT_SOURCE_LABEL = { local: "Local", import: "Import" };
 
+/** The Compliance verdicts in words, and the badge theme each reads in (#271). */
+export const COMPLIANCE_LABEL = { complies: "Complies", deviates: "Deviates" };
+export const COMPLIANCE_THEME = { complies: "green", deviates: "amber" };
+
 /** What a refused column is called on screen: `table.column` -> words. */
 export const COSTING_COLUMN_LABEL = {
   "costing_tender_lines.*": "Adding or removing a Tender Line",
@@ -195,6 +203,9 @@ export const COSTING_COLUMN_LABEL = {
   "costing_components.po_rfq_no": "P.O./RFQ No.",
   "costing_components.sales_incharge_id": "A Component's Sales incharge",
   "costing_components.purchasing_incharge_id": "A Component's Purchasing incharge",
+  "costing_components.compliance": "Compliance",
+  "costing_components.compliance_note": "A Compliance note",
+  "costing_components.recommended_alternative": "The recommended alternative",
   "costing_component_costs.*": "A Component's costs",
   "costing_component_costs.acquire_unit": "Acquire",
   "costing_component_costs.odoo_unit": "Odoo unit cost",

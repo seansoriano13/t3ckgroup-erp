@@ -408,3 +408,34 @@ export function percentOver(factor) {
 export function markupPriceSum(rows) {
   return pesosFromCentavos(sumUnlessBlank((rows ?? []).map((r) => extendedCentavos(r?.markup?.priceTotal, 1))));
 }
+
+/**
+ * How a set of Components stands against what was asked (#271): `deviates` have a Deviates
+ * verdict, `notEvaluated` have no verdict yet, and `total` is how many there are. A Component
+ * that complies is neither. Per Tender Line when given the line's Components, for the whole
+ * offer when given them all. Blank (null, undefined or any unknown word) is not evaluated.
+ */
+export function complianceRollup(components) {
+  const list = components ?? [];
+  let deviates = 0;
+  let notEvaluated = 0;
+  for (const component of list) {
+    if (component?.compliance === "deviates") deviates += 1;
+    else if (component?.compliance !== "complies") notEvaluated += 1;
+  }
+  return { deviates, notEvaluated, total: list.length };
+}
+
+/**
+ * A roll-up in words: "2 of 5 deviate · 1 not evaluated". Nothing to say (null) for no
+ * Components; "All 5 comply" when every one does.
+ */
+export function describeComplianceRollup(rollup) {
+  const { deviates = 0, notEvaluated = 0, total = 0 } = rollup ?? {};
+  if (total === 0) return null;
+  const parts = [];
+  if (deviates > 0) parts.push(`${deviates} of ${total} ${total === 1 ? "deviates" : "deviate"}`);
+  if (notEvaluated > 0) parts.push(`${notEvaluated} not evaluated`);
+  if (parts.length === 0) return total === 1 ? "Complies" : `All ${total} comply`;
+  return parts.join(" · ");
+}

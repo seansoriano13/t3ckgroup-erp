@@ -1,6 +1,7 @@
 import MarkupPresetsSection from "./MarkupPresetsSection";
 import RatesSection from "./RatesSection";
 import SignerListsSection from "./SignerListsSection";
+import EvaluationSection from "./EvaluationSection";
 import { COSTING_SIGNER_LIST } from "../../../constants/costing";
 
 /**
@@ -12,6 +13,7 @@ import { COSTING_SIGNER_LIST } from "../../../constants/costing";
  *                       Final Acquire list (#269)
  *   Rates               Finance access and Super Admins (#270); Finance access alone sees only this
  *   Final Acquire list  Super Admins (#270)
+ *   Evaluation          Super Admins (#271): the task template and the evaluation list
  *
  * The Settings page offers the tab to anyone who sees at least one section; the database refuses the
  * write of everyone it is not meant for. `managesMarkup` is the Final Acquire list's membership, asked of
@@ -39,6 +41,11 @@ const SECTIONS = [
       />
     ),
   },
+  {
+    key: "evaluation",
+    show: ({ isSuperAdmin }) => isSuperAdmin,
+    render: () => <EvaluationSection />,
+  },
 ];
 
 export default function CostingMatrixSettings({ isSuperAdmin = false, hasFinanceAccess = false, hasPurchasingAccess = false, managesMarkup = false }) {
@@ -47,7 +54,7 @@ export default function CostingMatrixSettings({ isSuperAdmin = false, hasFinance
     <div className="space-y-8" data-testid="costing-matrix-settings">
       <div>
         <h2 className="text-sm font-semibold text-foreground">Costing Matrix</h2>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">The markup presets, the rates behind the summary, and the people who set Final Acquire.</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">The markup presets, the rates behind the summary, the people who set Final Acquire, and how the evaluation of specification is run.</p>
       </div>
       {SECTIONS.filter((section) => section.show(access)).map(({ key, render }) => (
         <div key={key}>{render()}</div>

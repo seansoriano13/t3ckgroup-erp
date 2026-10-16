@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsSummary } from "../constants/costing";
-import { componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, matrixMarkup, matrixTotals, summary } from "../utils/costingMath";
+import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, matrixMarkup, matrixTotals, summary } from "../utils/costingMath";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 
@@ -43,6 +43,12 @@ import { sorLineChange } from "../utils/requestedItem";
  * peso figure and never the factor. The named factors the business picks from are the presets
  * (`costing_markup_presets`), read and edited by Super Admins and the Final Acquire list. Achieved markup
  * is worked out here from what the tier received, which only the Closed Book has in full.
+ *
+ * The Evaluation of Specification (#271) is on the Component row: `setCompliance` writes the
+ * verdict, its note and the recommended alternative (the Technical band: Purchasing access, or a
+ * member of the SOR's evaluation group task), and `sign` approves the whole evaluation once
+ * (the evaluation list, every Component with a verdict). A change to a specification or a
+ * verdict clears the approval in the database, with a reason the history keeps.
  */
 
 /**
@@ -80,10 +86,13 @@ export class CostingRuleError extends Error {
 }
 
 const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge): (.+)$/;
+// The CHECK on costing_components that wants a note whenever the verdict is Deviates (#271).
+const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 
 /** The typed error for a matrix rule refusal (a check violation), or null when `error` is anything else. */
 export function toRuleError(error) {
   if (error?.code !== "23514") return null;
+  if (DEVIATION_NOTE_CHECK.test(error.message ?? "")) return new CostingRuleError("A deviation needs a note.", error.code);
   const match = RULE_MESSAGE.exec(error.message ?? "");
   if (!match) return null;
   const sentence = match[1].charAt(0).toUpperCase() + match[1].slice(1);
@@ -96,6 +105,9 @@ function fail(error) {
 }
 
 const blankToNull = (value) => (value === "" || value === undefined ? null : value);
+/** Free text, blank (or only spaces) as nothing. */
+const blankText = (value) => (value === null || value === undefined || String(value).trim() === "" ? null : value);
+const COMPLIANCE_VERDICTS = ["complies", "deviates"];
 
 /** The Tender Line's own columns a caller may change, from the service's camelCase fields. */
 function lineColumns(fields) {
@@ -180,6 +192,20 @@ function groupInclusions(inclusions) {
 }
 
 /**
+ * Where a sign-off stands (#271): `approved` is whether a live (uncleared) row exists, `signoff` that
+ * row (who signed and when), and `cleared` the newest cleared one while there is no live one, so the
+ * screen can say why the approval went (`cleared_reason`).
+ */
+export function signoffState(signoffs, role) {
+  const ofRole = (signoffs ?? []).filter((s) => s.role === role);
+  const live = ofRole.find((s) => !s.cleared_at) ?? null;
+  const cleared = live
+    ? null
+    : ofRole.filter((s) => s.cleared_at).sort((a, b) => String(b.cleared_at).localeCompare(String(a.cleared_at)))[0] ?? null;
+  return { approved: Boolean(live), signoff: live, cleared };
+}
+
+/**
  * The read shaped for the screen: Tender Lines numbered 1, 2, … with the price
  * columns merged in where the tier received them, each with its totals and what
  * its SOR line now says, and the matrix's totals. Each line carries its Components
@@ -202,6 +228,8 @@ export function shapeMatrix(read, settings = null) {
   const costsByComponent = new Map((tables.costing_component_costs ?? []).map((c) => [c.component_id, c]));
   const inclusionsByComponent = groupBy(tables.costing_inclusions, "component_id");
   const componentsByLine = groupBy(tables.costing_components, "tender_line_id");
+
+  const signoffs = tables.costing_signoffs ?? [];
 
   const tenderLines = (tables.costing_tender_lines ?? []).map((line, index) => {
     const { tender_line_id: _link, ...price } = prices.get(line.id) ?? {};
@@ -229,6 +257,7 @@ export function shapeMatrix(read, settings = null) {
       components,
       totals: lineTotals(merged, components),
       markup: lineMarkup(merged, components, defaultFactor),
+      compliance: complianceRollup(components),
       sorChange: sorLineChange({ ...line, sorLine: line.sor_line_now }),
     };
   });
@@ -251,6 +280,8 @@ export function shapeMatrix(read, settings = null) {
     defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
     defaultPresetId: money ? (money.default_preset_id ?? null) : undefined,
     markup: matrixMarkup(tenderLines, costRows, defaultFactor),
+    compliance: complianceRollup(tenderLines.flatMap((line) => line.components)),
+    evaluation: signoffState(signoffs, "evaluation_approved"),
     costRows,
     costRowsTotals: costRowsTotals(costRows),
     costRowsMarkupTotal: markupPriceSum(costRows),
@@ -690,6 +721,46 @@ export const costingMatrixService = {
     const { data, error } = await supabase.from("costing_markup_presets").insert(columns).select("*").single();
     if (error) throw presetError(error);
     return data;
+  },
+
+  /**
+   * Records Technical's verdict on a Component (#271): `{ verdict, note, alternative }`. `verdict` is
+   * `"complies"`, `"deviates"` or null (not evaluated); a field left out is left as it is, and
+   * `note` or `alternative` set to null or "" clears it. A deviation needs a note: the database
+   * refuses one without it (a `CostingRuleError`), and so does this when the note is passed blank.
+   * Written by the Technical band (Purchasing access, or a member of the SOR's evaluation group
+   * task); anyone else gets a `CostingBandError`. It never touches a figure: a gap is recorded and
+   * blocks nothing. Changing the verdict or the note clears "Evaluation approved".
+   */
+  async setCompliance(componentId, { verdict, note, alternative } = {}) {
+    const columns = {};
+    if (verdict !== undefined) {
+      if (verdict !== null && !COMPLIANCE_VERDICTS.includes(verdict)) {
+        throw new CostingRuleError("A verdict is Complies, Deviates or not evaluated.", "23514");
+      }
+      columns.compliance = verdict;
+    }
+    if (note !== undefined) columns.compliance_note = blankText(note);
+    if (alternative !== undefined) columns.recommended_alternative = blankText(alternative);
+    if (columns.compliance === "deviates" && "compliance_note" in columns && columns.compliance_note === null) {
+      throw new CostingRuleError("A deviation needs a note.", "23514");
+    }
+    if (Object.keys(columns).length === 0) return;
+    const { data, error } = await supabase.from("costing_components").update(columns).eq("id", componentId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("That Component could not be changed.");
+  },
+
+  /**
+   * Signs the matrix off for a role (ADR 0013: the database checks and writes together). Only
+   * `"evaluation_approved"` is available (#271): the caller must be on the evaluation list and every
+   * Component must carry a verdict, else the database refuses and the message says why. Returns
+   * the new sign-off row.
+   */
+  async sign(matrixId, role = "evaluation_approved") {
+    const { data, error } = await supabase.rpc("costing_sign", { p_matrix_id: matrixId, p_role: role });
+    if (error) fail(error);
+    return data?.signoff ?? null;
   },
 
   /**

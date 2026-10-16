@@ -29,6 +29,70 @@ function requireBundleParent(row, context) {
   }
 }
 
+/**
+ * costing_components_deviation_note_chk (20261018140000_costing_matrix_evaluation.sql, #271): a
+ * Component that deviates carries a note. The fake parses simple CHECKs only, so this cross-column
+ * one is mirrored here; the policy tier proves the real one (82-costing-evaluation.test.js).
+ */
+function requireDeviationNote(row) {
+  if (row.compliance === "deviates" && !String(row.compliance_note ?? "").trim()) {
+    throw pgrstError(
+      "23514",
+      'new row for relation "costing_components" violates check constraint "costing_components_deviation_note_chk"',
+      { status: 400 },
+    )
+  }
+}
+
+/**
+ * costing_clear_evaluation_approval() (same migration): a change to a Tender Specification, an
+ * Offer Specification, a verdict or its note, or a Tender Line or Component added or removed,
+ * clears the live "Evaluation approved" with a reason, and the clearing is in the history
+ * (costing_events: a changed event for cleared_at and for cleared_reason, as the real trigger
+ * writes them). `old` is null for an insert and the row itself for a delete.
+ */
+function clearEvaluationApproval(table, row, old, context) {
+  const insert = old === null
+  const remove = old === row
+  let reason
+  if (insert || remove) {
+    const what = table === "costing_tender_lines" ? "Tender Line" : "Component"
+    reason = `A ${what} was ${insert ? "added" : "removed"}`
+  } else if (table === "costing_tender_lines") {
+    if (row.tender_specification === old.tender_specification) return
+    reason = "A Tender Specification changed"
+  } else if (row.offer_specification !== old.offer_specification) {
+    reason = "An Offer Specification changed"
+  } else if (row.compliance !== old.compliance) {
+    reason = "A Compliance verdict changed"
+  } else if (row.compliance_note !== old.compliance_note) {
+    reason = "A Compliance note changed"
+  } else {
+    return
+  }
+
+  const lineId = table === "costing_tender_lines" ? row.id : row.tender_line_id
+  const line = context.rowsOf("costing_tender_lines").find((l) => l.id === lineId)
+  const matrixId = table === "costing_tender_lines" ? row.matrix_id : line?.matrix_id
+  if (!matrixId) return
+  for (const signoff of context.rowsOf("costing_signoffs")) {
+    if (signoff.matrix_id !== matrixId || signoff.role !== "evaluation_approved" || signoff.cleared_at) continue
+    const at = new Date().toISOString()
+    signoff.cleared_at = at
+    signoff.cleared_reason = reason
+    for (const [column, value] of [["cleared_at", at], ["cleared_reason", reason]]) {
+      context.rowsOf("costing_events").push({
+        id: globalThis.crypto.randomUUID(),
+        matrix_id: matrixId,
+        actor_id: null,
+        kind: "changed",
+        detail: { table: "costing_signoffs", row: signoff.id, column, old: null, new: value },
+        created_at: at,
+      })
+    }
+  }
+}
+
 export const TRIGGERS = {
   sales_opportunities: {
     beforeInsert: [
@@ -229,6 +293,16 @@ export const TRIGGERS = {
         row.updated_at = new Date().toISOString()
       },
     ],
+  },
+
+  costing_tender_lines: {
+    afterWrite: [(row, old, context) => clearEvaluationApproval("costing_tender_lines", row, old, context)],
+  },
+
+  costing_components: {
+    beforeInsert: [requireDeviationNote],
+    beforeUpdate: [requireDeviationNote],
+    afterWrite: [(row, old, context) => clearEvaluationApproval("costing_components", row, old, context)],
   },
 
   // costing_inclusions: costing_inclusion_needs_bundle() (20261018110000_costing_matrix_components.sql,

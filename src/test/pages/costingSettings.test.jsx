@@ -97,7 +97,7 @@ describe("Costing Matrix settings", () => {
     const list = await screen.findByTestId("costing-signer-list-final_acquire");
     expect(within(list).getByText("Final Acquire list")).toBeInTheDocument();
     expect(await within(list).findByText("Manager One")).toBeInTheDocument();
-    expect(screen.queryByText("Nobody yet.")).not.toBeInTheDocument();
+    expect(within(list).queryByText("Nobody yet.")).not.toBeInTheDocument();
   });
 
   it("offers a plain employee no Costing Matrix tab", async () => {

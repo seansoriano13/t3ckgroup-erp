@@ -369,12 +369,13 @@ describe("Tender Lines: who reads what", () => {
   it("serves a Stage Participant the Tender Lines without any money", async () => {
     const read = await readMatrix("stageParticipant")
     expect(read.tier).toBe("participant")
-    // Components, Inclusions and cost-only rows reach a participant too (no money columns).
+    // Components, Inclusions, cost-only rows and the sign-offs reach a participant too (no money columns).
     expect(Object.keys(read.tables).sort()).toEqual([
       "costing_components",
       "costing_cost_rows",
       "costing_inclusions",
       "costing_matrices",
+      "costing_signoffs",
       "costing_tender_lines",
     ])
     const [line] = read.tables.costing_tender_lines
