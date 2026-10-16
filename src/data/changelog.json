@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-10-16",
+        "title": "Purchasing: ageing rules for orders",
+        "version": "1.9.32",
+        "changes": [
+            "Settings > Purchasing has a new Ageing rules section. Set how many days an order may sit at each step before it counts as late.",
+            "A step left blank has no rule and never goes late. Nothing is blocked and nobody is notified."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "Transmittals and Packing Lists laid out like IPAS",
         "version": "1.9.31",
         "changes": [

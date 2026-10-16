@@ -675,6 +675,13 @@ create table if not exists public."offset_leaves" (
   "approved_hours" numeric
 );
 
+create table if not exists public."order_ageing_rules" (
+  "step" text not null,
+  "days" integer,
+  "updated_by" uuid,
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."overtime_requests" (
   "id" uuid not null default gen_random_uuid(),
   "employee_id" uuid not null,
@@ -1495,6 +1502,7 @@ alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
 alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_pkey" PRIMARY KEY (id);
 alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
+alter table order_ageing_rules add constraint "order_ageing_rules_pkey" PRIMARY KEY (step);
 alter table overtime_requests add constraint "overtime_requests_pkey" PRIMARY KEY (id);
 alter table packing_list_boxes add constraint "packing_list_boxes_pkey" PRIMARY KEY (id);
 alter table packing_list_contents add constraint "packing_list_contents_pkey" PRIMARY KEY (id);
@@ -1661,6 +1669,8 @@ alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((sec
 alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
+alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
+alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['purchase_order'::text, 'with_pop'::text, 'import_clearance'::text, 'delivered'::text, 'received_in_odoo'::text, 'create_bill'::text, 'actual_checking'::text, 'no_transmittal'::text, 'check_open'::text, 'ready_to_file'::text])));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table overtime_requests add constraint "overtime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED_PAID'::text, 'APPROVED_OFFSET'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table packing_list_boxes add constraint "packing_list_boxes_box_no_chk" CHECK ((box_no >= 1));
@@ -1828,6 +1838,7 @@ alter table offset_leaves add constraint "offset_leaves_employee_id_fkey" FOREIG
 alter table offset_leaves add constraint "offset_leaves_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table offset_leaves add constraint "offset_leaves_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table offset_leaves add constraint "offset_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
+alter table order_ageing_rules add constraint "order_ageing_rules_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
@@ -2203,6 +2214,7 @@ alter table public."ipas_sors" enable row level security;
 alter table public."notifications" enable row level security;
 alter table public."odoo_retail_queue" enable row level security;
 alter table public."offset_leaves" enable row level security;
+alter table public."order_ageing_rules" enable row level security;
 alter table public."overtime_requests" enable row level security;
 alter table public."packing_list_boxes" enable row level security;
 alter table public."packing_list_contents" enable row level security;
@@ -2932,6 +2944,22 @@ create policy "offset_leaves_withdraw" on public."offset_leaves"
   to authenticated
   using (((employee_id = get_employee_id()) AND (status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text]))))
   with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
+create policy "order_ageing_rules_insert" on public."order_ageing_rules"
+  as permissive
+  for insert
+  to authenticated
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
+create policy "order_ageing_rules_read" on public."order_ageing_rules"
+  as permissive
+  for select
+  to authenticated
+  using ((get_employee_id() IS NOT NULL));
+create policy "order_ageing_rules_update" on public."order_ageing_rules"
+  as permissive
+  for update
+  to authenticated
+  using ((has_purchasing_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
 create policy "Employees can view their own overtime" on public."overtime_requests"
   as permissive
   for select
@@ -9146,6 +9174,17 @@ begin
   end loop;
 
   return jsonb_build_object('moved', v_moved, 'failed', v_failed);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.order_ageing_rules_stamp()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  new.updated_at = now();
+  new.updated_by = coalesce(public.get_employee_id(), new.updated_by);
+  return new;
 end;
 $function$
 ;
@@ -15678,6 +15717,7 @@ CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE
 CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_sors FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
+CREATE TRIGGER order_ageing_rules_stamp BEFORE INSERT OR UPDATE ON public.order_ageing_rules FOR EACH ROW EXECUTE FUNCTION order_ageing_rules_stamp();
 CREATE TRIGGER overtime_requests_guard_head_status BEFORE UPDATE ON public.overtime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER packing_list_boxes_guard BEFORE INSERT OR DELETE OR UPDATE ON public.packing_list_boxes FOR EACH ROW EXECUTE FUNCTION packing_list_boxes_guard();
 CREATE TRIGGER packing_list_contents_guard BEFORE INSERT OR DELETE OR UPDATE ON public.packing_list_contents FOR EACH ROW EXECUTE FUNCTION packing_list_contents_guard();

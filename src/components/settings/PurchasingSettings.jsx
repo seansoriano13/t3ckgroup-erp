@@ -4,6 +4,7 @@ import TabGroup from "../ui/TabGroup";
 import IpasOptionListEditor from "../ipas/IpasOptionListEditor";
 import IpasSignerListEditor from "../ipas/IpasSignerListEditor";
 import TransmittalFirstNumber from "../transmittals/TransmittalFirstNumber";
+import OrderAgeingRules from "./OrderAgeingRules";
 import { IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../constants/ipas";
 import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
 
@@ -52,6 +53,7 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
       ) : (
         <IpasOptionListEditor key={optionList} list={optionList} />
       )}
+      <OrderAgeingRules />
     </div>
   );
 }
