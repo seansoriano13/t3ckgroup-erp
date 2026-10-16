@@ -276,7 +276,7 @@ describe("the default factor: only the Final Acquire list writes it", () => {
             const read = await readMatrix(who)
             expect(read.tier).toBe("closed_book")
             const [money] = tableOf(read, "costing_matrix_money")
-            expect(Object.keys(money).sort(), who).toEqual(["default_factor", "default_preset_id", "matrix_id"])
+            expect(Object.keys(money).sort(), who).toEqual(["default_factor", "default_preset_id", "marketing", "matrix_id", "opex"])
             expect(Number(money.default_factor), who).toBe(1.35)
         }
         for (const who of ["dealOwner", "outsider", "stageParticipant"]) {

@@ -52,6 +52,9 @@ describe("Costing Matrix settings", () => {
     expect(within(rates).getByLabelText("ITR rate (%)")).toHaveValue("8");
     expect(within(rates).getByLabelText("ITR allowance (₱)")).toHaveValue("250000");
     expect(screen.queryByTestId("costing-signer-list-final_acquire")).not.toBeInTheDocument();
+    // The markup presets are not Finance access's: for them the tab holds the Rates and nothing else.
+    expect(screen.queryByTestId("markup-presets")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("markup-presets-closed")).not.toBeInTheDocument();
   });
 
   it("saves a changed rate for Finance access", async () => {
