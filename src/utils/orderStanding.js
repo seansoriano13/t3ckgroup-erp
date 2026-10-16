@@ -82,13 +82,13 @@ function ratingAtChecking(slip, line) {
   return checkingStage(slip) === TRANSMITTAL_STAGE.TECHNICAL_INSPECTION ? line.tech_rating : line.wh_rating;
 }
 
-/** The first NA line of this IPAS at its slip's checking stage that no later slip has cleared with GC, or null. */
-function unresolvedNa(order, slips) {
-  const sorted = inDateOrder(slips);
+/** Every NA line of this IPAS at its slip's checking stage, each marked cleared when a later slip rates the same PO line GC there. */
+function naLinesOf(orderId, sorted) {
+  const found = [];
   for (let i = 0; i < sorted.length; i += 1) {
     const slip = sorted[i];
     for (const line of slip.lines ?? []) {
-      if (line.ipas_id !== order.id) continue;
+      if (line.ipas_id !== orderId) continue;
       if (ratingAtChecking(slip, line) !== TRANSMITTAL_RATING.NA) continue;
       const cleared = sorted.slice(i + 1).some((later) =>
         (later.lines ?? []).some(
@@ -97,10 +97,38 @@ function unresolvedNa(order, slips) {
             ratingAtChecking(later, laterLine) === TRANSMITTAL_RATING.GC,
         ),
       );
-      if (!cleared) return { slip, line };
+      found.push({ slip, line, cleared });
     }
   }
-  return null;
+  return found;
+}
+
+/** The first NA line of this IPAS at its slip's checking stage that no later slip has cleared with GC, or null. */
+function unresolvedNa(order, slips) {
+  return naLinesOf(order.id, inDateOrder(slips)).find((entry) => !entry.cleared) ?? null;
+}
+
+/**
+ * The check result the register's hand-off column shows for an IPAS (#264):
+ *   "open"         the latest Transmittal's checking stage isn't complete
+ *   "na"           a line is rated NA at checking and no later slip cleared it
+ *   "na_replaced"  every NA was cleared by a later slip rating the line GC
+ *   "gc"           the checking stage is complete and no line is NA
+ *   null           no Transmittal names the IPAS, or nothing was rated
+ * `slips` are the raw Transmittal rows that name the IPAS, with stages and lines.
+ */
+export function checkResultOf(orderId, slips = []) {
+  if (slips.length === 0) return null;
+  const sorted = inDateOrder(slips);
+  const latest = sorted[sorted.length - 1];
+  if (completedMs(latest, checkingStage(latest)) === null) return "open";
+  const na = naLinesOf(orderId, sorted);
+  if (na.some((entry) => !entry.cleared)) return "na";
+  if (na.length > 0) return "na_replaced";
+  const rated = sorted.some((slip) =>
+    (slip.lines ?? []).some((line) => line.ipas_id === orderId && ratingAtChecking(slip, line) === TRANSMITTAL_RATING.GC),
+  );
+  return rated ? "gc" : null;
 }
 
 /** Who a slip with an open checking stage waits on: the Warehouse first, then Technical. */

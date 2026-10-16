@@ -20,6 +20,10 @@ import {
   ORDER_GROUPS,
   ORDER_OWNER_LABELS,
 } from "../../../constants/orderMonitoring";
+import TabGroup from "../../../components/ui/TabGroup";
+import OrderRegister from "./_components/OrderRegister";
+import { HEAD } from "./_components/format";
+import { NextThing, WaitCell } from "./_components/parts";
 
 /**
  * Order Monitoring (#263, spec #261): every open IPAS across every SOR, opening
@@ -29,38 +33,42 @@ import {
  *
  * Purchasing access, Finance access and Super Admins see the page; anyone
  * else is sent home. The database decides which IPAS each may read.
+ *
+ * A switch (#264) moves between What needs doing and the Register, the full
+ * list behind it. The choice is remembered per person in the browser; storage
+ * that is missing or throws only means the page opens on What needs doing.
  */
 
-const HEAD = "text-label font-bold uppercase tracking-wider";
 const OPEN_GROUPS = ORDER_GROUPS.filter((group) => group !== ORDER_GROUP.FILED);
 
-const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+const VIEW = { NEEDS: "needs", REGISTER: "register" };
+const VIEW_TABS = [
+  { value: VIEW.NEEDS, label: "What needs doing" },
+  { value: VIEW.REGISTER, label: "Register" },
+];
+const viewKey = (userId) => `order_monitoring_view:${userId ?? "anon"}`;
 
-/** "3 days" in the wait column, with how far past its rule a late line is. */
-function WaitCell({ row }) {
-  return (
-    <div className="flex flex-col">
-      <span className="tabular-nums">{plural(row.daysWaiting ?? 0, "day")}</span>
-      {row.late && (
-        <span className="text-xs font-semibold text-destructive">
-          {plural(row.daysPastRule, "day")} past its {row.ruleDays}-day rule
-        </span>
-      )}
-    </div>
-  );
+function readView(userId) {
+  try {
+    return localStorage.getItem(viewKey(userId)) === VIEW.REGISTER ? VIEW.REGISTER : VIEW.NEEDS;
+  } catch {
+    return VIEW.NEEDS;
+  }
+}
+
+function writeView(userId, view) {
+  try {
+    localStorage.setItem(viewKey(userId), view);
+  } catch {
+    // Storage is blocked or full: the choice just isn't remembered.
+  }
 }
 
 function OrderRow({ row, onOpen }) {
-  const detail = row.next?.detail;
   return (
     <TableRow className="cursor-pointer" onClick={() => onOpen(row.id)}>
       <TableCell>
-        <div className="font-medium">{row.next?.label}</div>
-        {detail && (
-          <div className="text-xs text-muted-foreground">
-            Latest supplier date: {detail.label}, {detail.on}
-          </div>
-        )}
+        <NextThing row={row} />
       </TableCell>
       <TableCell>{ORDER_OWNER_LABELS[row.next?.owner] ?? "—"}</TableCell>
       <TableCell>
@@ -143,9 +151,14 @@ function Tiles({ counts }) {
   );
 }
 
-function OrderMonitoringList() {
+function OrderMonitoringList({ userId }) {
   const navigate = useNavigate();
   const [filedOpen, setFiledOpen] = useState(false);
+  const [view, setView] = useState(() => readView(userId));
+  const changeView = (next) => {
+    setView(next);
+    writeView(userId, next);
+  };
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["order-monitoring", "list"],
@@ -171,9 +184,13 @@ function OrderMonitoringList() {
 
       {!isLoading && !isError && (
         <>
-          <Tiles counts={counts} />
+          <TabGroup tabs={VIEW_TABS} activeTab={view} onChange={changeView} />
 
-          {rows.length === 0 && (
+          {view === VIEW.REGISTER && <OrderRegister onOpen={open} options={rows} />}
+
+          {view === VIEW.NEEDS && <Tiles counts={counts} />}
+
+          {view === VIEW.NEEDS && rows.length === 0 && (
             <EmptyState
               icon={ListChecks}
               title="No open orders"
@@ -182,7 +199,7 @@ function OrderMonitoringList() {
           )}
 
           {OPEN_GROUPS.map((group) =>
-            grouped[group].length === 0 ? null : (
+            view !== VIEW.NEEDS || grouped[group].length === 0 ? null : (
               <section key={group} aria-labelledby={`group-${group}`} className="flex flex-col gap-2">
                 <h2 id={`group-${group}`} className="text-base font-semibold">
                   {ORDER_GROUP_LABELS[group]} <span className="tabular-nums text-muted-foreground">({grouped[group].length})</span>
@@ -192,7 +209,7 @@ function OrderMonitoringList() {
             ),
           )}
 
-          {filed.length > 0 && (
+          {view === VIEW.NEEDS && filed.length > 0 && (
             <section aria-label="Filed" className="flex flex-col gap-2">
               <Button
                 variant="ghost"
@@ -221,5 +238,5 @@ export default function OrderMonitoringPage() {
   if (!user || !(ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow)) {
     return <Navigate to="/" replace />;
   }
-  return <OrderMonitoringList />;
+  return <OrderMonitoringList userId={user.id} />;
 }

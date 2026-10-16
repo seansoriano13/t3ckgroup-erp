@@ -1,6 +1,19 @@
 [
     {
         "date": "2026-10-16",
+        "title": "Purchasing: the order register",
+        "version": "1.9.34",
+        "changes": [
+            "Order Monitoring has a new Register view behind What needs doing. It lists every order in one table, filed ones included and cancelled ones left out, so you can answer where order X is.",
+            "Each row draws the buyer track as steps: stamped, typed by a person, or still pending. It also shows the next thing, who owes it, how long it has waited, and the order value.",
+            "The hand-off column shows the latest Transmittal and its check result: open, GC, NA, or NA replaced by a later GC.",
+            "An Import order waiting on Delivered shows its latest Supplier Origin date.",
+            "Narrow the register by entity, source, SOR, supplier or state, or search by IPAS number, PO number or S number.",
+            "The page remembers which view you chose, for you only. If your browser blocks that, it still opens on What needs doing."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "Purchasing: Order Monitoring",
         "version": "1.9.33",
         "changes": [

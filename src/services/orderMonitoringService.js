@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_ERROR, IPAS_STATE, IPAS_SUPPLIER_ORIGIN_FIELDS } from "../constants/ipas";
+import { IPAS_ERROR, IPAS_STATE, IPAS_STATUS_SOURCE, IPAS_SUPPLIER_ORIGIN_FIELDS } from "../constants/ipas";
 import { ORDER_AGEING_STEPS, ORDER_GROUP } from "../constants/orderMonitoring";
 import { TRANSMITTAL_RATING } from "../constants/transmittals";
 import { IpasError } from "./ipasService";
@@ -7,7 +7,8 @@ import { transmittalService } from "./transmittalService";
 import { finiteNumber } from "../utils/landedCost";
 import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas } from "../utils/ipas";
 import { isLandedCostFinal } from "../utils/ipasSignoffs";
-import { daysBetweenManila, orderStanding } from "../utils/orderStanding";
+import { checkResultOf, daysBetweenManila, orderStanding } from "../utils/orderStanding";
+import { inDateOrder } from "../utils/ipasTransmittals";
 import { transmittalStateLabel } from "../utils/transmittals";
 
 const STEP_KEYS = ORDER_AGEING_STEPS.map((step) => step.key);
@@ -57,11 +58,33 @@ export const orderMonitoringService = {
    * each with its standing. `group` narrows to one of ORDER_GROUP; `today` is
    * the day the waits are counted to (Asia/Manila), defaulting to now. Newest
    * first within a group, worst first for Needs chasing. Never calls Odoo.
+   *
+   * The register (#264) narrows the same rows, every filter optional and all
+   * of them together: `entity`, `source`, `supplier` (exact names), `sorId`,
+   * `state` (open or filed) and `search`, which matches the IPAS number, the PO
+   * number or an S number of an SOR the order names (any case). Filed orders
+   * are in; cancelled ones never are, whatever the state asked for.
    */
-  async list({ group = null, today = new Date() } = {}) {
+  async list({
+    group = null,
+    entity = null,
+    source = null,
+    sorId = null,
+    supplier = null,
+    state = null,
+    search = "",
+    today = new Date(),
+  } = {}) {
     const rows = await loadOrders(today);
+    const needle = String(search ?? "").trim().toLowerCase();
     return rows
       .filter((row) => !group || row.group === group)
+      .filter((row) => !entity || row.entity === entity)
+      .filter((row) => !source || row.source === source)
+      .filter((row) => !supplier || row.supplier === supplier)
+      .filter((row) => !state || row.state === state)
+      .filter((row) => !sorId || row.sors.some((sor) => sor.id === sorId))
+      .filter((row) => !needle || matchesSearch(row, needle))
       .sort((a, b) => weightOf(b) - weightOf(a));
   },
 
@@ -89,6 +112,12 @@ export const orderMonitoringService = {
     };
   },
 };
+
+/** The search box: IPAS number, PO number or an S number, as typed in any case. */
+const matchesSearch = (row, needle) =>
+  [row.number, row.poNumber, ...row.sors.map((sor) => sor.salesReference)].some((value) =>
+    String(value ?? "").toLowerCase().includes(needle),
+  );
 
 /** Needs chasing sorts by how far past its rule, everything else by how long it has waited. */
 const weightOf = (row) =>
@@ -158,7 +187,8 @@ async function loadOrders(today) {
       createdAt: row.created_at,
       ageDays: daysBetweenManila(row.created_at, today),
       odooFetchedAt: row.odoo_fetched_at ?? null,
-      buyerTrack: shaped.buyerTrack.map(({ key, label, ticked, partial }) => ({ key, label, ticked, partial })),
+      item: itemOf(shaped.lines),
+      buyerTrack: shaped.buyerTrack.map(trackStepOf),
       transmittals: transmittalSummary(row.id, slips),
       group: standing.group,
       next: standing.next,
@@ -238,6 +268,23 @@ function latestSupplierOrigin(row) {
   return best;
 }
 
+/**
+ * One track step as the register draws it. `mark` is pending until the step is
+ * ticked; then typed when a person typed its date (Import Clearance, a typed
+ * Delivered), otherwise stamped (Odoo, payments, a Transmittal, a hand stamp),
+ * the same split the IPAS page's status section shows.
+ */
+function trackStepOf({ key, label, ticked, partial, source, on }) {
+  let mark = "pending";
+  if (ticked) mark = source === IPAS_STATUS_SOURCE.TYPED ? "typed" : "stamped";
+  return { key, label, ticked, partial: Boolean(partial), mark, on: on ?? null };
+}
+
+/** The item column: the first line's name and how many more lines follow. */
+function itemOf(lines = []) {
+  return { name: lines[0]?.name ?? null, more: Math.max(0, lines.length - 1) };
+}
+
 /** The PO's pre-tax total: its lines' subtotals, in the PO's own currency. */
 function poValue(lines = []) {
   return lines.reduce((sum, line) => sum + (finiteNumber(line?.price_subtotal) ?? 0), 0);
@@ -252,9 +299,19 @@ function transmittalSummary(ipasId, slips) {
       if (line.wh_rating === TRANSMITTAL_RATING.NA || line.tech_rating === TRANSMITTAL_RATING.NA) naCount += 1;
     }
   }
+  const latest = inDateOrder(slips).at(-1) ?? null;
   return {
     count: slips.length,
     naCount,
+    latest: latest
+      ? {
+          id: latest.id,
+          number: latest.number,
+          state: latest.state,
+          stateLabel: transmittalStateLabel(latest.state),
+          check: checkResultOf(ipasId, slips),
+        }
+      : null,
     slips: slips.map((slip) => ({
       id: slip.id,
       number: slip.number,
