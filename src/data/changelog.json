@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-16",
+        "title": "Costing Matrix: the Bid Decision",
+        "version": "1.9.42",
+        "changes": [
+            "The Final Acquire list and Super Admins can now decide Go, No-go or Revise on a priced offer, with a reason, under the summary on the PMS tab. It is stamped with the Final Offer and ABC it was taken against.",
+            "Sales sees the verdict and the reason, but never the numbers behind it. Purchasing sees nothing of it.",
+            "A No-go or Revise tells the Deal Team and does not move the deal. Any later change to a Final Offer or a Final Acquire clears the decision, so a Go always matches the numbers.",
+            "Offers waiting for a decision appear in the Approval Center under Bid Decisions."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "SOR: evaluating the offer against the specification",
         "version": "1.9.41",
         "changes": [

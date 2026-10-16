@@ -4,6 +4,7 @@ import { opportunityService } from "./opportunityService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
+import { stubRpc } from "@/test/msw/server"
 import { COSTING_TIER } from "@/constants/costing"
 
 /**
@@ -776,4 +777,107 @@ describe("costingMatrixService", () => {
       expect(await costingMatrixService.canManageMarkup()).toBe(false)
     })
   })
+
+  describe("the Bid Decision (#320)", () => {
+    let lineId;
+    const read = () => costingMatrixService.get(opportunity.id);
+
+    beforeEach(async () => {
+      // Quantity 2.5 at 1001.15 is 2502.875, rounded half-up to 2502.88; 3 x 480 is 1440.
+      lineId = await costingMatrixService.addTenderLine(matrix.id, { tenderSpecification: "Rescue tripod", quantity: 2.5, abcUnit: 1100.1, finalOfferUnit: 1001.15 });
+      await costingMatrixService.addTenderLine(matrix.id, { tenderSpecification: "Harness set", quantity: 3, abcUnit: 500, finalOfferUnit: 480 });
+    });
+
+    it("takes a decision as Closed Book, stamped with the totals computed the way costingMath works them", async () => {
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "management"] });
+      expect((await read()).bidDecision).toBeNull();
+
+      const id = await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "  Fits the ABC  " });
+      const { bidDecision, totals } = await read();
+      expect(bidDecision).toMatchObject({ id, verdict: "go", reason: "Fits the ABC", clearedAt: null, finalOfferTotal: 3942.88, abcTotal: 4250.25 });
+      // The stamped figure and the screen's own total agree to the centavo.
+      expect(bidDecision.finalOfferTotal).toBe(totals.finalOfferTotal);
+      expect(bidDecision.abcTotal).toBe(totals.abcTotal);
+    });
+
+    it("gives the price tier the verdict and the reason and no figure, the keys absent", async () => {
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales"] });
+      await costingMatrixService.decideBid(matrix.id, { verdict: "no_go", reason: "Too far over the ABC" });
+
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["sales"] });
+      const { bidDecision } = await read();
+      expect(bidDecision).toMatchObject({ verdict: "no_go", reason: "Too far over the ABC", clearedAt: null });
+      expect("finalOfferTotal" in bidDecision).toBe(false);
+      expect("abcTotal" in bidDecision).toBe(false);
+    });
+
+    it("gives Purchasing and a Stage Participant neither key", async () => {
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales"] });
+      await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Go" });
+      for (const tier of [COSTING_TIER.COST, COSTING_TIER.PARTICIPANT]) {
+        stubCostingMatrixRpcs({ tier, bands: [] });
+        const read_ = await read();
+        expect("bidDecision" in read_, tier).toBe(false);
+        expect("bidDecisionHistory" in read_, tier).toBe(false);
+      }
+    });
+
+    it("clears the live decision when a Final Offer or a Final Acquire changes, and keeps it in the history", async () => {
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "management"] });
+      await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Go" });
+      await costingMatrixService.updateTenderLine(lineId, { finalOfferUnit: 1002 });
+      const afterOffer = await read();
+      expect(afterOffer.bidDecision).toBeNull();
+      expect(afterOffer.bidDecisionHistory).toHaveLength(1);
+      expect(afterOffer.bidDecisionHistory[0]).toMatchObject({ verdict: "go", clearedReason: "The Final Offer changed" });
+
+      await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Go again" });
+      const component = await costingMatrixService.addComponent(lineId, { name: "Head", quantity: 1 });
+      await costingMatrixService.updateComponent(component, { finalAcquireUnit: 900 });
+      const afterAcquire = await read();
+      expect(afterAcquire.bidDecision).toBeNull();
+      expect(afterAcquire.bidDecisionHistory.map((d) => d.clearedReason)).toEqual(["A Final Acquire changed", "The Final Offer changed"]);
+    });
+
+    it("replaces a live decision with a new one", async () => {
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: [] });
+      await costingMatrixService.decideBid(matrix.id, { verdict: "revise", reason: "Reprice" });
+      await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Repriced" });
+      const { bidDecision, bidDecisionHistory } = await read();
+      expect(bidDecision).toMatchObject({ verdict: "go", reason: "Repriced" });
+      expect(bidDecisionHistory).toHaveLength(1);
+      expect(bidDecisionHistory[0]).toMatchObject({ verdict: "revise", clearedReason: "Decided again" });
+    });
+
+    it("refuses anyone below Closed Book, in words", async () => {
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["sales"] });
+      const refused = await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Go" }).catch((e) => e);
+      expect(refused).toBeInstanceOf(CostingRuleError);
+      expect(refused.message).toBe("Only a Super Admin or the Final Acquire list can decide a bid.");
+    });
+
+    it("refuses an unknown verdict, a blank reason and a matrix with a Tender Line that has no Final Offer", async () => {
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: [] });
+      const verdict = await costingMatrixService.decideBid(matrix.id, { verdict: "maybe", reason: "x" }).catch((e) => e);
+      expect(verdict).toBeInstanceOf(CostingRuleError);
+      const blank = await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "   " }).catch((e) => e);
+      expect(blank).toBeInstanceOf(CostingRuleError);
+      expect(blank.message).toBe("Write the reason for the decision.");
+
+      await costingMatrixService.addTenderLine(matrix.id, { tenderSpecification: "No price yet", quantity: 1 });
+      const unpriced = await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Go" }).catch((e) => e);
+      expect(unpriced).toBeInstanceOf(CostingRuleError);
+      expect(unpriced.message).toBe("Every Tender Line needs a Final Offer before the bid can be decided.");
+      expect((await read()).bidDecision).toBeNull();
+    });
+
+    it("lists the pending decisions for the Approval Center", async () => {
+      stubRpc("costing_pending_bid_decisions", () => [
+        { matrix_id: matrix.id, opportunity_id: opportunity.id, project_title: "Fire truck", client_name: "BFP", deal_owner_id: "emp-1", deal_owner_name: "Dee Owner", final_offer_total: "3942.88", abc_total: null, waiting_since: "2026-10-16T01:00:00Z" },
+      ]);
+      expect(await costingMatrixService.pendingBidDecisions()).toEqual([
+        { matrixId: matrix.id, opportunityId: opportunity.id, projectTitle: "Fire truck", clientName: "BFP", dealOwnerId: "emp-1", dealOwnerName: "Dee Owner", finalOfferTotal: 3942.88, abcTotal: null, waitingSince: "2026-10-16T01:00:00Z" },
+      ]);
+    });
+  });
 });

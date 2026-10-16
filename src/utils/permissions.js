@@ -25,6 +25,9 @@ export function getPermissionContext(user) {
   const isTransmittalWarehouse = !!(user?.is_transmittal_warehouse ?? user?.isTransmittalWarehouse);
   // On the Transmittal Check by list (#254): the Approval Center's Check by queue.
   const isTransmittalCheckBy = !!(user?.is_transmittal_check_by ?? user?.isTransmittalCheckBy);
+  // On the Costing Matrix's Final Acquire list (#320); with Super Admin, decides Bid Decisions.
+  const isFinalAcquire = !!(user?.is_final_acquire ?? user?.isFinalAcquire);
+  const isBidDecider = isSuperAdmin || isFinalAcquire;
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
@@ -47,6 +50,8 @@ export function getPermissionContext(user) {
     isTransmittalStaff,
     isTransmittalWarehouse,
     isTransmittalCheckBy,
+    isFinalAcquire,
+    isBidDecider,
     hasRetailAccess,
     hasBugReportAccess,
     isRoleSimulator,

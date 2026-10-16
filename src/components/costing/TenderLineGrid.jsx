@@ -15,6 +15,7 @@ import { Cell, StockBadge } from "./GridCell";
 import { factorLabel, percentLabel, pesos } from "./gridFormat";
 import { useCostingWrites, useInchargeOptions } from "./useCostingWrites";
 import ComponentBlock from "./ComponentBlock";
+import BidDecisionPanel from "./BidDecisionPanel";
 import CostingSummary from "./CostingSummary";
 import CostRowGrid from "./CostRowGrid";
 import EvaluationBar from "./EvaluationBar";
@@ -321,6 +322,8 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
       <CostRowGrid matrix={matrix} writes={writes} />
 
       <CostingSummary matrix={matrix} writes={writes} />
+
+      <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} />
 
       <ConfirmDialog
         open={Boolean(removing)}

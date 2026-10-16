@@ -253,6 +253,19 @@ describe("handleNotificationRoute", () => {
       dispatch.mockRestore()
     })
 
+    it("opens the SOR a Bid Decision notification names (#320)", () => {
+      // The Deal Team may only reach the matrix through the modal; a No-go or Revise carries the SOR id.
+      const dispatch = vi.spyOn(window, "dispatchEvent")
+
+      handleNotificationRoute({ type: "SOR_BID_DECISION", reference_id: "opp-3" }, employee, navigate, onClose)
+
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "OPEN_ENTITY_DETAILS", detail: { id: "opp-3", type: "OPPORTUNITY" } }),
+      )
+      dispatch.mockRestore()
+    })
+
     it.each([
       "PURCHASE_REQUEST_OPENED",
       "PURCHASE_REQUEST_BUYER",

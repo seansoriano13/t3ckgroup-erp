@@ -22,6 +22,7 @@ describe("ApprovalsRedirect", () => {
           <Route path="/approvals/tasks" element={<div>Tasks Approval Page</div>} />
           <Route path="/approvals/hr-verification" element={<div>HR Verification Page</div>} />
           <Route path="/approvals/ipas" element={<div>IPAS Sign-offs Page</div>} />
+          <Route path="/approvals/bid-decisions" element={<div>Bid Decisions Page</div>} />
           <Route path="/" element={<div>Dashboard Root</div>} />
         </Routes>
       </MemoryRouter>
@@ -53,6 +54,11 @@ describe("ApprovalsRedirect", () => {
   it("sends HR first, then IPAS, when both apply", () => {
     renderRedirect({ id: "hr2", isHr: true, isIpasApprover: true });
     expect(screen.getByText("HR Verification Page")).toBeInTheDocument();
+  });
+
+  it("sends someone on the Final Acquire list, with no other queue, to the Bid Decisions", () => {
+    renderRedirect({ id: "f1", isFinalAcquire: true });
+    expect(screen.getByText("Bid Decisions Page")).toBeInTheDocument();
   });
 
   it("redirects unauthorized user to /", () => {

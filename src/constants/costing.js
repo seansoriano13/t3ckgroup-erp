@@ -136,6 +136,40 @@ export const MATRIX_MONEY_BANDS = {
 /** Does this tier receive the summary? Only Closed Book does: the figures it works from are Closed Book's. */
 export const tierReadsSummary = (tier) => tier === COSTING_TIER.CLOSED_BOOK;
 
+/** A Bid Decision's verdict (`costing_bid_decisions.verdict`, #320). */
+export const BID_VERDICT = { GO: "go", NO_GO: "no_go", REVISE: "revise" };
+
+export const BID_VERDICT_LABEL = { go: "Go", no_go: "No-go", revise: "Revise" };
+
+/**
+ * The tiers that receive each column of a Bid Decision (costing_column_tiers, #320). Sales (the price
+ * tier) reads the verdict and the reason, never the figures it was taken against; those are Closed
+ * Book's alone. Purchasing and a Stage Participant read nothing of it. Policy test 85 proves these equal
+ * the registry.
+ */
+const { PRICE, CLOSED_BOOK } = COSTING_TIER;
+export const BID_DECISION_TIERS = {
+  id: [PRICE, CLOSED_BOOK],
+  matrix_id: [PRICE, CLOSED_BOOK],
+  verdict: [PRICE, CLOSED_BOOK],
+  reason: [PRICE, CLOSED_BOOK],
+  decided_by: [PRICE, CLOSED_BOOK],
+  decided_at: [PRICE, CLOSED_BOOK],
+  cleared_at: [PRICE, CLOSED_BOOK],
+  cleared_reason: [PRICE, CLOSED_BOOK],
+  final_offer_total: [CLOSED_BOOK],
+  abc_total: [CLOSED_BOOK],
+};
+
+/** Does this tier receive the named column of a Bid Decision? */
+export const tierReadsBid = (tier, column) => (BID_DECISION_TIERS[column] ?? []).includes(tier);
+
+/** Does this tier receive the Bid Decision at all (its verdict and reason)? */
+export const tierReadsBidDecision = (tier) => tierReadsBid(tier, "verdict");
+
+/** Who takes a Bid Decision: the Closed Book tier (a Super Admin or the Final Acquire list). The database decides. */
+export const tierDecidesBid = (tier) => tier === COSTING_TIER.CLOSED_BOOK;
+
 /** The signer lists of `costing_signer_lists`: who writes Final Acquire, and who approves an Evaluation of Specification (#271). */
 export const COSTING_SIGNER_LIST = { FINAL_ACQUIRE: "final_acquire", EVALUATION: "evaluation" };
 

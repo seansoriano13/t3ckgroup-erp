@@ -691,4 +691,124 @@ describe("the PMS tab", () => {
       expect(screen.queryByText(/Incomplete/)).not.toBeInTheDocument();
     });
   });
+
+  describe("the Bid Decision (#320)", () => {
+    let matrix;
+    let decider;
+
+    // One Tender Line at a Final Offer of 2,980,000 against an ABC of 3,200,000.
+    function seedPriced({ offer = 2980000 } = {}) {
+      matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+      db.seed("costing_settings", { id: 1 });
+      const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Rescue vehicle", unit: "unit", quantity: 1 });
+      db.seed("costing_tender_line_prices", { tender_line_id: line.id, abc_unit: 3200000, final_offer_unit: offer });
+      decider = makeEmployee({ name: "Boss Person" });
+    }
+
+    const seedDecision = (fields = {}) =>
+      db.seed("costing_bid_decisions", {
+        matrix_id: matrix.id,
+        verdict: "no_go",
+        reason: "Offer is far over the ABC and we cannot get there",
+        decided_by: decider.id,
+        decided_at: "2026-10-16T01:00:00.000Z",
+        final_offer_total: 2980000,
+        abc_total: 3200000,
+        ...fields,
+      });
+
+    it("shows the Final Acquire list the decision with the figures it was taken against, and the controls", async () => {
+      seedPriced();
+      seedDecision({ verdict: "go", reason: "Fits the budget" });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      openModal(deal);
+
+      await openPms();
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-live")).toHaveTextContent("Go");
+      expect(within(panel).getByTestId("bid-decision-reason")).toHaveTextContent("Fits the budget");
+      expect(within(panel).getByTestId("bid-decision-live")).toHaveTextContent("Boss Person");
+      expect(within(panel).getByTestId("bid-decision-figures")).toHaveTextContent("Final Offer of ₱2,980,000.00 and an ABC of ₱3,200,000.00");
+      expect(within(panel).getByRole("button", { name: "Go" })).toBeInTheDocument();
+      expect(within(panel).getByRole("button", { name: "Revise" })).toBeInTheDocument();
+      expect(within(panel).getByRole("button", { name: "No-go" })).toBeInTheDocument();
+    });
+
+    it("takes a decision: the reason is needed, then the buttons record it at the summary", async () => {
+      seedPriced();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openModal(deal);
+
+      await openPms();
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-none")).toHaveTextContent("No decision yet.");
+      expect(within(panel).getByRole("button", { name: "Go" })).toBeDisabled();
+
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Price fits and margin is fine");
+      await user.click(within(panel).getByRole("button", { name: "Go" }));
+
+      await waitFor(() => expect(within(screen.getByTestId("bid-decision")).getByTestId("bid-decision-live")).toHaveTextContent("Go"));
+      expect(screen.getByTestId("bid-decision-reason")).toHaveTextContent("Price fits and margin is fine");
+      expect(screen.getByTestId("bid-decision-figures")).toHaveTextContent("₱2,980,000.00");
+      const [row] = db.rows("costing_bid_decisions");
+      expect(row).toMatchObject({ verdict: "go", reason: "Price fits and margin is fine", final_offer_total: 2980000, abc_total: 3200000 });
+    });
+
+    it("keeps the controls off while a Tender Line has no Final Offer", async () => {
+      seedPriced({ offer: null });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      openModal(deal);
+
+      await openPms();
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-none")).toHaveTextContent("once every Tender Line has a Final Offer");
+      expect(within(panel).getByLabelText("Reason for the decision")).toBeDisabled();
+      expect(within(panel).getByRole("button", { name: "No-go" })).toBeDisabled();
+    });
+
+    it("shows the Deal Team the verdict and the reason and no figure and no controls", async () => {
+      seedPriced();
+      seedDecision();
+      stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+      openModal(deal);
+
+      await openPms();
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-live")).toHaveTextContent("No-go");
+      expect(within(panel).getByTestId("bid-decision-reason")).toHaveTextContent("Offer is far over the ABC and we cannot get there");
+      expect(within(panel).queryByTestId("bid-decision-figures")).not.toBeInTheDocument();
+      expect(panel).not.toHaveTextContent("3,200,000");
+      expect(within(panel).queryByRole("button", { name: "Go" })).not.toBeInTheDocument();
+      expect(within(panel).queryByLabelText("Reason for the decision")).not.toBeInTheDocument();
+    });
+
+    it("says in words when an earlier decision was cleared", async () => {
+      seedPriced();
+      seedDecision({ verdict: "go", cleared_at: "2026-10-16T03:00:00.000Z", cleared_reason: "The Final Offer changed" });
+      stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+      openModal(deal);
+
+      await openPms();
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-none")).toBeInTheDocument();
+      expect(within(panel).getByTestId("bid-decision-cleared")).toHaveTextContent("The earlier decision (Go) was cleared: The Final Offer changed.");
+    });
+
+    it.each(["cost", "participant"])("draws nothing of it for the %s tier", async (tier) => {
+      seedPriced();
+      seedDecision();
+      stubCostingMatrixRpcs({ tier, bands: [] });
+      openModal(deal);
+
+      await openPms();
+
+      await screen.findByTestId("tender-line");
+      expect(screen.queryByTestId("bid-decision")).not.toBeInTheDocument();
+    });
+  });
 });
