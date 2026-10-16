@@ -1,0 +1,283 @@
+/**
+ * Order Monitoring's standing (#263, spec #261): the one next thing an open
+ * IPAS is waiting on, who owes it, how long it has waited and whether that is
+ * past its step's ageing rule. Pure: no network, no React, no clock. The
+ * service and the SOR summary (#265) both call this, so they always agree.
+ *
+ * The decision order is the spec's and must not change. The first match is the
+ * next thing:
+ *   1. a line rated NA at its slip's checking stage (unless a later slip rates
+ *      the same Odoo PO line GC at its checking stage)
+ *   2. a slip whose checking stage isn't complete (owner: the Warehouse or Technical)
+ *   3. a slip awaiting Check by
+ *   4. costs complete and not filed
+ *   5. Delivered with no Transmittal naming the IPAS
+ *   6. the first unstamped buyer-track step
+ *   7. every step stamped but costs not complete
+ *
+ * `order` is the IPAS as the service shapes it (see orderMonitoringService):
+ *   id, state, source, createdAt, updatedAt, computationStatus,
+ *   costsCompletedAt (when costs went complete, or null), buyerTrack (the
+ *   shaped items with key, ticked, on, at), proofPaidOn and arrivedInPhOn
+ *   ('YYYY-MM-DD' or null), latestSupplierOrigin ({ label, on } or null), and
+ *   slips (the raw Transmittal rows that name this IPAS, with stages and lines).
+ *
+ * `rules` is the list `orderMonitoringService.getRules()` returns; a step with
+ * days null has no rule and never goes late.
+ */
+
+import {
+  ORDER_GROUP,
+  ORDER_OWNER,
+} from "../constants/orderMonitoring";
+import { IPAS_STATE } from "../constants/ipas";
+import { TRANSMITTAL_RATING, TRANSMITTAL_STAGE, TRANSMITTAL_STATE } from "../constants/transmittals";
+import { isLandedCostFinal } from "./ipasSignoffs";
+import { checkingStageOf, stageRowOf } from "./transmittals";
+import { inDateOrder } from "./ipasTransmittals";
+
+const MANILA = "Asia/Manila";
+const DAY_MS = 86_400_000;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+const dayFormat = new Intl.DateTimeFormat("en-CA", { timeZone: MANILA, year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** The Asia/Manila calendar day of an instant (a Date or a timestamp), as 'YYYY-MM-DD'. */
+export function manilaDay(value) {
+  if (typeof value === "string" && DATE_ONLY.test(value)) return value;
+  return dayFormat.format(new Date(value));
+}
+
+/** An instant in ms. A bare date means that day's start in Asia/Manila. Null when unusable. */
+function instantOf(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "string" && DATE_ONLY.test(value)) return new Date(`${value}T00:00:00+08:00`).getTime();
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Whole calendar days from `since` to `today` in Asia/Manila, never below zero. */
+export function daysBetweenManila(since, today) {
+  const from = Date.parse(`${manilaDay(since)}T00:00:00Z`);
+  const to = Date.parse(`${manilaDay(today)}T00:00:00Z`);
+  return Math.max(0, Math.round((to - from) / DAY_MS));
+}
+
+const ruleLookup = (rules) => {
+  const days = new Map();
+  for (const rule of Array.isArray(rules) ? rules : []) days.set(rule.step, rule.days ?? null);
+  return (step) => days.get(step) ?? null;
+};
+
+const WAREHOUSE_STAGE = TRANSMITTAL_STAGE.WAREHOUSE_CHECKING;
+const flagsOf = (slip) => ({ checkWarehouse: slip.check_warehouse, checkTechnical: slip.check_technical });
+
+/** When a slip's stage was completed, as ms, or null while it is open. */
+const completedMs = (slip, stage) => instantOf(stageRowOf(slip, stage)?.completed_at ?? null);
+
+const checkingStage = (slip) => checkingStageOf(flagsOf(slip));
+
+/** The rating a line carries at its slip's checking stage (Technical where the slip has one, else the Warehouse). */
+function ratingAtChecking(slip, line) {
+  return checkingStage(slip) === TRANSMITTAL_STAGE.TECHNICAL_INSPECTION ? line.tech_rating : line.wh_rating;
+}
+
+/** The first NA line of this IPAS at its slip's checking stage that no later slip has cleared with GC, or null. */
+function unresolvedNa(order, slips) {
+  const sorted = inDateOrder(slips);
+  for (let i = 0; i < sorted.length; i += 1) {
+    const slip = sorted[i];
+    for (const line of slip.lines ?? []) {
+      if (line.ipas_id !== order.id) continue;
+      if (ratingAtChecking(slip, line) !== TRANSMITTAL_RATING.NA) continue;
+      const cleared = sorted.slice(i + 1).some((later) =>
+        (later.lines ?? []).some(
+          (laterLine) =>
+            laterLine.odoo_po_line_id === line.odoo_po_line_id &&
+            ratingAtChecking(later, laterLine) === TRANSMITTAL_RATING.GC,
+        ),
+      );
+      if (!cleared) return { slip, line };
+    }
+  }
+  return null;
+}
+
+/** Who a slip with an open checking stage waits on: the Warehouse first, then Technical. */
+function awaitingStageOwner(slip) {
+  if (flagsOf(slip).checkWarehouse && !completedMs(slip, WAREHOUSE_STAGE)) return ORDER_OWNER.WAREHOUSE;
+  return ORDER_OWNER.TECHNICAL;
+}
+
+/** Track steps: the label, owner and waiting text the next thing shows for each unstamped step. */
+function trackStep(item, order) {
+  switch (item.key) {
+    case "purchase_order":
+      return { label: "Purchase Order — no PO confirmed yet", owner: ORDER_OWNER.PURCHASING };
+    case "with_pop":
+      return { label: "With P.O.P — no payment carries proof", owner: ORDER_OWNER.FINANCE };
+    case "import_clearance":
+      return { label: "Import Clearance — waiting on forwarder or port", owner: ORDER_OWNER.OTHERS };
+    case "delivered":
+      return {
+        label: `Delivered — waiting on ${order.source === "import" ? "supplier or forwarder" : "supplier"}`,
+        owner: ORDER_OWNER.OTHERS,
+      };
+    case "received_in_odoo":
+      return { label: "Received in Odoo — waiting on the Warehouse", owner: ORDER_OWNER.WAREHOUSE };
+    case "create_bill":
+      return { label: "Create Bill — no vendor bill yet", owner: ORDER_OWNER.FINANCE };
+    case "actual_checking":
+      return { label: "Actual Checking — not stamped yet", owner: ORDER_OWNER.PURCHASING };
+    default:
+      return { label: item.key, owner: ORDER_OWNER.PURCHASING };
+  }
+}
+
+/** A track item's own date (typed or stamped), as ms, or null. */
+function stampMs(item, order) {
+  if (item.key === "with_pop") return instantOf(order.proofPaidOn);
+  if (["import_clearance", "delivered", "actual_checking"].includes(item.key)) {
+    return instantOf(item.on) ?? instantOf(item.at);
+  }
+  return null;
+}
+
+/** When an unstamped track step's wait began: the latest stamp before it, or the IPAS's creation. */
+function trackWaitingSince(track, index, order) {
+  const target = track[index];
+  let since = instantOf(order.createdAt);
+  const consider = (ms) => {
+    if (ms !== null && ms > since) since = ms;
+  };
+  for (let i = 0; i < index; i += 1) consider(stampMs(track[i], order));
+  // An Import's Arrived in PH date stands before Import Clearance, Delivered and later.
+  if (target.key !== "purchase_order" && target.key !== "with_pop") consider(instantOf(order.arrivedInPhOn));
+  return since;
+}
+
+/** The next thing, its owner and the moment its wait began (ms). */
+function nextThing(order, slips, track) {
+  const na = unresolvedNa(order, slips);
+  if (na) {
+    return {
+      label: "NA at checking — resolve with supplier",
+      owner: ORDER_OWNER.PURCHASING,
+      step: "check_open",
+      since: completedMs(na.slip, checkingStage(na.slip)) ?? instantOf(na.slip.submitted_at ?? na.slip.created_at),
+    };
+  }
+
+  const pending = slips.filter((slip) => completedMs(slip, checkingStage(slip)) === null);
+  if (pending.length > 0) {
+    const owners = new Set(pending.map(awaitingStageOwner));
+    const who =
+      owners.size > 1
+        ? "Warehouse or Technical"
+        : owners.has(ORDER_OWNER.WAREHOUSE)
+          ? "Warehouse"
+          : "Technical";
+    return {
+      label: `Actual Checking — ${pending.length} awaiting ${who}`,
+      owner: owners.has(ORDER_OWNER.WAREHOUSE) ? ORDER_OWNER.WAREHOUSE : ORDER_OWNER.TECHNICAL,
+      step: "check_open",
+      since: Math.min(...pending.map((slip) => instantOf(slip.submitted_at ?? slip.created_at) ?? Infinity)),
+    };
+  }
+
+  const awaiting = slips.filter((slip) => slip.state === TRANSMITTAL_STATE.AWAITING_CHECK);
+  if (awaiting.length > 0) {
+    return {
+      label: "Transmittal awaiting Check by",
+      owner: ORDER_OWNER.CHECK_BY,
+      step: "check_open",
+      since: Math.min(...awaiting.map((slip) => completedMs(slip, checkingStage(slip)) ?? Infinity)),
+    };
+  }
+
+  if (isLandedCostFinal(order.computationStatus)) {
+    return {
+      label: "Costs complete — ready to file",
+      owner: ORDER_OWNER.SIGNERS,
+      step: "ready_to_file",
+      since: instantOf(order.costsCompletedAt) ?? instantOf(order.updatedAt) ?? instantOf(order.createdAt),
+    };
+  }
+
+  const delivered = track.find((item) => item.key === "delivered");
+  if (delivered?.ticked && slips.length === 0) {
+    return {
+      label: "Delivered — no Transmittal raised",
+      owner: ORDER_OWNER.PURCHASING,
+      step: "no_transmittal",
+      since: stampMs(delivered, order) ?? instantOf(order.createdAt),
+    };
+  }
+
+  const index = track.findIndex((item) => !item.ticked);
+  if (index >= 0) {
+    const item = track[index];
+    const shown = trackStep(item, order);
+    const detail = item.key === "delivered" && order.source === "import" ? order.latestSupplierOrigin : null;
+    return {
+      label: shown.label,
+      owner: shown.owner,
+      step: item.key,
+      since: trackWaitingSince(track, index, order),
+      detail,
+    };
+  }
+
+  const stamps = track.map((item) => stampMs(item, order)).filter((ms) => ms !== null);
+  return {
+    label: "Costs not complete",
+    owner: ORDER_OWNER.PURCHASING,
+    step: "ready_to_file",
+    since: Math.max(instantOf(order.createdAt), ...stamps),
+  };
+}
+
+/**
+ * The standing of one open IPAS:
+ *   { group, next: { label, owner, step, detail }, waitingSince, daysWaiting,
+ *     ruleDays, late, daysPastRule }
+ * `group` is one of ORDER_GROUP. Late orders are Needs chasing whoever owes them.
+ * A filed order is Filed and carries no wait.
+ */
+export function orderStanding(order, rules, today) {
+  const ruleFor = ruleLookup(rules);
+
+  if (order.state === IPAS_STATE.FILED) {
+    return {
+      group: ORDER_GROUP.FILED,
+      next: { label: "Filed", owner: null, step: null, detail: null },
+      waitingSince: null,
+      daysWaiting: null,
+      ruleDays: null,
+      late: false,
+      daysPastRule: null,
+    };
+  }
+
+  const slips = order.slips ?? [];
+  const track = order.buyerTrack ?? [];
+  const found = nextThing(order, slips, track);
+  const since = Number.isFinite(found.since) ? found.since : instantOf(order.createdAt);
+  const daysWaiting = daysBetweenManila(since, today);
+  const ruleDays = ruleFor(found.step);
+  const late = ruleDays !== null && daysWaiting > ruleDays;
+
+  let group = ORDER_GROUP.WAITING_ON_US;
+  if (late) group = ORDER_GROUP.NEEDS_CHASING;
+  else if (found.owner === ORDER_OWNER.OTHERS) group = ORDER_GROUP.WAITING_ON_OTHERS;
+
+  return {
+    group,
+    next: { label: found.label, owner: found.owner, step: found.step, detail: found.detail ?? null },
+    waitingSince: new Date(since).toISOString(),
+    daysWaiting,
+    ruleDays,
+    late,
+    daysPastRule: late ? daysWaiting - ruleDays : null,
+  };
+}

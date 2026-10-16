@@ -21,7 +21,7 @@ const flagsOf = (slip) => ({ checkWarehouse: slip?.check_warehouse, checkTechnic
 const completedAt = (slip, stage) => stageRowOf(slip, stage)?.completed_at ?? null;
 
 /** Date order: prepared date, then created time, then number. */
-function inDateOrder(slips) {
+export function inDateOrder(slips) {
   return [...slips].sort((a, b) => {
     const byDate = String(a.prepared_on ?? "").localeCompare(String(b.prepared_on ?? ""));
     if (byDate !== 0) return byDate;

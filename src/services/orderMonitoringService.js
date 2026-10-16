@@ -1,7 +1,14 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_ERROR } from "../constants/ipas";
-import { ORDER_AGEING_STEPS } from "../constants/orderMonitoring";
+import { IPAS_ERROR, IPAS_STATE, IPAS_SUPPLIER_ORIGIN_FIELDS } from "../constants/ipas";
+import { ORDER_AGEING_STEPS, ORDER_GROUP } from "../constants/orderMonitoring";
+import { TRANSMITTAL_RATING } from "../constants/transmittals";
 import { IpasError } from "./ipasService";
+import { transmittalService } from "./transmittalService";
+import { finiteNumber } from "../utils/landedCost";
+import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas } from "../utils/ipas";
+import { isLandedCostFinal } from "../utils/ipasSignoffs";
+import { daysBetweenManila, orderStanding } from "../utils/orderStanding";
+import { transmittalStateLabel } from "../utils/transmittals";
 
 const STEP_KEYS = ORDER_AGEING_STEPS.map((step) => step.key);
 
@@ -44,4 +51,215 @@ export const orderMonitoringService = {
     if (error) throw error;
     return data;
   },
+
+  /**
+   * What needs doing (#263): every IPAS the caller can read, cancelled left out,
+   * each with its standing. `group` narrows to one of ORDER_GROUP; `today` is
+   * the day the waits are counted to (Asia/Manila), defaulting to now. Newest
+   * first within a group, worst first for Needs chasing. Never calls Odoo.
+   */
+  async list({ group = null, today = new Date() } = {}) {
+    const rows = await loadOrders(today);
+    return rows
+      .filter((row) => !group || row.group === group)
+      .sort((a, b) => weightOf(b) - weightOf(a));
+  },
+
+  /**
+   * The tiles (#263): open IPAS needing chasing, waiting on us, and waiting on
+   * someone else, plus the value still open per PO currency (pre-tax, never
+   * converted; filed orders leave it out).
+   */
+  async counts({ today = new Date() } = {}) {
+    const rows = await loadOrders(today);
+    const open = rows.filter((row) => row.group !== ORDER_GROUP.FILED);
+    const valueByCurrency = new Map();
+    for (const row of open) {
+      const key = row.currency ?? "";
+      const entry = valueByCurrency.get(key) ?? { currency: row.currency ?? null, total: 0, count: 0 };
+      entry.total += row.value ?? 0;
+      entry.count += 1;
+      valueByCurrency.set(key, entry);
+    }
+    return {
+      needsChasing: open.filter((row) => row.group === ORDER_GROUP.NEEDS_CHASING).length,
+      waitingOnUs: open.filter((row) => row.group === ORDER_GROUP.WAITING_ON_US).length,
+      waitingOnOthers: open.filter((row) => row.group === ORDER_GROUP.WAITING_ON_OTHERS).length,
+      valueOpen: [...valueByCurrency.values()].sort((a, b) => String(a.currency).localeCompare(String(b.currency))),
+    };
+  },
 };
+
+/** Needs chasing sorts by how far past its rule, everything else by how long it has waited. */
+const weightOf = (row) =>
+  row.group === ORDER_GROUP.NEEDS_CHASING ? (row.daysPastRule ?? 0) : (row.daysWaiting ?? 0);
+
+/** The IPAS as the list reads it: every non-cancelled row, each with its standing, loaded in bulk. */
+async function loadOrders(today) {
+  const { data, error } = await supabase
+    .from("ipas")
+    .select("*")
+    .neq("state", IPAS_STATE.CANCELLED)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  const ipasRows = data ?? [];
+  if (ipasRows.length === 0) return [];
+
+  const ids = ipasRows.map((row) => row.id);
+  const [sorsByIpas, paymentsByIpas, costsAt, slipsByIpas, rules] = await Promise.all([
+    readSors(ids),
+    readPayments(ids),
+    readCostsCompleteAt(ids),
+    transmittalService.forOrders(ids),
+    orderMonitoringService.getRules(),
+  ]);
+
+  return ipasRows.map((row) => {
+    const payments = paymentsByIpas.get(row.id) ?? [];
+    const slips = slipsByIpas.get(row.id) ?? [];
+    const shaped = shapeIpas(row, sorsByIpas.get(row.id) ?? [], {
+      payments,
+      charges: [],
+      options: [],
+      documents: [],
+      signoffs: [],
+      slips,
+    });
+    const standing = orderStanding(
+      {
+        id: row.id,
+        state: row.state,
+        source: row.source,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        computationStatus: row.computation_status,
+        costsCompletedAt: costsAt.get(row.id) ?? null,
+        buyerTrack: shaped.buyerTrack,
+        proofPaidOn: latestProofDate(payments),
+        arrivedInPhOn: row.arrived_in_ph_on ?? null,
+        latestSupplierOrigin: latestSupplierOrigin(row),
+        slips,
+      },
+      rules,
+      today,
+    );
+
+    return {
+      id: row.id,
+      number: row.number,
+      poNumber: row.po_number,
+      source: row.source,
+      state: row.state,
+      entity: ipasEntity(row),
+      supplier: ipasSupplier(row),
+      sors: shaped.sors.map((sor) => ({ id: sor.id, salesReference: sor.salesReference, projectTitle: sor.projectTitle })),
+      currency: ipasCurrency(row),
+      value: poValue(shaped.lines),
+      createdAt: row.created_at,
+      ageDays: daysBetweenManila(row.created_at, today),
+      odooFetchedAt: row.odoo_fetched_at ?? null,
+      buyerTrack: shaped.buyerTrack.map(({ key, label, ticked, partial }) => ({ key, label, ticked, partial })),
+      transmittals: transmittalSummary(row.id, slips),
+      group: standing.group,
+      next: standing.next,
+      waitingSince: standing.waitingSince,
+      daysWaiting: standing.daysWaiting,
+      ruleDays: standing.ruleDays,
+      late: standing.late,
+      daysPastRule: standing.daysPastRule,
+    };
+  });
+}
+
+/** Every SOR each IPAS names, from `ipas_sor_headers` (one call for the list). */
+async function readSors(ids) {
+  const byIpas = new Map();
+  const { data, error } = await supabase.rpc("ipas_sor_headers", { p_ipas_ids: ids });
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const list = byIpas.get(row.ipas_id) ?? [];
+    list.push(row);
+    byIpas.set(row.ipas_id, list);
+  }
+  return byIpas;
+}
+
+/** Each IPAS's payments (for the With P.O.P proof), one query for the list. */
+async function readPayments(ids) {
+  const byIpas = new Map();
+  const { data, error } = await supabase.from("ipas_payments").select("*").in("ipas_id", ids);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const list = byIpas.get(row.ipas_id) ?? [];
+    list.push(row);
+    byIpas.set(row.ipas_id, list);
+  }
+  return byIpas;
+}
+
+/**
+ * When each IPAS's Landed Cost went final, from its history: the latest
+ * header change that set computation status to a final value. Orders whose
+ * history doesn't say fall back to their last update in orderStanding.
+ */
+async function readCostsCompleteAt(ids) {
+  const latest = new Map();
+  const { data, error } = await supabase
+    .from("ipas_events")
+    .select("ipas_id, detail, created_at")
+    .in("ipas_id", ids)
+    .eq("kind", "header_changed");
+  if (error) throw error;
+  for (const event of data ?? []) {
+    const to = event.detail?.fields?.computation_status?.to;
+    if (!isLandedCostFinal(to)) continue;
+    const previous = latest.get(event.ipas_id);
+    if (!previous || event.created_at > previous) latest.set(event.ipas_id, event.created_at);
+  }
+  return latest;
+}
+
+/** The latest payment date that carries proof of payment, or null. */
+function latestProofDate(payments) {
+  let latest = null;
+  for (const payment of payments) {
+    if (payment.proof_url && payment.paid_on && (!latest || payment.paid_on > latest)) latest = payment.paid_on;
+  }
+  return latest;
+}
+
+/** The latest Supplier Origin date and its name ({ label, on }), or null. */
+function latestSupplierOrigin(row) {
+  let best = null;
+  for (const { column, label } of IPAS_SUPPLIER_ORIGIN_FIELDS) {
+    const on = row[column];
+    if (on && (!best || on > best.on)) best = { label, on };
+  }
+  return best;
+}
+
+/** The PO's pre-tax total: its lines' subtotals, in the PO's own currency. */
+function poValue(lines = []) {
+  return lines.reduce((sum, line) => sum + (finiteNumber(line?.price_subtotal) ?? 0), 0);
+}
+
+/** How many of this IPAS's lines a Transmittal rated NA, and the slips that name it. */
+function transmittalSummary(ipasId, slips) {
+  let naCount = 0;
+  for (const slip of slips) {
+    for (const line of slip.lines ?? []) {
+      if (line.ipas_id !== ipasId) continue;
+      if (line.wh_rating === TRANSMITTAL_RATING.NA || line.tech_rating === TRANSMITTAL_RATING.NA) naCount += 1;
+    }
+  }
+  return {
+    count: slips.length,
+    naCount,
+    slips: slips.map((slip) => ({
+      id: slip.id,
+      number: slip.number,
+      state: slip.state,
+      stateLabel: transmittalStateLabel(slip.state),
+    })),
+  };
+}

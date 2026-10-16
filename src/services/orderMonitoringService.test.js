@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { orderMonitoringService } from "./orderMonitoringService"
 import { ORDER_AGEING_STEPS } from "@/constants/orderMonitoring"
+import { db } from "@/test/db/store"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
+import { makeEmployee, makeOpportunity } from "@/test/factories"
 
 /**
  * Order Monitoring ageing rules (#262, spec #261), against the fake database.
@@ -52,5 +55,427 @@ describe("orderMonitoringService ageing rules", () => {
 
   it("refuses a step that is not one of the ten", async () => {
     await expect(orderMonitoringService.setRule("not_a_step", 3)).rejects.toThrow()
+  })
+})
+
+/**
+ * What needs doing (#263, spec #261): every open IPAS across every SOR, with
+ * its one next thing, who owes it and how long it has waited. The fixtures are
+ * one per case in the spec. Days are counted in Asia/Manila; `today` is passed
+ * in so the counts don't depend on the wall clock.
+ *
+ * Timestamps: `at(day)` is 12:00 Manila on that October day.
+ */
+
+const TODAY = "2026-10-16"
+const at = (day, time = "04:00:00") => `2026-10-${String(day).padStart(2, "0")}T${time}Z`
+
+const LINE = (odooPoLineId, subtotal = 1000) => ({
+  line_id: odooPoLineId,
+  product_id: 5350,
+  name: "[10GPT00030] Greenspirit 2 Cutter SC",
+  quantity: 1,
+  unit: "Unit",
+  price_unit: subtotal,
+  price_subtotal: subtotal,
+  taxes: [],
+  analytic: [],
+})
+
+let seq = 0
+const rowsFor = (rows, ipas) => rows.find((row) => row.id === ipas.id)
+
+function seedOrder({
+  source = "local",
+  state = "open",
+  poState = "purchase",
+  currency = "Php",
+  company = "T3ck Trading",
+  lines,
+  computationStatus = "encoding",
+  createdAt = at(1),
+  arrivedInPh = null,
+  deliveredOn = null,
+  filedAt = null,
+  sorIds = [],
+} = {}) {
+  seq += 1
+  return db.seed("ipas", {
+    number: `TGIPAS_${900 + seq}`,
+    po_number: `P0${9000 + seq}`,
+    priority: "high",
+    source,
+    purpose: sorIds.length ? "project" : "supplies",
+    state,
+    filed_at: filedAt,
+    computation_status: computationStatus,
+    arrived_in_ph_on: arrivedInPh,
+    delivered_on: deliveredOn,
+    odoo_copy: {
+      po: { id: seq, name: `P0${9000 + seq}`, state: poState, company, currency },
+      supplier: { id: 553, name: "Scorpe Technologies" },
+      lines: lines ?? [LINE(10000 + seq)],
+      receipts: { status: "pending", done: 0, total: 1 },
+      bills: { count: 0, draft: 0 },
+    },
+    odoo_fetched_at: at(15),
+    created_at: createdAt,
+  })
+}
+
+/** A payment on the IPAS; with a proof it ticks With P.O.P. */
+function seedPayment(ipas, { proof = true, paidOn = "2026-10-01" } = {}) {
+  const method = db.seed("ipas_options", { list: "payment_method", label: "Bank transfer" })
+  return db.seed("ipas_payments", {
+    ipas_id: ipas.id,
+    kind: "full_payment",
+    paid_on: paidOn,
+    amount: 1000,
+    method_id: method.id,
+    proof_url: proof ? "https://example.com/proof.pdf" : null,
+  })
+}
+
+let slipSeq = 0
+/**
+ * A Transmittal. `stages` is `{ warehouse_checking: at(n), technical_inspection: at(n) }`
+ * (the completion time per stage). `lines` are `{ ipas, odooPoLineId, wh, tech }`.
+ */
+function seedSlip({
+  state = "warehouse_checking",
+  checkWarehouse = true,
+  checkTechnical = false,
+  preparedOn = "2026-10-01",
+  submittedAt = at(1),
+  closedAt = null,
+  stages = {},
+  lines = [],
+}) {
+  slipSeq += 1
+  const preparer = makeEmployee({ name: "Preparer" })
+  const slip = db.seed("transmittals", {
+    number: `TG03-${slipSeq}`,
+    prepared_on: preparedOn,
+    origin: "purchasing",
+    priority: "high",
+    entity: "T3ck Trading",
+    check_warehouse: checkWarehouse,
+    check_technical: checkTechnical,
+    state,
+    prepared_by: preparer.id,
+    submitted_at: submittedAt,
+    closed_at: closedAt,
+  })
+  lines.forEach((line, index) =>
+    db.seed("transmittal_lines", {
+      transmittal_id: slip.id,
+      position: index + 1,
+      kind: "po_line",
+      ipas_id: line.ipas.id,
+      odoo_po_line_id: line.odooPoLineId,
+      description: "[10GPT00030] Greenspirit 2 Cutter SC",
+      quantity: 1,
+      wh_rating: line.wh ?? null,
+      tech_rating: line.tech ?? null,
+    }),
+  )
+  for (const [stage, completedAt] of Object.entries(stages)) {
+    db.seed("transmittal_stages", { transmittal_id: slip.id, stage, completed_at: completedAt })
+  }
+  return slip
+}
+
+const odooCall = vi.fn(() => ({ data: null, error: null }))
+
+describe("orderMonitoringService: what needs doing", () => {
+  beforeEach(() => {
+    odooCall.mockClear()
+    stubEdgeFunction("odoo-po-ipas", odooCall)
+    stubRpc("ipas_sor_headers", ({ p_ipas_ids }) =>
+      db
+        .internal.rowsOf("ipas_sors")
+        .filter((link) => p_ipas_ids?.includes(link.ipas_id))
+        .map((link) => {
+          const sor = db.internal.rowsOf("sales_opportunities").find((o) => o.id === link.opportunity_id)
+          return {
+            ipas_id: link.ipas_id,
+            opportunity_id: sor.id,
+            sales_reference: sor.sales_reference,
+            project_title: sor.project_title,
+            current_stage_name: null,
+          }
+        }),
+    )
+  })
+
+  const listAll = (options = {}) => orderMonitoringService.list({ today: TODAY, ...options })
+
+  describe("grouping and the next thing", () => {
+    it("puts an Import six days past Arrived in PH, with no Import Clearance, past a three-day rule", async () => {
+      const ipas = seedOrder({ source: "import", arrivedInPh: "2026-10-10" })
+      seedPayment(ipas)
+      await orderMonitoringService.setRule("import_clearance", 3)
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.group).toBe("needs_chasing")
+      expect(row.next.step).toBe("import_clearance")
+      expect(row.next.owner).toBe("others")
+      expect(row.daysWaiting).toBe(6)
+      expect(row.late).toBe(true)
+      expect(row.daysPastRule).toBe(3)
+    })
+
+    it("leaves the same Import waiting on someone else, and never late, with no rule", async () => {
+      const ipas = seedOrder({ source: "import", arrivedInPh: "2026-10-10" })
+      seedPayment(ipas)
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.group).toBe("waiting_on_others")
+      expect(row.late).toBe(false)
+      expect(row.ruleDays).toBeNull()
+    })
+
+    it("sends a payment with no proof of payment to Finance as With P.O.P", async () => {
+      const ipas = seedOrder()
+      seedPayment(ipas, { proof: false })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.step).toBe("with_pop")
+      expect(row.next.owner).toBe("finance")
+      expect(row.group).toBe("waiting_on_us")
+    })
+
+    it("says a delivered order has no Transmittal raised, owed by Purchasing", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Delivered — no Transmittal raised")
+      expect(row.next.step).toBe("no_transmittal")
+      expect(row.next.owner).toBe("purchasing")
+      expect(row.daysWaiting).toBe(2)
+      expect(row.group).toBe("waiting_on_us")
+    })
+
+    it("names the Technical inspection a Transmittal waits on", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({
+        state: "technical_inspection",
+        checkWarehouse: true,
+        checkTechnical: true,
+        stages: { warehouse_checking: at(10) },
+        lines: [{ ipas, odooPoLineId: 10001 }],
+      })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Actual Checking — 1 awaiting Technical")
+      expect(row.next.owner).toBe("technical")
+      expect(row.next.step).toBe("check_open")
+      expect(row.group).toBe("waiting_on_us")
+    })
+
+    it("says a Transmittal awaiting Check by is owed by the Check by signers", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({
+        state: "awaiting_check",
+        checkWarehouse: true,
+        checkTechnical: true,
+        stages: { warehouse_checking: at(10), technical_inspection: at(11) },
+        lines: [{ ipas, odooPoLineId: 10001, wh: "gc", tech: "gc" }],
+      })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Transmittal awaiting Check by")
+      expect(row.next.owner).toBe("check_by")
+      expect(row.daysWaiting).toBe(5)
+    })
+
+    it("flags an NA rated at its slip's checking stage, owed by Purchasing", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({
+        state: "awaiting_check",
+        stages: { warehouse_checking: at(9) },
+        lines: [{ ipas, odooPoLineId: 10001, wh: "na" }],
+      })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("NA at checking — resolve with supplier")
+      expect(row.next.owner).toBe("purchasing")
+      expect(row.next.step).toBe("check_open")
+    })
+
+    it("stops flagging an NA once a later Transmittal rates the same PO line GC at its checking stage", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({
+        state: "closed",
+        closedAt: at(9),
+        preparedOn: "2026-10-05",
+        stages: { warehouse_checking: at(9) },
+        lines: [{ ipas, odooPoLineId: 10001, wh: "na" }],
+      })
+      seedSlip({
+        state: "closed",
+        closedAt: at(12),
+        preparedOn: "2026-10-12",
+        stages: { warehouse_checking: at(12) },
+        lines: [{ ipas, odooPoLineId: 10001, wh: "gc" }],
+      })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).not.toBe("NA at checking — resolve with supplier")
+      expect(row.next.step).toBe("received_in_odoo")
+    })
+
+    it("says costs complete and unfiled are ready to file, owed by the section 7 signers", async () => {
+      const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
+      db.seed("ipas_events", {
+        ipas_id: ipas.id,
+        kind: "header_changed",
+        detail: { fields: { computation_status: { from: "lc_gs_done", to: "lc_odoo_done" } } },
+        created_at: at(5),
+      })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Costs complete — ready to file")
+      expect(row.next.owner).toBe("signers")
+      expect(row.next.step).toBe("ready_to_file")
+      expect(row.daysWaiting).toBe(11)
+      expect(row.group).toBe("waiting_on_us")
+    })
+
+    it("shows an RFQ-only order as no Purchase Order yet, owed by Purchasing", async () => {
+      const ipas = seedOrder({ poState: "draft", createdAt: at(12) })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.step).toBe("purchase_order")
+      expect(row.next.owner).toBe("purchasing")
+      expect(row.next.label).toBe("Purchase Order — no PO confirmed yet")
+      expect(row.daysWaiting).toBe(4)
+    })
+
+    it("files a filed order into the Filed group", async () => {
+      const ipas = seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "checked" })
+
+      const row = rowsFor(await listAll({ group: "filed" }), ipas)
+
+      expect(row.group).toBe("filed")
+      expect(row.late).toBe(false)
+    })
+
+    it("leaves a cancelled order out of every list", async () => {
+      const ipas = seedOrder({ state: "cancelled" })
+
+      expect(rowsFor(await listAll(), ipas)).toBeUndefined()
+    })
+
+    it("counts days in Asia/Manila, so a time just after Manila midnight is the next day", async () => {
+      const ipas = seedOrder({ computationStatus: "checked" })
+      // 16:30 UTC on the 10th is 00:30 on the 11th in Manila.
+      seedSlip({
+        state: "awaiting_check",
+        checkWarehouse: true,
+        checkTechnical: true,
+        stages: { warehouse_checking: at(9), technical_inspection: "2026-10-10T16:30:00Z" },
+        lines: [{ ipas, odooPoLineId: 10001, wh: "gc", tech: "gc" }],
+      })
+      await orderMonitoringService.setRule("check_open", 1)
+
+      const row = rowsFor(await orderMonitoringService.list({ today: "2026-10-12" }), ipas)
+
+      expect(row.daysWaiting).toBe(1)
+      expect(row.late).toBe(false)
+    })
+  })
+
+  describe("rules", () => {
+    it("moves an order into Needs chasing when a rule is set, and back out when it is cleared", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+
+      expect(rowsFor(await listAll(), ipas).group).toBe("waiting_on_us")
+
+      await orderMonitoringService.setRule("no_transmittal", 1)
+      expect(rowsFor(await listAll(), ipas).group).toBe("needs_chasing")
+
+      await orderMonitoringService.setRule("no_transmittal", null)
+      expect(rowsFor(await listAll(), ipas).group).toBe("waiting_on_us")
+    })
+  })
+
+  describe("the list", () => {
+    it("filters to one group when asked", async () => {
+      const late = seedOrder({ source: "import", arrivedInPh: "2026-10-10" })
+      seedPayment(late)
+      const waiting = seedOrder({ poState: "draft" })
+      await orderMonitoringService.setRule("import_clearance", 3)
+
+      const rows = await listAll({ group: "needs_chasing" })
+
+      expect(rows.map((row) => row.id)).toEqual([late.id])
+      expect(rows.some((row) => row.id === waiting.id)).toBe(false)
+    })
+
+    it("carries the SOR, value, currency, age, buyer track and Transmittal summary", async () => {
+      const sor = makeOpportunity({ sales_reference: "S07920", project_title: "Capas LGU" })
+      const ipas = seedOrder({ sorIds: [sor.id], createdAt: at(1) })
+      db.seed("ipas_sors", { ipas_id: ipas.id, opportunity_id: sor.id })
+      seedSlip({
+        state: "warehouse_checking",
+        stages: {},
+        lines: [{ ipas, odooPoLineId: 10001, wh: "na" }],
+      })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.sors.map((s) => s.salesReference)).toEqual(["S07920"])
+      expect(row.currency).toBe("Php")
+      expect(row.value).toBe(1000)
+      expect(row.ageDays).toBe(15)
+      expect(row.buyerTrack.find((item) => item.key === "purchase_order").ticked).toBe(true)
+      expect(row.transmittals).toMatchObject({ count: 1, naCount: 1 })
+    })
+
+    it("reads the stored Odoo copy and never calls Odoo", async () => {
+      seedOrder({ poState: "draft" })
+
+      await listAll()
+      await orderMonitoringService.counts({ today: TODAY })
+
+      expect(odooCall).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("counts", () => {
+    it("tiles match the groups, and value open totals each currency, leaving out filed", async () => {
+      const late = seedOrder({ source: "import", arrivedInPh: "2026-10-10", lines: [LINE(20001, 1000)] })
+      seedPayment(late)
+      seedOrder({ poState: "draft", lines: [LINE(20002, 2000)] })
+      const importOther = seedOrder({ source: "import", arrivedInPh: "2026-10-14", currency: "USD", lines: [LINE(20003, 500)] })
+      seedPayment(importOther)
+      seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "checked", lines: [LINE(20004, 9999)] })
+      await orderMonitoringService.setRule("import_clearance", 3)
+
+      const counts = await orderMonitoringService.counts({ today: TODAY })
+
+      expect(counts.needsChasing).toBe(1)
+      expect(counts.waitingOnUs).toBe(1)
+      expect(counts.waitingOnOthers).toBe(1)
+      expect(counts.valueOpen.find((v) => v.currency === "Php").total).toBe(3000)
+      expect(counts.valueOpen.find((v) => v.currency === "USD").total).toBe(500)
+    })
   })
 })

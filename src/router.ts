@@ -32,6 +32,7 @@ export type Path =
   | `/purchasing/ipas`
   | `/purchasing/ipas/:id`
   | `/purchasing/ipas/settings`
+  | `/purchasing/order-monitoring`
   | `/purchasing/packing-lists`
   | `/purchasing/packing-lists/:id`
   | `/purchasing/transmittals`

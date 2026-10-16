@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-16",
+        "title": "Purchasing: Order Monitoring",
+        "version": "1.9.33",
+        "changes": [
+            "Purchasing has a new Order Monitoring page. It lists every open order across every SOR, so you no longer open each IPAS one by one.",
+            "Orders open on what needs doing: Needs chasing, Waiting on us, and Waiting on someone else. Each line says the one next thing and who owes it.",
+            "Filed orders are kept in their own group, closed until you open it.",
+            "The four totals at the top count the orders in each group, and the value still open in each currency.",
+            "Purchasing, Finance and Super Admins can open the page. Nothing is blocked and nobody is notified."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "Purchasing: ageing rules for orders",
         "version": "1.9.32",
         "changes": [

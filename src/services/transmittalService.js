@@ -154,6 +154,48 @@ export const transmittalService = {
     return data ?? [];
   },
 
+  /**
+   * The submitted, uncancelled Transmittals that carry a PO line of any of
+   * these IPAS (#263): the same rows as `forIpas`, read for the whole list in
+   * two queries. A slip is filed under every IPAS it names. Returns a Map of
+   * IPAS id to its slips (raw rows, for utils/ipasTransmittals.js and
+   * utils/orderStanding.js). The database returns only what the caller may read.
+   */
+  async forOrders(ipasIds) {
+    const byIpas = new Map();
+    const ids = [...new Set((ipasIds ?? []).filter(Boolean))];
+    if (ids.length === 0) return byIpas;
+
+    const { data: links, error: linkError } = await supabase
+      .from("transmittal_lines")
+      .select("transmittal_id")
+      .in("ipas_id", ids);
+    if (linkError) throw linkError;
+    const slipIds = [...new Set((links ?? []).map((row) => row.transmittal_id))];
+    if (slipIds.length === 0) return byIpas;
+
+    const { data, error } = await supabase
+      .from("transmittals")
+      .select(
+        "id, number, prepared_on, created_at, submitted_at, priority, state, check_warehouse, check_technical, item_location_id," +
+          " stages:transmittal_stages(stage, completed_at), lines:transmittal_lines(ipas_id, odoo_po_line_id, wh_rating, tech_rating)",
+      )
+      .in("id", slipIds)
+      .neq("state", "draft")
+      .neq("state", "cancelled");
+    if (error) throw error;
+
+    for (const slip of data ?? []) {
+      const named = new Set((slip.lines ?? []).map((line) => line.ipas_id).filter((id) => ids.includes(id)));
+      for (const id of named) {
+        const list = byIpas.get(id) ?? [];
+        list.push(slip);
+        byIpas.set(id, list);
+      }
+    }
+    return byIpas;
+  },
+
   /** One Transmittal, shaped for the page (see utils/transmittals.js). Null when it isn't visible. */
   async get(id) {
     const { data, error } = await supabase.from("transmittals").select(TRANSMITTAL_SELECT).eq("id", id).maybeSingle();
