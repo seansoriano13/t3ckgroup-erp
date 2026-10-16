@@ -8,8 +8,6 @@
  */
 import NestedShell from "./NestedShell";
 import PurchaseRequestCard from "../PurchaseRequestCard";
-import IpasSorSection from "../../../ipas/IpasSorSection";
-import HandoffsSorSection from "../../HandoffsSorSection";
 import { AttentionList, KeyFacts, LatestNote, SectionTitle, StatsBand, StatusLine, TeamAndQuote } from "./DigestSummary";
 import { MoneyBars, StageTimeChart } from "./SummaryCharts";
 import { useJourneyVisits } from "./StageStrip";
@@ -37,10 +35,7 @@ function Summary({ p, go, open, openNotes }) {
           </section>
           {/* #310: renders nothing for an SOR with no Purchase Request. */}
           <PurchaseRequestCard opportunityId={p.id} />
-          {/* #249: renders nothing when no IPAS names this SOR (or the viewer cannot read it). */}
-          <IpasSorSection opportunityId={p.id} />
-          {/* #257: renders nothing when no Transmittal or Packing List names this SOR. */}
-          <HandoffsSorSection opportunityId={p.id} />
+          {/* #267: the IPAS summaries (#249) and the Transmittals (#257) live on the PMS tab now. */}
         </div>
 
         <div className="space-y-6 lg:col-span-5">

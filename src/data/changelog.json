@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-16",
+        "title": "SOR: the PMS page and Tender Lines",
+        "version": "1.9.36",
+        "changes": [
+            "Every SOR you can see now has a PMS tab. The IPAS section and the Transmittals and Packing Lists section moved there from the Summary and This stage.",
+            "Once an SOR's Costing Matrix is opened, the PMS tab lists its Tender Lines: what the client asked for, with the ABC and our Final Offer. Sales can add them, type them, or pick them from the SOR's products.",
+            "A Tender Line you pick from a product keeps its own name, quantity and unit. If the SOR's product changes later, the line says what it now says. A Tender Line over its ABC is flagged.",
+            "Each person sees only their own figures. People called into a stage see the Tender Lines with no prices at all, and Purchasing never sees Final Offer."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "SOR: where its orders stand",
         "version": "1.9.35",
         "changes": [

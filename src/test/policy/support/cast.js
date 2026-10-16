@@ -15,6 +15,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { API_URL, ANON_KEY, serviceClient, sql } from "./stack.js"
 import { purgeFixtureIpas } from "./ipas.js"
+import { purgeFixtureCosting } from "./costing.js"
 import { purgeFixtureTransmittals } from "./transmittals.js"
 
 /** Shared by every cast member. Local stack only; nothing here is a secret. */
@@ -276,6 +277,8 @@ export async function teardownCast() {
     // that switches the triggers off (support/ipas.js), before their employees.
     // Transmittals and Packing Lists hold IPAS, SORs and employees, so they go first.
     await purgeFixtureTransmittals(`%@${FIXTURE_DOMAIN}`)
+    // Costing history is append-only too (support/costing.js).
+    await purgeFixtureCosting(`%@${FIXTURE_DOMAIN}`)
     await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)
 
     // Rows this tier creates reference employees, so they go first. Each entry

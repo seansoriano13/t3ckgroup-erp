@@ -19,14 +19,17 @@ import SorModalHeader from "../SorModalHeader";
 import NowTab from "../NowTab";
 import ItemsTab from "../ItemsTab";
 import JourneyTab from "../JourneyTab";
+import PmsTab from "../PmsTab";
+import { useCostingTier } from "../../../costing/useCostingMatrix";
 import NotesDrawer, { NotesButton } from "./NotesDrawer";
 import { blockedLabels, EditBody, showMoney, useWarmTabs } from "./shared";
 
-export function nestedViews(p) {
+export function nestedViews(p, { pms = false } = {}) {
   const blocked = blockedLabels(p.checklist).length;
   return [
     { key: "now", label: "This stage", badge: blocked || null, badgeTone: "amber" },
     { key: "items", label: "Products", badge: p.ctx.items.length || null },
+    pms && { key: "pms", label: "PMS" },
     p.canViewJourney && { key: "journey", label: "History" },
     showMoney(p) && { key: "commission", label: "Commission" },
   ].filter(Boolean);
@@ -62,7 +65,9 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   const [view, setView] = useState("summary");
   const [opened, setOpened] = useState(["summary"]);
   const [notesOpen, setNotesOpen] = useState(false);
-  const views = nestedViews(p);
+  // #267: PMS shows when the database gives the viewer a Costing Matrix read tier on this SOR.
+  const { data: costingTier } = useCostingTier(p.id);
+  const views = nestedViews(p, { pms: Boolean(costingTier) });
   const current = views.find((v) => v.key === view);
 
   const open = (key) => {
@@ -158,6 +163,11 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
             {opened.includes("items") && (
               <div className={view === "items" ? "h-full" : "hidden"}>
                 <ItemsTab ctx={ctx} hasOpened={p.hasOpened} />
+              </div>
+            )}
+            {view === "pms" && (
+              <div className="h-full overflow-y-auto">
+                <PmsTab opportunityId={p.id} />
               </div>
             )}
             {view === "journey" && (
