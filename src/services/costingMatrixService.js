@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { bandRefusalMessage } from "../constants/costing";
-import { componentTotals, costRowsTotals, costRowTotals, lineTotals, matrixTotals } from "../utils/costingMath";
+import { componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, matrixMarkup, matrixTotals } from "../utils/costingMath";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 
@@ -30,6 +30,13 @@ import { sorLineChange } from "../utils/requestedItem";
  * below the Tender Lines in `costing_cost_rows`, also a money table, and stay out of any
  * Tender Line's totals. A rule the database holds (an Inclusion only under a bundle, an
  * incharge on the Deal Team or with Purchasing access) surfaces as a `CostingRuleError`.
+ *
+ * Markup (#269) is a factor on a Component's Acquire. The default factor sits on the matrix's money
+ * row and a row may override it (`markup_factor`); both belong to the Final Acquire list and are read
+ * by the Closed Book alone. Markup Price per unit is computed in the database so the price tier gets the
+ * peso figure and never the factor. The named factors the business picks from are the presets
+ * (`costing_markup_presets`), read and edited by Super Admins and the Final Acquire list. Achieved markup
+ * is worked out here from what the tier received, which only the Closed Book has in full.
  */
 
 /**
@@ -178,6 +185,9 @@ export function shapeMatrix(read) {
   if (!read) return null;
   const tables = read.tables ?? {};
   const matrix = (tables.costing_matrices ?? [])[0] ?? null;
+  // The matrix's money row exists for the Closed Book only: no key means the viewer was not sent it.
+  const money = (tables.costing_matrix_money ?? [])[0] ?? null;
+  const defaultFactor = money?.default_factor ?? null;
   const prices = new Map((tables.costing_tender_line_prices ?? []).map((p) => [p.tender_line_id, p]));
 
   const costsByComponent = new Map((tables.costing_component_costs ?? []).map((c) => [c.component_id, c]));
@@ -192,11 +202,13 @@ export function shapeMatrix(read) {
     const components = (componentsByLine.get(line.id) ?? []).map((component, position) => {
       const { component_id: _owner, ...cost } = costsByComponent.get(component.id) ?? {};
       const row = { ...component, ...cost };
+      const markup = componentMarkup(row, defaultFactor);
       const inclusions = inclusionsByComponent.get(component.id) ?? [];
       return {
         ...row,
         number: `${number}.${position + 1}`,
         totals: componentTotals(row),
+        markup,
         inclusions,
         inclusionGroups: groupInclusions(inclusions),
         completeness: summariseCompleteness(inclusions),
@@ -207,11 +219,18 @@ export function shapeMatrix(read) {
       number,
       components,
       totals: lineTotals(merged, components),
+      markup: lineMarkup(merged, components, defaultFactor),
       sorChange: sorLineChange({ ...line, sorLine: line.sor_line_now }),
     };
   });
 
-  const costRows = (tables.costing_cost_rows ?? []).map((row, index) => ({ ...row, number: index + 1, totals: costRowTotals(row) }));
+  // A cost-only row with no factor of its own is x1.00, not the matrix default.
+  const costRows = (tables.costing_cost_rows ?? []).map((row, index) => ({
+    ...row,
+    number: index + 1,
+    totals: costRowTotals(row),
+    markup: componentMarkup(row, defaultFactor, { costOnly: true }),
+  }));
 
   return {
     tier: read.tier,
@@ -220,8 +239,12 @@ export function shapeMatrix(read) {
     matrix,
     tenderLines,
     totals: matrixTotals(tenderLines),
+    defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
+    defaultPresetId: money ? (money.default_preset_id ?? null) : undefined,
+    markup: matrixMarkup(tenderLines, costRows, defaultFactor),
     costRows,
     costRowsTotals: costRowsTotals(costRows),
+    costRowsMarkupTotal: markupPriceSum(costRows),
   };
 }
 
@@ -451,6 +474,88 @@ export const costingMatrixService = {
   },
 
   /**
+   * Sets the matrix's default markup factor: `{ factor }` typed (a number above zero; null clears it) or
+   * `{ presetId }` picked from a preset, which copies the preset's factor so a later edit of the preset
+   * does not move this matrix. Written by the Final Acquire list. A row that has its own factor keeps it.
+   */
+  async setDefaultMarkup(matrixId, { factor, presetId } = {}) {
+    let patch;
+    if (presetId) {
+      const { data, error } = await supabase.from("costing_markup_presets").select("id, factor, active").eq("id", presetId).maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("That markup preset could not be found.");
+      if (!data.active) throw new Error("That markup preset is switched off.");
+      patch = { default_factor: Number(data.factor), default_preset_id: data.id };
+    } else if (factor === null) {
+      patch = { default_factor: null, default_preset_id: null };
+    } else {
+      const n = Number(factor);
+      if (factor === undefined || factor === "" || !Number.isFinite(n) || n <= 0) throw new Error("The markup factor must be a number above zero.");
+      patch = { default_factor: n, default_preset_id: null };
+    }
+    await writeMoney("costing_matrix_money", matrixId, patch);
+  },
+
+  /** Does the caller edit the markup presets and the factor? Super Admins and the Final Acquire list. */
+  async canManageMarkup() {
+    const { data, error } = await supabase.rpc("costing_can_manage_markup");
+    if (error) throw error;
+    return Boolean(data);
+  },
+
+  /**
+   * The markup presets in their order: `{ id, label, factor, sort, active }`. A preset that is switched off
+   * stays on the list (`includeInactive`) so it can be switched on again. The database serves them to Super
+   * Admins and the Final Acquire list only; anyone else gets an empty list.
+   */
+  async listPresets({ includeInactive = true } = {}) {
+    let query = supabase.from("costing_markup_presets").select("*").order("sort", { ascending: true }).order("label", { ascending: true });
+    if (!includeInactive) query = query.eq("active", true);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  /**
+   * Adds a preset (no `id`) or changes one: `{ id, label, factor, sort, active }`. A preset is switched off with
+   * `active: false`, never deleted. Returns the saved row.
+   */
+  async savePreset({ id = null, label, factor, sort, active } = {}) {
+    const columns = {};
+    if (label !== undefined) {
+      const trimmed = String(label ?? "").trim();
+      if (!trimmed) throw new Error("A markup preset needs a name.");
+      columns.label = trimmed;
+    } else if (!id) {
+      throw new Error("A markup preset needs a name.");
+    }
+    if (factor !== undefined) {
+      const n = Number(factor);
+      if (factor === null || factor === "" || !Number.isFinite(n) || n <= 0) throw new Error("The markup factor must be a number above zero.");
+      columns.factor = n;
+    } else if (!id) {
+      throw new Error("A markup preset needs a factor.");
+    }
+    if (sort !== undefined) columns.sort = sort;
+    if (active !== undefined) columns.active = Boolean(active);
+
+    if (id) {
+      const { data, error } = await supabase.from("costing_markup_presets").update(columns).eq("id", id).select("*");
+      if (error) throw presetError(error);
+      if (!data?.length) throw new Error("That markup preset could not be changed.");
+      return data[0];
+    }
+    if (columns.sort === undefined) {
+      const { data: last, error: lastError } = await supabase.from("costing_markup_presets").select("sort").order("sort", { ascending: false }).limit(1);
+      if (lastError) throw lastError;
+      columns.sort = (last?.[0]?.sort ?? 0) + 1;
+    }
+    const { data, error } = await supabase.from("costing_markup_presets").insert(columns).select("*").single();
+    if (error) throw presetError(error);
+    return data;
+  },
+
+  /**
    * The matrix's history for the caller's tier, newest first: `{ id, at,
    * actor_id, kind, detail }`. Filters: `{ table, rowId, limit }`.
    */
@@ -465,6 +570,11 @@ export const costingMatrixService = {
     return data ?? [];
   },
 };
+
+/** A duplicate preset name in words; anything else as it came. */
+function presetError(error) {
+  return error?.code === "23505" ? new Error("There is already a markup preset with that name.") : error;
+}
 
 async function insertLine(matrixId, columns) {
   const { data: last, error: lastError } = await supabase

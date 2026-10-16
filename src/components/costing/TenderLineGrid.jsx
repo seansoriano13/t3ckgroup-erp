@@ -8,15 +8,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import StatusBadge from "../StatusBadge";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { opportunityService } from "../../services/opportunityService";
-import { COSTING_BAND, COMPONENT_BANDS, inAnyBand, tierReads } from "../../constants/costing";
+import { COSTING_BAND, COMPONENT_BANDS, inAnyBand, tierReads, tierReadsCost } from "../../constants/costing";
 import { formatPHP } from "../../constants/sor";
 import { costingKeys } from "./costingKeys";
 import { Cell, StockBadge } from "./GridCell";
-import { pesos } from "./gridFormat";
+import { factorLabel, percentLabel, pesos } from "./gridFormat";
 import { useCostingWrites, useInchargeOptions } from "./useCostingWrites";
 import ComponentBlock from "./ComponentBlock";
 import CostRowGrid from "./CostRowGrid";
 import InchargeSelects from "./InchargeSelects";
+import MarkupDefault from "./MarkupDefault";
 import SorLinePicker from "./SorLinePicker";
 
 /**
@@ -29,6 +30,10 @@ import SorLinePicker from "./SorLinePicker";
  * Each Tender Line carries its Components (#268), nested under it as 1.1, 1.2 with a bundle's
  * Inclusions beneath it, and the cost-only rows come after the lines. The matrix's Sales and
  * Purchasing incharge sit at the top.
+ *
+ * Markup (#269): beside Final Offer each line shows the Markup Price its Components suggest (Sales and the
+ * Closed Book); the Closed Book alone also sees the markup it actually achieves against the target, per line
+ * and overall, and sets the default factor. Nothing fills Final Offer.
  */
 export default function TenderLineGrid({ matrix, opportunityId, opportunity, actorId }) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -41,6 +46,8 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
   const showAbc = tierReads(matrix.tier, "abc_unit");
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showQuotation = tierReads(matrix.tier, "quotation_price_unit");
+  const showMarkupPrice = tierReadsCost(matrix.tier, "markup_price_unit");
+  const showAchieved = tierReadsCost(matrix.tier, "markup_factor");
   const lines = matrix.tenderLines;
 
   const { data: stockSnapshot } = useQuery({
@@ -65,7 +72,7 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
 
   const { totals } = matrix;
   const bundles = lines.flatMap((l) => l.components.filter((c) => c.is_bundle));
-  const columnCount = 4 + (showAbc ? 2 : 0) + (showOffer ? 2 : 0) + 1;
+  const columnCount = 4 + (showAbc ? 2 : 0) + (showOffer ? 2 : 0) + (showMarkupPrice ? 1 : 0) + (showAchieved ? 1 : 0) + 1;
   const canSalesIncharge = inAnyBand(matrix.bands, COMPONENT_BANDS.sales_incharge_id);
   const canPurchasingIncharge = inAnyBand(matrix.bands, COMPONENT_BANDS.purchasing_incharge_id);
 
@@ -83,6 +90,8 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
           await refresh();
         }}
       />
+
+      {showAchieved && <MarkupDefault matrix={matrix} writes={writes} />}
 
       {canWrite && (
         <div className="flex flex-wrap items-center gap-2">
@@ -121,6 +130,8 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                 {showAbc && <TableHead className="w-36 text-right">ABC total</TableHead>}
                 {showOffer && <TableHead className="w-40 text-right">Final Offer / unit</TableHead>}
                 {showOffer && <TableHead className="w-36 text-right">Final Offer total</TableHead>}
+                {showMarkupPrice && <TableHead className="w-40 text-right">Markup Price total</TableHead>}
+                {showAchieved && <TableHead className="w-44 text-right">Achieved / target</TableHead>}
                 <TableHead className="w-28">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -204,6 +215,32 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                       )}
                     </TableCell>
                   )}
+                  {showMarkupPrice && (
+                    <TableCell className="text-right align-top text-sm tabular-nums" data-testid="line-markup-price">
+                      {pesos(line.markup.priceTotal)}
+                    </TableCell>
+                  )}
+                  {showAchieved && (
+                    <TableCell className="text-right align-top text-sm tabular-nums" data-testid="line-achieved">
+                      {line.markup.achievedFactor === null ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <>
+                          <span className="block font-medium">
+                            {factorLabel(line.markup.achievedFactor)} {percentLabel(line.markup.achievedFactor)}
+                          </span>
+                          {line.markup.targetFactor !== null && (
+                            <span className="block text-xs text-muted-foreground">
+                              against {factorLabel(line.markup.targetFactor)} {percentLabel(line.markup.targetFactor)}
+                            </span>
+                          )}
+                          {line.markup.targetFactor !== null && line.markup.achievedFactor < line.markup.targetFactor && (
+                            <StatusBadge label="Under target" theme="amber" className="mt-1" title="The Final Offer is below what the markup suggests" />
+                          )}
+                        </>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell className="align-top">
                     {canWrite && (
                       <div className="flex items-center justify-end gap-0.5">
@@ -227,7 +264,7 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                 </TableRow>
                 </Fragment>
               ))}
-              {(showAbc || showOffer) && (
+              {(showAbc || showOffer || showMarkupPrice) && (
                 <TableRow data-testid="tender-totals">
                   <TableCell colSpan={4} className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Total
@@ -248,6 +285,8 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                       )}
                     </TableCell>
                   )}
+                  {showMarkupPrice && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(matrix.markup.priceTotal)}</TableCell>}
+                  {showAchieved && <TableCell />}
                   <TableCell />
                 </TableRow>
               )}

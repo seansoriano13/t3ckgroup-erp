@@ -17,7 +17,7 @@ import {
   tierReadsCost,
 } from "../../constants/costing";
 import { Cell, SelectCell, StockBadge } from "./GridCell";
-import { pesos } from "./gridFormat";
+import { factorLabel, percentLabel, pesos } from "./gridFormat";
 import BandHeader from "./BandHeader";
 import InchargeSelects from "./InchargeSelects";
 import InclusionList from "./InclusionList";
@@ -33,6 +33,10 @@ const SOURCE_OPTIONS = toOptions(COMPONENT_SOURCE_LABEL);
  * owner-band header says whose columns they are (SALES: Brand, Status, Odoo unit; PMS: P.O./RFQ
  * No., availability, Source, Acquire). A cell outside the viewer's band is read-only, and a cost
  * column the viewer's tier never received is not drawn at all. Every refusal shows beside its cell.
+ *
+ * Markup (#269): the Closed Book sees each Component's factor (×1.35 and +35%, its own override or the
+ * matrix default) and can type an override if it is on the Final Acquire list; Sales and the Closed Book
+ * see the Markup Price per unit and in total. Purchasing sees neither, so Acquire never meets a factor.
  */
 export default function ComponentBlock({ line, matrix, bundles, stockData, incharge, writes }) {
   const { busy, run, refresh } = writes;
@@ -45,10 +49,13 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
   const canCost = (column) => inAnyBand(bands, COMPONENT_COST_BANDS[column]);
   const showAcquire = tierReadsCost(tier, "acquire_unit");
   const showOdoo = tierReadsCost(tier, "odoo_unit");
+  const showFactor = tierReadsCost(tier, "markup_factor");
+  const showMarkupPrice = tierReadsCost(tier, "markup_price_unit");
 
   const salesColumns = 2 + (showOdoo ? 2 : 0);
   const pmsColumns = 3 + (showAcquire ? 2 : 0);
-  const columnCount = 4 + salesColumns + pmsColumns + 1;
+  const markupColumns = (showFactor ? 1 : 0) + (showMarkupPrice ? 2 : 0);
+  const columnCount = 4 + salesColumns + pmsColumns + markupColumns + 1;
 
   const saveComponent = async (component, fields) => {
     await costingMatrixService.updateComponent(component.id, fields);
@@ -99,6 +106,11 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                 <BandHeader band="pms" span={pmsColumns}>
                   PMS
                 </BandHeader>
+                {markupColumns > 0 && (
+                  <BandHeader band="mngt" span={markupColumns}>
+                    Markup
+                  </BandHeader>
+                )}
                 <TableHead />
               </TableRow>
               <TableRow>
@@ -115,6 +127,9 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                 <TableHead className="w-32">Source</TableHead>
                 {showAcquire && <TableHead className="w-36 text-right">Acquire / unit</TableHead>}
                 {showAcquire && <TableHead className="w-32 text-right">Acquire total</TableHead>}
+                {showFactor && <TableHead className="w-36 text-right">Markup factor</TableHead>}
+                {showMarkupPrice && <TableHead className="w-36 text-right">Markup Price / unit</TableHead>}
+                {showMarkupPrice && <TableHead className="w-36 text-right">Markup Price total</TableHead>}
                 <TableHead className="w-24">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -288,6 +303,30 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                         </TableCell>
                       )}
                       {showAcquire && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(component.totals.acquireTotal)}</TableCell>}
+                      {showFactor && (
+                        <TableCell className="align-top">
+                          <Cell
+                            label={label("Markup factor")}
+                            noun="Markup factor"
+                            value={component.markup_factor}
+                            numeric
+                            step="0.0001"
+                            align="right"
+                            placeholder={matrix.defaultFactor ? `${matrix.defaultFactor}` : "Default"}
+                            readOnly={!canCost("markup_factor")}
+                            onSave={(value) => saveComponent(component, { markupFactor: value })}
+                          />
+                          <p className="mt-1 text-right text-xs text-muted-foreground" data-testid="markup-factor-shown">
+                            {component.markup.factor === null
+                              ? "No factor yet"
+                              : `${factorLabel(component.markup.factor)} · ${percentLabel(component.markup.factor)}${
+                                  component.markup_factor === null || component.markup_factor === undefined ? " (default)" : ""
+                                }`}
+                          </p>
+                        </TableCell>
+                      )}
+                      {showMarkupPrice && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(component.markup.priceUnit)}</TableCell>}
+                      {showMarkupPrice && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(component.markup.priceTotal)}</TableCell>}
                       <TableCell className="align-top">
                         {canEditRows && (
                           <div className="flex justify-end">
@@ -314,7 +353,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                   </Fragment>
                 );
               })}
-              {(showAcquire || showOdoo) && (
+              {(showAcquire || showOdoo || showMarkupPrice) && (
                 <TableRow data-testid="component-totals">
                   <TableCell colSpan={6} className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Components total
@@ -333,6 +372,9 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                       )}
                     </TableCell>
                   )}
+                  {showFactor && <TableCell />}
+                  {showMarkupPrice && <TableCell />}
+                  {showMarkupPrice && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(line.markup.priceTotal)}</TableCell>}
                   <TableCell />
                 </TableRow>
               )}

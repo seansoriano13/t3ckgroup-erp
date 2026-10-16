@@ -54,6 +54,9 @@ export const COMPONENT_COST_TIERS = {
   odoo_unit: [COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
   final_acquire_unit: [COSTING_TIER.CLOSED_BOOK],
   markup_factor: [COSTING_TIER.CLOSED_BOOK],
+  // #269: Markup Price per unit is computed in the database (Acquire x factor) so the price tier gets
+  // the peso figure without the Acquire or the factor behind it. Purchasing does not read it.
+  markup_price_unit: [COSTING_TIER.PRICE, COSTING_TIER.CLOSED_BOOK],
 };
 
 /** Does this tier receive the named unit-cost column of a Component or cost-only row? */
@@ -87,6 +90,20 @@ export const COMPONENT_COST_BANDS = {
   odoo_unit: [SALES],
   final_acquire_unit: [MANAGEMENT],
   markup_factor: [MANAGEMENT],
+};
+
+/**
+ * The matrix's own money row (#269): the default markup factor and the preset it was taken from. The
+ * Closed Book reads them and the Final Acquire list writes them (policy 80 holds both to the registry).
+ */
+export const MATRIX_MONEY_TIERS = {
+  default_factor: [COSTING_TIER.CLOSED_BOOK],
+  default_preset_id: [COSTING_TIER.CLOSED_BOOK],
+};
+
+export const MATRIX_MONEY_BANDS = {
+  default_factor: [MANAGEMENT],
+  default_preset_id: [MANAGEMENT],
 };
 
 export const INCLUSION_BANDS = {
@@ -167,6 +184,8 @@ export const COSTING_COLUMN_LABEL = {
   "costing_cost_rows.odoo_unit": "Odoo unit cost",
   "costing_cost_rows.final_acquire_unit": "Final Acquire",
   "costing_cost_rows.markup_factor": "The markup factor",
+  "costing_matrix_money.default_factor": "The default markup factor",
+  "costing_matrix_money.default_preset_id": "The default markup factor",
 };
 
 /** Words for a refused write: "Final Offer is written by Sales (the Deal Team)." */

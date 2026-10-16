@@ -381,14 +381,18 @@ describe("costingMatrixService", () => {
       };
 
       expect(await keysAt(COSTING_TIER.CLOSED_BOOK)).toEqual([
-        ["acquire_unit", "final_acquire_unit", "markup_factor", "odoo_unit"],
-        ["acquire_unit", "final_acquire_unit", "markup_factor", "odoo_unit"],
+        ["acquire_unit", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit"],
+        ["acquire_unit", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit"],
       ]);
       expect(await keysAt(COSTING_TIER.COST)).toEqual([
         ["acquire_unit", "odoo_unit"],
         ["acquire_unit", "odoo_unit"],
       ]);
-      expect(await keysAt(COSTING_TIER.PRICE)).toEqual([["odoo_unit"], ["odoo_unit"]]);
+      // Sales reads the peso Markup Price and never the factor behind it (#316).
+      expect(await keysAt(COSTING_TIER.PRICE)).toEqual([
+        ["markup_price_unit", "odoo_unit"],
+        ["markup_price_unit", "odoo_unit"],
+      ]);
       expect(await keysAt(COSTING_TIER.PARTICIPANT)).toEqual([[], []]);
 
       // The participant still reads what each row is, and no figure is invented.
@@ -397,7 +401,7 @@ describe("costingMatrixService", () => {
       expect(read.tenderLines[0].components[0]).toMatchObject({ name: "Vehicle", is_bundle: true });
       expect(read.tenderLines[0].components[0].totals).toEqual({ acquireTotal: null, odooTotal: null });
       expect(read.costRows[0]).toMatchObject({ description: "Delivery Charge", totals: { acquireTotal: null, odooTotal: null } });
-      expect(JSON.stringify(read)).not.toMatch(/acquire_unit|odoo_unit|final_acquire_unit|markup_factor/);
+      expect(JSON.stringify(read)).not.toMatch(/acquire_unit|odoo_unit|final_acquire_unit|markup_factor|markup_price_unit|default_factor/);
     });
 
     it("throws a typed band error naming the cost column and who writes it", async () => {
@@ -452,4 +456,196 @@ describe("costingMatrixService", () => {
       expect(toRuleError(null)).toBeNull();
     });
   });
+
+  describe("Markup and achieved markup (#269)", () => {
+    let lineId
+    const CLOSED_BOOK = { tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management"] }
+
+    beforeEach(async () => {
+      lineId = await costingMatrixService.addTenderLine(matrix.id, { tenderSpecification: "Rescue vehicle", quantity: 1, abcUnit: 4000000, finalOfferUnit: 3300000 })
+      stubCostingMatrixRpcs(CLOSED_BOOK)
+    })
+
+    const read = () => costingMatrixService.get(opportunity.id)
+
+    it("picking a preset sets the default factor and remembers the preset", async () => {
+      const preset = await costingMatrixService.savePreset({ label: "Government", factor: 1.35 })
+      await costingMatrixService.setDefaultMarkup(matrix.id, { presetId: preset.id })
+
+      const matrixRead = await read()
+      expect(matrixRead.defaultFactor).toBe(1.35)
+      expect(matrixRead.defaultPresetId).toBe(preset.id)
+    })
+
+    it("typing a factor sets the default and forgets the preset; a bad factor is refused in words", async () => {
+      const preset = await costingMatrixService.savePreset({ label: "Government", factor: 1.35 })
+      await costingMatrixService.setDefaultMarkup(matrix.id, { presetId: preset.id })
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 2.4 })
+      expect(await read()).toMatchObject({ defaultFactor: 2.4, defaultPresetId: null })
+
+      await expect(costingMatrixService.setDefaultMarkup(matrix.id, { factor: 0 })).rejects.toThrow("The markup factor must be a number above zero.")
+      await expect(costingMatrixService.setDefaultMarkup(matrix.id, { factor: "abc" })).rejects.toThrow("The markup factor must be a number above zero.")
+      await expect(costingMatrixService.setDefaultMarkup(matrix.id, {})).rejects.toThrow("The markup factor must be a number above zero.")
+
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: null })
+      expect(await read()).toMatchObject({ defaultFactor: null, defaultPresetId: null })
+    })
+
+    it("copies the preset's factor, so editing the preset later does not move the matrix", async () => {
+      const preset = await costingMatrixService.savePreset({ label: "Government", factor: 1.35 })
+      await costingMatrixService.setDefaultMarkup(matrix.id, { presetId: preset.id })
+      await costingMatrixService.savePreset({ id: preset.id, factor: 1.5 })
+      expect((await read()).defaultFactor).toBe(1.35)
+    })
+
+    it("refuses a preset that is switched off or gone", async () => {
+      const preset = await costingMatrixService.savePreset({ label: "Old", factor: 3 })
+      await costingMatrixService.savePreset({ id: preset.id, active: false })
+      await expect(costingMatrixService.setDefaultMarkup(matrix.id, { presetId: preset.id })).rejects.toThrow("That markup preset is switched off.")
+      await expect(costingMatrixService.setDefaultMarkup(matrix.id, { presetId: "00000000-0000-4000-8000-000000000000" })).rejects.toThrow(
+        "That markup preset could not be found.",
+      )
+    })
+
+    it("a row override survives a default change, and a row with none follows the default", async () => {
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 })
+      const vehicle = await costingMatrixService.addComponent(lineId, { name: "Vehicle", isBundle: true, acquireUnit: 2160500, markupFactor: 1.47 })
+      const roll = await costingMatrixService.addComponent(lineId, { name: "Roll bar", quantity: 2, acquireUnit: 1000 })
+
+      let components = (await read()).tenderLines[0].components
+      expect(components.map((c) => [c.markup.factor, c.markup.priceUnit, c.markup.priceTotal])).toEqual([
+        [1.47, 3175935, 3175935],
+        [1.35, 1350, 2700],
+      ])
+
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 2 })
+      components = (await read()).tenderLines[0].components
+      expect(components.map((c) => c.id)).toEqual([vehicle, roll])
+      expect(components[0].markup_factor).toBe(1.47)
+      expect(components.map((c) => [c.markup.factor, c.markup.priceTotal])).toEqual([
+        [1.47, 3175935],
+        [2, 4000],
+      ])
+
+      // clearing an override sends the row back to the default
+      await costingMatrixService.updateComponent(vehicle, { markupFactor: null })
+      expect((await read()).tenderLines[0].components[0].markup.factor).toBe(2)
+    })
+
+    it("leaves Final Offer where Sales typed it when the factor changes", async () => {
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 2160500 })
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 })
+      expect((await read()).tenderLines[0].final_offer_unit).toBe(3300000)
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.9 })
+      const line = (await read()).tenderLines[0]
+      expect(line.final_offer_unit).toBe(3300000)
+      expect(line.totals.finalOfferTotal).toBe(3300000)
+      expect(db.rows("costing_tender_line_prices")[0].final_offer_unit).toBe(3300000)
+    })
+
+    it("sums each line's Markup Price and shows the achieved markup against the target, with cost-only rows only in the overall figure", async () => {
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 })
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", isBundle: true, acquireUnit: 2160500, markupFactor: 1.47 })
+      const delivery = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", acquireUnit: 100000 })
+
+      let matrixRead = await read()
+      expect(matrixRead.tenderLines[0].markup).toEqual({ priceTotal: 3175935, targetFactor: 1.47, achievedFactor: 1.5274 })
+      // a cost-only row starts at x1.00 and ignores the matrix default
+      expect(matrixRead.costRows[0].markup).toEqual({ factor: 1, priceUnit: 100000, priceTotal: 100000 })
+      expect(matrixRead.markup).toEqual({ priceTotal: 3175935, targetFactor: 1.4492, achievedFactor: 1.4599 })
+
+      // a cost-only row's own factor
+      await costingMatrixService.updateCostRow(delivery, { markupFactor: 1.2 })
+      matrixRead = await read()
+      expect(matrixRead.costRows[0].markup).toMatchObject({ factor: 1.2, priceUnit: 120000 })
+      expect(matrixRead.tenderLines[0].markup.achievedFactor).toBe(1.5274)
+    })
+
+    it("leaves Markup Price and achieved markup blank while an Acquire is blank, never zero", async () => {
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 })
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 2160500 })
+      await costingMatrixService.addComponent(lineId, { name: "Spare wheel", quantity: 1 })
+
+      const matrixRead = await read()
+      expect(matrixRead.tenderLines[0].components[1].markup).toEqual({ factor: 1.35, priceUnit: null, priceTotal: null })
+      expect(matrixRead.tenderLines[0].markup.priceTotal).toBeNull()
+      expect(matrixRead.tenderLines[0].markup.achievedFactor).toBeNull()
+      expect(matrixRead.markup.achievedFactor).toBeNull()
+    })
+
+    it("gives Sales the peso Markup Price and neither the factor, the Acquire nor an achieved markup", async () => {
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 })
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 2160500, markupFactor: 1.47, odooUnit: 2200000 })
+      await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", acquireUnit: 100000 })
+
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["sales"], manageMarkup: false })
+      const matrixRead = await read()
+      expect(matrixRead.tenderLines[0].components[0].markup_price_unit).toBe(3175935)
+      expect(matrixRead.tenderLines[0].markup.priceTotal).toBe(3175935)
+      expect(matrixRead.tenderLines[0].markup.achievedFactor).toBeNull()
+      expect(matrixRead.markup.achievedFactor).toBeNull()
+      expect(matrixRead.costRows[0].markup_price_unit).toBe(100000)
+      expect(matrixRead.defaultFactor).toBeUndefined()
+      expect(JSON.stringify(matrixRead)).not.toMatch(/markup_factor|default_factor|acquire_unit/)
+    })
+
+    it("gives Purchasing the Acquire and no Markup Price or factor", async () => {
+      await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 })
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 2160500, markupFactor: 1.47 })
+
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing"], manageMarkup: false })
+      const matrixRead = await read()
+      expect(matrixRead.tenderLines[0].components[0].acquire_unit).toBe(2160500)
+      expect(matrixRead.tenderLines[0].markup.priceTotal).toBeNull()
+      expect(JSON.stringify(matrixRead)).not.toMatch(/markup_factor|markup_price_unit|default_factor/)
+    })
+
+    it("refuses the default factor and a row override outside the management band, naming who writes it", async () => {
+      const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 100 })
+      const delivery = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge" })
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["sales", "purchasing"], manageMarkup: false })
+
+      const factor = await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 }).catch((e) => e)
+      expect(factor).toBeInstanceOf(CostingBandError)
+      expect(factor).toMatchObject({ table: "costing_matrix_money", column: "default_factor", bands: ["management"] })
+      expect(factor.message).toBe("The default markup factor is written by the Final Acquire list.")
+
+      const override = await costingMatrixService.updateComponent(component, { markupFactor: 2 }).catch((e) => e)
+      expect(override).toBeInstanceOf(CostingBandError)
+      expect(override.message).toBe("The markup factor is written by the Final Acquire list.")
+      const rowOverride = await costingMatrixService.updateCostRow(delivery, { markupFactor: 2 }).catch((e) => e)
+      expect(rowOverride).toBeInstanceOf(CostingBandError)
+    })
+
+    it("lists, adds, renames and switches off presets, keeping them in order and never deleting one", async () => {
+      const gov = await costingMatrixService.savePreset({ label: " Government ", factor: 1.35 })
+      const private_ = await costingMatrixService.savePreset({ label: "Private", factor: "2.4" })
+      expect(gov).toMatchObject({ label: "Government", factor: 1.35, active: true })
+      expect(private_.sort).toBeGreaterThan(gov.sort)
+
+      await costingMatrixService.savePreset({ id: gov.id, label: "Government bids", factor: 1.4 })
+      await costingMatrixService.savePreset({ id: private_.id, active: false })
+
+      expect((await costingMatrixService.listPresets()).map((p) => [p.label, p.factor, p.active])).toEqual([
+        ["Government bids", 1.4, true],
+        ["Private", 2.4, false],
+      ])
+      expect((await costingMatrixService.listPresets({ includeInactive: false })).map((p) => p.label)).toEqual(["Government bids"])
+      expect(costingMatrixService.deletePreset).toBeUndefined()
+    })
+
+    it("refuses a preset with no name or a factor that is not above zero, in words", async () => {
+      await expect(costingMatrixService.savePreset({ label: "  ", factor: 1.35 })).rejects.toThrow("A markup preset needs a name.")
+      await expect(costingMatrixService.savePreset({ factor: 1.35 })).rejects.toThrow("A markup preset needs a name.")
+      await expect(costingMatrixService.savePreset({ label: "Zero", factor: 0 })).rejects.toThrow("The markup factor must be a number above zero.")
+      await expect(costingMatrixService.savePreset({ label: "Blank", factor: "" })).rejects.toThrow("The markup factor must be a number above zero.")
+      await expect(costingMatrixService.savePreset({ label: "No factor" })).rejects.toThrow("A markup preset needs a factor.")
+    })
+
+    it("asks the database whether the caller edits the presets", async () => {
+      expect(await costingMatrixService.canManageMarkup()).toBe(true)
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing"] })
+      expect(await costingMatrixService.canManageMarkup()).toBe(false)
+    })
+  })
 });

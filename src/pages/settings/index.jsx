@@ -1,6 +1,7 @@
 import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router";
+import { useCanManageMarkup } from "../../components/costing/useCostingMatrix";
 import FAQModal from "./_components/FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
@@ -318,8 +319,9 @@ function SalesPanel() {
  */
 function PurchasingPanel() {
   const { user } = useAuth();
-  const { isSuperAdmin } = getPermissionContext(user);
-  return <PurchasingSettings isSuperAdmin={isSuperAdmin} />;
+  const { isSuperAdmin, hasPurchasingFlow } = getPermissionContext(user);
+  // Someone on the Final Acquire list with no Purchasing access opens this tab for the Costing Matrix alone.
+  return <PurchasingSettings isSuperAdmin={isSuperAdmin} costingOnly={!isSuperAdmin && !hasPurchasingFlow} />;
 }
 
 function EmployeeGroupsPanel() {
@@ -361,7 +363,7 @@ const TAB_DEFS = [
   { value: "approvals", label: "Approval Rules", isPermitted: (c) => c.isSuperAdmin, Panel: ApprovalRulesPanel },
   { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: HrPanel },
   { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
-  { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow, Panel: PurchasingPanel },
+  { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow || c.managesCostingMarkup, Panel: PurchasingPanel },
   { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin, Panel: EmployeeGroupsPanel },
   { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin, Panel: AnnouncementsPanel },
 ];
@@ -371,7 +373,13 @@ export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showFAQ, setShowFAQ] = useState(false);
 
-  const permissionContext = getPermissionContext(user);
+  // The Final Acquire list edits the Costing Matrix's markup presets, so it gets the Purchasing tab too (#269).
+  // Only asked of someone who would not see the tab anyway.
+  const basePermissions = getPermissionContext(user);
+  const { data: managesCostingMarkup = false } = useCanManageMarkup({
+    enabled: Boolean(user) && !basePermissions.isSuperAdmin && !basePermissions.hasPurchasingFlow,
+  });
+  const permissionContext = { ...basePermissions, managesCostingMarkup };
   const visibleTabs = TAB_DEFS.filter((t) => t.isPermitted(permissionContext));
   const requestedTab = searchParams.get("tab");
   const requested = visibleTabs.find((t) => t.value === requestedTab);
