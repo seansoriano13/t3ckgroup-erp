@@ -43,9 +43,9 @@ describe("AppLayout full-bleed routes", () => {
     expect(content.closest(".wrapper")).toBeNull();
   });
 
-  it("gives /purchasing/order-monitoring the full-bleed frame but keeps /purchasing/ipas centred", () => {
+  it("keeps /purchasing/order-monitoring a normal, centred page", () => {
     renderAt("/purchasing/order-monitoring");
-    expect(screen.getByText("Order Monitoring").closest(".wrapper")).toBeNull();
+    expect(screen.getByText("Order Monitoring").closest(".wrapper")).not.toBeNull();
   });
 
   it("keeps /purchasing/ipas a normal, centred page", () => {

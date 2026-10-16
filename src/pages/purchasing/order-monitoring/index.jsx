@@ -83,7 +83,6 @@ function OrderMonitoringList({ userId }) {
 
   return (
     <PageShell
-      frame="full"
       title="Order Monitoring"
       description="Every open order across every SOR, grouped by what needs doing next."
       tabs={ready ? <TabGroup tabs={VIEW_TABS} activeTab={view} onChange={changeView} /> : null}
