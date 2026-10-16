@@ -213,10 +213,10 @@ function TransmittalPage() {
   const summaries = summariesOf(t, gates);
   const numbers = numbersOf(t, gates);
 
-  // The next slip waiting on the viewer: the Check by queue's first other slip, once nothing is left for them here.
+  // The next slip waiting on the viewer: the Check by queue's first other slip they did not prepare, once nothing is left for them here.
   const nextSlip =
     onCheckByList && !rights.checkBy.first && !rights.checkBy.second
-      ? (checkByQueue.find((slip) => slip.id !== t.id) ?? null)
+      ? (checkByQueue.find((slip) => slip.id !== t.id && slip.preparedById !== user?.id) ?? null)
       : null;
 
   const restate = (section) => {
