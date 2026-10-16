@@ -1,6 +1,6 @@
 ---
-name: implement-spec-haiku
-description: "Implement a specification in code. Opus orchestrates, Haiku implementer subagents write the code."
+name: implement-spec-sonnet
+description: "Implement a specification in code. Opus orchestrates, Sonnet implementer subagents write the code."
 disable-model-invocation: true
 ---
 
@@ -22,7 +22,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 3. Create a branch, and a draft PR. The PR should be marked as 'closing' the spec issue and tickets.
 
-4. Use **implementer subagents** to implement each ticket. Spawn them with `subagent_type: implementer` (defined in `.claude/agents/implementer.md`, pinned to Haiku) - you are the orchestrator, they are the direct writers, so make each ticket pointer precise about what to change and where. Each implementer subagent should work in its own worktree, on its own branch.
+4. Use **implementer subagents** to implement each ticket. Spawn them with `subagent_type: implementer` (defined in `.claude/agents/implementer.md`, pinned to Sonnet) - you are the orchestrator, they are the direct writers, so make each ticket pointer precise about what to change and where. Each implementer subagent should work in its own worktree, on its own branch.
 
 5. Once an **implementer subagent** completes, merge its work to the PR branch with a **merger subagent**.
 

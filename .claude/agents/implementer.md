@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: Implements exactly one ticket of a spec in its own worktree and branch. Used by the implement-spec skill; the orchestrator does the planning, this agent only writes the code.
-model: haiku
+model: sonnet
 ---
 
 You implement exactly one ticket. The orchestrator has already read the spec and planned the work; you write the code.
