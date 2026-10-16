@@ -29,11 +29,16 @@ describe("flowStageKinds", () => {
     expect(Object.keys(ACTION_KIND_META).sort()).toEqual([
       "create_group_task",
       "create_individual_task",
+      "open_costing_matrix",
       "open_purchase_request",
     ])
   })
 
   describe("actionTitle", () => {
+    it("names an Open Costing Matrix, which carries no title", () => {
+      expect(actionTitle({ kind: "open_costing_matrix", config: {} })).toBe("Open Costing Matrix")
+    })
+
     it("names an Open Purchase Request, which carries no title", () => {
       expect(actionTitle({ kind: "open_purchase_request", config: {} })).toBe("Open Purchase Request")
     })
@@ -82,6 +87,19 @@ describe("flowStageKinds", () => {
       expect(
         actionSummary({ kind: "create_individual_task", config: { priority: "HIGH" } }),
       ).toBe("Individual Task · high priority")
+    })
+
+    it("names the Purchasing Incharge an Open Costing Matrix will set, or says there is none", () => {
+      const employees = [{ id: "p-1", name: "Raquel Dela Cruz" }]
+      expect(
+        actionSummary(
+          { kind: "open_costing_matrix", config: { purchasingIncharge: { type: "employee", id: "p-1" } } },
+          { employees },
+        ),
+      ).toBe("Open Costing Matrix · Purchasing: Raquel Dela Cruz")
+      expect(actionSummary({ kind: "open_costing_matrix", config: {} })).toBe(
+        "Open Costing Matrix · no Purchasing Incharge named",
+      )
     })
 
     // Issue #411 — a single-employee Decider was always rendered as "the

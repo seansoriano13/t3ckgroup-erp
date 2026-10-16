@@ -1,9 +1,10 @@
 import { screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StageActionManager from "./StageActionManager";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { FlowDataProvider } from "./FlowDataContext";
 import { makeFlowStage, makeStageAction, makeSuperAdmin } from "@/test/factories";
+import { db } from "@/test/db/store";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -76,5 +77,51 @@ describe("StageActionManager", () => {
     fireEvent.click(title.closest("button"));
 
     expect(screen.getByTestId("stage-action-detail")).toBeInTheDocument();
+  });
+  describe("Open Costing Matrix", () => {
+    it("is offered in the Add Action menu and saves its config with the default window", async () => {
+      const user = setupUser();
+      const stage = makeFlowStage();
+
+      renderWithProviders(
+        <FlowDataProvider>
+          <StageActionManager stageId={stage.id} />
+        </FlowDataProvider>,
+      );
+
+      await screen.findByText(/Nothing runs here/i);
+      await user.click(screen.getByRole("button", { name: /Add Action/i }));
+      await user.click(await screen.findByRole("button", { name: /Open Costing Matrix/i }));
+      await user.click(await screen.findByRole("button", { name: "Save" }));
+
+      const saved = await vi.waitFor(() => {
+        const rows = db.internal.rowsOf("flow_stage_actions").filter((a) => a.stage_id === stage.id);
+        expect(rows).toHaveLength(1);
+        return rows[0];
+      });
+      expect(saved.kind).toBe("open_costing_matrix");
+      expect(saved.config.access).toBeTruthy();
+      expect(saved.config.extras).toEqual([]);
+    });
+
+    it("lists a saved one by its label and opens its modal to edit", async () => {
+      const user = setupUser();
+      const stage = makeFlowStage();
+      makeStageAction({
+        stage_id: stage.id,
+        kind: "open_costing_matrix",
+        config: { purchasingIncharge: { type: "employee", id: "nobody" } },
+      });
+
+      renderWithProviders(
+        <FlowDataProvider>
+          <StageActionManager stageId={stage.id} />
+        </FlowDataProvider>,
+      );
+
+      expect(await screen.findByText("Open Costing Matrix")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /Edit Open Costing Matrix/i }));
+      expect(await screen.findByRole("combobox", { name: "Sales Incharge" })).toBeInTheDocument();
+    });
   });
 });

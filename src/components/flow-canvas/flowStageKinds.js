@@ -17,6 +17,7 @@ import {
   ListChecks,
   ShoppingCart,
   PackageCheck,
+  Calculator,
   Database,
   Type,
   Hash,
@@ -96,6 +97,13 @@ export const ACTION_KIND_META = {
     label: "Open Purchase Request",
     icon: ShoppingCart,
     hint: "Starts buying for the SOR. One request per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
+  },
+  open_costing_matrix: {
+    label: "Open Costing Matrix",
+    icon: Calculator,
+    hint: "Opens the SOR's Costing Matrix. One per SOR.",
     // Saves no title of its own, so it is named by its label.
     titled: false,
   },
@@ -186,6 +194,11 @@ export function actionSummary(action, { employees = [] } = {}) {
   if (action?.kind === "create_group_task") {
     const count = config.members?.length ?? 0
     summary = count > 0 ? `${label} · ${count} assignee${count === 1 ? "" : "s"}` : label
+  } else if (action?.kind === "open_costing_matrix") {
+    const buyer = config.purchasingIncharge?.id
+      ? employees.find((e) => e.id === config.purchasingIncharge.id)?.name ?? "someone no longer listed"
+      : null
+    summary = buyer ? `${label} · Purchasing: ${buyer}` : `${label} · no Purchasing Incharge named`
   } else if (config.priority) {
     summary = `${label} · ${String(config.priority).toLowerCase()} priority`
   }

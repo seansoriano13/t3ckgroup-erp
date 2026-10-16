@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-16",
+        "title": "Flow Canvas: Open Costing Matrix",
+        "version": "1.9.43",
+        "changes": [
+            "A Stage Action called Open Costing Matrix can now be added to any Stage. When a deal arrives there, it opens the SOR's Costing Matrix and names the Sales Incharge and the Purchasing Incharge you chose.",
+            "It can also set the markup preset as the matrix default and call in extra people, who see the matrix without any money for the window you set. It can wait for a Decider, like Open Purchase Request.",
+            "If you do not name a Purchasing Incharge, the people you picked under Who assigns it are told that the matrix opened without one.",
+            "A second Open Costing Matrix on the same deal opens nothing new. It only fills what is still empty and adds the people who are missing.",
+            "A Purchase Request can now take the matrix's Purchasing Incharge as its Buyer."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "Costing Matrix: the Bid Decision",
         "version": "1.9.42",
         "changes": [

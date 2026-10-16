@@ -46,6 +46,15 @@ describe("PendingActionDecisions", () => {
     expect(await screen.findByText(/An individual task assigned to Assignee Andy/)).toBeInTheDocument()
   })
 
+  it("says a Costing Matrix for this SOR when the waiting action opens one", async () => {
+    opportunityService.getPendingActionsForActor.mockResolvedValue([
+      { runId: "run-1", stageName: "SO Evaluation", title: "S00462 · Rope rescue", target: { kind: "costing_matrix" } },
+    ])
+    renderWithProviders(<PendingActionDecisions opportunity={OPPORTUNITY} actorId="emp-1" />)
+
+    expect(await screen.findByText(/A Costing Matrix for this SOR/)).toBeInTheDocument()
+  })
+
   it("falls back to 'assigned to you' when no assignee is configured", async () => {
     opportunityService.getPendingActionsForActor.mockResolvedValue([
       {

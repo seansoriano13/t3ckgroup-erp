@@ -1219,7 +1219,8 @@ create table if not exists public."sor_action_runs" (
   "closed_off_reason" text,
   "carried_from_visit_id" uuid,
   "held_at" timestamp with time zone,
-  "purchase_request_id" uuid
+  "purchase_request_id" uuid,
+  "costing_matrix_id" uuid
 );
 
 create table if not exists public."sor_canvass_offers" (
@@ -1869,7 +1870,7 @@ alter table flow_form_fields add constraint "flow_form_fields_custom_shape_chk" 
 alter table flow_form_fields add constraint "flow_form_fields_default_key_chk" CHECK ((((source = 'default'::text) AND (default_key IS NOT NULL)) OR ((source = 'custom'::text) AND (default_key IS NULL))));
 alter table flow_form_fields add constraint "flow_form_fields_source_chk" CHECK ((source = ANY (ARRAY['default'::text, 'custom'::text])));
 alter table flow_form_fields add constraint "flow_form_fields_type_chk" CHECK (((field_type IS NULL) OR (field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text]))));
-alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text, 'open_purchase_request'::text])));
+alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text, 'open_purchase_request'::text, 'open_costing_matrix'::text])));
 alter table flow_stage_fields add constraint "flow_stage_fields_label_not_blank" CHECK ((btrim(label) <> ''::text));
 alter table flow_stage_fields add constraint "flow_stage_fields_sor_field_chk" CHECK ((((source = 'sor'::text) AND (sor_field IS NOT NULL)) OR ((source = 'custom'::text) AND (sor_field IS NULL))));
 alter table flow_stage_fields add constraint "flow_stage_fields_source_chk" CHECK ((source = ANY (ARRAY['sor'::text, 'custom'::text])));
@@ -1971,7 +1972,7 @@ alter table sor_inclusions add constraint "sor_inclusions_sourcing_check" CHECK 
 alter table sor_procurement_requests add constraint "sor_procurement_requests_outcome_check" CHECK ((outcome = ANY (ARRAY['IN_PROGRESS'::text, 'PURCHASED'::text, 'DELIVERED'::text, 'ON_ORDER'::text, 'ALREADY_EXISTS'::text, 'SUBSTITUTED'::text, 'UNAVAILABLE'::text])));
 alter table sor_procurement_requests add constraint "sor_procurement_requests_verification_check" CHECK ((verification = ANY (ARRAY['UNVERIFIED'::text, 'VERIFIED'::text, 'PENDING_VERIFICATION'::text, 'NOT_FOUND'::text])));
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_origin_check" CHECK ((origin = ANY (ARRAY['ODOO_ORIGIN'::text, 'MANUAL'::text])));
-alter table sor_stage_participants add constraint "sor_stage_participants_source_chk" CHECK ((source = ANY (ARRAY['action'::text, 'assignment'::text, 'purchase_request'::text])));
+alter table sor_stage_participants add constraint "sor_stage_participants_source_chk" CHECK ((source = ANY (ARRAY['action'::text, 'assignment'::text, 'purchase_request'::text, 'costing_matrix'::text])));
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
@@ -2182,6 +2183,7 @@ alter table sil_leaves add constraint "sil_leaves_hr_processed_by_fkey" FOREIGN 
 alter table sil_leaves add constraint "sil_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 alter table sor_action_runs add constraint "sor_action_runs_action_id_fkey" FOREIGN KEY (action_id) REFERENCES flow_stage_actions(id) ON DELETE CASCADE;
 alter table sor_action_runs add constraint "sor_action_runs_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
+alter table sor_action_runs add constraint "sor_action_runs_costing_matrix_id_fkey" FOREIGN KEY (costing_matrix_id) REFERENCES costing_matrices(id) ON DELETE SET NULL;
 alter table sor_action_runs add constraint "sor_action_runs_decided_by_fkey" FOREIGN KEY (decided_by) REFERENCES employees(id);
 alter table sor_action_runs add constraint "sor_action_runs_group_task_id_fkey" FOREIGN KEY (group_task_id) REFERENCES committee_tasks(id) ON DELETE SET NULL;
 alter table sor_action_runs add constraint "sor_action_runs_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
@@ -5498,6 +5500,39 @@ AS $function$
   end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._sor_window_over(p_opportunity_id uuid, p_visit_id uuid, p_until text, p_until_stage_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when p_visit_id is null then true
+    when exists (
+      select 1 from sales_opportunities o
+      join flow_stages s on s.id = o.flow_stage_id
+      where o.id = p_opportunity_id and s.is_terminal
+    ) then true
+    when p_until = 'stage_left' then exists (
+      select 1 from sor_stage_visits v
+      where v.id = p_visit_id and v.left_at is not null
+    )
+    when p_until = 'stage_entered' then exists (
+      select 1 from sor_stage_visits opened
+      join sor_stage_visits v on v.opportunity_id = opened.opportunity_id and v.sequence > opened.sequence
+      where opened.id = p_visit_id and v.flow_stage_id = p_until_stage_id
+    )
+    when p_until = 'later_stage_left' then exists (
+      select 1 from sor_stage_visits opened
+      join sor_stage_visits v on v.opportunity_id = opened.opportunity_id and v.sequence >= opened.sequence
+      where opened.id = p_visit_id
+        and v.flow_stage_id = p_until_stage_id
+        and v.left_at is not null
+    )
+    else false
+  end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._transmittal_clean_header(p_fields jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -7005,9 +7040,17 @@ CREATE OR REPLACE FUNCTION public.costing_open_matrix(p_opportunity_id uuid, p_c
  SET search_path TO 'public'
 AS $function$
 declare
-  v_id    uuid;
-  v_sales uuid := nullif(p_config ->> 'sales_incharge_id', '')::uuid;
-  v_buyer uuid := nullif(p_config ->> 'purchasing_incharge_id', '')::uuid;
+  v_id          uuid;
+  v_created     boolean;
+  v_sales       uuid := nullif(p_config ->> 'sales_incharge_id', '')::uuid;
+  v_buyer       uuid := nullif(p_config ->> 'purchasing_incharge_id', '')::uuid;
+  v_preset      public.costing_markup_presets;
+  v_visit       uuid := nullif(p_config ->> 'opened_visit_id', '')::uuid;
+  v_until       text := coalesce(nullif(p_config ->> 'access_until', ''), 'stage_left');
+  v_until_stage uuid := nullif(p_config ->> 'access_until_stage_id', '')::uuid;
+  v_actor       uuid := public.get_employee_id();
+  v_label       text;
+  v_emp         uuid;
 begin
   if not exists (select 1 from public.sales_opportunities where id = p_opportunity_id) then
     raise exception 'costing_open_matrix: SOR not found' using errcode = 'P0002';
@@ -7019,8 +7062,9 @@ begin
   values (p_opportunity_id, v_sales, v_buyer)
   on conflict (opportunity_id) do nothing
   returning id into v_id;
+  v_created := v_id is not null;
 
-  if v_id is null then
+  if not v_created then
     select id into v_id from public.costing_matrices where opportunity_id = p_opportunity_id;
     update public.costing_matrices
        set sales_incharge_id = coalesce(sales_incharge_id, v_sales),
@@ -7031,6 +7075,69 @@ begin
   end if;
 
   insert into public.costing_matrix_money (matrix_id) values (v_id) on conflict (matrix_id) do nothing;
+
+  -- The markup default: a typed factor, or one already chosen, stays.
+  if nullif(p_config ->> 'default_preset_id', '') is not null then
+    select * into v_preset from public.costing_markup_presets
+     where id = (p_config ->> 'default_preset_id')::uuid and active;
+    if found then
+      update public.costing_matrix_money
+         set default_preset_id = v_preset.id, default_factor = v_preset.factor
+       where matrix_id = v_id and default_factor is null;
+    end if;
+  end if;
+
+  select nullif(concat_ws(' · ', o.sales_reference, o.project_title), '') into v_label
+    from public.sales_opportunities o where o.id = p_opportunity_id;
+
+  -- Members: a window each, for whoever has no open one on this matrix.
+  if v_visit is not null
+     and jsonb_typeof(p_config -> 'member_ids') = 'array'
+     and not public._sor_window_over(p_opportunity_id, v_visit, v_until, v_until_stage) then
+    for v_emp in
+      select distinct e.id
+        from jsonb_array_elements_text(p_config -> 'member_ids') m
+        join public.employees e on e.id = m::uuid and not coalesce(e.is_deleted, false)
+    loop
+      if not exists (
+        select 1 from public.sor_stage_participants p
+         where p.opportunity_id = p_opportunity_id
+           and p.employee_id = v_emp
+           and p.source = 'costing_matrix'
+           and p.source_id = v_id
+           and p.closed_at is null
+      ) then
+        insert into public.sor_stage_participants
+          (opportunity_id, employee_id, source, source_id, opened_visit_id, until_rule, until_stage_id)
+        values
+          (p_opportunity_id, v_emp, 'costing_matrix', v_id, v_visit, v_until,
+           case when v_until in ('stage_entered', 'later_stage_left') then v_until_stage end);
+
+        if v_emp is distinct from v_actor then
+          insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+          values (v_emp, v_actor, 'SOR_STAGE_PARTICIPANT_ADDED', 'Added to a deal',
+                  format('You were added to %s to see its Costing Matrix.', coalesce(v_label, 'a deal')),
+                  p_opportunity_id::text);
+        end if;
+      end if;
+    end loop;
+  end if;
+
+  -- Opened with nobody to buy: tell whoever assigns one.
+  if v_created
+     and jsonb_typeof(p_config -> 'assigner_ids') = 'array'
+     and exists (select 1 from public.costing_matrices where id = v_id and purchasing_incharge_id is null) then
+    for v_emp in
+      select distinct e.id
+        from jsonb_array_elements_text(p_config -> 'assigner_ids') a
+        join public.employees e on e.id = a::uuid and not coalesce(e.is_deleted, false)
+    loop
+      insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+      values (v_emp, v_actor, 'OPPORTUNITY_COSTING_INCHARGE_NEEDED', 'Costing Matrix needs a Purchasing Incharge',
+              format('The Costing Matrix for %s opened with no Purchasing Incharge. Please name one.', coalesce(v_label, 'a deal')),
+              p_opportunity_id::text);
+    end loop;
+  end if;
 
   perform set_config('costing.bypass', 'off', true);
   return v_id;
@@ -14166,6 +14273,130 @@ AS $function$
     and public.sor_access_level(o.id) <> 'none'
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_open_costing_matrix(p_run_id uuid, p_config jsonb DEFAULT '{}'::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_run public.sor_action_runs;
+  v_action jsonb;
+  v_config jsonb;
+  v_opp public.sales_opportunities;
+  v_sel jsonb;
+  v_sales uuid;
+  v_buyer uuid;
+  v_visit uuid;
+  v_until text;
+  v_until_stage uuid;
+  v_members jsonb;
+  v_assigners jsonb;
+  v_matrix uuid;
+begin
+  if v_actor is null then
+    raise exception 'sor_open_costing_matrix: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_run from public.sor_action_runs where id = p_run_id for update;
+  if v_run.id is null then
+    raise exception 'sor_open_costing_matrix: run % not found', p_run_id;
+  end if;
+  if v_run.costing_matrix_id is not null then
+    raise exception 'sor_open_costing_matrix: run % already opened its matrix', p_run_id using errcode = '42501';
+  end if;
+  -- `created` with a decision is a Decider's Create, still to be built.
+  if not (v_run.outcome = 'pending' or (v_run.outcome = 'created' and v_run.decided_by is not null)) then
+    raise exception 'sor_open_costing_matrix: run % is not pending', p_run_id using errcode = '42501';
+  end if;
+
+  if not (
+    public.sor_can_edit_opportunity(v_run.opportunity_id)
+    or public.sor_access_level(v_run.opportunity_id) = 'full'
+  ) then
+    raise exception 'sor_open_costing_matrix: actor % lacks full access to opportunity %', v_actor, v_run.opportunity_id
+      using errcode = '42501';
+  end if;
+
+  v_action := public._sor_action_run_saved_action(p_run_id);
+  if v_action->>'kind' is distinct from 'open_costing_matrix' then
+    raise exception 'sor_open_costing_matrix: run % is not an Open Costing Matrix action', p_run_id
+      using errcode = '22023';
+  end if;
+  v_config := coalesce(v_action->'config', '{}'::jsonb);
+
+  select * into v_opp from public.sales_opportunities where id = v_run.opportunity_id;
+
+  -- Sales Incharge: the configured role or person; the Deal Owner role by default.
+  v_sel := coalesce(v_config->'salesIncharge', jsonb_build_object('type', 'role', 'role', 'deal_owner'));
+  v_sales := case v_sel->>'type'
+    when 'employee' then nullif(v_sel->>'id', '')::uuid
+    when 'role' then case v_sel->>'role'
+      when 'deal_owner' then v_opp.deal_owner_id
+      when 'closing_sales' then v_opp.closing_sales_id
+      when 'support_sales' then coalesce(v_opp.support_sales_1_id, v_opp.support_sales_2_id)
+      when 'sales_director' then v_opp.sales_director_id
+      when 'registrar' then v_opp.registered_by
+    end
+  end;
+  select e.id into v_sales from public.employees e where e.id = v_sales and not coalesce(e.is_deleted, false);
+
+  if v_config->'purchasingIncharge'->>'type' = 'employee' then
+    select e.id into v_buyer from public.employees e
+     where e.id = nullif(v_config->'purchasingIncharge'->>'id', '')::uuid and not coalesce(e.is_deleted, false);
+  end if;
+
+  v_visit := coalesce(
+    v_run.stage_visit_id,
+    (select v.id from public.sor_stage_visits v
+      where v.opportunity_id = v_run.opportunity_id and v.left_at is null and v.undone_at is null
+      order by v.sequence desc limit 1)
+  );
+  v_until := coalesce(nullif(v_config->'access'->>'until', ''), 'stage_left');
+  if v_until in ('stage_entered', 'later_stage_left') then
+    v_until_stage := nullif(v_config->'access'->>'stageId', '')::uuid;
+  end if;
+
+  select coalesce(jsonb_agg(e.id), '[]'::jsonb) into v_members
+  from public.employees e
+  where not coalesce(e.is_deleted, false)
+    and exists (
+      select 1 from jsonb_array_elements(
+        case when jsonb_typeof(v_config->'extras') = 'array' then v_config->'extras' else '[]'::jsonb end
+      ) s
+      where public.sor_selector_covers(s, v_opp, e.id)
+    );
+
+  select coalesce(jsonb_agg(e.id), '[]'::jsonb) into v_assigners
+  from public.employees e
+  where not coalesce(e.is_deleted, false)
+    and exists (
+      select 1 from jsonb_array_elements(
+        case when jsonb_typeof(v_config->'assigners') = 'array' then v_config->'assigners' else '[]'::jsonb end
+      ) s
+      where public.sor_selector_covers(s, v_opp, e.id)
+    );
+
+  v_matrix := public.costing_open_matrix(v_run.opportunity_id, jsonb_build_object(
+    'sales_incharge_id', v_sales,
+    'purchasing_incharge_id', v_buyer,
+    'default_preset_id', nullif(v_config->>'markupPresetId', ''),
+    'member_ids', v_members,
+    'opened_visit_id', v_visit,
+    'access_until', v_until,
+    'access_until_stage_id', v_until_stage,
+    'assigner_ids', v_assigners
+  ));
+
+  update public.sor_action_runs
+  set outcome = 'created', costing_matrix_id = v_matrix
+  where id = p_run_id;
+
+  return v_matrix;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_open_purchase_request(p_run_id uuid, p_config jsonb DEFAULT '{}'::jsonb)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -14219,10 +14450,14 @@ begin
   end if;
   v_config := coalesce(v_action->'config', '{}'::jsonb);
 
-  -- TODO(#266): the Costing Matrix's Purchasing Incharge does not exist yet,
-  -- so that Buyer option resolves to nobody and the request waits for a Take.
+  -- #462: the Costing Matrix's Purchasing Incharge, if the SOR has a matrix that
+  -- names one; otherwise nobody and the request waits for a Take.
   if v_config->'buyer'->>'type' = 'employee' then
     v_buyer := nullif(v_config->'buyer'->>'id', '')::uuid;
+  elsif v_config->'buyer'->>'type' = 'costing_incharge' then
+    select m.purchasing_incharge_id into v_buyer
+    from public.costing_matrices m
+    where m.opportunity_id = v_run.opportunity_id;
   end if;
 
   v_until := coalesce(nullif(v_config->'access'->>'until', ''), 'stage_left');
@@ -15326,6 +15561,12 @@ begin
           'action_id', v_action->>'action_id',
           'kind', 'open_purchase_request',
           'request_id', public.sor_open_purchase_request(v_run.id, coalesce(v_action->'purchase_request', '{}'::jsonb))
+        );
+      elsif v_action->>'kind' = 'open_costing_matrix' then
+        v_created := v_created || jsonb_build_object(
+          'action_id', v_action->>'action_id',
+          'kind', 'open_costing_matrix',
+          'matrix_id', public.sor_open_costing_matrix(v_run.id, '{}'::jsonb)
         );
       else
         raise exception 'sor_run_stage_actions: no builder for kind %', v_action->>'kind';
