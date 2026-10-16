@@ -77,14 +77,19 @@
   header.page .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-soft); background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 3px 8px; font-weight: 600; }
   header.page p { margin: 0; color: var(--ink-soft); font-size: 13.5px; max-width: 74ch; line-height: 1.5; }
 
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-  .tile { background: var(--panel); border: 1px solid var(--edge-soft); border-radius: var(--radius); padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.03); display: flex; flex-direction: column; gap: 6px; transition: transform .15s ease, box-shadow .15s ease; }
-  .tile:hover { box-shadow: 0 4px 12px rgba(0,0,0,.06); }
-  .tile .k { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; }
-  .tile .v { font-family: var(--mono); font-size: 26px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); line-height: 1.1; margin-top: 2px; }
-  .tile .s { font-size: 12px; color: var(--ink-faint); margin-top: 1px; }
-  .tile.alert { border-color: rgba(244, 63, 94, .22); background: var(--late-soft); }
-  .tile.alert .v, .tile.alert .k { color: var(--late); }
+  /* Stat row — the repo's ReportFigure: flat, no box, hairline dividers, closes on a rule. */
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; border-bottom: 1px solid var(--edge); padding-bottom: 16px; }
+  @media (min-width: 640px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 1024px) {
+    .tiles { grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+    .tile + .tile { border-left: 1px solid var(--edge); padding-left: 20px; }
+  }
+  .tile { min-width: 0; }
+  .tile .k { font-size: 12px; color: var(--ink-soft); }
+  .tile .v { font-size: 24px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); line-height: 1.33; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tile .s { font-size: 12px; color: var(--ink-soft); }
+  .tile.zero .v { color: var(--ink-faint); }
+  .tile.attention .v { color: var(--warn); }
 
   .panel { background: var(--panel); border: 1px solid var(--edge-soft); border-radius: var(--radius); overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.03); }
   .panel > h2 { margin: 0; font-size: 12.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink); font-weight: 700; padding: 14px 20px; border-bottom: 1px solid var(--edge-soft); background: transparent; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
@@ -287,6 +292,10 @@ const track = o => {
     </div>`;
 };
 
+// One stat, as ReportFigure draws it: a zero dims, "attention" turns a non-zero value amber.
+const stat = (label, val, sub, attention) =>
+  `<div class="tile ${val === 0 ? 'zero' : attention ? 'attention' : ''}"><div class="k">${label}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`;
+
 const flag = o => o.filed ? '<span class="chip ok">Filed</span>'
   : o.late ? '<span class="chip late">Needs chasing</span>'
   : '<span class="chip on-track">On track</span>';
@@ -295,10 +304,10 @@ const flag = o => o.filed ? '<span class="chip ok">Filed</span>'
 function variantA() {
   return `
   <div class="tiles">
-    <div class="tile"><div class="k">Open orders</div><div class="v">${open.length}</div><div class="s">of ${ORDERS.length} in the last 90 days</div></div>
-    <div class="tile"><div class="k">Value open</div><div class="v">${peso(value)}</div><div class="s">purchase order prices</div></div>
-    <div class="tile alert"><div class="k">Needs chasing</div><div class="v">${lateOnes.length}</div><div class="s">stuck on a step</div></div>
-    <div class="tile"><div class="k">Ready to file</div><div class="v">${readyToFile.length}</div><div class="s">costs complete, section 7 open</div></div>
+    ${stat('Open orders', open.length, `of ${ORDERS.length} in the last 90 days`)}
+    ${stat('Value open', peso(value), 'purchase order prices')}
+    ${stat('Needs chasing', lateOnes.length, 'stuck on a step', true)}
+    ${stat('Ready to file', readyToFile.length, 'costs complete, section 7 open')}
   </div>
   <div class="panel">
     <h2>Orders after award <span>IPAS · newest first</span></h2>
@@ -377,10 +386,10 @@ function variantB() {
   cols.push({ name: 'Filed', items: ORDERS.filter(o => o.filed) });
   return `
   <div class="tiles">
-    <div class="tile"><div class="k">Open orders</div><div class="v">${open.length}</div><div class="s">across ${new Set(ORDERS.map(o => o.sor)).size} SORs</div></div>
-    <div class="tile alert"><div class="k">Needs chasing</div><div class="v">${lateOnes.length}</div><div class="s">red cards below</div></div>
-    <div class="tile"><div class="k">In transit</div><div class="v">${ORDERS.filter(o => !o.filed && o.step <= 2 && o.source === 'Import').length}</div><div class="s">imports before clearance</div></div>
-    <div class="tile"><div class="k">Value open</div><div class="v">${peso(value)}</div><div class="s">purchase order prices</div></div>
+    ${stat('Open orders', open.length, `across ${new Set(ORDERS.map(o => o.sor)).size} SORs`)}
+    ${stat('Needs chasing', lateOnes.length, 'red cards below', true)}
+    ${stat('In transit', ORDERS.filter(o => !o.filed && o.step <= 2 && o.source === 'Import').length, 'imports before clearance')}
+    ${stat('Value open', peso(value), 'purchase order prices')}
   </div>
   <div class="board">
     ${cols.map(c => `
@@ -413,10 +422,10 @@ function variantC() {
   ];
   return `
   <div class="tiles">
-    <div class="tile alert"><div class="k">Needs chasing</div><div class="v">${lateOnes.length}</div><div class="s">oldest ${Math.max(...lateOnes.map(o => o.age))} days</div></div>
-    <div class="tile"><div class="k">Waiting on us</div><div class="v">${groups[1].items.length}</div><div class="s">approvals, transmittals, bills</div></div>
-    <div class="tile"><div class="k">Waiting on suppliers</div><div class="v">${groups[2].items.length}</div><div class="s">shipments in progress</div></div>
-    <div class="tile"><div class="k">Value open</div><div class="v">${peso(value)}</div><div class="s">${open.length} orders</div></div>
+    ${stat('Needs chasing', lateOnes.length, `oldest ${Math.max(...lateOnes.map(o => o.age))} days`, true)}
+    ${stat('Waiting on us', groups[1].items.length, 'approvals, transmittals, bills')}
+    ${stat('Waiting on suppliers', groups[2].items.length, 'shipments in progress')}
+    ${stat('Value open', peso(value), `${open.length} orders`)}
   </div>
   ${groups.map(g => `
     <div class="group">
