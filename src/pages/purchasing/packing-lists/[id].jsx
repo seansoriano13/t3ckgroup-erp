@@ -18,6 +18,7 @@ import { SelectField } from "../../../components/ui/SelectField";
 import NumbersStrip from "../../../components/record/NumbersStrip";
 import RecordCard from "../../../components/record/RecordCard";
 import RecordDrawer from "../../../components/record/RecordDrawer";
+import RecordMoreMenu from "../../../components/record/RecordMoreMenu";
 import RecordRows from "../../../components/record/RecordRows";
 import { STATE } from "../../../components/record/statePalette";
 import { useOpenSection } from "../../../components/record/useOpenSection";
@@ -442,18 +443,13 @@ function PackingListPage() {
       description={list ? `${list.sorReference ?? ""}${list.projectTitle ? ` · ${list.projectTitle}` : ""}` : undefined}
       action={
         <div className="flex items-center gap-2">
-          {list && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={printList}>
-              <Printer size={14} />
-              Print
-            </Button>
-          )}
           <Button variant="outline" size="sm" asChild className="gap-1.5">
             <Link to="/purchasing/packing-lists">
               <ArrowLeft size={14} />
               Packing Lists
             </Link>
           </Button>
+          {list && <RecordMoreMenu items={[{ key: "print", label: "Print", icon: Printer, onSelect: printList }]} />}
         </div>
       }
     >
