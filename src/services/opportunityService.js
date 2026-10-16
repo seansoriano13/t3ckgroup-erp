@@ -1023,6 +1023,8 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
               }
             } else if (created.kind === "open_purchase_request" && created.request_id) {
               await notePurchaseRequestOpened(existing.id, to, action.id, created.request_id, actorId);
+            } else if (created.kind === "open_costing_matrix" && created.matrix_id) {
+              await noteCostingMatrixOpened(existing.id, to, action.id, created.matrix_id, actorId);
             } else if (created.kind === "create_group_task" && created.group_task_id) {
               await opportunityService.addSystemNote(
                 existing.id,
@@ -1430,12 +1432,26 @@ function notePurchaseRequestOpened(opportunityId, stage, actionId, requestId, ac
   );
 }
 
+/**
+ * Issue #462 — the SOR's note that a Stage Action opened (or topped up) its Costing Matrix.
+ * `sor_open_costing_matrix` reads the action's saved config itself, so this note is all the client adds.
+ */
+function noteCostingMatrixOpened(opportunityId, stage, actionId, matrixId, actorId) {
+  return opportunityService.addSystemNote(
+    opportunityId,
+    `Costing Matrix opened on entering Stage: ${stage.name}.`,
+    { event: "STAGE_ACTION_COSTING_MATRIX_OPENED", stageId: stage.id, actionId, matrixId },
+    actorId,
+  );
+}
+
 /** How a failed Stage Action is named to the person who moved the SOR. */
 function stageActionName(action) {
   const config = action?.config ?? {};
   const named = config.title || config.projectTitle;
   if (typeof named === "string" && named.trim()) return named.trim();
   if (action?.kind === "open_purchase_request") return "Purchase Request";
+  if (action?.kind === "open_costing_matrix") return "Costing Matrix";
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";
 }
 
@@ -2983,6 +2999,17 @@ export const opportunityService = {
       await notePurchaseRequestOpened(existing.id, stage, action.id, requestId, actorId).catch(() => {});
       return { outcome: "created" };
     }
+    if (action.kind === "open_costing_matrix") {
+      const { data: matrixId, error: openError } = await supabase.rpc("sor_open_costing_matrix", {
+        p_run_id: runId,
+      });
+      if (openError) {
+        await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "failed" });
+        throw openError;
+      }
+      await noteCostingMatrixOpened(existing.id, stage, action.id, matrixId, actorId).catch(() => {});
+      return { outcome: "created" };
+    }
     await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
     return { outcome: "created" };
   },
@@ -3054,6 +3081,8 @@ export const opportunityService = {
       const target =
         action.kind === "open_purchase_request"
           ? { kind: "purchase_request" }
+          : action.kind === "open_costing_matrix"
+          ? { kind: "costing_matrix" }
           : action.kind === "create_group_task"
           ? {
               kind: "group",

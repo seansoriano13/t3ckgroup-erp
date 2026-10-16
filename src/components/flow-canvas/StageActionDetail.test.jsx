@@ -43,6 +43,35 @@ describe("StageActionDetail", () => {
     expect(screen.getByText("Bob")).toBeInTheDocument();
   });
 
+  it("renders an Open Costing Matrix's Incharges, assigners and extra members", () => {
+    const employees = [
+      { id: "emp-1", name: "Raquel" },
+      { id: "emp-2", name: "Mia" },
+      { id: "emp-3", name: "Ana" },
+    ];
+    const action = {
+      kind: "open_costing_matrix",
+      config: {
+        salesIncharge: { type: "employee", id: "emp-3" },
+        assigners: [{ type: "employee", id: "emp-1" }],
+        extras: [{ type: "employee", id: "emp-2" }],
+        markupPresetId: "preset-1",
+      },
+    };
+    render(<StageActionDetail action={action} employees={employees} />);
+
+    expect(screen.getByText("Sales: Ana · Purchasing: not named · Markup: a markup preset")).toBeInTheDocument();
+    expect(screen.getByText("Raquel")).toBeInTheDocument();
+    expect(screen.getByText("Mia")).toBeInTheDocument();
+  });
+
+  it("says an Open Costing Matrix defaults to the Deal Owner and tells nobody", () => {
+    render(<StageActionDetail action={{ kind: "open_costing_matrix", config: {} }} employees={[]} />);
+
+    expect(screen.getByText("Sales: Deal Owner · Purchasing: not named")).toBeInTheDocument();
+    expect(screen.getByText("Nobody is told")).toBeInTheDocument();
+  });
+
   it("falls back to 'Someone no longer listed' for a member id with no matching employee", () => {
     const action = {
       kind: "create_group_task",

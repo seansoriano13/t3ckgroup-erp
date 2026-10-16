@@ -1,8 +1,100 @@
 import { stubRpc } from "@/test/msw/server"
 import { db, insertRow, updateRow } from "@/test/db/store"
+import { DEAL_TEAM_ROLES, SELECTOR_TYPES, resolvePeople } from "@/utils/resolvePeople"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
+
+/**
+ * Issue #462 — `sor_open_costing_matrix` + `costing_open_matrix`
+ * (supabase/migrations/20261018160000_open_costing_matrix_action.sql) re-implemented on the fake
+ * database. Reads the action's config from its `flow_stage_actions` row (the real function reads the
+ * Flow Snapshot's copy of the same config) and does what the plpgsql does: creates the SOR's one
+ * matrix, or tops it up (blank Incharges, a missing default factor, members with no open window) and
+ * never replaces anything, tells "who assigns it" when it opens with no Purchasing Incharge, and marks
+ * the run created with its matrix. Returns the matrix id.
+ */
+function openCostingMatrixOnFake(run, action) {
+  const config = action?.config ?? {};
+  const opportunity = findRow("sales_opportunities", run.opportunity_id);
+  const employees = rowsOf("employees");
+  const alive = (id) => (id && employees.some((e) => e.id === id && !e.is_deleted) ? id : null);
+
+  const sel = config.salesIncharge ?? { type: SELECTOR_TYPES.ROLE, role: "deal_owner" };
+  const sales = alive(
+    sel.type === SELECTOR_TYPES.EMPLOYEE
+      ? sel.id
+      : (DEAL_TEAM_ROLES[sel.role]?.columns ?? []).map((column) => opportunity?.[column]).find(Boolean),
+  );
+  const buyer = config.purchasingIncharge?.type === SELECTOR_TYPES.EMPLOYEE ? alive(config.purchasingIncharge.id) : null;
+
+  let matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === run.opportunity_id);
+  const created = !matrix;
+  if (created) {
+    matrix = insertRow("costing_matrices", {
+      opportunity_id: run.opportunity_id,
+      sales_incharge_id: sales,
+      purchasing_incharge_id: buyer,
+    });
+  } else {
+    const patch = {};
+    if (!matrix.sales_incharge_id && sales) patch.sales_incharge_id = sales;
+    if (!matrix.purchasing_incharge_id && buyer) patch.purchasing_incharge_id = buyer;
+    if (Object.keys(patch).length > 0) matrix = updateRow("costing_matrices", matrix, patch);
+  }
+
+  // insertRow returns a copy; updateRow wants the stored row, so read it back.
+  if (!rowsOf("costing_matrix_money").some((m) => m.matrix_id === matrix.id)) {
+    insertRow("costing_matrix_money", { matrix_id: matrix.id });
+  }
+  const money = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrix.id);
+  const preset = config.markupPresetId
+    ? rowsOf("costing_markup_presets").find((p) => p.id === config.markupPresetId && p.active !== false)
+    : null;
+  if (preset && money.default_factor == null) {
+    updateRow("costing_matrix_money", money, { default_preset_id: preset.id, default_factor: preset.factor });
+  }
+
+  const groupMembersById = {};
+  for (const member of rowsOf("employee_group_members")) {
+    (groupMembersById[member.group_id] ??= { employeeIds: [] }).employeeIds.push(member.employee_id);
+  }
+  const resolveAll = (selectors) => resolvePeople(selectors, { employees, groupMembersById, opportunity });
+
+  const until = config.access?.until || "stage_left";
+  for (const employeeId of resolveAll(config.extras)) {
+    const open = rowsOf("sor_stage_participants").some(
+      (p) => p.source === "costing_matrix" && p.source_id === matrix.id && p.employee_id === employeeId && !p.closed_at,
+    );
+    if (open || !run.stage_visit_id) continue;
+    insertRow("sor_stage_participants", {
+      opportunity_id: run.opportunity_id,
+      employee_id: employeeId,
+      source: "costing_matrix",
+      source_id: matrix.id,
+      opened_visit_id: run.stage_visit_id,
+      until_rule: until,
+      until_stage_id: ["stage_entered", "later_stage_left"].includes(until) ? config.access?.stageId ?? null : null,
+    });
+  }
+
+  if (created && !matrix.purchasing_incharge_id) {
+    for (const recipientId of resolveAll(config.assigners)) {
+      insertRow("notifications", {
+        recipient_id: recipientId,
+        sender_id: null,
+        type: "OPPORTUNITY_COSTING_INCHARGE_NEEDED",
+        title: "Costing Matrix needs a Purchasing Incharge",
+        message: "The Costing Matrix opened with no Purchasing Incharge. Please name one.",
+        reference_id: run.opportunity_id,
+      });
+    }
+  }
+
+  const live = rowsOf("sor_action_runs").find((r) => r.id === run.id);
+  updateRow("sor_action_runs", live, { outcome: "created", costing_matrix_id: matrix.id });
+  return matrix.id;
+}
 
 /**
  * Issue #204 Part 2 — `sor_action_runs` and its three RPCs live in Postgres
@@ -82,6 +174,19 @@ export function stubActionRunRpcs() {
       outcome: args.p_decision === "create" ? "created" : "skipped",
     })
   })
+
+  // Issue #462 — the Decider's Create on an Optional Open Costing Matrix.
+  stubRpc("sor_open_costing_matrix", (args) => {
+    const run = findRow("sor_action_runs", args.p_run_id);
+    if (!run) throw new Error("sor_open_costing_matrix: run not found");
+    if (run.costing_matrix_id) throw new Error("sor_open_costing_matrix: run already opened its matrix");
+    if (!(run.outcome === "pending" || (run.outcome === "created" && run.decided_by))) {
+      throw new Error("sor_open_costing_matrix: run is not pending");
+    }
+    const action = findRow("flow_stage_actions", run.action_id);
+    if (action?.kind !== "open_costing_matrix") throw new Error("sor_open_costing_matrix: not an Open Costing Matrix action");
+    return openCostingMatrixOnFake(run, action);
+  });
 
   // Issue #404 — sor_create_stage_action_task
   // (supabase/migrations/20260930230000_stage_action_task_via_rpc.sql)
@@ -279,6 +384,9 @@ export function stubActionRunRpcs() {
           }
           updateRow("sor_action_runs", run, { outcome: "created", group_task_id: groupTask.id })
           created.push({ action_id: action.action_id, kind: "create_group_task", group_task_id: groupTask.id })
+        } else if (action.kind === "open_costing_matrix") {
+          const matrixId = openCostingMatrixOnFake(run, findRow("flow_stage_actions", action.action_id));
+          created.push({ action_id: action.action_id, kind: "open_costing_matrix", matrix_id: matrixId });
         } else {
           throw new Error(`sor_run_stage_actions: no builder for kind ${action.kind}`)
         }

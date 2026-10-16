@@ -6,6 +6,7 @@ import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
 import { Switch } from "../ui/switch";
 import { extraRequesters, purchaseRequestSummary } from "../../utils/purchaseRequestAction";
+import { costingMatrixSummary } from "../../utils/costingMatrixAction";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -78,6 +79,8 @@ export default function StageActionDetail({
   const subjectLabel =
     action.kind === "open_purchase_request"
       ? "Purchasing members"
+      : action.kind === "open_costing_matrix"
+      ? "Extra members"
       : assigneeNames.length === 0
       ? null
       : assigneeNames.length <= 2
@@ -103,7 +106,23 @@ export default function StageActionDetail({
         )}
       </Field>
 
-      {action.kind === "open_purchase_request" ? (
+      {action.kind === "open_costing_matrix" ? (
+        <>
+          <Field label="Costing Matrix">{costingMatrixSummary(config, nameOf)}</Field>
+          {config.purchasingIncharge?.id ? null : (
+            <Field label="Who assigns the Purchasing Incharge">
+              {(config.assigners ?? []).length === 0
+                ? "Nobody is told"
+                : config.assigners.map((s) => deciderLabel(s, nameOf)).join(", ")}
+            </Field>
+          )}
+          <Field label="Extra members">
+            {(config.extras ?? []).length === 0
+              ? "None"
+              : config.extras.map((s) => deciderLabel(s, nameOf)).join(", ")}
+          </Field>
+        </>
+      ) : action.kind === "open_purchase_request" ? (
         <>
           <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
           <Field label="Who can request items">
