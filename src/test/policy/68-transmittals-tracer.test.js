@@ -210,6 +210,17 @@ describe("who raises a Transmittal", () => {
         })
         expect(warned.error).toBeNull()
         expect(warned.data.warnings).toEqual([expect.objectContaining({ kind: "entity", entity: "TG Enterprise" })])
+
+        // The Company list's spelling of the same company doesn't warn.
+        const sameCompany = await raiseIpas("tg  ENTERPRISE")
+        const quiet = await rpc("warehouse", "transmittal_create", {
+            p_fields: { ...HEADER, entity: "TG Enterprise" },
+            p_product_ids: [],
+            p_reference_ids: [],
+            p_lines: [lineOn(sameCompany)],
+        })
+        expect(quiet.error).toBeNull()
+        expect(quiet.data.warnings ?? []).toEqual([])
     })
 
     it("refuses a slip with neither Warehouse nor TCA Technical ticked", async () => {

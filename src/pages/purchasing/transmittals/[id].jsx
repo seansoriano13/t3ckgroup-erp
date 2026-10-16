@@ -310,7 +310,7 @@ function TransmittalPage() {
     if (section === SECTION.DETAILS) return <DetailsBody t={t} />;
     if (section === SECTION.LINES) return <LinesBody t={t} />;
     if (section === SECTION.ODOO) return <OdooBody t={t} rights={rights} odooRef={odooRef} setOdooRef={setOdooRef} />;
-    if (section === SECTION.CHECK_BY) return <CheckByBody t={t} rights={rights} />;
+    if (section === SECTION.CHECK_BY) return <CheckByBody t={t} rights={rights} userId={user?.id} onChanged={refresh} />;
     return (
       <StageBody
         t={t}

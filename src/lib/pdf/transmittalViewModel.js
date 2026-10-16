@@ -144,7 +144,16 @@ function checkByPlates(checkBy, roster = []) {
   const rosterSigns = roster.map((r) => r.callSign).filter(Boolean).join(' · ');
   const slot = (label, entry) =>
     entry?.name
-      ? { ...plate(label, { who: entry.name, at: entry.at, signatureBase64: entry.signatureBase64 }), callSign: entry.callSign ?? '' }
+      ? {
+          ...plate(label, {
+            who: entry.name,
+            at: entry.at,
+            // A declined signature prints name only, with the note (spec #251).
+            note: entry.signatureDeclined ? 'signature not applied' : null,
+            signatureBase64: entry.signatureDeclined ? null : entry.signatureBase64,
+          }),
+          callSign: entry.callSign ?? '',
+        }
       : { ...plate(label, { waiting: true }), callSign: rosterSigns };
   return [slot('Check by (1)', checkBy?.first), slot('Check by (2)', checkBy?.second)];
 }

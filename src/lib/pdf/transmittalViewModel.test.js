@@ -190,6 +190,17 @@ describe('signature plates', () => {
     expect(vm.checkBy[0].stamp).not.toContain('name only');
   });
 
+  it('prints name only for a Check by signer who declined their signature', () => {
+    const vm = buildTransmittalViewModel(slip({
+      checkBy: {
+        first: { name: 'Cy', at: '2026-10-15T10:00:00Z', callSign: '1001', signatureBase64: 'data:image/png;base64,CC', signatureDeclined: true },
+        second: null,
+      },
+    }));
+    expect(vm.checkBy[0]).toMatchObject({ state: 'signed', who: 'Cy', signatureBase64: null });
+    expect(vm.checkBy[0].stamp).toContain('signature not applied');
+  });
+
   it('leaves the Check by plates blank until signed', () => {
     const vm = buildTransmittalViewModel(slip());
     expect(vm.checkBy.every((p) => p.state === 'waiting')).toBe(true);

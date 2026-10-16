@@ -443,6 +443,21 @@ export const transmittalService = {
   },
 
   /**
+   * The signer of a Check by slot (1 or 2) declines their stored signature
+   * (`decline` true), so the slip prints their name only, or applies it again.
+   * Allowed on a closed slip too. Returns the RPC result.
+   */
+  async checkSignature(id, slot, decline) {
+    const { data, error } = await supabase.rpc("transmittal_check_signature", {
+      p_transmittal_id: id,
+      p_slot: slot,
+      p_decline: !!decline,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
    * Undoes one signature, with a reason (#538): a stage (`kind` "stage" with
    * `stage`), Received in Odoo by ("odoo") or a Check by ("check_by" with
    * `slot`). The database keeps the cleared signature as history, and says who

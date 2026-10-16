@@ -1276,6 +1276,23 @@ create table if not exists public."tasks" (
   "cancelled_by_visit_id" uuid
 );
 
+create table if not exists public."transmittal_cleared_signatures" (
+  "id" uuid not null default gen_random_uuid(),
+  "transmittal_id" uuid not null,
+  "kind" text not null,
+  "stage" text,
+  "slot" integer,
+  "signer_id" uuid,
+  "signer_name" text,
+  "signed_at" timestamp with time zone,
+  "other_signer_id" uuid,
+  "other_signer_name" text,
+  "receipt_ref" text,
+  "cleared_by" uuid not null,
+  "cleared_at" timestamp with time zone not null default now(),
+  "cleared_reason" text not null
+);
+
 create table if not exists public."transmittal_ipas" (
   "id" uuid not null default gen_random_uuid(),
   "transmittal_id" uuid not null,
@@ -1375,7 +1392,9 @@ create table if not exists public."transmittals" (
   "check_by_first_id" uuid,
   "check_by_first_at" timestamp with time zone,
   "check_by_second_id" uuid,
-  "check_by_second_at" timestamp with time zone
+  "check_by_second_at" timestamp with time zone,
+  "check_by_first_signature_declined" boolean not null default false,
+  "check_by_second_signature_declined" boolean not null default false
 );
 
 create table if not exists public."undertime_requests" (
@@ -1516,6 +1535,7 @@ alter table system_updates add constraint "system_updates_pkey" PRIMARY KEY (id)
 alter table task_activity add constraint "task_activity_pkey" PRIMARY KEY (id);
 alter table task_tags add constraint "task_tags_pkey" PRIMARY KEY (id);
 alter table tasks add constraint "tasks_pkey" PRIMARY KEY (id);
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_pkey" PRIMARY KEY (id);
 alter table transmittal_ipas add constraint "transmittal_ipas_pkey" PRIMARY KEY (id);
 alter table transmittal_lines add constraint "transmittal_lines_pkey" PRIMARY KEY (id);
 alter table transmittal_products add constraint "transmittal_products_pkey" PRIMARY KEY (id);
@@ -1692,6 +1712,10 @@ alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_chec
 alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_reason_chk" CHECK ((length(btrim(cleared_reason)) > 0));
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_slot_chk" CHECK ((((kind = 'check_by'::text) = (slot IS NOT NULL)) AND ((slot IS NULL) OR (slot = ANY (ARRAY[1, 2])))));
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_stage_chk" CHECK ((((kind = 'stage'::text) = (stage IS NOT NULL)) AND ((stage IS NULL) OR (stage = ANY (ARRAY['warehouse_checking'::text, 'warehouse_releasing'::text, 'technical_inspection'::text])))));
 alter table transmittal_lines add constraint "transmittal_lines_description_chk" CHECK ((length(btrim(description)) > 0));
 alter table transmittal_lines add constraint "transmittal_lines_kind_chk" CHECK ((kind = ANY (ARRAY['po_line'::text, 'typed'::text])));
 alter table transmittal_lines add constraint "transmittal_lines_po_chk" CHECK ((((kind = 'po_line'::text) AND (ipas_id IS NOT NULL) AND (odoo_po_line_id IS NOT NULL)) OR ((kind = 'typed'::text) AND (ipas_id IS NULL) AND (odoo_po_line_id IS NULL))));
@@ -1938,6 +1962,10 @@ alter table tasks add constraint "tasks_opportunity_id_fkey" FOREIGN KEY (opport
 alter table tasks add constraint "tasks_reported_to_fkey" FOREIGN KEY (reported_to) REFERENCES employees(id);
 alter table tasks add constraint "tasks_stage_action_id_fkey" FOREIGN KEY (stage_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_cleared_by_fkey" FOREIGN KEY (cleared_by) REFERENCES employees(id);
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_other_signer_id_fkey" FOREIGN KEY (other_signer_id) REFERENCES employees(id);
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_signer_id_fkey" FOREIGN KEY (signer_id) REFERENCES employees(id);
+alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
 alter table transmittal_ipas add constraint "transmittal_ipas_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE RESTRICT;
 alter table transmittal_ipas add constraint "transmittal_ipas_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
 alter table transmittal_lines add constraint "transmittal_lines_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE RESTRICT;
@@ -2103,6 +2131,10 @@ CREATE INDEX stage_conditions_stage_idx ON public.stage_conditions USING btree (
 CREATE UNIQUE INDEX task_tags_active_name_key ON public.task_tags USING btree (lower(name)) WHERE (archived_at IS NULL);
 CREATE INDEX tasks_opportunity_id_idx ON public.tasks USING btree (opportunity_id);
 CREATE INDEX tasks_stage_visit_id_idx ON public.tasks USING btree (stage_visit_id);
+CREATE INDEX transmittal_cleared_signatures_cleared_by_idx ON public.transmittal_cleared_signatures USING btree (cleared_by);
+CREATE INDEX transmittal_cleared_signatures_other_signer_idx ON public.transmittal_cleared_signatures USING btree (other_signer_id);
+CREATE INDEX transmittal_cleared_signatures_signer_idx ON public.transmittal_cleared_signatures USING btree (signer_id);
+CREATE INDEX transmittal_cleared_signatures_transmittal_idx ON public.transmittal_cleared_signatures USING btree (transmittal_id, cleared_at);
 CREATE INDEX transmittal_ipas_ipas_id_idx ON public.transmittal_ipas USING btree (ipas_id);
 CREATE INDEX transmittal_lines_ipas_id_idx ON public.transmittal_lines USING btree (ipas_id);
 CREATE INDEX transmittal_lines_opportunity_id_idx ON public.transmittal_lines USING btree (opportunity_id);
@@ -2209,6 +2241,7 @@ alter table public."system_audit_logs" enable row level security;
 alter table public."task_activity" enable row level security;
 alter table public."task_tags" enable row level security;
 alter table public."tasks" enable row level security;
+alter table public."transmittal_cleared_signatures" enable row level security;
 alter table public."transmittal_ipas" enable row level security;
 alter table public."transmittal_lines" enable row level security;
 alter table public."transmittal_products" enable row level security;
@@ -3445,6 +3478,11 @@ create policy "Users and Managers can update tasks" on public."tasks"
   for update
   to public
   using (((logged_by = get_employee_id()) OR is_head() OR is_hr() OR is_super_admin()));
+create policy "transmittal_cleared_signatures_read" on public."transmittal_cleared_signatures"
+  as permissive
+  for select
+  to authenticated
+  using (transmittal_can_read(transmittal_id));
 create policy "transmittal_ipas_read" on public."transmittal_ipas"
   as permissive
   for select
@@ -5103,7 +5141,9 @@ begin
         nullif(btrim(v_ipas.entity_override), ''),
         nullif(btrim(v_ipas.odoo_copy #>> '{po,company}'), '')
       );
-      if v_ipas_entity is not null and v_ipas_entity is distinct from v_entity then
+      if v_ipas_entity is not null
+         and lower(regexp_replace(btrim(v_ipas_entity), '\s+', ' ', 'g'))
+             is distinct from lower(regexp_replace(btrim(coalesce(v_entity, '')), '\s+', ' ', 'g')) then
         v_warnings := v_warnings || jsonb_build_array(jsonb_build_object(
           'kind', 'entity', 'position', v_position, 'po_number', v_ipas.po_number, 'entity', v_ipas_entity
         ));
@@ -13826,11 +13866,11 @@ begin
 
   if p_slot = 1 then
     update public.transmittals
-       set check_by_first_id = v_actor, check_by_first_at = now()
+       set check_by_first_id = v_actor, check_by_first_at = now(), check_by_first_signature_declined = false
      where id = p_transmittal_id;
   else
     update public.transmittals
-       set check_by_second_id = v_actor, check_by_second_at = now()
+       set check_by_second_id = v_actor, check_by_second_at = now(), check_by_second_signature_declined = false
      where id = p_transmittal_id;
   end if;
 
@@ -13858,6 +13898,47 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.transmittal_check_signature(p_transmittal_id uuid, p_slot integer, p_decline boolean)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_decline boolean := coalesce(p_decline, false);
+begin
+  if v_actor is null then
+    raise exception 'transmittal_check_signature: not signed in' using errcode = '42501';
+  end if;
+  if p_slot is null or p_slot not in (1, 2) then
+    raise exception 'transmittal_check_signature: the slot is 1 or 2' using errcode = '22023';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_check_signature: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+  if (case p_slot when 1 then v_row.check_by_first_id else v_row.check_by_second_id end) is distinct from v_actor then
+    raise exception 'transmittal_check_signature: only the person who signed that Check by can decline or apply its signature'
+      using errcode = '42501';
+  end if;
+
+  if p_slot = 1 then
+    update public.transmittals set check_by_first_signature_declined = v_decline where id = p_transmittal_id;
+  else
+    update public.transmittals set check_by_second_signature_declined = v_decline where id = p_transmittal_id;
+  end if;
+
+  perform public._transmittal_event(p_transmittal_id, v_actor,
+    case when v_decline then 'signature_declined' else 'signature_confirmed' end,
+    jsonb_build_object('number', v_row.number, 'slot', p_slot, 'check_by', true));
+
+  return jsonb_build_object('id', p_transmittal_id, 'number', v_row.number, 'slot', p_slot, 'declined', v_decline);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.transmittal_children_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -13875,6 +13956,16 @@ begin
       using errcode = '42501';
   end if;
   return coalesce(new, old);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_cleared_signatures_append_only()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  raise exception 'transmittal_cleared_signatures is append-only: history can''t be changed (% refused)', tg_op
+    using errcode = '42501';
 end;
 $function$
 ;
@@ -14648,6 +14739,11 @@ begin
     return new;
   end if;
 
+  -- transmittal_undo_signature clears the signature columns of a signed stage.
+  if coalesce(current_setting('app.transmittal_undo', true), '') = 'on' then
+    return new;
+  end if;
+
   if (new.id, new.transmittal_id, new.stage, new.remarks, new.no_pictures_reason, new.completed_by,
       new.completed_at, new.first_signer_id, new.first_signed_at, new.second_signer_id, new.second_signer_name, new.second_signed_at,
       new.created_at)
@@ -14737,6 +14833,217 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.transmittal_undo_signature(p_transmittal_id uuid, p_kind text, p_reason text, p_stage text DEFAULT NULL::text, p_slot integer DEFAULT NULL::integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.transmittals;
+  v_stage public.transmittal_stages;
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_order int;
+  v_state text;
+  v_notify uuid[] := '{}';
+  v_signer uuid;
+  v_signer_name text;
+  v_signed_at timestamptz;
+  v_other uuid;
+  v_other_name text;
+  v_ref text;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_undo_signature: not signed in' using errcode = '42501';
+  end if;
+  if v_reason is null then
+    raise exception 'transmittal_undo_signature: give the reason for undoing the signature' using errcode = '22023';
+  end if;
+  if p_kind is null or p_kind not in ('stage', 'odoo', 'check_by') then
+    raise exception 'transmittal_undo_signature: undo a stage, Received in Odoo or a Check by' using errcode = '22023';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
+  if not found then
+    raise exception 'transmittal_undo_signature: that Transmittal doesn''t exist' using errcode = 'P0002';
+  end if;
+  if v_row.state in ('draft', 'cancelled') then
+    raise exception 'transmittal_undo_signature: % is %; nothing is signed', v_row.number, v_row.state
+      using errcode = '42501';
+  end if;
+
+  if p_kind = 'stage' then
+    if p_stage is null or p_stage not in ('warehouse_checking', 'warehouse_releasing', 'technical_inspection') then
+      raise exception 'transmittal_undo_signature: name the stage' using errcode = '22023';
+    end if;
+    -- Whoever may sign the stage may undo it.
+    if p_stage = 'technical_inspection' then
+      if not public.transmittal_on_list('transmittal_technical') then
+        raise exception 'transmittal_undo_signature: only the Technical list undoes Technical inspection'
+          using errcode = '42501';
+      end if;
+    elsif not public.transmittal_on_list('transmittal_warehouse') then
+      raise exception 'transmittal_undo_signature: only the Warehouse list undoes a Warehouse stage'
+        using errcode = '42501';
+    end if;
+    if v_row.state = 'closed' or v_row.check_by_first_id is not null or v_row.check_by_second_id is not null then
+      raise exception 'transmittal_undo_signature: % has a Check by signed; undo that first', v_row.number
+        using errcode = '42501';
+    end if;
+
+    select * into v_stage from public.transmittal_stages s
+     where s.transmittal_id = p_transmittal_id and s.stage = p_stage
+     for update;
+    if not found or v_stage.completed_at is null then
+      raise exception 'transmittal_undo_signature: the % stage of % isn''t signed', p_stage, v_row.number
+        using errcode = '22023';
+    end if;
+
+    v_order := case p_stage when 'warehouse_checking' then 1 when 'warehouse_releasing' then 2 else 3 end;
+    if exists (
+      select 1 from public.transmittal_stages s
+       where s.transmittal_id = p_transmittal_id
+         and s.completed_at is not null
+         and (case s.stage when 'warehouse_checking' then 1 when 'warehouse_releasing' then 2 else 3 end) > v_order
+    ) then
+      raise exception 'transmittal_undo_signature: a later stage of % is signed; undo that first', v_row.number
+        using errcode = '42501';
+    end if;
+
+    v_signer := v_stage.first_signer_id;
+    v_signed_at := v_stage.completed_at;
+    v_other := v_stage.second_signer_id;
+    v_other_name := v_stage.second_signer_name;
+    select e.name into v_signer_name from public.employees e where e.id = v_signer;
+    v_notify := array_remove(array[v_stage.first_signer_id, v_stage.second_signer_id, v_stage.completed_by], null);
+
+    insert into public.transmittal_cleared_signatures
+      (transmittal_id, kind, stage, signer_id, signer_name, signed_at, other_signer_id, other_signer_name,
+       cleared_by, cleared_reason)
+    values
+      (p_transmittal_id, 'stage', p_stage, v_signer, v_signer_name, v_signed_at, v_other, v_other_name,
+       v_actor, v_reason);
+
+    perform set_config('app.transmittal_undo', 'on', true);
+    update public.transmittal_stages
+       set completed_by = null,
+           completed_at = null,
+           first_signer_id = null,
+           first_signed_at = null,
+           first_confirmed = false,
+           first_signature_declined = false,
+           second_signer_id = null,
+           second_signer_name = null,
+           second_signed_at = null,
+           second_confirmed = false,
+           second_signature_declined = false
+     where id = v_stage.id;
+
+    -- The stage is the one being worked again. Warehouse releasing on a
+    -- Warehouse-only slip is optional and leaves the state where it is.
+    v_state := case
+      when p_stage = 'warehouse_releasing' and not v_row.check_technical then v_row.state
+      else p_stage
+    end;
+    if v_state is distinct from v_row.state then
+      update public.transmittals set state = v_state where id = p_transmittal_id;
+    end if;
+    perform set_config('app.transmittal_undo', 'off', true);
+
+  elsif p_kind = 'odoo' then
+    if not (public.transmittal_on_list('transmittal_warehouse') or coalesce(public.has_purchasing_access(), false)) then
+      raise exception 'transmittal_undo_signature: only the Warehouse list or Purchasing undoes the Odoo receipt'
+        using errcode = '42501';
+    end if;
+    if v_row.odoo_received_at is null then
+      raise exception 'transmittal_undo_signature: % has no Odoo receipt to undo', v_row.number using errcode = '22023';
+    end if;
+    if v_row.state = 'closed' or v_row.check_by_first_id is not null or v_row.check_by_second_id is not null then
+      raise exception 'transmittal_undo_signature: % has a Check by signed; undo that first', v_row.number
+        using errcode = '42501';
+    end if;
+
+    v_signer := v_row.odoo_received_by;
+    v_signed_at := v_row.odoo_received_at;
+    v_ref := v_row.odoo_receipt_ref;
+    select e.name into v_signer_name from public.employees e where e.id = v_signer;
+    v_notify := array_remove(array[v_signer], null);
+
+    insert into public.transmittal_cleared_signatures
+      (transmittal_id, kind, signer_id, signer_name, signed_at, receipt_ref, cleared_by, cleared_reason)
+    values
+      (p_transmittal_id, 'odoo', v_signer, v_signer_name, v_signed_at, v_ref, v_actor, v_reason);
+
+    perform set_config('app.transmittal_undo', 'on', true);
+    update public.transmittals
+       set odoo_received_by = null, odoo_received_at = null, odoo_receipt_ref = null
+     where id = p_transmittal_id;
+    perform set_config('app.transmittal_undo', 'off', true);
+    v_state := v_row.state;
+
+  else
+    if not public.transmittal_on_list('transmittal_check_by') then
+      raise exception 'transmittal_undo_signature: only the Check by list undoes a Check by' using errcode = '42501';
+    end if;
+    if v_row.prepared_by = v_actor then
+      raise exception 'transmittal_undo_signature: the preparer can''t check their own slip' using errcode = '42501';
+    end if;
+    if p_slot is null or p_slot not in (1, 2) then
+      raise exception 'transmittal_undo_signature: the slot is 1 or 2' using errcode = '22023';
+    end if;
+
+    v_signer := case p_slot when 1 then v_row.check_by_first_id else v_row.check_by_second_id end;
+    v_signed_at := case p_slot when 1 then v_row.check_by_first_at else v_row.check_by_second_at end;
+    if v_signer is null then
+      raise exception 'transmittal_undo_signature: Check by (%) of % isn''t signed', p_slot, v_row.number
+        using errcode = '22023';
+    end if;
+    select e.name into v_signer_name from public.employees e where e.id = v_signer;
+    v_notify := array[v_signer];
+
+    insert into public.transmittal_cleared_signatures
+      (transmittal_id, kind, slot, signer_id, signer_name, signed_at, cleared_by, cleared_reason)
+    values
+      (p_transmittal_id, 'check_by', p_slot, v_signer, v_signer_name, v_signed_at, v_actor, v_reason);
+
+    -- One statement: the slot goes and, on a closed slip, the slip reopens with it (a closed slip
+    -- must hold its second signature, so the two can't be separate updates).
+    perform set_config('app.transmittal_undo', 'on', true);
+    update public.transmittals
+       set check_by_first_id = case when p_slot = 1 then null else check_by_first_id end,
+           check_by_first_at = case when p_slot = 1 then null else check_by_first_at end,
+           check_by_second_id = case when p_slot = 2 then null else check_by_second_id end,
+           check_by_second_at = case when p_slot = 2 then null else check_by_second_at end,
+           state = case when state = 'closed' then 'awaiting_check' else state end,
+           closed_at = case when state = 'closed' then null else closed_at end
+     where id = p_transmittal_id
+     returning state into v_state;
+    perform set_config('app.transmittal_undo', 'off', true);
+  end if;
+
+  perform public._transmittal_event(p_transmittal_id, v_actor, 'signature_undone', jsonb_build_object(
+    'number', v_row.number,
+    'kind', p_kind,
+    'stage', p_stage,
+    'slot', p_slot,
+    'state_to', v_state,
+    'reason', v_reason
+  ));
+
+  return jsonb_build_object(
+    'id', p_transmittal_id,
+    'number', v_row.number,
+    'kind', p_kind,
+    'state', v_state,
+    'notify_ids', to_jsonb(array(
+      select distinct u from unnest(array_append(v_notify, v_row.prepared_by)) as u
+       where u is not null and u <> v_actor
+    ))
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.transmittal_update_draft(p_transmittal_id uuid, p_fields jsonb, p_product_ids uuid[], p_reference_ids uuid[], p_lines jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -14802,6 +15109,19 @@ AS $function$
 begin
   if tg_op = 'DELETE' then
     raise exception 'transmittal: a Transmittal is never deleted; cancel it instead' using errcode = '42501';
+  end if;
+
+  -- transmittal_undo_signature clears a signature, and reopens a closed slip when it clears a Check by.
+  if coalesce(current_setting('app.transmittal_undo', true), '') = 'on' then
+    return new;
+  end if;
+
+  -- A Check by signer may decline or re-apply their stored signature on a
+  -- closed slip: nothing else about the row may change.
+  if old.state = 'closed'
+     and (to_jsonb(new) - 'check_by_first_signature_declined' - 'check_by_second_signature_declined')
+       = (to_jsonb(old) - 'check_by_first_signature_declined' - 'check_by_second_signature_declined') then
+    return new;
   end if;
 
   if old.state in ('closed', 'cancelled') then
@@ -15391,6 +15711,7 @@ CREATE TRIGGER trg_sor_procurement_requests_touch BEFORE UPDATE ON public.sor_pr
 CREATE TRIGGER trg_sor_purchase_order_links_touch BEFORE UPDATE ON public.sor_purchase_order_links FOR EACH ROW EXECUTE FUNCTION sor_purchase_order_links_touch();
 CREATE TRIGGER enforce_task_verification_security BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION protect_task_verification();
 CREATE TRIGGER tasks_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION tasks_broadcast_change();
+CREATE TRIGGER transmittal_cleared_signatures_no_change BEFORE DELETE OR UPDATE ON public.transmittal_cleared_signatures FOR EACH ROW EXECUTE FUNCTION transmittal_cleared_signatures_append_only();
 CREATE TRIGGER transmittal_lines_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_lines FOR EACH ROW EXECUTE FUNCTION transmittal_lines_guard();
 CREATE TRIGGER transmittal_lines_sync_links AFTER INSERT OR DELETE OR UPDATE ON public.transmittal_lines FOR EACH ROW EXECUTE FUNCTION transmittal_lines_sync_links();
 CREATE TRIGGER transmittal_products_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_products FOR EACH ROW EXECUTE FUNCTION transmittal_children_guard();

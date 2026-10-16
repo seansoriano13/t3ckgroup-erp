@@ -341,4 +341,28 @@ describe("the second Check by closes the slip, and a closed slip is frozen for e
         const again = await rpc("checkByTwo", "transmittal_check", { p_transmittal_id: slip, p_slot: 1 })
         expect(again.error).toBeTruthy()
     })
+
+    it("lets a Check by signer decline and re-apply their stored signature, even once closed; nobody else", async () => {
+        const slip = await submittedSlip(await raiseIpas())
+        await toAwaitingCheck(slip)
+        await rpc("warehouse", "transmittal_received_in_odoo", { p_transmittal_id: slip, p_ref: "WH/IN/CHK-4" })
+        expect((await rpc("checkByTwo", "transmittal_check", { p_transmittal_id: slip, p_slot: 1 })).error).toBeNull()
+        expect((await rpc("dealOwner", "transmittal_check", { p_transmittal_id: slip, p_slot: 2 })).error).toBeNull()
+        expect(await slipState(slip)).toBe("closed")
+
+        const declined = async () =>
+            (await svc().from("transmittals").select("check_by_first_signature_declined, check_by_second_signature_declined").eq("id", slip).single()).data
+
+        const byOther = await rpc("dealOwner", "transmittal_check_signature", { p_transmittal_id: slip, p_slot: 1, p_decline: true })
+        expect(byOther.error?.message).toMatch(/only the person who signed/)
+
+        expect((await rpc("checkByTwo", "transmittal_check_signature", { p_transmittal_id: slip, p_slot: 1, p_decline: true })).error).toBeNull()
+        expect(await declined()).toEqual({ check_by_first_signature_declined: true, check_by_second_signature_declined: false })
+
+        expect((await rpc("checkByTwo", "transmittal_check_signature", { p_transmittal_id: slip, p_slot: 1, p_decline: false })).error).toBeNull()
+        expect((await declined()).check_by_first_signature_declined).toBe(false)
+
+        const header = await svc().from("transmittals").update({ priority: "low", check_by_second_signature_declined: true }).eq("id", slip)
+        expect(header.error, "a decline smuggled a header change past the freeze").toBeTruthy()
+    })
 })

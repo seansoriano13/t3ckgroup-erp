@@ -19,13 +19,13 @@ const svc = () => serviceClient()
 const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 
 let poSeq = 0
-const nextPo = () => `P8${String(10000 + (poSeq += 1)).padStart(6, "0")}`
+const nextPo = () => `P7${String(30000 + (poSeq += 1)).padStart(6, "0")}`
 
 const odooCopy = (po) => ({
-    po: { id: 881000 + poSeq, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
+    po: { id: 731000 + poSeq, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
     supplier: { id: 553, name: "Scorpe Technologies", contact: null },
     lines: [
-        { line_id: 861000 + poSeq * 10, product_id: 5350, name: "Cutter", quantity: 6, unit: "Unit", price_unit: 1250, price_subtotal: 7500, taxes: [], analytic: [], brand: "SCORPE" },
+        { line_id: 732000 + poSeq * 10, product_id: 5350, name: "Cutter", quantity: 6, unit: "Unit", price_unit: 1250, price_subtotal: 7500, taxes: [], analytic: [], brand: "SCORPE" },
     ],
     receipts: { status: "pending", done: 0, total: 1 },
     bills: { count: 0, draft: 0 },

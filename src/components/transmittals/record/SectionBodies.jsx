@@ -24,7 +24,7 @@ import {
 import { transmittalService } from "@/services/transmittalService";
 import { ipasErrorMessage } from "@/utils/ipas";
 import { evidenceOf, stageRowOf, transmittalStateLabel } from "@/utils/transmittals";
-import WarehouseRatings from "../WarehouseRatings";
+import { WarehouseRatings } from "../WarehouseRatings";
 import { choosesSlot, picksOtherSigner, stageBlocker } from "./transmittalMoves";
 import { STAGE_SIGNERS, STAGE_TITLE } from "./transmittalRecord";
 
@@ -379,19 +379,43 @@ export function OdooBody({ t, rights, odooRef, setOdooRef }) {
   );
 }
 
-/** The two Check by plates: who signed each and when. */
-export function CheckByBody({ t, rights }) {
-  const plate = (label, slot) => (
+/**
+ * The two Check by plates: who signed each and when. A signer may decline
+ * their stored signature, so the slip prints their name only, or apply it again.
+ */
+export function CheckByBody({ t, rights, userId, onChanged }) {
+  const [busy, setBusy] = useState(false);
+  const setDeclined = async (number, decline) => {
+    setBusy(true);
+    try {
+      await transmittalService.checkSignature(t.id, number, decline);
+      toast.success(decline ? "Signature declined. The slip prints your name only." : "Signature applied.");
+      onChanged?.();
+    } catch (error) {
+      toast.error(ipasErrorMessage(error, "The signature could not be updated."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const plate = (label, slot, number) => (
     <div className="flex-1 space-y-1 rounded-lg border border-border p-3">
       <p className={caption}>{label}</p>
-      <p>{slot ? `${slot.name ?? "—"} · ${formatWhen(slot.at)}` : <span className="text-muted-foreground">Not yet.</span>}</p>
+      <p>
+        {slot ? `${slot.name ?? "—"} · ${formatWhen(slot.at)}` : <span className="text-muted-foreground">Not yet.</span>}
+        {slot?.signatureDeclined && <span className="ml-1 text-muted-foreground">(signature not applied)</span>}
+      </p>
+      {slot && userId && slot.id === userId && (
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => setDeclined(number, !slot.signatureDeclined)}>
+          {slot.signatureDeclined ? "Apply my signature" : "Decline my signature"}
+        </Button>
+      )}
     </div>
   );
   return (
     <div className="space-y-3 text-[13px]">
       <div className="flex flex-col gap-2 sm:flex-row">
-        {plate("Check by (1)", t.checkBy.first)}
-        {plate("Check by (2)", t.checkBy.second)}
+        {plate("Check by (1)", t.checkBy.first, 1)}
+        {plate("Check by (2)", t.checkBy.second, 2)}
       </div>
       {rights.checkByBlocked && (
         <p className="text-xs text-muted-foreground">

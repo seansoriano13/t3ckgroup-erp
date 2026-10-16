@@ -7,7 +7,9 @@
             "Transmittals and Packing Lists: the page shows the numbers, a row per section that opens in a drawer, and a Your move card that says what you can do or who it is waiting on.",
             "Transmittals: sign a stage, Received in Odoo by or a Check by from the card or the drawer. Prints and Cancel are in the More menu.",
             "Transmittals: someone who may sign a step can undo that signature with a reason. It is kept as history; ratings, remarks and pictures stay.",
-            "Packing Lists: Sign Packed by is the one move, in the card or the Packed by drawer."
+            "Packing Lists: Sign Packed by is the one move, in the card or the Packed by drawer.",
+            "Transmittals: a Check by signer can decline their stored signature, so the slip prints their name only, and apply it again later.",
+            "Transmittals: a company spelled with different capital letters in Odoo no longer warns as a different company."
         ]
     },
     {

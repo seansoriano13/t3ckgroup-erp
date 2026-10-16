@@ -71,8 +71,8 @@ export function shapeTransmittal(row) {
     stages: row.stages ?? [],
     evidence: row.evidence ?? [],
     checkBy: {
-      first: checkBySlot(row.check_by_first_id, row.check_by_first, row.check_by_first_at),
-      second: checkBySlot(row.check_by_second_id, row.check_by_second, row.check_by_second_at),
+      first: checkBySlot(row.check_by_first_id, row.check_by_first, row.check_by_first_at, row.check_by_first_signature_declined),
+      second: checkBySlot(row.check_by_second_id, row.check_by_second, row.check_by_second_at, row.check_by_second_signature_declined),
     },
     // Signatures that were undone, kept as history (#538), oldest first.
     cleared: [...(row.cleared ?? [])]
@@ -206,14 +206,15 @@ export function tsrOf(transmittal) {
   };
 }
 
-/** One Check by slot: who signed it and when, or null while unsigned. */
-function checkBySlot(id, employee, at) {
+/** One Check by slot: who signed it, when, and whether they declined their stored signature; null while unsigned. */
+function checkBySlot(id, employee, at, signatureDeclined) {
   if (!id) return null;
   return {
     id,
     name: employee?.name ?? null,
     callSign: employee?.call_sign ?? null,
     signaturePath: employee?.signature_path ?? null,
+    signatureDeclined: Boolean(signatureDeclined),
     at,
   };
 }
