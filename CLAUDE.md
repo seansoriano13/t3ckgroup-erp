@@ -1,1 +1,1 @@
-when reporting information to me, be extremely concise and sacrifice grammar for the sake of concision.
+when reporting information to me, be short, but use full sentences and everyday words so it is easy to understand.
