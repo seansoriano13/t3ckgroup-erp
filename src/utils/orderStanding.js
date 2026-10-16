@@ -23,7 +23,7 @@
  *   slips (the raw submitted Transmittal rows that name this IPAS, with stages and
  *   lines) and hasDraftTransmittal (a draft names it: raised, not yet submitted).
  *
- * `rules` is the list `orderMonitoringService.getRules()` returns; a step with
+ * `rules` is the list `orderAgeingRulesService.getRules()` returns; a step with
  * days null has no rule and never goes late.
  */
 
@@ -227,6 +227,8 @@ function nextThing(order, slips, track) {
   }
 
   if (isLandedCostFinal(order.computationStatus)) {
+    // The wait starts at the Costs complete event. An order whose history has no such event
+    // (set outside the app) falls back to its last update, then its creation.
     return {
       label: "Costs complete — ready to file",
       owner: ORDER_OWNER.SIGNERS,
@@ -236,6 +238,8 @@ function nextThing(order, slips, track) {
   }
 
   const delivered = track.find((item) => item.key === "delivered");
+  // A draft Transmittal counts as raised: someone has started the hand-off, so Purchasing is not
+  // owed a nudge. The spec is silent on drafts; this keeps Purchasing from chasing itself.
   if (delivered?.ticked && slips.length === 0 && !order.hasDraftTransmittal) {
     return {
       label: "Delivered — no Transmittal raised",

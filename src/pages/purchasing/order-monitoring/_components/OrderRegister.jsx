@@ -9,11 +9,12 @@ import QueryError from "../../../../components/ui/QueryError";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../../components/ui/table";
 import { orderMonitoringService } from "../../../../services/orderMonitoringService";
 import { formatAmount } from "../../../../utils/ipas";
+import { pluralize } from "../../../../utils/plural";
 import { IPAS_SOURCE_LABELS, IPAS_STATE, IPAS_STATE_LABELS } from "../../../../constants/ipas";
 import { ORDER_GROUP, ORDER_OWNER_LABELS } from "../../../../constants/orderMonitoring";
-import { HEAD, plural } from "./format";
+import { TABLE_HEAD_CLASS, lateRowClass } from "./format";
 import { ALL } from "./useOrderRegisterFilters";
-import { NextThing, WaitCell } from "./parts";
+import { NextThing, OrderCell, SorCell, WaitCell } from "./parts";
 
 /**
  * The order register (#264, spec #261): one row per IPAS, filed included and
@@ -22,6 +23,8 @@ import { NextThing, WaitCell } from "./parts";
  * Transmittal or a hand stamp), typed (a person typed its date) or pending.
  * The hand-off column reads the latest Transmittal and its check result.
  */
+
+const HEADINGS = ["PO and source", "SOR and entity", "Supplier and item", "Value", "Track", "Next thing", "Hand-off", "Age"];
 
 const CHECK_LABELS = { open: "Check open", gc: "GC", na: "NA", na_replaced: "NA · replaced" };
 const CHECK_TONES = {
@@ -158,28 +161,24 @@ export default function OrderRegister({ onOpen, query }) {
             <Table tableId="order-register" className="md:min-w-[72rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  {["PO and source", "SOR and entity", "Supplier and item", "Value", "Track", "Next thing", "Hand-off", "Age"].map(
-                    (heading) => (
-                      <TableHead key={heading} className={HEAD}>
+                  {HEADINGS.map((heading) => (
+                      <TableHead key={heading} className={TABLE_HEAD_CLASS}>
                         {heading}
                       </TableHead>
-                    ),
-                  )}
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((row) => (
-                  <TableRow key={row.id} className="cursor-pointer" onClick={() => onOpen(row.id)}>
+                  <TableRow key={row.id} className={`cursor-pointer ${lateRowClass(row)}`} onClick={() => onOpen(row.id)}>
                     <TableCell>
-                      <span className="font-mono font-semibold">{row.number}</span>
-                      <div className="text-xs text-muted-foreground">
-                        PO {row.poNumber} · {IPAS_SOURCE_LABELS[row.source] ?? row.source}
-                      </div>
-                      {row.state === IPAS_STATE.FILED && <div className="text-xs font-semibold text-muted-foreground">Filed</div>}
+                      <OrderCell row={row}>
+                        <div className="text-xs text-muted-foreground">{IPAS_SOURCE_LABELS[row.source] ?? row.source}</div>
+                        {row.state === IPAS_STATE.FILED && <div className="text-xs font-semibold text-muted-foreground">Filed</div>}
+                      </OrderCell>
                     </TableCell>
                     <TableCell>
-                      {row.sors.length ? row.sors.map((sor) => sor.salesReference).join(", ") : "No SOR"}
-                      <div className="text-xs text-muted-foreground">{row.entity ?? "—"}</div>
+                      <SorCell row={row} />
                     </TableCell>
                     <TableCell>
                       {row.supplier ?? "—"}
@@ -202,7 +201,7 @@ export default function OrderRegister({ onOpen, query }) {
                     <TableCell>
                       <HandOff transmittals={row.transmittals} />
                     </TableCell>
-                    <TableCell className="tabular-nums">{plural(row.ageDays ?? 0, "day")}</TableCell>
+                    <TableCell className="tabular-nums">{pluralize(row.ageDays ?? 0, "day")}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

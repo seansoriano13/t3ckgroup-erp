@@ -5,6 +5,7 @@ import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { getPermissionContext, canReadIpas } from "../../utils/permissions";
+import { pluralize } from "../../utils/plural";
 import { IPAS_PURPOSE_LABELS } from "../../constants/ipas";
 import { ORDER_OWNER_LABELS } from "../../constants/orderMonitoring";
 import IpasStateBadge from "./IpasStateBadge";
@@ -58,15 +59,10 @@ function SummaryRow({ summary, canOpen }) {
           )}
           {summary.daysWaiting !== null && summary.daysWaiting !== undefined && (
             <span className="text-muted-foreground">
-              · {summary.daysWaiting} {summary.daysWaiting === 1 ? "day" : "days"} waiting
+              · {pluralize(summary.daysWaiting, "day")} waiting
             </span>
           )}
-          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
-          {summary.late && summary.daysPastRule > 0 && (
-            <span className="font-semibold text-destructive">
-              {summary.daysPastRule} {summary.daysPastRule === 1 ? "day" : "days"} past the rule
-            </span>
-          )}
+          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
         </p>
       )}
 

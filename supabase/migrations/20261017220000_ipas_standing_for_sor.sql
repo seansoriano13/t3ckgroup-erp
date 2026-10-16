@@ -15,8 +15,8 @@
 --   Import Clearance and Delivered dates, whether Actual Checking is stamped
 --   and when, the date a payment carrying proof was paid (a date, never an
 --   amount, method, link or bank detail), when Landed Cost went final (from the
---   IPAS history), and the submitted, uncancelled Transmittals naming the IPAS
---   (state, check flags, stage completions, and per line only the IPAS id, the
+--   IPAS history), and the uncancelled Transmittals naming the IPAS, drafts
+--   included (a draft only tells the service one has been raised; state, check flags, stage completions, and per line only the IPAS id, the
 --   Odoo PO line id and the two ratings; no remark, picture or description).
 --
 -- No money or bank column is returned.
@@ -102,7 +102,7 @@ as $function$
         order by t.prepared_on, t.created_at, t.number
       )
         from public.transmittals t
-       where t.state not in ('draft', 'cancelled')
+       where t.state <> 'cancelled'
          and exists (
            select 1 from public.transmittal_lines l
             where l.transmittal_id = t.id and l.ipas_id = i.id
@@ -119,7 +119,7 @@ as $function$
 $function$;
 
 comment on function public.ipas_standing_for_sor(uuid) is
-  '#265: the dates and Transmittal facts the SOR''s IPAS section needs to say where each order stands (next thing, owner, days waiting, late), for anyone who can read the SOR (sor_access_level = full). Never money or bank columns. No SOR access -> no rows.';
+  '#265: the dates and Transmittal facts the SOR''s IPAS section needs to say where each order stands (next thing, owner, days waiting, late), for anyone who can read the SOR (sor_access_level = full). Never money or bank columns. No SOR access -> no rows. Uncancelled Transmittals, drafts included (a draft only tells the service one has been raised).';
 
 revoke all on function public.ipas_standing_for_sor(uuid) from public, anon;
 grant execute on function public.ipas_standing_for_sor(uuid) to authenticated;

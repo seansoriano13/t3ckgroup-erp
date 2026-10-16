@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { orderMonitoringService } from "./orderMonitoringService"
+import { orderAgeingRulesService } from "./orderAgeingRulesService"
 import { ORDER_AGEING_STEPS } from "@/constants/orderMonitoring"
 import { db } from "@/test/db/store"
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
@@ -17,44 +18,44 @@ const daysOf = (rules, step) => rules.find((rule) => rule.step === step).days
 
 describe("orderMonitoringService ageing rules", () => {
   it("lists every step in order, each with no rule, before anyone sets one", async () => {
-    const rules = await orderMonitoringService.getRules()
+    const rules = await orderAgeingRulesService.getRules()
 
     expect(rules.map((rule) => rule.step)).toEqual(KEYS)
     expect(rules.every((rule) => rule.days === null)).toBe(true)
   })
 
   it("reads back the days once a rule is set", async () => {
-    await orderMonitoringService.setRule("import_clearance", 3)
+    await orderAgeingRulesService.setRule("import_clearance", 3)
 
-    expect(daysOf(await orderMonitoringService.getRules(), "import_clearance")).toBe(3)
+    expect(daysOf(await orderAgeingRulesService.getRules(), "import_clearance")).toBe(3)
   })
 
   it("replaces a rule rather than adding a second one for the same step", async () => {
-    await orderMonitoringService.setRule("create_bill", 7)
-    await orderMonitoringService.setRule("create_bill", 10)
+    await orderAgeingRulesService.setRule("create_bill", 7)
+    await orderAgeingRulesService.setRule("create_bill", 10)
 
-    const rules = await orderMonitoringService.getRules()
+    const rules = await orderAgeingRulesService.getRules()
     expect(rules).toHaveLength(KEYS.length)
     expect(daysOf(rules, "create_bill")).toBe(10)
   })
 
   it("clearing a rule reads back as no rule", async () => {
-    await orderMonitoringService.setRule("import_clearance", 3)
-    await orderMonitoringService.setRule("import_clearance", null)
+    await orderAgeingRulesService.setRule("import_clearance", 3)
+    await orderAgeingRulesService.setRule("import_clearance", null)
 
-    expect(daysOf(await orderMonitoringService.getRules(), "import_clearance")).toBeNull()
+    expect(daysOf(await orderAgeingRulesService.getRules(), "import_clearance")).toBeNull()
   })
 
   it("refuses a day count that is not a positive whole number, and writes nothing", async () => {
-    await expect(orderMonitoringService.setRule("create_bill", 0)).rejects.toThrow()
-    await expect(orderMonitoringService.setRule("create_bill", -2)).rejects.toThrow()
-    await expect(orderMonitoringService.setRule("create_bill", 2.5)).rejects.toThrow()
+    await expect(orderAgeingRulesService.setRule("create_bill", 0)).rejects.toThrow()
+    await expect(orderAgeingRulesService.setRule("create_bill", -2)).rejects.toThrow()
+    await expect(orderAgeingRulesService.setRule("create_bill", 2.5)).rejects.toThrow()
 
-    expect(daysOf(await orderMonitoringService.getRules(), "create_bill")).toBeNull()
+    expect(daysOf(await orderAgeingRulesService.getRules(), "create_bill")).toBeNull()
   })
 
   it("refuses a step that is not one of the ten", async () => {
-    await expect(orderMonitoringService.setRule("not_a_step", 3)).rejects.toThrow()
+    await expect(orderAgeingRulesService.setRule("not_a_step", 3)).rejects.toThrow()
   })
 })
 
@@ -222,7 +223,7 @@ describe("orderMonitoringService: what needs doing", () => {
     it("puts an Import six days past Arrived in PH, with no Import Clearance, past a three-day rule", async () => {
       const ipas = seedOrder({ source: "import", arrivedInPh: "2026-10-10" })
       seedPayment(ipas)
-      await orderMonitoringService.setRule("import_clearance", 3)
+      await orderAgeingRulesService.setRule("import_clearance", 3)
 
       const row = rowsFor(await listAll(), ipas)
 
@@ -460,7 +461,7 @@ describe("orderMonitoringService: what needs doing", () => {
         stages: { warehouse_checking: at(9), technical_inspection: "2026-10-10T16:30:00Z" },
         lines: [{ ipas, odooPoLineId: 10001, wh: "gc", tech: "gc" }],
       })
-      await orderMonitoringService.setRule("check_open", 1)
+      await orderAgeingRulesService.setRule("check_open", 1)
 
       const row = rowsFor(await orderMonitoringService.list({ today: "2026-10-12" }), ipas)
 
@@ -476,10 +477,10 @@ describe("orderMonitoringService: what needs doing", () => {
 
       expect(rowsFor(await listAll(), ipas).group).toBe("waiting_on_us")
 
-      await orderMonitoringService.setRule("no_transmittal", 1)
+      await orderAgeingRulesService.setRule("no_transmittal", 1)
       expect(rowsFor(await listAll(), ipas).group).toBe("needs_chasing")
 
-      await orderMonitoringService.setRule("no_transmittal", null)
+      await orderAgeingRulesService.setRule("no_transmittal", null)
       expect(rowsFor(await listAll(), ipas).group).toBe("waiting_on_us")
     })
   })
@@ -489,7 +490,7 @@ describe("orderMonitoringService: what needs doing", () => {
       const late = seedOrder({ source: "import", arrivedInPh: "2026-10-10" })
       seedPayment(late)
       const waiting = seedOrder({ poState: "draft" })
-      await orderMonitoringService.setRule("import_clearance", 3)
+      await orderAgeingRulesService.setRule("import_clearance", 3)
 
       const rows = await listAll({ group: "needs_chasing" })
 
@@ -535,7 +536,7 @@ describe("orderMonitoringService: what needs doing", () => {
       const importOther = seedOrder({ source: "import", arrivedInPh: "2026-10-14", currency: "USD", lines: [LINE(20003, 500)] })
       seedPayment(importOther)
       seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "checked", lines: [LINE(20004, 9999)] })
-      await orderMonitoringService.setRule("import_clearance", 3)
+      await orderAgeingRulesService.setRule("import_clearance", 3)
 
       const counts = await orderMonitoringService.counts({ today: TODAY })
 

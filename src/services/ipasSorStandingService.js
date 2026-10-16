@@ -5,7 +5,7 @@ import { deriveTransmittalTrack } from "../utils/ipasTransmittals";
 import { orderStanding } from "../utils/orderStanding";
 import { orderStandingInput, submittedSlips } from "../utils/orderAgeing";
 import { ipasService } from "./ipasService";
-import { orderMonitoringService } from "./orderMonitoringService";
+import { orderAgeingRulesService } from "./orderAgeingRulesService";
 
 /**
  * Where an SOR's own orders stand (#265, spec #261). The SOR's IPAS summary
@@ -17,7 +17,6 @@ import { orderMonitoringService } from "./orderMonitoringService";
  *   owner        who owes it (an ORDER_OWNER key), or null when filed/cancelled
  *   daysWaiting  whole Asia/Manila days it has waited, or null
  *   late         true once it has waited past its step's rule
- *   daysPastRule how many days past that rule, or null while not late
  *
  * The facts orderStanding needs (dates, each Transmittal's stages and ratings)
  * come from `ipas_standing_for_sor`, which gives the SOR's readers dates and
@@ -39,7 +38,7 @@ function odooStatusesOf(summary) {
 
 function standingOf(summary, facts, rules, today) {
   if (!facts || summary.state === IPAS_STATE.CANCELLED) {
-    return { nextThing: null, owner: null, daysWaiting: null, late: false, daysPastRule: null };
+    return { nextThing: null, owner: null, daysWaiting: null, late: false };
   }
   const named = facts.slips ?? [];
   const derived = deriveTransmittalTrack(submittedSlips(named), {
@@ -84,7 +83,6 @@ function standingOf(summary, facts, rules, today) {
     owner: standing.next.owner,
     daysWaiting: standing.daysWaiting,
     late: standing.late,
-    daysPastRule: standing.daysPastRule,
   };
 }
 
@@ -102,7 +100,7 @@ export const ipasSorStandingService = {
 
     const [{ data, error }, rules] = await Promise.all([
       supabase.rpc("ipas_standing_for_sor", { p_opportunity_id: opportunityId }),
-      orderMonitoringService.getRules(),
+      orderAgeingRulesService.getRules(),
     ]);
     if (error) throw error;
     const factsById = new Map((data ?? []).map((row) => [row.ipas_id, row]));

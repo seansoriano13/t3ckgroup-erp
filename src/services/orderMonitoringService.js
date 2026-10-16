@@ -1,8 +1,8 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_ERROR, IPAS_STATE, IPAS_STATUS_SOURCE } from "../constants/ipas";
-import { ORDER_AGEING_STEPS, ORDER_GROUP } from "../constants/orderMonitoring";
+import { IPAS_STATE, IPAS_STATUS_SOURCE } from "../constants/ipas";
+import { ORDER_GROUP } from "../constants/orderMonitoring";
 import { TRANSMITTAL_RATING } from "../constants/transmittals";
-import { IpasError } from "./ipasService";
+import { orderAgeingRulesService } from "./orderAgeingRulesService";
 import { transmittalService } from "./transmittalService";
 import { finiteNumber } from "../utils/landedCost";
 import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas } from "../utils/ipas";
@@ -10,45 +10,13 @@ import { isLandedCostFinal } from "../utils/ipasSignoffs";
 import { checkResultOf, daysBetweenManila, orderStanding } from "../utils/orderStanding";
 import { inDateOrder } from "../utils/ipasTransmittals";
 import { transmittalStateLabel } from "../utils/transmittals";
-import { INVALID_DAYS_MESSAGE, isValidDays, orderStandingInput, submittedSlips } from "../utils/orderAgeing";
-
-const STEP_KEYS = ORDER_AGEING_STEPS.map((step) => step.key);
+import { orderStandingInput, submittedSlips } from "../utils/orderAgeing";
 
 /**
- * Order Monitoring (#262, spec #261): the ageing rules Purchasing edits. One
- * rule per step, in days; a step with no rule never goes late. The database
- * decides who may write (Purchasing access and Super Admins) and refuses a
- * step it does not know or a day count below one.
+ * Order Monitoring (spec #261): what needs doing (#263) and the order register
+ * (#264). The ageing rules it reads live in `orderAgeingRulesService`.
  */
 export const orderMonitoringService = {
-  /**
-   * Every step, in track order, with its days or null for no rule. A step with
-   * no stored row reads as no rule, so the list is always complete.
-   */
-  async getRules() {
-    const { data, error } = await supabase.from("order_ageing_rules").select("step, days");
-    if (error) throw error;
-    const daysByStep = new Map((data || []).map((row) => [row.step, row.days ?? null]));
-    return STEP_KEYS.map((step) => ({ step, days: daysByStep.get(step) ?? null }));
-  },
-
-  /** Sets a step's days, or clears it with null. */
-  async setRule(step, days) {
-    if (!STEP_KEYS.includes(step)) {
-      throw new IpasError(IPAS_ERROR.INVALID, "Pick a step that can have an ageing rule.");
-    }
-    if (!isValidDays(days)) {
-      throw new IpasError(IPAS_ERROR.INVALID, INVALID_DAYS_MESSAGE);
-    }
-    const { data, error } = await supabase
-      .from("order_ageing_rules")
-      .upsert({ step, days }, { onConflict: "step" })
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
   /**
    * What needs doing (#263): every IPAS the caller can read, cancelled left out,
    * each with its standing. `group` narrows to one of ORDER_GROUP; `today` is
@@ -136,7 +104,7 @@ async function loadOrders(today) {
     readPayments(ids),
     readCostsCompleteAt(ids),
     transmittalService.forOrders(ids, { includeDrafts: true }),
-    orderMonitoringService.getRules(),
+    orderAgeingRulesService.getRules(),
   ]);
 
   return ipasRows.map((row) => {

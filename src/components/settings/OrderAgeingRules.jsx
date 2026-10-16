@@ -6,7 +6,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import PageLoading from "../ui/PageLoading";
 import QueryError from "../ui/QueryError";
-import { orderMonitoringService } from "../../services/orderMonitoringService";
+import { orderAgeingRulesService } from "../../services/orderAgeingRulesService";
 import { ORDER_AGEING_HINTS, ORDER_AGEING_STEPS } from "../../constants/orderMonitoring";
 import { ipasErrorMessage } from "../../utils/ipas";
 import { INVALID_DAYS_MESSAGE, isValidDays } from "../../utils/orderAgeing";
@@ -34,12 +34,12 @@ export default function OrderAgeingRules() {
 
   const { data: rules, isLoading, isError, refetch } = useQuery({
     queryKey: RULES_KEY,
-    queryFn: () => orderMonitoringService.getRules(),
+    queryFn: () => orderAgeingRulesService.getRules(),
   });
 
   const save = useMutation({
     mutationFn: (changes) =>
-      Promise.all(changes.map((change) => orderMonitoringService.setRule(change.step, change.days))),
+      Promise.all(changes.map((change) => orderAgeingRulesService.setRule(change.step, change.days))),
     onSuccess: () => {
       setEdits({});
       setError(null);

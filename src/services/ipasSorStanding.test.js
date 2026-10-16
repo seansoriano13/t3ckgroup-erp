@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { ipasSorStandingService } from "./ipasSorStandingService"
 import { orderMonitoringService } from "./orderMonitoringService"
+import { orderAgeingRulesService } from "./orderAgeingRulesService"
 import { ipasService } from "./ipasService"
 import { db, updateRow } from "@/test/db/store"
 import { supabase } from "@/lib/supabase"
@@ -30,7 +31,7 @@ const odooPo = (name) => ({
   bills: { count: 0, draft: 0 },
 })
 
-const NEW_FIELDS = ["daysPastRule", "daysWaiting", "late", "nextThing", "owner"]
+const NEW_FIELDS = ["daysWaiting", "late", "nextThing", "owner"]
 const SHAPED_KEYS = [
   "buyerTrack", "computationLabel", "computationStatus", "id", "isCancelled", "isFiled", "number",
   "poNumber", "purpose", "signoffs", "state", "supplier", "trackDone", "trackTotal",
@@ -73,24 +74,13 @@ describe("ipasSorStandingService.summariesForSor", () => {
   it("marks an order late once it has waited past its step's rule", async () => {
     stubIpasRpcs({ actorId: buyer.id })
     await raise()
-    await orderMonitoringService.setRule("with_pop", 10)
+    await orderAgeingRulesService.setRule("with_pop", 10)
     asDealTeam()
 
     const [row] = await ipasSorStandingService.summariesForSor(sor.id, { today: TODAY })
 
     expect(row.late).toBe(true)
-    expect(row.daysWaiting).toBe(15)
-    expect(row.daysPastRule).toBe(5)
-  })
-
-  it("has no days past the rule while an order is not late", async () => {
-    stubIpasRpcs({ actorId: buyer.id })
-    await raise()
-    asDealTeam()
-
-    const [row] = await ipasSorStandingService.summariesForSor(sor.id, { today: TODAY })
-
-    expect(row.daysPastRule).toBeNull()
+    expect(row.daysWaiting).toBe(15)
   })
 
   it("does not say no Transmittal was raised when a draft already names the order", async () => {
@@ -120,7 +110,7 @@ describe("ipasSorStandingService.summariesForSor", () => {
       ipas_id: ipas.id, kind: "payment", paid_on: "2026-10-01", amount: 1000,
       method_id: options.payment_method["Dated Check"].id, proof_url: "https://x.test/proof.png",
     })
-    await orderMonitoringService.setRule("import_clearance", 3)
+    await orderAgeingRulesService.setRule("import_clearance", 3)
 
     const listed = (await orderMonitoringService.list({ today: TODAY })).find((r) => r.id === ipas.id)
     asDealTeam()

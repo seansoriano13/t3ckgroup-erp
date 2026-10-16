@@ -11,6 +11,9 @@ import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
 /** The sub-tab for the sign-off lists, offered to Super Admins only. */
 const SIGNERS_TAB = "signers";
 
+/** The sub-tab for how many days each order step may take (#262). */
+const AGEING_TAB = "ageing";
+
 /** The Transmittal option lists (#252), edited beside the IPAS ones. */
 const TRANSMITTAL_LISTS = [TRANSMITTAL_OPTION_LIST.PRODUCT, TRANSMITTAL_OPTION_LIST.REFERENCE];
 
@@ -29,11 +32,13 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
   const tabs = [
     ...IPAS_OPTION_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
     ...TRANSMITTAL_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
+    { value: AGEING_TAB, label: "Ageing rules" },
     ...(isSuperAdmin ? [{ value: SIGNERS_TAB, label: "Sign-off lists" }] : []),
   ];
   // The sign-off lists tab only exists for Super Admins; anyone else stays on an option list.
   const showSigners = list === SIGNERS_TAB && isSuperAdmin;
-  const optionList = list === SIGNERS_TAB ? IPAS_OPTION_LISTS[0] : list;
+  const showAgeing = list === AGEING_TAB;
+  const optionList = list === SIGNERS_TAB || showAgeing ? IPAS_OPTION_LISTS[0] : list;
 
   return (
     <div className="space-y-4" data-testid="purchasing-settings">
@@ -44,8 +49,10 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
           apply to new rows; existing rows keep their option.
         </p>
       </div>
-      <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : optionList} onChange={setList} tabs={tabs} />
-      {showSigners ? (
+      <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : showAgeing ? AGEING_TAB : optionList} onChange={setList} tabs={tabs} />
+      {showAgeing ? (
+        <OrderAgeingRules />
+      ) : showSigners ? (
         <>
           {isSuperAdmin && <TransmittalFirstNumber />}
           <IpasSignerListEditor />
@@ -53,7 +60,6 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
       ) : (
         <IpasOptionListEditor key={optionList} list={optionList} />
       )}
-      <OrderAgeingRules />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "@/pages/settings/index";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
-import { orderMonitoringService } from "@/services/orderMonitoringService";
+import { orderAgeingRulesService } from "@/services/orderAgeingRulesService";
 
 /**
  * The Ageing rules section of Settings > Purchasing (#262, spec #261): one row
@@ -29,8 +29,15 @@ const renderPurchasing = () =>
     </MemoryRouter>,
   );
 
+const openAgeingRules = async () => {
+  renderPurchasing();
+  const user = setupUser();
+  await user.click(await screen.findByRole("tab", { name: "Ageing rules" }));
+  return user;
+};
+
 const rulesOf = async () => {
-  const rules = await orderMonitoringService.getRules();
+  const rules = await orderAgeingRulesService.getRules();
   return Object.fromEntries(rules.map((rule) => [rule.step, rule.days]));
 };
 
@@ -40,7 +47,7 @@ describe("Settings > Purchasing: Ageing rules", () => {
   });
 
   it("shows every step with a blank days field, and the two hints", async () => {
-    renderPurchasing();
+    await openAgeingRules();
 
     expect(await screen.findByRole("heading", { name: "Ageing rules", level: 2 })).toBeInTheDocument();
     expect(await screen.findByLabelText("Days for Purchase Order")).toHaveValue(null);
@@ -63,8 +70,7 @@ describe("Settings > Purchasing: Ageing rules", () => {
   });
 
   it("saves a typed number as the rule", async () => {
-    renderPurchasing();
-    const user = setupUser();
+    const user = await openAgeingRules();
 
     await user.type(await screen.findByLabelText("Days for Delivered"), "5");
     await user.click(screen.getByRole("button", { name: "Save ageing rules" }));
@@ -73,9 +79,8 @@ describe("Settings > Purchasing: Ageing rules", () => {
   });
 
   it("clears a rule when its field is emptied and saved", async () => {
-    await orderMonitoringService.setRule("create_bill", 7);
-    renderPurchasing();
-    const user = setupUser();
+    await orderAgeingRulesService.setRule("create_bill", 7);
+    const user = await openAgeingRules();
 
     const field = await screen.findByLabelText("Days for Create Bill");
     await waitFor(() => expect(field).toHaveValue(7));
@@ -86,8 +91,7 @@ describe("Settings > Purchasing: Ageing rules", () => {
   });
 
   it("refuses zero days and saves nothing", async () => {
-    renderPurchasing();
-    const user = setupUser();
+    const user = await openAgeingRules();
 
     await user.type(await screen.findByLabelText("Days for With P.O.P"), "0");
     await user.click(screen.getByRole("button", { name: "Save ageing rules" }));
