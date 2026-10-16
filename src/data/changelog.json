@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-16",
+        "title": "SOR: costing Components and cost-only rows",
+        "version": "1.9.37",
+        "changes": [
+            "Under each Tender Line on the PMS tab you can now add Components: what we supply toward it, numbered 1.1, 1.2. A Component is priced as a whole when you tick Bundle, and a bundle lists what comes with it as Inclusions, with no prices, under headings like Accessories.",
+            "Each column belongs to one team and the header says which: Sales types Brand, Status and the Odoo unit cost, Purchasing types the P.O./RFQ number, availability, source, Acquire and the Offer Specification. Anything outside your team shows as plain text.",
+            "Cost-only rows, like the Delivery Charge, sit below the Tender Lines. They count in the totals, not in any Tender Line's margin.",
+            "You can name a Sales incharge from the Deal Team and a Purchasing incharge, for the whole matrix or for one Component. It is only a label: it gives no access and sends no notice.",
+            "The Purchase Request card moved to the PMS tab from the Summary and This stage. The old Inclusions list is read-only, and any entries in it were moved under an Unplaced inclusions bundle for Sales to place."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "SOR: the PMS page and Tender Lines",
         "version": "1.9.36",
         "changes": [

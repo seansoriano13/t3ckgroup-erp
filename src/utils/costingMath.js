@@ -69,22 +69,64 @@ export function percentOf(part, whole) {
 }
 
 /**
+ * The sum of centavo amounts, or null when there is nothing to sum or any one of them is blank.
+ * One blank cost makes the total unknown, not smaller: a missing Acquire must never read as zero.
+ */
+function sumUnlessBlank(amounts) {
+  if (amounts.length === 0 || amounts.some((a) => a === null)) return null;
+  return amounts.reduce((total, a) => total + a, 0n);
+}
+
+/**
+ * A Component's (or a cost-only row's) totals: each unit cost times its quantity, null while that
+ * unit cost is blank or the viewer's tier never received it. A bundle is priced as a whole, so a
+ * bundle at 1 x 2,160,500 totals 2,160,500.
+ */
+export function componentTotals(component) {
+  return {
+    acquireTotal: pesosFromCentavos(extendedCentavos(component?.acquire_unit, component?.quantity)),
+    odooTotal: pesosFromCentavos(extendedCentavos(component?.odoo_unit, component?.quantity)),
+  };
+}
+
+/** Cost-only rows have the same two totals as a Component. */
+export const costRowTotals = componentTotals;
+
+/**
+ * The totals of a set of cost-only rows (the rows below the Tender Lines): each total is null
+ * unless every row has that cost. They are never part of a Tender Line's totals.
+ */
+export function costRowsTotals(rows) {
+  const list = rows ?? [];
+  return {
+    acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.acquire_unit, r?.quantity)))),
+    odooTotal: pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.odoo_unit, r?.quantity)))),
+  };
+}
+
+/**
  * A Tender Line's totals. `tenderLine` carries `quantity`, and `abc_unit` and
- * `final_offer_unit` when the viewer's tier received them. The Components the
- * later tickets add are not read yet.
+ * `final_offer_unit` when the viewer's tier received them. `components` are the line's Components,
+ * each with `quantity` and the unit costs the viewer's tier received (`acquire_unit`, `odoo_unit`).
+ * Cost-only rows are not passed here: they stay out of a line's totals.
  *
  *   abcTotal, finalOfferTotal   unit x quantity, null while blank
  *   overAbc                     Final Offer total above ABC total (one centavo is enough)
  *   percentOfAbc                Final Offer total as a percentage of ABC total
+ *   acquireTotal, odooTotal     the Components' totals added up; null when the line has no
+ *                               Component, or any Component has that cost blank (never zero)
  */
-export function lineTotals(tenderLine) {
+export function lineTotals(tenderLine, components = []) {
   const abc = extendedCentavos(tenderLine?.abc_unit, tenderLine?.quantity);
   const offer = extendedCentavos(tenderLine?.final_offer_unit, tenderLine?.quantity);
+  const list = components ?? [];
   return {
     abcTotal: pesosFromCentavos(abc),
     finalOfferTotal: pesosFromCentavos(offer),
     overAbc: abc !== null && offer !== null && offer > abc,
     percentOfAbc: abc !== null && offer !== null ? percentOf(pesosFromCentavos(offer), pesosFromCentavos(abc)) : null,
+    acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.acquire_unit, c?.quantity)))),
+    odooTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.odoo_unit, c?.quantity)))),
   };
 }
 

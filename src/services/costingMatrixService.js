@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { bandRefusalMessage } from "../constants/costing";
-import { lineTotals, matrixTotals } from "../utils/costingMath";
+import { componentTotals, costRowsTotals, costRowTotals, lineTotals, matrixTotals } from "../utils/costingMath";
+import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 
 /**
@@ -21,6 +22,14 @@ import { sorLineChange } from "../utils/requestedItem";
  *
  * A matrix exists only once `costing_open_matrix` has run for the SOR (#462);
  * `get` returns null before that, which is a normal state and not an error.
+ *
+ * Components (#268) hang under a Tender Line and carry their unit costs in
+ * `costing_component_costs`, a money table: Acquire is written by Purchasing, the Odoo
+ * unit cost by Sales, Final Acquire and the markup factor by the Final Acquire list. A
+ * bundle Component lists unpriced Inclusions. Cost-only rows (the Delivery Charge) sit
+ * below the Tender Lines in `costing_cost_rows`, also a money table, and stay out of any
+ * Tender Line's totals. A rule the database holds (an Inclusion only under a bundle, an
+ * incharge on the Deal Team or with Purchasing access) surfaces as a `CostingRuleError`.
  */
 
 /**
@@ -48,9 +57,29 @@ export function toBandError(error) {
   return new CostingBandError({ table: match[1], column: match[2], bands: match[3].split(",") });
 }
 
-/** Throws the typed band error when `error` is one, else the raw Supabase error. */
+/** A rule the database holds, in words ("An Inclusion can only sit under a bundle Component."). */
+export class CostingRuleError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.name = "CostingRuleError";
+    this.code = code;
+  }
+}
+
+const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge): (.+)$/;
+
+/** The typed error for a matrix rule refusal (a check violation), or null when `error` is anything else. */
+export function toRuleError(error) {
+  if (error?.code !== "23514") return null;
+  const match = RULE_MESSAGE.exec(error.message ?? "");
+  if (!match) return null;
+  const sentence = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+  return new CostingRuleError(sentence.endsWith(".") ? sentence : `${sentence}.`, error.code);
+}
+
+/** Throws the typed band or rule error when `error` is one, else the raw Supabase error. */
 function fail(error) {
-  throw toBandError(error) ?? error;
+  throw toBandError(error) ?? toRuleError(error) ?? error;
 }
 
 const blankToNull = (value) => (value === "" || value === undefined ? null : value);
@@ -72,10 +101,78 @@ function priceColumns(fields) {
   return columns;
 }
 
+/** A Component's own columns from the service's camelCase fields. */
+function componentColumns(fields) {
+  const columns = {};
+  if ("name" in fields) columns.name = fields.name ?? "";
+  if ("offerSpecification" in fields) columns.offer_specification = blankToNull(fields.offerSpecification);
+  if ("brand" in fields) columns.brand = blankToNull(fields.brand);
+  if ("status" in fields) columns.status = blankToNull(fields.status);
+  if ("availability" in fields) columns.availability = blankToNull(fields.availability);
+  if ("source" in fields) columns.source = blankToNull(fields.source);
+  if ("poRfqNo" in fields) columns.po_rfq_no = blankToNull(fields.poRfqNo);
+  if ("isBundle" in fields) columns.is_bundle = Boolean(fields.isBundle);
+  if ("quantity" in fields) columns.quantity = fields.quantity;
+  if ("unit" in fields) columns.unit = blankToNull(fields.unit);
+  if ("odooProductId" in fields) columns.odoo_product_id = blankToNull(fields.odooProductId);
+  if ("salesInchargeId" in fields) columns.sales_incharge_id = blankToNull(fields.salesInchargeId);
+  if ("purchasingInchargeId" in fields) columns.purchasing_incharge_id = blankToNull(fields.purchasingInchargeId);
+  return columns;
+}
+
+/** The unit-cost columns of a Component or a cost-only row (money: written through `costing_set_money`). */
+function costColumns(fields) {
+  const columns = {};
+  if ("acquireUnit" in fields) columns.acquire_unit = blankToNull(fields.acquireUnit);
+  if ("odooUnit" in fields) columns.odoo_unit = blankToNull(fields.odooUnit);
+  if ("finalAcquireUnit" in fields) columns.final_acquire_unit = blankToNull(fields.finalAcquireUnit);
+  if ("markupFactor" in fields) columns.markup_factor = blankToNull(fields.markupFactor);
+  return columns;
+}
+
+/** An Inclusion's columns from the service's camelCase fields. */
+function inclusionColumns(fields) {
+  const columns = {};
+  if ("heading" in fields) columns.heading = blankToNull(fields.heading);
+  if ("description" in fields) columns.description = fields.description ?? "";
+  if ("quantity" in fields) columns.quantity = fields.quantity;
+  if ("unit" in fields) columns.unit = blankToNull(fields.unit);
+  if ("completeness" in fields) columns.completeness = fields.completeness;
+  return columns;
+}
+
+const groupBy = (rows, key) => {
+  const groups = new Map();
+  for (const row of rows ?? []) {
+    const list = groups.get(row[key]) ?? [];
+    list.push(row);
+    groups.set(row[key], list);
+  }
+  return groups;
+};
+
+/** An Inclusion list under its headings, in the order each heading first appears. */
+function groupInclusions(inclusions) {
+  const groups = [];
+  for (const inclusion of inclusions) {
+    const heading = inclusion.heading ? inclusion.heading : null;
+    let group = groups.find((g) => g.heading === heading);
+    if (!group) {
+      group = { heading, items: [] };
+      groups.push(group);
+    }
+    group.items.push(inclusion);
+  }
+  return groups;
+}
+
 /**
  * The read shaped for the screen: Tender Lines numbered 1, 2, … with the price
  * columns merged in where the tier received them, each with its totals and what
- * its SOR line now says, and the matrix's totals.
+ * its SOR line now says, and the matrix's totals. Each line carries its Components
+ * (numbered 1.1, 1.2, with their costs merged in where the tier received them, their
+ * totals and, for a bundle, its Inclusions under their headings and the Completeness
+ * count); the cost-only rows come beneath, outside every line's totals.
  */
 export function shapeMatrix(read) {
   if (!read) return null;
@@ -83,16 +180,38 @@ export function shapeMatrix(read) {
   const matrix = (tables.costing_matrices ?? [])[0] ?? null;
   const prices = new Map((tables.costing_tender_line_prices ?? []).map((p) => [p.tender_line_id, p]));
 
+  const costsByComponent = new Map((tables.costing_component_costs ?? []).map((c) => [c.component_id, c]));
+  const inclusionsByComponent = groupBy(tables.costing_inclusions, "component_id");
+  const componentsByLine = groupBy(tables.costing_components, "tender_line_id");
+
   const tenderLines = (tables.costing_tender_lines ?? []).map((line, index) => {
     const { tender_line_id: _link, ...price } = prices.get(line.id) ?? {};
     const merged = { ...line, ...price };
+    const number = index + 1;
+    // A Component's cost columns arrive in their own rows, and only the ones the tier may read.
+    const components = (componentsByLine.get(line.id) ?? []).map((component, position) => {
+      const { component_id: _owner, ...cost } = costsByComponent.get(component.id) ?? {};
+      const row = { ...component, ...cost };
+      const inclusions = inclusionsByComponent.get(component.id) ?? [];
+      return {
+        ...row,
+        number: `${number}.${position + 1}`,
+        totals: componentTotals(row),
+        inclusions,
+        inclusionGroups: groupInclusions(inclusions),
+        completeness: summariseCompleteness(inclusions),
+      };
+    });
     return {
       ...merged,
-      number: index + 1,
-      totals: lineTotals(merged),
+      number,
+      components,
+      totals: lineTotals(merged, components),
       sorChange: sorLineChange({ ...line, sorLine: line.sor_line_now }),
     };
   });
+
+  const costRows = (tables.costing_cost_rows ?? []).map((row, index) => ({ ...row, number: index + 1, totals: costRowTotals(row) }));
 
   return {
     tier: read.tier,
@@ -101,6 +220,8 @@ export function shapeMatrix(read) {
     matrix,
     tenderLines,
     totals: matrixTotals(tenderLines),
+    costRows,
+    costRowsTotals: costRowsTotals(costRows),
   };
 }
 
@@ -190,6 +311,146 @@ export const costingMatrixService = {
   },
 
   /**
+   * Adds a Component at the end of a Tender Line. Fields: `name`, `offerSpecification`, `brand`,
+   * `status` (`source_out` | `stockable`), `availability` (`available` | `for_order`), `source`
+   * (`local` | `import`), `poRfqNo`, `isBundle`, `quantity`, `unit`, `odooProductId`, and the costs
+   * `acquireUnit`, `odooUnit`, `finalAcquireUnit`, `markupFactor`. Sales or Purchasing adds; each
+   * column is then held to its own band. Returns the new Component's id.
+   */
+  async addComponent(tenderLineId, fields = {}) {
+    const { data: last, error: lastError } = await supabase
+      .from("costing_components")
+      .select("position")
+      .eq("tender_line_id", tenderLineId)
+      .order("position", { ascending: false })
+      .limit(1);
+    if (lastError) throw lastError;
+    const position = (last?.[0]?.position ?? 0) + 1;
+
+    const { data, error } = await supabase
+      .from("costing_components")
+      .insert({ tender_line_id: tenderLineId, position, name: "", quantity: 1, ...componentColumns(fields) })
+      .select("id")
+      .single();
+    if (error) fail(error);
+    await writeMoney("costing_component_costs", data.id, costColumns(fields));
+    return data.id;
+  },
+
+  /** Changes a Component: any field `addComponent` takes. A cost field set to null clears it. */
+  async updateComponent(componentId, fields) {
+    const columns = componentColumns(fields);
+    if (Object.keys(columns).length > 0) {
+      const { data, error } = await supabase.from("costing_components").update(columns).eq("id", componentId).select("id");
+      if (error) fail(error);
+      if (!data?.length) throw new Error("That Component could not be changed.");
+    }
+    await writeMoney("costing_component_costs", componentId, costColumns(fields));
+  },
+
+  /** Removes a Component with its costs and, for a bundle, its Inclusions. The change stays in the history. */
+  async removeComponent(componentId) {
+    const { data, error } = await supabase.from("costing_components").delete().eq("id", componentId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("That Component could not be removed.");
+  },
+
+  /**
+   * Adds an Inclusion under a bundle Component, at the end of its list: `{ heading, description,
+   * quantity, unit }`. The database refuses a Component that is not a bundle. Returns the id.
+   */
+  async addInclusion(componentId, fields = {}) {
+    const { data: last, error: lastError } = await supabase
+      .from("costing_inclusions")
+      .select("position")
+      .eq("component_id", componentId)
+      .order("position", { ascending: false })
+      .limit(1);
+    if (lastError) throw lastError;
+    const position = (last?.[0]?.position ?? 0) + 1;
+
+    const { data, error } = await supabase
+      .from("costing_inclusions")
+      .insert({ component_id: componentId, position, description: "", quantity: 1, ...inclusionColumns(fields) })
+      .select("id")
+      .single();
+    if (error) fail(error);
+    return data.id;
+  },
+
+  /** Changes an Inclusion: `heading`, `description`, `quantity`, `unit`, and `completeness` (Technical's). */
+  async updateInclusion(inclusionId, fields) {
+    const columns = inclusionColumns(fields);
+    if (Object.keys(columns).length === 0) return;
+    const { data, error } = await supabase.from("costing_inclusions").update(columns).eq("id", inclusionId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("That Inclusion could not be changed.");
+  },
+
+  /** Removes an Inclusion. Sales or Purchasing. */
+  async removeInclusion(inclusionId) {
+    const { data, error } = await supabase.from("costing_inclusions").delete().eq("id", inclusionId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("That Inclusion could not be removed.");
+  },
+
+  /**
+   * Moves an Inclusion under another bundle Component of the same matrix, at the end of its list
+   * (how an "Unplaced inclusions" row finds its bundle). A target that is not a bundle is refused.
+   */
+  async moveInclusion(inclusionId, componentId) {
+    const { error } = await supabase.rpc("costing_move_inclusion", { p_inclusion_id: inclusionId, p_component_id: componentId });
+    if (error) fail(error);
+  },
+
+  /**
+   * Adds a cost-only row below the Tender Lines: `{ description, quantity }` and, optionally, its
+   * costs (`acquireUnit`, `odooUnit`, ...). It starts at a x1.00 markup factor. Returns the new id.
+   */
+  async addCostRow(matrixId, fields = {}) {
+    const { data, error } = await supabase.rpc("costing_add_cost_row", {
+      p_matrix_id: matrixId,
+      p_description: fields.description ?? "",
+      p_quantity: fields.quantity ?? 1,
+    });
+    if (error) fail(error);
+    await writeMoney("costing_cost_rows", data, costColumns(fields));
+    return data;
+  },
+
+  /** Changes a cost-only row: `description`, `quantity` and the costs. All through `costing_set_money` (it is a money table). */
+  async updateCostRow(rowId, fields) {
+    const patch = { ...costColumns(fields) };
+    if ("description" in fields) patch.description = fields.description ?? "";
+    if ("quantity" in fields) patch.quantity = fields.quantity;
+    await writeMoney("costing_cost_rows", rowId, patch);
+  },
+
+  /** Removes a cost-only row. Sales or Purchasing. */
+  async removeCostRow(rowId) {
+    const { error } = await supabase.rpc("costing_remove_cost_row", { p_row_id: rowId });
+    if (error) fail(error);
+  },
+
+  /**
+   * Names who answers for the matrix, or for one Component when `target` is `{ componentId }`:
+   * `{ sales, purchasing }` (an employee id, or null for the default). The Sales incharge must be
+   * on the Deal Team (written by Sales) and the Purchasing incharge must have Purchasing access
+   * (written by Purchasing). It grants nothing and notifies nobody.
+   */
+  async setIncharge(target, { sales, purchasing } = {}) {
+    const columns = {};
+    if (sales !== undefined) columns.sales_incharge_id = blankToNull(sales);
+    if (purchasing !== undefined) columns.purchasing_incharge_id = blankToNull(purchasing);
+    if (Object.keys(columns).length === 0) return;
+    const table = target?.componentId ? "costing_components" : "costing_matrices";
+    const id = target?.componentId ?? target?.matrixId;
+    const { data, error } = await supabase.from(table).update(columns).eq("id", id).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("The incharge could not be changed.");
+  },
+
+  /**
    * The matrix's history for the caller's tier, newest first: `{ id, at,
    * actor_id, kind, detail }`. Filters: `{ table, rowId, limit }`.
    */
@@ -232,5 +493,12 @@ async function writePrices(lineId, fields) {
     p_row: lineId,
     p_patch: patch,
   });
+  if (error) fail(error);
+}
+
+/** Writes money columns through `costing_set_money` (the caller usually cannot select a money table). */
+async function writeMoney(table, rowId, patch) {
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase.rpc("costing_set_money", { p_table: table, p_row: rowId, p_patch: patch });
   if (error) fail(error);
 }

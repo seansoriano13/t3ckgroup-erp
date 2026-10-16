@@ -43,6 +43,77 @@ export const TENDER_PRICE_TIERS = {
 /** Does this tier receive the named Tender Line price column? */
 export const tierReads = (tier, column) => (TENDER_PRICE_TIERS[column] ?? []).includes(tier);
 
+/**
+ * The tiers that receive each unit-cost column of a Component (costing_component_costs) and of a
+ * cost-only row (costing_cost_rows) (#268, shaped by #319). Final Acquire and the markup factor are
+ * Closed Book only; Acquire is the cost side's; the Odoo unit cost is Sales's own column and
+ * Purchasing reads it. A tier that is not listed is not sent the key at all.
+ */
+export const COMPONENT_COST_TIERS = {
+  acquire_unit: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  odoo_unit: [COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  final_acquire_unit: [COSTING_TIER.CLOSED_BOOK],
+  markup_factor: [COSTING_TIER.CLOSED_BOOK],
+};
+
+/** Does this tier receive the named unit-cost column of a Component or cost-only row? */
+export const tierReadsCost = (tier, column) => (COMPONENT_COST_TIERS[column] ?? []).includes(tier);
+
+const { SALES, PURCHASING, MANAGEMENT, TECHNICAL } = COSTING_BAND;
+
+/**
+ * Which write bands may change each column (costing_column_bands), so a cell outside the viewer's
+ * bands is read-only instead of a field that refuses on blur. The database still decides; this
+ * only saves a typed-then-refused round trip. A policy test (79) proves it equals the registry.
+ */
+export const COMPONENT_BANDS = {
+  name: [SALES, PURCHASING],
+  quantity: [SALES, PURCHASING],
+  unit: [SALES, PURCHASING],
+  is_bundle: [SALES, PURCHASING],
+  odoo_product_id: [SALES, PURCHASING],
+  brand: [SALES],
+  status: [SALES],
+  offer_specification: [PURCHASING],
+  availability: [PURCHASING],
+  source: [PURCHASING],
+  po_rfq_no: [PURCHASING],
+  sales_incharge_id: [SALES],
+  purchasing_incharge_id: [PURCHASING],
+};
+
+export const COMPONENT_COST_BANDS = {
+  acquire_unit: [PURCHASING],
+  odoo_unit: [SALES],
+  final_acquire_unit: [MANAGEMENT],
+  markup_factor: [MANAGEMENT],
+};
+
+export const INCLUSION_BANDS = {
+  heading: [SALES, PURCHASING],
+  description: [SALES, PURCHASING],
+  quantity: [SALES, PURCHASING],
+  unit: [SALES, PURCHASING],
+  completeness: [TECHNICAL],
+};
+
+export const COST_ROW_BANDS = {
+  description: [SALES, PURCHASING],
+  quantity: [SALES, PURCHASING],
+  ...COMPONENT_COST_BANDS,
+};
+
+/** Who adds and removes Components, Inclusions and cost-only rows. */
+export const ROW_EDIT_BANDS = [SALES, PURCHASING];
+
+/** Is the viewer (whose bands the read reports) in any band that may write? */
+export const inAnyBand = (viewerBands, columnBands) => (columnBands ?? []).some((band) => (viewerBands ?? []).includes(band));
+
+export const COMPONENT_STATUS = { SOURCE_OUT: "source_out", STOCKABLE: "stockable" };
+export const COMPONENT_STATUS_LABEL = { source_out: "Source Out", stockable: "Stockable" };
+export const COMPONENT_AVAILABILITY_LABEL = { available: "Available", for_order: "For Order" };
+export const COMPONENT_SOURCE_LABEL = { local: "Local", import: "Import" };
+
 /** What a refused column is called on screen: `table.column` -> words. */
 export const COSTING_COLUMN_LABEL = {
   "costing_tender_lines.*": "Adding or removing a Tender Line",
@@ -59,6 +130,43 @@ export const COSTING_COLUMN_LABEL = {
   "costing_tender_line_prices.final_offer_unit": "Final Offer",
   "costing_matrices.sales_incharge_id": "The Sales incharge",
   "costing_matrices.purchasing_incharge_id": "The Purchasing incharge",
+  "costing_components.*": "Adding or removing a Component",
+  "costing_components.name": "A Component's name",
+  "costing_components.quantity": "A Component's quantity",
+  "costing_components.unit": "A Component's unit",
+  "costing_components.is_bundle": "Whether a Component is a bundle",
+  "costing_components.odoo_product_id": "A Component's product",
+  "costing_components.position": "The order of Components",
+  "costing_components.tender_line_id": "Which Tender Line a Component is under",
+  "costing_components.brand": "Brand",
+  "costing_components.status": "Status",
+  "costing_components.offer_specification": "Offer Specification",
+  "costing_components.availability": "Availability",
+  "costing_components.source": "Source",
+  "costing_components.po_rfq_no": "P.O./RFQ No.",
+  "costing_components.sales_incharge_id": "A Component's Sales incharge",
+  "costing_components.purchasing_incharge_id": "A Component's Purchasing incharge",
+  "costing_component_costs.*": "A Component's costs",
+  "costing_component_costs.acquire_unit": "Acquire",
+  "costing_component_costs.odoo_unit": "Odoo unit cost",
+  "costing_component_costs.final_acquire_unit": "Final Acquire",
+  "costing_component_costs.markup_factor": "The markup factor",
+  "costing_inclusions.*": "Adding or removing an Inclusion",
+  "costing_inclusions.component_id": "Which bundle an Inclusion sits under",
+  "costing_inclusions.heading": "An Inclusion's heading",
+  "costing_inclusions.position": "The order of Inclusions",
+  "costing_inclusions.description": "An Inclusion's description",
+  "costing_inclusions.quantity": "An Inclusion's quantity",
+  "costing_inclusions.unit": "An Inclusion's unit",
+  "costing_inclusions.completeness": "An Inclusion's Completeness",
+  "costing_cost_rows.*": "Adding or removing a cost-only row",
+  "costing_cost_rows.position": "The order of cost-only rows",
+  "costing_cost_rows.description": "A cost-only row's description",
+  "costing_cost_rows.quantity": "A cost-only row's quantity",
+  "costing_cost_rows.acquire_unit": "Acquire",
+  "costing_cost_rows.odoo_unit": "Odoo unit cost",
+  "costing_cost_rows.final_acquire_unit": "Final Acquire",
+  "costing_cost_rows.markup_factor": "The markup factor",
 };
 
 /** Words for a refused write: "Final Offer is written by Sales (the Deal Team)." */

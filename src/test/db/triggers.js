@@ -22,6 +22,13 @@ function raise(message) {
 }
 
 
+function requireBundleParent(row, context) {
+  const parent = context.rowsOf("costing_components").find((c) => c.id === row.component_id)
+  if (!parent?.is_bundle) {
+    throw pgrstError("23514", "costing_inclusion: an Inclusion can only sit under a bundle Component", { status: 400 })
+  }
+}
+
 export const TRIGGERS = {
   sales_opportunities: {
     beforeInsert: [
@@ -220,6 +227,19 @@ export const TRIGGERS = {
     beforeUpdate: [
       function touchUpdatedAt(row) {
         row.updated_at = new Date().toISOString()
+      },
+    ],
+  },
+
+  // costing_inclusions: costing_inclusion_needs_bundle() (20261018110000_costing_matrix_components.sql,
+  // #268). An Inclusion sits under a bundle Component, only. It does not depend on who the
+  // caller is, so it is mirrored; the band triggers (who may write which column) are not and
+  // belong to the policy tier (79-costing-components.test.js).
+  costing_inclusions: {
+    beforeInsert: [requireBundleParent],
+    beforeUpdate: [
+      function requireBundleParentOnMove(row, old, context) {
+        if (row.component_id !== old.component_id) requireBundleParent(row, context)
       },
     ],
   },

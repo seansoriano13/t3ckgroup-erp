@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extended, lineTotals, matrixTotals, percentOf } from "./costingMath";
+import { componentTotals, costRowsTotals, costRowTotals, extended, lineTotals, matrixTotals, percentOf } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -50,6 +50,8 @@ describe("lineTotals", () => {
       finalOfferTotal: 199001,
       overAbc: false,
       percentOfAbc: 82.92,
+      acquireTotal: null,
+      odooTotal: null,
     });
   });
 
@@ -59,14 +61,94 @@ describe("lineTotals", () => {
   });
 
   it("leaves a figure null when its input is blank or the tier never received it", () => {
-    expect(lineTotals({ quantity: 2, abc_unit: 100 })).toEqual({ abcTotal: 200, finalOfferTotal: null, overAbc: false, percentOfAbc: null });
+    expect(lineTotals({ quantity: 2, abc_unit: 100 })).toEqual({
+      abcTotal: 200,
+      finalOfferTotal: null,
+      overAbc: false,
+      percentOfAbc: null,
+      acquireTotal: null,
+      odooTotal: null,
+    });
     expect(lineTotals({ quantity: 2, abc_unit: null, final_offer_unit: 5 })).toEqual({
       abcTotal: null,
       finalOfferTotal: 10,
       overAbc: false,
       percentOfAbc: null,
+      acquireTotal: null,
+      odooTotal: null,
     });
-    expect(lineTotals({ quantity: 2 })).toEqual({ abcTotal: null, finalOfferTotal: null, overAbc: false, percentOfAbc: null });
+    expect(lineTotals({ quantity: 2 })).toEqual({
+      abcTotal: null,
+      finalOfferTotal: null,
+      overAbc: false,
+      percentOfAbc: null,
+      acquireTotal: null,
+      odooTotal: null,
+    });
+  });
+
+  describe("with Components", () => {
+    const line = { quantity: 1, abc_unit: 2200000, final_offer_unit: 2100000 };
+
+    it("totals a bundle priced as a whole: 1 x 2,160,500 is 2,160,500", () => {
+      const totals = lineTotals(line, [{ quantity: 1, is_bundle: true, acquire_unit: 2160500, odoo_unit: 2200000 }]);
+      expect(totals.acquireTotal).toBe(2160500);
+      expect(totals.odooTotal).toBe(2200000);
+    });
+
+    it("adds each Component's unit cost times its own quantity", () => {
+      const totals = lineTotals(line, [
+        { quantity: 2, acquire_unit: 1000.5, odoo_unit: 1100 },
+        { quantity: 3, acquire_unit: 200, odoo_unit: 250.25 },
+      ]);
+      expect(totals.acquireTotal).toBe(2601);
+      expect(totals.odooTotal).toBe(2950.75);
+    });
+
+    it("leaves the Acquire total null, never zero, when any Component has a blank Acquire", () => {
+      const totals = lineTotals(line, [
+        { quantity: 1, acquire_unit: 2160500, odoo_unit: 2200000 },
+        { quantity: 1, acquire_unit: null, odoo_unit: 100 },
+        { quantity: 1, odoo_unit: 50 },
+      ]);
+      expect(totals.acquireTotal).toBeNull();
+      expect(totals.odooTotal).toBe(2200150);
+    });
+
+    it("keeps a free Component as zero but a Component the tier never sent as blank", () => {
+      expect(lineTotals(line, [{ quantity: 1, acquire_unit: 0 }]).acquireTotal).toBe(0);
+      // A price-tier reader receives no acquire_unit key at all.
+      expect(lineTotals(line, [{ quantity: 1, odoo_unit: 10 }]).acquireTotal).toBeNull();
+    });
+
+    it("has no Acquire or Odoo total for a line with no Components", () => {
+      expect(lineTotals(line, []).acquireTotal).toBeNull();
+      expect(lineTotals(line).odooTotal).toBeNull();
+    });
+
+    it("leaves ABC and Final Offer untouched by the Components", () => {
+      const totals = lineTotals(line, [{ quantity: 1, acquire_unit: 1, odoo_unit: 1 }]);
+      expect(totals).toMatchObject({ abcTotal: 2200000, finalOfferTotal: 2100000, overAbc: false });
+    });
+  });
+});
+
+describe("componentTotals and cost-only rows", () => {
+  it("totals one Component or cost-only row, blank staying blank", () => {
+    expect(componentTotals({ quantity: 4, acquire_unit: 25.5, odoo_unit: 30 })).toEqual({ acquireTotal: 102, odooTotal: 120 });
+    expect(costRowTotals({ quantity: 1, acquire_unit: 100000 })).toEqual({ acquireTotal: 100000, odooTotal: null });
+    expect(componentTotals(undefined)).toEqual({ acquireTotal: null, odooTotal: null });
+  });
+
+  it("keeps cost-only rows out of a Tender Line's totals and adds them up on their own", () => {
+    const rows = [
+      { quantity: 1, acquire_unit: 100000, odoo_unit: 110000 },
+      { quantity: 2, acquire_unit: 5000, odoo_unit: 6000 },
+    ];
+    expect(costRowsTotals(rows)).toEqual({ acquireTotal: 110000, odooTotal: 122000 });
+    expect(costRowsTotals([...rows, { quantity: 1, odoo_unit: 1 }]).acquireTotal).toBeNull();
+    expect(costRowsTotals([])).toEqual({ acquireTotal: null, odooTotal: null });
+    expect(lineTotals({ quantity: 1 }, []).acquireTotal).toBeNull();
   });
 });
 

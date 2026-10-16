@@ -16,9 +16,14 @@ import { sql } from "./stack.js"
 
 /** Deletes the matrices (and everything under them) for the given SOR ids, plus events the given actors wrote. */
 async function purge(client, { sorIds = null, emailLike = null } = {}) {
-    const { rows: tables } = await client.query(
-        `select table_name from public.costing_tables where table_name <> 'costing_matrices' order by table_name`,
+    const { rows: registered } = await client.query(
+        `select table_name, parent_table from public.costing_tables where table_name <> 'costing_matrices'`,
     )
+    // Deepest first: a child's "belongs to this matrix" test looks through its
+    // parent, which has to still be there.
+    const parentOf = new Map(registered.map((t) => [t.table_name, t.parent_table]))
+    const depth = (name) => (parentOf.get(name) ? 1 + depth(parentOf.get(name)) : 0)
+    const tables = [...registered].sort((a, b) => depth(b.table_name) - depth(a.table_name) || a.table_name.localeCompare(b.table_name))
     const matrixFilter = []
     const args = []
     if (sorIds) {
@@ -44,8 +49,7 @@ async function purge(client, { sorIds = null, emailLike = null } = {}) {
     // Money and child tables hang off the matrix directly or through a parent;
     // costing_matrix_filter writes the same "belongs to matrix $1" test the read uses.
     await client.query(`delete from public.costing_events where matrix_id = any($1::uuid[])`, [matrixIds])
-    const ordered = [...tables.map((t) => t.table_name)].reverse()
-    for (const name of ordered) {
+    for (const { table_name: name } of tables) {
         const { rows: filter } = await client.query(`select public.costing_matrix_filter($1, 't') as f`, [name])
         for (const matrixId of matrixIds) {
             await client.query(`delete from public.${name} t where ${filter[0].f.replace("$1", `'${matrixId}'::uuid`)}`)

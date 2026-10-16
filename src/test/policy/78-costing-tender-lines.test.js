@@ -181,6 +181,7 @@ describe("costing_open_matrix", () => {
       p_opportunity_id: other,
       p_config: { sales_incharge_id: ids.support, purchasing_incharge_id: ids.outsider },
     })
+    expect(again.error).toBeNull()
     expect(again.data).toBe(first.data)
     const row = await asSvc(svc().from("costing_matrices").select("sales_incharge_id, purchasing_incharge_id").eq("id", first.data).single(), "matrix")
     expect(row).toEqual({ sales_incharge_id: ids.dealOwner, purchasing_incharge_id: ids.outsider })
@@ -368,7 +369,14 @@ describe("Tender Lines: who reads what", () => {
   it("serves a Stage Participant the Tender Lines without any money", async () => {
     const read = await readMatrix("stageParticipant")
     expect(read.tier).toBe("participant")
-    expect(Object.keys(read.tables).sort()).toEqual(["costing_matrices", "costing_tender_lines"])
+    // Components, Inclusions and cost-only rows reach a participant too (no money columns).
+    expect(Object.keys(read.tables).sort()).toEqual([
+      "costing_components",
+      "costing_cost_rows",
+      "costing_inclusions",
+      "costing_matrices",
+      "costing_tender_lines",
+    ])
     const [line] = read.tables.costing_tender_lines
     expect(line.id).toBe(lineId)
     expect(line.tender_specification).toBe("Rescue tripod\nAluminium, 3.5 m")
@@ -468,6 +476,10 @@ describe("Tender Lines: who reads what", () => {
       "costing_matrix_money",
       "costing_tender_lines",
       "costing_tender_line_prices",
+      "costing_components",
+      "costing_component_costs",
+      "costing_inclusions",
+      "costing_cost_rows",
       "costing_events",
       "costing_signer_lists",
       "costing_tables",

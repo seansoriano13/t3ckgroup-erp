@@ -167,7 +167,7 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
             )}
             {view === "pms" && (
               <div className="h-full overflow-y-auto">
-                <PmsTab opportunityId={p.id} />
+                <PmsTab opportunityId={p.id} opportunity={p.ctx.opportunity} />
               </div>
             )}
             {view === "journey" && (

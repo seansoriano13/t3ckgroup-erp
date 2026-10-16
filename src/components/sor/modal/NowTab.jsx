@@ -6,7 +6,6 @@ import StageFieldsForm from "../StageFieldsForm";
 import FollowUpPanel from "../FollowUpPanel";
 import PendingActionDecisions from "../PendingActionDecisions";
 import TaskRow from "./TaskRow";
-import PurchaseRequestCard from "./PurchaseRequestCard";
 import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
 import { Button } from "../../ui/button";
@@ -227,10 +226,7 @@ export default function NowTab({ ctx }) {
         </Section>
       )}
 
-      {/* #310: renders nothing for an SOR with no Purchase Request. */}
-      <PurchaseRequestCard opportunityId={id} />
-
-      {/* #267: the IPAS summaries (#249) and the Transmittals (#257) live on the PMS tab now. */}
+      {/* #267, #268: the Purchase Request card (#310), the IPAS summaries (#249) and the Transmittals (#257) live on the PMS tab now. */}
     </div>
   );
 }

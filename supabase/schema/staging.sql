@@ -221,12 +221,66 @@ create table if not exists public."costing_column_tiers" (
   "tiers" text[] not null
 );
 
+create table if not exists public."costing_component_costs" (
+  "component_id" uuid not null,
+  "acquire_unit" numeric(18,2),
+  "odoo_unit" numeric(18,2),
+  "final_acquire_unit" numeric(18,2),
+  "markup_factor" numeric(10,4)
+);
+
+create table if not exists public."costing_components" (
+  "id" uuid not null default gen_random_uuid(),
+  "tender_line_id" uuid not null,
+  "position" integer not null,
+  "name" text not null default ''::text,
+  "offer_specification" text,
+  "brand" text,
+  "status" text,
+  "availability" text,
+  "source" text,
+  "po_rfq_no" text,
+  "is_bundle" boolean not null default false,
+  "quantity" numeric(12,2) not null default 1,
+  "unit" text,
+  "odoo_product_id" integer,
+  "sales_incharge_id" uuid,
+  "purchasing_incharge_id" uuid,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."costing_cost_rows" (
+  "id" uuid not null default gen_random_uuid(),
+  "matrix_id" uuid not null,
+  "position" integer not null,
+  "description" text not null default ''::text,
+  "quantity" numeric(12,2) not null default 1,
+  "acquire_unit" numeric(18,2),
+  "odoo_unit" numeric(18,2),
+  "final_acquire_unit" numeric(18,2),
+  "markup_factor" numeric(10,4) default 1.00,
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."costing_events" (
   "id" uuid not null default gen_random_uuid(),
   "matrix_id" uuid not null,
   "actor_id" uuid,
   "kind" text not null,
   "detail" jsonb not null,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."costing_inclusions" (
+  "id" uuid not null default gen_random_uuid(),
+  "component_id" uuid not null,
+  "heading" text,
+  "position" integer not null,
+  "description" text not null,
+  "quantity" numeric(12,2) not null default 1,
+  "unit" text,
+  "completeness" text not null default 'MISSING'::text,
+  "legacy_sor_inclusion_id" uuid,
   "created_at" timestamp with time zone not null default now()
 );
 
@@ -1551,7 +1605,11 @@ alter table committee_tasks add constraint "committee_tasks_pkey" PRIMARY KEY (i
 alter table companies add constraint "companies_pkey" PRIMARY KEY (id);
 alter table costing_column_bands add constraint "costing_column_bands_pkey" PRIMARY KEY (table_name, column_name);
 alter table costing_column_tiers add constraint "costing_column_tiers_pkey" PRIMARY KEY (table_name, column_name);
+alter table costing_component_costs add constraint "costing_component_costs_pkey" PRIMARY KEY (component_id);
+alter table costing_components add constraint "costing_components_pkey" PRIMARY KEY (id);
+alter table costing_cost_rows add constraint "costing_cost_rows_pkey" PRIMARY KEY (id);
 alter table costing_events add constraint "costing_events_pkey" PRIMARY KEY (id);
+alter table costing_inclusions add constraint "costing_inclusions_pkey" PRIMARY KEY (id);
 alter table costing_matrices add constraint "costing_matrices_pkey" PRIMARY KEY (id);
 alter table costing_matrix_money add constraint "costing_matrix_money_pkey" PRIMARY KEY (matrix_id);
 alter table costing_signer_lists add constraint "costing_signer_lists_pkey" PRIMARY KEY (id);
@@ -1701,7 +1759,22 @@ alter table commission_splits add constraint "commission_splits_project_type_chk
 alter table commission_splits add constraint "commission_splits_share_role_chk" CHECK ((share_role = ANY (ARRAY['deal_owner'::text, 'supporting_salesperson'::text, 'closing_salesperson'::text, 'sales_director'::text])));
 alter table costing_column_bands add constraint "costing_column_bands_bands_chk" CHECK ((bands <@ ARRAY['sales'::text, 'purchasing'::text, 'management'::text, 'technical'::text, 'finance'::text, 'super_admin_only'::text]));
 alter table costing_column_tiers add constraint "costing_column_tiers_tiers_chk" CHECK ((tiers <@ ARRAY['participant'::text, 'price'::text, 'cost'::text, 'closed_book'::text]));
+alter table costing_component_costs add constraint "costing_component_costs_acquire_chk" CHECK (((acquire_unit IS NULL) OR (acquire_unit >= (0)::numeric)));
+alter table costing_component_costs add constraint "costing_component_costs_factor_chk" CHECK (((markup_factor IS NULL) OR (markup_factor > (0)::numeric)));
+alter table costing_component_costs add constraint "costing_component_costs_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
+alter table costing_component_costs add constraint "costing_component_costs_odoo_chk" CHECK (((odoo_unit IS NULL) OR (odoo_unit >= (0)::numeric)));
+alter table costing_components add constraint "costing_components_availability_chk" CHECK (((availability IS NULL) OR (availability = ANY (ARRAY['available'::text, 'for_order'::text]))));
+alter table costing_components add constraint "costing_components_quantity_chk" CHECK ((quantity > (0)::numeric));
+alter table costing_components add constraint "costing_components_source_chk" CHECK (((source IS NULL) OR (source = ANY (ARRAY['local'::text, 'import'::text]))));
+alter table costing_components add constraint "costing_components_status_chk" CHECK (((status IS NULL) OR (status = ANY (ARRAY['source_out'::text, 'stockable'::text]))));
+alter table costing_cost_rows add constraint "costing_cost_rows_acquire_chk" CHECK (((acquire_unit IS NULL) OR (acquire_unit >= (0)::numeric)));
+alter table costing_cost_rows add constraint "costing_cost_rows_factor_chk" CHECK (((markup_factor IS NULL) OR (markup_factor > (0)::numeric)));
+alter table costing_cost_rows add constraint "costing_cost_rows_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
+alter table costing_cost_rows add constraint "costing_cost_rows_odoo_chk" CHECK (((odoo_unit IS NULL) OR (odoo_unit >= (0)::numeric)));
+alter table costing_cost_rows add constraint "costing_cost_rows_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table costing_events add constraint "costing_events_kind_chk" CHECK ((kind = ANY (ARRAY['added'::text, 'changed'::text, 'removed'::text])));
+alter table costing_inclusions add constraint "costing_inclusions_completeness_chk" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
+alter table costing_inclusions add constraint "costing_inclusions_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text])));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_abc_chk" CHECK (((abc_unit IS NULL) OR (abc_unit >= (0)::numeric)));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_offer_chk" CHECK (((final_offer_unit IS NULL) OR (final_offer_unit >= (0)::numeric)));
@@ -1877,8 +1950,14 @@ alter table committee_tasks add constraint "committee_tasks_opportunity_id_fkey"
 alter table committee_tasks add constraint "committee_tasks_stage_action_id_fkey" FOREIGN KEY (stage_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_template_id_fkey" FOREIGN KEY (template_id) REFERENCES group_task_templates(id) ON DELETE SET NULL;
+alter table costing_component_costs add constraint "costing_component_costs_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
+alter table costing_components add constraint "costing_components_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_components add constraint "costing_components_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_components add constraint "costing_components_tender_line_id_fkey" FOREIGN KEY (tender_line_id) REFERENCES costing_tender_lines(id) ON DELETE CASCADE;
+alter table costing_cost_rows add constraint "costing_cost_rows_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_events add constraint "costing_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table costing_events add constraint "costing_events_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
+alter table costing_inclusions add constraint "costing_inclusions_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table costing_matrices add constraint "costing_matrices_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table costing_matrices add constraint "costing_matrices_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
@@ -2134,7 +2213,11 @@ CREATE INDEX committee_tasks_opportunity_id_idx ON public.committee_tasks USING 
 CREATE INDEX committee_tasks_stage_visit_id_idx ON public.committee_tasks USING btree (stage_visit_id);
 CREATE INDEX committee_tasks_template_idx ON public.committee_tasks USING btree (template_id);
 CREATE UNIQUE INDEX companies_sort_order_key ON public.companies USING btree (sort_order);
+CREATE INDEX costing_components_line_idx ON public.costing_components USING btree (tender_line_id, "position");
+CREATE INDEX costing_cost_rows_matrix_idx ON public.costing_cost_rows USING btree (matrix_id, "position");
 CREATE INDEX costing_events_matrix_idx ON public.costing_events USING btree (matrix_id, created_at DESC);
+CREATE INDEX costing_inclusions_component_idx ON public.costing_inclusions USING btree (component_id, "position");
+CREATE UNIQUE INDEX costing_inclusions_legacy_key ON public.costing_inclusions USING btree (legacy_sor_inclusion_id) WHERE (legacy_sor_inclusion_id IS NOT NULL);
 CREATE INDEX costing_tender_lines_matrix_idx ON public.costing_tender_lines USING btree (matrix_id, "position");
 CREATE UNIQUE INDEX crm_pipeline_stages_one_anchor ON public.crm_pipeline_stages USING btree ((true)) WHERE is_anchor;
 CREATE UNIQUE INDEX crm_pipeline_stages_one_default ON public.crm_pipeline_stages USING btree ((true)) WHERE is_default;
@@ -2297,7 +2380,11 @@ alter table public."committee_tasks" enable row level security;
 alter table public."companies" enable row level security;
 alter table public."costing_column_bands" enable row level security;
 alter table public."costing_column_tiers" enable row level security;
+alter table public."costing_component_costs" enable row level security;
+alter table public."costing_components" enable row level security;
+alter table public."costing_cost_rows" enable row level security;
 alter table public."costing_events" enable row level security;
+alter table public."costing_inclusions" enable row level security;
 alter table public."costing_matrices" enable row level security;
 alter table public."costing_matrix_money" enable row level security;
 alter table public."costing_signer_lists" enable row level security;
@@ -2650,11 +2737,63 @@ create policy "costing_column_tiers_read" on public."costing_column_tiers"
   for select
   to authenticated
   using (true);
+create policy "costing_component_costs_read" on public."costing_component_costs"
+  as permissive
+  for select
+  to authenticated
+  using ((costing_row_tier('costing_component_costs'::text, jsonb_build_object('component_id', component_id)) = 'closed_book'::text));
+create policy "costing_components_delete" on public."costing_components"
+  as permissive
+  for delete
+  to authenticated
+  using ((costing_row_tier('costing_components'::text, jsonb_build_object('tender_line_id', tender_line_id)) IS NOT NULL));
+create policy "costing_components_insert" on public."costing_components"
+  as permissive
+  for insert
+  to authenticated
+  with check ((costing_row_tier('costing_components'::text, jsonb_build_object('tender_line_id', tender_line_id)) IS NOT NULL));
+create policy "costing_components_read" on public."costing_components"
+  as permissive
+  for select
+  to authenticated
+  using ((costing_row_tier('costing_components'::text, jsonb_build_object('tender_line_id', tender_line_id)) IS NOT NULL));
+create policy "costing_components_update" on public."costing_components"
+  as permissive
+  for update
+  to authenticated
+  using ((costing_row_tier('costing_components'::text, jsonb_build_object('tender_line_id', tender_line_id)) IS NOT NULL))
+  with check ((costing_row_tier('costing_components'::text, jsonb_build_object('tender_line_id', tender_line_id)) IS NOT NULL));
+create policy "costing_cost_rows_read" on public."costing_cost_rows"
+  as permissive
+  for select
+  to authenticated
+  using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
 create policy "costing_events_read" on public."costing_events"
   as permissive
   for select
   to authenticated
   using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
+create policy "costing_inclusions_delete" on public."costing_inclusions"
+  as permissive
+  for delete
+  to authenticated
+  using ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL));
+create policy "costing_inclusions_insert" on public."costing_inclusions"
+  as permissive
+  for insert
+  to authenticated
+  with check ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL));
+create policy "costing_inclusions_read" on public."costing_inclusions"
+  as permissive
+  for select
+  to authenticated
+  using ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL));
+create policy "costing_inclusions_update" on public."costing_inclusions"
+  as permissive
+  for update
+  to authenticated
+  using ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL))
+  with check ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL));
 create policy "costing_matrices_read" on public."costing_matrices"
   as permissive
   for select
@@ -3533,31 +3672,11 @@ create policy "sor_form_values_write" on public."sor_form_values"
   to authenticated
   using (true)
   with check (true);
-create policy "sor_inclusions_delete" on public."sor_inclusions"
-  as permissive
-  for delete
-  to authenticated
-  using (sor_can_edit_opportunity(opportunity_id));
-create policy "sor_inclusions_insert" on public."sor_inclusions"
-  as permissive
-  for insert
-  to authenticated
-  with check (sor_can_edit_opportunity(opportunity_id));
 create policy "sor_inclusions_read" on public."sor_inclusions"
   as permissive
   for select
   to authenticated
   using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
-create policy "sor_inclusions_update" on public."sor_inclusions"
-  as permissive
-  for update
-  to authenticated
-  using ((sor_can_edit_opportunity(opportunity_id) OR (EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.has_purchasing_flow)))))
-  with check ((sor_can_edit_opportunity(opportunity_id) OR (EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.has_purchasing_flow)))));
 create policy "sor_mention_viewers_read" on public."sor_mention_viewers"
   as permissive
   for select
@@ -5786,6 +5905,50 @@ AS $function$
   )
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_add_cost_row(p_matrix_id uuid, p_description text DEFAULT ''::text, p_quantity numeric DEFAULT 1)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_opp uuid := public.costing_matrix_opp(p_matrix_id);
+  v_id  uuid;
+begin
+  if v_opp is null then
+    raise exception 'costing_add_cost_row: not found' using errcode = 'P0002';
+  end if;
+  if not public.costing_can_read(v_opp) then
+    raise exception 'costing_add_cost_row: not allowed' using errcode = '42501';
+  end if;
+  insert into public.costing_cost_rows (matrix_id, position, description, quantity)
+  values (
+    p_matrix_id,
+    coalesce((select max(r.position) from public.costing_cost_rows r where r.matrix_id = p_matrix_id), 0) + 1,
+    coalesce(p_description, ''),
+    coalesce(p_quantity, 1)
+  )
+  returning id into v_id;
+  return v_id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_bundle_keeps_inclusions()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if old.is_bundle and not new.is_bundle
+     and exists (select 1 from public.costing_inclusions i where i.component_id = new.id) then
+    raise exception 'costing_inclusion: move or remove this Component''s Inclusions before it stops being a bundle'
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_can_read(p_opportunity_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -5793,6 +5956,86 @@ CREATE OR REPLACE FUNCTION public.costing_can_read(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select public.costing_tier(p_opportunity_id) is not null
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_check_incharge()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_opp uuid;
+  v_sor public.sales_opportunities;
+begin
+  -- A new matrix is not there to look up yet; it names its SOR itself.
+  v_opp := case
+    when tg_table_name = 'costing_matrices' then (to_jsonb(new) ->> 'opportunity_id')::uuid
+    else public.costing_matrix_opp(public.costing_matrix_of(tg_table_name, to_jsonb(new)))
+  end;
+  if v_opp is null then
+    return new;
+  end if;
+  -- costing_open_matrix inserts "on conflict do nothing": a row that is about to be
+  -- dropped for the matrix the SOR already has is not judged.
+  if tg_op = 'INSERT' and tg_table_name = 'costing_matrices'
+     and exists (select 1 from public.costing_matrices m where m.opportunity_id = v_opp) then
+    return new;
+  end if;
+  select * into v_sor from public.sales_opportunities where id = v_opp;
+
+  if new.sales_incharge_id is not null
+     and (tg_op = 'INSERT' or new.sales_incharge_id is distinct from old.sales_incharge_id)
+     and not coalesce(public.sor_is_deal_team(v_sor, new.sales_incharge_id), false) then
+    raise exception 'costing_incharge: the Sales incharge must be on the SOR''s Deal Team'
+      using errcode = '23514';
+  end if;
+
+  if new.purchasing_incharge_id is not null
+     and (tg_op = 'INSERT' or new.purchasing_incharge_id is distinct from old.purchasing_incharge_id)
+     and not public._employee_has_purchasing_access(new.purchasing_incharge_id) then
+    raise exception 'costing_incharge: the Purchasing incharge must have Purchasing access'
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_column_default(p_table regclass, p_column text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_expr text;
+  v_val  jsonb;
+begin
+  select pg_get_expr(d.adbin, d.adrelid) into v_expr
+  from pg_attrdef d
+  join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+  where d.adrelid = p_table and a.attname = p_column;
+  if v_expr is null then
+    return null;
+  end if;
+  execute format('select to_jsonb(%s)', v_expr) into v_val;
+  return v_val;
+exception when others then
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_components_cleanup()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  delete from public.costing_inclusions where component_id = old.id;
+  delete from public.costing_component_costs where component_id = old.id;
+  return old;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_enforce_bands()
@@ -5827,7 +6070,10 @@ begin
   for v_band in select * from public.costing_column_bands where table_name = tg_table_name loop
     v_needed := case
       when v_band.column_name = '*' then tg_op in ('INSERT', 'DELETE')
-      when tg_op = 'INSERT' then (v_new -> v_band.column_name) is not null and (v_new -> v_band.column_name) <> 'null'::jsonb
+      when tg_op = 'INSERT' then
+        (v_new -> v_band.column_name) is not null
+        and (v_new -> v_band.column_name) <> 'null'::jsonb
+        and (v_new -> v_band.column_name) is distinct from public.costing_column_default(tg_relid, v_band.column_name)
       when tg_op = 'UPDATE' then (v_new -> v_band.column_name) is distinct from (v_old -> v_band.column_name)
       else false
     end;
@@ -5943,6 +6189,21 @@ AS $function$
     when 'super_admin_only' then coalesce(public.is_super_admin(), false)
     else false
   end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_inclusion_needs_bundle()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not exists (select 1 from public.costing_components c where c.id = new.component_id and c.is_bundle) then
+    raise exception 'costing_inclusion: an Inclusion can only sit under a bundle Component'
+      using errcode = '23514';
+  end if;
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
@@ -6108,6 +6369,136 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_move_inclusion(p_inclusion_id uuid, p_component_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_inc    public.costing_inclusions;
+  v_target public.costing_components;
+  v_from   uuid;
+  v_to     uuid;
+  v_opp    uuid;
+begin
+  select * into v_inc from public.costing_inclusions where id = p_inclusion_id;
+  if not found then
+    raise exception 'costing_move_inclusion: Inclusion not found' using errcode = 'P0002';
+  end if;
+  select * into v_target from public.costing_components where id = p_component_id;
+  if not found then
+    raise exception 'costing_move_inclusion: Component not found' using errcode = 'P0002';
+  end if;
+
+  v_from := public.costing_matrix_of('costing_inclusions', to_jsonb(v_inc));
+  v_to := public.costing_matrix_of('costing_components', to_jsonb(v_target));
+  v_opp := public.costing_matrix_opp(v_from);
+  if v_opp is null or not public.costing_can_read(v_opp) then
+    raise exception 'costing_move_inclusion: not allowed' using errcode = '42501';
+  end if;
+  if v_from is distinct from v_to then
+    raise exception 'costing_move_inclusion: the Component is on another SOR''s matrix' using errcode = '22023';
+  end if;
+  if not v_target.is_bundle then
+    raise exception 'costing_move_inclusion: an Inclusion can only sit under a bundle Component' using errcode = '23514';
+  end if;
+  if v_inc.component_id = p_component_id then
+    return;
+  end if;
+
+  update public.costing_inclusions
+     set component_id = p_component_id,
+         position = coalesce((select max(i.position) from public.costing_inclusions i where i.component_id = p_component_id), 0) + 1
+   where id = p_inclusion_id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_move_legacy_inclusions(p_opportunity_id uuid DEFAULT NULL::uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_opp    uuid;
+  v_matrix uuid;
+  v_line   uuid;
+  v_comp   uuid;
+  v_inc    uuid;
+  v_old    public.sor_inclusions;
+  v_count  integer := 0;
+begin
+  for v_opp in
+    select distinct i.opportunity_id
+    from public.sor_inclusions i
+    where (p_opportunity_id is null or i.opportunity_id = p_opportunity_id)
+      and not exists (select 1 from public.costing_inclusions c where c.legacy_sor_inclusion_id = i.id)
+    order by 1
+  loop
+    v_matrix := public.costing_open_matrix(v_opp);
+
+    select l.id into v_line
+    from public.costing_tender_lines l
+    where l.matrix_id = v_matrix and l.tender_specification = 'Unplaced inclusions'
+    order by l.position
+    limit 1;
+    if v_line is null then
+      insert into public.costing_tender_lines (matrix_id, position, tender_specification, quantity, source)
+      values (v_matrix, coalesce((select max(l.position) from public.costing_tender_lines l where l.matrix_id = v_matrix), 0) + 1,
+              'Unplaced inclusions', 1, 'typed')
+      returning id into v_line;
+    end if;
+
+    select c.id into v_comp
+    from public.costing_components c
+    where c.tender_line_id = v_line and c.is_bundle and c.name = 'Unplaced inclusions'
+    order by c.position
+    limit 1;
+    if v_comp is null then
+      insert into public.costing_components (tender_line_id, position, name, is_bundle, quantity)
+      values (v_line, coalesce((select max(c.position) from public.costing_components c where c.tender_line_id = v_line), 0) + 1,
+              'Unplaced inclusions', true, 1)
+      returning id into v_comp;
+    end if;
+
+    for v_old in
+      select * from public.sor_inclusions i
+      where i.opportunity_id = v_opp
+        and not exists (select 1 from public.costing_inclusions c where c.legacy_sor_inclusion_id = i.id)
+      order by i.sort_order, i.created_at, i.id
+    loop
+      insert into public.costing_inclusions
+        (component_id, heading, position, description, quantity, unit, completeness, legacy_sor_inclusion_id, created_at)
+      values (
+        v_comp, null,
+        coalesce((select max(c.position) from public.costing_inclusions c where c.component_id = v_comp), 0) + 1,
+        v_old.description, v_old.quantity, v_old.unit, v_old.completeness, v_old.id, v_old.created_at
+      )
+      returning id into v_inc;
+
+      insert into public.costing_events (matrix_id, actor_id, kind, detail)
+      values (v_matrix, null, 'changed', jsonb_build_object(
+        'table', 'costing_inclusions',
+        'row', v_inc,
+        'column', 'legacy_sor_inclusion',
+        'old', null,
+        'new', jsonb_build_object(
+          'sor_inclusion_id', v_old.id,
+          'cost_amount', v_old.cost_amount,
+          'cost_source', v_old.cost_source,
+          'cost_established_at', v_old.cost_established_at,
+          'note', v_old.note,
+          'sourcing', v_old.sourcing
+        )
+      ));
+      v_count := v_count + 1;
+    end loop;
+  end loop;
+  return v_count;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_on_list(p_list_key text)
  RETURNS boolean
  LANGUAGE sql
@@ -6184,6 +6575,28 @@ AS $function$
   where sl.id = public.costing_matching_sor_line(p_tender_line_id)
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_remove_cost_row(p_row_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_matrix uuid;
+  v_opp    uuid;
+begin
+  select matrix_id into v_matrix from public.costing_cost_rows where id = p_row_id;
+  v_opp := public.costing_matrix_opp(v_matrix);
+  if v_opp is null then
+    raise exception 'costing_remove_cost_row: not found' using errcode = 'P0002';
+  end if;
+  if not public.costing_can_read(v_opp) then
+    raise exception 'costing_remove_cost_row: not allowed' using errcode = '42501';
+  end if;
+  delete from public.costing_cost_rows where id = p_row_id;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_reorder_tender_lines(p_matrix_id uuid, p_ids uuid[])
  RETURNS void
  LANGUAGE plpgsql
@@ -6238,6 +6651,7 @@ declare
   v_sets   text;
   v_cols   text;
   v_count  integer;
+  v_found  jsonb;
 begin
   if public.get_employee_id() is null then
     raise exception 'costing_set_money: sign in first' using errcode = '42501';
@@ -6257,7 +6671,13 @@ begin
     end if;
   end loop;
 
-  v_matrix := public.costing_matrix_of(p_table, jsonb_build_object(v_def.key_column, p_row));
+  if v_def.parent_table is null and v_def.key_column <> 'matrix_id' then
+    execute format('select to_jsonb(t) from public.%I t where t.%I = $1', p_table, v_def.key_column)
+      into v_found using p_row;
+    v_matrix := public.costing_matrix_of(p_table, v_found);
+  else
+    v_matrix := public.costing_matrix_of(p_table, jsonb_build_object(v_def.key_column, p_row));
+  end if;
   v_opp := public.costing_matrix_opp(v_matrix);
   if v_opp is null then
     raise exception 'costing_set_money: not found' using errcode = 'P0002';
@@ -6276,7 +6696,7 @@ begin
   ) using p_patch, p_row;
   get diagnostics v_count = row_count;
 
-  if v_count = 0 then
+  if v_count = 0 and (v_def.parent_table is not null or v_def.key_column = 'matrix_id') then
     execute format(
       'insert into public.%I (%I, %s) select $2, %s from jsonb_populate_record(null::public.%I, $1) r',
       p_table, v_def.key_column, v_cols,
@@ -6316,6 +6736,7 @@ CREATE OR REPLACE FUNCTION public.costing_tender_lines_cleanup()
  SET search_path TO 'public'
 AS $function$
 begin
+  delete from public.costing_components where tender_line_id = old.id;
   delete from public.costing_tender_line_prices where tender_line_id = old.id;
   return old;
 end;
@@ -16594,9 +17015,22 @@ $function$
 -- Triggers
 -- ============================================================
 
+CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
+CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
+CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_components_cleanup();
+CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_events_no_change BEFORE DELETE OR UPDATE ON public.costing_events FOR EACH ROW EXECUTE FUNCTION costing_events_append_only();
 CREATE TRIGGER costing_events_no_truncate BEFORE TRUNCATE ON public.costing_events FOR EACH STATEMENT EXECUTE FUNCTION costing_events_append_only();
+CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_inclusion_needs_bundle BEFORE INSERT OR UPDATE OF component_id ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_inclusion_needs_bundle();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();

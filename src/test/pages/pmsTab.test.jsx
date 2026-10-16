@@ -12,7 +12,8 @@ import OpportunityDetailsModal from "@/components/sor/OpportunityDetailsModal";
 /**
  * The PMS tab of the SOR modal (#267): the Costing Matrix's Tender Lines, and the
  * IPAS summaries (#249) and Transmittals (#257) that moved here from the Summary
- * and This stage. Real components and services on the fake database; the matrix
+ * and This stage; with #268, the Components, bundles, Inclusions and cost-only
+ * rows, and the Purchase Request card (#310). Real components and services on the fake database; the matrix
  * functions and the two section RPCs (plpgsql) are stubbed. Who may read or
  * write what is the policy tier's (78-costing-tender-lines).
  */
@@ -219,5 +220,279 @@ describe("the PMS tab", () => {
     await user.tab();
 
     expect(await within(row).findByRole("alert")).toHaveTextContent("Final Offer is written by Sales (the Deal Team).");
+  });
+
+  it("says so in one plain line when the matrix has not opened, with no grid", async () => {
+    stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+    openModal(deal);
+
+    await openPms();
+
+    expect(await screen.findByTestId("no-costing-matrix")).toHaveTextContent('No Costing Matrix yet. It opens when the flow\'s "Open Costing Matrix" step runs.');
+    expect(screen.queryByTestId("tender-line")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add Component/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the Purchase Request card on the PMS tab, under the matrix", async () => {
+    db.seed("costing_matrices", { opportunity_id: deal.id });
+    stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+    stubRpc("sor_purchase_request_overview", [
+      {
+        request_id: "req-1",
+        buyer_id: "emp-b",
+        buyer_name: "Bea Buyer",
+        buyer_avatar_path: null,
+        opened_visit_id: null,
+        created_at: "2026-01-01T00:00:00Z",
+        items: [{ id: "i1", name: "Hose", odoo_product_id: null, quantity: 1, unit: null, status: "requested", source: "sor_line", created_at: "2026-01-02T00:00:00Z" }],
+      },
+    ]);
+    openModal(deal);
+
+    await openPms();
+
+    expect(await screen.findByText("Buyer: Bea Buyer")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Costing Matrix/ })).toBeInTheDocument();
+  });
+
+  describe("Components, bundles, Inclusions and cost-only rows (#268)", () => {
+    let matrix;
+    let line;
+
+    // Tender Line 1 with a bundle (1.1, three Inclusions under two headings) and a part bought on its own (1.2).
+    function seedComponents() {
+      matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+      line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Rescue vehicle", unit: "unit", quantity: 1 });
+      db.seed("costing_tender_line_prices", { tender_line_id: line.id, abc_unit: 2200000, final_offer_unit: 2100000 });
+      const vehicle = db.seed("costing_components", {
+        tender_line_id: line.id,
+        position: 1,
+        name: "4x4 pick-up",
+        offer_specification: "Double cab, 13-line specification",
+        brand: "Toyota",
+        status: "source_out",
+        availability: "for_order",
+        source: "import",
+        po_rfq_no: "RFQ-2231",
+        is_bundle: true,
+        quantity: 1,
+        unit: "unit",
+      });
+      db.seed("costing_component_costs", { component_id: vehicle.id, acquire_unit: 2160500, odoo_unit: 2200000, final_acquire_unit: 2100000, markup_factor: 1.35 });
+      db.seed("costing_inclusions", { component_id: vehicle.id, position: 1, heading: "Accessories", description: "Roll bar", completeness: "COVERED" });
+      db.seed("costing_inclusions", { component_id: vehicle.id, position: 2, heading: "Accessories", description: "Carry bag", completeness: "MISSING" });
+      db.seed("costing_inclusions", { component_id: vehicle.id, position: 3, heading: "With", description: "Spare key", completeness: "COVERED" });
+      const winch = db.seed("costing_components", { tender_line_id: line.id, position: 2, name: "Winch", brand: "Warn", quantity: 2, unit: "pc" });
+      db.seed("costing_component_costs", { component_id: winch.id, odoo_unit: 60000 });
+      return { vehicle, winch };
+    }
+
+    it("nests Components as 1.1 and 1.2 under the Tender Line, with the owner-band header and totals", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
+      openModal(deal);
+
+      await openPms();
+
+      const block = await screen.findByTestId("components");
+      const rows = within(block).getAllByTestId("component");
+      expect(rows).toHaveLength(2);
+      expect(within(rows[0]).getByText("1.1")).toBeInTheDocument();
+      expect(within(rows[1]).getByText("1.2")).toBeInTheDocument();
+      expect(within(rows[0]).getByLabelText("Component name 1.1")).toHaveValue("4x4 pick-up");
+      expect(within(rows[0]).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
+      expect(within(rows[0]).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
+      expect(within(rows[0]).getByLabelText("P.O./RFQ No. 1.1")).toHaveValue("RFQ-2231");
+      expect(within(rows[0]).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
+      expect(within(rows[0]).getByLabelText("Odoo unit cost 1.1")).toHaveValue(2200000);
+      // The bundle at 1 x 2,160,500 totals 2,160,500, never 0.00; the part with no Acquire shows a dash.
+      expect(within(rows[0]).getByText("₱2,160,500.00")).toBeInTheDocument();
+      expect(within(rows[1]).getByText("₱120,000.00")).toBeInTheDocument();
+      const totals = within(block).getByTestId("component-totals");
+      expect(within(totals).getByText("₱2,320,000.00")).toBeInTheDocument();
+      expect(within(totals).getByText("1 without Acquire")).toBeInTheDocument();
+      expect(within(totals).getAllByText("—").length).toBeGreaterThan(0);
+
+      // The owner-band header: whose columns are whose.
+      const headers = within(block).getAllByRole("columnheader").map((h) => h.textContent);
+      expect(headers).toEqual(expect.arrayContaining(["Sales", "PMS", "Brand", "P.O./RFQ No.", "Acquire / unit", "Odoo / unit"]));
+    });
+
+    it("makes a Sales viewer's Purchasing columns read-only and shows no Acquire column at the price tier", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+      openModal(deal);
+
+      await openPms();
+
+      const block = await screen.findByTestId("components");
+      const row = within(block).getAllByTestId("component")[0];
+      // Sales writes Brand and the Odoo unit cost.
+      expect(within(row).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
+      expect(within(row).getByLabelText("Odoo unit cost 1.1")).toHaveValue(2200000);
+      // Purchasing's columns read as text.
+      expect(within(row).getByLabelText("Offer Specification 1.1").tagName).toBe("SPAN");
+      expect(within(row).getByLabelText("P.O./RFQ No. 1.1").tagName).toBe("SPAN");
+      expect(within(row).getByLabelText("Availability 1.1")).toHaveTextContent("For Order");
+      expect(within(row).getByLabelText("Source 1.1")).toHaveTextContent("Import");
+      // No Acquire, no Final Acquire, no factor: not hidden, absent.
+      expect(within(block).queryByLabelText("Acquire 1.1")).not.toBeInTheDocument();
+      expect(within(block).queryByText(/Acquire/)).not.toBeInTheDocument();
+      expect(within(block).queryByText(/Final Acquire|markup/i)).not.toBeInTheDocument();
+    });
+
+    it("makes a Purchasing viewer's Sales columns read-only and keeps their own Acquire and Offer Specification editable", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing", "technical"] });
+      openModal(deal);
+
+      await openPms();
+
+      const row = within(await screen.findByTestId("components")).getAllByTestId("component")[0];
+      expect(within(row).getByLabelText("Brand 1.1").tagName).toBe("SPAN");
+      expect(within(row).getByLabelText("Odoo unit cost 1.1").tagName).toBe("SPAN");
+      expect(within(row).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
+      expect(within(row).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
+    });
+
+    it("gives a Stage Participant the Components read-only with no money columns and no add or remove", async () => {
+      seedComponents();
+      db.seed("costing_cost_rows", { matrix_id: matrix.id, position: 1, description: "Delivery Charge", quantity: 1, acquire_unit: 100000 });
+      stubCostingMatrixRpcs({ tier: "participant", bands: [] });
+      openModal(deal);
+
+      await openPms();
+
+      const block = await screen.findByTestId("components");
+      const row = within(block).getAllByTestId("component")[0];
+      expect(within(row).getByText("4x4 pick-up")).toBeInTheDocument();
+      expect(within(row).getByText("Toyota")).toBeInTheDocument();
+      expect(within(block).queryByRole("textbox")).not.toBeInTheDocument();
+      expect(within(block).queryByText(/Acquire|Odoo (\/ unit|total|unit)/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Add Component|Add cost-only row|Add Inclusion/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Remove (Component|cost-only|Inclusion)/ })).not.toBeInTheDocument();
+      // The cost-only row is there by description, with no figure.
+      const costRows = screen.getByTestId("cost-rows");
+      expect(within(costRows).getByText("Delivery Charge")).toBeInTheDocument();
+      expect(within(costRows).queryByText(/100,000/)).not.toBeInTheDocument();
+    });
+
+    it("lists a bundle's Inclusions under their headings, collapsible, with the covered count", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "technical"] });
+      const user = openModal(deal);
+
+      await openPms();
+
+      const inclusions = await screen.findByTestId("inclusions");
+      expect(within(inclusions).getByText("2 of 3 covered")).toBeInTheDocument();
+      expect(within(inclusions).getByText("Accessories")).toBeInTheDocument();
+      expect(within(inclusions).getByText("With")).toBeInTheDocument();
+      expect(within(inclusions).getByLabelText("Inclusion 1.1.1 description")).toHaveValue("Roll bar");
+      expect(within(inclusions).getByLabelText("Completeness 1.1.1")).toHaveTextContent("Covered");
+      expect(within(inclusions).getByLabelText("Completeness 1.1.2")).toHaveTextContent("Missing");
+
+      await user.click(within(inclusions).getByRole("button", { name: /Inclusions/ }));
+      expect(within(screen.getByTestId("inclusions")).queryByText("Accessories")).not.toBeInTheDocument();
+      await user.click(within(screen.getByTestId("inclusions")).getByRole("button", { name: /Inclusions/ }));
+      expect(within(screen.getByTestId("inclusions")).getByText("Accessories")).toBeInTheDocument();
+    });
+
+    it("leaves Completeness to Technical: a Sales viewer reads it as text", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+      openModal(deal);
+
+      await openPms();
+
+      const inclusions = await screen.findByTestId("inclusions");
+      expect(within(inclusions).getByLabelText("Completeness 1.1.1").tagName).toBe("SPAN");
+      // Sales still edits what the Inclusion says.
+      expect(within(inclusions).getByLabelText("Inclusion 1.1.1 description")).toHaveValue("Roll bar");
+    });
+
+    it("adds a Component, types its name, and adds an Inclusion under a bundle", async () => {
+      matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+      line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Rescue vehicle", unit: "unit", quantity: 1 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "technical"] });
+      const user = openModal(deal);
+
+      await openPms();
+      await user.click(await screen.findByRole("button", { name: /Add Component/ }));
+
+      const row = await screen.findByTestId("component");
+      await user.type(within(row).getByLabelText("Component name 1.1"), "Winch");
+      await user.tab();
+      await waitFor(() => expect(db.rows("costing_components")[0].name).toBe("Winch"));
+
+      await user.type(within(row).getByLabelText("Acquire 1.1"), "52000");
+      await user.tab();
+      await waitFor(() => expect(db.rows("costing_component_costs")[0].acquire_unit).toBe(52000));
+      expect(await within(screen.getByTestId("components")).findByTestId("component-totals")).toBeInTheDocument();
+
+      // Not a bundle yet: the database refuses an Inclusion; tick Bundle, then add one.
+      await user.click(within(row).getByLabelText("Bundle 1.1"));
+      await waitFor(() => expect(db.rows("costing_components")[0].is_bundle).toBe(true));
+      await user.click(await screen.findByRole("button", { name: "Add Inclusion" }));
+      await waitFor(() => expect(db.rows("costing_inclusions")).toHaveLength(1));
+      expect(await screen.findByLabelText("Inclusion 1.1.1 description")).toHaveValue("");
+    });
+
+    it("shows a band refusal beside the Acquire cell it refused", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+      stubRpc("costing_set_money", () => {
+        throw pgrstError("42501", "costing_band:costing_component_costs.acquire_unit:purchasing", { status: 403 });
+      });
+      const user = openModal(deal);
+
+      await openPms();
+      const row = within(await screen.findByTestId("components")).getAllByTestId("component")[0];
+      const acquire = within(row).getByLabelText("Acquire 1.1");
+      await user.clear(acquire);
+      await user.type(acquire, "1");
+      await user.tab();
+
+      expect(await within(row).findByRole("alert")).toHaveTextContent("Acquire is written by Purchasing.");
+    });
+
+    it("adds a cost-only row beneath the Tender Lines, kept out of the Components total", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
+      const user = openModal(deal);
+
+      await openPms();
+      await user.click(await screen.findByRole("button", { name: /Add cost-only row/ }));
+
+      const row = await screen.findByTestId("cost-row");
+      await user.type(within(row).getByLabelText("Cost-only row 1 description"), "Delivery Charge");
+      await user.tab();
+      await waitFor(() => expect(db.rows("costing_cost_rows")[0].description).toBe("Delivery Charge"));
+      await user.type(within(row).getByLabelText("Cost-only row 1 Acquire"), "100000");
+      await user.tab();
+      await waitFor(() => expect(db.rows("costing_cost_rows")[0].acquire_unit).toBe(100000));
+
+      const costRows = screen.getByTestId("cost-rows");
+      expect(await within(costRows).findByTestId("cost-row-totals")).toHaveTextContent("₱100,000.00");
+      // The Tender Line's Components total did not move.
+      expect(within(screen.getByTestId("component-totals")).queryByText("₱2,260,500.00")).not.toBeInTheDocument();
+      expect(within(screen.getByTestId("component-totals")).getByText("₱2,320,000.00")).toBeInTheDocument();
+    });
+
+    it("names the matrix's Sales and Purchasing incharge, held to the viewer's band", async () => {
+      const sales = makeEmployee({ name: "Sandy Sales" });
+      const buyer = makeEmployee({ name: "Bea Buyer", has_purchasing_flow: true });
+      deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S06071", deal_owner_id: sales.id });
+      matrix = db.seed("costing_matrices", { opportunity_id: deal.id, sales_incharge_id: sales.id, purchasing_incharge_id: buyer.id });
+      stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+      openModal(deal);
+
+      await openPms();
+
+      // Purchasing reads the Sales incharge as a name and may change its own.
+      expect(await screen.findByLabelText("Sales incharge")).toHaveTextContent("Sandy Sales");
+      expect(screen.getByLabelText("Sales incharge").tagName).toBe("SPAN");
+      expect(screen.getByLabelText("Purchasing incharge").tagName).not.toBe("SPAN");
+    });
   });
 });

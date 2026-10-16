@@ -1,115 +1,23 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowDown, ArrowUp, ListPlus, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
-import { costingMatrixService, CostingBandError } from "../../services/costingMatrixService";
+import { costingMatrixService } from "../../services/costingMatrixService";
 import { opportunityService } from "../../services/opportunityService";
-import { COSTING_BAND, tierReads } from "../../constants/costing";
+import { COSTING_BAND, COMPONENT_BANDS, inAnyBand, tierReads } from "../../constants/costing";
 import { formatPHP } from "../../constants/sor";
-import { stockBadge, STOCK_BADGE_THEME } from "../../constants/stock";
 import { costingKeys } from "./costingKeys";
+import { Cell, StockBadge } from "./GridCell";
+import { pesos } from "./gridFormat";
+import { useCostingWrites, useInchargeOptions } from "./useCostingWrites";
+import ComponentBlock from "./ComponentBlock";
+import CostRowGrid from "./CostRowGrid";
+import InchargeSelects from "./InchargeSelects";
 import SorLinePicker from "./SorLinePicker";
-
-/** A refusal in words: a band refusal names the column and who may write it. */
-const refusalMessage = (error) =>
-  error instanceof CostingBandError ? error.message : (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
-
-const pesos = (value) => (value === null || value === undefined ? "—" : formatPHP(value));
-
-/**
- * One cell you can type in. Saves when you leave it, and only if it changed. A
- * refusal (a band error, a bad number) shows under the cell and leaves what you
- * typed there. Read-only where the viewer is outside the column's band.
- */
-function Cell({ value, onSave, readOnly, label, noun = label, multiline = false, numeric = false, money = false, required = false, align = "left" }) {
-  const shown = value === null || value === undefined ? "" : String(value);
-  const [draft, setDraft] = useState(shown);
-  const [seen, setSeen] = useState(shown);
-  const [error, setError] = useState(null);
-  const [focused, setFocused] = useState(false);
-
-  // Follow the saved value when it changes under us (a refresh), unless typing.
-  if (seen !== shown && !focused) {
-    setSeen(shown);
-    setDraft(shown);
-  }
-
-  if (readOnly) {
-    return (
-      <span className={multiline ? "block whitespace-pre-line text-sm text-foreground" : "block text-sm tabular-nums text-foreground"} aria-label={label}>
-        {shown === "" ? "—" : money ? formatPHP(Number(shown)) : shown}
-      </span>
-    );
-  }
-
-  const commit = async () => {
-    setFocused(false);
-    if (draft === shown) return;
-    let next = draft;
-    if (numeric) {
-      const text = draft.trim();
-      if (text === "") {
-        if (required) return setError(`${noun} is needed.`);
-        next = null;
-      } else {
-        const n = Number(text);
-        if (!Number.isFinite(n) || n < 0 || (required && n === 0)) return setError(`${noun} must be a number${required ? " above zero" : ""}.`);
-        next = n;
-      }
-    }
-    try {
-      setError(null);
-      await onSave(next);
-    } catch (err) {
-      setError(refusalMessage(err));
-    }
-  };
-
-  const shared = {
-    value: draft,
-    "aria-label": label,
-    "aria-invalid": error ? true : undefined,
-    onFocus: () => setFocused(true),
-    onChange: (event) => {
-      setDraft(event.target.value);
-      if (error) setError(null);
-    },
-    onBlur: commit,
-  };
-
-  return (
-    <div className="space-y-1">
-      {multiline ? (
-        <Textarea {...shared} rows={3} className="min-h-[64px] px-2 py-1.5 text-sm" />
-      ) : (
-        <Input
-          {...shared}
-          type={numeric ? "number" : "text"}
-          min={numeric ? 0 : undefined}
-          step={numeric ? "0.01" : undefined}
-          className={`h-8 px-2 text-sm ${align === "right" ? "text-right tabular-nums" : ""}`}
-        />
-      )}
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function StockBadge({ line, snapshotData }) {
-  const product = line.odoo_product_id ? snapshotData?.products?.[line.odoo_product_id] || null : null;
-  const badge = stockBadge({ quantity: line.quantity, product, odooProductId: line.odoo_product_id });
-  return <StatusBadge label={badge.label} theme={STOCK_BADGE_THEME[badge.kind]} title="Stock" />;
-}
 
 /**
  * The Tender Lines of the Costing Matrix (#267): what the client asked for, with
@@ -117,13 +25,17 @@ function StockBadge({ line, snapshotData }) {
  * viewer's tier (a Stage Participant gets the lines and no money); which cells
  * type is the viewer's band (only the Deal Team writes here), the rest read-only.
  * Every refusal shows beside what was refused.
+ *
+ * Each Tender Line carries its Components (#268), nested under it as 1.1, 1.2 with a bundle's
+ * Inclusions beneath it, and the cost-only rows come after the lines. The matrix's Sales and
+ * Purchasing incharge sit at the top.
  */
-export default function TenderLineGrid({ matrix, opportunityId, actorId }) {
-  const queryClient = useQueryClient();
-  const [notice, setNotice] = useState(null);
+export default function TenderLineGrid({ matrix, opportunityId, opportunity, actorId }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [removing, setRemoving] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const writes = useCostingWrites(opportunityId);
+  const { busy, notice, run, refresh } = writes;
+  const incharge = useInchargeOptions(opportunity);
 
   const canWrite = matrix.bands.includes(COSTING_BAND.SALES);
   const showAbc = tierReads(matrix.tier, "abc_unit");
@@ -137,22 +49,6 @@ export default function TenderLineGrid({ matrix, opportunityId, actorId }) {
     enabled: lines.some((l) => l.source === "sor_line"),
     retry: false,
   });
-
-  const refresh = () => queryClient.invalidateQueries({ queryKey: costingKeys.all(opportunityId) });
-
-  // A write from a control (not a cell): run it, refresh, and show a refusal above the grid.
-  const run = async (work) => {
-    setBusy(true);
-    setNotice(null);
-    try {
-      await work();
-      await refresh();
-    } catch (error) {
-      setNotice(refusalMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const saveLine = async (line, fields) => {
     await costingMatrixService.updateTenderLine(line.id, fields);
@@ -168,9 +64,26 @@ export default function TenderLineGrid({ matrix, opportunityId, actorId }) {
   };
 
   const { totals } = matrix;
+  const bundles = lines.flatMap((l) => l.components.filter((c) => c.is_bundle));
+  const columnCount = 4 + (showAbc ? 2 : 0) + (showOffer ? 2 : 0) + 1;
+  const canSalesIncharge = inAnyBand(matrix.bands, COMPONENT_BANDS.sales_incharge_id);
+  const canPurchasingIncharge = inAnyBand(matrix.bands, COMPONENT_BANDS.purchasing_incharge_id);
 
   return (
     <div className="space-y-3">
+      <InchargeSelects
+        sales={matrix.matrix?.sales_incharge_id}
+        purchasing={matrix.matrix?.purchasing_incharge_id}
+        salesOptions={incharge.salesOptions}
+        purchasingOptions={incharge.purchasingOptions}
+        canSales={canSalesIncharge}
+        canPurchasing={canPurchasingIncharge}
+        onSave={async (who) => {
+          await costingMatrixService.setIncharge({ matrixId: matrix.matrixId }, who);
+          await refresh();
+        }}
+      />
+
       {canWrite && (
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
@@ -215,7 +128,8 @@ export default function TenderLineGrid({ matrix, opportunityId, actorId }) {
             </TableHeader>
             <TableBody>
               {lines.map((line, index) => (
-                <TableRow key={line.id} data-testid="tender-line">
+                <Fragment key={line.id}>
+                <TableRow data-testid="tender-line">
                   <TableCell className="align-top font-semibold tabular-nums">{line.number}</TableCell>
                   <TableCell className="align-top">
                     <Cell
@@ -229,7 +143,7 @@ export default function TenderLineGrid({ matrix, opportunityId, actorId }) {
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                         <span className="text-muted-foreground">From an SOR line</span>
                         {line.sorChange && <span className="font-medium text-amber-12">{line.sorChange.label}</span>}
-                        <StockBadge line={line} snapshotData={stockSnapshot?.data} />
+                        <StockBadge quantity={line.quantity} odooProductId={line.odoo_product_id} snapshotData={stockSnapshot?.data} />
                       </div>
                     )}
                   </TableCell>
@@ -306,6 +220,12 @@ export default function TenderLineGrid({ matrix, opportunityId, actorId }) {
                     )}
                   </TableCell>
                 </TableRow>
+                <TableRow data-testid="tender-line-components" className="bg-muted/20 hover:bg-muted/20">
+                  <TableCell colSpan={columnCount} className="p-0">
+                    <ComponentBlock line={line} matrix={matrix} bundles={bundles} stockData={stockSnapshot?.data} incharge={incharge} writes={writes} />
+                  </TableCell>
+                </TableRow>
+                </Fragment>
               ))}
               {(showAbc || showOffer) && (
                 <TableRow data-testid="tender-totals">
@@ -344,11 +264,13 @@ export default function TenderLineGrid({ matrix, opportunityId, actorId }) {
         </p>
       )}
 
+      <CostRowGrid matrix={matrix} writes={writes} />
+
       <ConfirmDialog
         open={Boolean(removing)}
         onOpenChange={(open) => !open && setRemoving(null)}
         title={removing ? `Remove Tender Line ${removing.number}?` : "Remove Tender Line?"}
-        description="Its ABC and Final Offer go with it. The change stays in the history."
+        description="Its ABC, Final Offer, Components and their costs go with it. The change stays in the history."
         confirmLabel="Remove"
         tone="destructive"
         onConfirm={() => {
