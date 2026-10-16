@@ -45,7 +45,12 @@ export default function MarkupDefault({ matrix, writes }) {
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Default markup</p>
         <p className="text-sm tabular-nums" data-testid="markup-default-shown">
           <span className="font-semibold">{defaultFactor ? factorLabel(defaultFactor) : "None yet"}</span>
-          {defaultFactor ? <span className="ml-2 text-muted-foreground">{percentLabel(defaultFactor)}</span> : null}
+          {defaultFactor ? (
+            <>
+              {" "}
+              <span className="ml-1 text-muted-foreground">{percentLabel(defaultFactor)}</span>
+            </>
+          ) : null}
         </p>
       </div>
 

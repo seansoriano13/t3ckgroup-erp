@@ -284,6 +284,16 @@ create table if not exists public."costing_inclusions" (
   "created_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."costing_markup_presets" (
+  "id" uuid not null default gen_random_uuid(),
+  "label" text not null,
+  "factor" numeric(10,4) not null,
+  "sort" integer not null default 0,
+  "active" boolean not null default true,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."costing_matrices" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
@@ -297,7 +307,9 @@ create table if not exists public."costing_matrices" (
 create table if not exists public."costing_matrix_money" (
   "matrix_id" uuid not null,
   "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "default_factor" numeric(10,4),
+  "default_preset_id" uuid
 );
 
 create table if not exists public."costing_signer_lists" (
@@ -1610,6 +1622,7 @@ alter table costing_components add constraint "costing_components_pkey" PRIMARY 
 alter table costing_cost_rows add constraint "costing_cost_rows_pkey" PRIMARY KEY (id);
 alter table costing_events add constraint "costing_events_pkey" PRIMARY KEY (id);
 alter table costing_inclusions add constraint "costing_inclusions_pkey" PRIMARY KEY (id);
+alter table costing_markup_presets add constraint "costing_markup_presets_pkey" PRIMARY KEY (id);
 alter table costing_matrices add constraint "costing_matrices_pkey" PRIMARY KEY (id);
 alter table costing_matrix_money add constraint "costing_matrix_money_pkey" PRIMARY KEY (matrix_id);
 alter table costing_signer_lists add constraint "costing_signer_lists_pkey" PRIMARY KEY (id);
@@ -1775,6 +1788,8 @@ alter table costing_cost_rows add constraint "costing_cost_rows_quantity_chk" CH
 alter table costing_events add constraint "costing_events_kind_chk" CHECK ((kind = ANY (ARRAY['added'::text, 'changed'::text, 'removed'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_completeness_chk" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_quantity_chk" CHECK ((quantity > (0)::numeric));
+alter table costing_markup_presets add constraint "costing_markup_presets_factor_chk" CHECK ((factor > (0)::numeric));
+alter table costing_matrix_money add constraint "costing_matrix_money_factor_chk" CHECK (((default_factor IS NULL) OR (default_factor > (0)::numeric)));
 alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text])));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_abc_chk" CHECK (((abc_unit IS NULL) OR (abc_unit >= (0)::numeric)));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_offer_chk" CHECK (((final_offer_unit IS NULL) OR (final_offer_unit >= (0)::numeric)));
@@ -1961,6 +1976,7 @@ alter table costing_inclusions add constraint "costing_inclusions_component_id_f
 alter table costing_matrices add constraint "costing_matrices_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table costing_matrices add constraint "costing_matrices_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_matrix_money add constraint "costing_matrix_money_default_preset_id_fkey" FOREIGN KEY (default_preset_id) REFERENCES costing_markup_presets(id);
 alter table costing_matrix_money add constraint "costing_matrix_money_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_signer_lists add constraint "costing_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 alter table costing_tables add constraint "costing_tables_parent_table_fkey" FOREIGN KEY (parent_table) REFERENCES costing_tables(table_name);
@@ -2218,6 +2234,7 @@ CREATE INDEX costing_cost_rows_matrix_idx ON public.costing_cost_rows USING btre
 CREATE INDEX costing_events_matrix_idx ON public.costing_events USING btree (matrix_id, created_at DESC);
 CREATE INDEX costing_inclusions_component_idx ON public.costing_inclusions USING btree (component_id, "position");
 CREATE UNIQUE INDEX costing_inclusions_legacy_key ON public.costing_inclusions USING btree (legacy_sor_inclusion_id) WHERE (legacy_sor_inclusion_id IS NOT NULL);
+CREATE UNIQUE INDEX costing_markup_presets_label_key ON public.costing_markup_presets USING btree (lower(btrim(label)));
 CREATE INDEX costing_tender_lines_matrix_idx ON public.costing_tender_lines USING btree (matrix_id, "position");
 CREATE UNIQUE INDEX crm_pipeline_stages_one_anchor ON public.crm_pipeline_stages USING btree ((true)) WHERE is_anchor;
 CREATE UNIQUE INDEX crm_pipeline_stages_one_default ON public.crm_pipeline_stages USING btree ((true)) WHERE is_default;
@@ -2385,6 +2402,7 @@ alter table public."costing_components" enable row level security;
 alter table public."costing_cost_rows" enable row level security;
 alter table public."costing_events" enable row level security;
 alter table public."costing_inclusions" enable row level security;
+alter table public."costing_markup_presets" enable row level security;
 alter table public."costing_matrices" enable row level security;
 alter table public."costing_matrix_money" enable row level security;
 alter table public."costing_signer_lists" enable row level security;
@@ -2794,6 +2812,22 @@ create policy "costing_inclusions_update" on public."costing_inclusions"
   to authenticated
   using ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL))
   with check ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL));
+create policy "costing_markup_presets_insert" on public."costing_markup_presets"
+  as permissive
+  for insert
+  to authenticated
+  with check (costing_can_manage_markup());
+create policy "costing_markup_presets_read" on public."costing_markup_presets"
+  as permissive
+  for select
+  to authenticated
+  using (costing_can_manage_markup());
+create policy "costing_markup_presets_update" on public."costing_markup_presets"
+  as permissive
+  for update
+  to authenticated
+  using (costing_can_manage_markup())
+  with check (costing_can_manage_markup());
 create policy "costing_matrices_read" on public."costing_matrices"
   as permissive
   for select
@@ -5949,6 +5983,15 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_can_manage_markup()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire')
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_can_read(p_opportunity_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -6025,6 +6068,20 @@ exception when others then
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_component_markup_price(p_component_id uuid, p_acquire numeric, p_factor numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select public.costing_markup_price(
+    p_acquire,
+    coalesce(p_factor, public.costing_default_factor(
+      public.costing_matrix_of('costing_component_costs', jsonb_build_object('component_id', p_component_id))
+    ))
+  )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_components_cleanup()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -6036,6 +6093,15 @@ begin
   delete from public.costing_component_costs where component_id = old.id;
   return old;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_default_factor(p_matrix_id uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select m.default_factor from public.costing_matrix_money m where m.matrix_id = p_matrix_id
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_enforce_bands()
@@ -6213,6 +6279,24 @@ CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select public.has_purchasing_access()
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_markup_presets_touch()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_markup_price(p_acquire numeric, p_factor numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select case when p_acquire is null or p_factor is null then null else round(p_acquire * p_factor, 2) end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_matching_sor_line(p_tender_line_id uuid)
@@ -17029,6 +17113,7 @@ CREATE TRIGGER costing_events_no_truncate BEFORE TRUNCATE ON public.costing_even
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_inclusion_needs_bundle BEFORE INSERT OR UPDATE OF component_id ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_inclusion_needs_bundle();
+CREATE TRIGGER costing_markup_presets_touch BEFORE UPDATE ON public.costing_markup_presets FOR EACH ROW EXECUTE FUNCTION costing_markup_presets_touch();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_write_events();

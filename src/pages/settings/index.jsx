@@ -376,9 +376,8 @@ export default function SettingsPage() {
   // The Final Acquire list edits the Costing Matrix's markup presets, so it gets the Purchasing tab too (#269).
   // Only asked of someone who would not see the tab anyway.
   const basePermissions = getPermissionContext(user);
-  const { data: managesCostingMarkup = false } = useCanManageMarkup({
-    enabled: Boolean(user) && !basePermissions.isSuperAdmin && !basePermissions.hasPurchasingFlow,
-  });
+  const askingMarkupAccess = Boolean(user) && !basePermissions.isSuperAdmin && !basePermissions.hasPurchasingFlow;
+  const { data: managesCostingMarkup = false, isLoading: checkingMarkupAccess } = useCanManageMarkup({ enabled: askingMarkupAccess });
   const permissionContext = { ...basePermissions, managesCostingMarkup };
   const visibleTabs = TAB_DEFS.filter((t) => t.isPermitted(permissionContext));
   const requestedTab = searchParams.get("tab");
@@ -386,10 +385,12 @@ export default function SettingsPage() {
   const { value: activeTab, Panel: ActivePanel } = requested ?? TAB_DEFS[0];
 
   useEffect(() => {
-    if (requestedTab && !requested) {
+    // A link to the Purchasing tab waits for the answer about the Final Acquire list before it is called forbidden.
+    const waiting = requestedTab === "purchasing" && askingMarkupAccess && checkingMarkupAccess;
+    if (requestedTab && !requested && !waiting) {
       setSearchParams({ tab: TAB_DEFS[0].value }, { replace: true });
     }
-  }, [requestedTab, requested, setSearchParams]);
+  }, [requestedTab, requested, setSearchParams, askingMarkupAccess, checkingMarkupAccess]);
 
   return (
     <PageShell
