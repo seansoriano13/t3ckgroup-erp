@@ -427,9 +427,9 @@ These are UI terms. They do not belong in CONTEXT.md.
 
 ### Route → page type
 - **Queue**: Task Approvals, HR Verifications, Leave Approvals, IPAS Sign-offs (`/approvals/ipas`), Transmittal Check by (`/approvals/transmittals`; the five Approval Center routes), Procurement Queue, Bug Reports, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
-- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log, IPAS (`/purchasing/ipas`; each IPAS opens as its own record page at `/purchasing/ipas/[id]`, the Decider layout: the overview holds the figures and the sections as rows, with a "Your move" decision card beside them (the chain sits behind a toggle below the wide breakpoint). A section opens in a slide-over drawer with its moves pinned in the footer; a section's edit view replaces the overview in the page, at `?edit=`). Transmittals (`/purchasing/transmittals`; each slip opens as its own record page at `/purchasing/transmittals/[id]`, and Raise Transmittal at `/purchasing/transmittals/new` is that record page's draft form), Packing Lists (`/purchasing/packing-lists`, each list at `/purchasing/packing-lists/[id]`).
+- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log, IPAS (`/purchasing/ipas`; each IPAS opens as its own record page at `/purchasing/ipas/[id]`, the Decider layout: the overview holds the figures and the sections as rows, with a "Your move" decision card beside them (the chain sits behind a toggle below the wide breakpoint). A section opens in a slide-over drawer with its moves pinned in the footer; a section's edit view replaces the overview in the page, at `?edit=`). Transmittals (`/purchasing/transmittals`; each slip opens as its own record page at `/purchasing/transmittals/[id]`, and Raise Transmittal at `/purchasing/transmittals/new` is that record page's draft form), Packing Lists (`/purchasing/packing-lists`, each list at `/purchasing/packing-lists/[id]`). Order Monitoring (`/purchasing/order-monitoring`; full-width, level-1 tabs switch What needs doing and the Register, the Register's FilterBar sits in the toolbar slot, and a row opens its IPAS record page).
 - **Report**: Commission Dashboard, Retail, Dashboard, SOR Register → Overview view.
-- **Config**: Settings (its Purchasing tab holds the IPAS option lists and, for Super Admins, the sign-off lists and the history of who changed them; the old `/purchasing/ipas/settings` redirects there), Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
+- **Config**: Settings (its Purchasing tab holds the IPAS option lists, the Ageing rules block (one number of days per step) and, for Super Admins, the sign-off lists and the history of who changed them; the old `/purchasing/ipas/settings` redirects there), Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
 - **Tool**: Flow Canvas, Document Center (a view in the Leaves Manager), Release Notes.
 - Redirect-only routes (legacy CRM/opportunities paths, Approval Center index, HR index, Super Admin index, Lead Sources) have no type.
 
@@ -447,7 +447,7 @@ PageShell also owns phone behaviour (header stacks, level-1 tabs scroll sideways
 ### Frames
 - **Centred** (default): the `wrapper`, max 80rem.
 - **Narrow**: the Config type's column, max 56rem, centred; header, tabs and body all sit in it.
-- **Full-width**: SOR Register, Flow Canvas and flow version pages. Full-width stays an explicit per-route list in the app layout, so a new Page never becomes full-width by accident.
+- **Full-width**: SOR Register, Order Monitoring, Flow Canvas and flow version pages. Full-width stays an explicit per-route list in the app layout, so a new Page never becomes full-width by accident.
 - The Dashboard's greeting banner sits above the standard layout.
 
 ### Title

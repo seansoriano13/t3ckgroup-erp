@@ -761,6 +761,39 @@ Warehouse and NA at Technical. Not a pass/fail on the supplier: an NA says
 someone has to act, and a later GC on a replacement settles it.
 _Avoid_: Pass / Fail, Received / Short / Damaged, Condition (unqualified)
 
+**Order Monitoring**:
+The Purchasing page that shows every open IPAS across every SOR with the one next
+thing it is waiting on, who owes it and how long it has waited, and the SOR's
+own IPAS section shows the same line. Opens on What needs doing; the Register
+behind it lists every order, filed ones included. Order Monitoring reads the
+IPAS and its Transmittals; it keeps no record of its own beyond the Ageing
+rules.
+_Avoid_: Tracker, Board, PMS (when meaning this page)
+
+**Ageing rule**:
+The number of days an order may wait at one step before it counts as late — one
+rule per step of an order's life (the seven buyer-track steps, a delivery with no
+Transmittal, an open Transmittal check, and costs ready to file). Purchasing sets
+them in Settings > Purchasing. A step with no rule never goes late. A late order
+says how many days past its rule it is.
+_Avoid_: SLA, Deadline, Due date (the supplier's delivery deadline is a separate,
+unbuilt setting)
+
+**Needs chasing**:
+The Order Monitoring group of orders that have waited past their step's Ageing
+rule, whoever owes the next thing. The other groups are Waiting on us, Waiting on
+someone else (the supplier, forwarder or port) and Filed.
+_Avoid_: Overdue, Late list
+
+**Owner (of an order's next thing)**:
+Who has to act next on an open IPAS: Purchasing, Finance, the Warehouse,
+Technical, the Check by signers, the section 7 signers, or someone else (the
+supplier, forwarder or port). Only someone else puts an order in Waiting on
+someone else; every other owner is "us". Where one order has Transmittals waiting
+on different checks the owner is the Warehouse, the earlier check, and the line
+reads "Warehouse or Technical".
+_Avoid_: Assignee, Responsible
+
 **Packing List**:
 What is inside each box the Warehouse packs for an SOR — contents and
 quantities, marks or seal numbers, and the weight where it is known — printed

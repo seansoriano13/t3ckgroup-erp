@@ -24,6 +24,9 @@ export default function AppLayout() {
   // `/flow-versions/:id` is the same shape: a read-only Flow Snapshot, panned
   // and zoomed, opened from the version badge on an SOR.
   //
+  // `/purchasing/order-monitoring` joins them (#263): wide tables of orders
+  // with the header, tabs and toolbar pinned above a scrolling body.
+  //
   // `/sors` joins them (issue #206, renamed by ADR 0024): the register is
   // something you pan or scan across (a board, a large list), not a form. Its
   // Commission pages are ordinary pages and stay centred.
@@ -34,6 +37,7 @@ export default function AppLayout() {
   const isFullBleed =
     location.pathname.startsWith("/super-admin/flow-canvas") ||
     location.pathname.startsWith("/flow-versions/") ||
+    location.pathname.startsWith("/purchasing/order-monitoring") ||
     (location.pathname.startsWith("/sors") &&
       !location.pathname.startsWith("/sors/commission"));
 

@@ -132,6 +132,8 @@ export const SEED_TABLES = [
   "packing_lists",
   "packing_list_boxes",
   "packing_list_contents",
+  // Order Monitoring ageing rules (#262): one number per step, no people in it.
+  "order_ageing_rules",
 ]
 
 /** Tables the migrations build that the seed deliberately leaves out, each with why. */

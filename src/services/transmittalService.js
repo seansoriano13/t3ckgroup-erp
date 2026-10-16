@@ -133,25 +133,55 @@ export const transmittalService = {
    */
   async forIpas(ipasId) {
     if (!ipasId) return [];
+    const byIpas = await transmittalService.forOrders([ipasId]);
+    return byIpas.get(ipasId) ?? [];
+  },
+
+  /**
+   * The submitted, uncancelled Transmittals that carry a PO line of any of
+   * these IPAS (#263): the same rows as `forIpas`, read for the whole list in
+   * two queries. A slip is filed under every IPAS it names. Returns a Map of
+   * IPAS id to its slips (raw rows, for utils/ipasTransmittals.js and
+   * utils/orderStanding.js). The database returns only what the caller may read.
+   *
+   * `includeDrafts` also returns the drafts that name an IPAS (state "draft").
+   * Order Monitoring uses them only to know a Transmittal has been started for
+   * an order; they never count as a slip (no stages, no check).
+   */
+  async forOrders(ipasIds, { includeDrafts = false } = {}) {
+    const byIpas = new Map();
+    const ids = [...new Set((ipasIds ?? []).filter(Boolean))];
+    if (ids.length === 0) return byIpas;
+
     const { data: links, error: linkError } = await supabase
       .from("transmittal_lines")
       .select("transmittal_id")
-      .eq("ipas_id", ipasId);
+      .in("ipas_id", ids);
     if (linkError) throw linkError;
-    const ids = [...new Set((links ?? []).map((row) => row.transmittal_id))];
-    if (ids.length === 0) return [];
+    const slipIds = [...new Set((links ?? []).map((row) => row.transmittal_id))];
+    if (slipIds.length === 0) return byIpas;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("transmittals")
       .select(
-        "id, number, prepared_on, created_at, priority, state, check_warehouse, check_technical, item_location_id," +
-          " stages:transmittal_stages(stage, completed_at), lines:transmittal_lines(wh_rating, tech_rating)",
+        "id, number, prepared_on, created_at, submitted_at, priority, state, check_warehouse, check_technical, item_location_id," +
+          " stages:transmittal_stages(stage, completed_at), lines:transmittal_lines(ipas_id, odoo_po_line_id, wh_rating, tech_rating)",
       )
-      .in("id", ids)
-      .neq("state", "draft")
+      .in("id", slipIds)
       .neq("state", "cancelled");
+    if (!includeDrafts) query = query.neq("state", "draft");
+    const { data, error } = await query;
     if (error) throw error;
-    return data ?? [];
+
+    for (const slip of data ?? []) {
+      const named = new Set((slip.lines ?? []).map((line) => line.ipas_id).filter((id) => ids.includes(id)));
+      for (const id of named) {
+        const list = byIpas.get(id) ?? [];
+        list.push(slip);
+        byIpas.set(id, list);
+      }
+    }
+    return byIpas;
   },
 
   /** One Transmittal, shaped for the page (see utils/transmittals.js). Null when it isn't visible. */

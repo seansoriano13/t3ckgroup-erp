@@ -410,6 +410,70 @@ export function stubIpasRpcs({
       })
   })
 
+  // #265: the dates and Transmittal facts the SOR section needs for each
+  // order's standing. The same gate as the summary; dates and slip facts only.
+  stubRpc("ipas_standing_for_sor", (args) => {
+    if (!sorReader) return []
+    const sorId = args.p_opportunity_id
+    const wanted = new Set(rowsOf("ipas_sors").filter((s) => s.opportunity_id === sorId).map((s) => s.ipas_id))
+    const final = ["lc_odoo_done", "checked"]
+
+    return rowsOf("ipas")
+      .filter((row) => wanted.has(row.id) && row.purpose === "project")
+      .sort((a, b) => String(a.number).localeCompare(String(b.number)))
+      .map((row) => {
+        const costs = rowsOf("ipas_events")
+          .filter((e) => e.ipas_id === row.id && e.kind === "header_changed" && final.includes(e.detail?.fields?.computation_status?.to))
+          .map((e) => e.created_at)
+          .sort()
+          .pop()
+        const proofDates = rowsOf("ipas_payments")
+          .filter((p) => p.ipas_id === row.id && (p.proof_url ?? "") !== "")
+          .map((p) => p.paid_on)
+          .sort()
+        const slips = rowsOf("transmittals")
+          .filter((t) => t.state !== "cancelled")
+          .map((t) => ({ t, lines: rowsOf("transmittal_lines").filter((l) => l.transmittal_id === t.id && l.ipas_id === row.id) }))
+          .filter(({ lines }) => lines.length > 0)
+          .map(({ t, lines }) => ({
+            id: t.id,
+            number: t.number,
+            prepared_on: t.prepared_on,
+            created_at: t.created_at,
+            submitted_at: t.submitted_at,
+            state: t.state,
+            check_warehouse: t.check_warehouse,
+            check_technical: t.check_technical,
+            stages: rowsOf("transmittal_stages")
+              .filter((st) => st.transmittal_id === t.id)
+              .map((st) => ({ stage: st.stage, completed_at: st.completed_at })),
+            lines: lines.map((l) => ({
+              ipas_id: l.ipas_id,
+              odoo_po_line_id: l.odoo_po_line_id,
+              wh_rating: l.wh_rating,
+              tech_rating: l.tech_rating,
+            })),
+          }))
+        return {
+          ipas_id: row.id,
+          source: row.source,
+          created_at: row.created_at,
+          updated_at: row.updated_at ?? row.created_at,
+          costs_completed_at: costs ?? null,
+          proof_paid_on: proofDates.pop() ?? null,
+          shipped_out_on: row.shipped_out_on ?? null,
+          onboard_on: row.onboard_on ?? null,
+          arrived_in_ph_on: row.arrived_in_ph_on ?? null,
+          arrived_in_whs_on: row.arrived_in_whs_on ?? null,
+          import_clearance_on: row.import_clearance_on ?? null,
+          delivered_on: row.delivered_on ?? null,
+          actual_checking_stamped: Boolean(row.actual_checking_by),
+          actual_checking_at: row.actual_checking_at ?? null,
+          slips,
+        }
+      })
+  })
+
   /** The helper both resets share: clears the live section 1 and 3 approvals, returns { sections, preparers }. */
   const clearApprovals = (ipasId, reason) => {
     const live = liveSignoffs(ipasId)

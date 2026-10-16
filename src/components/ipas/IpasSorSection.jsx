@@ -6,6 +6,7 @@ import StatusBadge from "../StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { getPermissionContext, canReadIpas } from "../../utils/permissions";
 import { IPAS_PURPOSE_LABELS } from "../../constants/ipas";
+import { ORDER_OWNER_LABELS } from "../../constants/orderMonitoring";
 import IpasStateBadge from "./IpasStateBadge";
 import { useIpasSorSummaries } from "./useIpasSorSummaries";
 
@@ -48,6 +49,26 @@ function SummaryRow({ summary, canOpen }) {
           </Button>
         )}
       </div>
+
+      {summary.nextThing && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid="ipas-next-thing">
+          <span className="font-medium text-foreground">{summary.nextThing}</span>
+          {summary.owner && (
+            <span className="text-muted-foreground">· {ORDER_OWNER_LABELS[summary.owner] ?? summary.owner}</span>
+          )}
+          {summary.daysWaiting !== null && summary.daysWaiting !== undefined && (
+            <span className="text-muted-foreground">
+              · {summary.daysWaiting} {summary.daysWaiting === 1 ? "day" : "days"} waiting
+            </span>
+          )}
+          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
+          {summary.late && summary.daysPastRule > 0 && (
+            <span className="font-semibold text-destructive">
+              {summary.daysPastRule} {summary.daysPastRule === 1 ? "day" : "days"} past the rule
+            </span>
+          )}
+        </p>
+      )}
 
       <div>
         <p className="mb-1 text-xs font-semibold text-muted-foreground">
