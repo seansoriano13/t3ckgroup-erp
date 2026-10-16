@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsSummary } from "../constants/costing";
+import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsBidDecision, tierReadsSummary } from "../constants/costing";
 import { componentTotals, costRowsTotals, costRowTotals, lineTotals, matrixTotals, summary } from "../utils/costingMath";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
@@ -36,6 +36,10 @@ import { sorLineChange } from "../utils/requestedItem";
  * no `summary` key at all. The rates it uses are `costing_settings`, a single row any signed-in
  * employee reads and Finance access or a Super Admin edits; the signer lists (who writes Final
  * Acquire) are readable by all and written by Super Admins.
+ *
+ * The Bid Decision (#320) is taken through `decideBid` and read through the same matrix read: Sales gets the
+ * verdict and the reason (`bidDecision`), Closed Book also the Final Offer total and ABC total it was
+ * stamped with, every other tier neither key.
  */
 
 /**
@@ -72,11 +76,14 @@ export class CostingRuleError extends Error {
   }
 }
 
-const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge): (.+)$/;
+const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid): (.+)$/;
 
-/** The typed error for a matrix rule refusal (a check violation), or null when `error` is anything else. */
+/**
+ * The typed error for a matrix rule refusal (a check violation, or a Bid Decision refused to someone who
+ * may not take it), or null when `error` is anything else.
+ */
 export function toRuleError(error) {
-  if (error?.code !== "23514") return null;
+  if (error?.code !== "23514" && !(error?.code === "42501" && /^costing_bid: /.test(error?.message ?? ""))) return null;
   const match = RULE_MESSAGE.exec(error.message ?? "");
   if (!match) return null;
   const sentence = match[1].charAt(0).toUpperCase() + match[1].slice(1);
@@ -233,6 +240,14 @@ export function shapeMatrix(read, settings = null) {
     costRowsTotals: costRowsTotals(costRows),
   };
 
+  // The Bid Decision (#320): the tiers that read it get `bidDecision` (the live one, or null) and the
+  // earlier cleared ones; any other tier gets neither key. The stamped figures are in it only for Closed Book.
+  if (tierReadsBidDecision(read.tier)) {
+    const decisions = (tables.costing_bid_decisions ?? []).map(shapeBidDecision);
+    shaped.bidDecision = decisions.find((d) => d.clearedAt === null) ?? null;
+    shaped.bidDecisionHistory = decisions.filter((d) => d.clearedAt !== null).reverse();
+  }
+
   if (tierReadsSummary(read.tier)) {
     const money = (tables.costing_matrix_money ?? [])[0] ?? null;
     shaped.money = money;
@@ -240,6 +255,26 @@ export function shapeMatrix(read, settings = null) {
     shaped.summary = summary({ tenderLines, costRows, money }, shaped.rates);
   }
   return shaped;
+}
+
+/**
+ * A Bid Decision row as the screen uses it: verdict, reason, decider, date and, when it was cleared, when
+ * and why. `finalOfferTotal` and `abcTotal` (the figures it was taken against) are set only when the row
+ * carried them, which only the Closed Book tier's does: for everyone else the keys are absent.
+ */
+export function shapeBidDecision(row) {
+  const decision = {
+    id: row.id,
+    verdict: row.verdict,
+    reason: row.reason,
+    decidedBy: row.decided_by ?? null,
+    decidedAt: row.decided_at,
+    clearedAt: row.cleared_at ?? null,
+    clearedReason: row.cleared_reason ?? null,
+  };
+  if ("final_offer_total" in row) decision.finalOfferTotal = Number(row.final_offer_total);
+  if ("abc_total" in row) decision.abcTotal = row.abc_total === null ? null : Number(row.abc_total);
+  return decision;
 }
 
 /** Requested Items grouped by the Component they name: a Map of component id -> items, oldest first. */
@@ -601,6 +636,47 @@ export const costingMatrixService = {
     });
     if (error) throw error;
     return data ?? [];
+  },
+
+  /**
+   * Takes the Bid Decision on a matrix (#320): `verdict` is "go", "no_go" or "revise" and `reason` is
+   * written in the decider's own words. Only a Super Admin or a member of the Final Acquire list can
+   * (the database decides; there is no self-approval rule), and every Tender Line needs a Final Offer
+   * first. The database stamps the Final Offer total and ABC total, replaces a live decision, tells the
+   * Deal Team on No-go and Revise, and moves nothing on the SOR. Returns the new decision's id.
+   */
+  async decideBid(matrixId, { verdict, reason } = {}) {
+    if (!Object.values(BID_VERDICT).includes(verdict)) {
+      throw new CostingRuleError("The verdict must be Go, No-go or Revise.", "23514");
+    }
+    const { data, error } = await supabase.rpc("costing_decide_bid", {
+      p_matrix_id: matrixId,
+      p_verdict: verdict,
+      p_reason: reason ?? "",
+    });
+    if (error) fail(error);
+    return data;
+  },
+
+  /**
+   * The matrices waiting for a Bid Decision, oldest first (the Approval Center queue, #320): every
+   * Tender Line has a Final Offer and no decision is live. Only a Super Admin or the Final Acquire list
+   * is given any; anyone else gets an empty list.
+   */
+  async pendingBidDecisions() {
+    const { data, error } = await supabase.rpc("costing_pending_bid_decisions");
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      matrixId: row.matrix_id,
+      opportunityId: row.opportunity_id,
+      projectTitle: row.project_title,
+      clientName: row.client_name ?? null,
+      dealOwnerId: row.deal_owner_id ?? null,
+      dealOwnerName: row.deal_owner_name ?? null,
+      finalOfferTotal: Number(row.final_offer_total),
+      abcTotal: row.abc_total === null || row.abc_total === undefined ? null : Number(row.abc_total),
+      waitingSince: row.waiting_since,
+    }));
   },
 };
 

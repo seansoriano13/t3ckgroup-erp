@@ -21,6 +21,7 @@ import {
   PackageOpen,
   ReceiptText,
   PackageCheck,
+  Gavel,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -270,6 +271,16 @@ export const NAV_MODULES = {
         link: "/approvals/transmittals",
         icon: PackageCheck,
         isPermitted: (ctx) => ctx.isTransmittalCheckBy,
+        exactMatch: true,
+      },
+      {
+        // Costing Matrix Bid Decisions (#320): matrices waiting for Go, No-go
+        // or Revise, for Super Admins and the Final Acquire list.
+        key: "approvals.bidDecisions",
+        label: "Bid Decisions",
+        link: "/approvals/bid-decisions",
+        icon: Gavel,
+        isPermitted: (ctx) => ctx.isBidDecider,
         exactMatch: true,
       },
     ],

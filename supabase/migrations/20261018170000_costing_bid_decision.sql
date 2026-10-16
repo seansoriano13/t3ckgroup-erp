@@ -194,6 +194,9 @@ returns table (
   matrix_id         uuid,
   opportunity_id    uuid,
   project_title     text,
+  client_name       text,
+  deal_owner_id     uuid,
+  deal_owner_name   text,
   final_offer_total numeric,
   abc_total         numeric,
   waiting_since     timestamptz
@@ -203,7 +206,8 @@ stable
 security definer
 set search_path = public
 as $$
-  select m.id, m.opportunity_id, o.project_title, t.final_offer_total, t.abc_total,
+  select m.id, m.opportunity_id, o.project_title, o.client_name, o.deal_owner_id, own.name,
+         t.final_offer_total, t.abc_total,
          coalesce(
            (select max(e.created_at) from public.costing_events e
              where e.matrix_id = m.id and e.detail ->> 'table' = 'costing_tender_line_prices'),
@@ -211,6 +215,7 @@ as $$
          )
   from public.costing_matrices m
   join public.sales_opportunities o on o.id = m.opportunity_id
+  left join public.employees own on own.id = o.deal_owner_id
   cross join lateral public.costing_bid_totals(m.id) t
   where (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire'))
     and not coalesce(o.is_deleted, false)
@@ -220,7 +225,7 @@ as $$
     and not exists (
       select 1 from public.costing_bid_decisions d where d.matrix_id = m.id and d.cleared_at is null
     )
-  order by 6, m.id
+  order by 9, m.id
 $$;
 
 -- ---------------------------------------------------------------------------

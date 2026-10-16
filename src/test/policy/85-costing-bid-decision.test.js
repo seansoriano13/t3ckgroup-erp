@@ -131,6 +131,9 @@ describe("before there is anything to judge", () => {
             expect(mine, who).toBeTruthy()
             expect(mine.opportunity_id).toBe(sorId)
             expect(mine.project_title).toBe(`${MARKER} Rope Rescue Equipment`)
+            expect(mine.client_name).toBe(`${MARKER} Acme Rescue Supplies`)
+            expect(mine.deal_owner_id).toBe(ids.dealOwner)
+            expect(mine.deal_owner_name).toBe("Deal Owner")
             expect(Number(mine.final_offer_total)).toBe(3942.88)
         }
         for (const who of ["dealOwner", "outsider", "stageParticipant", "finance", "ordinary"]) {

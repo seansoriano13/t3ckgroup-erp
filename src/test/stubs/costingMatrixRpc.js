@@ -2,6 +2,7 @@ import { stubRpc } from "@/test/msw/server"
 import { db, deleteRows, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import {
+  BID_DECISION_TIERS,
   COMPONENT_COST_BANDS,
   COMPONENT_COST_TIERS,
   COST_ROW_BANDS,
@@ -10,8 +11,10 @@ import {
   MATRIX_MONEY_TIERS,
   TENDER_PRICE_TIERS,
   tierReads,
+  tierReadsBid,
   tierReadsCost,
 } from "@/constants/costing"
+import { matrixTotals } from "@/utils/costingMath"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
@@ -112,6 +115,15 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       tables.costing_matrix_money = [onlyReadable(money, ["matrix_id", ...moneyColumns])]
     }
 
+    // #320: the Bid Decision rows, each cut to the columns this tier may read (the price tier gets no stamped figure).
+    const bidColumns = Object.keys(BID_DECISION_TIERS).filter((c) => tierReadsBid(tier, c))
+    if (bidColumns.length > 0) {
+      tables.costing_bid_decisions = rowsOf("costing_bid_decisions")
+        .filter((d) => d.matrix_id === matrix.id)
+        .sort((a, b) => String(a.decided_at).localeCompare(String(b.decided_at)))
+        .map((d) => onlyReadable(d, bidColumns))
+    }
+
     const priceColumns = Object.keys(TENDER_PRICE_TIERS).filter((c) => tierReads(tier, c))
     if (priceColumns.length > 0) {
       tables.costing_tender_line_prices = rowsOf("costing_tender_line_prices")
@@ -149,7 +161,60 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     if (existing) updateRow(table, existing, args.p_patch)
     else if (table === "costing_cost_rows") throw pgrstError("P0002", "costing_set_money: not found", { status: 404 })
     else insertRow(table, { [key]: args.p_row, ...args.p_patch })
+    // The trigger that clears a live Bid Decision when a Final Offer or a Final Acquire changes (#320).
+    const changesOffer = table === "costing_tender_line_prices" && "final_offer_unit" in args.p_patch
+    const changesAcquire = (table === "costing_component_costs" || table === "costing_cost_rows") && "final_acquire_unit" in args.p_patch
+    if (changesOffer || changesAcquire) {
+      const matrix = matrixOfMoneyRow(table, args.p_row)
+      for (const decision of rowsOf("costing_bid_decisions").filter((d) => d.matrix_id === matrix && d.cleared_at == null)) {
+        updateRow("costing_bid_decisions", decision, {
+          cleared_at: new Date().toISOString(),
+          cleared_reason: changesOffer ? "The Final Offer changed" : "A Final Acquire changed",
+        })
+      }
+    }
     return null
+  })
+
+  // The matrix a money row belongs to, walking up the way costing_matrix_of does.
+  const matrixOfMoneyRow = (table, rowId) => {
+    if (table === "costing_matrix_money") return rowId
+    if (table === "costing_cost_rows") return rowsOf(table).find((r) => r.id === rowId)?.matrix_id
+    const lineId =
+      table === "costing_tender_line_prices"
+        ? rowId
+        : rowsOf("costing_components").find((c) => c.id === rowId)?.tender_line_id
+    return rowsOf("costing_tender_lines").find((l) => l.id === lineId)?.matrix_id
+  }
+
+  // #320: the Bid Decision, taken by Closed Book only, stamped with the totals at that moment.
+  stubRpc("costing_decide_bid", (args) => {
+    const refuse = (code, message, status) => {
+      throw pgrstError(code, `costing_bid: ${message}`, { status })
+    }
+    if (tier !== "closed_book") refuse("42501", "only a Super Admin or the Final Acquire list can decide a bid", 403)
+    if (!["go", "no_go", "revise"].includes(args.p_verdict)) refuse("23514", "the verdict must be Go, No-go or Revise", 400)
+    if (!String(args.p_reason ?? "").trim()) refuse("23514", "write the reason for the decision", 400)
+    const lines = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === args.p_matrix_id)
+    const prices = rowsOf("costing_tender_line_prices")
+    const totals = matrixTotals(
+      lines.map((l) => ({ quantity: l.quantity, ...(prices.find((p) => p.tender_line_id === l.id) ?? {}) })),
+    )
+    if (lines.length === 0 || totals.missingOffer > 0) {
+      refuse("23514", "every Tender Line needs a Final Offer before the bid can be decided", 400)
+    }
+    for (const live of rowsOf("costing_bid_decisions").filter((d) => d.matrix_id === args.p_matrix_id && d.cleared_at == null)) {
+      updateRow("costing_bid_decisions", live, { cleared_at: new Date().toISOString(), cleared_reason: "Decided again" })
+    }
+    return insertRow("costing_bid_decisions", {
+      matrix_id: args.p_matrix_id,
+      verdict: args.p_verdict,
+      reason: String(args.p_reason).trim(),
+      decided_by: null,
+      decided_at: new Date().toISOString(),
+      final_offer_total: totals.finalOfferTotal,
+      abc_total: totals.abcTotal,
+    }).id
   })
 
   stubRpc("costing_move_inclusion", (args) => {
