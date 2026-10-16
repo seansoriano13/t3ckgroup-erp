@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Pencil, Plus, Printer, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Plus, Printer, Trash2 } from "lucide-react";
 import { openPackingListPrintWindow, printPackingList } from "../../../lib/pdf/packingListPrinter";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
@@ -10,21 +10,27 @@ import { Button } from "../../../components/ui/button";
 import PageShell from "../../../components/ui/PageShell";
 import PageLoading from "../../../components/ui/PageLoading";
 import EmptyState from "../../../components/ui/EmptyState";
-import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import QueryError from "../../../components/ui/QueryError";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
 import { SelectField } from "../../../components/ui/SelectField";
+import NumbersStrip from "../../../components/record/NumbersStrip";
+import RecordCard from "../../../components/record/RecordCard";
+import RecordDrawer from "../../../components/record/RecordDrawer";
+import RecordRows from "../../../components/record/RecordRows";
+import { STATE } from "../../../components/record/statePalette";
+import { useOpenSection } from "../../../components/record/useOpenSection";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { packingListService, sorLineSnapshot } from "../../../services/packingListService";
 import { ipasErrorMessage } from "../../../utils/ipas";
 
 /**
- * One Packing List (#255, spec #251): its header, its boxes with marks, seal
- * and weight, and each box's contents, typed or picked from the SOR's Product
- * List. Signing Packed by closes it; a packed list shows read-only.
+ * One Packing List (#255, spec #251), laid out like the IPAS record page (#538):
+ * Details, Boxes (marks, seal and weight, and each box's contents, typed or
+ * picked from the SOR's Product List) and Packed by. Signing Packed by closes
+ * it, from the card or the drawer's bottom bar; a packed list shows read-only.
  */
 
 const KEY = (id) => ["packing-list", id];
@@ -207,6 +213,16 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
   );
 }
 
+const SECTION = { DETAILS: "details", BOXES: "boxes", PACKED_BY: "packed_by" };
+const SECTIONS = [
+  { key: SECTION.DETAILS, title: "Details" },
+  { key: SECTION.BOXES, title: "Boxes" },
+  { key: SECTION.PACKED_BY, title: "Packed by" },
+];
+
+const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+const formatWhen = (value) => (value ? new Date(value).toLocaleString() : "");
+
 function PackingListPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
@@ -217,7 +233,9 @@ function PackingListPage() {
   const [boxDialog, setBoxDialog] = useState({ open: false, box: null, seq: 0 });
   const [contentsBox, setContentsBox] = useState(null);
   const [packing, setPacking] = useState(false);
-  const [confirmingPack, setConfirmingPack] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const rowEls = useRef({});
+  const { index, current, open: openSection, step, close } = useOpenSection({ drawerSections: SECTIONS });
 
   const { data: list, isLoading, isError, refetch } = useQuery({
     queryKey: KEY(id),
@@ -254,15 +272,25 @@ function PackingListPage() {
     }
   };
 
-  const pack = async () => {
-    setConfirmingPack(false);
+  // Signing Packed by is one move, from the card or the drawer's bottom bar. A failure shows
+  // where it was started, with Retry.
+  const pack = async (from) => {
     setPacking(true);
     try {
       await packingListService.pack(id);
+      setFailure(null);
       toast.success(`${list.number} packed`);
       refresh();
     } catch (error) {
-      toast.error(ipasErrorMessage(error));
+      const message = ipasErrorMessage(error);
+      toast.error(message);
+      setFailure({
+        key: "pack",
+        origin: from?.origin,
+        message,
+        retry: () => pack(from),
+        dismiss: () => setFailure(null),
+      });
     } finally {
       setPacking(false);
     }
@@ -271,10 +299,142 @@ function PackingListPage() {
   const draft = list?.state === "draft";
   const canEdit = draft && (hasPurchasingFlow || isSuperAdmin || list?.createdById === user?.id);
 
-  const totalWeight = list
-    ? list.boxes.reduce((sum, box) => sum + (box.grossWeightKg ?? 0), 0)
-    : 0;
-  const weighed = list ? list.boxes.filter((box) => box.grossWeightKg != null).length : 0;
+  const boxes = list?.boxes ?? [];
+  const totalWeight = boxes.reduce((sum, box) => sum + (box.grossWeightKg ?? 0), 0);
+  const weighed = boxes.filter((box) => box.grossWeightKg != null).length;
+  const packed = Boolean(list) && !draft;
+
+  const moves = [];
+  if (list && canEdit) {
+    moves.push({
+      key: "pack",
+      section: SECTION.PACKED_BY,
+      kind: "approve",
+      icon: Check,
+      label: "Sign Packed by",
+      verb: "Sign Packed by",
+      confirm: boxes.length > 0,
+      hint:
+        boxes.length === 0
+          ? "Add a box first."
+          : "Closes the list. The boxes and their contents can't be changed after. Next: nobody.",
+      run: (from) => (boxes.length === 0 ? openSection(SECTION.BOXES) : pack(from)),
+    });
+  }
+  const gates = [
+    {
+      key: SECTION.PACKED_BY,
+      label: "Packed by",
+      role: "Maker or Purchasing",
+      done: packed,
+      now: Boolean(list) && draft,
+      state: packed ? STATE.DONE : draft ? STATE.CURRENT : STATE.WAITING,
+      line: packed
+        ? `Packed by ${list.packerName ?? "someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
+        : "Waiting for the maker of the list or Purchasing",
+      accessibleName: `Step 1, Packed by, Maker or Purchasing, ${packed ? "done" : draft ? "now" : "waiting"}`,
+    },
+  ];
+  const status = !list
+    ? ""
+    : packed
+      ? "Packed. Nothing left to do."
+      : moves.length > 0
+        ? "Waiting for you: Packed by"
+        : "Nothing needs you right now. Waiting on the maker of the list or Purchasing for Packed by.";
+
+  const summaries = list && {
+    [SECTION.DETAILS]:
+      [list.sorReference, list.projectTitle, list.odooDeliveryRef ? `Odoo ${list.odooDeliveryRef}` : null]
+        .filter(Boolean)
+        .join(" · ") || "No SOR",
+    [SECTION.BOXES]:
+      boxes.length === 0
+        ? "No boxes yet"
+        : `${plural(boxes.length, "box", "boxes")} · ${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}`,
+    [SECTION.PACKED_BY]: gates[0].line,
+  };
+  const stateOf = (key) => {
+    if (key !== SECTION.PACKED_BY) return null;
+    return { state: gates[0].state, detail: packed ? "Signed" : "Not yet" };
+  };
+
+  const bodyOf = (key) => {
+    if (key === SECTION.DETAILS) {
+      return (
+        <div className="grid grid-cols-1 gap-4 text-[13px] sm:grid-cols-2">
+          <div>
+            <div className="text-muted-foreground">SOR</div>
+            <div>{[list.sorReference, list.projectTitle].filter(Boolean).join(" · ") || "—"}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Odoo delivery ref</div>
+            <div>{list.odooDeliveryRef ?? "—"}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Made by</div>
+            <div>{list.creatorName ?? "—"}</div>
+          </div>
+        </div>
+      );
+    }
+    if (key === SECTION.PACKED_BY) {
+      return (
+        <p className="text-[13px]">
+          {packed
+            ? `${list.packerName ?? "Someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
+            : "Not yet."}
+        </p>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        {boxes.length === 0 && <EmptyState title="No boxes yet" description="Add a box, then list what is in it." />}
+        {boxes.map((box) => (
+          <div key={box.id} className="rounded-xl border border-border bg-card">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+              <div className="text-[13px]">
+                <span className="font-semibold">Box {box.boxNo}</span>
+                <span className="text-muted-foreground">
+                  {" "}· Marks {box.marks ?? "—"} · Seal {box.sealNo ?? "—"} · {box.grossWeightKg == null ? "weight not known" : `${box.grossWeightKg} kg`}
+                </span>
+              </div>
+              {canEdit && (
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box, seq: s.seq + 1 }))}>
+                    <Pencil size={13} />
+                    Box
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setContentsBox(box)}>
+                    Contents
+                  </Button>
+                  <Button variant="ghost" size="icon" aria-label={`Remove box ${box.boxNo}`} onClick={() => removeBox(box)}>
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <ul className="divide-y divide-border">
+              {box.contents.length === 0 && <li className="px-4 py-3 text-[13px] text-muted-foreground">No contents yet.</li>}
+              {box.contents.map((c) => (
+                <li key={c.id} className="px-4 py-2 text-[13px]">
+                  {c.quantity} {c.unit ?? ""} · {c.description}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {canEdit && (
+          <Button variant="outline" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}>
+            <Plus size={14} />
+            Add a box
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  const restate = () => (list ? `Signs Packed by on ${list.number}. The boxes and their contents can't be changed after.` : "");
 
   return (
     <PageShell
@@ -304,82 +464,63 @@ function PackingListPage() {
       )}
 
       {list && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 rounded-xl border border-border bg-card p-4 text-[13px] md:grid-cols-4">
-            <div>
-              <div className="text-muted-foreground">Odoo delivery ref</div>
-              <div>{list.odooDeliveryRef ?? "—"}</div>
+        <>
+          <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+            <div className="min-w-0 space-y-8">
+              <NumbersStrip
+                stats={[
+                  { key: "boxes", label: "Boxes", value: boxes.length, onOpen: () => openSection(SECTION.BOXES) },
+                  {
+                    key: "weight",
+                    label: "Total weight",
+                    value: weighed > 0 ? `${totalWeight.toFixed(2)} kg` : "—",
+                    sub: weighed > 0 && weighed < boxes.length ? `${weighed} of ${boxes.length} weighed` : undefined,
+                  },
+                ]}
+              />
+              <RecordRows
+                groups={[{ sections: SECTIONS }]}
+                stateOf={stateOf}
+                summaryOf={(key) => summaries[key]}
+                onOpen={openSection}
+                rowRef={(key) => (node) => {
+                  rowEls.current[key] = node;
+                }}
+              />
             </div>
-            <div>
-              <div className="text-muted-foreground">Made by</div>
-              <div>{list.creatorName ?? "—"}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Packed by</div>
-              <div>{list.packerName ? `${list.packerName}${list.packedAt ? ` · ${new Date(list.packedAt).toLocaleString()}` : ""}` : "Not yet"}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Total weight</div>
-              <div>
-                {totalWeight.toFixed(2)} kg · {list.boxes.length} box{list.boxes.length === 1 ? "" : "es"}
-                {weighed < list.boxes.length && ` (${weighed} of ${list.boxes.length} weighed)`}
-              </div>
-            </div>
+            <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
+              <RecordCard
+                status={status}
+                groups={[{ items: moves }]}
+                gates={gates}
+                restate={restate}
+                reviewText={() => "Review section"}
+                onReview={openSection}
+                viewer={user?.name}
+                busy={packing}
+                failure={failure}
+              />
+            </aside>
           </div>
 
-          <div className="space-y-4">
-            {list.boxes.length === 0 && (
-              <EmptyState title="No boxes yet" description="Add a box, then list what is in it." />
-            )}
-            {list.boxes.map((box) => (
-              <div key={box.id} className="rounded-xl border border-border bg-card">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-                  <div className="text-[13px]">
-                    <span className="font-semibold">Box {box.boxNo}</span>
-                    <span className="text-muted-foreground">
-                      {" "}· Marks {box.marks ?? "—"} · Seal {box.sealNo ?? "—"} · {box.grossWeightKg == null ? "weight not known" : `${box.grossWeightKg} kg`}
-                    </span>
-                  </div>
-                  {canEdit && (
-                    <div className="flex items-center gap-1">
-                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box, seq: s.seq + 1 }))}>
-                        <Pencil size={13} />
-                        Box
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setContentsBox(box)}>
-                        Contents
-                      </Button>
-                      <Button variant="ghost" size="icon" aria-label={`Remove box ${box.boxNo}`} onClick={() => removeBox(box)}>
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <ul className="divide-y divide-border">
-                  {box.contents.length === 0 && <li className="px-4 py-3 text-[13px] text-muted-foreground">No contents yet.</li>}
-                  {box.contents.map((c) => (
-                    <li key={c.id} className="px-4 py-2 text-[13px]">
-                      {c.quantity} {c.unit ?? ""} · {c.description}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          {canEdit && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Button variant="outline" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}>
-                <Plus size={14} />
-                Add a box
-              </Button>
-              <Button className="gap-1.5" onClick={() => setConfirmingPack(true)} disabled={packing || list.boxes.length === 0}>
-                <Send size={14} />
-                {packing ? "Packing…" : "Sign Packed by"}
-              </Button>
-            </div>
-          )}
-          {!draft && <p className="text-[13px] text-muted-foreground">This list is packed and can't be changed.</p>}
+          <RecordDrawer
+            number={list.number}
+            sections={SECTIONS}
+            current={current}
+            index={index}
+            step={step}
+            close={close}
+            getRow={(key) => rowEls.current[key]}
+            onEdit={() => {}}
+            body={current ? bodyOf(current.key) : null}
+            summary={current ? summaries[current.key] : ""}
+            moves={current ? moves.filter((move) => move.section === current.key) : []}
+            editable={false}
+            restate={restate}
+            viewer={user?.name}
+            busy={packing}
+            failure={failure}
+          />
 
           {canEdit && (
             <BoxDialog
@@ -400,17 +541,8 @@ function PackingListPage() {
               onSaved={refresh}
             />
           )}
-        </div>
+        </>
       )}
-      <ConfirmDialog
-        open={confirmingPack}
-        onOpenChange={setConfirmingPack}
-        title={`Sign Packed by and close ${list?.number ?? "this list"}?`}
-        description="The boxes and their contents can't be changed after."
-        confirmLabel="Sign Packed by"
-        cancelLabel="Not yet"
-        onConfirm={pack}
-      />
     </PageShell>
   );
 }
