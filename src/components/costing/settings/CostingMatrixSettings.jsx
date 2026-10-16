@@ -1,0 +1,57 @@
+import MarkupPresetsSection from "./MarkupPresetsSection";
+import RatesSection from "./RatesSection";
+import SignerListsSection from "./SignerListsSection";
+import { COSTING_SIGNER_LIST } from "../../../constants/costing";
+
+/**
+ * The Costing Matrix tab of Settings (#269, #270, spec #266). It is only a list of standalone sections,
+ * each one a component that loads and saves its own data and says who sees it, so a ticket adds its
+ * section as one entry below without touching the others:
+ *
+ *   Markup presets      Super Admins, Purchasing access (told they are not theirs to edit) and the
+ *                       Final Acquire list (#269)
+ *   Rates               Finance access and Super Admins (#270); Finance access alone sees only this
+ *   Final Acquire list  Super Admins (#270)
+ *
+ * The Settings page offers the tab to anyone who sees at least one section; the database refuses the
+ * write of everyone it is not meant for. `managesMarkup` is the Final Acquire list's membership, asked of
+ * the database by the page.
+ */
+const SECTIONS = [
+  {
+    key: "markup-presets",
+    show: ({ isSuperAdmin, hasPurchasingAccess, managesMarkup }) => isSuperAdmin || hasPurchasingAccess || managesMarkup,
+    render: () => <MarkupPresetsSection />,
+  },
+  {
+    key: "rates",
+    show: ({ isSuperAdmin, hasFinanceAccess }) => isSuperAdmin || hasFinanceAccess,
+    render: () => <RatesSection canEdit />,
+  },
+  {
+    key: "final-acquire-list",
+    show: ({ isSuperAdmin }) => isSuperAdmin,
+    render: () => (
+      <SignerListsSection
+        listKey={COSTING_SIGNER_LIST.FINAL_ACQUIRE}
+        canEdit
+        description="Writes Final Acquire and the markup factor, and reads the summary and the margin. A Super Admin is not on it unless added here. Changing the list never changes figures already typed."
+      />
+    ),
+  },
+];
+
+export default function CostingMatrixSettings({ isSuperAdmin = false, hasFinanceAccess = false, hasPurchasingAccess = false, managesMarkup = false }) {
+  const access = { isSuperAdmin, hasFinanceAccess, hasPurchasingAccess, managesMarkup };
+  return (
+    <div className="space-y-8" data-testid="costing-matrix-settings">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">Costing Matrix</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">The markup presets, the rates behind the summary, and the people who set Final Acquire.</p>
+      </div>
+      {SECTIONS.filter((section) => section.show(access)).map(({ key, render }) => (
+        <div key={key}>{render()}</div>
+      ))}
+    </div>
+  );
+}

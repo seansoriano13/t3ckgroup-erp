@@ -335,10 +335,12 @@ describe("the PMS tab", () => {
       expect(within(row).getByLabelText("P.O./RFQ No. 1.1").tagName).toBe("SPAN");
       expect(within(row).getByLabelText("Availability 1.1")).toHaveTextContent("For Order");
       expect(within(row).getByLabelText("Source 1.1")).toHaveTextContent("Import");
-      // No Acquire, no Final Acquire, no factor: not hidden, absent.
+      // No Acquire, no Final Acquire, no factor: not hidden, absent. The peso Markup Price is there (#269).
       expect(within(block).queryByLabelText("Acquire 1.1")).not.toBeInTheDocument();
       expect(within(block).queryByText(/Acquire/)).not.toBeInTheDocument();
-      expect(within(block).queryByText(/Final Acquire|markup/i)).not.toBeInTheDocument();
+      expect(within(block).queryByText(/Final Acquire|markup factor/i)).not.toBeInTheDocument();
+      expect(within(block).queryByLabelText("Markup factor 1.1")).not.toBeInTheDocument();
+      expect(within(row).getAllByText("₱2,916,675.00")).toHaveLength(2);
     });
 
     it("makes a Purchasing viewer's Sales columns read-only and keeps their own Acquire and Offer Specification editable", async () => {

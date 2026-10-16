@@ -8,7 +8,7 @@ import { costingMatrixService } from "../../services/costingMatrixService";
 import { COST_ROW_BANDS, ROW_EDIT_BANDS, inAnyBand, tierReadsCost } from "../../constants/costing";
 import { extended, finalAcquireTotal } from "../../utils/costingMath";
 import { Cell } from "./GridCell";
-import { pesos } from "./gridFormat";
+import { factorLabel, percentLabel, pesos } from "./gridFormat";
 import BandHeader from "./BandHeader";
 
 /**
@@ -16,17 +16,23 @@ import BandHeader from "./BandHeader";
  * quantity and the unit costs, with no specification, ABC or Final Offer. They count in the
  * totals and the summary and never in any Tender Line's margin. Description and quantity show to
  * every tier that reads the matrix; a cost column shows only to the tiers that receive it.
+ *
+ * Markup (#269): a cost-only row is x1.00 unless the Final Acquire list gives it a factor of its own, and
+ * the matrix default never reaches it. The Closed Book sees the factor; Sales and the Closed Book see the
+ * Markup Price.
  */
 export default function CostRowGrid({ matrix, writes }) {
   const { busy, run, refresh } = writes;
   const [removing, setRemoving] = useState(null);
 
-  const { bands, tier, costRows, costRowsTotals } = matrix;
+  const { bands, tier, costRows, costRowsTotals, costRowsMarkupTotal } = matrix;
   const canEditRows = inAnyBand(bands, ROW_EDIT_BANDS);
   const can = (column) => inAnyBand(bands, COST_ROW_BANDS[column]);
   const showAcquire = tierReadsCost(tier, "acquire_unit");
   const showOdoo = tierReadsCost(tier, "odoo_unit");
   const showFinal = tierReadsCost(tier, "final_acquire_unit");
+  const showFactor = tierReadsCost(tier, "markup_factor");
+  const showMarkupPrice = tierReadsCost(tier, "markup_price_unit");
 
   if (costRows.length === 0 && !canEditRows) return null;
 
@@ -38,6 +44,7 @@ export default function CostRowGrid({ matrix, writes }) {
   const salesColumns = showOdoo ? 2 : 0;
   const pmsColumns = showAcquire ? 2 : 0;
   const mngtColumns = showFinal ? 2 : 0;
+  const markupColumns = (showFactor ? 1 : 0) + (showMarkupPrice ? 2 : 0);
 
   return (
     <section className="space-y-2" aria-label="Cost-only rows" data-testid="cost-rows">
@@ -60,7 +67,7 @@ export default function CostRowGrid({ matrix, writes }) {
         <div className="rounded-xl border border-border/70 bg-card">
           <Table>
             <TableHeader>
-              {(salesColumns > 0 || pmsColumns > 0 || mngtColumns > 0) && (
+              {(salesColumns > 0 || pmsColumns > 0 || mngtColumns > 0 || markupColumns > 0) && (
                 <TableRow>
                   <TableHead colSpan={3} />
                   {salesColumns > 0 && (
@@ -78,6 +85,11 @@ export default function CostRowGrid({ matrix, writes }) {
                       MNGT
                     </BandHeader>
                   )}
+                  {markupColumns > 0 && (
+                    <BandHeader band="mngt" span={markupColumns}>
+                      Markup
+                    </BandHeader>
+                  )}
                   <TableHead />
                 </TableRow>
               )}
@@ -91,6 +103,9 @@ export default function CostRowGrid({ matrix, writes }) {
                 {showAcquire && <TableHead className="w-32 text-right">Acquire total</TableHead>}
                 {showFinal && <TableHead className="w-36 text-right">Final Acquire / unit</TableHead>}
                 {showFinal && <TableHead className="w-32 text-right">Final Acquire total</TableHead>}
+                {showFactor && <TableHead className="w-36 text-right">Markup factor</TableHead>}
+                {showMarkupPrice && <TableHead className="w-36 text-right">Markup Price / unit</TableHead>}
+                {showMarkupPrice && <TableHead className="w-36 text-right">Markup Price total</TableHead>}
                 <TableHead className="w-16">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -167,6 +182,26 @@ export default function CostRowGrid({ matrix, writes }) {
                     </TableCell>
                   )}
                   {showFinal && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(extended(row.final_acquire_unit, row.quantity))}</TableCell>}
+                  {showFactor && (
+                    <TableCell className="align-top">
+                      <Cell
+                        label={`Cost-only row ${row.number} markup factor`}
+                        noun="Markup factor"
+                        value={row.markup_factor}
+                        numeric
+                        step="0.0001"
+                        align="right"
+                        placeholder="1"
+                        readOnly={!can("markup_factor")}
+                        onSave={(value) => save(row, { markupFactor: value })}
+                      />
+                      <p className="mt-1 text-right text-xs text-muted-foreground" data-testid="markup-factor-shown">
+                        {factorLabel(row.markup.factor)} · {percentLabel(row.markup.factor)}
+                      </p>
+                    </TableCell>
+                  )}
+                  {showMarkupPrice && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(row.markup.priceUnit)}</TableCell>}
+                  {showMarkupPrice && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(row.markup.priceTotal)}</TableCell>}
                   <TableCell className="align-top">
                     {canEditRows && (
                       <div className="flex justify-end">
@@ -178,7 +213,7 @@ export default function CostRowGrid({ matrix, writes }) {
                   </TableCell>
                 </TableRow>
               ))}
-              {(showAcquire || showOdoo || showFinal) && (
+              {(showAcquire || showOdoo || showFinal || showMarkupPrice) && (
                 <TableRow data-testid="cost-row-totals">
                   <TableCell colSpan={3} className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Cost-only total
@@ -189,6 +224,9 @@ export default function CostRowGrid({ matrix, writes }) {
                   {showAcquire && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(costRowsTotals.acquireTotal)}</TableCell>}
                   {showFinal && <TableCell />}
                   {showFinal && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(finalAcquireTotal(costRows))}</TableCell>}
+                  {showFactor && <TableCell />}
+                  {showMarkupPrice && <TableCell />}
+                  {showMarkupPrice && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(costRowsMarkupTotal)}</TableCell>}
                   <TableCell />
                 </TableRow>
               )}

@@ -32,3 +32,17 @@ export function useCostingMatrix(opportunityId) {
     ...(opportunityId ? {} : { enabled: false }),
   });
 }
+
+/**
+ * Does the caller edit the markup presets (#269)? Super Admins and the Final Acquire list, as the database
+ * decides. `enabled: false` skips the question for someone whose answer does not matter.
+ */
+export function useCanManageMarkup({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: costingKeys.canManageMarkup(),
+    queryFn: () => costingMatrixService.canManageMarkup(),
+    retry: false,
+    staleTime: 60_000,
+    enabled,
+  });
+}

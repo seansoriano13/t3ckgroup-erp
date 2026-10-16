@@ -12,6 +12,7 @@ import {
   tierReads,
   tierReadsCost,
 } from "@/constants/costing"
+import { markupPriceUnit } from "@/utils/costingMath"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
@@ -33,8 +34,15 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * a tier receives are `COMPONENT_COST_TIERS`, proven equal to the registry in
  * 79-costing-components.test.js. The rows the database refuses by trigger
  * (an Inclusion under a non-bundle) are refused here with the same message.
+ *
+ * #269 adds the matrix's default markup factor (supabase/migrations/
+ * 20261018120000_costing_matrix_markup.sql): the Closed Book receives the money row, and Markup Price
+ * per unit (Acquire x the effective factor, the row's own else the matrix default, x1.00 for a
+ * cost-only row) comes with every row for the tiers that read it. `manageMarkup` stands for
+ * costing_can_manage_markup (default: the Closed Book). Who may write the factor is the policy tier's
+ * (80-costing-markup.test.js).
  */
-export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"] } = {}) {
+export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"], manageMarkup = tier === COSTING_TIER.CLOSED_BOOK } = {}) {
   const refuse = (table, column, needed) => {
     throw pgrstError("42501", `costing_band:${table}.${column}:${needed.join(",")}`, { status: 403 })
   }
@@ -94,22 +102,24 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     // A unit-cost row carries only the columns this tier may read; a tier that may read none gets no table.
     const costColumns = Object.keys(COMPONENT_COST_TIERS).filter((c) => tierReadsCost(tier, c))
     const onlyReadable = (row, keep) => Object.fromEntries(Object.entries(row).filter(([key]) => keep.includes(key)))
+    const money = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrix.id)
+    const withMarkupPrice = (row, factor) =>
+      costColumns.includes("markup_price_unit") ? { ...row, markup_price_unit: markupPriceUnit(row.acquire_unit, factor) } : row
     if (costColumns.length > 0) {
       const keep = ["component_id", ...costColumns]
       tables.costing_component_costs = rowsOf("costing_component_costs")
         .filter((c) => components.some((k) => k.id === c.component_id))
-        .map((c) => onlyReadable(c, keep))
+        .map((c) => onlyReadable(withMarkupPrice(c, c.markup_factor ?? money?.default_factor ?? null), keep))
     }
     tables.costing_cost_rows = rowsOf("costing_cost_rows")
       .filter((r) => r.matrix_id === matrix.id)
       .sort((a, b) => a.position - b.position)
-      .map((r) => onlyReadable(r, ["id", "matrix_id", "position", "description", "quantity", "created_at", ...costColumns]))
+      .map((r) => onlyReadable(withMarkupPrice(r, r.markup_factor ?? 1), ["id", "matrix_id", "position", "description", "quantity", "created_at", ...costColumns]))
 
-    // #270: Marketing and OPEX sit on the matrix's money row, read by Closed Book alone.
+    // The matrix's own money row: the default markup factor (#269) and Marketing and OPEX (#270), for the tiers that read them.
     const moneyColumns = Object.keys(MATRIX_MONEY_TIERS).filter((c) => MATRIX_MONEY_TIERS[c].includes(tier))
     if (moneyColumns.length > 0) {
-      const money = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrix.id) ?? { matrix_id: matrix.id }
-      tables.costing_matrix_money = [onlyReadable(money, ["matrix_id", ...moneyColumns])]
+      tables.costing_matrix_money = [onlyReadable(money ?? { matrix_id: matrix.id }, ["matrix_id", ...moneyColumns])]
     }
 
     const priceColumns = Object.keys(TENDER_PRICE_TIERS).filter((c) => tierReads(tier, c))
@@ -138,6 +148,8 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     costing_cost_rows: "id",
     costing_matrix_money: "matrix_id",
   }
+
+  stubRpc("costing_can_manage_markup", () => manageMarkup)
 
   stubRpc("costing_set_money", (args) => {
     const table = args.p_table

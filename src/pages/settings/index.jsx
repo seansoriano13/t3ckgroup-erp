@@ -1,6 +1,7 @@
 import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router";
+import { useCanManageMarkup } from "../../components/costing/useCostingMatrix";
 import FAQModal from "./_components/FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
@@ -22,7 +23,7 @@ import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
 import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
 import PurchasingSettings from "../../components/settings/PurchasingSettings";
-import CostingMatrixSettings from "../../components/settings/CostingMatrixSettings";
+import CostingMatrixSettings from "../../components/costing/settings/CostingMatrixSettings";
 import SystemUpdateBanner from "../../components/SystemUpdateBanner";
 import SystemUpdateManager from "../../components/SystemUpdateManager";
 import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications } from "../../utils/pushNotifications";
@@ -324,13 +325,15 @@ function PurchasingPanel() {
 }
 
 /**
- * The Costing Matrix's rates and signer lists (#270). Finance access sees the Rates and edits them;
- * Super Admins also keep the Final Acquire list.
+ * The Costing Matrix tab: the markup presets (#269), the rates and the Final Acquire list (#270). Super Admins see
+ * all three; Purchasing access and the Final Acquire list see the presets; Finance access sees the Rates and nothing else.
  */
 function CostingMatrixPanel() {
   const { user } = useAuth();
-  const { isSuperAdmin, hasFinanceFlow } = getPermissionContext(user);
-  return <CostingMatrixSettings isSuperAdmin={isSuperAdmin} hasFinanceAccess={hasFinanceFlow} />;
+  const { isSuperAdmin, hasFinanceFlow, hasPurchasingFlow } = getPermissionContext(user);
+  // Already asked by the page for anyone who needs it; the answer is cached.
+  const { data: managesMarkup = false } = useCanManageMarkup({ enabled: !isSuperAdmin && !hasPurchasingFlow });
+  return <CostingMatrixSettings isSuperAdmin={isSuperAdmin} hasFinanceAccess={hasFinanceFlow} hasPurchasingAccess={hasPurchasingFlow} managesMarkup={managesMarkup} />;
 }
 
 function EmployeeGroupsPanel() {
@@ -373,7 +376,7 @@ const TAB_DEFS = [
   { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: HrPanel },
   { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
   { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow, Panel: PurchasingPanel },
-  { value: "costing", label: "Costing Matrix", isPermitted: (c) => c.isSuperAdmin || c.hasFinanceFlow, Panel: CostingMatrixPanel },
+  { value: "costing", label: "Costing Matrix", isPermitted: (c) => c.isSuperAdmin || c.hasFinanceFlow || c.hasPurchasingFlow || c.managesCostingMarkup, Panel: CostingMatrixPanel },
   { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin, Panel: EmployeeGroupsPanel },
   { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin, Panel: AnnouncementsPanel },
 ];
@@ -383,17 +386,24 @@ export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showFAQ, setShowFAQ] = useState(false);
 
-  const permissionContext = getPermissionContext(user);
+  // The Final Acquire list edits the Costing Matrix's markup presets, so it gets the Costing Matrix tab too (#269).
+  // Only asked of someone who has neither Purchasing access nor Super Admin.
+  const basePermissions = getPermissionContext(user);
+  const askingMarkupAccess = Boolean(user) && !basePermissions.isSuperAdmin && !basePermissions.hasPurchasingFlow;
+  const { data: managesCostingMarkup = false, isLoading: checkingMarkupAccess } = useCanManageMarkup({ enabled: askingMarkupAccess });
+  const permissionContext = { ...basePermissions, managesCostingMarkup };
   const visibleTabs = TAB_DEFS.filter((t) => t.isPermitted(permissionContext));
   const requestedTab = searchParams.get("tab");
   const requested = visibleTabs.find((t) => t.value === requestedTab);
   const { value: activeTab, Panel: ActivePanel } = requested ?? TAB_DEFS[0];
 
   useEffect(() => {
-    if (requestedTab && !requested) {
+    // A link to the Costing Matrix tab waits for the answer about the Final Acquire list before it is called forbidden.
+    const waiting = requestedTab === "costing" && askingMarkupAccess && checkingMarkupAccess;
+    if (requestedTab && !requested && !waiting) {
       setSearchParams({ tab: TAB_DEFS[0].value }, { replace: true });
     }
-  }, [requestedTab, requested, setSearchParams]);
+  }, [requestedTab, requested, setSearchParams, askingMarkupAccess, checkingMarkupAccess]);
 
   return (
     <PageShell

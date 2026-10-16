@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-16",
+        "title": "SOR: markup on the Costing Matrix",
+        "version": "1.9.40",
+        "changes": [
+            "The Final Acquire list can now set a default markup for a Costing Matrix, such as x1.35 (the same as +35%), typed or picked from a preset like Government. Any Component can have its own markup, and a cost-only row such as the Delivery Charge starts at x1.00.",
+            "Sales sees the suggested Markup Price for each Component and cost-only row, and each Tender Line's total beside its Final Offer. It is only a suggestion: nothing fills in the Final Offer, and changing the markup never changes it.",
+            "Sales and Purchasing never see the markup factor, so nobody can work the cost back out of the price. If a cost is still blank, the Markup Price stays blank instead of showing zero.",
+            "The Final Acquire list also sees the markup each Tender Line really achieves against its target, and the same for the whole matrix with cost-only rows counted.",
+            "Settings has a new Costing Matrix tab where Super Admins and the Final Acquire list edit the markup presets. A preset is switched off instead of deleted, and a matrix that used it keeps its markup."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "Costing Matrix: the summary, Final Acquire and rates",
         "version": "1.9.39",
         "changes": [

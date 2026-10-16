@@ -54,6 +54,9 @@ export const COMPONENT_COST_TIERS = {
   odoo_unit: [COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
   final_acquire_unit: [COSTING_TIER.CLOSED_BOOK],
   markup_factor: [COSTING_TIER.CLOSED_BOOK],
+  // #269: Markup Price per unit is computed in the database (Acquire x factor) so the price tier gets
+  // the peso figure without the Acquire or the factor behind it. Purchasing does not read it.
+  markup_price_unit: [COSTING_TIER.PRICE, COSTING_TIER.CLOSED_BOOK],
 };
 
 /** Does this tier receive the named unit-cost column of a Component or cost-only row? */
@@ -89,6 +92,10 @@ export const COMPONENT_COST_BANDS = {
   markup_factor: [MANAGEMENT],
 };
 
+/**
+ * The matrix's own money row (#269): the default markup factor and the preset it was taken from. The
+ * Closed Book reads them and the Final Acquire list writes them (policy 80 holds both to the registry).
+ */
 export const INCLUSION_BANDS = {
   heading: [SALES, PURCHASING],
   description: [SALES, PURCHASING],
@@ -104,16 +111,20 @@ export const COST_ROW_BANDS = {
 };
 
 /**
- * The columns #270 adds to the matrix's money row (costing_matrix_money): Marketing and OPEX, typed on
- * the summary. Closed Book reads them; Finance access or the Final Acquire list writes them (policy
- * test 81 proves these equal the registries).
+ * The matrix's own money row (costing_matrix_money): the default markup factor (#269), and Marketing and OPEX (#270)
+ * typed on the summary. Closed Book reads them; the Final Acquire list writes the factor, and Finance access or the
+ * Final Acquire list writes Marketing and OPEX (policy tests 80 and 81 prove these equal the registries).
  */
 export const MATRIX_MONEY_TIERS = {
+  default_factor: [COSTING_TIER.CLOSED_BOOK],
+  default_preset_id: [COSTING_TIER.CLOSED_BOOK],
   marketing: [COSTING_TIER.CLOSED_BOOK],
   opex: [COSTING_TIER.CLOSED_BOOK],
 };
 
 export const MATRIX_MONEY_BANDS = {
+  default_factor: [MANAGEMENT],
+  default_preset_id: [MANAGEMENT],
   marketing: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
   opex: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
 };
@@ -207,6 +218,8 @@ export const COSTING_COLUMN_LABEL = {
   "costing_cost_rows.markup_factor": "The markup factor",
   "costing_matrix_money.marketing": "Marketing",
   "costing_matrix_money.opex": "OPEX",
+  "costing_matrix_money.default_factor": "The default markup factor",
+  "costing_matrix_money.default_preset_id": "The default markup factor",
 };
 
 /** Words for a refused write: "Final Offer is written by Sales (the Deal Team)." */

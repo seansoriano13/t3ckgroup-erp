@@ -261,3 +261,150 @@ export function summary(matrix, settings) {
     incomplete: { missingCost, missingOffer, noTenderLines: lines.length === 0, noCostRows: costed.length === 0 },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Markup (#269)
+// ---------------------------------------------------------------------------
+
+/** A blank (null, undefined or empty) is not a number: it never counts as zero. */
+const blank = (value) => value === null || value === undefined || value === "";
+
+/**
+ * Markup Price per unit: Acquire x factor, rounded half up to the centavo. Null while Acquire or the
+ * factor is blank, never zero. The database computes the same figure for the price tier
+ * (`costing_markup_price`); a policy test (80) holds the two to the same answers.
+ */
+export function markupPriceUnit(acquireUnit, factor) {
+  const acquire = scaled(acquireUnit);
+  const f = scaled(factor);
+  if (acquire === null || f === null) return null;
+  return pesosFromCentavos(roundDiv(acquire * f, CENTAVO));
+}
+
+/**
+ * Markup Price for `quantity` units: the per-unit price (already rounded to the centavo, so the price
+ * tier, which only receives that, adds up to the same total) times the quantity. Null while Acquire,
+ * the factor or the quantity is blank.
+ */
+export function markupPrice(acquireUnit, quantity, factor) {
+  const unit = markupPriceUnit(acquireUnit, factor);
+  return unit === null ? null : extended(unit, quantity);
+}
+
+/**
+ * The factor a row is priced at: its own override, else the matrix default; a cost-only row with no
+ * override of its own is x1.00 (pass `costOnly`). Null while neither is known, which includes a viewer
+ * whose tier never received the factor. Returns a number.
+ */
+export function effectiveFactor(row, defaultFactor, { costOnly = false } = {}) {
+  const own = scaled(row?.markup_factor);
+  if (own !== null) return Number(own) / 1_000_000;
+  if (costOnly) return 1;
+  const fallback = scaled(defaultFactor);
+  return fallback === null ? null : Number(fallback) / 1_000_000;
+}
+
+/**
+ * A Component's (or cost-only row's) markup figures:
+ *
+ *   factor       the factor it is priced at (see effectiveFactor), or null
+ *   priceUnit    Markup Price per unit. A tier that received the server's figure
+ *                (`markup_price_unit`, the price tier's only way in) uses it; otherwise it is worked out
+ *                from Acquire and the factor, which only the Closed Book has.
+ *   priceTotal   priceUnit x quantity
+ *
+ * Every figure is null while an input is blank or was never received.
+ */
+export function componentMarkup(row, defaultFactor, { costOnly = false } = {}) {
+  const factor = effectiveFactor(row, defaultFactor, { costOnly });
+  const priceUnit =
+    row && "markup_price_unit" in row
+      ? blank(row.markup_price_unit)
+        ? null
+        : pesosFromCentavos(extendedCentavos(row.markup_price_unit, 1))
+      : markupPriceUnit(row?.acquire_unit, factor);
+  return { factor, priceUnit, priceTotal: priceUnit === null ? null : extended(priceUnit, row?.quantity) };
+}
+
+/** Factors and ratios come back to four decimals, half up (what numeric(10,4) holds). */
+function ratio(numeratorCentavos, denominatorCentavos) {
+  if (numeratorCentavos === null || denominatorCentavos === null || denominatorCentavos <= 0n) return null;
+  return Number(roundDiv(numeratorCentavos * 10_000n, denominatorCentavos)) / 10_000;
+}
+
+/** The one factor shared by every row, else the blend (Markup Price over Acquire); null when unknown. */
+function targetOf(markups, priceCentavos, acquireCentavos) {
+  if (markups.length === 0 || markups.some((m) => m.factor === null)) return null;
+  const distinct = new Set(markups.map((m) => m.factor));
+  if (distinct.size === 1) return markups[0].factor;
+  return ratio(priceCentavos, acquireCentavos);
+}
+
+/**
+ * A Tender Line's markup (cost-only rows are never part of it):
+ *
+ *   priceTotal       the Components' Markup Prices added up; null when the line has no Component or any
+ *                    Component's Markup Price is blank
+ *   targetFactor     the factor the Markup Price suggests: the one factor every Component shares, else
+ *                    the blend (Markup Price total / Acquire total); null when unknown
+ *   achievedFactor   Final Offer total / the Components' Acquire total, to four decimals; null while
+ *                    either is blank, so only a tier that received both (the Closed Book) has it
+ *
+ * `tenderLine` carries `quantity` and `final_offer_unit` when the tier received it; `components` are the
+ * line's Components with their costs merged in and their `markup` (componentMarkup) attached.
+ */
+export function lineMarkup(tenderLine, components, defaultFactor) {
+  const list = (components ?? []).map((c) => c.markup ?? componentMarkup(c, defaultFactor));
+  const price = sumUnlessBlank(list.map((m) => extendedCentavos(m.priceTotal, 1)));
+  const acquire = sumUnlessBlank((components ?? []).map((c) => extendedCentavos(c?.acquire_unit, c?.quantity)));
+  const offer = extendedCentavos(tenderLine?.final_offer_unit, tenderLine?.quantity);
+  return {
+    priceTotal: pesosFromCentavos(price),
+    targetFactor: targetOf(list, price, acquire),
+    achievedFactor: ratio(offer, acquire),
+  };
+}
+
+/**
+ * The whole matrix's markup, counting the cost-only rows (they carry cost and a x1.00 markup but no Final
+ * Offer, so they pull the overall figure down and leave every line's alone):
+ *
+ *   achievedFactor   the Final Offer total / every Component's and cost-only row's Acquire total. Null
+ *                    while any Tender Line has no Final Offer or no Component, or any Acquire is blank.
+ *   targetFactor     see lineMarkup, over every Component and cost-only row
+ *   priceTotal       the Markup Prices of the Tender Lines added up (null while any is blank)
+ *
+ * `tenderLines` carry their `components` (with `markup`); `costRows` carry `markup` too.
+ */
+export function matrixMarkup(tenderLines, costRows, defaultFactor) {
+  const lines = tenderLines ?? [];
+  const rows = costRows ?? [];
+  const components = lines.flatMap((l) => l.components ?? []);
+  const markups = [
+    ...components.map((c) => c.markup ?? componentMarkup(c, defaultFactor)),
+    ...rows.map((r) => r.markup ?? componentMarkup(r, defaultFactor, { costOnly: true })),
+  ];
+  const everyLineCosted = lines.length > 0 && lines.every((l) => (l.components ?? []).length > 0);
+  const acquire = everyLineCosted
+    ? sumUnlessBlank([...components, ...rows].map((c) => extendedCentavos(c?.acquire_unit, c?.quantity)))
+    : null;
+  const price = sumUnlessBlank(markups.map((m) => extendedCentavos(m.priceTotal, 1)));
+  const offer = sumUnlessBlank(lines.map((l) => extendedCentavos(l?.final_offer_unit, l?.quantity)));
+  const linesPrice = sumUnlessBlank(lines.map((l) => extendedCentavos(l?.markup?.priceTotal, 1)));
+  return {
+    priceTotal: pesosFromCentavos(linesPrice),
+    targetFactor: everyLineCosted ? targetOf(markups, price, acquire) : null,
+    achievedFactor: ratio(offer, acquire),
+  };
+}
+
+/** A factor as the percentage over cost it stands for: 1.35 is 35, 0.9 is -10. */
+export function percentOver(factor) {
+  const f = scaled(factor);
+  return f === null ? null : Number(roundDiv((f - MICRO) * 100n, 10_000n)) / 100;
+}
+
+/** The Markup Prices of rows that carry a `markup` (componentMarkup) added up; null when there are none or one is blank. */
+export function markupPriceSum(rows) {
+  return pesosFromCentavos(sumUnlessBlank((rows ?? []).map((r) => extendedCentavos(r?.markup?.priceTotal, 1))));
+}
