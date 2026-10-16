@@ -297,7 +297,20 @@ create table if not exists public."costing_matrices" (
 create table if not exists public."costing_matrix_money" (
   "matrix_id" uuid not null,
   "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "marketing" numeric(18,2),
+  "opex" numeric(18,2)
+);
+
+create table if not exists public."costing_settings" (
+  "id" smallint not null default 1,
+  "vat_divisor" numeric(10,6) not null default 1.12,
+  "tax_rate" numeric(10,6) not null default 0.06,
+  "retention_rate" numeric(10,6) not null default 0.01,
+  "itr_rate" numeric(10,6) not null default 0.08,
+  "itr_allowance" numeric(18,2) not null default 250000,
+  "updated_at" timestamp with time zone not null default now(),
+  "updated_by" uuid
 );
 
 create table if not exists public."costing_signer_lists" (
@@ -1612,6 +1625,7 @@ alter table costing_events add constraint "costing_events_pkey" PRIMARY KEY (id)
 alter table costing_inclusions add constraint "costing_inclusions_pkey" PRIMARY KEY (id);
 alter table costing_matrices add constraint "costing_matrices_pkey" PRIMARY KEY (id);
 alter table costing_matrix_money add constraint "costing_matrix_money_pkey" PRIMARY KEY (matrix_id);
+alter table costing_settings add constraint "costing_settings_pkey" PRIMARY KEY (id);
 alter table costing_signer_lists add constraint "costing_signer_lists_pkey" PRIMARY KEY (id);
 alter table costing_tables add constraint "costing_tables_pkey" PRIMARY KEY (table_name);
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_pkey" PRIMARY KEY (tender_line_id);
@@ -1775,6 +1789,14 @@ alter table costing_cost_rows add constraint "costing_cost_rows_quantity_chk" CH
 alter table costing_events add constraint "costing_events_kind_chk" CHECK ((kind = ANY (ARRAY['added'::text, 'changed'::text, 'removed'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_completeness_chk" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_quantity_chk" CHECK ((quantity > (0)::numeric));
+alter table costing_matrix_money add constraint "costing_matrix_money_marketing_chk" CHECK (((marketing IS NULL) OR (marketing >= (0)::numeric)));
+alter table costing_matrix_money add constraint "costing_matrix_money_opex_chk" CHECK (((opex IS NULL) OR (opex >= (0)::numeric)));
+alter table costing_settings add constraint "costing_settings_allowance_chk" CHECK ((itr_allowance >= (0)::numeric));
+alter table costing_settings add constraint "costing_settings_itr_chk" CHECK (((itr_rate >= (0)::numeric) AND (itr_rate <= (1)::numeric)));
+alter table costing_settings add constraint "costing_settings_retention_chk" CHECK (((retention_rate >= (0)::numeric) AND (retention_rate <= (1)::numeric)));
+alter table costing_settings add constraint "costing_settings_single_chk" CHECK ((id = 1));
+alter table costing_settings add constraint "costing_settings_tax_chk" CHECK (((tax_rate >= (0)::numeric) AND (tax_rate <= (1)::numeric)));
+alter table costing_settings add constraint "costing_settings_vat_chk" CHECK ((vat_divisor >= (1)::numeric));
 alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text])));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_abc_chk" CHECK (((abc_unit IS NULL) OR (abc_unit >= (0)::numeric)));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_offer_chk" CHECK (((final_offer_unit IS NULL) OR (final_offer_unit >= (0)::numeric)));
@@ -1962,6 +1984,7 @@ alter table costing_matrices add constraint "costing_matrices_opportunity_id_fke
 alter table costing_matrices add constraint "costing_matrices_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrix_money add constraint "costing_matrix_money_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
+alter table costing_settings add constraint "costing_settings_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_signer_lists add constraint "costing_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 alter table costing_tables add constraint "costing_tables_parent_table_fkey" FOREIGN KEY (parent_table) REFERENCES costing_tables(table_name);
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_tender_line_id_fkey" FOREIGN KEY (tender_line_id) REFERENCES costing_tender_lines(id) ON DELETE CASCADE;
@@ -2387,6 +2410,7 @@ alter table public."costing_events" enable row level security;
 alter table public."costing_inclusions" enable row level security;
 alter table public."costing_matrices" enable row level security;
 alter table public."costing_matrix_money" enable row level security;
+alter table public."costing_settings" enable row level security;
 alter table public."costing_signer_lists" enable row level security;
 alter table public."costing_tables" enable row level security;
 alter table public."costing_tender_line_prices" enable row level security;
@@ -2810,6 +2834,17 @@ create policy "costing_matrix_money_read" on public."costing_matrix_money"
   for select
   to authenticated
   using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
+create policy "costing_settings_read" on public."costing_settings"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "costing_settings_update" on public."costing_settings"
+  as permissive
+  for update
+  to authenticated
+  using ((has_finance_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_finance_access() OR COALESCE(is_super_admin(), false)));
 create policy "costing_signer_lists_delete" on public."costing_signer_lists"
   as permissive
   for delete
@@ -2824,7 +2859,7 @@ create policy "costing_signer_lists_read" on public."costing_signer_lists"
   as permissive
   for select
   to authenticated
-  using ((COALESCE(is_super_admin(), false) OR (employee_id = get_employee_id())));
+  using (true);
 create policy "costing_tables_read" on public."costing_tables"
   as permissive
   for select
@@ -6682,8 +6717,23 @@ begin
   if v_opp is null then
     raise exception 'costing_set_money: not found' using errcode = 'P0002';
   end if;
+  -- A read tier is needed, with one exception (#270): Finance access alone has no tier on
+  -- the SOR, yet Finance types Marketing and OPEX. That passes only when every column in the
+  -- patch is one a Finance-band caller may write; the band trigger still judges each of them.
   if not public.costing_can_read(v_opp) then
-    raise exception 'costing_set_money: not allowed' using errcode = '42501';
+    if not (
+      public.has_finance_access()
+      and not exists (
+        select 1
+        from jsonb_object_keys(p_patch) k
+        where not exists (
+          select 1 from public.costing_column_bands b
+          where b.table_name = p_table and b.column_name = k and 'finance' = any (b.bands)
+        )
+      )
+    ) then
+      raise exception 'costing_set_money: not allowed' using errcode = '42501';
+    end if;
   end if;
 
   select string_agg(format('%I = r.%I', k, k), ', '), string_agg(format('%I', k), ', ')
@@ -6704,6 +6754,20 @@ begin
       p_table
     ) using p_patch, p_row;
   end if;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_settings_stamp()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  new.id = 1;
+  new.updated_at = now();
+  new.updated_by = public.get_employee_id();
+  return new;
 end;
 $function$
 ;
@@ -17036,6 +17100,7 @@ CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices F
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_matrix_money_touch BEFORE UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
+CREATE TRIGGER costing_settings_stamp BEFORE UPDATE ON public.costing_settings FOR EACH ROW EXECUTE FUNCTION costing_settings_stamp();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
