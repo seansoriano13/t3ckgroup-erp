@@ -16,6 +16,7 @@ import { pesos } from "./gridFormat";
 import { useCostingWrites, useInchargeOptions } from "./useCostingWrites";
 import ComponentBlock from "./ComponentBlock";
 import CostRowGrid from "./CostRowGrid";
+import EvaluationBar from "./EvaluationBar";
 import InchargeSelects from "./InchargeSelects";
 import SorLinePicker from "./SorLinePicker";
 
@@ -83,6 +84,8 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
           await refresh();
         }}
       />
+
+      <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
 
       {canWrite && (
         <div className="flex flex-wrap items-center gap-2">

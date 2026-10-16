@@ -118,6 +118,10 @@ export const COMPONENT_STATUS_LABEL = { source_out: "Source Out", stockable: "St
 export const COMPONENT_AVAILABILITY_LABEL = { available: "Available", for_order: "For Order" };
 export const COMPONENT_SOURCE_LABEL = { local: "Local", import: "Import" };
 
+/** The Compliance verdicts in words, and the badge theme each reads in (#271). */
+export const COMPLIANCE_LABEL = { complies: "Complies", deviates: "Deviates" };
+export const COMPLIANCE_THEME = { complies: "green", deviates: "amber" };
+
 /** What a refused column is called on screen: `table.column` -> words. */
 export const COSTING_COLUMN_LABEL = {
   "costing_tender_lines.*": "Adding or removing a Tender Line",

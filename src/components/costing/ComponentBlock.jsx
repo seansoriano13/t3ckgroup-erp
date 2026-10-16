@@ -6,6 +6,7 @@ import { Checkbox } from "../ui/checkbox";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { costingMatrixService } from "../../services/costingMatrixService";
+import { describeComplianceRollup } from "../../utils/costingMath";
 import {
   COMPONENT_AVAILABILITY_LABEL,
   COMPONENT_BANDS,
@@ -19,6 +20,7 @@ import {
 import { Cell, SelectCell, StockBadge } from "./GridCell";
 import { pesos } from "./gridFormat";
 import BandHeader from "./BandHeader";
+import ComplianceCell from "./ComplianceCell";
 import InchargeSelects from "./InchargeSelects";
 import InclusionList from "./InclusionList";
 
@@ -31,7 +33,9 @@ const SOURCE_OPTIONS = toOptions(COMPONENT_SOURCE_LABEL);
  * The Components of one Tender Line (#268): what T3CK supplies toward it, numbered 1.1, 1.2 under
  * the line's number. A bundle is priced as a whole and lists its Inclusions beneath it. The
  * owner-band header says whose columns they are (SALES: Brand, Status, Odoo unit; PMS: P.O./RFQ
- * No., availability, Source, Acquire). A cell outside the viewer's band is read-only, and a cost
+ * No., availability, Source, Acquire; TECH: Compliance, its note and the recommended alternative). The
+ * Tender Specification sits beside each Offer Specification, and the line's roll-up
+ * ("2 of 5 deviate · 1 not evaluated") heads the block. A cell outside the viewer's band is read-only, and a cost
  * column the viewer's tier never received is not drawn at all. Every refusal shows beside its cell.
  */
 export default function ComponentBlock({ line, matrix, bundles, stockData, incharge, writes }) {
@@ -48,7 +52,8 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
 
   const salesColumns = 2 + (showOdoo ? 2 : 0);
   const pmsColumns = 3 + (showAcquire ? 2 : 0);
-  const columnCount = 4 + salesColumns + pmsColumns + 1;
+  const columnCount = 4 + salesColumns + pmsColumns + 1 + 1;
+  const canEvaluate = inAnyBand(bands, COMPONENT_BANDS.compliance);
 
   const saveComponent = async (component, fields) => {
     await costingMatrixService.updateComponent(component.id, fields);
@@ -64,6 +69,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
     });
 
   const { components } = line;
+  const rollup = describeComplianceRollup(line.compliance);
   const withoutAcquire = components.filter((c) => c.acquire_unit === null || c.acquire_unit === undefined).length;
 
   return (
@@ -72,6 +78,11 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Components of Tender Line {line.number}
           <span className="ml-2 font-normal normal-case tracking-normal">{components.length === 0 ? "none yet" : `${components.length}`}</span>
+          {rollup && (
+            <span className="ml-3 font-normal normal-case tracking-normal" data-testid="line-compliance">
+              {rollup}
+            </span>
+          )}
         </p>
         {canEditRows && (
           <Button
@@ -99,11 +110,14 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                 <BandHeader band="pms" span={pmsColumns}>
                   PMS
                 </BandHeader>
+                <BandHeader band="tech" span={1}>
+                  Technical
+                </BandHeader>
                 <TableHead />
               </TableRow>
               <TableRow>
                 <TableHead className="w-12">No.</TableHead>
-                <TableHead className="min-w-[16rem]">Component</TableHead>
+                <TableHead className="min-w-[26rem]">Component</TableHead>
                 <TableHead className="w-24 text-right">Qty</TableHead>
                 <TableHead className="w-24">Unit</TableHead>
                 <TableHead className="w-36">Brand</TableHead>
@@ -115,6 +129,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                 <TableHead className="w-32">Source</TableHead>
                 {showAcquire && <TableHead className="w-36 text-right">Acquire / unit</TableHead>}
                 {showAcquire && <TableHead className="w-32 text-right">Acquire total</TableHead>}
+                <TableHead className="w-64">Compliance</TableHead>
                 <TableHead className="w-24">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -137,16 +152,26 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                           readOnly={!can("name")}
                           onSave={(value) => saveComponent(component, { name: value })}
                         />
-                        <Cell
-                          className="mt-1"
-                          label={label("Offer Specification")}
-                          noun="Offer Specification"
-                          value={component.offer_specification}
-                          multiline
-                          placeholder="Offer Specification"
-                          readOnly={!can("offer_specification")}
-                          onSave={(value) => saveComponent(component, { offerSpecification: value })}
-                        />
+                        <div className="mt-1 grid gap-2 sm:grid-cols-2" data-testid="specifications">
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tender Specification</p>
+                            <p className="whitespace-pre-line rounded-md bg-muted/40 px-2 py-1.5 text-sm text-foreground" aria-label={label("Tender Specification")}>
+                              {line.tender_specification || "—"}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Offer Specification</p>
+                            <Cell
+                              label={label("Offer Specification")}
+                              noun="Offer Specification"
+                              value={component.offer_specification}
+                              multiline
+                              placeholder="Offer Specification"
+                              readOnly={!can("offer_specification")}
+                              onSave={(value) => saveComponent(component, { offerSpecification: value })}
+                            />
+                          </div>
+                        </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1.5">
                             <Checkbox
@@ -289,6 +314,9 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                       )}
                       {showAcquire && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(component.totals.acquireTotal)}</TableCell>}
                       <TableCell className="align-top">
+                        <ComplianceCell component={component} number={component.number} readOnly={!canEvaluate} onChanged={refresh} />
+                      </TableCell>
+                      <TableCell className="align-top">
                         {canEditRows && (
                           <div className="flex justify-end">
                             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove Component ${component.number}`} disabled={busy} onClick={() => setRemoving(component)}>
@@ -333,6 +361,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                       )}
                     </TableCell>
                   )}
+                  <TableCell />
                   <TableCell />
                 </TableRow>
               )}
