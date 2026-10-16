@@ -125,6 +125,7 @@ export const SEED_TABLES = [
   "transmittal_ipas",
   "transmittal_sors",
   "transmittal_stages",
+  "transmittal_cleared_signatures",
   "pms_handoff_events",
   "pms_evidence",
   // Packing Lists (#255) point at SORs; boxes at the list, contents at the box.
