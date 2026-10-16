@@ -23,8 +23,14 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * a tier receives are `COMPONENT_COST_TIERS`, proven equal to the registry in
  * 79-costing-components.test.js. The rows the database refuses by trigger
  * (an Inclusion under a non-bundle) are refused here with the same message.
+ *
+ * #271 adds the Evaluation of Specification (20261018140000_costing_matrix_evaluation.sql):
+ * `costing_sign` is re-implemented here (`onEvaluationList` stands in for membership of the
+ * evaluation list, `actorId` for the signed-in employee), the clearing triggers are mirrored in
+ * src/test/db/triggers.js, and `costing_history` returns what those triggers wrote. Who may write
+ * a verdict (the Technical band) is the policy tier's (82-costing-evaluation.test.js).
  */
-export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"] } = {}) {
+export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"], actorId = null, onEvaluationList = true } = {}) {
   const refuse = (table, column, needed) => {
     throw pgrstError("42501", `costing_band:${table}.${column}:${needed.join(",")}`, { status: 403 })
   }
@@ -73,6 +79,10 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       .sort((a, b) => a.position - b.position)
     const tables = {
       costing_matrices: [{ ...matrix }],
+      costing_signoffs: rowsOf("costing_signoffs")
+        .filter((s) => s.matrix_id === matrix.id)
+        .sort((a, b) => String(a.signed_at).localeCompare(String(b.signed_at)))
+        .map((s) => ({ ...s })),
       costing_tender_lines: lines.map((l) => ({ ...l, sor_line_now: sorLineNow(l) })),
       costing_components: components.map((c) => ({ ...c })),
       costing_inclusions: rowsOf("costing_inclusions")
@@ -171,5 +181,42 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     return null
   })
 
-  stubRpc("costing_history", () => [])
+  stubRpc("costing_sign", (args) => {
+    const role = args.p_role
+    if (!["prepared", "costed", "evaluation_approved", "final_approved"].includes(role)) {
+      throw pgrstError("22023", `costing_sign: ${role} is not a sign-off`, { status: 400 })
+    }
+    if (role !== "evaluation_approved") {
+      throw pgrstError("0A000", `costing_sign: the ${role} sign-off is not available yet`, { status: 400 })
+    }
+    const matrix = rowsOf("costing_matrices").find((m) => m.id === args.p_matrix_id)
+    if (!matrix) throw pgrstError("P0002", "costing_sign: not found", { status: 404 })
+    if (!tier) throw pgrstError("42501", "costing_sign: not allowed", { status: 403 })
+    if (!onEvaluationList) {
+      throw pgrstError("42501", "costing_sign: only someone on the evaluation list can approve the evaluation", { status: 403 })
+    }
+    if (rowsOf("costing_signoffs").some((s) => s.matrix_id === matrix.id && s.role === role && !s.cleared_at)) {
+      throw pgrstError("55000", "costing_sign: the evaluation is already approved", { status: 409 })
+    }
+    const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
+    const missing = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id) && !c.compliance).length
+    if (missing > 0) {
+      throw pgrstError("55000", `costing_sign: ${missing} Component${missing === 1 ? " has" : "s have"} no verdict yet`, { status: 409 })
+    }
+    const signoff = insertRow("costing_signoffs", { matrix_id: matrix.id, role, signed_by: actorId })
+    return { signoff }
+  })
+
+  // The history the mirrored triggers wrote, newest first, in the shape costing_history returns.
+  stubRpc("costing_history", (args) => {
+    const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
+    if (!matrix || !tier) return null
+    return rowsOf("costing_events")
+      .filter((e) => e.matrix_id === matrix.id)
+      .filter((e) => !args.p_table || e.detail.table === args.p_table)
+      .filter((e) => !args.p_row || e.detail.row === args.p_row)
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .slice(0, args.p_limit ?? 100)
+      .map((e) => ({ id: e.id, at: e.created_at, actor_id: e.actor_id, kind: e.kind, detail: e.detail }))
+  })
 }
