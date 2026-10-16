@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_ERROR, IPAS_STATE, IPAS_STATUS_SOURCE, IPAS_SUPPLIER_ORIGIN_FIELDS } from "../constants/ipas";
+import { IPAS_ERROR, IPAS_STATE, IPAS_STATUS_SOURCE } from "../constants/ipas";
 import { ORDER_AGEING_STEPS, ORDER_GROUP } from "../constants/orderMonitoring";
 import { TRANSMITTAL_RATING } from "../constants/transmittals";
 import { IpasError } from "./ipasService";
@@ -10,13 +10,9 @@ import { isLandedCostFinal } from "../utils/ipasSignoffs";
 import { checkResultOf, daysBetweenManila, orderStanding } from "../utils/orderStanding";
 import { inDateOrder } from "../utils/ipasTransmittals";
 import { transmittalStateLabel } from "../utils/transmittals";
+import { INVALID_DAYS_MESSAGE, isValidDays, orderStandingInput, submittedSlips } from "../utils/orderAgeing";
 
 const STEP_KEYS = ORDER_AGEING_STEPS.map((step) => step.key);
-
-/** A rule is a positive whole number of days, or null for no rule. */
-function isValidDays(days) {
-  return days === null || (Number.isInteger(days) && days > 0);
-}
 
 /**
  * Order Monitoring (#262, spec #261): the ageing rules Purchasing edits. One
@@ -42,7 +38,7 @@ export const orderMonitoringService = {
       throw new IpasError(IPAS_ERROR.INVALID, "Pick a step that can have an ageing rule.");
     }
     if (!isValidDays(days)) {
-      throw new IpasError(IPAS_ERROR.INVALID, "Days must be a whole number above zero, or blank for no rule.");
+      throw new IpasError(IPAS_ERROR.INVALID, INVALID_DAYS_MESSAGE);
     }
     const { data, error } = await supabase
       .from("order_ageing_rules")
@@ -139,13 +135,14 @@ async function loadOrders(today) {
     readSors(ids),
     readPayments(ids),
     readCostsCompleteAt(ids),
-    transmittalService.forOrders(ids),
+    transmittalService.forOrders(ids, { includeDrafts: true }),
     orderMonitoringService.getRules(),
   ]);
 
   return ipasRows.map((row) => {
     const payments = paymentsByIpas.get(row.id) ?? [];
-    const slips = slipsByIpas.get(row.id) ?? [];
+    const named = slipsByIpas.get(row.id) ?? [];
+    const slips = submittedSlips(named);
     const shaped = shapeIpas(row, sorsByIpas.get(row.id) ?? [], {
       payments,
       charges: [],
@@ -155,20 +152,20 @@ async function loadOrders(today) {
       slips,
     });
     const standing = orderStanding(
-      {
+      orderStandingInput({
         id: row.id,
         state: row.state,
         source: row.source,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         computationStatus: row.computation_status,
-        costsCompletedAt: costsAt.get(row.id) ?? null,
+        costsCompletedAt: costsAt.get(row.id),
         buyerTrack: shaped.buyerTrack,
         proofPaidOn: latestProofDate(payments),
-        arrivedInPhOn: row.arrived_in_ph_on ?? null,
-        latestSupplierOrigin: latestSupplierOrigin(row),
-        slips,
-      },
+        arrivedInPhOn: row.arrived_in_ph_on,
+        origins: row,
+        slips: named,
+      }),
       rules,
       today,
     );
@@ -256,16 +253,6 @@ function latestProofDate(payments) {
     if (payment.proof_url && payment.paid_on && (!latest || payment.paid_on > latest)) latest = payment.paid_on;
   }
   return latest;
-}
-
-/** The latest Supplier Origin date and its name ({ label, on }), or null. */
-function latestSupplierOrigin(row) {
-  let best = null;
-  for (const { column, label } of IPAS_SUPPLIER_ORIGIN_FIELDS) {
-    const on = row[column];
-    if (on && (!best || on > best.on)) best = { label, on };
-  }
-  return best;
 }
 
 /**

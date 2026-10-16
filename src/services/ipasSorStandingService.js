@@ -1,14 +1,15 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_STATE, IPAS_SUPPLIER_ORIGIN_FIELDS } from "../constants/ipas";
+import { IPAS_STATE } from "../constants/ipas";
 import { buildBuyerTrack } from "../utils/ipasDocuments";
 import { deriveTransmittalTrack } from "../utils/ipasTransmittals";
 import { orderStanding } from "../utils/orderStanding";
+import { orderStandingInput, submittedSlips } from "../utils/orderAgeing";
 import { ipasService } from "./ipasService";
 import { orderMonitoringService } from "./orderMonitoringService";
 
 /**
  * Where an SOR's own orders stand (#265, spec #261). The SOR's IPAS summary
- * (`ipasService.summariesForSor`, unchanged) gains four fields per row, computed
+ * (`ipasService.summariesForSor`, unchanged) gains five fields per row, computed
  * here by the same pure `orderStanding` the Order Monitoring page calls, with
  * the same ageing rules, so the two always agree:
  *
@@ -16,6 +17,7 @@ import { orderMonitoringService } from "./orderMonitoringService";
  *   owner        who owes it (an ORDER_OWNER key), or null when filed/cancelled
  *   daysWaiting  whole Asia/Manila days it has waited, or null
  *   late         true once it has waited past its step's rule
+ *   daysPastRule how many days past that rule, or null while not late
  *
  * The facts orderStanding needs (dates, each Transmittal's stages and ratings)
  * come from `ipas_standing_for_sor`, which gives the SOR's readers dates and
@@ -24,16 +26,6 @@ import { orderMonitoringService } from "./orderMonitoringService";
  * Self-contained: the PMS page takes the SOR's IPAS section over in build
  * step 5 and can call this as it is.
  */
-
-/** The latest Supplier Origin date and its name ({ label, on }), or null. */
-function latestSupplierOrigin(facts) {
-  let best = null;
-  for (const { column, label } of IPAS_SUPPLIER_ORIGIN_FIELDS) {
-    const on = facts[column];
-    if (on && (!best || on > best.on)) best = { label, on };
-  }
-  return best;
-}
 
 /** The statuses `buildBuyerTrack` reads, taken from the summary's own ticks. */
 function odooStatusesOf(summary) {
@@ -47,10 +39,10 @@ function odooStatusesOf(summary) {
 
 function standingOf(summary, facts, rules, today) {
   if (!facts || summary.state === IPAS_STATE.CANCELLED) {
-    return { nextThing: null, owner: null, daysWaiting: null, late: false };
+    return { nextThing: null, owner: null, daysWaiting: null, late: false, daysPastRule: null };
   }
-  const slips = facts.slips ?? [];
-  const derived = deriveTransmittalTrack(slips, {
+  const named = facts.slips ?? [];
+  const derived = deriveTransmittalTrack(submittedSlips(named), {
     deliveredOn: facts.delivered_on,
     actualCheckingBy: facts.actual_checking_stamped,
     actualCheckingAt: facts.actual_checking_at,
@@ -70,20 +62,20 @@ function standingOf(summary, facts, rules, today) {
     },
   );
   const standing = orderStanding(
-    {
+    orderStandingInput({
       id: summary.id,
       state: summary.state,
       source: facts.source,
       createdAt: facts.created_at,
       updatedAt: facts.updated_at,
       computationStatus: summary.computationStatus,
-      costsCompletedAt: facts.costs_completed_at ?? null,
+      costsCompletedAt: facts.costs_completed_at,
       buyerTrack,
-      proofPaidOn: facts.proof_paid_on ?? null,
-      arrivedInPhOn: facts.arrived_in_ph_on ?? null,
-      latestSupplierOrigin: latestSupplierOrigin(facts),
-      slips,
-    },
+      proofPaidOn: facts.proof_paid_on,
+      arrivedInPhOn: facts.arrived_in_ph_on,
+      origins: facts,
+      slips: named,
+    }),
     rules,
     today,
   );
@@ -92,6 +84,7 @@ function standingOf(summary, facts, rules, today) {
     owner: standing.next.owner,
     daysWaiting: standing.daysWaiting,
     late: standing.late,
+    daysPastRule: standing.daysPastRule,
   };
 }
 

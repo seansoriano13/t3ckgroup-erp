@@ -133,25 +133,8 @@ export const transmittalService = {
    */
   async forIpas(ipasId) {
     if (!ipasId) return [];
-    const { data: links, error: linkError } = await supabase
-      .from("transmittal_lines")
-      .select("transmittal_id")
-      .eq("ipas_id", ipasId);
-    if (linkError) throw linkError;
-    const ids = [...new Set((links ?? []).map((row) => row.transmittal_id))];
-    if (ids.length === 0) return [];
-
-    const { data, error } = await supabase
-      .from("transmittals")
-      .select(
-        "id, number, prepared_on, created_at, priority, state, check_warehouse, check_technical, item_location_id," +
-          " stages:transmittal_stages(stage, completed_at), lines:transmittal_lines(wh_rating, tech_rating)",
-      )
-      .in("id", ids)
-      .neq("state", "draft")
-      .neq("state", "cancelled");
-    if (error) throw error;
-    return data ?? [];
+    const byIpas = await transmittalService.forOrders([ipasId]);
+    return byIpas.get(ipasId) ?? [];
   },
 
   /**
@@ -160,8 +143,12 @@ export const transmittalService = {
    * two queries. A slip is filed under every IPAS it names. Returns a Map of
    * IPAS id to its slips (raw rows, for utils/ipasTransmittals.js and
    * utils/orderStanding.js). The database returns only what the caller may read.
+   *
+   * `includeDrafts` also returns the drafts that name an IPAS (state "draft").
+   * Order Monitoring uses them only to know a Transmittal has been started for
+   * an order; they never count as a slip (no stages, no check).
    */
-  async forOrders(ipasIds) {
+  async forOrders(ipasIds, { includeDrafts = false } = {}) {
     const byIpas = new Map();
     const ids = [...new Set((ipasIds ?? []).filter(Boolean))];
     if (ids.length === 0) return byIpas;
@@ -174,15 +161,16 @@ export const transmittalService = {
     const slipIds = [...new Set((links ?? []).map((row) => row.transmittal_id))];
     if (slipIds.length === 0) return byIpas;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("transmittals")
       .select(
         "id, number, prepared_on, created_at, submitted_at, priority, state, check_warehouse, check_technical, item_location_id," +
           " stages:transmittal_stages(stage, completed_at), lines:transmittal_lines(ipas_id, odoo_po_line_id, wh_rating, tech_rating)",
       )
       .in("id", slipIds)
-      .neq("state", "draft")
       .neq("state", "cancelled");
+    if (!includeDrafts) query = query.neq("state", "draft");
+    const { data, error } = await query;
     if (error) throw error;
 
     for (const slip of data ?? []) {

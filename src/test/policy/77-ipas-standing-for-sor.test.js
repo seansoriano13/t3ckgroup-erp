@@ -12,6 +12,7 @@ import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./s
 import { serviceClient } from "./support/stack.js"
 import { makeSor } from "./support/rows.js"
 import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureTransmittals } from "./support/transmittals.js"
 
 const svc = () => serviceClient()
 const PO = "P9960001"
@@ -62,6 +63,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
+    await purgeFixtureTransmittals(`%@${FIXTURE_DOMAIN}`)
     await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)
     await svc().from("sales_opportunities").delete().in("id", [sor].filter(Boolean))
 })
@@ -96,5 +98,26 @@ describe("the standing facts of an SOR's IPAS", () => {
         expect(await levelOf("ordinary", sor)).toBe("none")
         expect(await standing("ordinary", sor)).toEqual([])
         expect(await standing("outsider", sor)).toEqual([]) // Purchasing access alone is not SOR access
+    })
+
+    it("includes a draft Transmittal naming the order (so a draft counts as raised) and leaves a cancelled one out", async () => {
+        const raise = async () => {
+            const { data, error } = await (await clientFor("outsider")).rpc("transmittal_create", {
+                p_fields: { origin: "purchasing", check_warehouse: true, check_technical: false, priority: "high", entity: "T3ck Trading" },
+                p_product_ids: [],
+                p_reference_ids: [],
+                p_lines: [{ kind: "po_line", ipas_id: ipas.id, odoo_po_line_id: 789601, quantity: 1 }],
+            })
+            if (error) throw new Error(`transmittal_create: ${error.message}`)
+            return data
+        }
+        const draft = await raise()
+        const cancelled = await raise()
+        const cut = await svc().from("transmittals").update({ state: "cancelled", submitted_at: new Date().toISOString(), cancelled_at: new Date().toISOString(), cancel_reason: "test" }).eq("id", cancelled.id)
+        if (cut.error) throw cut.error
+
+        const [row] = await standing("dealOwner", sor)
+
+        expect(row.slips.map((slip) => [slip.id, slip.state])).toEqual([[draft.id, "draft"]])
     })
 })

@@ -3,6 +3,7 @@ import { act, screen } from "@testing-library/react"
 
 import { renderWithProviders } from "@/test/support"
 import { stubRpc } from "@/test/msw/server"
+import { db } from "@/test/db/store"
 import IpasSorSection from "./IpasSorSection"
 
 let authUser
@@ -124,5 +125,24 @@ describe("IpasSorSection (#249)", () => {
     expect(line).toHaveTextContent("With P.O.P — no payment carries proof")
     expect(line).toHaveTextContent("Finance")
     expect(line).toHaveTextContent("days waiting")
+  })
+
+  it("says how many days past the rule a late row is (#265)", async () => {
+    authUser = { id: "emp-1" }
+    stubRpc("ipas_summaries_for_sor", [summary()])
+    db.seed("order_ageing_rules", { step: "with_pop", days: 10 })
+    stubRpc("ipas_standing_for_sor", [
+      {
+        ipas_id: "ipas-1", source: "local", created_at: "2026-10-01T04:00:00Z", updated_at: "2026-10-01T04:00:00Z",
+        costs_completed_at: null, proof_paid_on: null, shipped_out_on: null, onboard_on: null, arrived_in_ph_on: null,
+        arrived_in_whs_on: null, import_clearance_on: null, delivered_on: null, actual_checking_stamped: false,
+        actual_checking_at: null, slips: [],
+      },
+    ])
+    renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
+
+    const line = await screen.findByTestId("ipas-next-thing")
+    expect(line).toHaveTextContent("Late")
+    expect(line).toHaveTextContent(/\d+ days? past the rule/)
   })
 })

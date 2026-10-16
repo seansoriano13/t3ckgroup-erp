@@ -9,19 +9,15 @@ import QueryError from "../ui/QueryError";
 import { orderMonitoringService } from "../../services/orderMonitoringService";
 import { ORDER_AGEING_HINTS, ORDER_AGEING_STEPS } from "../../constants/orderMonitoring";
 import { ipasErrorMessage } from "../../utils/ipas";
+import { INVALID_DAYS_MESSAGE, isValidDays } from "../../utils/orderAgeing";
 
 const RULES_KEY = ["order-monitoring", "ageing-rules"];
-const INVALID_DAYS = "Days must be a whole number above zero, or blank for no rule.";
 
 /** Blank is no rule (null); digits are days; anything else is NaN and refused. */
 function parseDays(text) {
   const trimmed = String(text).trim();
   if (trimmed === "") return null;
   return /^\d+$/.test(trimmed) ? Number(trimmed) : NaN;
-}
-
-function isValidDays(days) {
-  return days === null || (Number.isInteger(days) && days > 0);
 }
 
 /**
@@ -64,7 +60,7 @@ export default function OrderAgeingRules() {
       .map((rule) => ({ step: rule.step, days: parseDays(edits[rule.step]), was: rule.days }));
 
     if (parsed.some((item) => !isValidDays(item.days))) {
-      setError(INVALID_DAYS);
+      setError(INVALID_DAYS_MESSAGE);
       return;
     }
     const changes = parsed.filter((item) => item.days !== item.was);

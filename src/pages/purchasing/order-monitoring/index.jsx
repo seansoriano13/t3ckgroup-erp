@@ -8,22 +8,15 @@ import EmptyState from "../../../components/ui/EmptyState";
 import PageLoading from "../../../components/ui/PageLoading";
 import QueryError from "../../../components/ui/QueryError";
 import { Button } from "../../../components/ui/button";
-import { Card, CardContent } from "../../../components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { useAuth } from "../../../context/AuthContext";
 import { orderMonitoringService } from "../../../services/orderMonitoringService";
 import { getPermissionContext } from "../../../utils/permissions";
-import { formatAmount } from "../../../utils/ipas";
-import {
-  ORDER_GROUP,
-  ORDER_GROUP_LABELS,
-  ORDER_GROUPS,
-  ORDER_OWNER_LABELS,
-} from "../../../constants/orderMonitoring";
+import { ORDER_GROUP, ORDER_GROUP_LABELS, ORDER_GROUPS } from "../../../constants/orderMonitoring";
 import TabGroup from "../../../components/ui/TabGroup";
-import OrderRegister from "./_components/OrderRegister";
-import { HEAD } from "./_components/format";
-import { NextThing, WaitCell } from "./_components/parts";
+import GroupTable from "./_components/GroupTable";
+import OrderRegister, { OrderRegisterToolbar } from "./_components/OrderRegister";
+import { useOrderRegisterFilters } from "./_components/useOrderRegisterFilters";
+import Tiles from "./_components/Tiles";
 
 /**
  * Order Monitoring (#263, spec #261): every open IPAS across every SOR, opening
@@ -64,97 +57,11 @@ function writeView(userId, view) {
   }
 }
 
-function OrderRow({ row, onOpen }) {
-  return (
-    <TableRow className="cursor-pointer" onClick={() => onOpen(row.id)}>
-      <TableCell>
-        <NextThing row={row} />
-      </TableCell>
-      <TableCell>{ORDER_OWNER_LABELS[row.next?.owner] ?? "—"}</TableCell>
-      <TableCell>
-        <WaitCell row={row} />
-      </TableCell>
-      <TableCell>
-        <span className="font-mono font-semibold">{row.number}</span>
-        <div className="text-xs text-muted-foreground">PO {row.poNumber}</div>
-      </TableCell>
-      <TableCell>
-        {row.sors.length ? row.sors.map((sor) => sor.salesReference).join(", ") : "No SOR"}
-        <div className="text-xs text-muted-foreground">{row.entity ?? "—"}</div>
-      </TableCell>
-      <TableCell>{row.supplier ?? "—"}</TableCell>
-    </TableRow>
-  );
-}
-
-function GroupTable({ rows, onOpen }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="overflow-x-auto">
-        <Table tableId="order-monitoring" className="md:min-w-[48rem]">
-          <TableHeader>
-            <TableRow className="bg-muted/40 hover:bg-muted/40">
-              {["Next thing", "Owed by", "Waiting", "IPAS and PO", "SOR and entity", "Supplier"].map((heading) => (
-                <TableHead key={heading} className={HEAD}>
-                  {heading}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <OrderRow key={row.id} row={row} onOpen={onOpen} />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
-function Tile({ label, children }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 p-4">
-        <span className="text-label font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
-        {children}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Tiles({ counts }) {
-  if (!counts) return null;
-  return (
-    <section aria-label="Totals" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Tile label="Needs chasing">
-        <span className="text-2xl font-bold tabular-nums">{counts.needsChasing}</span>
-      </Tile>
-      <Tile label="Waiting on us">
-        <span className="text-2xl font-bold tabular-nums">{counts.waitingOnUs}</span>
-      </Tile>
-      <Tile label="Waiting on someone else">
-        <span className="text-2xl font-bold tabular-nums">{counts.waitingOnOthers}</span>
-      </Tile>
-      <Tile label="Value open">
-        {counts.valueOpen.length === 0 ? (
-          <span className="text-2xl font-bold tabular-nums">—</span>
-        ) : (
-          counts.valueOpen.map((value) => (
-            <span key={value.currency ?? "none"} className="text-base font-semibold tabular-nums">
-              {formatAmount(value.total, value.currency)}
-            </span>
-          ))
-        )}
-      </Tile>
-    </section>
-  );
-}
-
 function OrderMonitoringList({ userId }) {
   const navigate = useNavigate();
   const [filedOpen, setFiledOpen] = useState(false);
   const [view, setView] = useState(() => readView(userId));
+  const register = useOrderRegisterFilters();
   const changeView = (next) => {
     setView(next);
     writeView(userId, next);
@@ -172,21 +79,22 @@ function OrderMonitoringList({ userId }) {
   const open = (id) => navigate(`/purchasing/ipas/${id}`);
   const grouped = Object.fromEntries(ORDER_GROUPS.map((group) => [group, rows.filter((row) => row.group === group)]));
   const filed = grouped[ORDER_GROUP.FILED];
+  const ready = !isLoading && !isError;
 
   return (
     <PageShell
       frame="full"
       title="Order Monitoring"
       description="Every open order across every SOR, grouped by what needs doing next."
+      tabs={ready ? <TabGroup tabs={VIEW_TABS} activeTab={view} onChange={changeView} /> : null}
+      toolbar={ready && view === VIEW.REGISTER ? <OrderRegisterToolbar register={register} options={rows} /> : null}
     >
       {isLoading && <PageLoading label="Order Monitoring" />}
       {isError && <QueryError title="Order Monitoring could not be loaded." onRetry={refetch} />}
 
-      {!isLoading && !isError && (
+      {ready && (
         <>
-          <TabGroup tabs={VIEW_TABS} activeTab={view} onChange={changeView} />
-
-          {view === VIEW.REGISTER && <OrderRegister onOpen={open} options={rows} />}
+          {view === VIEW.REGISTER && <OrderRegister onOpen={open} query={register.query} />}
 
           {view === VIEW.NEEDS && <Tiles counts={counts} />}
 

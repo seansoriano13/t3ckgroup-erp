@@ -11,7 +11,7 @@
  *   2. a slip whose checking stage isn't complete (owner: the Warehouse or Technical)
  *   3. a slip awaiting Check by
  *   4. costs complete and not filed
- *   5. Delivered with no Transmittal naming the IPAS
+ *   5. Delivered with no Transmittal naming the IPAS (a draft counts as naming it)
  *   6. the first unstamped buyer-track step
  *   7. every step stamped but costs not complete
  *
@@ -20,7 +20,8 @@
  *   costsCompletedAt (when costs went complete, or null), buyerTrack (the
  *   shaped items with key, ticked, on, at), proofPaidOn and arrivedInPhOn
  *   ('YYYY-MM-DD' or null), latestSupplierOrigin ({ label, on } or null), and
- *   slips (the raw Transmittal rows that name this IPAS, with stages and lines).
+ *   slips (the raw submitted Transmittal rows that name this IPAS, with stages and
+ *   lines) and hasDraftTransmittal (a draft names it: raised, not yet submitted).
  *
  * `rules` is the list `orderMonitoringService.getRules()` returns; a step with
  * days null has no rule and never goes late.
@@ -198,6 +199,8 @@ function nextThing(order, slips, track) {
 
   const pending = slips.filter((slip) => completedMs(slip, checkingStage(slip)) === null);
   if (pending.length > 0) {
+    // The owner is the stage each slip waits on. When slips wait on both, the
+    // Warehouse is owner (the earlier stage) and the words keep both.
     const owners = new Set(pending.map(awaitingStageOwner));
     const who =
       owners.size > 1
@@ -233,7 +236,7 @@ function nextThing(order, slips, track) {
   }
 
   const delivered = track.find((item) => item.key === "delivered");
-  if (delivered?.ticked && slips.length === 0) {
+  if (delivered?.ticked && slips.length === 0 && !order.hasDraftTransmittal) {
     return {
       label: "Delivered — no Transmittal raised",
       owner: ORDER_OWNER.PURCHASING,

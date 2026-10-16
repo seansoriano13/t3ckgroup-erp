@@ -432,7 +432,7 @@ export function stubIpasRpcs({
           .map((p) => p.paid_on)
           .sort()
         const slips = rowsOf("transmittals")
-          .filter((t) => !["draft", "cancelled"].includes(t.state))
+          .filter((t) => t.state !== "cancelled")
           .map((t) => ({ t, lines: rowsOf("transmittal_lines").filter((l) => l.transmittal_id === t.id && l.ipas_id === row.id) }))
           .filter(({ lines }) => lines.length > 0)
           .map(({ t, lines }) => ({

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Check, Pencil } from "lucide-react";
 
@@ -9,9 +9,10 @@ import QueryError from "../../../../components/ui/QueryError";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../../components/ui/table";
 import { orderMonitoringService } from "../../../../services/orderMonitoringService";
 import { formatAmount } from "../../../../utils/ipas";
-import { IPAS_SOURCE_LABELS, IPAS_STATE_LABELS } from "../../../../constants/ipas";
-import { ORDER_OWNER_LABELS } from "../../../../constants/orderMonitoring";
+import { IPAS_SOURCE_LABELS, IPAS_STATE, IPAS_STATE_LABELS } from "../../../../constants/ipas";
+import { ORDER_GROUP, ORDER_OWNER_LABELS } from "../../../../constants/orderMonitoring";
 import { HEAD, plural } from "./format";
+import { ALL } from "./useOrderRegisterFilters";
 import { NextThing, WaitCell } from "./parts";
 
 /**
@@ -21,9 +22,6 @@ import { NextThing, WaitCell } from "./parts";
  * Transmittal or a hand stamp), typed (a person typed its date) or pending.
  * The hand-off column reads the latest Transmittal and its check result.
  */
-
-const ALL = "ALL";
-const NO_FILTERS = { entity: ALL, source: ALL, sorId: ALL, supplier: ALL, state: ALL };
 
 const CHECK_LABELS = { open: "Check open", gc: "GC", na: "NA", na_replaced: "NA · replaced" };
 const CHECK_TONES = {
@@ -41,9 +39,9 @@ function Track({ row }) {
         const name = `${step.label}, ${step.mark}${step.on ? `, ${step.on}` : ""}`;
         const tone =
           step.mark !== "pending"
-            ? "border-green-400 bg-green-3/40 text-green-11"
+            ? "border-green-7 bg-green-3/40 text-green-11"
             : step.partial
-              ? "border-amber-400 bg-amber-3/40 text-amber-11"
+              ? "border-amber-7 bg-amber-3/40 text-amber-11"
               : "border-border text-transparent";
         return (
           <li
@@ -80,29 +78,11 @@ const optionsOf = (values, allLabel) => [
 ];
 
 /**
- * `options` are rows of the unfiltered list, only used to fill the entity, SOR
- * and supplier choices; the register's own rows come back narrowed from the
- * service.
+ * The register's filter bar. `options` are rows of the unfiltered list, only
+ * used to fill the entity, SOR and supplier choices.
  */
-export default function OrderRegister({ onOpen, options }) {
-  const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState(NO_FILTERS);
-
-  const query = {
-    search,
-    entity: filters.entity === ALL ? null : filters.entity,
-    source: filters.source === ALL ? null : filters.source,
-    sorId: filters.sorId === ALL ? null : filters.sorId,
-    supplier: filters.supplier === ALL ? null : filters.supplier,
-    state: filters.state === ALL ? null : filters.state,
-  };
-
-  const { data: rows = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["order-monitoring", "register", query],
-    queryFn: () => orderMonitoringService.list(query),
-    placeholderData: keepPreviousData,
-  });
-
+export function OrderRegisterToolbar({ register, options }) {
+  const { search, setSearch, filters, set, clearAll, hasActiveFilters } = register;
   const choices = useMemo(() => {
     const sors = new Map();
     for (const row of options) for (const sor of row.sors) sors.set(sor.id, sor.salesReference);
@@ -116,53 +96,57 @@ export default function OrderRegister({ onOpen, options }) {
     };
   }, [options]);
 
-  const set = (key) => (value) => setFilters((current) => ({ ...current, [key]: value }));
-  const hasActiveFilters = Boolean(search.trim()) || Object.values(filters).some((value) => value !== ALL);
-  const clearAll = () => {
-    setSearch("");
-    setFilters(NO_FILTERS);
-  };
+  return (
+    <FilterBar
+      search={{ value: search, onChange: setSearch, placeholder: "Search IPAS, PO or S number" }}
+      chips={
+        <>
+          <FilterSelect options={choices.entity} value={filters.entity} onChange={set("entity")} label="Entity" className="h-9 w-auto" />
+          <FilterSelect
+            options={[
+              { value: ALL, label: "Import and Local" },
+              ...Object.entries(IPAS_SOURCE_LABELS).map(([value, label]) => ({ value, label })),
+            ]}
+            value={filters.source}
+            onChange={set("source")}
+            label="Source"
+            className="h-9 w-auto"
+          />
+          <FilterSelect
+            options={[
+              { value: ALL, label: "Open and filed" },
+              ...["open", "filed"].map((value) => ({ value, label: IPAS_STATE_LABELS[value] })),
+            ]}
+            value={filters.state}
+            onChange={set("state")}
+            label="State"
+            className="h-9 w-auto"
+          />
+        </>
+      }
+      filters={
+        <div className="flex flex-col gap-2 p-2">
+          <FilterSelect options={choices.sor} value={filters.sorId} onChange={set("sorId")} label="SOR" />
+          <FilterSelect options={choices.supplier} value={filters.supplier} onChange={set("supplier")} label="Supplier" />
+        </div>
+      }
+      activeCount={[filters.sorId, filters.supplier].filter((value) => value !== ALL).length}
+      hasActiveFilters={hasActiveFilters}
+      onClearAll={clearAll}
+    />
+  );
+}
+
+/** The register table. `query` comes from `useOrderRegisterFilters`; the filter bar is `OrderRegisterToolbar`. */
+export default function OrderRegister({ onOpen, query }) {
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["order-monitoring", "register", query],
+    queryFn: () => orderMonitoringService.list(query),
+    placeholderData: keepPreviousData,
+  });
 
   return (
     <section aria-label="Order register" className="flex flex-col gap-3">
-      <FilterBar
-        search={{ value: search, onChange: setSearch, placeholder: "Search IPAS, PO or S number" }}
-        chips={
-          <>
-            <FilterSelect options={choices.entity} value={filters.entity} onChange={set("entity")} label="Entity" className="h-9 w-auto" />
-            <FilterSelect
-              options={[
-                { value: ALL, label: "Import and Local" },
-                ...Object.entries(IPAS_SOURCE_LABELS).map(([value, label]) => ({ value, label })),
-              ]}
-              value={filters.source}
-              onChange={set("source")}
-              label="Source"
-              className="h-9 w-auto"
-            />
-            <FilterSelect
-              options={[
-                { value: ALL, label: "Open and filed" },
-                ...["open", "filed"].map((value) => ({ value, label: IPAS_STATE_LABELS[value] })),
-              ]}
-              value={filters.state}
-              onChange={set("state")}
-              label="State"
-              className="h-9 w-auto"
-            />
-          </>
-        }
-        filters={
-          <div className="flex flex-col gap-2 p-2">
-            <FilterSelect options={choices.sor} value={filters.sorId} onChange={set("sorId")} label="SOR" />
-            <FilterSelect options={choices.supplier} value={filters.supplier} onChange={set("supplier")} label="Supplier" />
-          </div>
-        }
-        activeCount={[filters.sorId, filters.supplier].filter((value) => value !== ALL).length}
-        hasActiveFilters={hasActiveFilters}
-        onClearAll={clearAll}
-      />
-
       {isError && <QueryError title="The order register could not be loaded." onRetry={refetch} />}
       {!isError && !isLoading && rows.length === 0 && (
         <EmptyState title="No orders match" description="Change the search or the filters." />
@@ -191,7 +175,7 @@ export default function OrderRegister({ onOpen, options }) {
                       <div className="text-xs text-muted-foreground">
                         PO {row.poNumber} · {IPAS_SOURCE_LABELS[row.source] ?? row.source}
                       </div>
-                      {row.state === "filed" && <div className="text-xs font-semibold text-muted-foreground">Filed</div>}
+                      {row.state === IPAS_STATE.FILED && <div className="text-xs font-semibold text-muted-foreground">Filed</div>}
                     </TableCell>
                     <TableCell>
                       {row.sors.length ? row.sors.map((sor) => sor.salesReference).join(", ") : "No SOR"}
@@ -213,7 +197,7 @@ export default function OrderRegister({ onOpen, options }) {
                       {row.next?.owner && (
                         <div className="text-xs text-muted-foreground">{ORDER_OWNER_LABELS[row.next.owner]}</div>
                       )}
-                      {row.group !== "filed" && <WaitCell row={row} />}
+                      {row.group !== ORDER_GROUP.FILED && <WaitCell row={row} />}
                     </TableCell>
                     <TableCell>
                       <HandOff transmittals={row.transmittals} />

@@ -62,6 +62,11 @@ function SummaryRow({ summary, canOpen }) {
             </span>
           )}
           {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
+          {summary.late && summary.daysPastRule > 0 && (
+            <span className="font-semibold text-destructive">
+              {summary.daysPastRule} {summary.daysPastRule === 1 ? "day" : "days"} past the rule
+            </span>
+          )}
         </p>
       )}
 

@@ -288,6 +288,66 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.group).toBe("waiting_on_us")
     })
 
+    it("does not say no Transmittal was raised when a draft already names the order", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({ state: "draft", submittedAt: null, lines: [{ ipas, odooPoLineId: 10001 }] })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.step).not.toBe("no_transmittal")
+      expect(row.transmittals.count).toBe(0)
+    })
+
+    it("still says no Transmittal was raised when the only one is cancelled", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({ state: "cancelled", lines: [{ ipas, odooPoLineId: 10001 }] })
+
+      expect(rowsFor(await listAll(), ipas).next.step).toBe("no_transmittal")
+    })
+
+    it("is owed by the Warehouse when the one open slip waits on the Warehouse", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({ state: "warehouse_checking", checkWarehouse: true, checkTechnical: true, lines: [{ ipas, odooPoLineId: 10001 }] })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Actual Checking — 1 awaiting Warehouse")
+      expect(row.next.owner).toBe("warehouse")
+    })
+
+    it("is owed by Technical when the Warehouse is done and only Technical is open, even beside a Technical-only slip", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({
+        state: "technical_inspection", checkWarehouse: true, checkTechnical: true,
+        stages: { warehouse_checking: at(10) }, lines: [{ ipas, odooPoLineId: 10001 }],
+      })
+      seedSlip({ state: "technical_inspection", checkWarehouse: false, checkTechnical: true, lines: [{ ipas, odooPoLineId: 10002 }] })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Actual Checking — 2 awaiting Technical")
+      expect(row.next.owner).toBe("technical")
+    })
+
+    it("when slips wait on different departments, keeps both in the words and is owed by the Warehouse, the earlier stage", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+      seedPayment(ipas)
+      seedSlip({ state: "warehouse_checking", checkWarehouse: true, lines: [{ ipas, odooPoLineId: 10001 }] })
+      seedSlip({
+        state: "technical_inspection", checkWarehouse: true, checkTechnical: true,
+        stages: { warehouse_checking: at(10) }, lines: [{ ipas, odooPoLineId: 10002 }],
+      })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Actual Checking — 2 awaiting Warehouse or Technical")
+      expect(row.next.owner).toBe("warehouse")
+    })
+
     it("says a Transmittal awaiting Check by is owed by the Check by signers", async () => {
       const ipas = seedOrder({ deliveredOn: "2026-10-14" })
       seedPayment(ipas)

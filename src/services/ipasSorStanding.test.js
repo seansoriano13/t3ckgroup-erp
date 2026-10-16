@@ -30,7 +30,7 @@ const odooPo = (name) => ({
   bills: { count: 0, draft: 0 },
 })
 
-const NEW_FIELDS = ["daysWaiting", "late", "nextThing", "owner"]
+const NEW_FIELDS = ["daysPastRule", "daysWaiting", "late", "nextThing", "owner"]
 const SHAPED_KEYS = [
   "buyerTrack", "computationLabel", "computationStatus", "id", "isCancelled", "isFiled", "number",
   "poNumber", "purpose", "signoffs", "state", "supplier", "trackDone", "trackTotal",
@@ -80,6 +80,36 @@ describe("ipasSorStandingService.summariesForSor", () => {
 
     expect(row.late).toBe(true)
     expect(row.daysWaiting).toBe(15)
+    expect(row.daysPastRule).toBe(5)
+  })
+
+  it("has no days past the rule while an order is not late", async () => {
+    stubIpasRpcs({ actorId: buyer.id })
+    await raise()
+    asDealTeam()
+
+    const [row] = await ipasSorStandingService.summariesForSor(sor.id, { today: TODAY })
+
+    expect(row.daysPastRule).toBeNull()
+  })
+
+  it("does not say no Transmittal was raised when a draft already names the order", async () => {
+    stubIpasRpcs({ actorId: buyer.id })
+    const ipas = await raise()
+    updateRow("ipas", db.internal.rowsOf("ipas").find((r) => r.id === ipas.id), { delivered_on: "2026-10-14" })
+    const slip = db.seed("transmittals", {
+      number: "TG03-D1", prepared_on: "2026-10-14", origin: "purchasing", priority: "high", entity: "T3ck Trading",
+      check_warehouse: true, check_technical: false, state: "draft", prepared_by: buyer.id,
+    })
+    db.seed("transmittal_lines", {
+      transmittal_id: slip.id, position: 1, kind: "po_line", ipas_id: ipas.id, odoo_po_line_id: 11400,
+      description: "Item", quantity: 1,
+    })
+    asDealTeam()
+
+    const [row] = await ipasSorStandingService.summariesForSor(sor.id, { today: TODAY })
+
+    expect(row.nextThing).not.toBe("Delivered — no Transmittal raised")
   })
 
   it("gives the same standing as the Order Monitoring list for the same IPAS", async () => {

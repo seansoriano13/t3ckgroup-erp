@@ -26,6 +26,8 @@ describe("AppLayout full-bleed routes", () => {
           <Routes>
             <Route element={<AppLayout />}>
               <Route path="/sors" element={<div>SORS Register</div>} />
+              <Route path="/purchasing/order-monitoring" element={<div>Order Monitoring</div>} />
+              <Route path="/purchasing/ipas" element={<div>IPAS Register</div>} />
               <Route path="/sors/commission" element={<div>Commission Dashboard</div>} />
               <Route path="/sors/commission-formula" element={<div>Commission Formula</div>} />
             </Route>
@@ -39,6 +41,16 @@ describe("AppLayout full-bleed routes", () => {
     renderAt("/sors");
     const content = screen.getByText("SORS Register");
     expect(content.closest(".wrapper")).toBeNull();
+  });
+
+  it("gives /purchasing/order-monitoring the full-bleed frame but keeps /purchasing/ipas centred", () => {
+    renderAt("/purchasing/order-monitoring");
+    expect(screen.getByText("Order Monitoring").closest(".wrapper")).toBeNull();
+  });
+
+  it("keeps /purchasing/ipas a normal, centred page", () => {
+    renderAt("/purchasing/ipas");
+    expect(screen.getByText("IPAS Register").closest(".wrapper")).not.toBeNull();
   });
 
   it("keeps /sors/commission a normal, centred page", () => {
