@@ -1,10 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Pencil, Printer, Send, XCircle } from "lucide-react";
-import { openTransmittalPrintWindow, printTransmittal } from "../../../lib/pdf/transmittalPrinter";
-import { openTsrPrintWindow, printTsr } from "../../../lib/pdf/tsrPrinter";
+import { ArrowLeft, Pencil, Printer, XCircle } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
@@ -15,24 +13,42 @@ import QueryError from "../../../components/ui/QueryError";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Textarea } from "../../../components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
-import StatusBadge from "../../../components/StatusBadge";
+import NumbersStrip from "../../../components/record/NumbersStrip";
+import RecordCard from "../../../components/record/RecordCard";
+import RecordDrawer from "../../../components/record/RecordDrawer";
+import RecordMoreMenu from "../../../components/record/RecordMoreMenu";
+import RecordRows from "../../../components/record/RecordRows";
+import { useOpenSection } from "../../../components/record/useOpenSection";
 import TransmittalForm from "../../../components/transmittals/TransmittalForm";
-import { CheckBySection } from "../../../components/transmittals/CheckBySection";
-import {
-  OdooReceiptSection,
-  WarehouseRatings,
-  WarehouseStageSignoff,
-} from "../../../components/transmittals/WarehouseStages";
 import { transmittalKeys } from "../../../components/transmittals/transmittalKeys";
+import {
+  CheckByBody,
+  DetailsBody,
+  LinesBody,
+  OdooBody,
+  StageBody,
+} from "../../../components/transmittals/record/SectionBodies";
+import { EMPTY_STAGE_FORM, choosesSlot, footerMovesFor, movesFor } from "../../../components/transmittals/record/transmittalMoves";
+import {
+  SECTION,
+  STAGE_TITLE,
+  gatesOf,
+  numbersOf,
+  rightsOf,
+  sectionState,
+  sectionsOf,
+  statusLine,
+  summariesOf,
+} from "../../../components/transmittals/record/transmittalRecord";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { transmittalService } from "../../../services/transmittalService";
 import { stagesOf, transmittalStateLabel } from "../../../utils/transmittals";
+import { openTransmittalPrintWindow, printTransmittal } from "../../../lib/pdf/transmittalPrinter";
+import { openTsrPrintWindow, printTsr } from "../../../lib/pdf/tsrPrinter";
 import {
   TRANSMITTAL_ORIGIN_LABELS,
   TRANSMITTAL_PRIORITY_LABELS,
-  TRANSMITTAL_RATING_LABELS,
   TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STAGE,
   TRANSMITTAL_STATE,
@@ -40,20 +56,13 @@ import {
 import { ipasErrorMessage } from "../../../utils/ipas";
 
 /**
- * One Transmittal (#252, #253, #254): its header as on the paper, its lines, its
- * stages, Received in Odoo and the Check by plates. A draft can be edited and
- * submitted by its preparer or Purchasing; a slip with no signed stage can be
- * cancelled with a reason. The Warehouse rates and signs its stages (#253);
- * Technical rates and inspects (#254), then Check by signs the slip closed.
+ * One Transmittal, laid out like the IPAS record page: the numbers strip, a
+ * row per section that opens in a drawer, and the "Your move" card. Signing
+ * happens only in the card or in the drawer's bottom bar; a section's body
+ * shows who signed and when, and holds the data entry (ratings, pictures,
+ * remarks, who the other signatory is). Who may sign, and in what order, is the
+ * database's rule (#252 to #254); the screen only offers what it will accept.
  */
-
-const STAGE_LABEL = {
-  [TRANSMITTAL_STAGE.WAREHOUSE_CHECKING]: "Warehouse checking",
-  [TRANSMITTAL_STAGE.WAREHOUSE_RELEASING]: "Warehouse releasing",
-  [TRANSMITTAL_STAGE.TECHNICAL_INSPECTION]: "Technical inspection",
-};
-
-const ENDED = [TRANSMITTAL_STATE.CLOSED, TRANSMITTAL_STATE.CANCELLED];
 
 function TransmittalPage() {
   const { id } = useParams();
@@ -65,6 +74,11 @@ function TransmittalPage() {
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  // The sign form of each stage and the Odoo receipt reference: the card's move and the drawer's bar read the same fields.
+  const [forms, setForms] = useState({});
+  const [odooRef, setOdooRef] = useState("");
+  const [failure, setFailure] = useState(null);
+  const rowEls = useRef({});
 
   const { data: transmittal, isLoading, isError, refetch } = useQuery({
     queryKey: transmittalKeys.detail(id),
@@ -90,78 +104,124 @@ function TransmittalPage() {
     queryFn: () => transmittalService.stageListMembers(id, TRANSMITTAL_STAFF_LIST.TECHNICAL),
     enabled: Boolean(id),
   });
+  // The existing Check by queue (Approval Center): where "next waiting on me" comes from.
+  const onCheckByList = myLists.includes(TRANSMITTAL_STAFF_LIST.CHECK_BY);
+  const { data: checkByQueue = [] } = useQuery({
+    queryKey: ["transmittalCheckByQueue", user?.id],
+    queryFn: () => transmittalService.list({ state: TRANSMITTAL_STATE.AWAITING_CHECK }),
+    enabled: Boolean(user?.id && onCheckByList),
+  });
+
+  const sections = transmittal ? sectionsOf(transmittal) : [];
+  const { index, current, open: openSection, step, close } = useOpenSection({ drawerSections: sections });
 
   if (isLoading) return <PageLoading label="Transmittal" />;
   if (isError) return <QueryError title="The Transmittal could not be loaded." onRetry={refetch} />;
   if (!transmittal) {
-    return (
-      <EmptyState
-        title="No such Transmittal"
-        description="It may not exist, or you can't read it."
-      />
-    );
+    return <EmptyState title="No such Transmittal" description="It may not exist, or you can't read it." />;
   }
 
   const t = transmittal;
-  const isPreparer = t.preparedById === user?.id;
-  // As the database decides: the preparer or Purchasing access (a Super Admin alone is neither).
-  const canChange = isPreparer || hasPurchasingFlow;
-  const onWarehouse = myLists.includes(TRANSMITTAL_STAFF_LIST.WAREHOUSE);
-  const isOpen = !ENDED.includes(t.state) && t.state !== TRANSMITTAL_STATE.DRAFT;
-  const canRate = onWarehouse && t.state === TRANSMITTAL_STATE.WAREHOUSE_CHECKING;
-  const canSignChecking = onWarehouse && t.state === TRANSMITTAL_STATE.WAREHOUSE_CHECKING;
-  // Releasing is signed in its state on a Warehouse + Technical slip; on a
-  // Warehouse-only slip it is optional and signable until the slip closes.
-  const canSignReleasing =
-    onWarehouse &&
-    (t.checkTechnical ? t.state === TRANSMITTAL_STATE.WAREHOUSE_RELEASING : isOpen);
-  const showReleasing = stagesOf(t).includes(TRANSMITTAL_STAGE.WAREHOUSE_RELEASING) || (t.checkWarehouse && !t.checkTechnical && isOpen);
-  const onTechnical = myLists.includes(TRANSMITTAL_STAFF_LIST.TECHNICAL);
-  const onCheckBy = myLists.includes(TRANSMITTAL_STAFF_LIST.CHECK_BY);
-  const canRateTech = onTechnical && t.state === TRANSMITTAL_STATE.TECHNICAL_INSPECTION;
-  const canSignTech = canRateTech;
-  const showTechnical = stagesOf(t).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
-  const canCheck = onCheckBy;
-  const canRecordOdoo =
-    (onWarehouse || hasPurchasingFlow) && isOpen && !t.odooReceivedAt;
+  const rights = rightsOf(t, { userId: user?.id, lists: myLists, hasPurchasingFlow });
+  const gates = gatesOf(t);
   const members = { warehouse: warehouseMembers, technical: technicalMembers };
-  const isDraft = t.state === TRANSMITTAL_STATE.DRAFT;
-  const canCancel = !ENDED.includes(t.state) && !t.stages.some((s) => s.completed_at) && canChange;
+  const stageForm = (stage) => forms[stage] ?? EMPTY_STAGE_FORM;
+  const setStageForm = (stage, patch) =>
+    setForms((prev) => ({ ...prev, [stage]: { ...EMPTY_STAGE_FORM, ...prev[stage], ...patch } }));
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: transmittalKeys.all });
+    queryClient.invalidateQueries({ queryKey: ["transmittalCheckByQueue"] });
   };
 
-  const submit = async () => {
+  // Runs one move: busy while it runs, a toast either way, and on a failure the message shows inline
+  // where the move was started, with Retry (the same call again).
+  const perform = async (from, action, { success, error: errorText }) => {
     setBusy(true);
     try {
-      const done = await transmittalService.submit(t.id);
-      toast.success(`${done.number} submitted.`);
+      const result = await action();
+      setFailure(null);
+      if (success) toast.success(success(result));
       refresh();
     } catch (error) {
-      toast.error(ipasErrorMessage(error, "The Transmittal could not be submitted."));
+      const message = ipasErrorMessage(error, errorText);
+      toast.error(message);
+      if (from) {
+        setFailure({
+          key: from.key,
+          origin: from.origin,
+          message,
+          retry: () => perform(from, action, { success, error: errorText }),
+          dismiss: () => setFailure(null),
+        });
+      }
     } finally {
       setBusy(false);
     }
   };
 
-  const cancel = async () => {
-    setBusy(true);
-    try {
-      await transmittalService.cancel(t.id, reason);
-      toast.success(`${t.number} cancelled.`);
-      setCancelling(false);
-      setReason("");
-      refresh();
-    } catch (error) {
-      toast.error(ipasErrorMessage(error, "The Transmittal could not be cancelled."));
-    } finally {
-      setBusy(false);
-    }
+  const on = {
+    open: (key) => openSection(key),
+    submit: (from) =>
+      perform(from, () => transmittalService.submit(t.id), {
+        success: (done) => `${done.number} submitted.`,
+        error: "The Transmittal could not be submitted.",
+      }),
+    signStage: (stage, form, from) =>
+      perform(
+        from,
+        async () => {
+          const result = await transmittalService.completeStage(t.id, {
+            stage,
+            otherSignerId: form.otherId || null,
+            otherSignerName: form.otherId ? null : form.otherName.trim() || null,
+            remarks: form.remarks.trim() || null,
+            noPicturesReason: form.noPicturesReason.trim() || null,
+            signAsSecond: choosesSlot(stage) && form.signAsSecond,
+          });
+          setForms((prev) => ({ ...prev, [stage]: undefined }));
+          return result;
+        },
+        { success: () => `${STAGE_TITLE[stage]} signed.`, error: "The stage could not be signed." },
+      ),
+    confirmStage: (stageId, value, from) =>
+      perform(from, () => transmittalService.confirmSignature(stageId, value), {
+        success: () => (value ? "Signature confirmed." : "Signature declined."),
+        error: "The signature could not be updated.",
+      }),
+    recordOdoo: (ref, from) =>
+      perform(from, () => transmittalService.receivedInOdoo(t.id, ref), {
+        success: () => "Received in Odoo recorded.",
+        error: "The Odoo receipt could not be recorded.",
+      }),
+    checkBy: (slot, from) =>
+      perform(from, () => transmittalService.checkBy(t.id, slot), {
+        success: () => "Check by signed.",
+        error: "The Check by could not be signed.",
+      }),
+  };
+
+  const built = movesFor(t, rights, { forms, odooRef, on });
+  const offered = [...built.moves, ...built.declines];
+  const summaries = summariesOf(t, gates);
+  const numbers = numbersOf(t, gates);
+
+  // The next slip waiting on the viewer: the Check by queue's first other slip, once nothing is left for them here.
+  const nextSlip =
+    onCheckByList && !rights.checkBy.first && !rights.checkBy.second
+      ? (checkByQueue.find((slip) => slip.id !== t.id) ?? null)
+      : null;
+
+  const restate = (section) => {
+    if (section === SECTION.ODOO) return `Records that ${t.number} is received in Odoo.`;
+    if (section === SECTION.CHECK_BY) return `Signs a Check by plate on ${t.number}.`;
+    if (section === SECTION.DETAILS) return `Submits ${t.number}.`;
+    return `Signs ${STAGE_TITLE[section] ?? section} on ${t.number}.`;
   };
 
   // A slip prints once submitted: any stage, awaiting Check by, or closed. Not a draft, not cancelled.
   const canPrint = t.state !== TRANSMITTAL_STATE.DRAFT && t.state !== TRANSMITTAL_STATE.CANCELLED;
+  const hasTechnical = stagesOf(t).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
 
   const printTransmittalForm = async () => {
     const printWindow = openTransmittalPrintWindow();
@@ -177,8 +237,6 @@ function TransmittalPage() {
   };
 
   // The TSR is the Technical inspection stage printed as a report (#259).
-  const hasTechnical = stagesOf(t).includes(TRANSMITTAL_STAGE.TECHNICAL_INSPECTION);
-
   const printTsrForm = async ({ withPhotographs = false } = {}) => {
     const printWindow = openTsrPrintWindow();
     if (!printWindow) {
@@ -199,7 +257,56 @@ function TransmittalPage() {
     }
   };
 
-  const stages = stagesOf(t);
+  const cancel = async () => {
+    setBusy(true);
+    try {
+      await transmittalService.cancel(t.id, reason);
+      toast.success(`${t.number} cancelled.`);
+      setCancelling(false);
+      setReason("");
+      refresh();
+    } catch (error) {
+      toast.error(ipasErrorMessage(error, "The Transmittal could not be cancelled."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const menuItems = [];
+  if (canPrint) {
+    menuItems.push({ key: "print", label: "Print", icon: Printer, onSelect: printTransmittalForm });
+    if (hasTechnical) {
+      menuItems.push({ key: "tsr", label: "Print TSR", icon: Printer, onSelect: () => printTsrForm() });
+      menuItems.push({
+        key: "tsr-photos",
+        label: "Print with photographs",
+        icon: Printer,
+        onSelect: () => printTsrForm({ withPhotographs: true }),
+      });
+    }
+  }
+  if (rights.canCancel) {
+    menuItems.push({ key: "cancel", label: "Cancel", icon: XCircle, destructive: true, onSelect: () => setCancelling(true) });
+  }
+
+  const bodyOf = (section) => {
+    if (section === SECTION.DETAILS) return <DetailsBody t={t} />;
+    if (section === SECTION.LINES) return <LinesBody t={t} />;
+    if (section === SECTION.ODOO) return <OdooBody t={t} rights={rights} odooRef={odooRef} setOdooRef={setOdooRef} />;
+    if (section === SECTION.CHECK_BY) return <CheckByBody t={t} rights={rights} />;
+    return (
+      <StageBody
+        t={t}
+        stage={section}
+        rights={rights}
+        form={stageForm(section)}
+        setForm={setStageForm}
+        members={members}
+        userId={user?.id}
+        onChanged={refresh}
+      />
+    );
+  };
 
   return (
     <PageShell
@@ -213,42 +320,13 @@ function TransmittalPage() {
               Transmittals
             </Link>
           </Button>
-          {canPrint && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={printTransmittalForm}>
-              <Printer size={14} />
-              Print
-            </Button>
-          )}
-          {canPrint && hasTechnical && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => printTsrForm()}>
-              <Printer size={14} />
-              Print TSR
-            </Button>
-          )}
-          {canPrint && hasTechnical && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => printTsrForm({ withPhotographs: true })}>
-              <Printer size={14} />
-              Print with photographs
-            </Button>
-          )}
-          {isDraft && canChange && !editing && (
+          {rights.draft && rights.canChange && !editing && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditing(true)}>
               <Pencil size={14} />
               Edit
             </Button>
           )}
-          {isDraft && canChange && (
-            <Button size="sm" className="gap-1.5" disabled={busy || t.lines.length === 0} onClick={submit}>
-              <Send size={14} />
-              Submit
-            </Button>
-          )}
-          {canCancel && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCancelling(true)}>
-              <XCircle size={14} />
-              Cancel
-            </Button>
-          )}
+          <RecordMoreMenu items={menuItems} />
         </div>
       }
     >
@@ -260,173 +338,76 @@ function TransmittalPage() {
       )}
 
       {editing ? (
-        <TransmittalForm existing={t} onSaved={() => { setEditing(false); refresh(); }} onCancel={() => setEditing(false)} />
+        <TransmittalForm
+          existing={t}
+          onSaved={() => {
+            setEditing(false);
+            refresh();
+          }}
+          onCancel={() => setEditing(false)}
+        />
       ) : (
-        <>
-          <section className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card p-4 text-[13px] sm:grid-cols-3">
-            <Fact label="TG03" value={<span className="font-mono font-semibold">{t.number}</span>} />
-            <Fact label="Prepared" value={`${t.preparedOn}${t.preparedBy ? ` · ${t.preparedBy.name}` : ""}`} />
-            <Fact label="State" value={<StatusBadge theme="blue" label={transmittalStateLabel(t.state)} />} />
-            <Fact label="Origin" value={t.origin === "other" ? `Others: ${t.originOther ?? ""}` : TRANSMITTAL_ORIGIN_LABELS[t.origin]} />
-            <Fact
-              label="Checking"
-              value={[t.checkWarehouse && "Warehouse", t.checkTechnical && "TCA Technical", t.checkOther].filter(Boolean).join(" · ")}
+        <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="min-w-0 space-y-8">
+            <NumbersStrip
+              stats={[
+                { key: "lines", label: "Lines", value: numbers.lines, onOpen: () => openSection(SECTION.LINES) },
+                { key: "gc", label: "GC", value: numbers.gc },
+                { key: "na", label: "NA", value: numbers.na, tone: numbers.na > 0 ? "warning" : undefined },
+                {
+                  key: "steps",
+                  label: "Steps done",
+                  value: numbers.stepsTotal > 0 ? `${numbers.stepsDone} of ${numbers.stepsTotal}` : "—",
+                },
+              ]}
             />
-            <Fact label="Priority" value={TRANSMITTAL_PRIORITY_LABELS[t.priority] ?? t.priority} />
-            <Fact label="Company" value={t.entity} />
-            <Fact label="Product" value={[...t.products.map((p) => p.label), t.productOther].filter(Boolean).join(", ") || "—"} />
-            <Fact
-              label="Reference Checklist"
-              value={t.references.map((r) => r.label).join(", ") || "—"}
+            <RecordRows
+              groups={[{ sections }]}
+              stateOf={(key) => sectionState(key, t, gates)}
+              summaryOf={(key) => summaries[key]}
+              onOpen={openSection}
+              rowRef={(key) => (node) => {
+                rowEls.current[key] = node;
+              }}
             />
-            <Fact label="Item Location" value={t.itemLocation?.label ?? "—"} />
-            <Fact label="IPAS" value={t.ipasNumbers.join(", ") || "—"} />
-          </section>
+          </div>
+          <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
+            <RecordCard
+              status={statusLine(t, gates, offered)}
+              next={nextSlip && { to: `/purchasing/transmittals/${nextSlip.id}`, label: `Next Transmittal waiting for me: ${nextSlip.number}` }}
+              groups={[{ items: built.moves }, { items: built.declines }]}
+              gates={gates}
+              restate={restate}
+              reviewText={() => "Review section"}
+              onReview={openSection}
+              viewer={user?.name}
+              busy={busy}
+              failure={failure}
+              chainLabel="Where it stands"
+            />
+          </aside>
+        </div>
+      )}
 
-          <section className="space-y-2">
-            <p className="text-sm font-semibold">Lines</p>
-            {t.lines.length === 0 ? (
-              <p className="text-[13px] text-muted-foreground">No lines.</p>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-border bg-card">
-                <div className="overflow-x-auto">
-                  <Table tableId="transmittal-lines" className="md:min-w-[48rem]">
-                    <TableHeader>
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        {["#", "Item", "PO", "Project Name (S.O)", "Quantity", "SN#", "Quantity of Box", "Whs GC/NA", "TCA GC/NA"].map((h) => (
-                          <TableHead key={h} className="text-label font-bold uppercase tracking-wider">
-                            {h}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {t.lines.map((line) => (
-                        <TableRow key={line.id}>
-                          <TableCell>{line.position}</TableCell>
-                          <TableCell>{line.description}</TableCell>
-                          <TableCell>{line.poNumber ?? "Typed"}</TableCell>
-                          <TableCell>{line.sor?.salesReference ?? "—"}</TableCell>
-                          <TableCell>
-                            {line.quantity} {line.unit ?? ""}
-                            {line.quantityReceived != null && (
-                              <span className="block text-xs text-muted-foreground">{line.quantityReceived} received</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{line.serialNumbers || "—"}</TableCell>
-                          <TableCell>{line.boxQuantity || "—"}</TableCell>
-                          <TableCell>
-                            {ratingWithInCharge(line.whRating, line.whInChargeName)}
-                            {line.whRemark && <span className="block text-xs text-muted-foreground">{line.whRemark}</span>}
-                          </TableCell>
-                          <TableCell>
-                            {ratingWithInCharge(line.techRating, line.techInChargeName)}
-                            {line.techRemark && <span className="block text-xs text-muted-foreground">{line.techRemark}</span>}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-2">
-            <p className="text-sm font-semibold">Stages</p>
-            {stages.length === 0 ? (
-              <p className="text-[13px] text-muted-foreground">Opens when the slip is submitted.</p>
-            ) : (
-              <ul className="space-y-1 text-[13px]">
-                {stages.map((stage) => {
-                  const row = t.stages.find((s) => s.stage === stage);
-                  return (
-                    <li key={stage} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                      <span>{STAGE_LABEL[stage]}</span>
-                      <span className="text-muted-foreground">
-                        {row?.completed_at ? "Signed" : t.state === stage ? "Waiting" : "Not yet"}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
-          {stages.includes(TRANSMITTAL_STAGE.WAREHOUSE_CHECKING) && (
-            <section className="space-y-3">
-              <p className="text-sm font-semibold">Warehouse checking</p>
-              {canRate ? (
-                <WarehouseRatings transmittal={t} canRate onSaved={refresh} members={warehouseMembers} currentUserId={user?.id} />
-              ) : (
-                t.state === TRANSMITTAL_STATE.WAREHOUSE_CHECKING && (
-                  <p className="text-[13px] text-muted-foreground">
-                    Lines are rated GC or NA by the Warehouse while checking is open.
-                  </p>
-                )
-              )}
-              <WarehouseStageSignoff
-                transmittal={t}
-                stage={TRANSMITTAL_STAGE.WAREHOUSE_CHECKING}
-                canSign={canSignChecking}
-                currentUserId={user?.id}
-                members={members}
-                onChanged={refresh}
-              />
-            </section>
-          )}
-
-          {showReleasing && (
-            <section className="space-y-3">
-              <WarehouseStageSignoff
-                transmittal={t}
-                stage={TRANSMITTAL_STAGE.WAREHOUSE_RELEASING}
-                canSign={canSignReleasing}
-                currentUserId={user?.id}
-                members={members}
-                onChanged={refresh}
-              />
-            </section>
-          )}
-
-          {showTechnical && (
-            <section className="space-y-3">
-              <p className="text-sm font-semibold">Technical inspection</p>
-              {canRateTech ? (
-                <WarehouseRatings
-                  transmittal={t}
-                  canRate
-                  technical
-                  onSaved={refresh}
-                  members={technicalMembers}
-                  currentUserId={user?.id}
-                />
-              ) : (
-                t.state === TRANSMITTAL_STATE.TECHNICAL_INSPECTION && (
-                  <p className="text-[13px] text-muted-foreground">
-                    Lines are rated GC or NA by Technical while inspection is open.
-                  </p>
-                )
-              )}
-              <WarehouseStageSignoff
-                transmittal={t}
-                stage={TRANSMITTAL_STAGE.TECHNICAL_INSPECTION}
-                canSign={canSignTech}
-                currentUserId={user?.id}
-                members={members}
-                onChanged={refresh}
-              />
-            </section>
-          )}
-
-          <CheckBySection transmittal={t} canCheck={canCheck} currentUserId={user?.id} onChanged={refresh} />
-
-          {(t.checkWarehouse || t.stages.length > 0) && (
-            <section>
-              <OdooReceiptSection transmittal={t} canRecord={canRecordOdoo} onRecorded={refresh} />
-            </section>
-          )}
-        </>
+      {!editing && (
+        <RecordDrawer
+          number={t.number}
+          sections={sections}
+          current={current}
+          index={index}
+          step={step}
+          close={close}
+          getRow={(key) => rowEls.current[key]}
+          onEdit={() => {}}
+          body={current ? bodyOf(current.key) : null}
+          summary={current ? (summaries[current.key] ?? "") : ""}
+          moves={current ? footerMovesFor(built, current.key) : []}
+          editable={false}
+          restate={restate}
+          viewer={user?.name}
+          busy={busy}
+          failure={failure}
+        />
       )}
 
       <Dialog open={cancelling} onOpenChange={setCancelling}>
@@ -449,22 +430,6 @@ function TransmittalPage() {
         </DialogContent>
       </Dialog>
     </PageShell>
-  );
-}
-
-/** "NA · Carl Aldrin Barojabo": the rating and who was in charge of it. */
-function ratingWithInCharge(rating, inChargeName) {
-  const label = TRANSMITTAL_RATING_LABELS[rating];
-  if (!label) return "—";
-  return inChargeName ? `${label} · ${inChargeName}` : label;
-}
-
-function Fact({ label, value }) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-label font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <div>{value}</div>
-    </div>
   );
 }
 
