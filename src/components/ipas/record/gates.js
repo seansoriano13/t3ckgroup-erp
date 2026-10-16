@@ -12,7 +12,7 @@ import {
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { formatDate } from "@/utils/formatDate.js";
-import { STATE, STATE_WORD } from "./statePalette";
+import { STATE, STATE_WORD } from "@/components/record/statePalette";
 
 const name = (signoff) => signoff?.signedBy?.name ?? "someone";
 const APPROVED = IPAS_SIGNOFF_ROLE_LABELS[IPAS_SIGNOFF_ROLE.APPROVED];

@@ -1,23 +1,10 @@
-import { useRecordParam } from "@/hooks/useRecordParam";
+import { useOpenSection as useRecordOpenSection } from "@/components/record/useOpenSection";
 
-import { DRAWER_SECTIONS, isInPlace } from "./digest";
+import { DRAWER_SECTIONS, SECTIONS } from "./digest";
 
-/**
- * The section the drawer shows, kept in `?open=<key>` so a link or a reload
- * lands on it. Opening pushes a history entry (Back closes the drawer); stepping
- * to a neighbour and closing replace it. A short section (`inPlace`) takes the
- * same param but expands under its row instead: `inPlace` names it.
- */
+const IN_PLACE = SECTIONS.filter((section) => section.inPlace).map((section) => section.key);
+
+/** The IPAS's open section: the shared hook over the IPAS's sections. */
 export function useOpenSection() {
-  const { recordId, open, step, close } = useRecordParam("open");
-  const index = DRAWER_SECTIONS.findIndex((section) => section.key === recordId);
-
-  return {
-    index,
-    current: index >= 0 ? DRAWER_SECTIONS[index] : null,
-    inPlace: isInPlace(recordId) ? recordId : null,
-    open: (key) => (key ? open(key) : close()),
-    step,
-    close,
-  };
+  return useRecordOpenSection({ drawerSections: DRAWER_SECTIONS, inPlaceKeys: IN_PLACE });
 }

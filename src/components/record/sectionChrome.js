@@ -13,10 +13,10 @@ import { createContext, useContext } from "react";
 
 export const CHROME = { CARD: "card", DRAWER: "drawer", INLINE: "inline" };
 
-export const IpasSectionChrome = createContext(CHROME.CARD);
+export const RecordSectionChrome = createContext(CHROME.CARD);
 
 export function useChrome() {
-  return useContext(IpasSectionChrome);
+  return useContext(RecordSectionChrome);
 }
 
 /** True when a section body is rendered inside the drawer. */

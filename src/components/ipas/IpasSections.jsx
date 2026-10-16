@@ -31,8 +31,8 @@ import { changeNoteSummary, formatAmount } from "../../utils/ipas";
 import { buildBuyerTrack } from "../../utils/ipasDocuments";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatDate } from "../../utils/formatDate.js";
-import ReadTick from "./record/ReadTick";
-import { useBare, useEditable, useInDrawer } from "./record/sectionChrome";
+import ReadTick from "@/components/record/ReadTick";
+import { useBare, useEditable, useInDrawer } from "@/components/record/sectionChrome";
 
 /** One numbered section of the IPAS, as the sheet draws it. */
 export function IpasSection({ title, aside, children }) {

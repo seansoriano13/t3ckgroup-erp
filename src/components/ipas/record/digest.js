@@ -20,7 +20,7 @@ import { FILING_STATUS, SIGNOFF_STATUS, isLandedCostFinal } from "@/utils/ipasSi
 import { formatDay } from "@/utils/ipasPayments";
 import { formatDate } from "@/utils/formatDate.js";
 import { gatesFor } from "./gates";
-import { STATE } from "./statePalette";
+import { STATE } from "@/components/record/statePalette";
 
 /** A section's detail beside its state word, from its sign-offs. */
 const SIGNOFF_DETAIL = {

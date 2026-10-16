@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Textarea } from "@/components/ui/textarea";
-import InlineError from "@/components/ipas/record/InlineError";
+import InlineError from "@/components/record/InlineError";
 import { cn } from "@/lib/utils";
 import { ipasErrorMessage } from "@/utils/ipas";
 

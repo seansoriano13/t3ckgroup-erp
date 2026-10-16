@@ -26,14 +26,14 @@ import FilingDialog from "../../../components/ipas/FilingDialog";
 import { IpasFiledNotice } from "../../../components/ipas/IpasFiling";
 import { IpasWarnings } from "../../../components/ipas/IpasSections";
 import DecisionCard from "../../../components/ipas/record/DecisionCard";
-import InlineError from "../../../components/ipas/record/InlineError";
+import InlineError from "../../../components/record/InlineError";
 import Figures from "../../../components/ipas/record/Figures";
 import HeaderActions from "../../../components/ipas/record/HeaderActions";
 import SectionDrawer from "../../../components/ipas/record/SectionDrawer";
 import SectionsList from "../../../components/ipas/record/SectionsList";
 import { buildBlocks } from "../../../components/ipas/record/blocks";
 import { digestIpas, filingSummary, isInPlace } from "../../../components/ipas/record/digest";
-import { CHROME, IpasSectionChrome } from "../../../components/ipas/record/sectionChrome";
+import { CHROME, RecordSectionChrome } from "../../../components/record/sectionChrome";
 import { useEditSection } from "../../../components/ipas/record/useEditSection";
 import { useOpenSection } from "../../../components/ipas/record/useOpenSection";
 import {
@@ -917,8 +917,8 @@ function IpasPage() {
   // A row opens its section in the drawer; a short section toggles in place under its row.
   const openRow = (key) => (isInPlace(key) && inPlace === key ? closeSection() : openSection(key));
   const inPlaceBodies = {
-    logistics: <IpasSectionChrome.Provider value={CHROME.INLINE}>{blocks.logistics}</IpasSectionChrome.Provider>,
-    status: <IpasSectionChrome.Provider value={CHROME.INLINE}>{blocks.status}</IpasSectionChrome.Provider>,
+    logistics: <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks.logistics}</RecordSectionChrome.Provider>,
+    status: <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks.status}</RecordSectionChrome.Provider>,
   };
   const editView = editKey ? (
     <div className="space-y-6">
@@ -935,7 +935,7 @@ function IpasPage() {
           />
         )}
       </div>
-      <IpasSectionChrome.Provider value={CHROME.CARD}>{blocks[editKey]}</IpasSectionChrome.Provider>
+      <RecordSectionChrome.Provider value={CHROME.CARD}>{blocks[editKey]}</RecordSectionChrome.Provider>
     </div>
   ) : null;
 

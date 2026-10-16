@@ -1,7 +1,7 @@
-// The IPAS's six gates as one chain, IPAS-only (the Approval Center keeps its
-// own ApprovalChain). Each gate: its section and role, its state (done, Now or
-// waiting, always in words), who passed it and when. Exactly one is Now; the
-// gates and that choice come from gates.js.
+// A record's steps as one chain (the Approval Center keeps its own
+// ApprovalChain). Each gate: its label and role, its state (done, Now or
+// waiting, always in words), who passed it and when. At most one is Now; the
+// gates and that choice come from the form's own gates (IPAS: gates.js).
 
 import { Check } from "lucide-react";
 
@@ -27,16 +27,16 @@ function GateMark({ state }) {
 }
 
 /**
- * The chain of gates. `gates` is `digest.gates`. Each gate is a group named by
- * its accessible name ("Section 2, Purchasing & Finance, Approved, waiting"),
- * so a screen reader hears the section, the role and the state.
+ * The chain of gates. Each gate is a group named by its accessible name
+ * ("Section 2, Purchasing & Finance, Approved, waiting"), so a screen reader
+ * hears the step, the role and the state.
  */
-export default function IpasChain({ gates }) {
+export default function RecordChain({ gates, label = "Where it stands" }) {
   const done = gates.filter((gate) => gate.done).length;
   return (
     <div>
       <h3 className="text-sm font-semibold text-foreground">
-        Where it stands · {done} of {gates.length}
+        {label} · {done} of {gates.length}
       </h3>
       <ol className="mt-3 space-y-3">
         {gates.map((gate) => (

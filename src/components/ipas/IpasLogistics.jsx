@@ -4,7 +4,7 @@ import { SelectField } from "../ui/SelectField";
 import { IpasSection } from "./IpasSections";
 import { IPAS_OPTION_LIST, ipasSectionLabel } from "../../constants/ipas";
 import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
-import { useEditable } from "./record/sectionChrome";
+import { useEditable } from "@/components/record/sectionChrome";
 
 const NONE = "__none__";
 

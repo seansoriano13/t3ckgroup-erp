@@ -4,7 +4,6 @@
 // "Review section" link, which opens the section in the drawer.
 
 import { Button } from "@/components/ui/button";
-import { ipasSectionLabel } from "@/constants/ipas";
 import { cn } from "@/lib/utils";
 import { APPROVE_CLASS } from "@/components/ui/approveClass";
 import InlineError from "./InlineError";
@@ -19,9 +18,10 @@ const LOOK = {
 /**
  * `origin` names where the move is drawn ("card" or "drawer"); a failure
  * carries the same origin, so only the copy at that place shows it.
- * `onReview(section)` adds the link (the card only).
+ * `onReview(section)` adds the link (the card only); `reviewText(section)` is
+ * the link's words.
  */
-export default function MoveButton({ move, origin, disabled = false, onRun, onReview, failure, busy = false }) {
+export default function MoveButton({ move, origin, disabled = false, onRun, onReview, reviewText, failure, busy = false }) {
   const { icon: Icon, label, hint, kind, key } = move;
   const failed = failure && failure.key === key && failure.origin === origin ? failure : null;
 
@@ -54,7 +54,7 @@ export default function MoveButton({ move, origin, disabled = false, onRun, onRe
             className="h-auto justify-self-start p-0 text-xs font-medium text-foreground underline underline-offset-4 hover:text-muted-foreground"
             onClick={() => onReview(move.section)}
           >
-            Review section {ipasSectionLabel(move.section)}
+            {reviewText ? reviewText(move.section) : "Review section"}
           </Button>
         )}
       </div>

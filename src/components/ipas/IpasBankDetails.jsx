@@ -5,7 +5,7 @@ import { DetailRow } from "../ui/DetailParts";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { ipasSectionLabel } from "../../constants/ipas";
-import { useEditable } from "./record/sectionChrome";
+import { useEditable } from "@/components/record/sectionChrome";
 
 /**
  * Bank details inside section 3 (#245): Bank Name, Account Name and Account #,

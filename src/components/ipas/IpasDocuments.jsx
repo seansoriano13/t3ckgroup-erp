@@ -17,8 +17,8 @@ import {
   IPAS_TICK_SIDE,
   IPAS_TICK_SIDE_LABELS,
 } from "../../constants/ipas";
-import ReadTick from "./record/ReadTick";
-import { useEditable, useInDrawer } from "./record/sectionChrome";
+import ReadTick from "@/components/record/ReadTick";
+import { useEditable, useInDrawer } from "@/components/record/sectionChrome";
 import { ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
 import { uploadDocumentFile } from "./uploadDocumentFile";
 

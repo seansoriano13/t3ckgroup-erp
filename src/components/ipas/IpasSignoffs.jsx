@@ -5,7 +5,7 @@ import StatusBadge from "../StatusBadge";
 import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_LABELS } from "../../constants/ipas";
 import { SIGNOFF_STATUS } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
-import { useInDrawer } from "./record/sectionChrome";
+import { useInDrawer } from "@/components/record/sectionChrome";
 
 const STATUS_BADGE = {
   [SIGNOFF_STATUS.NOT_PREPARED]: { label: "Not prepared" },

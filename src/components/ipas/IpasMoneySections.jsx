@@ -8,7 +8,7 @@ import { SelectField } from "../ui/SelectField";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
-import { useEditable } from "./record/sectionChrome";
+import { useEditable } from "@/components/record/sectionChrome";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,

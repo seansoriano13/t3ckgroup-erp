@@ -16,7 +16,7 @@ import {
 import { filingChecklist } from "../../utils/ipasDocuments";
 import { FILING_STATUS, isLandedCostFinal } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
-import { useInDrawer } from "./record/sectionChrome";
+import { useInDrawer } from "@/components/record/sectionChrome";
 
 /** The two sign-off sections that open section 7, as a person reads them. */
 const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")}`;
