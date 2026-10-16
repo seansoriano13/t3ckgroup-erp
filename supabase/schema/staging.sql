@@ -209,6 +209,19 @@ create table if not exists public."companies" (
   "updated_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."costing_bid_decisions" (
+  "id" uuid not null default gen_random_uuid(),
+  "matrix_id" uuid not null,
+  "verdict" text not null,
+  "reason" text not null,
+  "decided_by" uuid,
+  "decided_at" timestamp with time zone not null default now(),
+  "final_offer_total" numeric(18,2) not null,
+  "abc_total" numeric(18,2),
+  "cleared_at" timestamp with time zone,
+  "cleared_reason" text
+);
+
 create table if not exists public."costing_column_bands" (
   "table_name" text not null,
   "column_name" text not null,
@@ -1617,6 +1630,7 @@ alter table committee_task_members add constraint "committee_task_members_pkey" 
 alter table committee_task_tags add constraint "committee_task_tags_pkey" PRIMARY KEY (committee_task_id, tag_id);
 alter table committee_tasks add constraint "committee_tasks_pkey" PRIMARY KEY (id);
 alter table companies add constraint "companies_pkey" PRIMARY KEY (id);
+alter table costing_bid_decisions add constraint "costing_bid_decisions_pkey" PRIMARY KEY (id);
 alter table costing_column_bands add constraint "costing_column_bands_pkey" PRIMARY KEY (table_name, column_name);
 alter table costing_column_tiers add constraint "costing_column_tiers_pkey" PRIMARY KEY (table_name, column_name);
 alter table costing_component_costs add constraint "costing_component_costs_pkey" PRIMARY KEY (component_id);
@@ -1772,6 +1786,9 @@ alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_ch
 alter table commission_rates add constraint "commission_rates_rate_type_chk" CHECK ((rate_type = ANY (ARRAY['VAT'::text, 'WITHHOLDING'::text, 'POOL'::text, 'RETENTION'::text])));
 alter table commission_splits add constraint "commission_splits_project_type_chk" CHECK ((project_type = ANY (ARRAY['SSP'::text, 'CP'::text, 'STRATEGIC'::text])));
 alter table commission_splits add constraint "commission_splits_share_role_chk" CHECK ((share_role = ANY (ARRAY['deal_owner'::text, 'supporting_salesperson'::text, 'closing_salesperson'::text, 'sales_director'::text])));
+alter table costing_bid_decisions add constraint "costing_bid_decisions_cleared_chk" CHECK (((cleared_at IS NULL) = (cleared_reason IS NULL)));
+alter table costing_bid_decisions add constraint "costing_bid_decisions_reason_chk" CHECK ((length(btrim(reason)) > 0));
+alter table costing_bid_decisions add constraint "costing_bid_decisions_verdict_chk" CHECK ((verdict = ANY (ARRAY['go'::text, 'no_go'::text, 'revise'::text])));
 alter table costing_column_bands add constraint "costing_column_bands_bands_chk" CHECK ((bands <@ ARRAY['sales'::text, 'purchasing'::text, 'management'::text, 'technical'::text, 'finance'::text, 'super_admin_only'::text]));
 alter table costing_column_tiers add constraint "costing_column_tiers_tiers_chk" CHECK ((tiers <@ ARRAY['participant'::text, 'price'::text, 'cost'::text, 'closed_book'::text]));
 alter table costing_component_costs add constraint "costing_component_costs_acquire_chk" CHECK (((acquire_unit IS NULL) OR (acquire_unit >= (0)::numeric)));
@@ -1973,6 +1990,8 @@ alter table committee_tasks add constraint "committee_tasks_opportunity_id_fkey"
 alter table committee_tasks add constraint "committee_tasks_stage_action_id_fkey" FOREIGN KEY (stage_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_template_id_fkey" FOREIGN KEY (template_id) REFERENCES group_task_templates(id) ON DELETE SET NULL;
+alter table costing_bid_decisions add constraint "costing_bid_decisions_decided_by_fkey" FOREIGN KEY (decided_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_bid_decisions add constraint "costing_bid_decisions_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_component_costs add constraint "costing_component_costs_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table costing_components add constraint "costing_components_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_components add constraint "costing_components_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
@@ -2238,6 +2257,8 @@ CREATE INDEX committee_tasks_opportunity_id_idx ON public.committee_tasks USING 
 CREATE INDEX committee_tasks_stage_visit_id_idx ON public.committee_tasks USING btree (stage_visit_id);
 CREATE INDEX committee_tasks_template_idx ON public.committee_tasks USING btree (template_id);
 CREATE UNIQUE INDEX companies_sort_order_key ON public.companies USING btree (sort_order);
+CREATE UNIQUE INDEX costing_bid_decisions_live_key ON public.costing_bid_decisions USING btree (matrix_id) WHERE (cleared_at IS NULL);
+CREATE INDEX costing_bid_decisions_matrix_idx ON public.costing_bid_decisions USING btree (matrix_id, decided_at);
 CREATE INDEX costing_components_line_idx ON public.costing_components USING btree (tender_line_id, "position");
 CREATE INDEX costing_cost_rows_matrix_idx ON public.costing_cost_rows USING btree (matrix_id, "position");
 CREATE INDEX costing_events_matrix_idx ON public.costing_events USING btree (matrix_id, created_at DESC);
@@ -2404,6 +2425,7 @@ alter table public."committee_task_members" enable row level security;
 alter table public."committee_task_tags" enable row level security;
 alter table public."committee_tasks" enable row level security;
 alter table public."companies" enable row level security;
+alter table public."costing_bid_decisions" enable row level security;
 alter table public."costing_column_bands" enable row level security;
 alter table public."costing_column_tiers" enable row level security;
 alter table public."costing_component_costs" enable row level security;
@@ -2754,6 +2776,11 @@ create policy "companies_write" on public."companies"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))));
+create policy "costing_bid_decisions_read" on public."costing_bid_decisions"
+  as permissive
+  for select
+  to authenticated
+  using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
 create policy "costing_column_bands_read" on public."costing_column_bands"
   as permissive
   for select
@@ -5999,6 +6026,67 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_bid_decisions_clear()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_reason text := tg_argv[0];
+  v_column text := coalesce(tg_argv[1], '');
+  v_old    jsonb := case when tg_op = 'INSERT' then null else to_jsonb(old) end;
+  v_new    jsonb := case when tg_op = 'DELETE' then null else to_jsonb(new) end;
+  v_row    jsonb := coalesce(v_new, v_old);
+  v_matrix uuid;
+begin
+  if v_column <> '' then
+    if tg_op = 'INSERT' and (v_new -> v_column) is null then
+      return null;
+    elsif tg_op = 'DELETE' and (v_old -> v_column) is null then
+      return null;
+    elsif tg_op = 'UPDATE' and (v_new -> v_column) is not distinct from (v_old -> v_column) then
+      return null;
+    end if;
+    if tg_op = 'INSERT' and (v_new -> v_column) = 'null'::jsonb then
+      return null;
+    elsif tg_op = 'DELETE' and (v_old -> v_column) = 'null'::jsonb then
+      return null;
+    end if;
+  end if;
+
+  v_matrix := public.costing_matrix_of(tg_table_name, v_row);
+  -- The matrix is going (an SOR cascade): nothing left to clear.
+  if v_matrix is null or not exists (select 1 from public.costing_matrices where id = v_matrix) then
+    return null;
+  end if;
+
+  update public.costing_bid_decisions
+     set cleared_at = now(), cleared_reason = v_reason
+   where matrix_id = v_matrix and cleared_at is null;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_bid_totals(p_matrix_id uuid)
+ RETURNS TABLE(final_offer_total numeric, abc_total numeric, line_count integer, missing_offer integer, missing_abc integer)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    case when count(*) > 0 and count(*) filter (where p.final_offer_unit is null) = 0
+         then sum(round(p.final_offer_unit * l.quantity, 2)) end,
+    case when count(*) > 0 and count(*) filter (where p.abc_unit is null) = 0
+         then sum(round(p.abc_unit * l.quantity, 2)) end,
+    count(*)::integer,
+    (count(*) filter (where p.final_offer_unit is null))::integer,
+    (count(*) filter (where p.abc_unit is null))::integer
+  from public.costing_tender_lines l
+  left join public.costing_tender_line_prices p on p.tender_line_id = l.id
+  where l.matrix_id = p_matrix_id
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_bundle_keeps_inclusions()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -6137,6 +6225,83 @@ begin
   delete from public.costing_inclusions where component_id = old.id;
   delete from public.costing_component_costs where component_id = old.id;
   return old;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_decide_bid(p_matrix_id uuid, p_verdict text, p_reason text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor  uuid := public.get_employee_id();
+  v_opp    uuid := public.costing_matrix_opp(p_matrix_id);
+  v_totals record;
+  v_id     uuid;
+  v_title  text;
+  v_label  text;
+  v_member record;
+begin
+  if v_actor is null then
+    raise exception 'costing_bid: sign in first' using errcode = '42501';
+  end if;
+  if v_opp is null then
+    raise exception 'costing_bid: matrix not found' using errcode = 'P0002';
+  end if;
+  if public.costing_tier(v_opp) is distinct from 'closed_book' then
+    raise exception 'costing_bid: only a Super Admin or the Final Acquire list can decide a bid' using errcode = '42501';
+  end if;
+  if p_verdict is null or p_verdict not in ('go', 'no_go', 'revise') then
+    raise exception 'costing_bid: the verdict must be Go, No-go or Revise' using errcode = '23514';
+  end if;
+  if p_reason is null or length(btrim(p_reason)) = 0 then
+    raise exception 'costing_bid: write the reason for the decision' using errcode = '23514';
+  end if;
+
+  -- One decision at a time per matrix (ADR 0013).
+  perform 1 from public.costing_matrices where id = p_matrix_id for update;
+
+  select * into v_totals from public.costing_bid_totals(p_matrix_id);
+  if v_totals.line_count = 0 or v_totals.missing_offer > 0 then
+    raise exception 'costing_bid: every Tender Line needs a Final Offer before the bid can be decided' using errcode = '23514';
+  end if;
+
+  update public.costing_bid_decisions
+     set cleared_at = now(), cleared_reason = 'Decided again'
+   where matrix_id = p_matrix_id and cleared_at is null;
+
+  insert into public.costing_bid_decisions (matrix_id, verdict, reason, decided_by, final_offer_total, abc_total)
+  values (p_matrix_id, p_verdict, btrim(p_reason), v_actor, v_totals.final_offer_total, v_totals.abc_total)
+  returning id into v_id;
+
+  if p_verdict in ('no_go', 'revise') then
+    select o.project_title into v_title from public.sales_opportunities o where o.id = v_opp;
+    v_label := case p_verdict when 'no_go' then 'No-go' else 'Revise' end;
+    -- The Deal Team, once each, never the decider. The message carries the verdict and the
+    -- reason, and no figure: Sales never reads the numbers a decision was taken against.
+    for v_member in
+      select distinct t.employee_id
+      from public.sales_opportunities o
+      cross join lateral public._sor_deal_team_roles(o) t
+      join public.employees e on e.id = t.employee_id
+      where o.id = v_opp
+        and t.employee_id <> v_actor
+        and not coalesce(e.is_deleted, false)
+    loop
+      insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+      values (
+        v_member.employee_id,
+        v_actor,
+        'SOR_BID_DECISION',
+        format('Bid decision: %s', v_label),
+        format('The bid on "%s" is %s: %s', coalesce(v_title, 'this deal'), v_label, btrim(p_reason)),
+        v_opp::text
+      );
+    end loop;
+  end if;
+
+  return v_id;
 end;
 $function$
 ;
@@ -6654,6 +6819,32 @@ begin
   perform set_config('costing.bypass', 'off', true);
   return v_id;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_pending_bid_decisions()
+ RETURNS TABLE(matrix_id uuid, opportunity_id uuid, project_title text, final_offer_total numeric, abc_total numeric, waiting_since timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select m.id, m.opportunity_id, o.project_title, t.final_offer_total, t.abc_total,
+         coalesce(
+           (select max(e.created_at) from public.costing_events e
+             where e.matrix_id = m.id and e.detail ->> 'table' = 'costing_tender_line_prices'),
+           m.created_at
+         )
+  from public.costing_matrices m
+  join public.sales_opportunities o on o.id = m.opportunity_id
+  cross join lateral public.costing_bid_totals(m.id) t
+  where (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire'))
+    and not coalesce(o.is_deleted, false)
+    and not coalesce(o.is_scratch, false)
+    and t.line_count > 0
+    and t.missing_offer = 0
+    and not exists (
+      select 1 from public.costing_bid_decisions d where d.matrix_id = m.id and d.cleared_at is null
+    )
+  order by 6, m.id
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_pick(p_row jsonb, p_cols text[])
@@ -17238,7 +17429,9 @@ $function$
 -- Triggers
 -- ============================================================
 
+CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_bid_decisions FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_bid_clear_component AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
@@ -17246,6 +17439,7 @@ CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_
 CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_components_cleanup();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_bid_clear_cost_row AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_events_no_change BEFORE DELETE OR UPDATE ON public.costing_events FOR EACH ROW EXECUTE FUNCTION costing_events_append_only();
 CREATE TRIGGER costing_events_no_truncate BEFORE TRUNCATE ON public.costing_events FOR EACH STATEMENT EXECUTE FUNCTION costing_events_append_only();
@@ -17261,8 +17455,10 @@ CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.c
 CREATE TRIGGER costing_matrix_money_touch BEFORE UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
 CREATE TRIGGER costing_settings_stamp BEFORE UPDATE ON public.costing_settings FOR EACH ROW EXECUTE FUNCTION costing_settings_stamp();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_bid_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_bid_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
