@@ -1,7 +1,17 @@
 import { stubRpc } from "@/test/msw/server"
 import { db, deleteRows, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
-import { COMPONENT_COST_BANDS, COMPONENT_COST_TIERS, COST_ROW_BANDS, COSTING_TIER, TENDER_PRICE_TIERS, tierReads, tierReadsCost } from "@/constants/costing"
+import {
+  COMPONENT_COST_BANDS,
+  COMPONENT_COST_TIERS,
+  COST_ROW_BANDS,
+  COSTING_TIER,
+  MATRIX_MONEY_BANDS,
+  MATRIX_MONEY_TIERS,
+  TENDER_PRICE_TIERS,
+  tierReads,
+  tierReadsCost,
+} from "@/constants/costing"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
@@ -95,6 +105,13 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       .sort((a, b) => a.position - b.position)
       .map((r) => onlyReadable(r, ["id", "matrix_id", "position", "description", "quantity", "created_at", ...costColumns]))
 
+    // #270: Marketing and OPEX sit on the matrix's money row, read by Closed Book alone.
+    const moneyColumns = Object.keys(MATRIX_MONEY_TIERS).filter((c) => MATRIX_MONEY_TIERS[c].includes(tier))
+    if (moneyColumns.length > 0) {
+      const money = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrix.id) ?? { matrix_id: matrix.id }
+      tables.costing_matrix_money = [onlyReadable(money, ["matrix_id", ...moneyColumns])]
+    }
+
     const priceColumns = Object.keys(TENDER_PRICE_TIERS).filter((c) => tierReads(tier, c))
     if (priceColumns.length > 0) {
       tables.costing_tender_line_prices = rowsOf("costing_tender_line_prices")
@@ -113,8 +130,14 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     costing_tender_line_prices: { abc_unit: ["sales"], final_offer_unit: ["sales"] },
     costing_component_costs: COMPONENT_COST_BANDS,
     costing_cost_rows: { ...COST_ROW_BANDS },
+    costing_matrix_money: MATRIX_MONEY_BANDS,
   }
-  const MONEY_KEY = { costing_tender_line_prices: "tender_line_id", costing_component_costs: "component_id", costing_cost_rows: "id" }
+  const MONEY_KEY = {
+    costing_tender_line_prices: "tender_line_id",
+    costing_component_costs: "component_id",
+    costing_cost_rows: "id",
+    costing_matrix_money: "matrix_id",
+  }
 
   stubRpc("costing_set_money", (args) => {
     const table = args.p_table

@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
-import { bandRefusalMessage } from "../constants/costing";
-import { componentTotals, costRowsTotals, costRowTotals, lineTotals, matrixTotals } from "../utils/costingMath";
+import { COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsSummary } from "../constants/costing";
+import { componentTotals, costRowsTotals, costRowTotals, lineTotals, matrixTotals, summary } from "../utils/costingMath";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 
@@ -30,6 +30,12 @@ import { sorLineChange } from "../utils/requestedItem";
  * below the Tender Lines in `costing_cost_rows`, also a money table, and stay out of any
  * Tender Line's totals. A rule the database holds (an Inclusion only under a bundle, an
  * incharge on the Deal Team or with Purchasing access) surfaces as a `CostingRuleError`.
+ *
+ * The summary (#270) is worked here from what the tier received and only for the Closed Book
+ * tier: the Final Acquire figures it needs reach no other tier, so every other tier's matrix has
+ * no `summary` key at all. The rates it uses are `costing_settings`, a single row any signed-in
+ * employee reads and Finance access or a Super Admin edits; the signer lists (who writes Final
+ * Acquire) are readable by all and written by Super Admins.
  */
 
 /**
@@ -173,8 +179,11 @@ function groupInclusions(inclusions) {
  * (numbered 1.1, 1.2, with their costs merged in where the tier received them, their
  * totals and, for a bundle, its Inclusions under their headings and the Completeness
  * count); the cost-only rows come beneath, outside every line's totals.
+ *
+ * Closed Book only: `money` (Marketing and OPEX as typed) and `summary`, worked by
+ * `costingMath.summary` from the rates in `settings`. Any other tier gets neither key.
  */
-export function shapeMatrix(read) {
+export function shapeMatrix(read, settings = null) {
   if (!read) return null;
   const tables = read.tables ?? {};
   const matrix = (tables.costing_matrices ?? [])[0] ?? null;
@@ -213,7 +222,7 @@ export function shapeMatrix(read) {
 
   const costRows = (tables.costing_cost_rows ?? []).map((row, index) => ({ ...row, number: index + 1, totals: costRowTotals(row) }));
 
-  return {
+  const shaped = {
     tier: read.tier,
     bands: read.bands ?? [],
     matrixId: read.matrix_id,
@@ -223,7 +232,30 @@ export function shapeMatrix(read) {
     costRows,
     costRowsTotals: costRowsTotals(costRows),
   };
+
+  if (tierReadsSummary(read.tier)) {
+    const money = (tables.costing_matrix_money ?? [])[0] ?? null;
+    shaped.money = money;
+    shaped.summary = summary({ tenderLines, costRows, money }, settings ?? DEFAULT_COSTING_SETTINGS);
+  }
+  return shaped;
 }
+
+/** The rates row as the screen uses it: camelCase numbers (PostgREST may send numeric columns as text). */
+function shapeSettings(row) {
+  if (!row) return null;
+  return {
+    vatDivisor: Number(row.vat_divisor),
+    taxRate: Number(row.tax_rate),
+    retentionRate: Number(row.retention_rate),
+    itrRate: Number(row.itr_rate),
+    itrAllowance: Number(row.itr_allowance),
+    updatedAt: row.updated_at ?? null,
+    updatedBy: row.updated_by ?? null,
+  };
+}
+
+const SIGNER_LISTS = Object.values(COSTING_SIGNER_LIST);
 
 export const costingMatrixService = {
   /** The caller's read tier on the SOR (`closed_book`, `cost`, `price`, `participant`), or null. */
@@ -242,7 +274,95 @@ export const costingMatrixService = {
     if (!opportunityId) return null;
     const { data, error } = await supabase.rpc("costing_matrix_read", { p_opportunity_id: opportunityId });
     if (error) throw error;
-    return shapeMatrix(data);
+    // The rates are only needed for the summary, which only the Closed Book tier is given.
+    const settings = data && tierReadsSummary(data.tier) ? await costingMatrixService.getSettings() : null;
+    return shapeMatrix(data, settings);
+  },
+
+  /**
+   * The summary's rates: `{ vatDivisor, taxRate, retentionRate, itrRate, itrAllowance, updatedAt,
+   * updatedBy }`, or null when the row cannot be read. Any signed-in employee may read them.
+   */
+  async getSettings() {
+    const { data, error } = await supabase.from("costing_settings").select("*").eq("id", 1).maybeSingle();
+    if (error) throw error;
+    return shapeSettings(data);
+  },
+
+  /**
+   * Changes the rates: any of `vatDivisor`, `taxRate`, `retentionRate`, `itrRate`, `itrAllowance`.
+   * Finance access or a Super Admin; the database refuses anyone else, and so does this method (it
+   * reports it in words rather than leaving a save that silently did nothing). Returns the new rates.
+   */
+  async setSettings(fields) {
+    const columns = {};
+    if ("vatDivisor" in fields) columns.vat_divisor = fields.vatDivisor;
+    if ("taxRate" in fields) columns.tax_rate = fields.taxRate;
+    if ("retentionRate" in fields) columns.retention_rate = fields.retentionRate;
+    if ("itrRate" in fields) columns.itr_rate = fields.itrRate;
+    if ("itrAllowance" in fields) columns.itr_allowance = fields.itrAllowance;
+    if (Object.keys(columns).length === 0) return costingMatrixService.getSettings();
+    const { data, error } = await supabase.from("costing_settings").update(columns).eq("id", 1).select("*");
+    if (error) throw error;
+    if (!data?.length) throw new CostingRuleError("Only Finance access or a Super Admin can change the rates.", "42501");
+    return shapeSettings(data[0]);
+  },
+
+  /**
+   * The signer lists as `{ final_acquire: [{ id, employeeId }], evaluation: [...] }`, oldest first.
+   * Anyone signed in reads who is on a list; only Super Admins change one.
+   */
+  async getSignerLists() {
+    const { data, error } = await supabase
+      .from("costing_signer_lists")
+      .select("id, list_key, employee_id, created_at")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    const lists = Object.fromEntries(SIGNER_LISTS.map((key) => [key, []]));
+    for (const row of data ?? []) {
+      if (lists[row.list_key]) lists[row.list_key].push({ id: row.id, employeeId: row.employee_id });
+    }
+    return lists;
+  },
+
+  /**
+   * Makes one signer list exactly the given employees: adds who is new, removes who is gone.
+   * Super Admins only (the database refuses everyone else, and a refused removal is reported).
+   * Returns the list as `getSignerLists` gives it.
+   */
+  async setSignerList(listKey, employeeIds = []) {
+    if (!SIGNER_LISTS.includes(listKey)) throw new CostingRuleError("That is not a signer list.", "22023");
+    const wanted = [...new Set((employeeIds ?? []).filter(Boolean))];
+    const current = (await costingMatrixService.getSignerLists())[listKey];
+
+    const toAdd = wanted.filter((id) => !current.some((m) => m.employeeId === id));
+    if (toAdd.length > 0) {
+      const { error } = await supabase.from("costing_signer_lists").insert(toAdd.map((employee_id) => ({ list_key: listKey, employee_id })));
+      if (error) throw error;
+    }
+    const toRemove = current.filter((m) => !wanted.includes(m.employeeId));
+    if (toRemove.length > 0) {
+      const { data, error } = await supabase
+        .from("costing_signer_lists")
+        .delete()
+        .in("id", toRemove.map((m) => m.id))
+        .select("id");
+      if (error) throw error;
+      if ((data?.length ?? 0) !== toRemove.length) throw new CostingRuleError("Only a Super Admin can change a signer list.", "42501");
+    }
+    return (await costingMatrixService.getSignerLists())[listKey];
+  },
+
+  /**
+   * Types Marketing and OPEX on the summary: `{ marketing, opex }` (null clears). Finance access or
+   * the Final Acquire list. Written through `costing_set_money`: the caller usually cannot select
+   * the money row.
+   */
+  async updateMatrixMoney(matrixId, fields) {
+    const patch = {};
+    if ("marketing" in fields) patch.marketing = blankToNull(fields.marketing);
+    if ("opex" in fields) patch.opex = blankToNull(fields.opex);
+    await writeMoney("costing_matrix_money", matrixId, patch);
   },
 
   /**

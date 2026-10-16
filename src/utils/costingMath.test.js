@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { componentTotals, costRowsTotals, costRowTotals, extended, lineTotals, matrixTotals, percentOf, summary } from "./costingMath";
+import { componentTotals, costRowsTotals, costRowTotals, extended, finalAcquireTotal, lineTotals, matrixTotals, percentOf, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -52,7 +52,6 @@ describe("lineTotals", () => {
       percentOfAbc: 82.92,
       acquireTotal: null,
       odooTotal: null,
-      finalAcquireTotal: null,
     });
   });
 
@@ -69,7 +68,6 @@ describe("lineTotals", () => {
       percentOfAbc: null,
       acquireTotal: null,
       odooTotal: null,
-      finalAcquireTotal: null,
     });
     expect(lineTotals({ quantity: 2, abc_unit: null, final_offer_unit: 5 })).toEqual({
       abcTotal: null,
@@ -78,7 +76,6 @@ describe("lineTotals", () => {
       percentOfAbc: null,
       acquireTotal: null,
       odooTotal: null,
-      finalAcquireTotal: null,
     });
     expect(lineTotals({ quantity: 2 })).toEqual({
       abcTotal: null,
@@ -87,7 +84,6 @@ describe("lineTotals", () => {
       percentOfAbc: null,
       acquireTotal: null,
       odooTotal: null,
-      finalAcquireTotal: null,
     });
   });
 
@@ -139,9 +135,9 @@ describe("lineTotals", () => {
 
 describe("componentTotals and cost-only rows", () => {
   it("totals one Component or cost-only row, blank staying blank", () => {
-    expect(componentTotals({ quantity: 4, acquire_unit: 25.5, odoo_unit: 30 })).toEqual({ acquireTotal: 102, odooTotal: 120, finalAcquireTotal: null });
-    expect(costRowTotals({ quantity: 1, acquire_unit: 100000 })).toEqual({ acquireTotal: 100000, odooTotal: null, finalAcquireTotal: null });
-    expect(componentTotals(undefined)).toEqual({ acquireTotal: null, odooTotal: null, finalAcquireTotal: null });
+    expect(componentTotals({ quantity: 4, acquire_unit: 25.5, odoo_unit: 30 })).toEqual({ acquireTotal: 102, odooTotal: 120 });
+    expect(costRowTotals({ quantity: 1, acquire_unit: 100000 })).toEqual({ acquireTotal: 100000, odooTotal: null });
+    expect(componentTotals(undefined)).toEqual({ acquireTotal: null, odooTotal: null });
   });
 
   it("keeps cost-only rows out of a Tender Line's totals and adds them up on their own", () => {
@@ -149,9 +145,9 @@ describe("componentTotals and cost-only rows", () => {
       { quantity: 1, acquire_unit: 100000, odoo_unit: 110000 },
       { quantity: 2, acquire_unit: 5000, odoo_unit: 6000 },
     ];
-    expect(costRowsTotals(rows)).toEqual({ acquireTotal: 110000, odooTotal: 122000, finalAcquireTotal: null });
+    expect(costRowsTotals(rows)).toEqual({ acquireTotal: 110000, odooTotal: 122000 });
     expect(costRowsTotals([...rows, { quantity: 1, odoo_unit: 1 }]).acquireTotal).toBeNull();
-    expect(costRowsTotals([])).toEqual({ acquireTotal: null, odooTotal: null, finalAcquireTotal: null });
+    expect(costRowsTotals([])).toEqual({ acquireTotal: null, odooTotal: null });
     expect(lineTotals({ quantity: 1 }, []).acquireTotal).toBeNull();
   });
 });
@@ -356,5 +352,14 @@ describe("summary", () => {
   it("reads rates that arrive as text, as PostgREST sends numeric columns", () => {
     const text = { vatDivisor: "1.120000", taxRate: "0.060000", retentionRate: "0.010000", itrRate: "0.080000", itrAllowance: "250000.00" };
     expect(summary(matrix({ offer: 3930715, acquires: [1156780] }), text).revenue).toBe(2479477.8);
+  });
+});
+
+describe("finalAcquireTotal", () => {
+  it("adds Final Acquire x quantity, and stays blank while any row has none", () => {
+    expect(finalAcquireTotal([{ quantity: 2, final_acquire_unit: 100.25 }, { quantity: 1, final_acquire_unit: 50 }])).toBe(250.5);
+    expect(finalAcquireTotal([{ quantity: 2, final_acquire_unit: 100 }, { quantity: 1 }])).toBeNull();
+    expect(finalAcquireTotal([])).toBeNull();
+    expect(finalAcquireTotal(undefined)).toBeNull();
   });
 });

@@ -86,7 +86,6 @@ export function componentTotals(component) {
   return {
     acquireTotal: pesosFromCentavos(extendedCentavos(component?.acquire_unit, component?.quantity)),
     odooTotal: pesosFromCentavos(extendedCentavos(component?.odoo_unit, component?.quantity)),
-    finalAcquireTotal: pesosFromCentavos(extendedCentavos(component?.final_acquire_unit, component?.quantity)),
   };
 }
 
@@ -102,8 +101,16 @@ export function costRowsTotals(rows) {
   return {
     acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.acquire_unit, r?.quantity)))),
     odooTotal: pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.odoo_unit, r?.quantity)))),
-    finalAcquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.final_acquire_unit, r?.quantity)))),
   };
+}
+
+/**
+ * The Final Acquire of a set of Components or cost-only rows added up (#270), or null when there are
+ * none or any one has no Final Acquire. Closed Book only: no other tier is sent the figures.
+ */
+export function finalAcquireTotal(rows) {
+  const list = rows ?? [];
+  return pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.final_acquire_unit, r?.quantity))));
 }
 
 /**
@@ -115,8 +122,8 @@ export function costRowsTotals(rows) {
  *   abcTotal, finalOfferTotal   unit x quantity, null while blank
  *   overAbc                     Final Offer total above ABC total (one centavo is enough)
  *   percentOfAbc                Final Offer total as a percentage of ABC total
- *   acquireTotal, odooTotal,    the Components' totals added up; null when the line has no
- *   finalAcquireTotal           Component, or any Component has that cost blank (never zero)
+ *   acquireTotal, odooTotal     the Components' totals added up; null when the line has no
+ *                               Component, or any Component has that cost blank (never zero)
  */
 export function lineTotals(tenderLine, components = []) {
   const abc = extendedCentavos(tenderLine?.abc_unit, tenderLine?.quantity);
@@ -129,7 +136,6 @@ export function lineTotals(tenderLine, components = []) {
     percentOfAbc: abc !== null && offer !== null ? percentOf(pesosFromCentavos(offer), pesosFromCentavos(abc)) : null,
     acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.acquire_unit, c?.quantity)))),
     odooTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.odoo_unit, c?.quantity)))),
-    finalAcquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.final_acquire_unit, c?.quantity)))),
   };
 }
 

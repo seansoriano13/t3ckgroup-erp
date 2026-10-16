@@ -452,4 +452,132 @@ describe("costingMatrixService", () => {
       expect(toRuleError(null)).toBeNull();
     });
   });
+
+  describe("the summary, Final Acquire and the rates (#270)", () => {
+    let lineId;
+
+    beforeEach(async () => {
+      lineId = await costingMatrixService.addTenderLine(matrix.id, { tenderSpecification: "Rescue vehicle", quantity: 1, abcUnit: 3200000, finalOfferUnit: 2980000 });
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management", "finance"] });
+    });
+
+    const read = () => costingMatrixService.get(opportunity.id);
+
+    it("works the summary for Closed Book from the rates, to the centavo (#229 sample)", async () => {
+      db.seed("costing_settings", { id: 1 });
+      const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1 });
+      await costingMatrixService.updateComponent(component, { finalAcquireUnit: 2338500 });
+
+      const { summary, money } = await read();
+      expect(money).toMatchObject({ matrix_id: matrix.id });
+      expect(summary).toMatchObject({ finalOfferTotal: 2980000, operationalExpenses: 2338500, revenue: 423100, itr: 218400, tax: 178800 });
+      expect(summary.percentOfAbc.toFixed(1)).toBe("93.1");
+      expect(summary.incomplete).toMatchObject({ missingCost: 0, missingOffer: 0 });
+    });
+
+    it("says the summary is incomplete while a Component has no Final Acquire, never counting it as zero", async () => {
+      db.seed("costing_settings", { id: 1 });
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1 });
+      const { summary } = await read();
+      expect(summary.incomplete.missingCost).toBe(1);
+      expect(summary).toMatchObject({ operationalExpenses: null, revenue: null, collected: 2771400, vatExclusive: 2660714.29 });
+    });
+
+    it("counts a cost-only row's Final Acquire in Operational Expenses, and Marketing and OPEX as typed", async () => {
+      db.seed("costing_settings", { id: 1 });
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2000000 });
+      const rowId = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", quantity: 1 });
+      expect((await read()).summary.incomplete.missingCost).toBe(1);
+
+      await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 100000 });
+      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 12000.5, opex: 8000 });
+      const { summary } = await read();
+      // (2,980,000 - 2,100,000) - ITR of 218,400
+      expect(summary).toMatchObject({ operationalExpenses: 2100000, marketing: 12000.5, opex: 8000, revenue: 661600 });
+
+      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: null });
+      expect((await read()).summary.marketing).toBeNull();
+    });
+
+    it("changes the figures when a rate changes", async () => {
+      db.seed("costing_settings", { id: 1 });
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2338500 });
+      expect((await read()).summary.tax).toBe(178800);
+
+      const changed = await costingMatrixService.setSettings({ taxRate: 0.05, itrAllowance: 0 });
+      expect(changed).toMatchObject({ taxRate: 0.05, itrAllowance: 0, vatDivisor: 1.12, retentionRate: 0.01, itrRate: 0.08 });
+      expect((await read()).summary).toMatchObject({ tax: 149000, itr: 238400, revenue: 403100 });
+    });
+
+    it("falls back to the sheet's rates when the row cannot be read", async () => {
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2338500 });
+      expect((await read()).summary.revenue).toBe(423100);
+    });
+
+    it("gives every other tier no summary and no Marketing or OPEX, the keys absent", async () => {
+      db.seed("costing_settings", { id: 1 });
+      await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2338500 });
+      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 5 });
+
+      for (const [tier, bands] of [
+        [COSTING_TIER.COST, ["purchasing"]],
+        [COSTING_TIER.PRICE, ["sales"]],
+        [COSTING_TIER.PARTICIPANT, []],
+      ]) {
+        stubCostingMatrixRpcs({ tier, bands });
+        const other = await read();
+        expect(Object.keys(other), tier).not.toContain("summary");
+        expect(Object.keys(other), tier).not.toContain("money");
+        expect(JSON.stringify(other), tier).not.toMatch(/marketing|opex|final_acquire_unit/);
+      }
+    });
+
+    it("writes Final Acquire through updateComponent and updateCostRow, and refuses a caller off the list", async () => {
+      const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle" });
+      const rowId = await costingMatrixService.addCostRow(matrix.id, { description: "Permits" });
+      await costingMatrixService.updateComponent(component, { finalAcquireUnit: 100 });
+      await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 7 });
+      const shaped = await read();
+      expect(shaped.tenderLines[0].components[0].final_acquire_unit).toBe(100);
+      expect(shaped.costRows[0].final_acquire_unit).toBe(7);
+
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing"] });
+      const refused = await costingMatrixService.updateComponent(component, { finalAcquireUnit: 1 }).catch((e) => e);
+      expect(refused).toBeInstanceOf(CostingBandError);
+      expect(refused.message).toBe("Final Acquire is written by the Final Acquire list.");
+      const marketing = await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 1 }).catch((e) => e);
+      expect(marketing).toBeInstanceOf(CostingBandError);
+      expect(marketing.message).toBe("Marketing is written by Finance or the Final Acquire list.");
+    });
+
+    it("reports a rate change that changed nothing (the database let no row through)", async () => {
+      const refused = await costingMatrixService.setSettings({ taxRate: 0.07 }).catch((e) => e);
+      expect(refused).toBeInstanceOf(CostingRuleError);
+      expect(refused.message).toBe("Only Finance access or a Super Admin can change the rates.");
+    });
+
+    it("reads the rates as numbers", async () => {
+      expect(await costingMatrixService.getSettings()).toBeNull();
+      db.seed("costing_settings", { id: 1 });
+      expect(await costingMatrixService.getSettings()).toMatchObject({ vatDivisor: 1.12, taxRate: 0.06, retentionRate: 0.01, itrRate: 0.08, itrAllowance: 250000 });
+    });
+
+    it("keeps each signer list as exactly the people given, adding and removing", async () => {
+      const first = makeEmployee({ name: "Manager One" });
+      const second = makeEmployee({ name: "Manager Two" });
+      const third = makeEmployee({ name: "Evaluator" });
+
+      expect(await costingMatrixService.getSignerLists()).toEqual({ final_acquire: [], evaluation: [] });
+      const added = await costingMatrixService.setSignerList("final_acquire", [first.id, second.id, first.id]);
+      expect(added.map((m) => m.employeeId).sort()).toEqual([first.id, second.id].sort());
+
+      const changed = await costingMatrixService.setSignerList("final_acquire", [second.id, third.id]);
+      expect(changed.map((m) => m.employeeId).sort()).toEqual([second.id, third.id].sort());
+      expect((await costingMatrixService.getSignerLists()).evaluation).toEqual([]);
+
+      expect(await costingMatrixService.setSignerList("final_acquire", [])).toEqual([]);
+      const unknown = await costingMatrixService.setSignerList("everyone", [first.id]).catch((e) => e);
+      expect(unknown).toBeInstanceOf(CostingRuleError);
+    });
+  });
 });
