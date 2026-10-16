@@ -37,6 +37,13 @@ export const SECTION = {
 
 const ENDED = [STATE.CLOSED, STATE.CANCELLED];
 
+/** The order stages are signed in; a stage is undone only while no later one is signed. */
+const STAGE_ORDER = {
+  [STAGE.WAREHOUSE_CHECKING]: 1,
+  [STAGE.WAREHOUSE_RELEASING]: 2,
+  [STAGE.TECHNICAL_INSPECTION]: 3,
+};
+
 /** Who a stage waits on, for the card's status line. */
 const STAGE_WAITS_ON = {
   [STAGE.WAREHOUSE_CHECKING]: "the Warehouse",
@@ -90,6 +97,18 @@ export function rightsOf(t, { userId = null, lists = [], hasPurchasingFlow = fal
   };
 
   const stageRow = (stage) => stageRowOf(t, stage);
+
+  // Undo (#538): whoever may sign a step may undo it, latest step first, as the database holds it.
+  const anyCheckBy = Boolean(first || second);
+  const later = (stage) => t.stages.some((s) => s.completed_at && STAGE_ORDER[s.stage] > STAGE_ORDER[stage]);
+  const undoStage = (stage) =>
+    Boolean(stageRow(stage)?.completed_at) &&
+    (stage === STAGE.TECHNICAL_INSPECTION ? onTechnical : onWarehouse) &&
+    open &&
+    !anyCheckBy &&
+    !later(stage);
+  const undoCheckBy = (slot) =>
+    Boolean(slot) && onCheckBy && t.preparedById !== userId && t.state !== STATE.CANCELLED && t.state !== STATE.DRAFT;
   return {
     draft,
     ended,
@@ -113,6 +132,15 @@ export function rightsOf(t, { userId = null, lists = [], hasPurchasingFlow = fal
       [STAGE.TECHNICAL_INSPECTION]: onTechnical && t.state === STATE.TECHNICAL_INSPECTION,
     },
     awaitingConfirm,
+    undo: {
+      stage: {
+        [STAGE.WAREHOUSE_CHECKING]: undoStage(STAGE.WAREHOUSE_CHECKING),
+        [STAGE.WAREHOUSE_RELEASING]: undoStage(STAGE.WAREHOUSE_RELEASING),
+        [STAGE.TECHNICAL_INSPECTION]: undoStage(STAGE.TECHNICAL_INSPECTION),
+      },
+      odoo: Boolean(t.odooReceivedAt) && (onWarehouse || hasPurchasingFlow) && open && !anyCheckBy,
+      checkBy: { first: undoCheckBy(first), second: undoCheckBy(second) },
+    },
     canRecordOdoo: (onWarehouse || hasPurchasingFlow) && open && !t.odooReceivedAt,
     needsReceipt,
     checkBy: { first: mayTakeFirst && !needsReceipt, second: mayTakeSecond && !needsReceipt },

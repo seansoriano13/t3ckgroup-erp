@@ -15,6 +15,7 @@ const service = vi.hoisted(() => ({
   submit: vi.fn(),
   checkBy: vi.fn(),
   cancel: vi.fn(),
+  undoSignature: vi.fn(),
 }));
 
 vi.mock("@/context/AuthContext", () => ({
@@ -147,6 +148,32 @@ describe("Transmittal record page", () => {
     await user.click(buttons[0]);
     await confirmMove(user, "Sign Check by (1)", "Sign");
     await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("t1", 1));
+  });
+
+  it("undoes a Check by with a reason, asked in a dialog", async () => {
+    const user = setupUser();
+    service.get.mockResolvedValue(
+      shapeTransmittal(
+        raw({
+          check_by_first_id: "u-me",
+          check_by_first: { name: "Maria Check" },
+          check_by_first_at: "2026-10-04T01:00:00Z",
+        }),
+      ),
+    );
+    service.undoSignature.mockResolvedValue({ number: "TG03_0007" });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Undo Check by (1)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Undo Check by (1)?" });
+    const confirm = within(dialog).getByRole("button", { name: "Undo signature" });
+    expect(confirm).toBeDisabled();
+    await user.type(within(dialog).getByRole("textbox", { name: "Reason" }), "Wrong slip");
+    await user.click(confirm);
+
+    await waitFor(() =>
+      expect(service.undoSignature).toHaveBeenCalledWith("t1", { kind: "check_by", stage: undefined, slot: 1, reason: "Wrong slip" }),
+    );
   });
 
   it("moves Print and Cancel into a More menu, and keeps Edit on a draft", async () => {

@@ -5,7 +5,7 @@
 // ready yet (an unrated line, a missing picture or name) opens its section
 // instead and says what is missing.
 
-import { Check, CircleX, Send } from "lucide-react";
+import { Check, CircleX, Send, Undo2 } from "lucide-react";
 
 import { TRANSMITTAL_STAGE as STAGE } from "@/constants/transmittals";
 import { evidenceOf, stageRowOf, stagesOf } from "@/utils/transmittals";
@@ -63,13 +63,27 @@ function nextAfter(t, stage) {
  * @param {object} t        a shaped Transmittal
  * @param {object} rights   from rightsOf
  * @param {{ forms: Record<string, object>, odooRef: string, on: object }} ctx
- *   `on` has submit, signStage, confirmStage, recordOdoo, checkBy and open,
- *   each taking `(…args, from)` where `from` is `{ key, origin }`.
- * @returns {{ moves: object[], declines: object[] }}
+ *   `on` has submit, signStage, confirmStage, recordOdoo, checkBy, askUndo and
+ *   open, each taking `(…args, from)` where `from` is `{ key, origin }`.
+ * @returns {{ moves: object[], declines: object[], undos: object[] }}
  */
 export function movesFor(t, rights, { forms, odooRef, on }) {
   const moves = [];
   const declines = [];
+  const undos = [];
+  const undo = (key, section, label, target) =>
+    undos.push(
+      move(key, section, {
+        kind: "return",
+        icon: Undo2,
+        label: `Undo ${label}`,
+        verb: "Undo",
+        // It asks for its reason in its own dialog.
+        confirm: false,
+        hint: "Clears the signature and keeps it as history with your name and the reason. Ratings, remarks and pictures stay.",
+        run: (from) => on.askUndo({ ...target, label }, from),
+      }),
+    );
 
   if (rights.draft && rights.canChange) {
     moves.push(
@@ -160,10 +174,24 @@ export function movesFor(t, rights, { forms, odooRef, on }) {
     );
   }
 
-  return { moves, declines };
+  for (const stage of [STAGE.WAREHOUSE_CHECKING, STAGE.WAREHOUSE_RELEASING, STAGE.TECHNICAL_INSPECTION]) {
+    if (rights.undo.stage[stage]) {
+      undo(`undo-${stage}`, stage, `${STAGE_TITLE[stage]} signature`, { kind: "stage", stage });
+    }
+  }
+  if (rights.undo.odoo) {
+    undo(`undo-${SECTION.ODOO}`, SECTION.ODOO, "Received in Odoo by", { kind: "odoo" });
+  }
+  for (const [slot, number] of [["first", 1], ["second", 2]]) {
+    if (rights.undo.checkBy[slot]) {
+      undo(`undo-check-${number}`, SECTION.CHECK_BY, `Check by (${number})`, { kind: "check_by", slot: number });
+    }
+  }
+
+  return { moves, declines, undos };
 }
 
 /** The moves a section's bottom bar offers: the same moves as the card, for that section. */
 export function footerMovesFor(built, sectionKey) {
-  return [...built.moves, ...built.declines].filter((item) => item.section === sectionKey);
+  return [...built.moves, ...built.declines, ...built.undos].filter((item) => item.section === sectionKey);
 }

@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-16",
+        "title": "Transmittals and Packing Lists laid out like IPAS",
+        "version": "1.9.31",
+        "changes": [
+            "Transmittals and Packing Lists: the page shows the numbers, a row per section that opens in a drawer, and a Your move card that says what you can do or who it is waiting on.",
+            "Transmittals: sign a stage, Received in Odoo by or a Check by from the card or the drawer. Prints and Cancel are in the More menu.",
+            "Transmittals: someone who may sign a step can undo that signature with a reason. It is kept as history; ratings, remarks and pictures stay.",
+            "Packing Lists: Sign Packed by is the one move, in the card or the Packed by drawer."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "Transmittals: Technical inspection, Check by and prints",
         "version": "1.9.30",
         "changes": [

@@ -210,6 +210,64 @@ describe("movesFor", () => {
   });
 });
 
+describe("undo signature (#538)", () => {
+  const noop = () => {};
+  const on = { open: noop, submit: noop, signStage: noop, confirmStage: noop, recordOdoo: noop, checkBy: noop, askUndo: noop };
+  const undosOf = (t, viewer) => movesFor(t, rightsOf(t, viewer), { forms: {}, odooRef: "", on }).undos.map((m) => m.key);
+
+  it("offers a signed stage's undo to the list that signs it, latest step first", () => {
+    const t = slip({
+      check_technical: true,
+      state: STATE.TECHNICAL_INSPECTION,
+      stages: [
+        signedStage(STAGE.WAREHOUSE_CHECKING, "s1"),
+        { ...signedStage(STAGE.WAREHOUSE_RELEASING, "s2") },
+        { id: "s3", stage: STAGE.TECHNICAL_INSPECTION, completed_at: null },
+      ],
+    });
+    // Releasing is the latest signed stage; checking waits for it.
+    expect(undosOf(t, { userId: ME, lists: [LIST.WAREHOUSE] })).toEqual([`undo-${STAGE.WAREHOUSE_RELEASING}`]);
+    expect(undosOf(t, { userId: ME, lists: [LIST.TECHNICAL] })).toEqual([]);
+    expect(undosOf(t, { userId: ME, lists: [] })).toEqual([]);
+  });
+
+  it("holds a stage and Received in Odoo while a Check by is signed", () => {
+    const t = slip({
+      state: STATE.AWAITING_CHECK,
+      odoo_received_at: "2026-10-03T01:00:00Z",
+      stages: [signedStage(STAGE.WAREHOUSE_CHECKING)],
+      check_by_first_id: OTHER,
+      check_by_first: { name: "Cy" },
+      check_by_first_at: "2026-10-04T01:00:00Z",
+    });
+    expect(undosOf(t, { userId: ME, lists: [LIST.WAREHOUSE] })).toEqual([]);
+    expect(undosOf(t, { userId: ME, lists: [LIST.CHECK_BY] })).toEqual(["undo-check-1"]);
+  });
+
+  it("lets a Check by be undone on a closed slip, but not by the preparer", () => {
+    const t = slip({
+      state: STATE.CLOSED,
+      stages: [signedStage(STAGE.WAREHOUSE_CHECKING)],
+      check_by_first_id: OTHER,
+      check_by_first: { name: "Cy" },
+      check_by_first_at: "2026-10-04T01:00:00Z",
+      check_by_second_id: "u-third",
+      check_by_second: { name: "Di" },
+      check_by_second_at: "2026-10-04T02:00:00Z",
+    });
+    expect(undosOf(t, { userId: ME, lists: [LIST.CHECK_BY] })).toEqual(["undo-check-1", "undo-check-2"]);
+    // The preparer here is OTHER; the preparer can't undo a Check by of their own slip.
+    expect(undosOf(t, { userId: OTHER, lists: [LIST.CHECK_BY] })).toEqual([]);
+  });
+
+  it("offers Received in Odoo's undo to the Warehouse list or Purchasing", () => {
+    const t = slip({ odoo_received_at: "2026-10-03T01:00:00Z", odoo_received_by: OTHER, state: STATE.AWAITING_CHECK });
+    expect(undosOf(t, { userId: ME, lists: [LIST.WAREHOUSE] })).toContain("undo-odoo");
+    expect(undosOf(t, { userId: ME, hasPurchasingFlow: true })).toContain("undo-odoo");
+    expect(undosOf(t, { userId: ME, lists: [LIST.TECHNICAL] })).not.toContain("undo-odoo");
+  });
+});
+
 describe("statusLine, sectionState and summaries", () => {
   it("says what the viewer can do, or who the slip waits on", () => {
     const t = slip();

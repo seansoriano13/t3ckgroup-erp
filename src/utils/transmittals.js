@@ -74,6 +74,22 @@ export function shapeTransmittal(row) {
       first: checkBySlot(row.check_by_first_id, row.check_by_first, row.check_by_first_at),
       second: checkBySlot(row.check_by_second_id, row.check_by_second, row.check_by_second_at),
     },
+    // Signatures that were undone, kept as history (#538), oldest first.
+    cleared: [...(row.cleared ?? [])]
+      .sort((a, b) => String(a.cleared_at).localeCompare(String(b.cleared_at)))
+      .map((c) => ({
+        id: c.id,
+        kind: c.kind,
+        stage: c.stage ?? null,
+        slot: c.slot ?? null,
+        signerName: c.signer_name ?? null,
+        otherSignerName: c.other_signer_name ?? null,
+        signedAt: c.signed_at ?? null,
+        receiptRef: c.receipt_ref ?? null,
+        clearedBy: c.clearer?.name ?? null,
+        clearedAt: c.cleared_at,
+        reason: c.cleared_reason,
+      })),
     odooReceivedAt: row.odoo_received_at ?? null,
     odooReceivedBy: row.odoo_received_by
       ? { id: row.odoo_received_by, name: row.odoo_receiver?.name ?? null }

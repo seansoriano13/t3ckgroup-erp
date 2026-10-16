@@ -47,6 +47,34 @@ function ratingWithInCharge(rating, inChargeName) {
   return inChargeName ? `${label} · ${inChargeName}` : label;
 }
 
+/**
+ * Signatures that were undone in this section, kept as history: who had
+ * signed and when, who cleared it and when, and why.
+ */
+function ClearedList({ entries }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="space-y-2 border-t border-border pt-4 text-[13px]">
+      <p className={caption}>Undone signatures</p>
+      <ul className="space-y-2">
+        {entries.map((entry) => (
+          <li key={entry.id} className="rounded-lg border border-border p-3">
+            <p>
+              {entry.signerName ?? "Someone"}
+              {entry.otherSignerName ? ` and ${entry.otherSignerName}` : ""} signed
+              {entry.signedAt ? ` · ${formatWhen(entry.signedAt)}` : ""}
+              {entry.receiptRef ? ` · ${entry.receiptRef}` : ""}
+            </p>
+            <p className="text-muted-foreground">
+              Undone by {entry.clearedBy ?? "someone"} · {formatWhen(entry.clearedAt)}: {entry.reason}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** The slip's header as on the paper, with its Reference Checklist. */
 export function DetailsBody({ t }) {
   return (
@@ -317,25 +345,37 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
       ) : (
         <p className="text-muted-foreground">Not signed yet.</p>
       )}
+
+      <ClearedList entries={t.cleared.filter((c) => c.kind === "stage" && c.stage === stage)} />
     </div>
   );
 }
 
 /** Received in Odoo by: the optional Odoo receipt reference while unsigned, who and when once signed. */
 export function OdooBody({ t, rights, odooRef, setOdooRef }) {
+  const cleared = <ClearedList entries={t.cleared.filter((c) => c.kind === "odoo")} />;
   if (t.odooReceivedAt) {
     return (
-      <p className="text-[13px]">
-        {t.odooReceivedBy?.name ?? "Recorded"} · {formatWhen(t.odooReceivedAt)}
-        {t.odooReceiptRef ? ` · ${t.odooReceiptRef}` : ""}
-      </p>
+      <div className="space-y-4">
+        <p className="text-[13px]">
+          {t.odooReceivedBy?.name ?? "Recorded"} · {formatWhen(t.odooReceivedAt)}
+          {t.odooReceiptRef ? ` · ${t.odooReceiptRef}` : ""}
+        </p>
+        {cleared}
+      </div>
     );
   }
-  if (!rights.canRecordOdoo) return <p className="text-[13px] text-muted-foreground">Not yet.</p>;
   return (
-    <FieldBox label="Odoo receipt (optional)" bare>
-      <Input value={odooRef} onChange={(e) => setOdooRef(e.target.value)} placeholder="WH/IN/01234" />
-    </FieldBox>
+    <div className="space-y-4">
+      {rights.canRecordOdoo ? (
+        <FieldBox label="Odoo receipt (optional)" bare>
+          <Input value={odooRef} onChange={(e) => setOdooRef(e.target.value)} placeholder="WH/IN/01234" />
+        </FieldBox>
+      ) : (
+        <p className="text-[13px] text-muted-foreground">Not yet.</p>
+      )}
+      {cleared}
+    </div>
   );
 }
 
@@ -358,6 +398,7 @@ export function CheckByBody({ t, rights }) {
           Received in Odoo by is signed first: this slip carries a PO line.
         </p>
       )}
+      <ClearedList entries={t.cleared.filter((c) => c.kind === "check_by")} />
     </div>
   );
 }

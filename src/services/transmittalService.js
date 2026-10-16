@@ -32,6 +32,9 @@ const TRANSMITTAL_SELECT =
   " stages:transmittal_stages(*, first_signer:employees!transmittal_stages_first_signer_id_fkey(id, name, signature_path)," +
   " second_signer:employees!transmittal_stages_second_signer_id_fkey(id, name, signature_path))," +
   " evidence:pms_evidence(id, record_id, kind, storage_path, file_name, mime_type, size_bytes, uploaded_by, created_at)," +
+  " cleared:transmittal_cleared_signatures(id, kind, stage, slot, signer_id, signer_name, signed_at, other_signer_id," +
+  " other_signer_name, receipt_ref, cleared_by, cleared_at, cleared_reason," +
+  " clearer:employees!transmittal_cleared_signatures_cleared_by_fkey(id, name))," +
   " lines:transmittal_lines(*, ipas:ipas!transmittal_lines_ipas_id_fkey(id, number, po_number)," +
   " sor:sales_opportunities!transmittal_lines_opportunity_id_fkey(id, sales_reference, project_title)," +
   " wh_in_charge:employees!transmittal_lines_wh_in_charge_id_fkey(id, name)," +
@@ -436,6 +439,38 @@ export const transmittalService = {
         reference_id: id,
       });
     }
+    return data;
+  },
+
+  /**
+   * Undoes one signature, with a reason (#538): a stage (`kind` "stage" with
+   * `stage`), Received in Odoo by ("odoo") or a Check by ("check_by" with
+   * `slot`). The database keeps the cleared signature as history, and says who
+   * was told. Returns the RPC result.
+   */
+  async undoSignature(id, { kind, stage = null, slot = null, reason }) {
+    const why = (reason ?? "").trim();
+    if (!why) throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "Give a reason for undoing the signature.");
+    const { data, error } = await supabase.rpc("transmittal_undo_signature", {
+      p_transmittal_id: id,
+      p_kind: kind,
+      p_reason: why,
+      p_stage: stage,
+      p_slot: slot,
+    });
+    if (error) throw error;
+
+    await Promise.all(
+      (data?.notify_ids ?? []).map((recipient_id) =>
+        notificationService.createNotification({
+          recipient_id,
+          type: TRANSMITTAL_NOTIFICATION.SIGNATURE_UNDONE,
+          title: `${data.number}: a signature was undone`,
+          message: `A signature on ${data.number} was undone: ${why}`,
+          reference_id: id,
+        }),
+      ),
+    );
     return data;
   },
 

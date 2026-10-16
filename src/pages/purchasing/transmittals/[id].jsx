@@ -73,6 +73,9 @@ function TransmittalPage() {
   const [editing, setEditing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
+  // The signature being undone: { kind, stage?, slot?, label, from }; its reason is asked in a dialog.
+  const [undoing, setUndoing] = useState(null);
+  const [undoReason, setUndoReason] = useState("");
   const [busy, setBusy] = useState(false);
   // The sign form of each stage and the Odoo receipt reference: the card's move and the drawer's bar read the same fields.
   const [forms, setForms] = useState({});
@@ -194,6 +197,10 @@ function TransmittalPage() {
         success: () => "Received in Odoo recorded.",
         error: "The Odoo receipt could not be recorded.",
       }),
+    askUndo: (target, from) => {
+      setUndoReason("");
+      setUndoing({ ...target, from });
+    },
     checkBy: (slot, from) =>
       perform(from, () => transmittalService.checkBy(t.id, slot), {
         success: () => "Check by signed.",
@@ -270,6 +277,16 @@ function TransmittalPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const undo = async () => {
+    const { kind, stage, slot, from } = undoing;
+    setUndoing(null);
+    await perform(
+      from,
+      () => transmittalService.undoSignature(t.id, { kind, stage, slot, reason: undoReason }),
+      { success: () => "Signature undone.", error: "The signature could not be undone." },
+    );
   };
 
   const menuItems = [];
@@ -375,7 +392,11 @@ function TransmittalPage() {
             <RecordCard
               status={statusLine(t, gates, offered)}
               next={nextSlip && { to: `/purchasing/transmittals/${nextSlip.id}`, label: `Next Transmittal waiting for me: ${nextSlip.number}` }}
-              groups={[{ items: built.moves }, { items: built.declines }]}
+              groups={[
+                { items: built.moves },
+                { items: built.declines },
+                { items: built.undos, className: "border-t border-border pt-4" },
+              ]}
               gates={gates}
               restate={restate}
               reviewText={() => "Review section"}
@@ -409,6 +430,29 @@ function TransmittalPage() {
           failure={failure}
         />
       )}
+
+      <Dialog open={undoing !== null} onOpenChange={(open) => !open && setUndoing(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="pr-10">
+            <DialogTitle>Undo {undoing?.label}?</DialogTitle>
+            <DialogDescription>
+              The signature is cleared and kept as history, with your name and the reason. Ratings, remarks and
+              pictures stay.
+            </DialogDescription>
+          </DialogHeader>
+          <FieldBox label="Reason" bare>
+            <Textarea rows={3} value={undoReason} onChange={(e) => setUndoReason(e.target.value)} />
+          </FieldBox>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUndoing(null)}>
+              Keep it signed
+            </Button>
+            <Button variant="destructive" onClick={undo} disabled={busy || undoReason.trim() === ""}>
+              Undo signature
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={cancelling} onOpenChange={setCancelling}>
         <DialogContent className="sm:max-w-md">
