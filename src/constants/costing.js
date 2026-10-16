@@ -80,6 +80,10 @@ export const COMPONENT_BANDS = {
   po_rfq_no: [PURCHASING],
   sales_incharge_id: [SALES],
   purchasing_incharge_id: [PURCHASING],
+  // The Evaluation of Specification (#271): written by members of the SOR's evaluation task, and by Purchasing access.
+  compliance: [TECHNICAL],
+  compliance_note: [TECHNICAL],
+  recommended_alternative: [TECHNICAL],
 };
 
 export const COMPONENT_COST_BANDS = {
@@ -146,6 +150,9 @@ export const COSTING_COLUMN_LABEL = {
   "costing_components.po_rfq_no": "P.O./RFQ No.",
   "costing_components.sales_incharge_id": "A Component's Sales incharge",
   "costing_components.purchasing_incharge_id": "A Component's Purchasing incharge",
+  "costing_components.compliance": "Compliance",
+  "costing_components.compliance_note": "A Compliance note",
+  "costing_components.recommended_alternative": "The recommended alternative",
   "costing_component_costs.*": "A Component's costs",
   "costing_component_costs.acquire_unit": "Acquire",
   "costing_component_costs.odoo_unit": "Odoo unit cost",

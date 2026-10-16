@@ -246,7 +246,10 @@ create table if not exists public."costing_components" (
   "odoo_product_id" integer,
   "sales_incharge_id" uuid,
   "purchasing_incharge_id" uuid,
-  "created_at" timestamp with time zone not null default now()
+  "created_at" timestamp with time zone not null default now(),
+  "compliance" text,
+  "compliance_note" text,
+  "recommended_alternative" text
 );
 
 create table if not exists public."costing_cost_rows" (
@@ -260,6 +263,12 @@ create table if not exists public."costing_cost_rows" (
   "final_acquire_unit" numeric(18,2),
   "markup_factor" numeric(10,4) default 1.00,
   "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."costing_evaluation_settings" (
+  "id" boolean not null default true,
+  "evaluation_template_id" uuid,
+  "updated_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."costing_events" (
@@ -305,6 +314,17 @@ create table if not exists public."costing_signer_lists" (
   "list_key" text not null,
   "employee_id" uuid not null,
   "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."costing_signoffs" (
+  "id" uuid not null default gen_random_uuid(),
+  "matrix_id" uuid not null,
+  "role" text not null,
+  "signed_by" uuid not null,
+  "signed_at" timestamp with time zone not null default now(),
+  "signature_declined" boolean not null default false,
+  "cleared_at" timestamp with time zone,
+  "cleared_reason" text
 );
 
 create table if not exists public."costing_tables" (
@@ -1608,11 +1628,13 @@ alter table costing_column_tiers add constraint "costing_column_tiers_pkey" PRIM
 alter table costing_component_costs add constraint "costing_component_costs_pkey" PRIMARY KEY (component_id);
 alter table costing_components add constraint "costing_components_pkey" PRIMARY KEY (id);
 alter table costing_cost_rows add constraint "costing_cost_rows_pkey" PRIMARY KEY (id);
+alter table costing_evaluation_settings add constraint "costing_evaluation_settings_pkey" PRIMARY KEY (id);
 alter table costing_events add constraint "costing_events_pkey" PRIMARY KEY (id);
 alter table costing_inclusions add constraint "costing_inclusions_pkey" PRIMARY KEY (id);
 alter table costing_matrices add constraint "costing_matrices_pkey" PRIMARY KEY (id);
 alter table costing_matrix_money add constraint "costing_matrix_money_pkey" PRIMARY KEY (matrix_id);
 alter table costing_signer_lists add constraint "costing_signer_lists_pkey" PRIMARY KEY (id);
+alter table costing_signoffs add constraint "costing_signoffs_pkey" PRIMARY KEY (id);
 alter table costing_tables add constraint "costing_tables_pkey" PRIMARY KEY (table_name);
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_pkey" PRIMARY KEY (tender_line_id);
 alter table costing_tender_lines add constraint "costing_tender_lines_pkey" PRIMARY KEY (id);
@@ -1764,6 +1786,8 @@ alter table costing_component_costs add constraint "costing_component_costs_fact
 alter table costing_component_costs add constraint "costing_component_costs_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
 alter table costing_component_costs add constraint "costing_component_costs_odoo_chk" CHECK (((odoo_unit IS NULL) OR (odoo_unit >= (0)::numeric)));
 alter table costing_components add constraint "costing_components_availability_chk" CHECK (((availability IS NULL) OR (availability = ANY (ARRAY['available'::text, 'for_order'::text]))));
+alter table costing_components add constraint "costing_components_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
+alter table costing_components add constraint "costing_components_deviation_note_chk" CHECK (((compliance IS DISTINCT FROM 'deviates'::text) OR (NULLIF(btrim(compliance_note), ''::text) IS NOT NULL)));
 alter table costing_components add constraint "costing_components_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table costing_components add constraint "costing_components_source_chk" CHECK (((source IS NULL) OR (source = ANY (ARRAY['local'::text, 'import'::text]))));
 alter table costing_components add constraint "costing_components_status_chk" CHECK (((status IS NULL) OR (status = ANY (ARRAY['source_out'::text, 'stockable'::text]))));
@@ -1772,10 +1796,13 @@ alter table costing_cost_rows add constraint "costing_cost_rows_factor_chk" CHEC
 alter table costing_cost_rows add constraint "costing_cost_rows_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
 alter table costing_cost_rows add constraint "costing_cost_rows_odoo_chk" CHECK (((odoo_unit IS NULL) OR (odoo_unit >= (0)::numeric)));
 alter table costing_cost_rows add constraint "costing_cost_rows_quantity_chk" CHECK ((quantity > (0)::numeric));
+alter table costing_evaluation_settings add constraint "costing_evaluation_settings_single" CHECK (id);
 alter table costing_events add constraint "costing_events_kind_chk" CHECK ((kind = ANY (ARRAY['added'::text, 'changed'::text, 'removed'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_completeness_chk" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text])));
+alter table costing_signoffs add constraint "costing_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL)) OR ((cleared_at IS NOT NULL) AND (NULLIF(btrim(cleared_reason), ''::text) IS NOT NULL))));
+alter table costing_signoffs add constraint "costing_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'costed'::text, 'evaluation_approved'::text, 'final_approved'::text])));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_abc_chk" CHECK (((abc_unit IS NULL) OR (abc_unit >= (0)::numeric)));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_offer_chk" CHECK (((final_offer_unit IS NULL) OR (final_offer_unit >= (0)::numeric)));
 alter table costing_tender_lines add constraint "costing_tender_lines_quantity_chk" CHECK ((quantity > (0)::numeric));
@@ -1955,6 +1982,7 @@ alter table costing_components add constraint "costing_components_purchasing_inc
 alter table costing_components add constraint "costing_components_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_components add constraint "costing_components_tender_line_id_fkey" FOREIGN KEY (tender_line_id) REFERENCES costing_tender_lines(id) ON DELETE CASCADE;
 alter table costing_cost_rows add constraint "costing_cost_rows_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
+alter table costing_evaluation_settings add constraint "costing_evaluation_settings_evaluation_template_id_fkey" FOREIGN KEY (evaluation_template_id) REFERENCES group_task_templates(id) ON DELETE SET NULL;
 alter table costing_events add constraint "costing_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table costing_events add constraint "costing_events_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_inclusions add constraint "costing_inclusions_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
@@ -1963,6 +1991,8 @@ alter table costing_matrices add constraint "costing_matrices_purchasing_incharg
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrix_money add constraint "costing_matrix_money_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_signer_lists add constraint "costing_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+alter table costing_signoffs add constraint "costing_signoffs_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
+alter table costing_signoffs add constraint "costing_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
 alter table costing_tables add constraint "costing_tables_parent_table_fkey" FOREIGN KEY (parent_table) REFERENCES costing_tables(table_name);
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_tender_line_id_fkey" FOREIGN KEY (tender_line_id) REFERENCES costing_tender_lines(id) ON DELETE CASCADE;
 alter table costing_tender_lines add constraint "costing_tender_lines_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL;
@@ -2218,6 +2248,8 @@ CREATE INDEX costing_cost_rows_matrix_idx ON public.costing_cost_rows USING btre
 CREATE INDEX costing_events_matrix_idx ON public.costing_events USING btree (matrix_id, created_at DESC);
 CREATE INDEX costing_inclusions_component_idx ON public.costing_inclusions USING btree (component_id, "position");
 CREATE UNIQUE INDEX costing_inclusions_legacy_key ON public.costing_inclusions USING btree (legacy_sor_inclusion_id) WHERE (legacy_sor_inclusion_id IS NOT NULL);
+CREATE UNIQUE INDEX costing_signoffs_live_key ON public.costing_signoffs USING btree (matrix_id, role) WHERE (cleared_at IS NULL);
+CREATE INDEX costing_signoffs_matrix_idx ON public.costing_signoffs USING btree (matrix_id, signed_at DESC);
 CREATE INDEX costing_tender_lines_matrix_idx ON public.costing_tender_lines USING btree (matrix_id, "position");
 CREATE UNIQUE INDEX crm_pipeline_stages_one_anchor ON public.crm_pipeline_stages USING btree ((true)) WHERE is_anchor;
 CREATE UNIQUE INDEX crm_pipeline_stages_one_default ON public.crm_pipeline_stages USING btree ((true)) WHERE is_default;
@@ -2383,11 +2415,13 @@ alter table public."costing_column_tiers" enable row level security;
 alter table public."costing_component_costs" enable row level security;
 alter table public."costing_components" enable row level security;
 alter table public."costing_cost_rows" enable row level security;
+alter table public."costing_evaluation_settings" enable row level security;
 alter table public."costing_events" enable row level security;
 alter table public."costing_inclusions" enable row level security;
 alter table public."costing_matrices" enable row level security;
 alter table public."costing_matrix_money" enable row level security;
 alter table public."costing_signer_lists" enable row level security;
+alter table public."costing_signoffs" enable row level security;
 alter table public."costing_tables" enable row level security;
 alter table public."costing_tender_line_prices" enable row level security;
 alter table public."costing_tender_lines" enable row level security;
@@ -2768,6 +2802,22 @@ create policy "costing_cost_rows_read" on public."costing_cost_rows"
   for select
   to authenticated
   using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
+create policy "costing_evaluation_settings_insert" on public."costing_evaluation_settings"
+  as permissive
+  for insert
+  to authenticated
+  with check (COALESCE(is_super_admin(), false));
+create policy "costing_evaluation_settings_read" on public."costing_evaluation_settings"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "costing_evaluation_settings_update" on public."costing_evaluation_settings"
+  as permissive
+  for update
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
 create policy "costing_events_read" on public."costing_events"
   as permissive
   for select
@@ -2825,6 +2875,11 @@ create policy "costing_signer_lists_read" on public."costing_signer_lists"
   for select
   to authenticated
   using ((COALESCE(is_super_admin(), false) OR (employee_id = get_employee_id())));
+create policy "costing_signoffs_read" on public."costing_signoffs"
+  as permissive
+  for select
+  to authenticated
+  using (costing_can_read(costing_matrix_opp(matrix_id)));
 create policy "costing_tables_read" on public."costing_tables"
   as permissive
   for select
@@ -6001,6 +6056,73 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_clear_evaluation_approval()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_old    jsonb := case when tg_op = 'INSERT' then null else to_jsonb(old) end;
+  v_new    jsonb := case when tg_op = 'DELETE' then null else to_jsonb(new) end;
+  v_matrix uuid;
+  v_reason text;
+begin
+  if tg_op = 'UPDATE' then
+    if tg_table_name = 'costing_tender_lines' then
+      if (v_new -> 'tender_specification') is not distinct from (v_old -> 'tender_specification') then
+        return null;
+      end if;
+      v_reason := 'A Tender Specification changed';
+    elsif (v_new -> 'offer_specification') is distinct from (v_old -> 'offer_specification') then
+      v_reason := 'An Offer Specification changed';
+    elsif (v_new -> 'compliance') is distinct from (v_old -> 'compliance') then
+      v_reason := 'A Compliance verdict changed';
+    elsif (v_new -> 'compliance_note') is distinct from (v_old -> 'compliance_note') then
+      v_reason := 'A Compliance note changed';
+    else
+      return null;
+    end if;
+  elsif tg_table_name = 'costing_tender_lines' then
+    v_reason := case tg_op when 'INSERT' then 'A Tender Line was added' else 'A Tender Line was removed' end;
+  else
+    v_reason := case tg_op when 'INSERT' then 'A Component was added' else 'A Component was removed' end;
+  end if;
+
+  v_matrix := public.costing_matrix_of(tg_table_name, coalesce(v_new, v_old));
+  if v_matrix is not null then
+    perform public.costing_clear_signoffs(v_matrix, array['evaluation_approved'], v_reason);
+  end if;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_clear_signoffs(p_matrix_id uuid, p_roles text[], p_reason text)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_count integer;
+begin
+  if nullif(btrim(coalesce(p_reason, '')), '') is null then
+    raise exception 'costing_clear_signoffs: a reason is needed' using errcode = '22023';
+  end if;
+  -- The matrix is going (an SOR cascade): nothing left to clear.
+  if not exists (select 1 from public.costing_matrices where id = p_matrix_id) then
+    return 0;
+  end if;
+  update public.costing_signoffs
+     set cleared_at = now(), cleared_reason = btrim(p_reason)
+   where matrix_id = p_matrix_id
+     and role = any (p_roles)
+     and cleared_at is null;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_column_default(p_table regclass, p_column text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -6213,6 +6335,16 @@ CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select public.has_purchasing_access()
+    or exists (
+      select 1
+      from public.committee_tasks t
+      join public.committee_task_members m on m.committee_task_id = t.id
+      where t.opportunity_id = p_opportunity_id
+        and t.template_id is not null
+        and t.template_id = (select s.evaluation_template_id from public.costing_evaluation_settings s limit 1)
+        and t.status <> 'CANCELLED'
+        and m.employee_id = public.get_employee_id()
+    )
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_matching_sor_line(p_tender_line_id uuid)
@@ -6704,6 +6836,81 @@ begin
       p_table
     ) using p_patch, p_row;
   end if;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_sign(p_matrix_id uuid, p_role text, p_decline_signature boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor   uuid := public.get_employee_id();
+  v_opp     uuid;
+  v_missing integer;
+  v_row     public.costing_signoffs;
+begin
+  if v_actor is null then
+    raise exception 'costing_sign: sign in first' using errcode = '42501';
+  end if;
+  if p_role is null or p_role not in ('prepared', 'costed', 'evaluation_approved', 'final_approved') then
+    raise exception 'costing_sign: % is not a sign-off', coalesce(p_role, 'that') using errcode = '22023';
+  end if;
+  if p_role <> 'evaluation_approved' then
+    raise exception 'costing_sign: the % sign-off is not available yet', p_role using errcode = '0A000';
+  end if;
+
+  v_opp := public.costing_matrix_opp(p_matrix_id);
+  if v_opp is null then
+    raise exception 'costing_sign: not found' using errcode = 'P0002';
+  end if;
+  if not public.costing_can_read(v_opp) then
+    raise exception 'costing_sign: not allowed' using errcode = '42501';
+  end if;
+  if not public.costing_on_list('evaluation') then
+    raise exception 'costing_sign: only someone on the evaluation list can approve the evaluation' using errcode = '42501';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('costing_sign:' || p_matrix_id::text));
+
+  if exists (
+    select 1 from public.costing_signoffs s
+    where s.matrix_id = p_matrix_id and s.role = p_role and s.cleared_at is null
+  ) then
+    raise exception 'costing_sign: the evaluation is already approved' using errcode = '55000';
+  end if;
+
+  select count(*) into v_missing
+  from public.costing_components c
+  join public.costing_tender_lines l on l.id = c.tender_line_id
+  where l.matrix_id = p_matrix_id and c.compliance is null;
+  if v_missing > 0 then
+    raise exception 'costing_sign: % Component% no verdict yet',
+      v_missing, case when v_missing = 1 then ' has' else 's have' end
+      using errcode = '55000';
+  end if;
+
+  insert into public.costing_signoffs (matrix_id, role, signed_by, signature_declined)
+  values (p_matrix_id, p_role, v_actor, coalesce(p_decline_signature, false))
+  returning * into v_row;
+
+  return jsonb_build_object('signoff', to_jsonb(v_row));
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_signoffs_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if old.cleared_at is not null then
+    raise exception 'costing_signoffs: a cleared sign-off can''t change' using errcode = '42501';
+  end if;
+  if (to_jsonb(new) - 'cleared_at' - 'cleared_reason') is distinct from (to_jsonb(old) - 'cleared_at' - 'cleared_reason') then
+    raise exception 'costing_signoffs: only the clearing can change on a sign-off' using errcode = '42501';
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -17020,6 +17227,7 @@ CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.c
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
+CREATE TRIGGER costing_clear_evaluation_components AFTER INSERT OR DELETE OR UPDATE OF offer_specification, compliance, compliance_note ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_components_cleanup();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
@@ -17036,9 +17244,12 @@ CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices F
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_matrix_money_touch BEFORE UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
+CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_signoffs_guard BEFORE UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_signoffs_guard();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
+CREATE TRIGGER costing_clear_evaluation_lines AFTER INSERT OR DELETE OR UPDATE OF tender_specification ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
