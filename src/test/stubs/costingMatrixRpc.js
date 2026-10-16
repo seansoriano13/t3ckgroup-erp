@@ -171,5 +171,17 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     return null
   })
 
+  // #273: the Requested Items that name a Component of this SOR's matrix, as {id, component_id, status, request_id}.
+  stubRpc("costing_component_requests", (args) => {
+    if (!tier) return null
+    const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
+    if (!matrix) return []
+    const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
+    const componentIds = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id)).map((c) => c.id)
+    return rowsOf("purchase_request_items")
+      .filter((i) => i.component_id && componentIds.includes(i.component_id))
+      .map((i) => ({ id: i.id, component_id: i.component_id, status: i.status, request_id: i.request_id }))
+  })
+
   stubRpc("costing_history", () => [])
 }

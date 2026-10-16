@@ -930,7 +930,8 @@ create table if not exists public."purchase_request_items" (
   "status_changed_by" uuid,
   "status_changed_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
-  "legacy_procurement_request_id" uuid
+  "legacy_procurement_request_id" uuid,
+  "component_id" uuid
 );
 
 create table if not exists public."purchase_request_members" (
@@ -1866,7 +1867,7 @@ alter table purchase_request_items add constraint "purchase_request_items_images
 alter table purchase_request_items add constraint "purchase_request_items_name_chk" CHECK ((length(btrim(name)) > 0));
 alter table purchase_request_items add constraint "purchase_request_items_po_verification_chk" CHECK ((po_verification = ANY (ARRAY['UNVERIFIED'::text, 'VERIFIED'::text, 'PENDING_VERIFICATION'::text, 'NOT_FOUND'::text])));
 alter table purchase_request_items add constraint "purchase_request_items_quantity_chk" CHECK ((quantity > (0)::numeric));
-alter table purchase_request_items add constraint "purchase_request_items_source_chk" CHECK ((source = ANY (ARRAY['sor_line'::text, 'new'::text])));
+alter table purchase_request_items add constraint "purchase_request_items_source_chk" CHECK ((source = ANY (ARRAY['sor_line'::text, 'new'::text, 'component'::text])));
 alter table purchase_request_items add constraint "purchase_request_items_status_chk" CHECK ((status = ANY (ARRAY['requested'::text, 'from_stock'::text, 'to_order'::text, 'canvassing'::text, 'ordered'::text, 'received'::text, 'substituted'::text, 'cannot_source'::text, 'cancelled'::text])));
 alter table purchase_request_members add constraint "purchase_request_members_side_chk" CHECK ((side = ANY (ARRAY['purchasing'::text, 'sales'::text, 'requester'::text, 'other'::text])));
 alter table purchase_requests add constraint "purchase_requests_access_until_chk" CHECK ((access_until = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
@@ -2044,6 +2045,7 @@ alter table packing_lists add constraint "packing_lists_packed_by_fkey" FOREIGN 
 alter table pms_evidence add constraint "pms_evidence_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
 alter table pms_evidence add constraint "pms_evidence_uploaded_by_fkey" FOREIGN KEY (uploaded_by) REFERENCES employees(id);
 alter table pms_handoff_events add constraint "pms_handoff_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
+alter table purchase_request_items add constraint "purchase_request_items_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE SET NULL;
 alter table purchase_request_items add constraint "purchase_request_items_request_id_fkey" FOREIGN KEY (request_id) REFERENCES purchase_requests(id) ON DELETE CASCADE;
 alter table purchase_request_items add constraint "purchase_request_items_requested_by_fkey" FOREIGN KEY (requested_by) REFERENCES employees(id);
 alter table purchase_request_items add constraint "purchase_request_items_status_changed_by_fkey" FOREIGN KEY (status_changed_by) REFERENCES employees(id);
@@ -2286,6 +2288,7 @@ CREATE INDEX pms_evidence_transmittal_id_idx ON public.pms_evidence USING btree 
 CREATE INDEX pms_evidence_uploaded_by_idx ON public.pms_evidence USING btree (uploaded_by);
 CREATE INDEX pms_handoff_events_actor_id_idx ON public.pms_handoff_events USING btree (actor_id);
 CREATE INDEX pms_handoff_events_record_idx ON public.pms_handoff_events USING btree (record_type, record_id, created_at);
+CREATE INDEX purchase_request_items_component_idx ON public.purchase_request_items USING btree (component_id) WHERE (component_id IS NOT NULL);
 CREATE UNIQUE INDEX purchase_request_items_legacy_procurement_request_id_key ON public.purchase_request_items USING btree (legacy_procurement_request_id) WHERE (legacy_procurement_request_id IS NOT NULL);
 CREATE INDEX purchase_request_items_request_id_idx ON public.purchase_request_items USING btree (request_id);
 CREATE INDEX purchase_request_members_employee_id_idx ON public.purchase_request_members USING btree (employee_id);
@@ -3907,6 +3910,33 @@ create policy "undertime_requests_update" on public."undertime_requests"
 -- Functions
 -- ============================================================
 
+CREATE OR REPLACE FUNCTION public._costing_component_labels(p_component_ids uuid[])
+ RETURNS TABLE(component_id uuid, label text, name text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with lines as (
+    select l.id, row_number() over (partition by l.matrix_id order by l.position, l.created_at) as n
+    from public.costing_tender_lines l
+    where l.matrix_id in (
+      select tl.matrix_id
+      from public.costing_tender_lines tl
+      join public.costing_components c on c.tender_line_id = tl.id
+      where c.id = any (p_component_ids)
+    )
+  ),
+  components as (
+    select c.id, c.name, lines.n,
+      row_number() over (partition by c.tender_line_id order by c.position, c.created_at) as k
+    from public.costing_components c
+    join lines on lines.id = c.tender_line_id
+  )
+  select components.id, components.n || '.' || components.k, btrim(components.name)
+  from components
+  where components.id = any (p_component_ids)
+$function$
+;
 CREATE OR REPLACE FUNCTION public._employee_has_purchasing_access(p_employee_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -4688,6 +4718,7 @@ begin
     p_item.requested_by,
     case p_item.source
       when 'sor_line' then format('Requested %s × %s, from the SOR''s Product List.', p_item.name, v_amount)
+      when 'component' then format('Requested %s × %s, from the Costing Matrix.', p_item.name, v_amount)
       else format('Requested a new product: %s × %s.', p_item.name, v_amount)
     end,
     jsonb_build_object('event', 'item_added', 'item_id', p_item.id, 'source', p_item.source)
@@ -6022,6 +6053,42 @@ begin
   return v_val;
 exception when others then
   return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_component_requests(p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_matrix uuid;
+begin
+  if not public.costing_can_read(p_opportunity_id) then
+    return null;
+  end if;
+  select id into v_matrix from public.costing_matrices where opportunity_id = p_opportunity_id;
+  if v_matrix is null then
+    return '[]'::jsonb;
+  end if;
+
+  return (
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object('id', i.id, 'component_id', i.component_id, 'status', i.status, 'request_id', i.request_id)
+        order by i.created_at, i.id
+      ),
+      '[]'::jsonb
+    )
+    from public.purchase_request_items i
+    where i.component_id in (
+      select c.id
+      from public.costing_components c
+      join public.costing_tender_lines l on l.id = c.tender_line_id
+      where l.matrix_id = v_matrix
+    )
+  );
 end;
 $function$
 ;
@@ -11178,6 +11245,70 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_add_items_from_components(p_request_id uuid, p_component_ids uuid[])
+ RETURNS uuid[]
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_req   public.purchase_requests;
+  v_id    uuid;
+  v_comp  public.costing_components;
+  v_opp   uuid;
+  v_item  public.purchase_request_items;
+  v_added uuid[] := '{}';
+begin
+  if public.get_employee_id() is null then
+    raise exception 'purchase_request_add_items_from_components: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'purchase_request_add_items_from_components: only people with Purchasing access may add from the Costing Matrix'
+      using errcode = '42501';
+  end if;
+
+  select * into v_req from public.purchase_requests where id = p_request_id;
+  if v_req.id is null then
+    raise exception 'purchase_request_add_items_from_components: request % not found', p_request_id using errcode = 'P0002';
+  end if;
+  if v_req.opportunity_id is null then
+    raise exception 'purchase_request_add_items_from_components: this request has no SOR, so no Costing Matrix' using errcode = 'P0002';
+  end if;
+  if p_component_ids is null or cardinality(p_component_ids) = 0 then
+    raise exception 'purchase_request_add_items_from_components: pick at least one Component' using errcode = '22023';
+  end if;
+
+  foreach v_id in array p_component_ids loop
+    select * into v_comp from public.costing_components where id = v_id;
+    select m.opportunity_id into v_opp
+    from public.costing_tender_lines l
+    join public.costing_matrices m on m.id = l.matrix_id
+    where l.id = v_comp.tender_line_id;
+
+    if v_comp.id is null or v_opp is distinct from v_req.opportunity_id then
+      raise exception 'purchase_request_add_items_from_components: that Component is not on this SOR''s Costing Matrix'
+        using errcode = 'P0002';
+    end if;
+    if nullif(btrim(v_comp.name), '') is null then
+      raise exception 'purchase_request_add_items_from_components: a Component needs a name before it can be requested'
+        using errcode = '22023';
+    end if;
+
+    insert into public.purchase_request_items
+      (request_id, source, component_id, odoo_product_id, name, unit, quantity, requested_by)
+    values
+      (p_request_id, 'component', v_comp.id, v_comp.odoo_product_id, btrim(v_comp.name), nullif(btrim(v_comp.unit), ''),
+       v_comp.quantity, public.get_employee_id())
+    returning * into v_item;
+
+    perform public._purchase_request_item_added(v_item);
+    v_added := v_added || v_item.id;
+  end loop;
+
+  return v_added;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_add_member(p_request_id uuid, p_employee_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -11363,6 +11494,34 @@ AS $function$
             and m.employee_id = get_employee_id()
         )
       );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_component_labels(p_request_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.can_read_purchase_request(p_request_id) then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object('item_id', i.id, 'component_id', i.component_id, 'number', x.label, 'name', x.name)
+        order by i.created_at, i.id
+      ),
+      '[]'::jsonb
+    )
+    from public.purchase_request_items i
+    join public._costing_component_labels(
+      (select coalesce(array_agg(distinct it.component_id), '{}') from public.purchase_request_items it
+        where it.request_id = p_request_id and it.component_id is not null)
+    ) x on x.component_id = i.component_id
+    where i.request_id = p_request_id
+  );
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_item_lines(p_request_id uuid)

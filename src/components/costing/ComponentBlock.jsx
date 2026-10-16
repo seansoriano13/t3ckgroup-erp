@@ -21,6 +21,7 @@ import { pesos } from "./gridFormat";
 import BandHeader from "./BandHeader";
 import InchargeSelects from "./InchargeSelects";
 import InclusionList from "./InclusionList";
+import ComponentRequests from "./ComponentRequests";
 
 const toOptions = (labels) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const STATUS_OPTIONS = toOptions(COMPONENT_STATUS_LABEL);
@@ -33,8 +34,10 @@ const SOURCE_OPTIONS = toOptions(COMPONENT_SOURCE_LABEL);
  * owner-band header says whose columns they are (SALES: Brand, Status, Odoo unit; PMS: P.O./RFQ
  * No., availability, Source, Acquire). A cell outside the viewer's band is read-only, and a cost
  * column the viewer's tier never received is not drawn at all. Every refusal shows beside its cell.
+ * Under each Component, what Purchasing is buying for it (#273): its Requested Items and their statuses,
+ * `requests` mapping a Component's id to those items.
  */
-export default function ComponentBlock({ line, matrix, bundles, stockData, incharge, writes }) {
+export default function ComponentBlock({ line, matrix, bundles, stockData, incharge, writes, requests = new Map() }) {
   const { busy, run, refresh } = writes;
   const [removing, setRemoving] = useState(null);
   const [inchargeOpen, setInchargeOpen] = useState(() => new Set());
@@ -186,6 +189,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                             {overridden ? "Incharge overridden" : "Incharge"}
                           </Button>
                         </div>
+                        <ComponentRequests items={requests.get(component.id)} />
                         {inchargeOpen.has(component.id) && (
                           <div className="mt-2">
                             <InchargeSelects

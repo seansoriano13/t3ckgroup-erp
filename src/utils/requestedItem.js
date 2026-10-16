@@ -12,7 +12,45 @@ import { ITEM_STATUS } from "@/constants/purchaseRequest";
 export const ITEM_SOURCE = {
   SOR_LINE: "sor_line",
   NEW: "new",
+  /** Added from a Costing Matrix Component (#273); it names the Component it buys for. */
+  COMPONENT: "component",
 };
+
+/** Where a Requested Item came from, in words. */
+export const ITEM_SOURCE_LABEL = {
+  [ITEM_SOURCE.SOR_LINE]: "From the SOR",
+  [ITEM_SOURCE.NEW]: "New product",
+  [ITEM_SOURCE.COMPONENT]: "From the Costing Matrix",
+};
+
+/** "1.2 · Rescue tripod": the Component a Requested Item buys for, or null when it names none (or it was removed). */
+export const componentLabel = (item) => (item?.component ? `${item.component.number} · ${item.component.name}` : null);
+
+/**
+ * The Components of a matrix as a flat pick list for "Add from the Costing Matrix" (#273), in grid
+ * order: `{ id, number, name, quantity, unit, forOrder, bundle, requested }`. `forOrder` is the
+ * default pick (availability For Order); `requested` counts the request's items that already name
+ * the Component (`items`). A Component with no name can't be requested and is left out.
+ */
+export function componentPickList(tenderLines, items = []) {
+  const requested = new Map();
+  for (const item of items) {
+    if (item.component_id) requested.set(item.component_id, (requested.get(item.component_id) ?? 0) + 1);
+  }
+  return (tenderLines ?? [])
+    .flatMap((line) => line.components ?? [])
+    .filter((component) => (component.name ?? "").trim() !== "")
+    .map((component) => ({
+      id: component.id,
+      number: component.number,
+      name: component.name.trim(),
+      quantity: component.quantity,
+      unit: component.unit ?? null,
+      forOrder: component.availability === "for_order",
+      bundle: Boolean(component.is_bundle),
+      requested: requested.get(component.id) ?? 0,
+    }));
+}
 
 export const SOR_LINE_CHANGE = {
   CHANGED: "changed",

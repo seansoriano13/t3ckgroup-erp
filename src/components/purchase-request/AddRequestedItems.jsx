@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ImagePlus, ListPlus, PackagePlus } from "lucide-react";
+import { Calculator, ImagePlus, ListPlus, PackagePlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +23,7 @@ import Spinner from "@/components/ui/Spinner";
 import { AttachmentPreviews } from "@/components/ui/Attachments";
 import StatusBadge from "../StatusBadge";
 import StaleStockBadge from "./StaleStockBadge";
+import AddFromCostingMatrixDialog from "./AddFromCostingMatrixDialog";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
 import { REQUEST_UNITS } from "../../constants/procurement";
@@ -328,6 +329,10 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
  * SOR's Product List, or a new product. Shown only to whoever may add (the
  * request's sales side or its Buyer; the database checks again on save).
  *
+ * #273: anyone with Purchasing access also gets "Add from the Costing Matrix",
+ * which picks the SOR's Components. That button is theirs alone; the other two
+ * stay with whoever may add.
+ *
  * Self-contained, for the request view to mount (#308): `request` needs `id`
  * and `opportunity_id`; `items` are the request's items, so the picker can say
  * which lines are already requested.
@@ -341,25 +346,41 @@ export default function AddRequestedItems({ request, items = [] }) {
     queryFn: () => purchaseRequestService.canAddItems(requestId),
     enabled: !!requestId,
   });
+  const { data: purchasing } = useQuery({
+    queryKey: purchaseRequestKeys.hasPurchasing,
+    queryFn: () => purchaseRequestService.hasPurchasingAccess(),
+    enabled: !!request?.opportunity_id,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
-  if (!canAdd) return null;
+  const fromMatrix = purchasing === true && !!request?.opportunity_id;
+  if (!canAdd && !fromMatrix) return null;
 
   const openAs = (name) => (open) => setDialog(open ? name : null);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {request.opportunity_id && (
+      {canAdd && request.opportunity_id && (
         <Button type="button" variant="outline" size="sm" onClick={() => setDialog("line")}>
           <ListPlus size={14} />
           Add from the SOR
         </Button>
       )}
-      <Button type="button" variant="outline" size="sm" onClick={() => setDialog("new")}>
-        <PackagePlus size={14} />
-        New product
-      </Button>
+      {fromMatrix && (
+        <Button type="button" variant="outline" size="sm" onClick={() => setDialog("matrix")}>
+          <Calculator size={14} />
+          Add from the Costing Matrix
+        </Button>
+      )}
+      {canAdd && (
+        <Button type="button" variant="outline" size="sm" onClick={() => setDialog("new")}>
+          <PackagePlus size={14} />
+          New product
+        </Button>
+      )}
 
-      {request.opportunity_id && (
+      {canAdd && request.opportunity_id && (
         <PickSorLinesDialog
           open={dialog === "line"}
           onOpenChange={openAs("line")}
@@ -368,7 +389,16 @@ export default function AddRequestedItems({ request, items = [] }) {
           items={items}
         />
       )}
-      <NewProductDialog open={dialog === "new"} onOpenChange={openAs("new")} requestId={requestId} />
+      {fromMatrix && (
+        <AddFromCostingMatrixDialog
+          open={dialog === "matrix"}
+          onOpenChange={openAs("matrix")}
+          requestId={requestId}
+          opportunityId={request.opportunity_id}
+          items={items}
+        />
+      )}
+      {canAdd && <NewProductDialog open={dialog === "new"} onOpenChange={openAs("new")} requestId={requestId} />}
     </div>
   );
 }

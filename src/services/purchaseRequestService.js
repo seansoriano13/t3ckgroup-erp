@@ -21,6 +21,11 @@ const MEMBER_SELECT =
  * from an SOR line or described as a new product. Each starts at Requested
  * and posts in the request.
  *
+ * From the Costing Matrix (#273): Purchasing access adds one item per picked Component
+ * (`addItemsFromComponents`); each copies the Component's name, quantity, unit and Odoo
+ * product id and keeps its own copy, and names the Component. `listItems` attaches the
+ * Component's number and name ("1.2 · name") as `component`.
+ *
  * Status (#306): every change goes through `purchase_request_set_item_status`, which checks
  * the transition and the caller's side (purchasing walks the path; the sales
  * side may only cancel) and posts the change in the request.
@@ -185,6 +190,17 @@ export const purchaseRequestService = {
   },
 
   /**
+   * Whether the signed-in employee has Purchasing access (#273): the only people who may add
+   * Requested Items from the Costing Matrix. A convenience for showing the button; the
+   * database refuses anyone else.
+   */
+  async hasPurchasingAccess() {
+    const { data, error } = await supabase.rpc("has_purchasing_access");
+    if (error) throw error;
+    return data === true;
+  },
+
+  /**
    * The SOR's Product List as it stands, to pick from — `{ id, product_name,
    * quantity, unit, odoo_product_id, sort_order }`, no prices. Read through
    * the request, so the Buyer can pick without a window into the SOR.
@@ -230,6 +246,21 @@ export const purchaseRequestService = {
   },
 
   /**
+   * Adds one Requested Item for each given Component of the request's SOR (#273): the Component's
+   * name, quantity, unit and Odoo product id are copied and the item names the Component. Purchasing
+   * access only; a Component on another SOR's matrix is refused, and so is the whole call. The same
+   * Component may be asked for more than once. Returns the new items' ids.
+   */
+  async addItemsFromComponents(requestId, componentIds) {
+    const { data, error } = await supabase.rpc("purchase_request_add_items_from_components", {
+      p_request_id: requestId,
+      p_component_ids: componentIds,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
    * Adds a product that isn't in Odoo. `images` are the uploaded files'
    * descriptors ({ url, name, type, bytes }), at most five. Returns the new
    * item's id.
@@ -267,9 +298,23 @@ export const purchaseRequestService = {
         { found: l.line_found, quantity: l.line_quantity, unit: l.line_unit },
       ]),
     );
-    return (items.data || []).map((item) =>
-      lineByItem.has(item.id) ? { ...item, sorLine: lineByItem.get(item.id) } : item,
-    );
+
+    // An item bought for a Costing Matrix Component carries its number and name ("1.2 · name") (#273).
+    // Read only when some item names one, so a request without any makes no extra call.
+    let componentByItem = new Map();
+    if ((items.data || []).some((item) => item.component_id)) {
+      const labels = await supabase.rpc("purchase_request_component_labels", { p_request_id: requestId });
+      if (labels.error) throw labels.error;
+      componentByItem = new Map(
+        (labels.data || []).map((l) => [l.item_id, { id: l.component_id, number: l.number, name: l.name }]),
+      );
+    }
+
+    return (items.data || []).map((item) => ({
+      ...item,
+      ...(lineByItem.has(item.id) ? { sorLine: lineByItem.get(item.id) } : {}),
+      ...(componentByItem.has(item.id) ? { component: componentByItem.get(item.id) } : {}),
+    }));
   },
 
   // ── Status (#306) ────────────────────────────────────────────────────────

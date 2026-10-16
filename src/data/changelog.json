@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-16",
+        "title": "Purchase Requests: add items from the Costing Matrix",
+        "version": "1.9.38",
+        "changes": [
+            "On a Purchase Request, people with Purchasing access can now press Add from the Costing Matrix and pick Components. The ones marked For Order are ticked to start with.",
+            "Each Requested Item copies the Component's name, quantity, unit and Odoo product, and shows which Component it buys for, like 1.2 and its name. If the Component changes later, the item stays as it was asked.",
+            "A Component can have more than one Requested Item, so a split order stays linked. A Component from another SOR is refused.",
+            "On the PMS tab, each Component now shows the status of its Requested Items, such as Requested or Ordered. Everyone who can see the matrix sees the status only, with no names or prices."
+        ]
+    },
+    {
+        "date": "2026-10-16",
         "title": "SOR: costing Components and cost-only rows",
         "version": "1.9.37",
         "changes": [

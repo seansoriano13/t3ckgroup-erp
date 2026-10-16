@@ -494,5 +494,54 @@ describe("the PMS tab", () => {
       expect(screen.getByLabelText("Sales incharge").tagName).toBe("SPAN");
       expect(screen.getByLabelText("Purchasing incharge").tagName).not.toBe("SPAN");
     });
+
+    describe("Requested Items on a Component (#273)", () => {
+      // 1.1 is being bought twice (one ordered, one still requested); 1.2 is not being bought.
+      function seedRequestedItems() {
+        const { vehicle } = seedComponents();
+        const buyer = makeEmployee({ name: "Bea Buyer", has_purchasing_flow: true });
+        const request = db.seed("purchase_requests", { opportunity_id: deal.id, created_by: buyer.id, buyer_id: buyer.id });
+        const item = (status) =>
+          db.seed("purchase_request_items", {
+            request_id: request.id,
+            source: "component",
+            component_id: vehicle.id,
+            name: "4x4 pick-up",
+            quantity: 1,
+            status,
+            requested_by: buyer.id,
+          });
+        item("ordered");
+        item("requested");
+      }
+
+      it.each(["closed_book", "cost", "price", "participant"])("shows a Component its Requested Items' statuses at the %s tier", async (tier) => {
+        seedRequestedItems();
+        stubCostingMatrixRpcs({ tier, bands: [] });
+        openModal(deal);
+
+        await openPms();
+
+        const block = await screen.findByTestId("components");
+        const [vehicleRow, winchRow] = within(block).getAllByTestId("component");
+        const requests = await within(vehicleRow).findByTestId("component-requests");
+        expect(within(requests).getByText("Ordered")).toBeInTheDocument();
+        expect(within(requests).getByText("Requested")).toBeInTheDocument();
+        // Only the status: no name, quantity or requester comes with it.
+        expect(requests).not.toHaveTextContent("Bea Buyer");
+        expect(within(winchRow).queryByTestId("component-requests")).not.toBeInTheDocument();
+      });
+
+      it("shows nothing under a Component nobody has requested", async () => {
+        seedComponents();
+        stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+        openModal(deal);
+
+        await openPms();
+
+        await screen.findByTestId("components");
+        expect(screen.queryByTestId("component-requests")).not.toBeInTheDocument();
+      });
+    });
   });
 });

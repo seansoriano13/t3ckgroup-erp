@@ -4,5 +4,6 @@ export const costingKeys = {
   tier: (opportunityId) => ["costing", opportunityId, "tier"],
   matrix: (opportunityId) => ["costing", opportunityId, "matrix"],
   stock: (opportunityId) => ["costing", opportunityId, "stock"],
+  requests: (opportunityId) => ["costing", opportunityId, "requests"],
   sorLines: (opportunityId) => ["costing", opportunityId, "sorLines"],
 };

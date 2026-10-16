@@ -225,6 +225,11 @@ export function shapeMatrix(read) {
   };
 }
 
+/** Requested Items grouped by the Component they name: a Map of component id -> items, oldest first. */
+export function requestsByComponent(requests) {
+  return groupBy(requests, "component_id");
+}
+
 export const costingMatrixService = {
   /** The caller's read tier on the SOR (`closed_book`, `cost`, `price`, `participant`), or null. */
   async tier(opportunityId) {
@@ -243,6 +248,18 @@ export const costingMatrixService = {
     const { data, error } = await supabase.rpc("costing_matrix_read", { p_opportunity_id: opportunityId });
     if (error) throw error;
     return shapeMatrix(data);
+  },
+
+  /**
+   * The Requested Items that name a Component of the SOR's matrix (#273), as `{ id, component_id,
+   * status, request_id }` and nothing more, for every tier that can read the matrix. Empty when the
+   * caller has no tier or the SOR has no matrix. Group them with `requestsByComponent`.
+   */
+  async componentRequests(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("costing_component_requests", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data ?? [];
   },
 
   /**

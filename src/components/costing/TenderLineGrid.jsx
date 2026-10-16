@@ -6,7 +6,7 @@ import { Button } from "../ui/button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
-import { costingMatrixService } from "../../services/costingMatrixService";
+import { costingMatrixService, requestsByComponent } from "../../services/costingMatrixService";
 import { opportunityService } from "../../services/opportunityService";
 import { COSTING_BAND, COMPONENT_BANDS, inAnyBand, tierReads } from "../../constants/costing";
 import { formatPHP } from "../../constants/sor";
@@ -49,6 +49,17 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
     enabled: lines.some((l) => l.source === "sor_line"),
     retry: false,
   });
+
+  // What is being bought for each Component (#273): the Requested Items that name it, with their statuses.
+  // A failed read leaves the Components without it rather than failing the grid.
+  const { data: componentRequests } = useQuery({
+    queryKey: costingKeys.requests(opportunityId),
+    queryFn: () => costingMatrixService.componentRequests(opportunityId),
+    enabled: lines.some((l) => l.components.length > 0),
+    staleTime: 0,
+    retry: false,
+  });
+  const requests = requestsByComponent(componentRequests);
 
   const saveLine = async (line, fields) => {
     await costingMatrixService.updateTenderLine(line.id, fields);
@@ -222,7 +233,7 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                 </TableRow>
                 <TableRow data-testid="tender-line-components" className="bg-muted/20 hover:bg-muted/20">
                   <TableCell colSpan={columnCount} className="p-0">
-                    <ComponentBlock line={line} matrix={matrix} bundles={bundles} stockData={stockSnapshot?.data} incharge={incharge} writes={writes} />
+                    <ComponentBlock line={line} matrix={matrix} bundles={bundles} stockData={stockSnapshot?.data} incharge={incharge} writes={writes} requests={requests} />
                   </TableCell>
                 </TableRow>
                 </Fragment>

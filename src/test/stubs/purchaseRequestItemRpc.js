@@ -28,8 +28,13 @@ const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().t
  * `details.po_number` / `po_verification`; `ipasLines` (`{ [poNumber]: [lineId] }`)
  * stands in for the `_ipas_po_line_ids` seam, empty by default as it ships.
  * The rules are proven in 43-purchase-request-item-po.test.js.
+ *
+ * #273's Costing Matrix RPCs (20261018150000_costing_purchase_request_items.sql): `purchasing`
+ * stands in for has_purchasing_access(). Adding from Components copies name, quantity, unit and
+ * Odoo product id and refuses a Component on another SOR's matrix; who may add is proven in
+ * 83-costing-purchase-request-items.test.js.
  */
-export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {} }) {
+export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {}, purchasing = false }) {
   const postAdded = (item) => {
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
@@ -63,6 +68,58 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     })
     postAdded(item)
     return item.id
+  })
+
+  stubRpc("has_purchasing_access", () => purchasing)
+
+  const matrixOf = (componentId) => {
+    const component = findRow("costing_components", componentId)
+    const line = component && findRow("costing_tender_lines", component.tender_line_id)
+    return line && findRow("costing_matrices", line.matrix_id)
+  }
+
+  stubRpc("purchase_request_add_items_from_components", (args) => {
+    if (!purchasing) {
+      throw pgrstError("42501", "purchase_request_add_items_from_components: only people with Purchasing access may add from the Costing Matrix")
+    }
+    const request = findRow("purchase_requests", args.p_request_id)
+    const ids = args.p_component_ids ?? []
+    if (ids.length === 0) throw pgrstError("22023", "purchase_request_add_items_from_components: pick at least one Component")
+    // All or nothing: check every Component before adding any.
+    for (const id of ids) {
+      if (matrixOf(id)?.opportunity_id !== request?.opportunity_id) {
+        throw pgrstError("P0002", "purchase_request_add_items_from_components: that Component is not on this SOR's Costing Matrix")
+      }
+    }
+    return ids.map((id) => {
+      const component = findRow("costing_components", id)
+      const item = insertRow("purchase_request_items", {
+        request_id: request.id,
+        source: "component",
+        component_id: component.id,
+        odoo_product_id: component.odoo_product_id ?? null,
+        name: component.name.trim(),
+        unit: (component.unit || "").trim() || null,
+        quantity: component.quantity,
+        requested_by: actorId,
+      })
+      postAdded(item)
+      return item.id
+    })
+  })
+
+  // The Component's number as the grid numbers it: its line's place in the matrix, then its own place under the line.
+  stubRpc("purchase_request_component_labels", (args) => {
+    const items = rowsOf("purchase_request_items").filter((i) => i.request_id === args.p_request_id && i.component_id)
+    return items.flatMap((item) => {
+      const component = findRow("costing_components", item.component_id)
+      const matrix = matrixOf(item.component_id)
+      if (!component || !matrix) return []
+      const lines = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).sort((a, b) => a.position - b.position)
+      const siblings = rowsOf("costing_components").filter((c) => c.tender_line_id === component.tender_line_id).sort((a, b) => a.position - b.position)
+      const number = `${lines.findIndex((l) => l.id === component.tender_line_id) + 1}.${siblings.findIndex((c) => c.id === component.id) + 1}`
+      return [{ item_id: item.id, component_id: component.id, number, name: component.name }]
+    })
   })
 
   stubRpc("purchase_request_add_new_item", (args) => {
