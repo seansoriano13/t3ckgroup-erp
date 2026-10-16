@@ -98,6 +98,11 @@ function seedOrder({
   deliveredOn = null,
   filedAt = null,
   sorIds = [],
+  supplier = "Scorpe Technologies",
+  onboardOn = null,
+  shippedOutOn = null,
+  importClearanceOn = null,
+  lineName = "[10GPT00030] Greenspirit 2 Cutter SC",
 } = {}) {
   seq += 1
   return db.seed("ipas", {
@@ -110,11 +115,14 @@ function seedOrder({
     filed_at: filedAt,
     computation_status: computationStatus,
     arrived_in_ph_on: arrivedInPh,
+    onboard_on: onboardOn,
+    shipped_out_on: shippedOutOn,
+    import_clearance_on: importClearanceOn,
     delivered_on: deliveredOn,
     odoo_copy: {
       po: { id: seq, name: `P0${9000 + seq}`, state: poState, company, currency },
-      supplier: { id: 553, name: "Scorpe Technologies" },
-      lines: lines ?? [LINE(10000 + seq)],
+      supplier: { id: 553, name: supplier },
+      lines: lines ?? [{ ...LINE(10000 + seq), name: lineName }],
       receipts: { status: "pending", done: 0, total: 1 },
       bills: { count: 0, draft: 0 },
     },
@@ -476,6 +484,234 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(counts.waitingOnOthers).toBe(1)
       expect(counts.valueOpen.find((v) => v.currency === "Php").total).toBe(3000)
       expect(counts.valueOpen.find((v) => v.currency === "USD").total).toBe(500)
+    })
+  })
+
+  describe("the register (#264): filters and search", () => {
+    const sortedIds = (rows) => rows.map((row) => row.id).sort((a, b) => a - b)
+    const idsOf = (...ipas) => ipas.map((i) => i.id).sort((a, b) => a - b)
+
+    it("narrows to one entity", async () => {
+      const trading = seedOrder({ company: "T3ck Trading" })
+      const solutions = seedOrder({ company: "T3ck Solutions" })
+
+      expect(sortedIds(await listAll({ entity: "T3ck Solutions" }))).toEqual(idsOf(solutions))
+      expect(sortedIds(await listAll({ entity: "T3ck Trading" }))).toEqual(idsOf(trading))
+    })
+
+    it("narrows to Import or Local", async () => {
+      const imported = seedOrder({ source: "import" })
+      const local = seedOrder({ source: "local" })
+
+      expect(sortedIds(await listAll({ source: "import" }))).toEqual(idsOf(imported))
+      expect(sortedIds(await listAll({ source: "local" }))).toEqual(idsOf(local))
+    })
+
+    it("narrows to the orders on one SOR", async () => {
+      const sorA = makeOpportunity({ sales_reference: "S07920", project_title: "Capas LGU" })
+      const sorB = makeOpportunity({ sales_reference: "S07921", project_title: "Tarlac" })
+      const onA = seedOrder()
+      const onB = seedOrder()
+      seedOrder()
+      db.seed("ipas_sors", { ipas_id: onA.id, opportunity_id: sorA.id })
+      db.seed("ipas_sors", { ipas_id: onB.id, opportunity_id: sorB.id })
+
+      expect(sortedIds(await listAll({ sorId: sorA.id }))).toEqual(idsOf(onA))
+      expect(sortedIds(await listAll({ sorId: sorB.id }))).toEqual(idsOf(onB))
+    })
+
+    it("narrows to one supplier", async () => {
+      const scorpe = seedOrder({ supplier: "Scorpe Technologies" })
+      const acme = seedOrder({ supplier: "Acme Supply" })
+
+      expect(sortedIds(await listAll({ supplier: "Acme Supply" }))).toEqual(idsOf(acme))
+      expect(sortedIds(await listAll({ supplier: "Scorpe Technologies" }))).toEqual(idsOf(scorpe))
+    })
+
+    it("narrows to open or filed orders by state", async () => {
+      const open = seedOrder()
+      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "checked", deliveredOn: "2026-10-01" })
+
+      expect(sortedIds(await listAll({ state: "open" }))).toEqual(idsOf(open))
+      expect(sortedIds(await listAll({ state: "filed" }))).toEqual(idsOf(filed))
+    })
+
+    it("includes a filed order and finds it by search, and never shows a cancelled one", async () => {
+      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "checked", deliveredOn: "2026-10-01" })
+      const cancelled = seedOrder({ state: "cancelled" })
+
+      const all = await listAll()
+      expect(all.map((row) => row.id)).toContain(filed.id)
+      expect(all.map((row) => row.id)).not.toContain(cancelled.id)
+      expect(sortedIds(await listAll({ search: filed.number }))).toEqual(idsOf(filed))
+      expect(await listAll({ search: cancelled.number })).toEqual([])
+      expect(await listAll({ state: "cancelled" })).toEqual([])
+    })
+
+    it("searches by IPAS number, ignoring case and surrounding spaces", async () => {
+      const wanted = seedOrder()
+      seedOrder()
+
+      expect(sortedIds(await listAll({ search: `  ${wanted.number.toLowerCase()} ` }))).toEqual(idsOf(wanted))
+    })
+
+    it("searches by PO number", async () => {
+      const wanted = seedOrder()
+      seedOrder()
+
+      expect(sortedIds(await listAll({ search: wanted.po_number.toLowerCase() }))).toEqual(idsOf(wanted))
+    })
+
+    it("searches by the S number of an SOR the order names", async () => {
+      const sor = makeOpportunity({ sales_reference: "S07920", project_title: "Capas LGU" })
+      const wanted = seedOrder()
+      seedOrder()
+      db.seed("ipas_sors", { ipas_id: wanted.id, opportunity_id: sor.id })
+
+      expect(sortedIds(await listAll({ search: "s07920" }))).toEqual(idsOf(wanted))
+      expect(await listAll({ search: "S99999" })).toEqual([])
+    })
+
+    it("combines filters, so an order must match every one", async () => {
+      const match = seedOrder({ source: "import", company: "T3ck Solutions" })
+      seedOrder({ source: "import", company: "T3ck Trading" })
+      seedOrder({ source: "local", company: "T3ck Solutions" })
+
+      expect(sortedIds(await listAll({ source: "import", entity: "T3ck Solutions" }))).toEqual(idsOf(match))
+    })
+
+    it("carries the item: the first line's name, and how many more", async () => {
+      const ipas = seedOrder({ lines: [{ ...LINE(30001), name: "Cutter" }, { ...LINE(30002), name: "Blade" }] })
+
+      expect(rowsFor(await listAll(), ipas).item).toEqual({ name: "Cutter", more: 1 })
+    })
+  })
+
+  describe("the register (#264): the track", () => {
+    it("marks each step stamped, typed or pending, as the IPAS page does", async () => {
+      const ipas = seedOrder({ source: "import", importClearanceOn: "2026-10-12" })
+      seedPayment(ipas)
+
+      const row = rowsFor(await listAll(), ipas)
+      const mark = (key) => row.buyerTrack.find((item) => item.key === key).mark
+
+      expect(row.buyerTrack).toHaveLength(7)
+      expect(mark("purchase_order")).toBe("stamped")
+      expect(mark("with_pop")).toBe("stamped")
+      expect(mark("import_clearance")).toBe("typed")
+      expect(mark("delivered")).toBe("pending")
+      expect(mark("received_in_odoo")).toBe("pending")
+      expect(mark("create_bill")).toBe("pending")
+      expect(mark("actual_checking")).toBe("pending")
+    })
+
+    it("marks a typed Delivered date typed, and one stamped from a Transmittal stamped", async () => {
+      const typed = seedOrder({ deliveredOn: "2026-10-14" })
+      const slipped = seedOrder()
+      seedSlip({ stages: { warehouse_checking: at(10) }, lines: [{ ipas: slipped, odooPoLineId: slipped.odoo_copy.lines[0].line_id }] })
+
+      const rows = await listAll()
+
+      expect(rowsFor(rows, typed).buyerTrack.find((i) => i.key === "delivered").mark).toBe("typed")
+      expect(rowsFor(rows, slipped).buyerTrack.find((i) => i.key === "delivered").mark).toBe("stamped")
+    })
+
+    it("draws no Import Clearance for a Local order", async () => {
+      const ipas = seedOrder({ source: "local" })
+
+      expect(rowsFor(await listAll(), ipas).buyerTrack.map((i) => i.key)).not.toContain("import_clearance")
+    })
+  })
+
+  describe("the register (#264): the hand-off", () => {
+    const lineOf = (ipas) => ipas.odoo_copy.lines[0].line_id
+
+    it("shows no hand-off for an order with no Transmittal", async () => {
+      const ipas = seedOrder({ deliveredOn: "2026-10-14" })
+
+      expect(rowsFor(await listAll(), ipas).transmittals.latest).toBeNull()
+    })
+
+    it("shows the latest Transmittal's stage and an open check", async () => {
+      const ipas = seedOrder()
+      seedSlip({ state: "warehouse_checking", stages: {}, lines: [{ ipas, odooPoLineId: lineOf(ipas) }] })
+
+      const { latest } = rowsFor(await listAll(), ipas).transmittals
+
+      expect(latest.stateLabel).toBeTruthy()
+      expect(latest.check).toBe("open")
+    })
+
+    it("shows GC once the checking stage is complete and every line is rated GC", async () => {
+      const ipas = seedOrder()
+      seedSlip({
+        state: "awaiting_check",
+        stages: { warehouse_checking: at(10) },
+        lines: [{ ipas, odooPoLineId: lineOf(ipas), wh: "gc" }],
+      })
+
+      expect(rowsFor(await listAll(), ipas).transmittals.latest.check).toBe("gc")
+    })
+
+    it("shows NA for a line rated NA at checking", async () => {
+      const ipas = seedOrder()
+      seedSlip({
+        state: "awaiting_check",
+        stages: { warehouse_checking: at(10) },
+        lines: [{ ipas, odooPoLineId: lineOf(ipas), wh: "na" }],
+      })
+
+      expect(rowsFor(await listAll(), ipas).transmittals.latest.check).toBe("na")
+    })
+
+    it("shows NA · replaced when a later Transmittal rates the same PO line GC", async () => {
+      const ipas = seedOrder()
+      seedSlip({
+        state: "closed",
+        closedAt: at(9),
+        preparedOn: "2026-10-05",
+        stages: { warehouse_checking: at(9) },
+        lines: [{ ipas, odooPoLineId: lineOf(ipas), wh: "na" }],
+      })
+      const later = seedSlip({
+        state: "closed",
+        closedAt: at(12),
+        preparedOn: "2026-10-12",
+        stages: { warehouse_checking: at(12) },
+        lines: [{ ipas, odooPoLineId: lineOf(ipas), wh: "gc" }],
+      })
+
+      const { latest } = rowsFor(await listAll(), ipas).transmittals
+
+      expect(latest.check).toBe("na_replaced")
+      expect(latest.number).toBe(later.number)
+    })
+  })
+
+  describe("the register (#264): Supplier Origin on Delivered", () => {
+    it("gives an Import order waiting on Delivered its latest Supplier Origin date", async () => {
+      const ipas = seedOrder({
+        source: "import",
+        shippedOutOn: "2026-10-02",
+        onboardOn: "2026-10-05",
+        importClearanceOn: "2026-10-12",
+      })
+      seedPayment(ipas)
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.step).toBe("delivered")
+      expect(row.next.detail).toEqual({ label: "Onboard", on: "2026-10-05" })
+    })
+
+    it("gives a Local order waiting on Delivered no such date", async () => {
+      const ipas = seedOrder({ source: "local" })
+      seedPayment(ipas)
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.step).toBe("delivered")
+      expect(row.next.detail).toBeNull()
     })
   })
 })

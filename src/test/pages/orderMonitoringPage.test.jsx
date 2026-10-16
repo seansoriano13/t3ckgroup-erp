@@ -141,3 +141,109 @@ describe("Order Monitoring page", () => {
     expect(visible(makeEmployee({ name: "Admin", is_super_admin: true }))).toBe(true);
   });
 });
+
+/**
+ * The order register (#264): a switch between What needs doing and the Register,
+ * remembered per person in the browser. Storage can be missing or throw, and
+ * the page must still open on What needs doing.
+ */
+describe("Order Monitoring page: the register switch", () => {
+  beforeEach(() => {
+    seq = 0;
+    mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
+    stubRpc("ipas_sor_headers", () => []);
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("opens on What needs doing and switches to the Register, which lists filed orders too", async () => {
+    seedOrder({ poState: "draft" });
+    const filed = seedOrder({ state: "filed", filed: true });
+
+    renderPage();
+
+    const needs = await screen.findByRole("tab", { name: "What needs doing" });
+    expect(needs).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("table", { name: /register/i })).not.toBeInTheDocument();
+
+    await setupUser().click(screen.getByRole("tab", { name: "Register" }));
+
+    const register = await screen.findByRole("region", { name: "Order register" });
+    expect(within(register).getByText(filed.number)).toBeInTheDocument();
+    expect(within(register).getAllByText("No Transmittal").length).toBeGreaterThan(0);
+  });
+
+  it("draws the seven-step track and the hand-off in the register", async () => {
+    const ipas = seedOrder({ source: "import", arrivedInPh: dateAgo(6) });
+    seedProofPayment(ipas);
+
+    renderPage();
+    await setupUser().click(await screen.findByRole("tab", { name: "Register" }));
+
+    const register = await screen.findByRole("region", { name: "Order register" });
+    const track = await within(register).findByRole("list", { name: `Buyer track for ${ipas.number}` });
+    expect(within(track).getAllByRole("listitem")).toHaveLength(7);
+    expect(within(track).getByRole("listitem", { name: /Purchase Order, stamped/ })).toBeInTheDocument();
+    expect(within(track).getByRole("listitem", { name: /Delivered, pending/ })).toBeInTheDocument();
+  });
+
+  it("remembers the chosen view for this person across a reload", async () => {
+    seedOrder({ poState: "draft" });
+
+    const first = renderPage();
+    await setupUser().click(await screen.findByRole("tab", { name: "Register" }));
+    await screen.findByRole("region", { name: "Order register" });
+    first.unmount();
+
+    renderPage();
+
+    expect(await screen.findByRole("tab", { name: "Register" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("region", { name: "Order register" })).toBeInTheDocument();
+  });
+
+  it("keeps each person's choice to themselves", async () => {
+    seedOrder({ poState: "draft" });
+
+    const first = renderPage();
+    await setupUser().click(await screen.findByRole("tab", { name: "Register" }));
+    await screen.findByRole("region", { name: "Order register" });
+    first.unmount();
+
+    mockUser.current = makeEmployee({ name: "Other Buyer", has_purchasing_flow: true });
+    renderPage();
+
+    expect(await screen.findByRole("tab", { name: "What needs doing" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("still renders, on What needs doing, when browser storage throws", async () => {
+    seedOrder({ poState: "draft" });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole("tab", { name: "What needs doing" })).toHaveAttribute("aria-selected", "true");
+    await setupUser().click(screen.getByRole("tab", { name: "Register" }));
+    expect(await screen.findByRole("region", { name: "Order register" })).toBeInTheDocument();
+  });
+
+  it("narrows the register by search", async () => {
+    const wanted = seedOrder({ source: "import", arrivedInPh: dateAgo(2) });
+    const other = seedOrder({ source: "local" });
+
+    renderPage();
+    const user = setupUser();
+    await user.click(await screen.findByRole("tab", { name: "Register" }));
+    const register = await screen.findByRole("region", { name: "Order register" });
+    expect(await within(register).findByText(other.number)).toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox", { name: /search/i }), wanted.po_number);
+
+    await waitFor(() => expect(within(register).queryByText(other.number)).not.toBeInTheDocument());
+    expect(within(register).getByText(wanted.number)).toBeInTheDocument();
+  });
+});
