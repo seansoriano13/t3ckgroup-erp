@@ -22,14 +22,20 @@ export function openTransmittalPrintWindow() {
 }
 
 /**
- * Puts each signer's stored signature on the stage rows as `signatureBase64`
- * (#258). A signer with no file, or one whose file won't load, prints the name only.
+ * Puts each signer's stored signature, on the stage rows and the Check by
+ * slots, as `signatureBase64` (#258). A signer with no file, or one whose file
+ * won't load, prints the name only.
  */
 async function hydrateSignatures(transmittal) {
-  const signers = (transmittal.stages ?? []).flatMap((s) => [s.first_signer, s.second_signer]).filter((p) => p?.signature_path);
+  const pathOf = (p) => p?.signature_path ?? p?.signaturePath ?? null;
+  const signers = [
+    ...(transmittal.stages ?? []).flatMap((s) => [s.first_signer, s.second_signer]),
+    transmittal.checkBy?.first,
+    transmittal.checkBy?.second,
+  ].filter(pathOf);
   const images = new Map();
   await Promise.all(
-    [...new Set(signers.map((p) => p.signature_path))].map(async (path) => {
+    [...new Set(signers.map(pathOf))].map(async (path) => {
       try {
         const blob = await signatureService.downloadSignature(path);
         if (blob) images.set(path, await blobToDataUrl(blob));
@@ -39,7 +45,7 @@ async function hydrateSignatures(transmittal) {
     }),
   );
   for (const signer of signers) {
-    const image = images.get(signer.signature_path);
+    const image = images.get(pathOf(signer));
     if (image) signer.signatureBase64 = image;
   }
 }

@@ -329,7 +329,7 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
     return { id: t.id, number: t.number, rated: count }
   })
 
-  stubRpc("transmittal_complete_stage", ({ p_transmittal_id, p_stage, p_other_signer_id, p_other_signer_name, p_remarks, p_no_pictures_reason }) => {
+  stubRpc("transmittal_complete_stage", ({ p_transmittal_id, p_stage, p_other_signer_id, p_other_signer_name, p_remarks, p_no_pictures_reason, p_sign_as_second }) => {
     const t = findRow("transmittals", p_transmittal_id)
     if (!t) refuse("P0002", "transmittal_complete_stage: that Transmittal doesn't exist")
     if (["closed", "cancelled"].includes(t.state)) refuse("42501", `transmittal_complete_stage: ${t.number} is ${t.state}`)
@@ -355,6 +355,10 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
       refuse("42501", `transmittal_complete_stage: releasing is not open on ${t.number}`)
     }
 
+    const asSecond = !!p_sign_as_second
+    if (asSecond && p_stage === "warehouse_releasing") {
+      refuse("22023", "transmittal_complete_stage: the Warehouse signs releasing as Released by")
+    }
     const otherList = p_stage === "warehouse_checking" ? "transmittal_warehouse" : t.check_technical ? "transmittal_technical" : null
     if (otherList && (!p_other_signer_id || !listIds(otherList).includes(p_other_signer_id))) {
       refuse(
@@ -388,12 +392,13 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
       no_pictures_reason: pictures > 0 ? null : reason,
       completed_by: actorId,
       completed_at: now,
-      first_signer_id: actorId,
+      first_signer_id: asSecond ? p_other_signer_id : actorId,
       first_signed_at: now,
-      first_confirmed: true,
-      second_signer_id: p_other_signer_id ?? null,
-      second_signer_name: otherName,
+      first_confirmed: !asSecond,
+      second_signer_id: asSecond ? actorId : (p_other_signer_id ?? null),
+      second_signer_name: asSecond ? employeeName(actorId) : otherName,
       second_signed_at: now,
+      second_confirmed: asSecond,
     })
 
     let nextState = t.state
@@ -426,18 +431,22 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
     const stage = rowsOf("transmittal_stages").find((s) => s.id === p_stage_id)
     if (!stage) refuse("P0002", "transmittal_confirm_signature: that stage doesn't exist")
     if (stage.completed_at == null) refuse("22023", "transmittal_confirm_signature: the stage isn't signed yet")
-    if (stage.second_signer_id !== actorId) refuse("42501", "transmittal_confirm_signature: only the co-signer confirms this signature")
+    // The co-signer's slot: the one the completer didn't take (the open one when a person holds both).
+    const open = (slot) => !stage[`${slot}_confirmed`] || stage[`${slot}_signature_declined`]
+    let slot = null
+    if (stage.first_signer_id === actorId && stage.second_signer_id === actorId) {
+      slot = open("first") ? "first" : open("second") ? "second" : null
+      if (!slot) refuse("22023", "transmittal_confirm_signature: both signatures are already confirmed")
+    } else if (stage.second_signer_id === actorId && actorId !== stage.completed_by) slot = "second"
+    else if (stage.first_signer_id === actorId && actorId !== stage.completed_by) slot = "first"
+    else refuse("42501", "transmittal_confirm_signature: only the co-signer confirms this signature")
     const confirm = !!p_confirm
-    updateRow(
-      "transmittal_stages",
-      stage,
-      confirm ? { second_confirmed: true, second_signature_declined: false } : { second_confirmed: false, second_signature_declined: true },
-    )
+    updateRow("transmittal_stages", stage, { [`${slot}_confirmed`]: confirm, [`${slot}_signature_declined`]: !confirm })
     return {
       id: stage.transmittal_id,
       stage_id: p_stage_id,
       confirmed: confirm,
-      notify_id: confirm ? null : stage.first_signer_id,
+      notify_id: confirm ? null : stage.completed_by,
     }
   })
 

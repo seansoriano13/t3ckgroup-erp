@@ -27,8 +27,8 @@ const TRANSMITTAL_SELECT =
   " products:transmittal_products(option:ipas_options(id, label))," +
   " references:transmittal_references(option:ipas_options(id, label))," +
   " odoo_receiver:employees!transmittals_odoo_received_by_fkey(id, name)," +
-  " check_by_first:employees!transmittals_check_by_first_id_fkey(id, name, call_sign)," +
-  " check_by_second:employees!transmittals_check_by_second_id_fkey(id, name, call_sign)," +
+  " check_by_first:employees!transmittals_check_by_first_id_fkey(id, name, call_sign, signature_path)," +
+  " check_by_second:employees!transmittals_check_by_second_id_fkey(id, name, call_sign, signature_path)," +
   " stages:transmittal_stages(*, first_signer:employees!transmittal_stages_first_signer_id_fkey(id, name, signature_path)," +
   " second_signer:employees!transmittal_stages_second_signer_id_fkey(id, name, signature_path))," +
   " evidence:pms_evidence(id, record_id, kind, storage_path, file_name, mime_type, size_bytes, uploaded_by, created_at)," +
@@ -345,10 +345,15 @@ export const transmittalService = {
   /**
    * Signs a Warehouse stage (`stage` is warehouse_checking or warehouse_releasing).
    * `otherSignerId` names the other signatory from a list, or `otherSignerName`
-   * types one (releasing, when no Technical stage follows). Sends the notices
-   * the database owes. Returns the RPC result.
+   * types one (releasing, when no Technical stage follows). `signAsSecond`
+   * signs the caller as the stage's second signatory (Inspected by) on
+   * checking or Technical inspection. Sends the notices the database owes.
+   * Returns the RPC result.
    */
-  async completeStage(id, { stage, otherSignerId = null, otherSignerName = null, remarks = null, noPicturesReason = null }) {
+  async completeStage(
+    id,
+    { stage, otherSignerId = null, otherSignerName = null, remarks = null, noPicturesReason = null, signAsSecond = false },
+  ) {
     const { data, error } = await supabase.rpc("transmittal_complete_stage", {
       p_transmittal_id: id,
       p_stage: stage,
@@ -356,6 +361,7 @@ export const transmittalService = {
       p_other_signer_name: otherSignerName,
       p_remarks: remarks,
       p_no_pictures_reason: noPicturesReason,
+      p_sign_as_second: !!signAsSecond,
     });
     if (error) throw error;
 

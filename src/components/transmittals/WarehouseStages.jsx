@@ -45,9 +45,9 @@ const formatWhen = (value) => (value ? new Date(value).toLocaleString() : "");
 const caption = "text-label font-bold uppercase tracking-wider text-muted-foreground";
 
 /**
- * The ratings table: GC or NA per line, a remark on NA. The Warehouse also
- * gives a quantity received where it differs; `technical` rates the TCA side
- * (Technical inspection) instead, with no quantity.
+ * The ratings table: GC or NA per line, a remark on NA, and a quantity
+ * received where it differs. `technical` rates the TCA side (Technical
+ * inspection) instead; where Warehouse checking ran, its quantity stands.
  */
 export function WarehouseRatings({ transmittal, canRate, onSaved, technical = false, members = [], currentUserId = null }) {
   const ratingOf = (line) => (technical ? line.techRating : line.whRating);
@@ -67,6 +67,8 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
     ]),
   );
   const [draft, setDraft] = useState(initial);
+  // One quantity per line: the Warehouse's, or Technical's on a slip with no Warehouse checking.
+  const canSetQuantity = canRate && !(technical && transmittal.checkWarehouse);
   const [busy, setBusy] = useState(false);
 
   const setRow = (lineId, patch) => setDraft((prev) => ({ ...prev, [lineId]: { ...prev[lineId], ...patch } }));
@@ -79,7 +81,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
         rating: draft[line.id].rating,
         remark: draft[line.id].remark,
         inChargeId: draft[line.id].inChargeId || null,
-        quantityReceived: technical ? null : draft[line.id].quantityReceived,
+        quantityReceived: draft[line.id].quantityReceived,
       }));
     setBusy(true);
     try {
@@ -99,7 +101,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
         <Table tableId="transmittal-ratings" className="md:min-w-[48rem]">
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              {["#", "Item", "Quantity", "In-charge", "Rating", "Remark (NA needs one)", ...(technical ? [] : ["Quantity received"])].map((h) => (
+              {["#", "Item", "Quantity", "In-charge", "Rating", "Remark (NA needs one)", "Quantity received"].map((h) => (
                 <TableHead key={h} className={caption}>
                   {h}
                 </TableHead>
@@ -157,21 +159,19 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
                       <span className="text-muted-foreground">{remarkOf(line) || "—"}</span>
                     )}
                   </TableCell>
-                  {!technical && (
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="any"
-                        className="w-28"
-                        value={row.quantityReceived ?? ""}
-                        disabled={!canRate || busy}
-                        aria-label={`Quantity received for line ${line.position}`}
-                        placeholder="Same"
-                        onChange={(e) => setRow(line.id, { quantityReceived: e.target.value })}
-                      />
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="w-28"
+                      value={row.quantityReceived ?? ""}
+                      disabled={!canSetQuantity || busy}
+                      aria-label={`Quantity received for line ${line.position}`}
+                      placeholder="Same"
+                      onChange={(e) => setRow(line.id, { quantityReceived: e.target.value })}
+                    />
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -204,6 +204,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
   const [noPicturesReason, setNoPicturesReason] = useState("");
   const [otherId, setOtherId] = useState("");
   const [otherName, setOtherName] = useState("");
+  const [signAsSecond, setSignAsSecond] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const isCheckingStage = stage === TRANSMITTAL_STAGE.WAREHOUSE_CHECKING;
@@ -212,6 +213,12 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
   // The other signatory is picked from a list on every stage but a typed Warehouse releasing.
   const pickOther = isCheckingStage || isTechnicalStage || receiverFromTechnical;
   // The two signatories may be the same person (spec #251), so the signer stays on the list.
+  // Checking and Technical inspection: the caller signs as either signatory (spec #251).
+  const chooseSlot = isCheckingStage || isTechnicalStage;
+  const slotOptions = [
+    { value: "first", label: signers.first },
+    { value: "second", label: signers.second },
+  ];
   const otherOptions = (isCheckingStage ? members.warehouse : pickOther ? members.technical : []).map((m) => ({
     value: m.id,
     label: m.name,
@@ -278,6 +285,7 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
         otherSignerName: otherId ? null : otherName.trim() || null,
         remarks: remarks.trim() || null,
         noPicturesReason: noPicturesReason.trim() || null,
+        signAsSecond: chooseSlot && signAsSecond,
       });
       toast.success(`${STAGE_TITLE[stage]} signed.`);
       afterChange();
@@ -301,8 +309,18 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
     }
   };
 
-  const iAmCoSigner = row && currentUserId && row.second_signer_id === currentUserId;
-  const awaitingMyConfirm = signed && iAmCoSigner && !row.second_confirmed && !row.second_signature_declined;
+  // The co-signer holds the slot still waiting: the second, or the first when the completer signed second.
+  const waitingSlot = !signed
+    ? null
+    : !row.second_confirmed && !row.second_signature_declined
+      ? "second"
+      : !row.first_confirmed && !row.first_signature_declined
+        ? "first"
+        : null;
+  const awaitingMyConfirm =
+    !!currentUserId && !!waitingSlot && row[`${waitingSlot}_signer_id`] === currentUserId;
+  const slotNote = (slot) =>
+    row[`${slot}_signature_declined`] ? " (declined)" : row[`${slot}_confirmed`] ? " (confirmed)" : " (not yet confirmed)";
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 text-[13px]">
@@ -360,14 +378,14 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
               <p className={caption}>{signers.first}</p>
               <p>
                 {row.first_signer?.name ?? "—"} · {formatWhen(row.first_signed_at)}
+                <span className="ml-1 text-muted-foreground">{slotNote("first")}</span>
               </p>
             </div>
             <div>
               <p className={caption}>{signers.second}</p>
               <p>
                 {row.second_signer_name ?? "—"} · {formatWhen(row.second_signed_at)}
-                {row.second_confirmed && <span className="ml-1 text-muted-foreground">(confirmed)</span>}
-                {row.second_signature_declined && <span className="ml-1 text-muted-foreground">(declined)</span>}
+                <span className="ml-1 text-muted-foreground">{slotNote("second")}</span>
               </p>
             </div>
           </div>
@@ -395,8 +413,17 @@ export function WarehouseStageSignoff({ transmittal, stage, canSign, currentUser
                 <Input value={noPicturesReason} onChange={(e) => setNoPicturesReason(e.target.value)} disabled={busy} />
               </FieldBox>
             )}
+            {chooseSlot && (
+              <FieldBox label="You sign as" bare>
+                <SelectField
+                  options={slotOptions}
+                  value={signAsSecond ? "second" : "first"}
+                  onChange={(v) => setSignAsSecond(v === "second")}
+                />
+              </FieldBox>
+            )}
             {pickOther && (
-              <FieldBox label={signers.second} bare>
+              <FieldBox label={chooseSlot && signAsSecond ? signers.first : signers.second} bare>
                 <SelectField options={otherOptions} value={otherId} onChange={setOtherId} placeholder="Pick a name" />
               </FieldBox>
             )}

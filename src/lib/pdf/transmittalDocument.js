@@ -98,7 +98,7 @@ function stageHtml(s) {
   return `<div class="tg-stage${s.present ? '' : ' struck'}">
     <h4>${esc(s.title)}</h4>
     <div class="rem">${esc(s.remarks)}</div>
-    <div class="pics">(Provided Pictures &amp; Videos) ${s.pictures === 'Yes' ? '<b>Yes</b> / No' : 'Yes / <b>No</b>'}</div>
+    <div class="pics">(Provided Pictures &amp; Videos) ${s.pictures === 'Yes' ? '<b>Yes</b> / No' : s.pictures === 'No' ? 'Yes / <b>No</b>' : 'Yes / No'}</div>
     <div class="tg-plates">${s.plates.map((p) => plateHtml(p)).join('')}</div>
   </div>`;
 }

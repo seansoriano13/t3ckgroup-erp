@@ -124,12 +124,17 @@ describe('stages', () => {
     expect(vm.stages[2].present).toBe(true);
   });
 
-  it('prints pictures Yes only when the stage holds evidence', () => {
-    const vm = buildTransmittalViewModel(slip({
-      evidence: [{ id: 'e1', record_id: 'st1' }],
-    }));
+  it('prints pictures Yes only when the signed stage holds evidence', () => {
+    const signedStage = { id: 'st1', stage: 'warehouse_checking', completed_at: '2026-10-15T08:00:00Z' };
+    const vm = buildTransmittalViewModel(slip({ stages: [signedStage], evidence: [{ id: 'e1', record_id: 'st1' }] }));
     expect(vm.stages[0].pictures).toBe('Yes');
-    expect(vm.stages[1].pictures).toBe('No');
+    expect(buildTransmittalViewModel(slip({ stages: [signedStage] })).stages[0].pictures).toBe('No');
+  });
+
+  it('leaves pictures blank on a stage not yet signed', () => {
+    const vm = buildTransmittalViewModel(slip());
+    expect(vm.stages[0].pictures).toBe('');
+    expect(vm.stages[1].pictures).toBe('');
   });
 });
 
@@ -160,6 +165,29 @@ describe('signature plates', () => {
       stages: [{ ...base.stages[0], second_confirmed: false, second_signature_declined: true }],
     })).stages[0].plates[1];
     expect(declined.stamp).toContain('signature not applied');
+  });
+
+  it('prints name only for a first signatory not yet confirmed (the completer signed second)', () => {
+    const vm = buildTransmittalViewModel(slip({
+      stages: [{
+        id: 'st1', stage: 'warehouse_checking', completed_at: '2026-10-15T09:00:00Z',
+        first_signer: { name: 'Ana', signatureBase64: 'data:image/png;base64,AA' }, first_signed_at: '2026-10-15T09:00:00Z', first_confirmed: false,
+        second_signer: { name: 'Ben', signatureBase64: 'data:image/png;base64,BB' }, second_signer_name: 'Ben',
+        second_signed_at: '2026-10-15T09:00:00Z', second_confirmed: true,
+      }],
+    }));
+    const [first, second] = vm.stages[0].plates;
+    expect(first).toMatchObject({ who: 'Ana', signatureBase64: null });
+    expect(first.stamp).toContain('not yet confirmed');
+    expect(second).toMatchObject({ who: 'Ben', signatureBase64: 'data:image/png;base64,BB' });
+  });
+
+  it("prints a Check by signer's stored signature", () => {
+    const vm = buildTransmittalViewModel(slip({
+      checkBy: { first: { name: 'Cy', at: '2026-10-15T10:00:00Z', callSign: '1001', signatureBase64: 'data:image/png;base64,CC' }, second: null },
+    }));
+    expect(vm.checkBy[0].signatureBase64).toBe('data:image/png;base64,CC');
+    expect(vm.checkBy[0].stamp).not.toContain('name only');
   });
 
   it('leaves the Check by plates blank until signed', () => {

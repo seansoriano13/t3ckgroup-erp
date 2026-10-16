@@ -49,9 +49,9 @@ async function raiseIpas() {
 const HEADER = { origin: "purchasing", check_warehouse: true, check_technical: true, priority: "high", entity: "T3ck Trading" }
 
 /** A submitted slip with one PO line, prepared by the Warehouse list. */
-async function submittedSlip(ipas) {
+async function submittedSlip(ipas, header = {}) {
     const { data: made, error } = await rpc("warehouse", "transmittal_create", {
-        p_fields: HEADER,
+        p_fields: { ...HEADER, ...header },
         p_product_ids: [],
         p_reference_ids: [],
         p_lines: [{ kind: "po_line", ipas_id: ipas.id, odoo_po_line_id: ipas.odoo_copy.lines[0].line_id, quantity: 6 }],
@@ -209,6 +209,75 @@ describe("Technical inspection refusals, by list and by rule", () => {
             expect(error, `${who} signed Technical inspection`).toBeTruthy()
         }
         expect(await slipState(slip)).toBe("technical_inspection")
+    })
+})
+
+describe("Technical inspection: signing as either signatory, and the quantity received (review of #251)", () => {
+    it("records Technical's quantity received on a slip with no Warehouse checking", async () => {
+        const slipId = await submittedSlip(await raiseIpas(), { check_warehouse: false })
+        expect(await slipState(slipId)).toBe("technical_inspection")
+        const [line] = await linesOf(slipId)
+        const { error } = await rpc("technical", "transmittal_rate", {
+            p_transmittal_id: slipId,
+            p_line_ratings: [{ line_id: line.id, rating: "gc", remark: null, quantity_received: 4 }],
+        })
+        expect(error).toBeNull()
+        expect(Number((await linesOf(slipId))[0].quantity_received)).toBe(4)
+    })
+
+    it("lets the completer sign as Inspected by; the named Received by confirms the first slot", async () => {
+        const slipId = await submittedSlip(await raiseIpas())
+        await toTechnical(slipId)
+        expect((await rate("technical", slipId)).error).toBeNull()
+        const signed = await rpc("technical", "transmittal_complete_stage", {
+            p_transmittal_id: slipId,
+            p_stage: "technical_inspection",
+            p_other_signer_id: ids.dealOwner,
+            p_other_signer_name: null,
+            p_remarks: null,
+            p_no_pictures_reason: "none",
+            p_sign_as_second: true,
+        })
+        expect(signed.error).toBeNull()
+        const stageRow = async () =>
+            (await svc().from("transmittal_stages").select("*").eq("transmittal_id", slipId).eq("stage", "technical_inspection").single()).data
+        expect(await stageRow()).toMatchObject({
+            first_signer_id: ids.dealOwner,
+            first_confirmed: false,
+            second_signer_id: ids.technical,
+            second_confirmed: true,
+        })
+
+        const stageId = (await stageRow()).id
+        const byCompleter = await rpc("technical", "transmittal_confirm_signature", { p_stage_id: stageId, p_confirm: false })
+        expect(byCompleter.error?.message).toMatch(/only the co-signer/)
+        const confirmed = await rpc("dealOwner", "transmittal_confirm_signature", { p_stage_id: stageId, p_confirm: true })
+        expect(confirmed.error).toBeNull()
+        expect(await stageRow()).toMatchObject({ first_confirmed: true, second_confirmed: true })
+    })
+
+    it("refuses signing releasing as Received by", async () => {
+        const slipId = await submittedSlip(await raiseIpas())
+        expect((await rate("warehouse", slipId)).error).toBeNull()
+        const checking = await rpc("warehouse", "transmittal_complete_stage", {
+            p_transmittal_id: slipId,
+            p_stage: "warehouse_checking",
+            p_other_signer_id: ids.dealOwner,
+            p_other_signer_name: null,
+            p_remarks: null,
+            p_no_pictures_reason: "none",
+        })
+        expect(checking.error).toBeNull()
+        const { error } = await rpc("warehouse", "transmittal_complete_stage", {
+            p_transmittal_id: slipId,
+            p_stage: "warehouse_releasing",
+            p_other_signer_id: ids.technical,
+            p_other_signer_name: null,
+            p_remarks: null,
+            p_no_pictures_reason: "none",
+            p_sign_as_second: true,
+        })
+        expect(error?.message).toMatch(/Released by/)
     })
 })
 

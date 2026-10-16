@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { checkingStageOf, firstStageOf, pickedLineLabel, shapeTransmittal, stagesOf, tsrOf } from "./transmittals";
+import {
+  checkingStageOf,
+  companyOptions,
+  firstStageOf,
+  matchCompany,
+  pickedLineLabel,
+  shapeTransmittal,
+  stagesOf,
+  tsrOf,
+} from "./transmittals";
 
 describe("which stages a Transmittal has", () => {
   it("opens Warehouse checking first, with releasing and Technical when both are ticked", () => {
@@ -210,5 +219,23 @@ describe("a picked PO line's label", () => {
   it("shows the product, with its quantity and unit", () => {
     expect(pickedLineLabel({ productName: "Cutter", quantity: 6, unit: "Unit" })).toBe("Cutter · 6 Unit");
     expect(pickedLineLabel({ productName: null, quantity: null, unit: null })).toBe("PO line");
+  });
+});
+
+describe("the slip's Company", () => {
+  const register = ["T3CK Trading", "TG Enterprise"];
+
+  it("maps Odoo's company name onto the register's, ignoring case and spacing", () => {
+    expect(matchCompany(register, " T3ck  Trading ")).toBe("T3CK Trading");
+  });
+
+  it("keeps a name the register doesn't hold, and blank stays blank", () => {
+    expect(matchCompany(register, "Acme")).toBe("Acme");
+    expect(matchCompany(register, null)).toBe("");
+  });
+
+  it("offers the register, plus a saved value it no longer lists", () => {
+    expect(companyOptions(register, "TG Enterprise").map((o) => o.value)).toEqual(register);
+    expect(companyOptions(register, "Old Co").map((o) => o.value)).toEqual([...register, "Old Co"]);
   });
 });

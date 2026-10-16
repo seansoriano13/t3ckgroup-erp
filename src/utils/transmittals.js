@@ -71,12 +71,8 @@ export function shapeTransmittal(row) {
     stages: row.stages ?? [],
     evidence: row.evidence ?? [],
     checkBy: {
-      first: row.check_by_first_id
-        ? { id: row.check_by_first_id, name: row.check_by_first?.name ?? null, callSign: row.check_by_first?.call_sign ?? null, at: row.check_by_first_at }
-        : null,
-      second: row.check_by_second_id
-        ? { id: row.check_by_second_id, name: row.check_by_second?.name ?? null, callSign: row.check_by_second?.call_sign ?? null, at: row.check_by_second_at }
-        : null,
+      first: checkBySlot(row.check_by_first_id, row.check_by_first, row.check_by_first_at),
+      second: checkBySlot(row.check_by_second_id, row.check_by_second, row.check_by_second_at),
     },
     odooReceivedAt: row.odoo_received_at ?? null,
     odooReceivedBy: row.odoo_received_by
@@ -194,8 +190,37 @@ export function tsrOf(transmittal) {
   };
 }
 
+/** One Check by slot: who signed it and when, or null while unsigned. */
+function checkBySlot(id, employee, at) {
+  if (!id) return null;
+  return {
+    id,
+    name: employee?.name ?? null,
+    callSign: employee?.call_sign ?? null,
+    signaturePath: employee?.signature_path ?? null,
+    at,
+  };
+}
+
 /** The label a line's PO picks show: product name, then quantity and unit. */
 export function pickedLineLabel({ productName, quantity, unit }) {
   const qty = quantity == null ? "" : ` · ${Number(quantity)} ${unit ?? ""}`.trimEnd();
   return `${productName || "PO line"}${qty}`;
+}
+
+/**
+ * The register's name for an Odoo company name, matched ignoring case and
+ * spacing ("T3ck Trading" is the register's "T3CK Trading"). An unmatched
+ * name is kept as Odoo gave it, so the default never silently goes blank.
+ */
+export function matchCompany(companyNames, odooName) {
+  const raw = (odooName ?? "").trim();
+  const key = raw.toLowerCase().replace(/\s+/g, " ");
+  return companyNames.find((name) => name.trim().toLowerCase().replace(/\s+/g, " ") === key) ?? raw;
+}
+
+/** The Company picks: the register, plus a saved value it no longer lists. */
+export function companyOptions(companyNames, current) {
+  const names = current && !companyNames.includes(current) ? [...companyNames, current] : companyNames;
+  return names.map((name) => ({ value: name, label: name }));
 }

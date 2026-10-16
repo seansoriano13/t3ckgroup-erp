@@ -103,18 +103,22 @@ export function plate(role, { who = null, at = null, note = null, waiting = fals
   return { role, state: 'signed', who, stamp, signatureBase64: signatureBase64 || null };
 }
 
-/** The second plate of a stage: a declined or unconfirmed co-signer prints name only, with the note. */
-function coSignerPlate(role, row) {
-  if (!row.second_signed_at) return plate(role, { waiting: true });
+/**
+ * One plate of a stage (`slot` is first or second). The co-signer may hold
+ * either slot, so a declined or unconfirmed one prints name only, with the note.
+ */
+function stagePlate(role, row, slot) {
+  if (!row[`${slot}_signed_at`]) return plate(role, { waiting: true });
   let note = null;
-  if (row.second_signature_declined) note = 'signature not applied';
-  else if (!row.second_confirmed) note = 'name only, not yet confirmed';
-  const signed = !row.second_signature_declined && row.second_confirmed;
+  if (row[`${slot}_signature_declined`]) note = 'signature not applied';
+  else if (!row[`${slot}_confirmed`]) note = 'name only, not yet confirmed';
+  const signed = !row[`${slot}_signature_declined`] && row[`${slot}_confirmed`];
+  const signer = row[`${slot}_signer`];
   return plate(role, {
-    who: row.second_signer_name ?? row.second_signer?.name ?? null,
-    at: row.second_signed_at,
+    who: (slot === 'second' ? row.second_signer_name : null) ?? signer?.name ?? null,
+    at: row[`${slot}_signed_at`],
     note,
-    signatureBase64: signed ? (row.second_signer?.signatureBase64 ?? null) : null,
+    signatureBase64: signed ? (signer?.signatureBase64 ?? null) : null,
   });
 }
 
@@ -123,17 +127,13 @@ function stageSection(transmittal, section) {
   const present = stagesOf(transmittal).includes(section.stage);
   const row = (transmittal.stages ?? []).find((s) => s.stage === section.stage) ?? null;
   const pictures = row ? (transmittal.evidence ?? []).some((e) => e.record_id === row.id) : false;
-  const base = { title: section.title, present, remarks: row?.remarks || '', pictures: pictures ? 'Yes' : 'No' };
+  // Unsigned cells print blank (spec #251): Yes / No is ticked only once the stage is signed.
+  const picturesCell = !row?.completed_at ? '' : pictures ? 'Yes' : 'No';
+  const base = { title: section.title, present, remarks: row?.remarks || '', pictures: picturesCell };
   if (!present || !row) {
     return { ...base, plates: section.roles.map((role) => plate(role, { waiting: true })) };
   }
-  const first = plate(section.roles[0], {
-    who: row.first_signer?.name ?? null,
-    at: row.first_signed_at,
-    waiting: !row.first_signed_at,
-    signatureBase64: row.first_signer?.signatureBase64 ?? null,
-  });
-  return { ...base, plates: [first, coSignerPlate(section.roles[1], row)] };
+  return { ...base, plates: [stagePlate(section.roles[0], row, 'first'), stagePlate(section.roles[1], row, 'second')] };
 }
 
 /**
@@ -144,7 +144,7 @@ function checkByPlates(checkBy, roster = []) {
   const rosterSigns = roster.map((r) => r.callSign).filter(Boolean).join(' · ');
   const slot = (label, entry) =>
     entry?.name
-      ? { ...plate(label, { who: entry.name, at: entry.at }), callSign: entry.callSign ?? '' }
+      ? { ...plate(label, { who: entry.name, at: entry.at, signatureBase64: entry.signatureBase64 }), callSign: entry.callSign ?? '' }
       : { ...plate(label, { waiting: true }), callSign: rosterSigns };
   return [slot('Check by (1)', checkBy?.first), slot('Check by (2)', checkBy?.second)];
 }

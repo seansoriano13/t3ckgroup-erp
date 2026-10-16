@@ -11,6 +11,7 @@ import { SelectField } from "@/components/ui/SelectField";
 import { Textarea } from "@/components/ui/textarea";
 import { transmittalService } from "@/services/transmittalService";
 import { ipasService } from "@/services/ipasService";
+import { companyService } from "@/services/companyService";
 import {
   TRANSMITTAL_LINE_KIND,
   TRANSMITTAL_ORIGIN,
@@ -19,7 +20,7 @@ import {
   TRANSMITTAL_PRIORITY_LABELS,
   TRANSMITTAL_OPTION_LIST,
 } from "@/constants/transmittals";
-import { pickedLineLabel } from "@/utils/transmittals";
+import { companyOptions, matchCompany, pickedLineLabel } from "@/utils/transmittals";
 import PoLinePicker from "./PoLinePicker";
 import { transmittalKeys } from "./transmittalKeys";
 import { ipasErrorMessage } from "../../utils/ipas";
@@ -127,6 +128,11 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
     queryKey: transmittalKeys.options,
     queryFn: () => ipasService.listOptions(null, { includeInactive: false }),
   });
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies"],
+    queryFn: () => companyService.getCompanies(),
+  });
+  const companyNames = companies.map((c) => c.name);
   const productOptions = options.filter((o) => o.list === TRANSMITTAL_OPTION_LIST.PRODUCT);
   const referenceOptions = options.filter((o) => o.list === TRANSMITTAL_OPTION_LIST.REFERENCE);
   const locationOptions = [
@@ -144,7 +150,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
 
   const addPickedLine = (pick) => {
     setLines((prev) => [...prev, poLineFromPick(pick)]);
-    setHeader((prev) => (prev.entity ? prev : { ...prev, entity: pick.entity ?? "" }));
+    setHeader((prev) => (prev.entity ? prev : { ...prev, entity: matchCompany(companyNames, pick.entity) }));
   };
 
   const linesPayload = lines.map((line) => ({
@@ -214,9 +220,10 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
             <SelectField options={PRIORITY_OPTIONS} value={header.priority} onChange={setField("priority")} placeholder="Pick" />
           </FieldBox>
           <FieldBox label="Company" bare>
-            <Input
+            <SelectField
+              options={companyOptions(companyNames, header.entity)}
               value={header.entity}
-              onChange={(e) => setField("entity")(e.target.value)}
+              onChange={setField("entity")}
               placeholder="Defaults from the first PO line"
             />
           </FieldBox>

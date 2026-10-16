@@ -13878,7 +13878,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.transmittal_complete_stage(p_transmittal_id uuid, p_stage text, p_other_signer_id uuid, p_other_signer_name text, p_remarks text, p_no_pictures_reason text)
+CREATE OR REPLACE FUNCTION public.transmittal_complete_stage(p_transmittal_id uuid, p_stage text, p_other_signer_id uuid, p_other_signer_name text, p_remarks text, p_no_pictures_reason text, p_sign_as_second boolean DEFAULT false)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -13899,6 +13899,8 @@ declare
   v_next_ids jsonb := '[]'::jsonb;
   v_na_ids uuid[] := '{}';
   v_tech boolean := p_stage = 'technical_inspection';
+  v_as_second boolean := coalesce(p_sign_as_second, false);
+  v_actor_name text;
 begin
   if v_actor is null then
     raise exception 'transmittal_complete_stage: not signed in' using errcode = '42501';
@@ -13950,6 +13952,11 @@ begin
     raise exception 'transmittal_complete_stage: Technical inspection is not open on %', v_row.number using errcode = '42501';
   end if;
 
+  -- Releasing's caller is Released by: Received by is the receiving side.
+  if v_as_second and p_stage = 'warehouse_releasing' then
+    raise exception 'transmittal_complete_stage: the Warehouse signs releasing as Released by' using errcode = '22023';
+  end if;
+
   -- The other signatory.
   if p_stage = 'warehouse_checking' then
     if p_other_signer_id is null or not exists (
@@ -13978,6 +13985,8 @@ begin
   if v_other_name is null then
     raise exception 'transmittal_complete_stage: name who signs with you' using errcode = '22023';
   end if;
+
+  select e.name into v_actor_name from public.employees e where e.id = v_actor;
 
   select count(*) into v_pictures from public.pms_evidence e
    where e.record_type = 'transmittal_stage' and e.record_id = v_stage.id;
@@ -14016,12 +14025,13 @@ begin
          no_pictures_reason = case when v_pictures > 0 then null else v_reason end,
          completed_by = v_actor,
          completed_at = now(),
-         first_signer_id = v_actor,
+         first_signer_id = case when v_as_second then p_other_signer_id else v_actor end,
          first_signed_at = now(),
-         first_confirmed = true,
-         second_signer_id = p_other_signer_id,
-         second_signer_name = v_other_name,
-         second_signed_at = now()
+         first_confirmed = not v_as_second,
+         second_signer_id = case when v_as_second then v_actor else p_other_signer_id end,
+         second_signer_name = case when v_as_second then v_actor_name else v_other_name end,
+         second_signed_at = now(),
+         second_confirmed = v_as_second
    where id = v_stage.id;
 
   -- Advance the slip.
@@ -14098,6 +14108,7 @@ declare
   v_actor uuid := public.get_employee_id();
   v_stage public.transmittal_stages;
   v_number text;
+  v_first boolean;
 begin
   if v_actor is null then
     raise exception 'transmittal_confirm_signature: not signed in' using errcode = '42501';
@@ -14110,17 +14121,32 @@ begin
   if v_stage.completed_at is null then
     raise exception 'transmittal_confirm_signature: the stage isn''t signed yet' using errcode = '22023';
   end if;
-  if v_stage.second_signer_id is distinct from v_actor then
+  -- The co-signer is whichever slot the completer didn't sign: the second,
+  -- or the first when the completer signed as the second.
+  -- When one person holds both slots, the co-signer's is the one still open.
+  if v_stage.first_signer_id = v_actor and v_stage.second_signer_id = v_actor then
+    if not v_stage.first_confirmed or v_stage.first_signature_declined then
+      v_first := true;
+    elsif not v_stage.second_confirmed or v_stage.second_signature_declined then
+      v_first := false;
+    else
+      raise exception 'transmittal_confirm_signature: both signatures are already confirmed' using errcode = '22023';
+    end if;
+  elsif v_stage.second_signer_id = v_actor and v_actor is distinct from v_stage.completed_by then
+    v_first := false;
+  elsif v_stage.first_signer_id = v_actor and v_actor is distinct from v_stage.completed_by then
+    v_first := true;
+  else
     raise exception 'transmittal_confirm_signature: only the co-signer confirms this signature' using errcode = '42501';
   end if;
 
-  if coalesce(p_confirm, false) then
+  if v_first then
     update public.transmittal_stages
-       set second_confirmed = true, second_signature_declined = false
+       set first_confirmed = coalesce(p_confirm, false), first_signature_declined = not coalesce(p_confirm, false)
      where id = p_stage_id;
   else
     update public.transmittal_stages
-       set second_confirmed = false, second_signature_declined = true
+       set second_confirmed = coalesce(p_confirm, false), second_signature_declined = not coalesce(p_confirm, false)
      where id = p_stage_id;
   end if;
 
@@ -14133,7 +14159,7 @@ begin
     'id', v_stage.transmittal_id,
     'stage_id', p_stage_id,
     'confirmed', coalesce(p_confirm, false),
-    'notify_id', case when coalesce(p_confirm, false) then null else v_stage.first_signer_id end
+    'notify_id', case when coalesce(p_confirm, false) then null else v_stage.completed_by end
   );
 end;
 $function$
@@ -14438,21 +14464,24 @@ begin
         case when v_tech then 'Technical' else 'Warehouse' end using errcode = '22023';
     end if;
 
+    -- One quantity received per line: the Warehouse's, or Technical's on a
+    -- slip with no Warehouse checking.
+    v_received := nullif(v_item->>'quantity_received', '')::numeric;
+    if v_received is not null and v_received < 0 then
+      raise exception 'transmittal_rate: a quantity received is zero or more' using errcode = '22023';
+    end if;
+    if v_received = v_line.quantity then
+      v_received := null;
+    end if;
+
     if v_tech then
       update public.transmittal_lines
          set tech_in_charge_id = v_in_charge,
              tech_rating = v_rating,
-             tech_remark = v_remark
+             tech_remark = v_remark,
+             quantity_received = case when v_row.check_warehouse then quantity_received else v_received end
        where id = v_line.id;
     else
-      v_received := nullif(v_item->>'quantity_received', '')::numeric;
-      if v_received is not null and v_received < 0 then
-        raise exception 'transmittal_rate: a quantity received is zero or more' using errcode = '22023';
-      end if;
-      if v_received = v_line.quantity then
-        v_received := null;
-      end if;
-
       update public.transmittal_lines
          set wh_in_charge_id = v_in_charge,
              wh_rating = v_rating,
@@ -14620,13 +14649,11 @@ begin
   end if;
 
   if (new.id, new.transmittal_id, new.stage, new.remarks, new.no_pictures_reason, new.completed_by,
-      new.completed_at, new.first_signer_id, new.first_signed_at, new.first_confirmed,
-      new.first_signature_declined, new.second_signer_id, new.second_signer_name, new.second_signed_at,
+      new.completed_at, new.first_signer_id, new.first_signed_at, new.second_signer_id, new.second_signer_name, new.second_signed_at,
       new.created_at)
      is distinct from
      (old.id, old.transmittal_id, old.stage, old.remarks, old.no_pictures_reason, old.completed_by,
-      old.completed_at, old.first_signer_id, old.first_signed_at, old.first_confirmed,
-      old.first_signature_declined, old.second_signer_id, old.second_signer_name, old.second_signed_at,
+      old.completed_at, old.first_signer_id, old.first_signed_at, old.second_signer_id, old.second_signer_name, old.second_signed_at,
       old.created_at) then
     select number into v_number from public.transmittals where id = old.transmittal_id;
     raise exception 'transmittal: the % stage of % is signed; its remarks and signatures can''t change',

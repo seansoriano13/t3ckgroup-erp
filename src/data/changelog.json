@@ -1,5 +1,19 @@
 [
     {
+        "date": "2026-10-16",
+        "title": "Transmittals: Technical inspection, Check by and prints",
+        "version": "1.9.30",
+        "changes": [
+            "Transmittals: Technical rates each line GC or NA and signs Technical inspection (Received by and Inspected by). On a slip with no Warehouse checking, Technical records the quantity received.",
+            "Transmittals: two Check by signatures close a slip. A slip waiting on you is listed in the Approval Center, and a PO slip needs Received in Odoo first.",
+            "Transmittals: the list filters by stage, priority, NA and awaiting my Check by, and shows an NA column.",
+            "Transmittals: Print gives the slip on the TG03 paper layout, with signatures; a TSR prints as one A4 sheet, with or without photographs.",
+            "Transmittals: Company is picked from the company list. Whoever completes Warehouse checking or Technical inspection can sign as either signatory; the other confirms.",
+            "IPAS: section 5 lists the TG03 slips carrying its PO lines, and Delivered and Actual Checking are ticked from those slips.",
+            "SOR: an SOR shows its Transmittals and Packing Lists, with their stage, NA count and boxes."
+        ]
+    },
+    {
         "date": "2026-10-15",
         "title": "Packing Lists: printed Packing List",
         "version": "1.9.29",
