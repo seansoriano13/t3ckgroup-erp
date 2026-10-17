@@ -303,11 +303,18 @@ describe("summary", () => {
     expect(s.tax).toBe(60000);
   });
 
-  it("follows the sheet's ITR literally: negative below the allowance", () => {
+  it("charges no ITR below the allowance, so ITR never adds to Revenue", () => {
     const s = summary(matrix({ offer: 100000, acquires: [40000] }), settings);
-    // (100,000 - 250,000) x 8% = -12,000, and Revenue is (100,000 - 40,000) - (-12,000)
-    expect(s.itr).toBe(-12000);
-    expect(s.revenue).toBe(72000);
+    // The sheet's (100,000 - 250,000) x 8% would be -12,000 and lift Revenue to 72,000.
+    expect(s.itr).toBe(0);
+    expect(s.revenue).toBe(60000);
+  });
+
+  it("charges no ITR on an offer exactly at the allowance, and taxes one centavo above it", () => {
+    expect(summary(matrix({ offer: 250000, acquires: [40000] }), settings).itr).toBe(0);
+    // 0.01 x 8% = 0.0008, which rounds to 0.00
+    expect(summary(matrix({ offer: 250000.01, acquires: [40000] }), settings).itr).toBe(0);
+    expect(summary(matrix({ offer: 250100, acquires: [40000] }), settings).itr).toBe(8);
   });
 
   it("rounds half away from zero once, on return", () => {

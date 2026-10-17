@@ -200,7 +200,7 @@ export function matrixTotals(tenderLines) {
  *   collected             Final Offer - tax - retention
  *   operationalExpenses   the Final Acquire total (every Component and cost-only row)
  *   marketing, opex       as typed
- *   itr                   (Final Offer - allowance) x ITR rate (8%); negative below the allowance, as the sheet has it
+ *   itr                   (Final Offer - allowance) x ITR rate (8%); zero at or below the allowance, so it never adds to Revenue
  *   revenue               (Final Offer - Final Acquire total) - ITR
  *   abcTotal, percentOfAbc, overAbc   the ABC ceiling, only when every Tender Line has an ABC
  *
@@ -236,11 +236,14 @@ export function summary(matrix, settings) {
   const retention = byRate(offer, retentionRate);
   const collected =
     offer === null || taxRate === null || retentionRate === null ? null : roundDiv(offer * (MICRO - taxRate - retentionRate), MICRO);
-  const itr = offer === null || allowance === null || itrRate === null ? null : roundDiv((offer - allowance) * itrRate, MICRO);
+  // Only the part of the offer above the allowance is taxed. Below it the sheet's formula goes
+  // negative and would add to Revenue, so the taxed amount stops at zero.
+  const taxed = offer === null || allowance === null ? null : offer > allowance ? offer - allowance : 0n;
+  const itr = taxed === null || itrRate === null ? null : roundDiv(taxed * itrRate, MICRO);
   const revenue =
-    offer === null || acquire === null || allowance === null || itrRate === null
+    taxed === null || acquire === null || itrRate === null
       ? null
-      : roundDiv((offer - acquire) * MICRO - (offer - allowance) * itrRate, MICRO);
+      : roundDiv((offer - acquire) * MICRO - taxed * itrRate, MICRO);
 
   const ceiling = matrixTotals(lines);
 
