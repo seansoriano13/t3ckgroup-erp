@@ -18,6 +18,7 @@
 
 import { stageByCode } from "./sor"
 import { isSettled } from "./purchaseRequest"
+import { evaluateCostingCondition } from "../utils/costingConditions"
 
 export const CONDITION_KINDS = {
   ATTACHMENT: "attachment",
@@ -36,6 +37,9 @@ export const CONDITION_KINDS = {
   // Issue #209 (#311): every Requested Item on the SOR's Purchase Request is
   // closed, or the SOR has no Purchase Request at all.
   PURCHASING_SETTLED: "purchasing_settled",
+  // Issue #272: the Costing Matrix is finished and the bid decided Go. Sibling
+  // kinds (#463) read the same evidence through utils/costingConditions.
+  COSTING_SETTLED: "costing_settled",
 }
 
 /**
@@ -52,6 +56,7 @@ export const NEW_CONDITION_KINDS = [
   CONDITION_KINDS.ASSIGNMENT,
   CONDITION_KINDS.DEADLINE,
   CONDITION_KINDS.PURCHASING_SETTLED,
+  CONDITION_KINDS.COSTING_SETTLED,
 ]
 
 export const CONDITION_STATUS = {
@@ -102,10 +107,13 @@ const notApplicable = () => ({
   satisfiedBy: null,
   satisfiedAt: null,
 })
-const unsatisfied = () => ({
+// `detail` (#272) says why a condition is unmet where the kind can tell:
+// `{ failing: [check keys], messages: [plain sentences] }`. Absent otherwise.
+const unsatisfied = (detail) => ({
   status: CONDITION_STATUS.UNSATISFIED,
   satisfiedBy: null,
   satisfiedAt: null,
+  ...(detail ? { detail } : {}),
 })
 const satisfied = (satisfiedBy = null, satisfiedAt = null) => ({
   status: CONDITION_STATUS.SATISFIED,
@@ -170,6 +178,9 @@ export function evaluateCondition(condition, {
   purchaseRequestItems = undefined,
   // A closed visit's `left_at`: reads the items as they stood then.
   purchaseRequestAsOf = null,
+  // Costing settled's evidence (#272): `costing_condition_inputs` (booleans and
+  // counts). Left undefined (nobody loaded it), it fails closed.
+  costingInputs = undefined,
 } = {}) {
   if (condition.archived_at) return notApplicable()
   if (asOf && condition.created_at && condition.created_at > asOf) return notApplicable()
@@ -230,6 +241,10 @@ export function evaluateCondition(condition, {
     case CONDITION_KINDS.PURCHASING_SETTLED: {
       if (purchaseRequestItems === undefined) return unsatisfied()
       return isSettled(purchaseRequestItems, { asOf: purchaseRequestAsOf }) ? satisfied() : unsatisfied()
+    }
+    case CONDITION_KINDS.COSTING_SETTLED: {
+      const { met, failing, messages } = evaluateCostingCondition(condition.kind, costingInputs)
+      return met ? satisfied() : unsatisfied({ failing, messages })
     }
     default:
       return unsatisfied()
@@ -309,6 +324,7 @@ export function evaluateCrossing({
   hasInclusions = false,
   hasPurchasing = false,
   purchaseRequestItems = undefined,
+  costingInputs = undefined,
 }) {
   const crossed = stagesCrossed(fromCode, toCode, stages)
   const missing = []
@@ -325,6 +341,7 @@ export function evaluateCrossing({
         hasInclusions,
         hasPurchasing,
         purchaseRequestItems,
+        costingInputs,
       })
       if (result.status === CONDITION_STATUS.UNSATISFIED) {
         missing.push({ stage, condition })

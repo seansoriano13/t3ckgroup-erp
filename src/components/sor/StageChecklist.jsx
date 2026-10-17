@@ -239,13 +239,14 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
             </p>
           )}
           <div className="space-y-2.5">
-            {checklist.map(({ condition, status, satisfiedBy, satisfiedAt }) => (
+            {checklist.map(({ condition, status, satisfiedBy, satisfiedAt, detail }) => (
               <StageChecklistRow
                 key={condition.id}
                 condition={condition}
                 status={status}
                 satisfiedBy={satisfiedBy}
                 satisfiedAt={satisfiedAt}
+                detail={detail}
                 employees={employees}
                 groups={groups}
                 opportunity={opportunity}

@@ -80,6 +80,11 @@ export const CONDITION_KIND_META = {
     icon: PackageCheck,
     hint: "Every Requested Item is closed. Met when there is no Purchase Request.",
   },
+  [CONDITION_KINDS.COSTING_SETTLED]: {
+    label: "Costing settled",
+    icon: Calculator,
+    hint: "The Costing Matrix is finished (a Final Offer on every Tender Line, a complete summary, an approved evaluation, within ABC) and the Bid Decision is Go. Unmet when there is no matrix.",
+  },
 }
 
 export const ACTION_KIND_META = {
