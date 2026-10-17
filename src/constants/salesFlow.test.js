@@ -10,6 +10,7 @@ import {
   diffFlowSnapshots,
   entryStage,
   flowLockBlockers,
+  flowPublishWarnings,
   flowStageTone,
   isAtEntryStage,
   isFlowLockable,
@@ -710,5 +711,71 @@ describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", ()
     expect(classifyFlowStage("s-won", draftData)).toBe("PRE_WON")
     expect(classifyFlowStage("s-deliv", draftData)).toBe("PRE_WON")
     expect(classifyFlowStage("s-lost", draftData)).toBe("LOST")
+  })
+})
+
+describe("flowPublishWarnings (#463)", () => {
+  const stage = (id, name, sort_order, extra = {}) => ({ id, name, sort_order, is_terminal: false, ...extra })
+  const edge = (from, to) => ({ from_stage_id: from, to_stage_id: to })
+  const stages = [stage("a", "Lead", 0), stage("b", "Sourcing", 1), stage("c", "Bidding", 2), stage("d", "Submitted", 3)]
+  const chain = [edge("a", "b"), edge("b", "c"), edge("c", "d")]
+  const condition = (kind) => [{ kind }]
+  const opens = [{ kind: "open_costing_matrix" }]
+
+  it("says nothing when the flow has no costing condition", () => {
+    expect(flowPublishWarnings({ stages, edges: chain })).toEqual([])
+  })
+
+  it("warns for a costing condition reachable without an Open Costing Matrix", () => {
+    const warnings = flowPublishWarnings({ stages, edges: chain, conditionsByStage: { c: condition("costing_priced") } })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/^Bidding /)
+  })
+
+  it("warns for Costing settled too, once per Stage", () => {
+    const warnings = flowPublishWarnings({
+      stages,
+      edges: chain,
+      conditionsByStage: { c: [{ kind: "costing_priced" }, { kind: "costing_settled" }], d: condition("costing_settled") },
+    })
+    expect(warnings.map((w) => w.split(" ")[0])).toEqual(["Bidding", "Submitted"])
+  })
+
+  it("is quiet when every path passes a Stage that opens the matrix", () => {
+    expect(
+      flowPublishWarnings({ stages, edges: chain, conditionsByStage: { d: condition("costing_settled") }, actionsByStage: { b: opens } }),
+    ).toEqual([])
+  })
+
+  it("counts the Stage that opens the matrix itself as covered", () => {
+    expect(
+      flowPublishWarnings({ stages, edges: chain, conditionsByStage: { c: condition("costing_priced") }, actionsByStage: { c: opens } }),
+    ).toEqual([])
+  })
+
+  it("warns when only some paths pass the opening Stage", () => {
+    const edges = [edge("a", "b"), edge("b", "d"), edge("a", "c"), edge("c", "d")]
+    const warnings = flowPublishWarnings({
+      stages,
+      edges,
+      conditionsByStage: { d: condition("costing_settled") },
+      actionsByStage: { b: opens },
+    })
+    expect(warnings).toHaveLength(1)
+  })
+
+  it("ignores other conditions and other actions", () => {
+    expect(
+      flowPublishWarnings({
+        stages,
+        edges: chain,
+        conditionsByStage: { c: condition("attachment") },
+        actionsByStage: { b: [{ kind: "create_individual_task" }] },
+      }),
+    ).toEqual([])
+  })
+
+  it("does not warn about a Stage no path reaches (that is a lock blocker)", () => {
+    expect(flowPublishWarnings({ stages, edges: [edge("a", "b")], conditionsByStage: { d: condition("costing_settled") } })).toEqual([])
   })
 })

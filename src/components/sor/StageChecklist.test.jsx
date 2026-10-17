@@ -100,6 +100,43 @@ describe("what's outstanding", () => {
   })
 })
 
+describe("Costing settled (#272)", () => {
+  const costing = (overrides = {}) =>
+    item({
+      condition: { id: "cs-1", kind: "costing_settled", label: "Costing settled", is_required: true, sort_order: 0 },
+      ...overrides,
+    })
+
+  it("lists which checks fail, in plain words", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      costing({
+        detail: {
+          failing: ["missing_final_offer", "evaluation_not_approved", "bid_not_go"],
+          messages: [
+            "2 Tender Lines have no Final Offer.",
+            "The Evaluation of Specification is not approved.",
+            "There is no Bid Decision yet.",
+          ],
+        },
+      }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    const list = await screen.findByRole("list", { name: "Costing settled: what is missing" })
+    expect(list).toHaveTextContent("2 Tender Lines have no Final Offer.")
+    expect(list).toHaveTextContent("The Evaluation of Specification is not approved.")
+    expect(list).toHaveTextContent("There is no Bid Decision yet.")
+  })
+
+  it("lists nothing once it is met", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([costing({ status: CONDITION_STATUS.SATISFIED })])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect((await screen.findAllByText("Costing settled")).length).toBeGreaterThan(0)
+    expect(screen.queryByRole("list", { name: /what is missing/ })).not.toBeInTheDocument()
+  })
+})
+
 describe("who satisfied what and when", () => {
   it("shows the satisfier's name and date on a satisfied item", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([

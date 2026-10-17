@@ -201,6 +201,41 @@ export function transmittalToItem(slip, now = Date.now()) {
     };
 }
 
+/**
+ * A matrix waiting for its Bid Decision (costingMatrixService.pendingBidDecisions, #320) as an
+ * ApprovalItem. The clock runs from the last Final Offer change (when it became ready), and the
+ * "person" is the Deal Owner who answers for the price. The decision itself is taken on the
+ * Costing Matrix, where the numbers are, so opening a row goes to the SOR.
+ */
+export function bidDecisionToItem(pending, now = Date.now()) {
+    const parts = [`Final Offer ${moneyLabel(pending.finalOfferTotal)}`];
+    if (pending.abcTotal !== null && pending.abcTotal !== undefined) parts.push(`ABC ${moneyLabel(pending.abcTotal)}`);
+    return {
+        id: pending.matrixId,
+        queue: "bid",
+        ref: shortRef("BID", pending.matrixId),
+        title: pending.projectTitle || pending.clientName || "Untitled deal",
+        typeLabel: parts.join(" · "),
+        person: {
+            id: pending.dealOwnerId,
+            name: pending.dealOwnerName || "No Deal Owner",
+            avatarPath: null,
+            dept: pending.clientName || "",
+        },
+        submittedAt: pending.waitingSince,
+        clockAt: pending.waitingSince,
+        isStale: isStaleSince(pending.waitingSince, now),
+        done: false,
+        isHighPriority: false,
+        attachmentCount: 0,
+        chain: [],
+        source: pending,
+    };
+}
+
+const moneyLabel = (value) =>
+    `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 /** "Mon, Sep 28, 2026 · 13:00–17:00 · 4 hrs" — the when of a leave or overtime request. */
 export function leaveWhen(request) {
     if (!request) return "";

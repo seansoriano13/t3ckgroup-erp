@@ -19,6 +19,7 @@ import SorModalHeader from "../SorModalHeader";
 import NowTab from "../NowTab";
 import ItemsTab from "../ItemsTab";
 import JourneyTab from "../JourneyTab";
+import PmsTab from "../PmsTab";
 import NotesDrawer, { NotesButton } from "./NotesDrawer";
 import { blockedLabels, EditBody, showMoney, useWarmTabs } from "./shared";
 
@@ -27,6 +28,7 @@ export function nestedViews(p) {
   return [
     { key: "now", label: "This stage", badge: blocked || null, badgeTone: "amber" },
     { key: "items", label: "Products", badge: p.ctx.items.length || null },
+    { key: "pms", label: "PMS" },
     p.canViewJourney && { key: "journey", label: "History" },
     showMoney(p) && { key: "commission", label: "Commission" },
   ].filter(Boolean);
@@ -62,6 +64,7 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   const [view, setView] = useState("summary");
   const [opened, setOpened] = useState(["summary"]);
   const [notesOpen, setNotesOpen] = useState(false);
+  // The PMS tab exists for everyone who can see the SOR; PmsTab shows the Costing Matrix only to a tier.
   const views = nestedViews(p);
   const current = views.find((v) => v.key === view);
 
@@ -158,6 +161,11 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
             {opened.includes("items") && (
               <div className={view === "items" ? "h-full" : "hidden"}>
                 <ItemsTab ctx={ctx} hasOpened={p.hasOpened} />
+              </div>
+            )}
+            {view === "pms" && (
+              <div className="h-full overflow-y-auto">
+                <PmsTab opportunityId={p.id} opportunity={p.ctx.opportunity} />
               </div>
             )}
             {view === "journey" && (

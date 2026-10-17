@@ -78,7 +78,7 @@ import { actionTitle } from "./flowStageKinds";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
-import { entryStage, flowLockBlockers } from "../../constants/salesFlow";
+import { entryStage, flowLockBlockers, flowPublishWarnings } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
 import FlowSatelliteNode from "./FlowSatelliteNode";
@@ -293,6 +293,12 @@ function FlowCanvasInner() {
     queryFn: () => stageActionService.getForStages(stageIds),
     enabled: stageIds.length > 0,
   });
+
+  // Told in the publish dialog; never stops a publish (#463).
+  const publishWarnings = useMemo(
+    () => flowPublishWarnings({ stages, edges, conditionsByStage, actionsByStage }),
+    [stages, edges, conditionsByStage, actionsByStage],
+  );
 
   // Live fields only (archived ones are not part of the Stage any more). The
   // key is the one the Fields tab and `refresh` already invalidate.
@@ -1753,6 +1759,21 @@ function FlowCanvasInner() {
             value={publishNote}
             onChange={(e) => setPublishNote(e.target.value)}
           />
+          {publishWarnings.length > 0 && (
+            <div
+              role="status"
+              className="rounded-xl border border-amber-6 bg-amber-3 px-4 py-3 text-sm text-foreground shrink-0"
+            >
+              <p className="mb-1 text-label text-amber-12">
+                Worth a look before publishing
+              </p>
+              <ul className="space-y-0.5">
+                {publishWarnings.map((warning) => (
+                  <li key={warning}>• {warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="rounded-xl border border-border bg-muted/30 p-5 flex-1 min-h-0 flex flex-col">
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground shrink-0">
               Changes since the latest version

@@ -1,4 +1,4 @@
-import { AlertTriangle, FileText, Replace } from "lucide-react";
+import { AlertTriangle, Calculator, FileText, Replace } from "lucide-react";
 
 import StatusBadge from "../StatusBadge";
 import StaleStockBadge from "./StaleStockBadge";
@@ -7,7 +7,14 @@ import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../constants/purchaseR
 import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
-import { ITEM_SOURCE, formatAmount, poLineNotPicked, requestedItemStock, sorLineChange } from "../../utils/requestedItem";
+import {
+  ITEM_SOURCE_LABEL,
+  componentLabel,
+  formatAmount,
+  poLineNotPicked,
+  requestedItemStock,
+  sorLineChange,
+} from "../../utils/requestedItem";
 
 /**
  * One Requested Item (#305) as it was picked or described: its amount and
@@ -19,13 +26,14 @@ import { ITEM_SOURCE, formatAmount, poLineNotPicked, requestedItemStock, sorLine
  * for the status controls (#306). `replaces` / `replacedBy` are the items on
  * either end of a Buyer's substitute, when the request has them.
  *
+ * An item added from the Costing Matrix (#273) shows the Component it buys for as "1.2 · name".
+ *
  * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
  * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
  */
 export default function RequestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   const change = sorLineChange(item);
-  const isNew = item.source === ITEM_SOURCE.NEW;
   const lines = item.odoo_po_line_ids || [];
 
   return (
@@ -36,7 +44,7 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
           <p className="mt-0.5 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">{formatAmount(item.quantity, item.unit)}</span>
             {" · "}
-            {isNew ? "New product" : "From the SOR"}
+            {ITEM_SOURCE_LABEL[item.source] || "From the SOR"}
             {item.requester?.name && ` · ${item.requester.name}`}
           </p>
         </div>
@@ -46,6 +54,13 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
           )}
         </div>
       </div>
+
+      {componentLabel(item) && (
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground" data-testid="requested-item-component">
+          <Calculator size={12} className="shrink-0" />
+          {componentLabel(item)}
+        </p>
+      )}
 
       {(replaces || replacedBy) && (
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">

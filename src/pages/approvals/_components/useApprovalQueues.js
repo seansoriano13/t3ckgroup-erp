@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, ClipboardCheck, PackageCheck, ReceiptText, ShieldCheck } from "lucide-react";
+import { CalendarClock, ClipboardCheck, Gavel, PackageCheck, ReceiptText, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { taskService } from "../../../services/taskService.js";
@@ -55,6 +55,14 @@ export const APPROVAL_QUEUES = [
     icon: PackageCheck,
     can: (r) => r.isTransmittalCheckBy,
   },
+  {
+    // Costing Matrix Bid Decisions (#320): Super Admins and the Final Acquire list.
+    key: "bidDecisions",
+    path: "/approvals/bid-decisions",
+    label: "Bid Decisions",
+    icon: Gavel,
+    can: (r) => r.isBidDecider,
+  },
 ];
 
 export function useApprovalRoles() {
@@ -77,6 +85,9 @@ export function useApprovalRoles() {
     // On the Transmittal Check by list (#254); only a list member sees the queue.
     isTransmittalCheckBy: (listsQuery.data ?? []).includes(TRANSMITTAL_STAFF_LIST.CHECK_BY),
     isTransmittalListsLoading: !!user?.id && listsQuery.isLoading,
+    // A Super Admin or on the Costing Matrix's Final Acquire list (#320): decides Bid Decisions.
+    isBidDecider:
+      user?.is_super_admin === true || user?.isSuperAdmin === true || user?.is_final_acquire === true || user?.isFinalAcquire === true,
   };
 }
 

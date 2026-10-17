@@ -88,6 +88,24 @@ async function ipasListMembership(employee) {
 }
 
 /**
+ * Is the employee on the Costing Matrix's Final Acquire list (#270)? That list decides the Bid Decision
+ * (#320), so it puts the Approval Center's Bid Decisions queue in front of them. A failure reads as "no":
+ * this is a convenience for the navigation, never the gate (the database is).
+ */
+async function onFinalAcquireList(employee) {
+  try {
+    const { data, error } = await supabase
+      .from("costing_signer_lists")
+      .select("list_key")
+      .eq("employee_id", employee.id)
+      .eq("list_key", "final_acquire");
+    return !error && (data || []).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * A call sign as the database stores it (#247): trimmed, and null when blank.
  * The column refuses an empty or padded string, and an unset call sign is null
  * so any number of people can have none (the unique index is where it's set).
@@ -109,6 +127,7 @@ export const employeeService = {
     if (error) return null;
 
     const ipasLists = await ipasListMembership(data);
+    const isFinalAcquire = await onFinalAcquireList(data);
     return {
       id: data.id,
       email: data.email,
@@ -130,6 +149,8 @@ export const employeeService = {
       isTransmittalWarehouse: ipasLists.isTransmittalWarehouse,
       // On the Transmittal Check by list: the nav shows the Check by queue.
       isTransmittalCheckBy: ipasLists.isTransmittalCheckBy,
+      // On the Costing Matrix's Final Acquire list: decides Bid Decisions (#320).
+      isFinalAcquire,
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,

@@ -28,6 +28,7 @@ import {
   blockingConditions,
   missingStageFields,
 } from "../constants/stageGate";
+import { isCostingKind } from "../utils/costingConditions";
 import { normaliseTeam, resolvePeople, DEAL_TEAM_ROLES } from "../utils/resolvePeople";
 import { employeeGroupService } from "./employeeGroupService";
 import {
@@ -486,6 +487,23 @@ async function resolvePurchaseRequestItems(conditions, opportunityId) {
 }
 
 /**
+ * The costing conditions' evidence (#272, #463): `costing_condition_inputs`, booleans
+ * and counts the database worked out, read through a SECURITY DEFINER RPC because the
+ * mover may not be able to read the matrix. Undefined when no condition asks for it;
+ * the evaluator fails closed on that. Always an object once asked for ({ has_matrix:
+ * false } when there is no matrix).
+ */
+async function resolveCostingInputs(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => isCostingKind(r.kind));
+  if (!needsIt) return undefined;
+  const { data, error } = await supabase.rpc("costing_condition_inputs", {
+    p_opportunity_id: opportunityId,
+  });
+  if (error) throw error;
+  return data ?? { has_matrix: false };
+}
+
+/**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
  * .scratch/stage-gate-engine/issues/) — throws if any required condition
  * on any Stage the move crosses is unsatisfied, naming what's missing.
@@ -514,6 +532,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   const hasInclusions = await resolveHasInclusions(conditions, opportunityId);
   const hasPurchasing = await resolveHasPurchasing(conditions, opportunityId);
   const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, opportunityId);
+  const costingInputs = await resolveCostingInputs(conditions, opportunityId);
 
   const gateResult = evaluateCrossing({
     fromCode,
@@ -527,6 +546,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     hasInclusions,
     hasPurchasing,
     purchaseRequestItems,
+    costingInputs,
   });
 
   if (!gateResult.blocked) return;
@@ -727,8 +747,15 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   if (isReturn) assertReturnChoice(to, returnChoice);
 
   const currentVisit = await currentVisitFor(existing.id);
+  let leavesThroughCostingSettled = false;
   if (!isReturn) {
-    await assertCanLeaveStage({ existing, from, currentVisit, snapshotConditions, snapshotStageFields });
+    ({ leavesThroughCostingSettled } = await assertCanLeaveStage({
+      existing,
+      from,
+      currentVisit,
+      snapshotConditions,
+      snapshotStageFields,
+    }));
   }
 
   // 2. Perform move
@@ -767,6 +794,15 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     : supabase.from("sales_opportunities").update(patch).eq("id", existing.id).select(PARTICIPANT_SELECT)
   ).single();
   if (error) throw error;
+
+  // #272: the bid is submitted the moment the SOR leaves through a met Costing settled.
+  // A failure here must not undo or fail the move; the stamp is only a timeline switch.
+  if (leavesThroughCostingSettled) {
+    const { error: submittedError } = await supabase.rpc("costing_mark_bid_submitted", {
+      p_opportunity_id: existing.id,
+    });
+    if (submittedError) console.error("costing_mark_bid_submitted failed", submittedError);
+  }
 
   const fromName = from?.name || "—";
   const stageChangeEvent = {
@@ -1023,6 +1059,8 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
               }
             } else if (created.kind === "open_purchase_request" && created.request_id) {
               await notePurchaseRequestOpened(existing.id, to, action.id, created.request_id, actorId);
+            } else if (created.kind === "open_costing_matrix" && created.matrix_id) {
+              await noteCostingMatrixOpened(existing.id, to, action.id, created.matrix_id, actorId);
             } else if (created.kind === "create_group_task" && created.group_task_id) {
               await opportunityService.addSystemNote(
                 existing.id,
@@ -1127,6 +1165,9 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
   const hasInclusions = await resolveHasInclusions(conditions, existing.id);
   const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
   const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, existing.id);
+  // Read for every active Costing condition on the Stage, required or not: a met one
+  // stamps "bid submitted" below when the SOR leaves through it.
+  const costingInputs = await resolveCostingInputs(conditionsForFrom, existing.id);
 
   for (const condition of conditions) {
     const result = evaluateCondition(condition, {
@@ -1137,9 +1178,10 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
       hasInclusions,
       hasPurchasing,
       purchaseRequestItems,
+      costingInputs,
     });
     if (result.status === CONDITION_STATUS.UNSATISFIED) {
-      missing.push({ stage: from, condition });
+      missing.push({ stage: from, condition, ...(result.detail ? { detail: result.detail } : {}) });
     }
   }
 
@@ -1150,8 +1192,10 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
     // along here too, since a toast is the only surface a Flow deal's
     // stage control has for a blocked move.
     const details = missing
-      .map(({ condition }) => {
+      .map(({ condition, detail }) => {
         const link = condition.config?.referenceLink;
+        const why = (detail?.messages ?? []).map((m) => m.replace(/.$/, "")).join("; ");
+        if (why) return `${condition.label} — ${why}`;
         return link ? `${condition.label} (${link})` : condition.label;
       })
       .join(", ");
@@ -1160,6 +1204,16 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
     error.missingConditions = missing;
     throw error;
   }
+
+  // Leaving through a met Costing settled submits the bid (#272): the caller stamps it
+  // once the move has landed.
+  return {
+    leavesThroughCostingSettled: conditionsForFrom.some(
+      (c) =>
+        c.kind === CONDITION_KINDS.COSTING_SETTLED &&
+        evaluateCondition(c, { opportunity: existing, costingInputs }).status === CONDITION_STATUS.SATISFIED,
+    ),
+  };
 }
 
 /**
@@ -1430,12 +1484,26 @@ function notePurchaseRequestOpened(opportunityId, stage, actionId, requestId, ac
   );
 }
 
+/**
+ * Issue #462 — the SOR's note that a Stage Action opened (or topped up) its Costing Matrix.
+ * `sor_open_costing_matrix` reads the action's saved config itself, so this note is all the client adds.
+ */
+function noteCostingMatrixOpened(opportunityId, stage, actionId, matrixId, actorId) {
+  return opportunityService.addSystemNote(
+    opportunityId,
+    `Costing Matrix opened on entering Stage: ${stage.name}.`,
+    { event: "STAGE_ACTION_COSTING_MATRIX_OPENED", stageId: stage.id, actionId, matrixId },
+    actorId,
+  );
+}
+
 /** How a failed Stage Action is named to the person who moved the SOR. */
 function stageActionName(action) {
   const config = action?.config ?? {};
   const named = config.title || config.projectTitle;
   if (typeof named === "string" && named.trim()) return named.trim();
   if (action?.kind === "open_purchase_request") return "Purchase Request";
+  if (action?.kind === "open_costing_matrix") return "Costing Matrix";
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";
 }
 
@@ -2983,6 +3051,17 @@ export const opportunityService = {
       await notePurchaseRequestOpened(existing.id, stage, action.id, requestId, actorId).catch(() => {});
       return { outcome: "created" };
     }
+    if (action.kind === "open_costing_matrix") {
+      const { data: matrixId, error: openError } = await supabase.rpc("sor_open_costing_matrix", {
+        p_run_id: runId,
+      });
+      if (openError) {
+        await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "failed" });
+        throw openError;
+      }
+      await noteCostingMatrixOpened(existing.id, stage, action.id, matrixId, actorId).catch(() => {});
+      return { outcome: "created" };
+    }
     await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
     return { outcome: "created" };
   },
@@ -3054,6 +3133,8 @@ export const opportunityService = {
       const target =
         action.kind === "open_purchase_request"
           ? { kind: "purchase_request" }
+          : action.kind === "open_costing_matrix"
+          ? { kind: "costing_matrix" }
           : action.kind === "create_group_task"
           ? {
               kind: "group",
@@ -3861,6 +3942,7 @@ export const opportunityService = {
     const hasInclusions = await resolveHasInclusions(conditions, target.id);
     const hasPurchasing = await resolveHasPurchasing(conditions, target.id);
     const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, target.id);
+    const costingInputs = await resolveCostingInputs(conditions, target.id);
 
     return conditions
       .map((condition) => ({
@@ -3873,6 +3955,7 @@ export const opportunityService = {
           hasInclusions,
           hasPurchasing,
           purchaseRequestItems,
+          costingInputs,
         }),
       }))
       // Issue #203: a removed kind (field, project_evaluation) always reads
@@ -3988,10 +4071,11 @@ export const opportunityService = {
 
       if (stageConditions.length === 0) continue;
 
-      const [hasInclusions, hasPurchasing, purchaseRequestItems] = await Promise.all([
+      const [hasInclusions, hasPurchasing, purchaseRequestItems, costingInputs] = await Promise.all([
         resolveHasInclusions(stageConditions, opportunity.id),
         resolveHasPurchasing(stageConditions, opportunity.id),
         resolvePurchaseRequestItems(stageConditions, opportunity.id),
+        resolveCostingInputs(stageConditions, opportunity.id),
       ]);
 
       const missing = stageConditions.filter(
@@ -4004,6 +4088,7 @@ export const opportunityService = {
             hasInclusions,
             hasPurchasing,
             purchaseRequestItems,
+            costingInputs,
           }).status === CONDITION_STATUS.UNSATISFIED,
       );
       if (missing.length > 0) blocked[opportunity.id] = missing;
@@ -4402,11 +4487,12 @@ export const opportunityService = {
           return { ...visit, conditions: [], attachments: attachments || [] };
         }
 
-        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing, purchaseRequestItems] = await Promise.all([
+        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing, purchaseRequestItems, costingInputs] = await Promise.all([
           gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt, preloaded }),
           resolveHasInclusions(conditions, opportunityId, { asOf: visit.leftAt }),
           resolveHasPurchasing(conditions, opportunityId, { asOf: visit.leftAt }),
           resolvePurchaseRequestItems(conditions, opportunityId),
+          resolveCostingInputs(conditions, opportunityId),
         ]);
 
         return {
@@ -4423,6 +4509,7 @@ export const opportunityService = {
                 hasPurchasing,
                 purchaseRequestItems,
                 purchaseRequestAsOf: visit.leftAt,
+                costingInputs,
               });
 
               let matchedFiles = [];

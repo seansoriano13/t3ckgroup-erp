@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
   ITEM_SOURCE,
   SOR_LINE_CHANGE,
+  componentLabel,
+  componentPickList,
   formatAmount,
   isLineRequested,
   poLineNotPicked,
@@ -147,5 +149,46 @@ describe("poLineNotPicked (#312)", () => {
     expect(poLineNotPicked(ordered({ po_number: null }))).toBe(false)
     expect(poLineNotPicked(ordered({ status: "to_order" }))).toBe(false)
     expect(poLineNotPicked(null)).toBe(false)
+  })
+})
+
+describe("Requested Items from Components (#273)", () => {
+  const lines = [
+    {
+      components: [
+        { id: "c1", number: "1.1", name: " Hose reel ", quantity: 4, unit: "pc", availability: "for_order", is_bundle: false },
+        { id: "c2", number: "1.2", name: "Nozzle", quantity: 2, unit: null, availability: "available" },
+        { id: "c3", number: "1.3", name: "", quantity: 1, availability: "for_order" },
+      ],
+    },
+    { components: [{ id: "c4", number: "2.1", name: "Pump", quantity: 1, availability: null, is_bundle: true }] },
+    { components: [] },
+  ]
+
+  it("lists the Components in grid order, marking For Order ones and dropping nameless ones", () => {
+    expect(componentPickList(lines).map((c) => [c.number, c.name, c.forOrder, c.bundle])).toEqual([
+      ["1.1", "Hose reel", true, false],
+      ["1.2", "Nozzle", false, false],
+      ["2.1", "Pump", false, true],
+    ])
+  })
+
+  it("counts the request's items that already name each Component", () => {
+    const items = [{ component_id: "c1" }, { component_id: "c1" }, { component_id: "c4" }, { component_id: null }]
+    expect(componentPickList(lines, items).map((c) => [c.id, c.requested])).toEqual([
+      ["c1", 2],
+      ["c2", 0],
+      ["c4", 1],
+    ])
+  })
+
+  it("reads no Components from no matrix", () => {
+    expect(componentPickList(null)).toEqual([])
+  })
+
+  it('labels an item "1.2 · name" and nothing when it names no Component', () => {
+    expect(componentLabel({ component: { number: "1.2", name: "Nozzle" } })).toBe("1.2 · Nozzle")
+    expect(componentLabel({ component: undefined })).toBeNull()
+    expect(componentLabel(null)).toBeNull()
   })
 })

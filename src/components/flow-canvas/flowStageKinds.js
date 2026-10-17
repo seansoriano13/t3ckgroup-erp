@@ -17,6 +17,8 @@ import {
   ListChecks,
   ShoppingCart,
   PackageCheck,
+  Calculator,
+  Tags,
   Database,
   Type,
   Hash,
@@ -79,6 +81,16 @@ export const CONDITION_KIND_META = {
     icon: PackageCheck,
     hint: "Every Requested Item is closed. Met when there is no Purchase Request.",
   },
+  [CONDITION_KINDS.COSTING_SETTLED]: {
+    label: "Costing settled",
+    icon: Calculator,
+    hint: "The Costing Matrix is finished (a Final Offer on every Tender Line, a complete summary, an approved evaluation, within ABC) and the Bid Decision is Go. Unmet when there is no matrix.",
+  },
+  [CONDITION_KINDS.COSTING_PRICED]: {
+    label: "Costing priced",
+    icon: Tags,
+    hint: "Purchasing has costed the matrix: at least one Component, an Acquire unit cost on every Component and cost-only row, and a Purchasing Incharge named. Unmet when there is no matrix.",
+  },
 }
 
 export const ACTION_KIND_META = {
@@ -96,6 +108,13 @@ export const ACTION_KIND_META = {
     label: "Open Purchase Request",
     icon: ShoppingCart,
     hint: "Starts buying for the SOR. One request per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
+  },
+  open_costing_matrix: {
+    label: "Open Costing Matrix",
+    icon: Calculator,
+    hint: "Opens the SOR's Costing Matrix. One per SOR.",
     // Saves no title of its own, so it is named by its label.
     titled: false,
   },
@@ -186,6 +205,11 @@ export function actionSummary(action, { employees = [] } = {}) {
   if (action?.kind === "create_group_task") {
     const count = config.members?.length ?? 0
     summary = count > 0 ? `${label} · ${count} assignee${count === 1 ? "" : "s"}` : label
+  } else if (action?.kind === "open_costing_matrix") {
+    const buyer = config.purchasingIncharge?.id
+      ? employees.find((e) => e.id === config.purchasingIncharge.id)?.name ?? "someone no longer listed"
+      : null
+    summary = buyer ? `${label} · Purchasing: ${buyer}` : `${label} · no Purchasing Incharge named`
   } else if (config.priority) {
     summary = `${label} · ${String(config.priority).toLowerCase()} priority`
   }

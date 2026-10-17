@@ -195,3 +195,59 @@ prohibited screen naming the Deal Owner to ask, partial access carries a banner
 and a placeholder for each Stage hidden from them, the composer says when a
 Mention will open a window, the SOR lists who it is shared with, and My SORs
 tags windows that have ended.
+
+### 2026-10-17 — the Costing Matrix's money read is split by side (Closed Book)
+
+From [Closed Book: the database serves each side its own columns](https://github.com/seansoriano13/t3ckgroup-erp/issues/319),
+amended on 2026-10-05 for Always sees (#461). **Replaces the money-read rule in
+the 2026-09-15 amendment above**, which let Purchasing access, Finance access
+and the Final Acquire list read the whole matrix on every SOR. It no longer
+holds: that reading is what made the margin visible to anyone on the deal.
+
+The caller's tier is resolved in the database (`costing_tier`), never passed in,
+first match wins:
+
+1. **Closed Book** — a Super Admin, or on the Final Acquire list: every column,
+   the markup factor, the summary and the Bid Decision's stamped figures.
+2. **Purchasing access** — the cost side: Acquire, Odoo unit, ABC. No Final
+   Offer, no Final Acquire, no markup factor, no summary, no Bid Decision.
+3. **Deal Team or Always sees** — the price side: ABC, the peso Markup Price,
+   Final Offer, Compliance, and a Bid Decision's verdict and reason. No Acquire,
+   no factor, no Final Acquire, no Marketing or OPEX, no stamped bid figures.
+4. **Stage Participant with an open window** — the matrix without money.
+5. **Anyone else, Finance access alone included** — nothing. Finance gets Landed
+   Cost and the IPAS, not the matrix.
+
+A column a tier may not read is absent from the response, not null, in both the
+matrix read and the history. The money tables and the event history can be
+selected directly by Closed Book only. The write bands in the 2026-09-15
+amendment's source (#225) are unchanged. Everyone else called into an SOR still
+sees the matrix without money, as that amendment said.
+
+### 2026-10-18 — Costing conditions keep peso figures in the database (#266 review)
+
+Code review of the Costing Matrix (#266) found three ways the Closed Book
+could be read around, and fixed them:
+
+- **The over-ABC and missing-cost checks are computed in SQL**
+  (`costing_bid_totals`, `costing_condition_inputs`, `costing_settled_met`), so
+  no peso figure leaves the database. `costingMath` then turns the booleans and
+  counts into the verdict (`costingSettled`, `costingPriced`). That is the one
+  deliberate second implementation of the rule: SQL decides from the figures,
+  JavaScript decides from the booleans, and both must agree (policy 86 and the
+  unit tests hold them to it).
+- **Who sees the reasons.** The price and Closed Book tiers get the full
+  evidence (`bid_verdict`, `over_abc`, the counts). Everyone else who can see
+  the SOR gets only the server's `settled_met` for Costing settled, so the
+  Stage checklist says "Costing not settled" and nothing about the Bid Decision
+  or the offer against the ABC. Costing priced counts hold no money and go to
+  all of them.
+- **A cost-only row's Markup Price** is not served to the price tier: with no
+  factor of its own it is Acquire x1.00, which is Purchasing's cost to the
+  centavo.
+
+Also: `costing_mark_bid_submitted` checks for itself that the Stage just left
+carries an active Costing settled condition and that it is met, and the legacy
+`sor_inclusions` backfill into a matrix is removed (a matrix exists only once
+Open Costing Matrix runs). The PMS tab shows for everyone who can see the SOR
+(Finance reads the IPAS there); only its Costing Matrix section needs a tier.

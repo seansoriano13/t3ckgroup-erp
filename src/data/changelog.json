@@ -1,5 +1,141 @@
 [
     {
+        "date": "2026-10-18",
+        "title": "Costing Matrix: review fixes",
+        "version": "1.9.47",
+        "changes": [
+            "The PMS tab now shows for everyone who can see the SOR, Finance included, with the IPAS summaries, the Purchase Request and the Transmittals. The Costing Matrix section on it still shows only to people who may read the matrix.",
+            "Sales no longer see a Markup Price on cost-only rows, because at ×1.00 it would show Purchasing's cost.",
+            "The Costing settled checklist now says only Costing not settled to anyone who is not on the Deal Team, a Super Admin or on the Final Acquire list, so the Bid Decision and the offer against the ABC stay private.",
+            "The bid is marked submitted only when the Stage you left really had Costing settled and it was met.",
+            "ITR is now zero when the Final Offer is at or below the ₱250,000 allowance. Before, it went negative and made Revenue look higher than it is."
+        ]
+    },
+    {
+        "date": "2026-10-17",
+        "title": "Flow Canvas: Costing priced",
+        "version": "1.9.46",
+        "changes": [
+            "A new Stage Condition, Costing priced, marks the hand-off from Purchasing to Sales. It is met when the Costing Matrix has at least one Component, every Component and cost-only row has an Acquire unit cost, and a Purchasing Incharge is named. Inclusions don't count.",
+            "The Stage checklist lists, in plain words, which of those checks still fail. It is unmet while the SOR has no Costing Matrix, and it re-checks whenever an Acquire changes.",
+            "When you publish a flow, the Flow Canvas now warns you if Costing priced or Costing settled sits on a Stage that some path reaches without first passing a Stage that opens the Costing Matrix. It is a warning only: publishing still goes ahead."
+        ]
+    },
+    {
+        "date": "2026-10-17",
+        "title": "Costing Matrix: print it, and sign it off",
+        "version": "1.9.45",
+        "changes": [
+            "The PMS tab has a Print button. The Costing Matrix prints on landscape A4: a money sheet with every Tender Line, the summary, the margin and the Bid Decision, then a specification appendix with each Tender Specification in full next to what we offer.",
+            "Only Super Admins and the Final Acquire list get the money sheet. Everyone else who can open the matrix prints the specification appendix, which has no figures.",
+            "The money sheet has four signature blocks. An unsigned one reads Signature required, and a signer with no stored signature prints as a name.",
+            "Prepared by is signed by the Sales Incharge, Costed by by the Purchasing Incharge, and Final Acquire and offer approved by the Final Acquire list. A change to a Final Offer takes back Prepared by and the Final Acquire approval. A change to an Acquire or a markup factor takes back Costed by. A change to a Final Acquire takes back the Final Acquire approval."
+        ]
+    },
+    {
+        "date": "2026-10-17",
+        "title": "Flow Canvas: Costing settled",
+        "version": "1.9.44",
+        "changes": [
+            "A new Stage Condition, Costing settled, can gate the bid. It is met when every Tender Line has a Final Offer, the summary is complete, the evaluation is approved, the offer is within the ABC and the Bid Decision is Go.",
+            "The Stage checklist lists, in plain words, which of those checks still fail. It updates as the matrix changes, so a later edit that clears the approval or the Bid Decision makes it unmet again.",
+            "It is unmet while the SOR has no Costing Matrix.",
+            "When the SOR leaves a Stage through a met Costing settled, the bid counts as submitted. After that, any change to a Final Offer is noted on the SOR's timeline."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Flow Canvas: Open Costing Matrix",
+        "version": "1.9.43",
+        "changes": [
+            "A Stage Action called Open Costing Matrix can now be added to any Stage. When a deal arrives there, it opens the SOR's Costing Matrix and names the Sales Incharge and the Purchasing Incharge you chose.",
+            "It can also set the markup preset as the matrix default and call in extra people, who see the matrix without any money for the window you set. It can wait for a Decider, like Open Purchase Request.",
+            "If you do not name a Purchasing Incharge, the people you picked under Who assigns it are told that the matrix opened without one.",
+            "A second Open Costing Matrix on the same deal opens nothing new. It only fills what is still empty and adds the people who are missing.",
+            "A Purchase Request can now take the matrix's Purchasing Incharge as its Buyer."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Costing Matrix: the Bid Decision",
+        "version": "1.9.42",
+        "changes": [
+            "The Final Acquire list and Super Admins can now decide Go, No-go or Revise on a priced offer, with a reason, under the summary on the PMS tab. It is stamped with the Final Offer and ABC it was taken against.",
+            "Sales sees the verdict and the reason, but never the numbers behind it. Purchasing sees nothing of it.",
+            "A No-go or Revise tells the Deal Team and does not move the deal. Any later change to a Final Offer or a Final Acquire clears the decision, so a Go always matches the numbers.",
+            "Offers waiting for a decision appear in the Approval Center under Bid Decisions."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: evaluating the offer against the specification",
+        "version": "1.9.41",
+        "changes": [
+            "On the PMS tab each Component now shows the Tender Specification beside its Offer Specification, so you can see what was asked next to what we are offering.",
+            "Technical marks each Component Complies or Deviates. A deviation needs a note and can name the compliant alternative we recommend instead. Purchasing, Super Admins and the members of the SOR's Evaluation of Specification task can do this.",
+            "Each Tender Line and the top of the matrix count the gaps, like '2 of 5 deviate · 1 not evaluated'. A deviation never blocks anything and never changes a price or a total.",
+            "Someone on the evaluation list can approve the evaluation once for the whole matrix, after every Component has a verdict. Changing a specification, a verdict or its note, or adding or removing a Tender Line or Component, takes the approval back and says why.",
+            "Settings has a Costing Matrix tab where Super Admins pick the Evaluation of Specification task template and who is on the evaluation list."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: markup on the Costing Matrix",
+        "version": "1.9.40",
+        "changes": [
+            "The Final Acquire list can now set a default markup for a Costing Matrix, such as x1.35 (the same as +35%), typed or picked from a preset like Government. Any Component can have its own markup, and a cost-only row such as the Delivery Charge starts at x1.00.",
+            "Sales sees the suggested Markup Price for each Component and cost-only row, and each Tender Line's total beside its Final Offer. It is only a suggestion: nothing fills in the Final Offer, and changing the markup never changes it.",
+            "Sales and Purchasing never see the markup factor, so nobody can work the cost back out of the price. If a cost is still blank, the Markup Price stays blank instead of showing zero.",
+            "The Final Acquire list also sees the markup each Tender Line really achieves against its target, and the same for the whole matrix with cost-only rows counted.",
+            "Settings has a new Costing Matrix tab where Super Admins and the Final Acquire list edit the markup presets. A preset is switched off instead of deleted, and a matrix that used it keeps its markup."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Costing Matrix: the summary, Final Acquire and rates",
+        "version": "1.9.39",
+        "changes": [
+            "The Costing Matrix now works out the sheet's summary for you: VAT-exclusive, Tax, Retention, Collected Amount, ITR and Revenue, to the centavo.",
+            "Management types Final Acquire on each Component and cost-only row. Until every row has one, Revenue says how many rows still have no cost instead of showing a number.",
+            "The Final Acquire list can type Marketing and OPEX under the summary. Finance and Super Admins can change the rates in Settings under Costing Matrix.",
+            "Only Super Admins and the Final Acquire list see the summary. Super Admins choose who is on that list in Settings."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Purchase Requests: add items from the Costing Matrix",
+        "version": "1.9.38",
+        "changes": [
+            "On a Purchase Request, people with Purchasing access can now press Add from the Costing Matrix and pick Components. The ones marked For Order are ticked to start with.",
+            "Each Requested Item copies the Component's name, quantity, unit and Odoo product, and shows which Component it buys for, like 1.2 and its name. If the Component changes later, the item stays as it was asked.",
+            "A Component can have more than one Requested Item, so a split order stays linked. A Component from another SOR is refused.",
+            "On the PMS tab, each Component now shows the status of its Requested Items, such as Requested or Ordered. Everyone who can see the matrix sees the status only, with no names or prices."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: costing Components and cost-only rows",
+        "version": "1.9.37",
+        "changes": [
+            "Under each Tender Line on the PMS tab you can now add Components: what we supply toward it, numbered 1.1, 1.2. A Component is priced as a whole when you tick Bundle, and a bundle lists what comes with it as Inclusions, with no prices, under headings like Accessories.",
+            "Each column belongs to one team and the header says which: Sales types Brand, Status and the Odoo unit cost, Purchasing types the P.O./RFQ number, availability, source, Acquire and the Offer Specification. Anything outside your team shows as plain text.",
+            "Cost-only rows, like the Delivery Charge, sit below the Tender Lines. They count in the totals, not in any Tender Line's margin.",
+            "You can name a Sales incharge from the Deal Team and a Purchasing incharge, for the whole matrix or for one Component. It is only a label: it gives no access and sends no notice.",
+            "The Purchase Request card moved to the PMS tab from the Summary and This stage. The old Inclusions list is read-only, and any entries in it were moved under an Unplaced inclusions bundle for Sales to place."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: the PMS page and Tender Lines",
+        "version": "1.9.36",
+        "changes": [
+            "Every SOR you can see now has a PMS tab. The IPAS section and the Transmittals and Packing Lists section moved there from the Summary and This stage.",
+            "Once an SOR's Costing Matrix is opened, the PMS tab lists its Tender Lines: what the client asked for, with the ABC and our Final Offer. Sales can add them, type them, or pick them from the SOR's products.",
+            "A Tender Line you pick from a product keeps its own name, quantity and unit. If the SOR's product changes later, the line says what it now says. A Tender Line over its ABC is flagged.",
+            "Each person sees only their own figures. People called into a stage see the Tender Lines with no prices at all, and Purchasing never sees Final Offer."
+        ]
+    },
+    {
         "date": "2026-10-16",
         "title": "SOR: where its orders stand",
         "version": "1.9.35",

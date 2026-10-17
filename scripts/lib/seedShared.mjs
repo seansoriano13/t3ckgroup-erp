@@ -134,10 +134,36 @@ export const SEED_TABLES = [
   "packing_list_contents",
   // Order Monitoring ageing rules (#262): one number per step, no people in it.
   "order_ageing_rules",
+  // Costing Matrix (#266): settings, presets and signer lists first; the matrix
+  // points at an SOR, its rows at the matrix, money rows at their row, and
+  // decisions, sign-offs and events at the matrix.
+  "costing_settings",
+  "costing_evaluation_settings",
+  "costing_markup_presets",
+  "costing_signer_lists",
+  "costing_matrices",
+  "costing_matrix_money",
+  "costing_tender_lines",
+  "costing_tender_line_prices",
+  "costing_components",
+  "costing_component_costs",
+  "costing_inclusions",
+  "costing_cost_rows",
+  "costing_bid_decisions",
+  "costing_signoffs",
+  "costing_events",
 ]
 
 /** Tables the migrations build that the seed deliberately leaves out, each with why. */
 export const SEED_EXCLUDED_TABLES = {
+  costing_tables:
+    "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
+  costing_column_tiers:
+    "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
+  costing_column_bands:
+    "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
+  costing_virtual_columns:
+    "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
   push_subscriptions:
     "Real browser push endpoints and keys. A local stack must never push to a colleague's real device.",
   verification_rate_limits:

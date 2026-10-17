@@ -10,6 +10,7 @@
  */
 
 import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './formViewModel';
+import { buildCostingMatrixViewModel } from './costingMatrixViewModel';
 import { buildIpasViewModel } from './ipasViewModel';
 import { buildPackingListViewModel } from './packingListViewModel';
 import { buildTransmittalViewModel } from './transmittalViewModel';
@@ -54,6 +55,13 @@ const FORM_TYPES = {
   // `transmittalService.get`'s shape. Printing stamps nothing, so markPrinted is a no-op.
   TRANSMITTAL: {
     buildViewModel: buildTransmittalViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #274: the Costing Matrix prints on landscape A4 (costingMatrixDocument.js) from
+  // `costingMatrixService.get`'s shape, with the money sheet for the Closed Book tier only. Printing
+  // stamps nothing, so markPrinted is a no-op.
+  costing_matrix: {
+    buildViewModel: buildCostingMatrixViewModel,
     markPrinted: async () => {},
   },
   // Issue #259: the TSR prints as one A4 sheet (tsrDocument.js) from a TSR record.

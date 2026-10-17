@@ -73,6 +73,18 @@ describe("FlowVersionStagePanel", () => {
         expect(screen.getByText("Optional")).toBeInTheDocument()
     })
 
+    it("shows a Costing settled condition on a published version (#272)", async () => {
+        renderPanel({
+            conditions: [
+                { id: "c9", stage_id: "stage-1", kind: "costing_settled", label: "Costing settled", is_required: true, config: {} },
+            ],
+        })
+
+        await setupUser().click(screen.getByRole("tab", { name: /Conditions/ }))
+
+        expect(screen.getAllByText("Costing settled").length).toBeGreaterThan(0)
+    })
+
     it("shows this version's Stage Actions", async () => {
         renderPanel({
             actions: [
