@@ -5,6 +5,7 @@ import { Check, Pencil } from "lucide-react";
 import EmptyState from "../../../../components/ui/EmptyState";
 import FilterBar from "../../../../components/ui/FilterBar";
 import { FilterSelect } from "../../../../components/ui/FilterDropdown";
+import PageLoading from "../../../../components/ui/PageLoading";
 import QueryError from "../../../../components/ui/QueryError";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../../components/ui/table";
 import { orderMonitoringService } from "../../../../services/orderMonitoringService";
@@ -150,6 +151,7 @@ export default function OrderRegister({ onOpen, query }) {
 
   return (
     <section aria-label="Order register" className="flex flex-col gap-3">
+      {isLoading && <PageLoading label="Order register" />}
       {isError && <QueryError title="The order register could not be loaded." onRetry={refetch} />}
       {!isError && !isLoading && rows.length === 0 && (
         <EmptyState title="No orders match" description="Change the search or the filters." />
@@ -158,7 +160,7 @@ export default function OrderRegister({ onOpen, query }) {
       {!isError && rows.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <div className="overflow-x-auto">
-            <Table tableId="order-register" className="md:min-w-[72rem]">
+            <Table tableId="order-register" className="md:min-w-[60rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {HEADINGS.map((heading) => (
