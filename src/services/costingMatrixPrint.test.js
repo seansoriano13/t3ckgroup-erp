@@ -221,13 +221,15 @@ describe("the printed Costing Matrix, view model", () => {
 });
 
 describe("the printed Costing Matrix, document", () => {
-  it("is landscape A4 with the owner-band header and the margin strip", () => {
+  it("is landscape A4 in the IPAS paper set, with the owner-band header and the margin column", () => {
     const html = buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK));
     expect(html).toContain("@page { size: A4 landscape; margin: 0; }");
     expect(html).toContain("width: 297mm");
-    expect(html).toContain('<tr class="band">');
+    expect(html).toContain('<div class="rail">');
+    expect(html).toContain('<tr class="band owner">');
     expect(html).toContain("Management");
-    expect(html).toContain('class="spine"');
+    expect(html).toContain('<div class="k">Margin</div>');
+    expect(html).toContain('<div class="big">₱');
     expect(html).toContain("awaiting purchase");
     expect(html).toContain("sheet 1 of 2 · money");
     expect(html).toContain("sheet 2 of 2 · specifications");
