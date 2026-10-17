@@ -1,5 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
-import { CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare, UserPlus, FolderOpen } from "lucide-react";
+import { Calculator, CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare, UserPlus, FolderOpen } from "lucide-react";
 import Avatar from "../Avatar";
 import { CONDITION_KINDS, CONDITION_STATUS } from "../../constants/stageGate";
 import { formatDate } from "../../utils/formatDate";
@@ -18,6 +18,7 @@ const KIND_LABELS = {
   [CONDITION_KINDS.FIELD]: "Field on record",
   [CONDITION_KINDS.TICKBOX]: "Self-certified",
   [CONDITION_KINDS.ASSIGNMENT]: "Assignment",
+  [CONDITION_KINDS.COSTING_SETTLED]: "Costing settled",
 };
 
 const KIND_ICONS = {
@@ -25,6 +26,7 @@ const KIND_ICONS = {
   [CONDITION_KINDS.FIELD]: ListChecks,
   [CONDITION_KINDS.TICKBOX]: CheckSquare,
   [CONDITION_KINDS.ASSIGNMENT]: UserCheck,
+  [CONDITION_KINDS.COSTING_SETTLED]: Calculator,
 };
 
 /**
@@ -42,6 +44,9 @@ export default function StageChecklistRow({
   status,
   satisfiedBy,
   satisfiedAt,
+  // Why a condition is unmet, where the kind can say (Costing settled, #272):
+  // { failing: [keys], messages: [plain sentences] }.
+  detail = null,
   employees = [],
   groups = [],
   opportunity = null,
@@ -156,6 +161,14 @@ export default function StageChecklistRow({
             >
               {isTickable ? "Not yet certified — tap to certify." : "Not yet satisfied."}
             </p>
+
+            {detail?.messages?.length > 0 && (
+              <ul aria-label={`${condition.label}: what is missing`} className="list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+                {detail.messages.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            )}
 
             {condition.kind === CONDITION_KINDS.FIELD && onSaveField && (
               <div className="flex items-center gap-2 max-w-[240px]">

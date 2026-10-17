@@ -439,3 +439,47 @@ export function describeComplianceRollup(rollup) {
   if (parts.length === 0) return total === 1 ? "Complies" : `All ${total} comply`;
   return parts.join(" · ");
 }
+
+// ---------------------------------------------------------------------------
+// Costing settled (#272)
+// ---------------------------------------------------------------------------
+
+/** The checks "Costing settled" can fail, in the order they are reported. */
+export const COSTING_SETTLED_CHECKS = [
+  "no_matrix",
+  "no_tender_lines",
+  "missing_final_offer",
+  "incomplete_summary",
+  "evaluation_not_approved",
+  "over_abc",
+  "bid_not_go",
+];
+
+/**
+ * Whether the bid is ready to go: the matrix is finished (a Final Offer on every Tender Line, a
+ * complete summary, an approved evaluation, the offer within ABC) AND the boss has said Go.
+ *
+ * `inputs` is what `costing_condition_inputs` returns, booleans and counts only (no peso figure
+ * reaches the browser; the ABC comparison is done in SQL, to the centavo, so one centavo over
+ * fails):
+ *
+ *   has_matrix, line_count, missing_offer, over_abc, costed_rows, missing_cost,
+ *   evaluation_approved, bid_verdict ('go' | 'no_go' | 'revise' | null)
+ *
+ * Returns `{ met, failing }`, `failing` being the keys of COSTING_SETTLED_CHECKS that fail. No
+ * matrix fails on that alone (nothing else can be judged). The summary counts as incomplete when
+ * there is no Component or cost-only row to cost, or any has no Final Acquire; a missing Final
+ * Offer or no Tender Line is its own check, not repeated there. Missing inputs fail closed.
+ */
+export function costingSettled(inputs) {
+  if (!inputs || inputs.has_matrix !== true) return { met: false, failing: ["no_matrix"] };
+  const failing = [];
+  const lines = Number(inputs.line_count) || 0;
+  if (lines === 0) failing.push("no_tender_lines");
+  else if (!(Number(inputs.missing_offer) === 0)) failing.push("missing_final_offer");
+  if (!(Number(inputs.costed_rows) > 0) || !(Number(inputs.missing_cost) === 0)) failing.push("incomplete_summary");
+  if (inputs.evaluation_approved !== true) failing.push("evaluation_not_approved");
+  if (inputs.over_abc !== false) failing.push("over_abc");
+  if (inputs.bid_verdict !== "go") failing.push("bid_not_go");
+  return { met: failing.length === 0, failing };
+}

@@ -1976,7 +1976,7 @@ alter table sor_stage_participants add constraint "sor_stage_participants_source
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
-alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text])));
+alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
@@ -6442,6 +6442,59 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_condition_inputs(p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_matrix  uuid;
+  v_totals  record;
+  v_costed  integer;
+  v_missing integer;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_condition_inputs: sign in first' using errcode = '42501';
+  end if;
+  if public.sor_access_level(p_opportunity_id) = 'none' then
+    raise exception 'costing_condition_inputs: you can''t see this SOR' using errcode = '42501';
+  end if;
+
+  select m.id into v_matrix from public.costing_matrices m where m.opportunity_id = p_opportunity_id;
+  if v_matrix is null then
+    return jsonb_build_object('has_matrix', false);
+  end if;
+
+  select * into v_totals from public.costing_bid_totals(v_matrix);
+
+  select count(*), count(*) filter (where cc.final_acquire_unit is null)
+    into v_costed, v_missing
+    from public.costing_components c
+    join public.costing_tender_lines l on l.id = c.tender_line_id
+    left join public.costing_component_costs cc on cc.component_id = c.id
+   where l.matrix_id = v_matrix;
+
+  v_costed := v_costed + (select count(*) from public.costing_cost_rows r where r.matrix_id = v_matrix);
+  v_missing := v_missing + (select count(*) from public.costing_cost_rows r
+                             where r.matrix_id = v_matrix and r.final_acquire_unit is null);
+
+  return jsonb_build_object(
+    'has_matrix', true,
+    'line_count', v_totals.line_count,
+    'missing_offer', v_totals.missing_offer,
+    'over_abc', coalesce(v_totals.final_offer_total > v_totals.abc_total, false),
+    'costed_rows', v_costed,
+    'missing_cost', v_missing,
+    'evaluation_approved', exists (
+      select 1 from public.costing_signoffs s
+       where s.matrix_id = v_matrix and s.role = 'evaluation_approved' and s.cleared_at is null),
+    'bid_verdict', (select d.verdict from public.costing_bid_decisions d
+                     where d.matrix_id = v_matrix and d.cleared_at is null)
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_decide_bid(p_matrix_id uuid, p_verdict text, p_reason text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -6713,6 +6766,77 @@ AS $function$
         and t.status <> 'CANCELLED'
         and m.employee_id = public.get_employee_id()
     )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_log_final_offer_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_opp      uuid;
+  v_submit   timestamptz;
+  v_position integer;
+begin
+  if tg_op = 'INSERT' and new.final_offer_unit is null then
+    return null;
+  end if;
+  if tg_op = 'UPDATE' and new.final_offer_unit is not distinct from old.final_offer_unit then
+    return null;
+  end if;
+
+  select m.opportunity_id, m.bid_submitted_at, l.position
+    into v_opp, v_submit, v_position
+    from public.costing_tender_lines l
+    join public.costing_matrices m on m.id = l.matrix_id
+   where l.id = new.tender_line_id;
+  if v_opp is null or v_submit is null then
+    return null;
+  end if;
+
+  insert into public.sales_opportunity_logs (opportunity_id, author_id, type, content, metadata)
+  values (
+    v_opp,
+    public.get_employee_id(),
+    'SYSTEM',
+    format('Final Offer changed on Tender Line %s after the bid was submitted.', v_position),
+    jsonb_build_object('event', 'COSTING_FINAL_OFFER_CHANGED', 'tender_line_id', new.tender_line_id)
+  );
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_mark_bid_submitted(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_done  integer;
+begin
+  if v_actor is null then
+    raise exception 'costing_mark_bid_submitted: sign in first' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.sor_stage_visits v
+     where v.opportunity_id = p_opportunity_id
+       and v.left_by = v_actor
+       and v.left_at > now() - interval '2 minutes'
+  ) then
+    raise exception 'costing_mark_bid_submitted: only the person who just moved the SOR can do this' using errcode = '42501';
+  end if;
+
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_matrices
+     set bid_submitted_at = now()
+   where opportunity_id = p_opportunity_id and bid_submitted_at is null;
+  get diagnostics v_done = row_count;
+  perform set_config('costing.bypass', 'off', true);
+  return v_done > 0;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_markup_presets_touch()
@@ -17995,6 +18119,7 @@ CREATE TRIGGER costing_signoffs_guard BEFORE UPDATE ON public.costing_signoffs F
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_final_offer_log AFTER INSERT OR UPDATE OF final_offer_unit ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_log_final_offer_change();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_clear_evaluation_lines AFTER INSERT OR DELETE OR UPDATE OF tender_specification ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();

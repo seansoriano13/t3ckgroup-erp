@@ -93,6 +93,33 @@ function clearEvaluationApproval(table, row, old, context) {
   }
 }
 
+/**
+ * costing_log_final_offer_change() (20261018180000_costing_settled_condition.sql, #272): once the
+ * matrix's bid_submitted_at is set, a Final Offer that is added or changed writes a SYSTEM entry on
+ * the SOR's timeline, on the open Stage Visit, with the Tender Line's number and no figures. Before
+ * the bid is submitted it writes nothing. The actor is not mirrored (the fake has none).
+ */
+function logFinalOfferChange(row, old, context) {
+  if (old === row) return // a delete
+  if (old === null ? row.final_offer_unit == null : row.final_offer_unit === old.final_offer_unit) return
+  const line = context.rowsOf("costing_tender_lines").find((l) => l.id === row.tender_line_id)
+  const matrix = line && context.rowsOf("costing_matrices").find((m) => m.id === line.matrix_id)
+  if (!matrix?.bid_submitted_at) return
+  const visit = context
+    .rowsOf("sor_stage_visits")
+    .find((v) => v.opportunity_id === matrix.opportunity_id && !v.left_at && !v.undone_at)
+  context.rowsOf("sales_opportunity_logs").push({
+    id: globalThis.crypto.randomUUID(),
+    opportunity_id: matrix.opportunity_id,
+    author_id: null,
+    type: "SYSTEM",
+    content: `Final Offer changed on Tender Line ${line.position} after the bid was submitted.`,
+    metadata: { event: "COSTING_FINAL_OFFER_CHANGED", tender_line_id: row.tender_line_id },
+    created_at: new Date().toISOString(),
+    stage_visit_id: visit?.id ?? null,
+  })
+}
+
 export const TRIGGERS = {
   sales_opportunities: {
     beforeInsert: [
@@ -297,6 +324,10 @@ export const TRIGGERS = {
 
   costing_tender_lines: {
     afterWrite: [(row, old, context) => clearEvaluationApproval("costing_tender_lines", row, old, context)],
+  },
+
+  costing_tender_line_prices: {
+    afterWrite: [logFinalOfferChange],
   },
 
   costing_components: {

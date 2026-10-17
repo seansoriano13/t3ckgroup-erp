@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-10-17",
+        "title": "Flow Canvas: Costing settled",
+        "version": "1.9.44",
+        "changes": [
+            "A new Stage Condition, Costing settled, can gate the bid. It is met when every Tender Line has a Final Offer, the summary is complete, the evaluation is approved, the offer is within the ABC and the Bid Decision is Go.",
+            "The Stage checklist lists, in plain words, which of those checks still fail. It updates as the matrix changes, so a later edit that clears the approval or the Bid Decision makes it unmet again.",
+            "It is unmet while the SOR has no Costing Matrix.",
+            "When the SOR leaves a Stage through a met Costing settled, the bid counts as submitted. After that, any change to a Final Offer is noted on the SOR's timeline."
+        ]
+    },
+    {
         "date": "2026-10-16",
         "title": "Flow Canvas: Open Costing Matrix",
         "version": "1.9.43",
