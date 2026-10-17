@@ -390,9 +390,10 @@ describe("costingMatrixService", () => {
         ["acquire_unit", "odoo_unit"],
       ]);
       // Sales reads the peso Markup Price and never the factor behind it (#316).
+      // A cost-only row's Markup Price would be its Acquire (x1.00), so the price tier gets none there.
       expect(await keysAt(COSTING_TIER.PRICE)).toEqual([
         ["markup_price_unit", "odoo_unit"],
-        ["markup_price_unit", "odoo_unit"],
+        ["odoo_unit"],
       ]);
       expect(await keysAt(COSTING_TIER.PARTICIPANT)).toEqual([[], []]);
 
@@ -713,7 +714,7 @@ describe("costingMatrixService", () => {
       expect(matrixRead.tenderLines[0].markup.priceTotal).toBe(3175935)
       expect(matrixRead.tenderLines[0].markup.achievedFactor).toBeNull()
       expect(matrixRead.markup.achievedFactor).toBeNull()
-      expect(matrixRead.costRows[0].markup_price_unit).toBe(100000)
+      expect(matrixRead.costRows[0].markup_price_unit).toBeUndefined()
       expect(matrixRead.defaultFactor).toBeUndefined()
       expect(JSON.stringify(matrixRead)).not.toMatch(/markup_factor|default_factor|acquire_unit/)
     })

@@ -71,6 +71,24 @@ describe("costingSettled (#272)", () => {
   it("fails closed on evidence it cannot read", () => {
     expect(costingSettled({ has_matrix: true }).met).toBe(false)
   })
+
+  it("fails closed on a count that is null or absent (blank is never zero)", () => {
+    for (const key of ["missing_offer", "missing_cost"]) {
+      expect(costingSettled({ ...ready, [key]: null }).met, `${key} null`).toBe(false)
+      const { [key]: _gone, ...without } = ready
+      expect(costingSettled(without).met, `${key} absent`).toBe(false)
+    }
+    expect(costingSettled({ ...ready, missing_offer: null }).failing).toEqual(["missing_final_offer"])
+    expect(costingSettled({ ...ready, missing_cost: undefined }).failing).toEqual(["incomplete_summary"])
+  })
+
+  it("takes the database's word for a caller sent no settled evidence (settled_met only)", () => {
+    expect(costingSettled({ has_matrix: true, settled_met: true })).toEqual({ met: true, failing: [] })
+    expect(costingSettled({ has_matrix: true, settled_met: false })).toEqual({ met: false, failing: ["not_settled"] })
+    expect(costingSettled({ has_matrix: true, settled_met: null }).met).toBe(false)
+    expect(COSTING_SETTLED_CHECKS).toContain("not_settled")
+    expect(describeFailing(["not_settled"], { has_matrix: true, settled_met: false })).toEqual(["Costing not settled."])
+  })
 })
 
 describe("the shared costing evaluator", () => {
@@ -153,6 +171,12 @@ describe("costingPriced (#463)", () => {
 
   it("fails closed on evidence it cannot read", () => {
     expect(costingPriced({ has_matrix: true }).met).toBe(false)
+  })
+
+  it("fails closed on a missing Acquire count that is null or absent", () => {
+    expect(costingPriced({ ...priced, missing_acquire: null })).toMatchObject({ met: false, failing: ["missing_acquire"] })
+    const { missing_acquire: _gone, ...without } = priced
+    expect(costingPriced(without)).toMatchObject({ met: false, failing: ["missing_acquire"] })
   })
 
   it("does not look at Final Acquire, the offer, the evaluation or the Bid Decision", () => {

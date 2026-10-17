@@ -1762,9 +1762,9 @@ function FlowCanvasInner() {
           {publishWarnings.length > 0 && (
             <div
               role="status"
-              className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground shrink-0"
+              className="rounded-xl border border-amber-6 bg-amber-3 px-4 py-3 text-sm text-foreground shrink-0"
             >
-              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">
+              <p className="mb-1 text-label text-amber-12">
                 Worth a look before publishing
               </p>
               <ul className="space-y-0.5">

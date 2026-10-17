@@ -1,4 +1,5 @@
 import CostingMatrixSection from "../../costing/CostingMatrixSection";
+import { useCostingTier } from "../../costing/useCostingMatrix";
 import IpasSorSection from "../../ipas/IpasSorSection";
 import HandoffsSorSection from "../HandoffsSorSection";
 import PurchaseRequestCard from "./PurchaseRequestCard";
@@ -12,10 +13,13 @@ import PurchaseRequestCard from "./PurchaseRequestCard";
  * with no matrix yet and no orders shows a calm page, not an error.
  */
 export default function PmsTab({ opportunityId, opportunity }) {
+  // The tab is for everyone who can see the SOR (Finance gets the IPAS here, #319); the matrix section
+  // only for a viewer with a Costing Matrix read tier. Each other section keeps its own visibility rule.
+  const { data: costingTier } = useCostingTier(opportunityId);
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8 p-6">
       {/* #267: the grid once the SOR's Costing Matrix has been opened (#462); until then one plain line. */}
-      <CostingMatrixSection opportunityId={opportunityId} opportunity={opportunity} />
+      {costingTier && <CostingMatrixSection opportunityId={opportunityId} opportunity={opportunity} />}
 
       {/* #310: renders nothing for an SOR with no Purchase Request. Moved here from the Summary and This stage (#268). */}
       <PurchaseRequestCard opportunityId={opportunityId} />

@@ -29,6 +29,7 @@ import {
     COMPONENT_BANDS,
     COMPONENT_COST_BANDS,
     COMPONENT_COST_TIERS,
+    COST_ROW_TIERS,
     COST_ROW_BANDS,
     INCLUSION_BANDS,
 } from "../../constants/costing.js"
@@ -564,7 +565,8 @@ describe("who reads what", () => {
     expect(Object.keys(costs).sort()).toEqual(["component_id", "markup_price_unit", "odoo_unit"])
     expect(Number(costs.odoo_unit)).toBe(19000)
     const [row] = tableOf(read, "costing_cost_rows")
-    expect(Object.keys(row).sort()).toEqual(["created_at", "description", "id", "markup_price_unit", "matrix_id", "odoo_unit", "position", "quantity"])
+    // A cost-only row's Markup Price (Acquire x1.00) would give Acquire away: not served to the price tier.
+    expect(Object.keys(row).sort()).toEqual(["created_at", "description", "id", "matrix_id", "odoo_unit", "position", "quantity"])
     expect(JSON.stringify(read)).not.toMatch(/acquire_unit|final_acquire_unit|markup_factor/)
   })
 
@@ -621,8 +623,8 @@ describe("who reads what", () => {
 
   it("matches the registries the screen mirrors in src/constants/costing.js", async () => {
     const tiers = await asSvc(svc().from("costing_column_tiers").select("table_name, column_name, tiers").in("table_name", ["costing_component_costs", "costing_cost_rows"]), "tiers")
-    for (const table of ["costing_component_costs", "costing_cost_rows"]) {
-      for (const [column, expected] of Object.entries(COMPONENT_COST_TIERS)) {
+    for (const [table, mirror] of [["costing_component_costs", COMPONENT_COST_TIERS], ["costing_cost_rows", COST_ROW_TIERS]]) {
+      for (const [column, expected] of Object.entries(mirror)) {
         const row = tiers.find((t) => t.table_name === table && t.column_name === column)
         expect([...row.tiers].sort(), `${table}.${column}`).toEqual([...expected].sort())
       }
@@ -698,68 +700,33 @@ describe("the history", () => {
   })
 })
 
-describe("sor_inclusions moves under an Unplaced inclusions bundle", () => {
+describe("the old sor_inclusions table", () => {
   let legacySor
-  const legacyRows = [
-    { description: "Tripod carry bag", quantity: 2, unit: "pc", completeness: "COVERED", sort_order: 2, note: "Black", sourcing: "SOURCE_OUT", cost_amount: 1500.5, cost_source: "MANUAL" },
-    { description: "Anchor sling", quantity: 1, unit: null, completeness: "MISSING", sort_order: 1, note: null, sourcing: null, cost_amount: null, cost_source: null },
-    { description: "Rope bag", quantity: 4, unit: "pc", completeness: "SUBSTITUTED", sort_order: 3, note: null, sourcing: "STOCKABLE_AVAILABLE", cost_amount: 320, cost_source: "ODOO_CATALOG" },
-  ]
 
-  it("moves every row with its Completeness, records cost_amount in the event, and opens the matrix", async () => {
+  it("is not backfilled into a Costing Matrix: no matrix is opened for an SOR with old Inclusions", async () => {
     legacySor = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
     sorIds.push(legacySor)
-    await asSvc(svc().from("sor_inclusions").insert(legacyRows.map((r) => ({ opportunity_id: legacySor, ...r }))), "legacy rows")
+    await asSvc(
+      svc().from("sor_inclusions").insert([
+        { opportunity_id: legacySor, description: "Anchor sling", quantity: 1, completeness: "MISSING", sort_order: 1 },
+        { opportunity_id: legacySor, description: "Tripod carry bag", quantity: 2, unit: "pc", completeness: "COVERED", sort_order: 2 },
+      ]),
+      "legacy rows",
+    )
     expect(await asSvc(svc().from("costing_matrices").select("id").eq("opportunity_id", legacySor), "no matrix")).toEqual([])
-
-    const moved = await svc().rpc("costing_move_legacy_inclusions", { p_opportunity_id: legacySor })
-    expect(moved.error).toBeNull()
-    expect(moved.data).toBe(3)
-
-    const matrix = await asSvc(svc().from("costing_matrices").select("id").eq("opportunity_id", legacySor).single(), "matrix")
-    const lines = await asSvc(svc().from("costing_tender_lines").select("*").eq("matrix_id", matrix.id), "lines")
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toMatchObject({ tender_specification: "Unplaced inclusions", position: 1, source: "typed" })
-    expect(Number(lines[0].quantity)).toBe(1)
-
-    const components = await asSvc(svc().from("costing_components").select("*").eq("tender_line_id", lines[0].id), "components")
-    expect(components).toHaveLength(1)
-    expect(components[0]).toMatchObject({ name: "Unplaced inclusions", is_bundle: true, position: 1 })
-
-    const inclusions = await asSvc(svc().from("costing_inclusions").select("*").eq("component_id", components[0].id).order("position"), "Inclusions")
-    expect(inclusions.map((i) => [i.position, i.description, Number(i.quantity), i.unit, i.completeness, i.heading])).toEqual([
-      [1, "Anchor sling", 1, null, "MISSING", null],
-      [2, "Tripod carry bag", 2, "pc", "COVERED", null],
-      [3, "Rope bag", 4, "pc", "SUBSTITUTED", null],
-    ])
-
-    const events = await asSvc(svc().from("costing_events").select("detail").eq("matrix_id", matrix.id), "events")
-    const legacyEvent = (description) => {
-      const inc = inclusions.find((i) => i.description === description)
-      return events.map((e) => e.detail).find((d) => d.column === "legacy_sor_inclusion" && d.row === inc.id)
-    }
-    expect(legacyEvent("Tripod carry bag").new).toMatchObject({ cost_amount: 1500.5, cost_source: "MANUAL", note: "Black", sourcing: "SOURCE_OUT" })
-    expect(legacyEvent("Rope bag").new).toMatchObject({ cost_amount: 320, cost_source: "ODOO_CATALOG" })
-    expect(legacyEvent("Anchor sling").new.cost_amount).toBeNull()
-  })
-
-  it("keeps the old rows, moves each once, and picks up a row added later", async () => {
-    const again = await svc().rpc("costing_move_legacy_inclusions", { p_opportunity_id: legacySor })
-    expect(again.data).toBe(0)
-    const old = await asSvc(svc().from("sor_inclusions").select("id").eq("opportunity_id", legacySor), "old rows")
-    expect(old).toHaveLength(3)
-
-    await asSvc(svc().from("sor_inclusions").insert({ opportunity_id: legacySor, description: "Late spare", quantity: 1, completeness: "NOT_REQUIRED", sort_order: 4 }), "late row")
-    expect((await svc().rpc("costing_move_legacy_inclusions", { p_opportunity_id: legacySor })).data).toBe(1)
-    const matrix = await asSvc(svc().from("costing_matrices").select("id").eq("opportunity_id", legacySor).single(), "matrix")
-    const lines = await asSvc(svc().from("costing_tender_lines").select("id").eq("matrix_id", matrix.id), "lines")
-    expect(lines).toHaveLength(1)
-    const late = await asSvc(svc().from("costing_inclusions").select("description, completeness, position").eq("description", "Late spare").single(), "late")
-    expect(late).toEqual({ description: "Late spare", completeness: "NOT_REQUIRED", position: 4 })
+    // The one-off mover is gone (#266 review): a matrix exists only once Open Costing Matrix runs.
+    const gone = await svc().rpc("costing_move_legacy_inclusions", { p_opportunity_id: legacySor })
+    expect(gone.error).not.toBeNull()
+    expect(await asSvc(svc().from("costing_matrices").select("id").eq("opportunity_id", legacySor), "still no matrix")).toEqual([])
   })
 
   it("lets Sales move an Unplaced inclusion under the bundle it belongs to", async () => {
-    const matrix = await asSvc(svc().from("costing_matrices").select("id").eq("opportunity_id", legacySor).single(), "matrix")
+    const opened = await svc().rpc("costing_open_matrix", { p_opportunity_id: legacySor })
+    if (opened.error) throw new Error(`costing_open_matrix: ${opened.error.message}`)
+    const matrix = { id: opened.data }
+    const holder = await asSvc(svc().from("costing_tender_lines").insert({ matrix_id: matrix.id, position: 1, tender_specification: "Unplaced inclusions", quantity: 1 }).select("id").single(), "holder line")
+    const holderBundle = await asSvc(svc().from("costing_components").insert({ tender_line_id: holder.id, position: 1, name: "Unplaced inclusions", is_bundle: true }).select("id").single(), "holder bundle")
+    await asSvc(svc().from("costing_inclusions").insert({ component_id: holderBundle.id, position: 1, description: "Anchor sling", quantity: 1, completeness: "MISSING" }), "sling")
     const line = await asSvc(
       svc().from("costing_tender_lines").insert({ matrix_id: matrix.id, position: 2, tender_specification: "Rescue tripod", quantity: 1 }).select("id").single(),
       "line",
@@ -768,7 +735,7 @@ describe("sor_inclusions moves under an Unplaced inclusions bundle", () => {
       svc().from("costing_components").insert({ tender_line_id: line.id, position: 1, name: "Tripod set", is_bundle: true }).select("id").single(),
       "bundle",
     )
-    const sling = await asSvc(svc().from("costing_inclusions").select("id").eq("description", "Anchor sling").single(), "sling")
+    const sling = await asSvc(svc().from("costing_inclusions").select("id").eq("component_id", holderBundle.id).eq("description", "Anchor sling").single(), "sling")
     expect(await moveInclusion("dealOwner", sling.id, bundle.id)).toBeNull()
     const moved = await asSvc(svc().from("costing_inclusions").select("component_id, completeness").eq("id", sling.id).single(), "moved")
     expect(moved).toEqual({ component_id: bundle.id, completeness: "MISSING" })
@@ -786,10 +753,5 @@ describe("sor_inclusions moves under an Unplaced inclusions bundle", () => {
     expect(still).toHaveLength(1)
     expect(still[0].description).not.toBe("Changed")
     expect(await canRead(await clientFor("dealOwner"), "sor_inclusions", id)).toBe(true)
-  })
-
-  it("is not open to signed-in employees", async () => {
-    const denied = await (await clientFor("superAdmin")).rpc("costing_move_legacy_inclusions", { p_opportunity_id: legacySor })
-    expect(denied.error).not.toBeNull()
   })
 })

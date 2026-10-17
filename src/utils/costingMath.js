@@ -444,9 +444,13 @@ export function describeComplianceRollup(rollup) {
 // Costing settled (#272)
 // ---------------------------------------------------------------------------
 
+/** A count that is present and zero. Absent (null/undefined) is not zero: a missing count fails closed. */
+const isZeroCount = (value) => value !== null && value !== undefined && Number(value) === 0;
+
 /** The checks "Costing settled" can fail, in the order they are reported. */
 export const COSTING_SETTLED_CHECKS = [
   "no_matrix",
+  "not_settled",
   "no_tender_lines",
   "missing_final_offer",
   "incomplete_summary",
@@ -465,6 +469,8 @@ export const COSTING_SETTLED_CHECKS = [
  *
  *   has_matrix, line_count, missing_offer, over_abc, costed_rows, missing_cost,
  *   evaluation_approved, bid_verdict ('go' | 'no_go' | 'revise' | null)
+ * or, for a caller outside the price and Closed Book tiers, only `{ has_matrix, settled_met }`
+ * (the database judged it; the single failing check is `not_settled`).
  *
  * Returns `{ met, failing }`, `failing` being the keys of COSTING_SETTLED_CHECKS that fail. No
  * matrix fails on that alone (nothing else can be judged). The summary counts as incomplete when
@@ -473,11 +479,16 @@ export const COSTING_SETTLED_CHECKS = [
  */
 export function costingSettled(inputs) {
   if (!inputs || inputs.has_matrix !== true) return { met: false, failing: ["no_matrix"] };
+  // A caller outside the price and Closed Book tiers is sent no settled evidence, only the
+  // database's own verdict (`settled_met`): one failing check, no reasons (#266 review).
+  if (inputs.line_count === undefined && inputs.settled_met !== undefined) {
+    return inputs.settled_met === true ? { met: true, failing: [] } : { met: false, failing: ["not_settled"] };
+  }
   const failing = [];
   const lines = Number(inputs.line_count) || 0;
   if (lines === 0) failing.push("no_tender_lines");
-  else if (!(Number(inputs.missing_offer) === 0)) failing.push("missing_final_offer");
-  if (!(Number(inputs.costed_rows) > 0) || !(Number(inputs.missing_cost) === 0)) failing.push("incomplete_summary");
+  else if (!isZeroCount(inputs.missing_offer)) failing.push("missing_final_offer");
+  if (!(Number(inputs.costed_rows) > 0) || !isZeroCount(inputs.missing_cost)) failing.push("incomplete_summary");
   if (inputs.evaluation_approved !== true) failing.push("evaluation_not_approved");
   if (inputs.over_abc !== false) failing.push("over_abc");
   if (inputs.bid_verdict !== "go") failing.push("bid_not_go");
@@ -530,7 +541,7 @@ export function costingPriced(inputs) {
   if (!inputs || inputs.has_matrix !== true) return { met: false, failing: ["no_matrix"] };
   const failing = [];
   if (!(Number(inputs.component_count) > 0)) failing.push("no_components");
-  if (!(Number(inputs.missing_acquire) === 0)) failing.push("missing_acquire");
+  if (!isZeroCount(inputs.missing_acquire)) failing.push("missing_acquire");
   if (inputs.has_purchasing_incharge !== true) failing.push("no_purchasing_incharge");
   return { met: failing.length === 0, failing };
 }

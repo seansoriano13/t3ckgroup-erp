@@ -112,14 +112,19 @@ describe("the PMS tab", () => {
     expect(screen.queryByTestId("tender-line")).not.toBeInTheDocument();
   });
 
-  it("shows no PMS tab to someone with no costing tier", async () => {
+  it("shows a viewer with no costing tier (Finance) the PMS tab with the IPAS section and no matrix", async () => {
     db.seed("costing_matrices", { opportunity_id: deal.id });
     stubCostingMatrixRpcs({ tier: null, bands: [] });
     openModal(deal);
 
-    await screen.findByRole("button", { name: /^This stage/ });
+    await openPms();
+
+    expect(await screen.findByText("TGIPAS_052")).toBeInTheDocument();
+    expect(await screen.findByText("TG03-901")).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 100));
-    expect(screen.queryByRole("button", { name: /^PMS/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Costing Matrix/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("no-costing-matrix")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tender-line")).not.toBeInTheDocument();
   });
 
   it("gives a Stage Participant the Tender Lines read-only, with no money columns", async () => {
@@ -252,7 +257,7 @@ describe("the PMS tab", () => {
     await openPms();
 
     expect(await screen.findByText("Buyer: Bea Buyer")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Costing Matrix/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Costing Matrix/ })).toBeInTheDocument();
   });
 
   describe("Components, bundles, Inclusions and cost-only rows (#268)", () => {

@@ -22,7 +22,7 @@ import { serviceClient, rlsStatus, sql } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { RLS_VIOLATION } from "./support/access.js"
 import { purgeCostingForSors } from "./support/costing.js"
-import { COMPONENT_COST_TIERS, MATRIX_MONEY_BANDS, MATRIX_MONEY_TIERS } from "../../constants/costing.js"
+import { COMPONENT_COST_TIERS, COST_ROW_TIERS, MATRIX_MONEY_BANDS, MATRIX_MONEY_TIERS } from "../../constants/costing.js"
 import { markupPriceUnit } from "../../utils/costingMath.js"
 
 const svc = () => serviceClient()
@@ -33,7 +33,7 @@ let saleTypeId, flowId, stageId
 let sorId, matrixId
 let lineId
 let vehicleId, boltsId, blankId
-let deliveryRowId, plainRowId, blankRowId
+let deliveryRowId, plainRowId
 let govPreset
 const sorIds = []
 const presetLabel = (name) => `${MARKER} ${name}`
@@ -122,7 +122,7 @@ beforeAll(async () => {
         (await asSvc(svc().from("costing_cost_rows").insert({ matrix_id: matrixId, position, description, quantity: 1, ...costs }).select("id").single(), description)).id
     deliveryRowId = await costRow(1, "Delivery Charge", { acquire_unit: 100000 })
     plainRowId = await costRow(2, "Permit", { acquire_unit: 333.33, markup_factor: null })
-    blankRowId = await costRow(3, "Unpriced", {})
+    await costRow(3, "Unpriced", {})
 })
 
 afterAll(async () => {
@@ -327,16 +327,16 @@ describe("Markup Price: computed in the database", () => {
         expect(read.tier).toBe("price")
         expect(Number(markupUnitOf(read, vehicleId))).toBe(3175935) // 2,160,500 x 1.47
         expect(Number(markupUnitOf(read, boltsId))).toBe(24638.18) // 18,250.50 x 1.35 = 24,638.175, half up
-        expect(markupUnitOfRow(read, deliveryRowId)).toBeDefined()
-        expect(Number(markupUnitOfRow(read, deliveryRowId))).toBe(100000) // a cost-only row is x1.00, not x1.35
-        expect(Number(markupUnitOfRow(read, plainRowId))).toBe(333.33)
+        // A cost-only row is x1.00, so its Markup Price would be its Acquire to the centavo: the price tier gets no
+        // markup_price_unit on cost-only rows at all (Closed Book leak, #266 review). The key is absent, not null.
+        for (const row of tableOf(read, "costing_cost_rows")) expect(Object.keys(row), row.id).not.toContain("markup_price_unit")
+        expect(JSON.stringify(tableOf(read, "costing_cost_rows"))).not.toMatch(/markup_price_unit/)
 
         // A blank Acquire leaves Markup Price blank: the key is there, the value is null, never 0.
         const costs = tableOf(read, "costing_component_costs")
         const blank = costs.find((c) => c.component_id === blankId)
         expect(blank).toBeDefined()
         expect(blank.markup_price_unit).toBeNull()
-        expect(markupUnitOfRow(read, blankRowId)).toBeNull()
 
         expect(JSON.stringify(read)).not.toMatch(/acquire_unit|markup_factor|default_factor|final_acquire_unit/)
         expect(Object.keys(costs.find((c) => c.component_id === vehicleId)).sort()).toEqual(["component_id", "markup_price_unit", "odoo_unit"])
@@ -370,7 +370,8 @@ describe("Markup Price: computed in the database", () => {
         const read = await readMatrix("dealOwner")
         expect(Number(markupUnitOf(read, boltsId))).toBe(36501) // x2.00 now
         expect(Number(markupUnitOf(read, vehicleId))).toBe(3175935) // its own x1.47 stays
-        expect(Number(markupUnitOfRow(read, plainRowId))).toBe(333.33) // cost-only rows ignore the default
+        // Cost-only rows ignore the default (the price tier is not served their Markup Price; the Closed Book is).
+        expect(Number(markupUnitOfRow(await readMatrix("ipasSigner"), plainRowId))).toBe(333.33)
         expect(await setMatrixMoney("ipasSigner", { default_factor: 1.35 })).toBeNull()
     })
 
@@ -449,9 +450,9 @@ describe("the registries", () => {
             const row = tiers.find((t) => t.table_name === "costing_matrix_money" && t.column_name === column)
             expect([...row.tiers].sort(), column).toEqual([...expected].sort())
         }
-        for (const table of ["costing_component_costs", "costing_cost_rows"]) {
+        for (const [table, mirror] of [["costing_component_costs", COMPONENT_COST_TIERS], ["costing_cost_rows", COST_ROW_TIERS]]) {
             const row = tiers.find((t) => t.table_name === table && t.column_name === "markup_price_unit")
-            expect([...row.tiers].sort(), table).toEqual([...COMPONENT_COST_TIERS.markup_price_unit].sort())
+            expect([...row.tiers].sort(), table).toEqual([...mirror.markup_price_unit].sort())
         }
 
         const bands = await asSvc(svc().from("costing_column_bands").select("table_name, column_name, bands").eq("table_name", "costing_matrix_money"), "bands")

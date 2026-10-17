@@ -4,8 +4,8 @@ import { costingKeys } from "./costingKeys";
 
 /**
  * The caller's Costing Matrix read tier on an SOR (#267): `closed_book`, `cost`,
- * `price`, `participant`, or null. The PMS tab shows when it is not null. A
- * failed read hides the tab rather than guess.
+ * `price`, `participant`, or null. The Costing Matrix section of the PMS tab shows when it is not null. A
+ * failed read hides the section rather than guess.
  */
 export function useCostingTier(opportunityId) {
   return useQuery({

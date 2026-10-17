@@ -59,8 +59,21 @@ export const COMPONENT_COST_TIERS = {
   markup_price_unit: [COSTING_TIER.PRICE, COSTING_TIER.CLOSED_BOOK],
 };
 
-/** Does this tier receive the named unit-cost column of a Component or cost-only row? */
+/** Does this tier receive the named unit-cost column of a Component? */
 export const tierReadsCost = (tier, column) => (COMPONENT_COST_TIERS[column] ?? []).includes(tier);
+
+/**
+ * The same for a cost-only row (costing_cost_rows). One difference: the price tier gets no Markup
+ * Price on a cost-only row. A cost-only row with no factor is x1.00, so its Markup Price would be its
+ * Acquire to the centavo (Closed Book leak, #266 review).
+ */
+export const COST_ROW_TIERS = {
+  ...COMPONENT_COST_TIERS,
+  markup_price_unit: [COSTING_TIER.CLOSED_BOOK],
+};
+
+/** Does this tier receive the named unit-cost column of a cost-only row? */
+export const tierReadsCostRow = (tier, column) => (COST_ROW_TIERS[column] ?? []).includes(tier);
 
 const { SALES, PURCHASING, MANAGEMENT, TECHNICAL } = COSTING_BAND;
 
