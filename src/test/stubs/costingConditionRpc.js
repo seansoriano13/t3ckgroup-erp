@@ -30,17 +30,29 @@ export function stubCostingConditionRpcs() {
       ...costRows.map((r) => r.final_acquire_unit ?? null),
     ]
 
+    const evaluationApproved = rows("costing_signoffs").some(
+      (s) => s.matrix_id === matrix.id && s.role === "evaluation_approved" && !s.cleared_at,
+    )
+    const verdict = rows("costing_bid_decisions").find((d) => d.matrix_id === matrix.id && !d.cleared_at)?.verdict ?? null
+    const settledMet =
+      lines.length > 0 &&
+      totals.missingOffer === 0 &&
+      !totals.overAbc &&
+      finalAcquire.length > 0 &&
+      finalAcquire.every((v) => v !== null) &&
+      evaluationApproved &&
+      verdict === "go"
+
     return {
       has_matrix: true,
+      settled_met: settledMet,
       line_count: lines.length,
       missing_offer: totals.missingOffer,
       over_abc: totals.overAbc,
       costed_rows: finalAcquire.length,
       missing_cost: finalAcquire.filter((v) => v === null).length,
-      evaluation_approved: rows("costing_signoffs").some(
-        (s) => s.matrix_id === matrix.id && s.role === "evaluation_approved" && !s.cleared_at,
-      ),
-      bid_verdict: rows("costing_bid_decisions").find((d) => d.matrix_id === matrix.id && !d.cleared_at)?.verdict ?? null,
+      evaluation_approved: evaluationApproved,
+      bid_verdict: verdict,
       // Costing priced (#463): Acquire (not Final Acquire) on every Component and cost-only row.
       component_count: components.length,
       missing_acquire:

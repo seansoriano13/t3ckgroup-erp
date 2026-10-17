@@ -223,3 +223,31 @@ matrix read and the history. The money tables and the event history can be
 selected directly by Closed Book only. The write bands in the 2026-09-15
 amendment's source (#225) are unchanged. Everyone else called into an SOR still
 sees the matrix without money, as that amendment said.
+
+### 2026-10-18 — Costing conditions keep peso figures in the database (#266 review)
+
+Code review of the Costing Matrix (#266) found three ways the Closed Book
+could be read around, and fixed them:
+
+- **The over-ABC and missing-cost checks are computed in SQL**
+  (`costing_bid_totals`, `costing_condition_inputs`, `costing_settled_met`), so
+  no peso figure leaves the database. `costingMath` then turns the booleans and
+  counts into the verdict (`costingSettled`, `costingPriced`). That is the one
+  deliberate second implementation of the rule: SQL decides from the figures,
+  JavaScript decides from the booleans, and both must agree (policy 86 and the
+  unit tests hold them to it).
+- **Who sees the reasons.** The price and Closed Book tiers get the full
+  evidence (`bid_verdict`, `over_abc`, the counts). Everyone else who can see
+  the SOR gets only the server's `settled_met` for Costing settled, so the
+  Stage checklist says "Costing not settled" and nothing about the Bid Decision
+  or the offer against the ABC. Costing priced counts hold no money and go to
+  all of them.
+- **A cost-only row's Markup Price** is not served to the price tier: with no
+  factor of its own it is Acquire x1.00, which is Purchasing's cost to the
+  centavo.
+
+Also: `costing_mark_bid_submitted` checks for itself that the Stage just left
+carries an active Costing settled condition and that it is met, and the legacy
+`sor_inclusions` backfill into a matrix is removed (a matrix exists only once
+Open Costing Matrix runs). The PMS tab shows for everyone who can see the SOR
+(Finance reads the IPAS there); only its Costing Matrix section needs a tier.

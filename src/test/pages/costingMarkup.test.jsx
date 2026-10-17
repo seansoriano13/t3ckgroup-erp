@@ -206,8 +206,9 @@ describe("markup on the Costing Matrix grid", () => {
     expect(screen.queryByTestId("markup-factor-shown")).not.toBeInTheDocument();
     expect(screen.queryByText(/Acquire/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Achieved|Under target/)).not.toBeInTheDocument();
-    // The cost-only row shows its Markup Price too.
-    expect(within(screen.getByTestId("cost-rows")).getAllByText("₱100,000.00").length).toBeGreaterThanOrEqual(2);
+    // A cost-only row's Markup Price would be its Acquire (x1.00): the price tier is not shown it.
+    expect(within(screen.getByTestId("cost-rows")).queryByText("₱100,000.00")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("cost-rows")).queryByText(/Markup/)).not.toBeInTheDocument();
   });
 
   it("gives Purchasing the Acquire and no Markup Price or factor at all", async () => {

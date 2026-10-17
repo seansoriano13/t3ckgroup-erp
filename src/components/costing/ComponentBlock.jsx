@@ -183,13 +183,13 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                         />
                         <div className="mt-1 grid gap-2 sm:grid-cols-2" data-testid="specifications">
                           <div className="space-y-1">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tender Specification</p>
+                            <p className="text-label text-muted-foreground">Tender Specification</p>
                             <p className="whitespace-pre-line rounded-md bg-muted/40 px-2 py-1.5 text-sm text-foreground" aria-label={label("Tender Specification")}>
                               {line.tender_specification || "—"}
                             </p>
                           </div>
                           <div className="space-y-1">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Offer Specification</p>
+                            <p className="text-label text-muted-foreground">Offer Specification</p>
                             <Cell
                               label={label("Offer Specification")}
                               noun="Offer Specification"

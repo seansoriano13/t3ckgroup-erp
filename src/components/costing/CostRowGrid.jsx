@@ -5,7 +5,7 @@ import { Button } from "../ui/button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { costingMatrixService } from "../../services/costingMatrixService";
-import { COST_ROW_BANDS, ROW_EDIT_BANDS, inAnyBand, tierReadsCost } from "../../constants/costing";
+import { COST_ROW_BANDS, ROW_EDIT_BANDS, inAnyBand, tierReadsCostRow } from "../../constants/costing";
 import { extended, finalAcquireTotal } from "../../utils/costingMath";
 import { Cell } from "./GridCell";
 import { factorLabel, percentLabel, pesos } from "./gridFormat";
@@ -28,11 +28,11 @@ export default function CostRowGrid({ matrix, writes }) {
   const { bands, tier, costRows, costRowsTotals, costRowsMarkupTotal } = matrix;
   const canEditRows = inAnyBand(bands, ROW_EDIT_BANDS);
   const can = (column) => inAnyBand(bands, COST_ROW_BANDS[column]);
-  const showAcquire = tierReadsCost(tier, "acquire_unit");
-  const showOdoo = tierReadsCost(tier, "odoo_unit");
-  const showFinal = tierReadsCost(tier, "final_acquire_unit");
-  const showFactor = tierReadsCost(tier, "markup_factor");
-  const showMarkupPrice = tierReadsCost(tier, "markup_price_unit");
+  const showAcquire = tierReadsCostRow(tier, "acquire_unit");
+  const showOdoo = tierReadsCostRow(tier, "odoo_unit");
+  const showFinal = tierReadsCostRow(tier, "final_acquire_unit");
+  const showFactor = tierReadsCostRow(tier, "markup_factor");
+  const showMarkupPrice = tierReadsCostRow(tier, "markup_price_unit");
 
   if (costRows.length === 0 && !canEditRows) return null;
 

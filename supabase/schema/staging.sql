@@ -6492,6 +6492,9 @@ declare
   v_missing     integer;
   v_components  integer;
   v_no_acquire  integer;
+  v_tier        text;
+  v_priced      jsonb;
+  v_settled     boolean;
 begin
   if public.get_employee_id() is null then
     raise exception 'costing_condition_inputs: sign in first' using errcode = '42501';
@@ -6523,22 +6526,32 @@ begin
   v_no_acquire := v_no_acquire + (select count(*) from public.costing_cost_rows r
                                    where r.matrix_id = v_matrix and r.acquire_unit is null);
 
-  return jsonb_build_object(
-    'has_matrix', true,
-    'line_count', v_totals.line_count,
-    'missing_offer', v_totals.missing_offer,
-    'over_abc', coalesce(v_totals.final_offer_total > v_totals.abc_total, false),
-    'costed_rows', v_costed,
-    'missing_cost', v_missing,
-    'evaluation_approved', exists (
-      select 1 from public.costing_signoffs s
-       where s.matrix_id = v_matrix and s.role = 'evaluation_approved' and s.cleared_at is null),
-    'bid_verdict', (select d.verdict from public.costing_bid_decisions d
-                     where d.matrix_id = v_matrix and d.cleared_at is null),
+  v_settled := public.costing_settled_met(v_matrix);
+  v_priced := jsonb_build_object(
     'component_count', v_components,
     'missing_acquire', v_no_acquire,
     'has_purchasing_incharge', v_incharge is not null
   );
+
+  v_tier := public.costing_tier(p_opportunity_id);
+  if v_tier in ('price', 'closed_book') then
+    return jsonb_build_object(
+      'has_matrix', true,
+      'settled_met', v_settled,
+      'line_count', v_totals.line_count,
+      'missing_offer', v_totals.missing_offer,
+      'over_abc', coalesce(v_totals.final_offer_total > v_totals.abc_total, false),
+      'costed_rows', v_costed,
+      'missing_cost', v_missing,
+      'evaluation_approved', exists (
+        select 1 from public.costing_signoffs s
+         where s.matrix_id = v_matrix and s.role = 'evaluation_approved' and s.cleared_at is null),
+      'bid_verdict', (select d.verdict from public.costing_bid_decisions d
+                       where d.matrix_id = v_matrix and d.cleared_at is null)
+    ) || v_priced;
+  end if;
+
+  return jsonb_build_object('has_matrix', true, 'settled_met', v_settled) || v_priced;
 end;
 $function$
 ;
@@ -6861,19 +6874,67 @@ CREATE OR REPLACE FUNCTION public.costing_mark_bid_submitted(p_opportunity_id uu
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor uuid := public.get_employee_id();
-  v_done  integer;
+  v_actor  uuid := public.get_employee_id();
+  v_visit  record;
+  v_gated  boolean := false;
+  v_seen   boolean := false;
+  v_matrix uuid;
+  v_done   integer;
 begin
   if v_actor is null then
     raise exception 'costing_mark_bid_submitted: sign in first' using errcode = '42501';
   end if;
-  if not exists (
-    select 1 from public.sor_stage_visits v
+
+  for v_visit in
+    select v.flow_stage_id, v.flow_snapshot_id
+      from public.sor_stage_visits v
      where v.opportunity_id = p_opportunity_id
        and v.left_by = v_actor
        and v.left_at > now() - interval '2 minutes'
-  ) then
+       and v.undone_at is null
+  loop
+    v_seen := true;
+    if v_visit.flow_snapshot_id is not null
+       and exists (select 1 from public.flow_snapshots fs where fs.id = v_visit.flow_snapshot_id) then
+      select exists (
+        select 1
+          from public.flow_snapshots fs
+         cross join lateral (
+           select case jsonb_typeof(fs.snapshot_data->'conditions')
+                    when 'array' then fs.snapshot_data->'conditions'
+                    when 'object' then (select coalesce(jsonb_agg(x.value), '[]'::jsonb)
+                                          from jsonb_each(fs.snapshot_data->'conditions') j
+                                         cross join lateral jsonb_array_elements(j.value) x)
+                    else '[]'::jsonb
+                  end as rows
+         ) r
+         cross join lateral jsonb_array_elements(r.rows) c
+         where fs.id = v_visit.flow_snapshot_id
+           and c->>'stage_id' = v_visit.flow_stage_id::text
+           and c->>'kind' = 'costing_settled'
+           and coalesce(c->>'archived_at', '') = ''
+      ) into v_gated;
+    else
+      select exists (
+        select 1 from public.stage_conditions sc
+         where sc.stage_id = v_visit.flow_stage_id
+           and sc.kind = 'costing_settled'
+           and sc.archived_at is null
+      ) into v_gated;
+    end if;
+    exit when v_gated;
+  end loop;
+
+  if not v_seen then
     raise exception 'costing_mark_bid_submitted: only the person who just moved the SOR can do this' using errcode = '42501';
+  end if;
+  if not v_gated then
+    return false;
+  end if;
+
+  select m.id into v_matrix from public.costing_matrices m where m.opportunity_id = p_opportunity_id;
+  if not public.costing_settled_met(v_matrix) then
+    return false;
   end if;
 
   perform set_config('costing.bypass', 'on', true);
@@ -7100,91 +7161,6 @@ begin
      set component_id = p_component_id,
          position = coalesce((select max(i.position) from public.costing_inclusions i where i.component_id = p_component_id), 0) + 1
    where id = p_inclusion_id;
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.costing_move_legacy_inclusions(p_opportunity_id uuid DEFAULT NULL::uuid)
- RETURNS integer
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_opp    uuid;
-  v_matrix uuid;
-  v_line   uuid;
-  v_comp   uuid;
-  v_inc    uuid;
-  v_old    public.sor_inclusions;
-  v_count  integer := 0;
-begin
-  for v_opp in
-    select distinct i.opportunity_id
-    from public.sor_inclusions i
-    where (p_opportunity_id is null or i.opportunity_id = p_opportunity_id)
-      and not exists (select 1 from public.costing_inclusions c where c.legacy_sor_inclusion_id = i.id)
-    order by 1
-  loop
-    v_matrix := public.costing_open_matrix(v_opp);
-
-    select l.id into v_line
-    from public.costing_tender_lines l
-    where l.matrix_id = v_matrix and l.tender_specification = 'Unplaced inclusions'
-    order by l.position
-    limit 1;
-    if v_line is null then
-      insert into public.costing_tender_lines (matrix_id, position, tender_specification, quantity, source)
-      values (v_matrix, coalesce((select max(l.position) from public.costing_tender_lines l where l.matrix_id = v_matrix), 0) + 1,
-              'Unplaced inclusions', 1, 'typed')
-      returning id into v_line;
-    end if;
-
-    select c.id into v_comp
-    from public.costing_components c
-    where c.tender_line_id = v_line and c.is_bundle and c.name = 'Unplaced inclusions'
-    order by c.position
-    limit 1;
-    if v_comp is null then
-      insert into public.costing_components (tender_line_id, position, name, is_bundle, quantity)
-      values (v_line, coalesce((select max(c.position) from public.costing_components c where c.tender_line_id = v_line), 0) + 1,
-              'Unplaced inclusions', true, 1)
-      returning id into v_comp;
-    end if;
-
-    for v_old in
-      select * from public.sor_inclusions i
-      where i.opportunity_id = v_opp
-        and not exists (select 1 from public.costing_inclusions c where c.legacy_sor_inclusion_id = i.id)
-      order by i.sort_order, i.created_at, i.id
-    loop
-      insert into public.costing_inclusions
-        (component_id, heading, position, description, quantity, unit, completeness, legacy_sor_inclusion_id, created_at)
-      values (
-        v_comp, null,
-        coalesce((select max(c.position) from public.costing_inclusions c where c.component_id = v_comp), 0) + 1,
-        v_old.description, v_old.quantity, v_old.unit, v_old.completeness, v_old.id, v_old.created_at
-      )
-      returning id into v_inc;
-
-      insert into public.costing_events (matrix_id, actor_id, kind, detail)
-      values (v_matrix, null, 'changed', jsonb_build_object(
-        'table', 'costing_inclusions',
-        'row', v_inc,
-        'column', 'legacy_sor_inclusion',
-        'old', null,
-        'new', jsonb_build_object(
-          'sor_inclusion_id', v_old.id,
-          'cost_amount', v_old.cost_amount,
-          'cost_source', v_old.cost_source,
-          'cost_established_at', v_old.cost_established_at,
-          'note', v_old.note,
-          'sourcing', v_old.sourcing
-        )
-      ));
-      v_count := v_count + 1;
-    end loop;
-  end loop;
-  return v_count;
 end;
 $function$
 ;
@@ -7522,6 +7498,50 @@ begin
   new.updated_at = now();
   new.updated_by = public.get_employee_id();
   return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_settled_met(p_matrix_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_totals  record;
+  v_costed  integer;
+  v_missing integer;
+begin
+  if p_matrix_id is null then
+    return false;
+  end if;
+
+  select * into v_totals from public.costing_bid_totals(p_matrix_id);
+  if coalesce(v_totals.line_count, 0) = 0 or coalesce(v_totals.missing_offer, 1) <> 0 then
+    return false;
+  end if;
+  if coalesce(v_totals.final_offer_total > v_totals.abc_total, false) then
+    return false;
+  end if;
+
+  select count(*), count(*) filter (where cc.final_acquire_unit is null)
+    into v_costed, v_missing
+    from public.costing_components c
+    join public.costing_tender_lines l on l.id = c.tender_line_id
+    left join public.costing_component_costs cc on cc.component_id = c.id
+   where l.matrix_id = p_matrix_id;
+  v_costed := v_costed + (select count(*) from public.costing_cost_rows r where r.matrix_id = p_matrix_id);
+  v_missing := v_missing + (select count(*) from public.costing_cost_rows r
+                             where r.matrix_id = p_matrix_id and r.final_acquire_unit is null);
+  if v_costed = 0 or v_missing <> 0 then
+    return false;
+  end if;
+
+  return exists (
+           select 1 from public.costing_signoffs s
+            where s.matrix_id = p_matrix_id and s.role = 'evaluation_approved' and s.cleared_at is null)
+     and coalesce((select d.verdict from public.costing_bid_decisions d
+                    where d.matrix_id = p_matrix_id and d.cleared_at is null), '') = 'go';
 end;
 $function$
 ;

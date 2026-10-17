@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-10-18",
+        "title": "Costing Matrix: review fixes",
+        "version": "1.9.47",
+        "changes": [
+            "The PMS tab now shows for everyone who can see the SOR, Finance included, with the IPAS summaries, the Purchase Request and the Transmittals. The Costing Matrix section on it still shows only to people who may read the matrix.",
+            "Sales no longer see a Markup Price on cost-only rows, because at ×1.00 it would show Purchasing's cost.",
+            "The Costing settled checklist now says only Costing not settled to anyone who is not on the Deal Team, a Super Admin or on the Final Acquire list, so the Bid Decision and the offer against the ABC stay private.",
+            "The bid is marked submitted only when the Stage you left really had Costing settled and it was met."
+        ]
+    },
+    {
         "date": "2026-10-17",
         "title": "Flow Canvas: Costing priced",
         "version": "1.9.46",

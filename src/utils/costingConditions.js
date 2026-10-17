@@ -23,6 +23,7 @@ const plural = (n, one, many) => (n === 1 ? one : many);
 /** Plain words per failing check, given the evidence (for counts and the Bid verdict). */
 export const WORDING = {
   no_matrix: () => "No Costing Matrix has been opened for this SOR.",
+  not_settled: () => "Costing not settled.",
   no_tender_lines: () => "The Costing Matrix has no Tender Lines.",
   missing_final_offer: (i) => {
     const n = Number(i?.missing_offer) || 0;

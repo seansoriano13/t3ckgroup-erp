@@ -5,6 +5,8 @@ import {
   BID_DECISION_TIERS,
   COMPONENT_COST_BANDS,
   COMPONENT_COST_TIERS,
+  COST_ROW_TIERS,
+  tierReadsCostRow,
   COST_ROW_BANDS,
   COSTING_TIER,
   MATRIX_MONEY_BANDS,
@@ -115,8 +117,9 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     const costColumns = Object.keys(COMPONENT_COST_TIERS).filter((c) => tierReadsCost(tier, c))
     const onlyReadable = (row, keep) => Object.fromEntries(Object.entries(row).filter(([key]) => keep.includes(key)))
     const money = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrix.id)
-    const withMarkupPrice = (row, factor) =>
-      costColumns.includes("markup_price_unit") ? { ...row, markup_price_unit: markupPriceUnit(row.acquire_unit, factor) } : row
+    const rowColumns = Object.keys(COST_ROW_TIERS).filter((c) => tierReadsCostRow(tier, c))
+    const withMarkupPrice = (row, factor, columns = costColumns) =>
+      columns.includes("markup_price_unit") ? { ...row, markup_price_unit: markupPriceUnit(row.acquire_unit, factor) } : row
     if (costColumns.length > 0) {
       const keep = ["component_id", ...costColumns]
       tables.costing_component_costs = rowsOf("costing_component_costs")
@@ -126,7 +129,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     tables.costing_cost_rows = rowsOf("costing_cost_rows")
       .filter((r) => r.matrix_id === matrix.id)
       .sort((a, b) => a.position - b.position)
-      .map((r) => onlyReadable(withMarkupPrice(r, r.markup_factor ?? 1), ["id", "matrix_id", "position", "description", "quantity", "created_at", ...costColumns]))
+      .map((r) => onlyReadable(withMarkupPrice(r, r.markup_factor ?? 1, rowColumns), ["id", "matrix_id", "position", "description", "quantity", "created_at", ...rowColumns]))
 
     // The matrix's own money row: the default markup factor (#269) and Marketing and OPEX (#270), for the tiers that read them.
     const moneyColumns = Object.keys(MATRIX_MONEY_TIERS).filter((c) => MATRIX_MONEY_TIERS[c].includes(tier))
