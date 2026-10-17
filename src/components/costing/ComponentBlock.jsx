@@ -140,26 +140,26 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                 <TableHead />
               </TableRow>
               <TableRow>
-                <TableHead className="w-12">No.</TableHead>
+                <TableHead className="w-12 min-w-12">No.</TableHead>
                 <TableHead className="min-w-[26rem]">Component</TableHead>
-                <TableHead className="w-24 text-right">Qty</TableHead>
-                <TableHead className="w-24">Unit</TableHead>
-                <TableHead className="w-36">Brand</TableHead>
-                <TableHead className="w-36">Status</TableHead>
-                {showOdoo && <TableHead className="w-36 text-right">Odoo / unit</TableHead>}
-                {showOdoo && <TableHead className="w-32 text-right">Odoo total</TableHead>}
-                <TableHead className="w-36">P.O./RFQ No.</TableHead>
-                <TableHead className="w-36">Availability</TableHead>
-                <TableHead className="w-32">Source</TableHead>
-                {showAcquire && <TableHead className="w-36 text-right">Acquire / unit</TableHead>}
-                {showAcquire && <TableHead className="w-32 text-right">Acquire total</TableHead>}
-                {showFinal && <TableHead className="w-36 text-right">Final Acquire / unit</TableHead>}
-                {showFinal && <TableHead className="w-32 text-right">Final Acquire total</TableHead>}
-                {showFactor && <TableHead className="w-36 text-right">Markup factor</TableHead>}
-                {showMarkupPrice && <TableHead className="w-36 text-right">Markup Price / unit</TableHead>}
-                {showMarkupPrice && <TableHead className="w-36 text-right">Markup Price total</TableHead>}
-                <TableHead className="w-64">Compliance</TableHead>
-                <TableHead className="w-24">
+                <TableHead className="w-24 min-w-24 text-right">Qty</TableHead>
+                <TableHead className="w-24 min-w-24">Unit</TableHead>
+                <TableHead className="w-36 min-w-36">Brand</TableHead>
+                <TableHead className="w-36 min-w-36">Status</TableHead>
+                {showOdoo && <TableHead className="w-36 min-w-36 text-right">Odoo / unit</TableHead>}
+                {showOdoo && <TableHead className="w-32 min-w-32 text-right">Odoo total</TableHead>}
+                <TableHead className="w-36 min-w-36">P.O./RFQ No.</TableHead>
+                <TableHead className="w-36 min-w-36">Availability</TableHead>
+                <TableHead className="w-32 min-w-32">Source</TableHead>
+                {showAcquire && <TableHead className="w-36 min-w-36 text-right">Acquire / unit</TableHead>}
+                {showAcquire && <TableHead className="w-32 min-w-32 text-right">Acquire total</TableHead>}
+                {showFinal && <TableHead className="w-36 min-w-36 text-right">Final Acquire / unit</TableHead>}
+                {showFinal && <TableHead className="w-32 min-w-32 text-right">Final Acquire total</TableHead>}
+                {showFactor && <TableHead className="w-36 min-w-36 text-right">Markup factor</TableHead>}
+                {showMarkupPrice && <TableHead className="w-36 min-w-36 text-right">Markup Price / unit</TableHead>}
+                {showMarkupPrice && <TableHead className="w-36 min-w-36 text-right">Markup Price total</TableHead>}
+                <TableHead className="w-64 min-w-64">Compliance</TableHead>
+                <TableHead className="w-24 min-w-24">
                   <span className="sr-only">Actions</span>
                 </TableHead>
               </TableRow>
