@@ -156,7 +156,7 @@ describe("the Evaluation of Specification", () => {
       expect(evaluation.cleared).toBeNull();
     });
 
-    it("cannot be signed twice, by anyone off the list, or for a role that is not built yet", async () => {
+    it("cannot be signed twice, by anyone off the list, or for another role's sign-off", async () => {
       for (const id of [compA, compB, compC]) await evaluate(id, "complies");
       await costingMatrixService.sign(matrix.id);
       expect((await costingMatrixService.sign(matrix.id).catch((e) => e)).message).toMatch(/already approved/);
@@ -164,9 +164,10 @@ describe("the Evaluation of Specification", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["technical"], actorId: reviewer.id, onEvaluationList: false });
       expect((await costingMatrixService.sign(matrix.id).catch((e) => e)).message).toMatch(/evaluation list/);
 
-      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: [], actorId: reviewer.id });
+      // #274: the other roles belong to the incharges and the Final Acquire list, none of which the reviewer is.
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: [], actorId: reviewer.id, onFinalAcquireList: false });
       for (const role of ["prepared", "costed", "final_approved"]) {
-        expect((await costingMatrixService.sign(matrix.id, role).catch((e) => e)).message, role).toMatch(/not available yet/);
+        expect((await costingMatrixService.sign(matrix.id, role).catch((e) => e)).message, role).toMatch(/only/);
       }
     });
   });

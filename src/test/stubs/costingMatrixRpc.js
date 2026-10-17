@@ -50,7 +50,7 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * src/test/db/triggers.js, and `costing_history` returns what those triggers wrote. Who may write
  * a verdict (the Technical band) is the policy tier's (82-costing-evaluation.test.js).
  */
-export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"], manageMarkup = tier === COSTING_TIER.CLOSED_BOOK, actorId = null, onEvaluationList = true } = {}) {
+export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"], manageMarkup = tier === COSTING_TIER.CLOSED_BOOK, actorId = null, onEvaluationList = true, onFinalAcquireList = tier === COSTING_TIER.CLOSED_BOOK } = {}) {
   const refuse = (table, column, needed) => {
     throw pgrstError("42501", `costing_band:${table}.${column}:${needed.join(",")}`, { status: 403 })
   }
@@ -297,17 +297,23 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     if (!["prepared", "costed", "evaluation_approved", "final_approved"].includes(role)) {
       throw pgrstError("22023", `costing_sign: ${role} is not a sign-off`, { status: 400 })
     }
-    if (role !== "evaluation_approved") {
-      throw pgrstError("0A000", `costing_sign: the ${role} sign-off is not available yet`, { status: 400 })
-    }
     const matrix = rowsOf("costing_matrices").find((m) => m.id === args.p_matrix_id)
     if (!matrix) throw pgrstError("P0002", "costing_sign: not found", { status: 404 })
     if (!tier) throw pgrstError("42501", "costing_sign: not allowed", { status: 403 })
-    if (!onEvaluationList) {
-      throw pgrstError("42501", "costing_sign: only someone on the evaluation list can approve the evaluation", { status: 403 })
-    }
+    // #274: Prepared by is the Sales incharge's, Costed by the Purchasing incharge's, Final Acquire and offer the list's.
+    const refusal = {
+      prepared: matrix.sales_incharge_id !== actorId && "only the Sales incharge can sign Prepared by",
+      costed: matrix.purchasing_incharge_id !== actorId && "only the Purchasing incharge can sign Costed by",
+      evaluation_approved: !onEvaluationList && "only someone on the evaluation list can approve the evaluation",
+      final_approved: !onFinalAcquireList && "only someone on the Final Acquire list can approve the Final Acquire and offer",
+    }[role]
+    if (refusal) throw pgrstError("42501", `costing_sign: ${refusal}`, { status: 403 })
     if (rowsOf("costing_signoffs").some((s) => s.matrix_id === matrix.id && s.role === role && !s.cleared_at)) {
-      throw pgrstError("55000", "costing_sign: the evaluation is already approved", { status: 409 })
+      throw pgrstError("55000", role === "evaluation_approved" ? "costing_sign: the evaluation is already approved" : "costing_sign: that sign-off is already signed", { status: 409 })
+    }
+    if (role !== "evaluation_approved") {
+      const signoff = insertRow("costing_signoffs", { matrix_id: matrix.id, role, signed_by: actorId, signature_declined: Boolean(args.p_decline_signature), signature_version: null })
+      return { signoff }
     }
     const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
     const missing = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id) && !c.compliance).length

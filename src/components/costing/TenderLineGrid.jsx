@@ -21,6 +21,7 @@ import CostRowGrid from "./CostRowGrid";
 import EvaluationBar from "./EvaluationBar";
 import InchargeSelects from "./InchargeSelects";
 import MarkupDefault from "./MarkupDefault";
+import SignoffBar from "./SignoffBar";
 import SorLinePicker from "./SorLinePicker";
 
 /**
@@ -38,7 +39,7 @@ import SorLinePicker from "./SorLinePicker";
  * Closed Book); the Closed Book alone also sees the markup it actually achieves against the target, per line
  * and overall, and sets the default factor. Nothing fills Final Offer.
  */
-export default function TenderLineGrid({ matrix, opportunityId, opportunity, actorId }) {
+export default function TenderLineGrid({ matrix, opportunityId, opportunity, actorId, isFinalAcquire = false }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [removing, setRemoving] = useState(null);
   const writes = useCostingWrites(opportunityId);
@@ -108,6 +109,8 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
       {showAchieved && <MarkupDefault matrix={matrix} writes={writes} />}
 
       <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
+
+      <SignoffBar matrix={matrix} actorId={actorId} isFinalAcquire={isFinalAcquire} nameOf={incharge.nameOf} writes={writes} />
 
       {canWrite && (
         <div className="flex flex-wrap items-center gap-2">
