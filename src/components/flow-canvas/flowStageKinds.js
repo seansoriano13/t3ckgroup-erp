@@ -18,6 +18,7 @@ import {
   ShoppingCart,
   PackageCheck,
   Calculator,
+  Tags,
   Database,
   Type,
   Hash,
@@ -84,6 +85,11 @@ export const CONDITION_KIND_META = {
     label: "Costing settled",
     icon: Calculator,
     hint: "The Costing Matrix is finished (a Final Offer on every Tender Line, a complete summary, an approved evaluation, within ABC) and the Bid Decision is Go. Unmet when there is no matrix.",
+  },
+  [CONDITION_KINDS.COSTING_PRICED]: {
+    label: "Costing priced",
+    icon: Tags,
+    hint: "Purchasing has costed the matrix: at least one Component, an Acquire unit cost on every Component and cost-only row, and a Purchasing Incharge named. Unmet when there is no matrix.",
   },
 }
 

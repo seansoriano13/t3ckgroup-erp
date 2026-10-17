@@ -483,3 +483,27 @@ export function costingSettled(inputs) {
   if (inputs.bid_verdict !== "go") failing.push("bid_not_go");
   return { met: failing.length === 0, failing };
 }
+
+// ---------------------------------------------------------------------------
+// Costing priced (#463)
+// ---------------------------------------------------------------------------
+
+/** The checks "Costing priced" can fail, in the order they are reported. */
+export const COSTING_PRICED_CHECKS = ["no_matrix", "no_components", "missing_acquire", "no_purchasing_incharge"];
+
+/**
+ * Whether Purchasing has costed the matrix: at least one Component, every Component and cost-only
+ * row has an Acquire unit cost (Inclusions are unpriced and don't count), and a Purchasing
+ * Incharge is named on the matrix. Reads the same evidence as costingSettled
+ * (`costing_condition_inputs`), keys `component_count`, `missing_acquire` and
+ * `has_purchasing_incharge`. No matrix fails on that alone. Missing inputs fail closed.
+ * Returns `{ met, failing }`.
+ */
+export function costingPriced(inputs) {
+  if (!inputs || inputs.has_matrix !== true) return { met: false, failing: ["no_matrix"] };
+  const failing = [];
+  if (!(Number(inputs.component_count) > 0)) failing.push("no_components");
+  if (!(Number(inputs.missing_acquire) === 0)) failing.push("missing_acquire");
+  if (inputs.has_purchasing_incharge !== true) failing.push("no_purchasing_incharge");
+  return { met: failing.length === 0, failing };
+}

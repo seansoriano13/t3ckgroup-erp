@@ -1,4 +1,4 @@
-import { costingSettled } from "./costingMath";
+import { costingPriced, costingSettled } from "./costingMath";
 
 /**
  * The costing Stage Conditions' evaluator, one module for every costing kind (#272, #463).
@@ -9,12 +9,13 @@ import { costingSettled } from "./costingMath";
  * kind (Costing priced, #463) adds an entry to EVALUATORS and to WORDING, and its keys to the SQL.
  */
 
-export const COSTING_CONDITION_KINDS = ["costing_settled"];
+export const COSTING_CONDITION_KINDS = ["costing_settled", "costing_priced"];
 
 export const isCostingKind = (kind) => COSTING_CONDITION_KINDS.includes(kind);
 
 export const EVALUATORS = {
   costing_settled: costingSettled,
+  costing_priced: costingPriced,
 };
 
 const plural = (n, one, many) => (n === 1 ? one : many);
@@ -36,6 +37,12 @@ export const WORDING = {
   },
   evaluation_not_approved: () => "The Evaluation of Specification is not approved.",
   over_abc: () => "The Final Offer total is over the ABC total.",
+  no_components: () => "The Costing Matrix has no Components.",
+  missing_acquire: (i) => {
+    const n = Number(i?.missing_acquire) || 0;
+    return `${n} ${plural(n, "row has", "rows have")} no Acquire unit cost.`;
+  },
+  no_purchasing_incharge: () => "No Purchasing Incharge is named on the Costing Matrix.",
   bid_not_go: (i) =>
     i?.bid_verdict === "no_go"
       ? "The Bid Decision is No-go."

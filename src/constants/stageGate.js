@@ -40,6 +40,9 @@ export const CONDITION_KINDS = {
   // Issue #272: the Costing Matrix is finished and the bid decided Go. Sibling
   // kinds (#463) read the same evidence through utils/costingConditions.
   COSTING_SETTLED: "costing_settled",
+  // Issue #463: Purchasing has costed every Component and cost-only row and a Purchasing
+  // Incharge is named. Same evidence and evaluator as Costing settled.
+  COSTING_PRICED: "costing_priced",
 }
 
 /**
@@ -57,6 +60,7 @@ export const NEW_CONDITION_KINDS = [
   CONDITION_KINDS.DEADLINE,
   CONDITION_KINDS.PURCHASING_SETTLED,
   CONDITION_KINDS.COSTING_SETTLED,
+  CONDITION_KINDS.COSTING_PRICED,
 ]
 
 export const CONDITION_STATUS = {
@@ -242,7 +246,8 @@ export function evaluateCondition(condition, {
       if (purchaseRequestItems === undefined) return unsatisfied()
       return isSettled(purchaseRequestItems, { asOf: purchaseRequestAsOf }) ? satisfied() : unsatisfied()
     }
-    case CONDITION_KINDS.COSTING_SETTLED: {
+    case CONDITION_KINDS.COSTING_SETTLED:
+    case CONDITION_KINDS.COSTING_PRICED: {
       const { met, failing, messages } = evaluateCostingCondition(condition.kind, costingInputs)
       return met ? satisfied() : unsatisfied({ failing, messages })
     }

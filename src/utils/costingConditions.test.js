@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import { CONDITION_KINDS, CONDITION_STATUS, evaluateCondition, NEW_CONDITION_KINDS } from "@/constants/stageGate"
-import { COSTING_SETTLED_CHECKS, costingSettled } from "./costingMath"
-import { describeFailing, evaluateCostingCondition } from "./costingConditions"
+import { COSTING_PRICED_CHECKS, COSTING_SETTLED_CHECKS, costingPriced, costingSettled } from "./costingMath"
+import { describeFailing, evaluateCostingCondition, isCostingKind } from "./costingConditions"
 
 // What costing_condition_inputs returns for a matrix that is ready to bid.
 const ready = {
@@ -117,6 +117,80 @@ describe("evaluateCondition — costing_settled kind (#272)", () => {
     const result = evaluateCondition(condition, { costingInputs: { has_matrix: false } })
     expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
     expect(result.detail.failing).toEqual(["no_matrix"])
+  })
+
+  it("fails closed when nobody loaded the evidence", () => {
+    expect(evaluateCondition(condition).status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+})
+
+// What costing_condition_inputs returns for a matrix Purchasing has fully costed (#463).
+const priced = { has_matrix: true, component_count: 2, missing_acquire: 0, has_purchasing_incharge: true }
+
+describe("costingPriced (#463)", () => {
+  it("is met when a Component exists, every row has Acquire and an Incharge is named", () => {
+    expect(costingPriced(priced)).toEqual({ met: true, failing: [] })
+  })
+
+  it.each([
+    ["no_components", { component_count: 0 }],
+    ["missing_acquire", { missing_acquire: 1 }],
+    ["no_purchasing_incharge", { has_purchasing_incharge: false }],
+  ])("fails %s alone", (check, change) => {
+    expect(costingPriced({ ...priced, ...change })).toEqual({ met: false, failing: [check] })
+  })
+
+  it("fails with no matrix, on that check alone", () => {
+    expect(costingPriced({ has_matrix: false })).toEqual({ met: false, failing: ["no_matrix"] })
+    expect(costingPriced(null)).toEqual({ met: false, failing: ["no_matrix"] })
+  })
+
+  it("lists every failing check together, in order", () => {
+    const result = costingPriced({ has_matrix: true, component_count: 0, missing_acquire: 1, has_purchasing_incharge: false })
+    expect(result.failing).toEqual(["no_components", "missing_acquire", "no_purchasing_incharge"])
+    expect(COSTING_PRICED_CHECKS).toEqual(expect.arrayContaining(result.failing))
+  })
+
+  it("fails closed on evidence it cannot read", () => {
+    expect(costingPriced({ has_matrix: true }).met).toBe(false)
+  })
+
+  it("does not look at Final Acquire, the offer, the evaluation or the Bid Decision", () => {
+    expect(costingPriced({ ...priced, missing_cost: 5, missing_offer: 3, evaluation_approved: false, bid_verdict: null }).met).toBe(true)
+  })
+})
+
+describe("the shared evaluator for Costing priced (#463)", () => {
+  it("words each failing check", () => {
+    expect(describeFailing(["missing_acquire"], { ...priced, missing_acquire: 1 })).toEqual(["1 row has no Acquire unit cost."])
+    expect(describeFailing(["missing_acquire"], { ...priced, missing_acquire: 4 })).toEqual(["4 rows have no Acquire unit cost."])
+    expect(describeFailing(["no_components", "no_purchasing_incharge"], priced)).toEqual([
+      "The Costing Matrix has no Components.",
+      "No Purchasing Incharge is named on the Costing Matrix.",
+    ])
+  })
+
+  it("is a costing kind and fails closed with no evidence", () => {
+    expect(isCostingKind("costing_priced")).toBe(true)
+    expect(evaluateCostingCondition("costing_priced", undefined).met).toBe(false)
+  })
+})
+
+describe("evaluateCondition — costing_priced kind (#463)", () => {
+  const condition = { id: "c2", kind: CONDITION_KINDS.COSTING_PRICED, label: "Costing priced", config: {} }
+
+  it("is offered for a new condition", () => {
+    expect(NEW_CONDITION_KINDS).toContain("costing_priced")
+  })
+
+  it("is satisfied when Purchasing has costed the matrix", () => {
+    expect(evaluateCondition(condition, { costingInputs: priced }).status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+
+  it("is unsatisfied and carries the failing checks as detail", () => {
+    const result = evaluateCondition(condition, { costingInputs: { ...priced, missing_acquire: 2, has_purchasing_incharge: false } })
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
+    expect(result.detail.failing).toEqual(["missing_acquire", "no_purchasing_incharge"])
   })
 
   it("fails closed when nobody loaded the evidence", () => {
