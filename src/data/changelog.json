@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-17",
+        "title": "Costing Matrix: print it, and sign it off",
+        "version": "1.9.45",
+        "changes": [
+            "The PMS tab has a Print button. The Costing Matrix prints on landscape A4: a money sheet with every Tender Line, the summary, the margin and the Bid Decision, then a specification appendix with each Tender Specification in full next to what we offer.",
+            "Only Super Admins and the Final Acquire list get the money sheet. Everyone else who can open the matrix prints the specification appendix, which has no figures.",
+            "The money sheet has four signature blocks. An unsigned one reads Signature required, and a signer with no stored signature prints as a name.",
+            "Prepared by is signed by the Sales Incharge, Costed by by the Purchasing Incharge, and Final Acquire and offer approved by the Final Acquire list. A change to a Final Offer takes back Prepared by and the Final Acquire approval. A change to an Acquire or a markup factor takes back Costed by. A change to a Final Acquire takes back the Final Acquire approval."
+        ]
+    },
+    {
+        "date": "2026-10-17",
         "title": "Flow Canvas: Costing settled",
         "version": "1.9.44",
         "changes": [

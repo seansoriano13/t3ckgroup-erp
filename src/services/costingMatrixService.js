@@ -198,6 +198,9 @@ function groupInclusions(inclusions) {
   return groups;
 }
 
+/** The four sign-offs the printed matrix carries, in the order it prints them (#274). */
+export const SIGNOFF_ROLES = ["prepared", "costed", "evaluation_approved", "final_approved"];
+
 /**
  * Where a sign-off stands (#271): `approved` is whether a live (uncleared) row exists, `signoff` that
  * row (who signed and when), and `cleared` the newest cleared one while there is no live one, so the
@@ -289,6 +292,8 @@ export function shapeMatrix(read, settings = null) {
     markup: matrixMarkup(tenderLines, costRows, defaultFactor),
     compliance: complianceRollup(tenderLines.flatMap((line) => line.components)),
     evaluation: signoffState(signoffs, "evaluation_approved"),
+    // All four sign-offs (#274), each as signoffState; the print reads them and the screen's sign buttons.
+    signoffs: Object.fromEntries(SIGNOFF_ROLES.map((role) => [role, signoffState(signoffs, role)])),
     costRows,
     costRowsTotals: costRowsTotals(costRows),
     costRowsMarkupTotal: markupPriceSum(costRows),
@@ -787,13 +792,14 @@ export const costingMatrixService = {
   },
 
   /**
-   * Signs the matrix off for a role (ADR 0013: the database checks and writes together). Only
-   * `"evaluation_approved"` is available (#271): the caller must be on the evaluation list and every
-   * Component must carry a verdict, else the database refuses and the message says why. Returns
-   * the new sign-off row.
+   * Signs the matrix off for a role (ADR 0013: the database checks and writes together):
+   * `"prepared"` (the Sales incharge), `"costed"` (the Purchasing incharge), `"evaluation_approved"`
+   * (the evaluation list, every Component with a verdict, #271) or `"final_approved"` (the Final Acquire
+   * list), #274. Otherwise the database refuses and the message says why. `declineSignature` signs
+   * without applying the stored signature, so the print shows the name only. Returns the new sign-off row.
    */
-  async sign(matrixId, role = "evaluation_approved") {
-    const { data, error } = await supabase.rpc("costing_sign", { p_matrix_id: matrixId, p_role: role });
+  async sign(matrixId, role = "evaluation_approved", { declineSignature = false } = {}) {
+    const { data, error } = await supabase.rpc("costing_sign", { p_matrix_id: matrixId, p_role: role, p_decline_signature: Boolean(declineSignature) });
     if (error) fail(error);
     return data?.signoff ?? null;
   },

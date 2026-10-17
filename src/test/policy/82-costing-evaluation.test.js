@@ -29,7 +29,6 @@ import { COMPONENT_BANDS, INCLUSION_BANDS } from "../../constants/costing.js"
 const svc = () => serviceClient()
 const CHECK_VIOLATION = "23514"
 const WRONG_STATE = "55000"
-const NOT_YET = "0A000"
 const MIGRATION = readFileSync("supabase/migrations/20261018140000_costing_matrix_evaluation.sql", "utf8")
 
 let saleTypeId, flowId, stageId
@@ -365,9 +364,10 @@ describe("Evaluation approved", () => {
         expect(await liveSignoff()).toBeNull()
     })
 
-    it("is not yet available for the other roles", async () => {
+    it("leaves the other roles to their own signers (#274)", async () => {
+        // This matrix names no incharge and the cast is on no final_acquire list: refused, not signed.
         for (const role of ["prepared", "costed", "final_approved"]) {
-            expect((await sign("outsider", role)).error?.code, role).toBe(NOT_YET)
+            expect((await sign("outsider", role)).error?.code, role).toBe(RLS_VIOLATION)
         }
         expect((await sign("outsider", "nonsense")).error?.code).toBe("22023")
         expect(await liveSignoff()).toBeNull()
