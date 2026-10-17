@@ -195,3 +195,31 @@ prohibited screen naming the Deal Owner to ask, partial access carries a banner
 and a placeholder for each Stage hidden from them, the composer says when a
 Mention will open a window, the SOR lists who it is shared with, and My SORs
 tags windows that have ended.
+
+### 2026-10-17 — the Costing Matrix's money read is split by side (Closed Book)
+
+From [Closed Book: the database serves each side its own columns](https://github.com/seansoriano13/t3ckgroup-erp/issues/319),
+amended on 2026-10-05 for Always sees (#461). **Replaces the money-read rule in
+the 2026-09-15 amendment above**, which let Purchasing access, Finance access
+and the Final Acquire list read the whole matrix on every SOR. It no longer
+holds: that reading is what made the margin visible to anyone on the deal.
+
+The caller's tier is resolved in the database (`costing_tier`), never passed in,
+first match wins:
+
+1. **Closed Book** — a Super Admin, or on the Final Acquire list: every column,
+   the markup factor, the summary and the Bid Decision's stamped figures.
+2. **Purchasing access** — the cost side: Acquire, Odoo unit, ABC. No Final
+   Offer, no Final Acquire, no markup factor, no summary, no Bid Decision.
+3. **Deal Team or Always sees** — the price side: ABC, the peso Markup Price,
+   Final Offer, Compliance, and a Bid Decision's verdict and reason. No Acquire,
+   no factor, no Final Acquire, no Marketing or OPEX, no stamped bid figures.
+4. **Stage Participant with an open window** — the matrix without money.
+5. **Anyone else, Finance access alone included** — nothing. Finance gets Landed
+   Cost and the IPAS, not the matrix.
+
+A column a tier may not read is absent from the response, not null, in both the
+matrix read and the history. The money tables and the event history can be
+selected directly by Closed Book only. The write bands in the 2026-09-15
+amendment's source (#225) are unchanged. Everyone else called into an SOR still
+sees the matrix without money, as that amendment said.
