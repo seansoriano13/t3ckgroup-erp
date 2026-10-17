@@ -80,9 +80,18 @@ const touches = (events, column) => events.some((e) => e.detail.column === colum
 
 const keysOf = (rows) => new Set(rows.flatMap((r) => Object.keys(r)))
 const hasAnyKey = (rows, names) => names.filter((n) => keysOf(rows).has(n))
+// Every number anywhere in the value, numeric strings included. Matching on the
+// JSON text instead finds "1.5" inside a timestamp like "…:31.512Z".
+const numbersIn = (value, found = []) => {
+    if (typeof value === "number") found.push(value)
+    else if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value.trim())) found.push(Number(value))
+    else if (value && typeof value === "object") for (const v of Object.values(value)) numbersIn(v, found)
+    return found
+}
+
 const mentions = (value, figures) => {
-    const text = JSON.stringify(value)
-    return figures.filter((f) => text.includes(String(f)))
+    const numbers = numbersIn(value)
+    return figures.filter((f) => numbers.includes(Number(f)))
 }
 
 let registry
