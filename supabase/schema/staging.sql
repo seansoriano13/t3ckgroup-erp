@@ -1977,7 +1977,7 @@ alter table sor_stage_participants add constraint "sor_stage_participants_source
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
-alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text])));
+alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
@@ -6485,10 +6485,13 @@ CREATE OR REPLACE FUNCTION public.costing_condition_inputs(p_opportunity_id uuid
  SET search_path TO 'public'
 AS $function$
 declare
-  v_matrix  uuid;
-  v_totals  record;
-  v_costed  integer;
-  v_missing integer;
+  v_matrix      uuid;
+  v_incharge    uuid;
+  v_totals      record;
+  v_costed      integer;
+  v_missing     integer;
+  v_components  integer;
+  v_no_acquire  integer;
 begin
   if public.get_employee_id() is null then
     raise exception 'costing_condition_inputs: sign in first' using errcode = '42501';
@@ -6497,23 +6500,28 @@ begin
     raise exception 'costing_condition_inputs: you can''t see this SOR' using errcode = '42501';
   end if;
 
-  select m.id into v_matrix from public.costing_matrices m where m.opportunity_id = p_opportunity_id;
+  select m.id, m.purchasing_incharge_id into v_matrix, v_incharge
+    from public.costing_matrices m where m.opportunity_id = p_opportunity_id;
   if v_matrix is null then
     return jsonb_build_object('has_matrix', false);
   end if;
 
   select * into v_totals from public.costing_bid_totals(v_matrix);
 
-  select count(*), count(*) filter (where cc.final_acquire_unit is null)
-    into v_costed, v_missing
+  select count(*),
+         count(*) filter (where cc.final_acquire_unit is null),
+         count(*) filter (where cc.acquire_unit is null)
+    into v_components, v_missing, v_no_acquire
     from public.costing_components c
     join public.costing_tender_lines l on l.id = c.tender_line_id
     left join public.costing_component_costs cc on cc.component_id = c.id
    where l.matrix_id = v_matrix;
 
-  v_costed := v_costed + (select count(*) from public.costing_cost_rows r where r.matrix_id = v_matrix);
+  v_costed := v_components + (select count(*) from public.costing_cost_rows r where r.matrix_id = v_matrix);
   v_missing := v_missing + (select count(*) from public.costing_cost_rows r
                              where r.matrix_id = v_matrix and r.final_acquire_unit is null);
+  v_no_acquire := v_no_acquire + (select count(*) from public.costing_cost_rows r
+                                   where r.matrix_id = v_matrix and r.acquire_unit is null);
 
   return jsonb_build_object(
     'has_matrix', true,
@@ -6526,7 +6534,10 @@ begin
       select 1 from public.costing_signoffs s
        where s.matrix_id = v_matrix and s.role = 'evaluation_approved' and s.cleared_at is null),
     'bid_verdict', (select d.verdict from public.costing_bid_decisions d
-                     where d.matrix_id = v_matrix and d.cleared_at is null)
+                     where d.matrix_id = v_matrix and d.cleared_at is null),
+    'component_count', v_components,
+    'missing_acquire', v_no_acquire,
+    'has_purchasing_incharge', v_incharge is not null
   );
 end;
 $function$

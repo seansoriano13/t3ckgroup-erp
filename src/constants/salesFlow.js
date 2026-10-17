@@ -149,6 +149,52 @@ export function flowLockBlockers({ stages = [], edges = [], wonStageId = null } 
   return blockers
 }
 
+/**
+ * What to say before publishing, that is not a reason to refuse (#463). The first warning the
+ * canvas has; blockers (`flowLockBlockers`) stop a lock, warnings only tell.
+ *
+ * A costing condition (Costing priced or Costing settled) reads a matrix that exists only once an
+ * Open Costing Matrix action ran. A Stage that some path from the entry reaches without passing a
+ * Stage mounting that action can be sat on with no matrix: warned, once per such Stage. A Stage
+ * that itself mounts the action is covered (the action runs on entry, before the condition is
+ * read). `conditionsByStage` / `actionsByStage` are the canvas's live (unarchived) rows by Stage id.
+ */
+export function flowPublishWarnings({ stages = [], edges = [], conditionsByStage = {}, actionsByStage = {} } = {}) {
+  const entry = entryStage(stages)
+  if (!entry) return []
+
+  const opensMatrix = (id) => (actionsByStage[id] ?? []).some((a) => a.kind === "open_costing_matrix")
+  const costingKinds = ["costing_priced", "costing_settled"]
+
+  // Walk from the entry, never through (or onto) a Stage that opens the matrix.
+  const seen = new Set()
+  const queue = []
+  if (!opensMatrix(entry.id)) {
+    seen.add(entry.id)
+    queue.push(entry.id)
+  }
+  while (queue.length > 0) {
+    const current = queue.shift()
+    for (const e of edges) {
+      if (e.from_stage_id === current && !seen.has(e.to_stage_id) && !opensMatrix(e.to_stage_id)) {
+        seen.add(e.to_stage_id)
+        queue.push(e.to_stage_id)
+      }
+    }
+  }
+
+  const warnings = []
+  for (const s of [...stages].sort(byFlowOrder)) {
+    if (!seen.has(s.id)) continue
+    const kinds = (conditionsByStage[s.id] ?? []).map((c) => c.kind).filter((k) => costingKinds.includes(k))
+    if (kinds.length === 0) continue
+    warnings.push(
+      `${s.name} checks the Costing Matrix, but a path to it skips every Open Costing Matrix action, so a deal can reach it with no matrix.`,
+    )
+  }
+  return warnings
+}
+
 /** Whether this flow is fit to be locked — see `flowLockBlockers` for why not. */
 export function isFlowLockable(flow) {
   return flowLockBlockers(flow).length === 0

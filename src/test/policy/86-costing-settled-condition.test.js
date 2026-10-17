@@ -119,6 +119,10 @@ describe("the evidence: who may ask, and what it says", () => {
             missing_cost: 0,
             evaluation_approved: false,
             bid_verdict: null,
+            // #463's keys, beside #272's.
+            component_count: 0,
+            missing_acquire: 0,
+            has_purchasing_incharge: false,
         })
 
         lineId = (
@@ -180,7 +184,19 @@ describe("the evidence: who may ask, and what it says", () => {
             expect(data, who).toEqual(mine)
         }
         expect(Object.keys(mine).sort()).toEqual(
-            ["bid_verdict", "costed_rows", "evaluation_approved", "has_matrix", "line_count", "missing_cost", "missing_offer", "over_abc"].sort(),
+            [
+                "bid_verdict",
+                "component_count",
+                "costed_rows",
+                "evaluation_approved",
+                "has_matrix",
+                "has_purchasing_incharge",
+                "line_count",
+                "missing_acquire",
+                "missing_cost",
+                "missing_offer",
+                "over_abc",
+            ].sort(),
         )
         for (const [key, value] of Object.entries(mine)) {
             expect(["boolean", "number", "string", "object"], key).toContain(typeof value)

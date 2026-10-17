@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-17",
+        "title": "Flow Canvas: Costing priced",
+        "version": "1.9.46",
+        "changes": [
+            "A new Stage Condition, Costing priced, marks the hand-off from Purchasing to Sales. It is met when the Costing Matrix has at least one Component, every Component and cost-only row has an Acquire unit cost, and a Purchasing Incharge is named. Inclusions don't count.",
+            "The Stage checklist lists, in plain words, which of those checks still fail. It is unmet while the SOR has no Costing Matrix, and it re-checks whenever an Acquire changes.",
+            "When you publish a flow, the Flow Canvas now warns you if Costing priced or Costing settled sits on a Stage that some path reaches without first passing a Stage that opens the Costing Matrix. It is a warning only: publishing still goes ahead."
+        ]
+    },
+    {
+        "date": "2026-10-17",
         "title": "Costing Matrix: print it, and sign it off",
         "version": "1.9.45",
         "changes": [

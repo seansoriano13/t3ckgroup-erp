@@ -41,6 +41,12 @@ export function stubCostingConditionRpcs() {
         (s) => s.matrix_id === matrix.id && s.role === "evaluation_approved" && !s.cleared_at,
       ),
       bid_verdict: rows("costing_bid_decisions").find((d) => d.matrix_id === matrix.id && !d.cleared_at)?.verdict ?? null,
+      // Costing priced (#463): Acquire (not Final Acquire) on every Component and cost-only row.
+      component_count: components.length,
+      missing_acquire:
+        components.filter((c) => (rows("costing_component_costs").find((k) => k.component_id === c.id)?.acquire_unit ?? null) === null).length +
+        costRows.filter((r) => (r.acquire_unit ?? null) === null).length,
+      has_purchasing_incharge: Boolean(matrix.purchasing_incharge_id),
     }
   })
 
