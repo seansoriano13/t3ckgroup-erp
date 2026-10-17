@@ -362,7 +362,8 @@ create table if not exists public."costing_signoffs" (
   "signed_at" timestamp with time zone not null default now(),
   "signature_declined" boolean not null default false,
   "cleared_at" timestamp with time zone,
-  "cleared_reason" text
+  "cleared_reason" text,
+  "signature_version" text
 );
 
 create table if not exists public."costing_tables" (
@@ -6329,6 +6330,41 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_clear_print_signoffs()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_roles  text[] := string_to_array(tg_argv[0], ',');
+  v_reason text := tg_argv[1];
+  v_column text := coalesce(tg_argv[2], '');
+  v_old    jsonb := case when tg_op = 'INSERT' then null else to_jsonb(old) end;
+  v_new    jsonb := case when tg_op = 'DELETE' then null else to_jsonb(new) end;
+  v_matrix uuid;
+begin
+  if v_column <> '' then
+    if tg_op = 'INSERT' and coalesce(v_new -> v_column, 'null'::jsonb) = 'null'::jsonb then
+      return null;
+    elsif tg_op = 'DELETE' and coalesce(v_old -> v_column, 'null'::jsonb) = 'null'::jsonb then
+      return null;
+    elsif tg_op = 'UPDATE' and (v_new -> v_column) is not distinct from (v_old -> v_column) then
+      return null;
+    end if;
+  end if;
+
+  v_matrix := public.costing_matrix_of(tg_table_name, coalesce(v_new, v_old));
+  -- The matrix is going (an SOR cascade): nothing left to clear.
+  if v_matrix is null or not exists (select 1 from public.costing_matrices where id = v_matrix) then
+    return null;
+  end if;
+
+  perform public.costing_clear_signoffs(v_matrix, v_roles, v_reason);
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_clear_signoffs(p_matrix_id uuid, p_roles text[], p_reason text)
  RETURNS integer
  LANGUAGE plpgsql
@@ -7361,19 +7397,18 @@ CREATE OR REPLACE FUNCTION public.costing_sign(p_matrix_id uuid, p_role text, p_
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor   uuid := public.get_employee_id();
-  v_opp     uuid;
-  v_missing integer;
-  v_row     public.costing_signoffs;
+  v_actor     uuid := public.get_employee_id();
+  v_opp       uuid;
+  v_incharge  uuid;
+  v_missing   integer;
+  v_signature text;
+  v_row       public.costing_signoffs;
 begin
   if v_actor is null then
     raise exception 'costing_sign: sign in first' using errcode = '42501';
   end if;
   if p_role is null or p_role not in ('prepared', 'costed', 'evaluation_approved', 'final_approved') then
     raise exception 'costing_sign: % is not a sign-off', coalesce(p_role, 'that') using errcode = '22023';
-  end if;
-  if p_role <> 'evaluation_approved' then
-    raise exception 'costing_sign: the % sign-off is not available yet', p_role using errcode = '0A000';
   end if;
 
   v_opp := public.costing_matrix_opp(p_matrix_id);
@@ -7383,8 +7418,23 @@ begin
   if not public.costing_can_read(v_opp) then
     raise exception 'costing_sign: not allowed' using errcode = '42501';
   end if;
-  if not public.costing_on_list('evaluation') then
-    raise exception 'costing_sign: only someone on the evaluation list can approve the evaluation' using errcode = '42501';
+
+  if p_role = 'evaluation_approved' then
+    if not public.costing_on_list('evaluation') then
+      raise exception 'costing_sign: only someone on the evaluation list can approve the evaluation' using errcode = '42501';
+    end if;
+  elsif p_role = 'prepared' then
+    select m.sales_incharge_id into v_incharge from public.costing_matrices m where m.id = p_matrix_id;
+    if v_incharge is distinct from v_actor then
+      raise exception 'costing_sign: only the Sales incharge can sign Prepared by' using errcode = '42501';
+    end if;
+  elsif p_role = 'costed' then
+    select m.purchasing_incharge_id into v_incharge from public.costing_matrices m where m.id = p_matrix_id;
+    if v_incharge is distinct from v_actor then
+      raise exception 'costing_sign: only the Purchasing incharge can sign Costed by' using errcode = '42501';
+    end if;
+  elsif not public.costing_on_list('final_acquire') then
+    raise exception 'costing_sign: only someone on the Final Acquire list can approve the Final Acquire and offer' using errcode = '42501';
   end if;
 
   perform pg_advisory_xact_lock(hashtext('costing_sign:' || p_matrix_id::text));
@@ -7393,21 +7443,30 @@ begin
     select 1 from public.costing_signoffs s
     where s.matrix_id = p_matrix_id and s.role = p_role and s.cleared_at is null
   ) then
-    raise exception 'costing_sign: the evaluation is already approved' using errcode = '55000';
+    if p_role = 'evaluation_approved' then
+      raise exception 'costing_sign: the evaluation is already approved' using errcode = '55000';
+    end if;
+    raise exception 'costing_sign: that sign-off is already signed' using errcode = '55000';
   end if;
 
-  select count(*) into v_missing
-  from public.costing_components c
-  join public.costing_tender_lines l on l.id = c.tender_line_id
-  where l.matrix_id = p_matrix_id and c.compliance is null;
-  if v_missing > 0 then
-    raise exception 'costing_sign: % Component% no verdict yet',
-      v_missing, case when v_missing = 1 then ' has' else 's have' end
-      using errcode = '55000';
+  if p_role = 'evaluation_approved' then
+    select count(*) into v_missing
+    from public.costing_components c
+    join public.costing_tender_lines l on l.id = c.tender_line_id
+    where l.matrix_id = p_matrix_id and c.compliance is null;
+    if v_missing > 0 then
+      raise exception 'costing_sign: % Component% no verdict yet',
+        v_missing, case when v_missing = 1 then ' has' else 's have' end
+        using errcode = '55000';
+    end if;
   end if;
 
-  insert into public.costing_signoffs (matrix_id, role, signed_by, signature_declined)
-  values (p_matrix_id, p_role, v_actor, coalesce(p_decline_signature, false))
+  if not coalesce(p_decline_signature, false) then
+    select nullif(btrim(e.signature_path), '') into v_signature from public.employees e where e.id = v_actor;
+  end if;
+
+  insert into public.costing_signoffs (matrix_id, role, signed_by, signature_declined, signature_version)
+  values (p_matrix_id, p_role, v_actor, coalesce(p_decline_signature, false), v_signature)
   returning * into v_row;
 
   return jsonb_build_object('signoff', to_jsonb(v_row));
@@ -17967,6 +18026,9 @@ CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.c
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_component AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_print_clear_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'An Acquire changed', 'acquire_unit');
+CREATE TRIGGER costing_print_clear_factor AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'A markup factor changed', 'markup_factor');
+CREATE TRIGGER costing_print_clear_final_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('final_approved', 'A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
@@ -17976,6 +18038,9 @@ CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.c
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_cost_row AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_print_clear_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'An Acquire changed', 'acquire_unit');
+CREATE TRIGGER costing_print_clear_factor AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'A markup factor changed', 'markup_factor');
+CREATE TRIGGER costing_print_clear_final_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('final_approved', 'A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_events_no_change BEFORE DELETE OR UPDATE ON public.costing_events FOR EACH ROW EXECUTE FUNCTION costing_events_append_only();
 CREATE TRIGGER costing_events_no_truncate BEFORE TRUNCATE ON public.costing_events FOR EACH STATEMENT EXECUTE FUNCTION costing_events_append_only();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
@@ -17989,16 +18054,19 @@ CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices F
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_matrix_money_touch BEFORE UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
+CREATE TRIGGER costing_print_clear_default_factor AFTER UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'A markup factor changed', 'default_factor');
 CREATE TRIGGER costing_settings_stamp BEFORE UPDATE ON public.costing_settings FOR EACH ROW EXECUTE FUNCTION costing_settings_stamp();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_signoffs_guard BEFORE UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_signoffs_guard();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_print_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('prepared,final_approved', 'The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_clear_evaluation_lines AFTER INSERT OR DELETE OR UPDATE OF tender_specification ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_print_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('prepared,final_approved', 'The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
