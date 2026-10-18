@@ -52,6 +52,23 @@ function refuseComponentItem(row, context) {
   }
 }
 
+/**
+ * sor_canvasses_mark_canvassing() (20261019170000_canvass_review_fixes.sql, spec #275): a new
+ * Canvass moves each Requested Item that is its subject, or that names its subject Component, from
+ * To order to Canvassing. An item at any other status is left alone. The fake has no caller, so the
+ * actor is null and the status is set directly (the real one also posts the status event).
+ */
+function markItemsCanvassing(row, old, context) {
+  if (old !== null) return
+  for (const item of context.rowsOf("purchase_request_items")) {
+    if (item.status !== "to_order") continue
+    if (item.id === row.requested_item_id || (row.component_id && item.component_id === row.component_id)) {
+      item.status = "canvassing"
+      item.status_changed_at = new Date().toISOString()
+    }
+  }
+}
+
 function keepCanvassNumber(row, old) {
   if (row.number !== old.number) throw pgrstError("42501", "A Canvass number is never changed.", { status: 403 })
 }
@@ -459,7 +476,7 @@ export const TRIGGERS = {
   sor_canvasses: {
     beforeInsert: [assignCanvassNumber, requireOneCanvassSubject, refuseComponentItem],
     beforeUpdate: [requireOneCanvassSubject, keepCanvassNumber, (row, old, context) => refuseComponentItem(row, context)],
-    afterWrite: [clearOnReasonChange],
+    afterWrite: [clearOnReasonChange, markItemsCanvassing],
   },
 
   sor_canvass_signoff_events: {

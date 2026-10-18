@@ -5,7 +5,8 @@ import { canvassService } from "./canvassService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc"
-import { stubEdgeFunction } from "@/test/msw/server"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
+import { containsPattern } from "../../supabase/functions/_shared/ilikePattern.ts"
 
 /**
  * The Canvass (#276), through the service's public methods on the fake PostgREST. What is asserted
@@ -111,6 +112,26 @@ describe("canvassService", () => {
       await canvassService.addOffer(canvass.id, { supplierName: "Fresh quote", unitPrice: 1, validUntil: "2999-01-01" }, purchaser.id)
       const { offers } = await canvassService.getForComponent(component.id)
       expect(offers.map((o) => o.expired)).toEqual([true, false])
+    })
+
+    it("writes the Offer and its prices through one call, so a failure leaves neither", async () => {
+      const calls = []
+      stubRpc("canvass_add_offer", (args) => {
+        calls.push(args)
+        throw Object.assign(new Error("prices refused"), { code: "23514" })
+      })
+      await expect(
+        canvassService.addOffer(canvass.id, { supplierName: "Redleaf Inc.", unitPrice: 78000, currency: "usd", comparisonRate: 56 }, purchaser.id),
+      ).rejects.toMatchObject({ message: expect.stringMatching(/prices refused/) })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({
+        p_canvass_id: canvass.id,
+        p_offer: { supplier_name: "Redleaf Inc.", currency: "USD", created_by: purchaser.id },
+        p_price: { unit_price: 78000, comparison_rate: 56 },
+      })
+      expect(db.rows("sor_canvass_offers")).toHaveLength(0)
+      expect(db.rows("sor_canvass_offer_prices")).toHaveLength(0)
     })
 
     it("refuses an Offer with nothing to name it, and a rate on a PHP Offer", async () => {
@@ -263,6 +284,17 @@ describe("canvassService", () => {
       const block = config.split("[functions.odoo-supplier-search]")[1]?.split("[functions.")[0]
       expect(block).toBeDefined()
       expect(block).not.toMatch(/verify_jwt/)
+    })
+
+    it("matches a typed %, _ or backslash as itself", () => {
+      expect(containsPattern("50% off")).toBe("%50\\% off%")
+      expect(containsPattern("A_B")).toBe("%A\\_B%")
+      expect(containsPattern("C:\\depot")).toBe("%C:\\\\depot%")
+      expect(containsPattern("Redleaf")).toBe("%Redleaf%")
+    })
+
+    it("builds the search pattern with that escaping", () => {
+      expect(source).toContain('["name", "=ilike", containsPattern(name)]')
     })
 
     it("only reads from Odoo", () => {

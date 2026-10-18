@@ -111,6 +111,18 @@ describe("a winning Offer fills the Component", () => {
     expect(stored(component.id)).toMatchObject({ offer_specification: "Ferno stretcher, 200 kg", offer_specification_from_offer_id: ferno.id })
   })
 
+  it("on a re-pick to an Offer with no price or description keeps the values but drops their marks", async () => {
+    const bare = await canvassService.addOffer(canvass.id, { supplierName: "Quote pending", brand: "TBD" }, purchaser.id)
+    await canvassService.markWinner(canvass.id, redleaf.id)
+    expect((await read()).fromCanvass).toEqual({ acquire: true, offerSpecification: true })
+
+    const result = await canvassService.markWinner(canvass.id, bare.id)
+    expect(result.filled).toMatchObject({ acquire: false, offer_specification: false })
+    expect(storedCost(component.id)).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: null })
+    expect(stored(component.id)).toMatchObject({ offer_specification: "Folding stretcher, 227 kg, aluminium", offer_specification_from_offer_id: null })
+    expect((await read()).fromCanvass).toEqual({ acquire: false, offerSpecification: false })
+  })
+
   it("on a re-pick refills a field that is still marked, and swaps the brochure citation", async () => {
     await canvassService.markWinner(canvass.id, redleaf.id)
     await canvassService.markWinner(canvass.id, hongKong.id)

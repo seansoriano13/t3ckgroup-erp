@@ -11,9 +11,34 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * test says which side it is on: `{ money: true }` is a purchaser (closed_book, cost or price),
  * `{ money: false }` a Stage Participant. The real rule is proven in the policy tier
  * (90-canvass-tables.test.js).
+ *
+ * It also registers `canvass_add_offer` (20261019170000_canvass_review_fixes.sql): the Offer and
+ * its prices row are written together, and a failed prices row takes the Offer back out, as the
+ * database's transaction would. Every test that reads a Canvass calls this, so every test that
+ * adds an Offer gets the RPC.
  */
 export function stubCanvassMoneyRpc({ money = true } = {}) {
   stubRpc("canvass_subject_can_read_money", () => money)
+
+  stubRpc("canvass_add_offer", (args) => {
+    const offerInput = args.p_offer ?? {}
+    const priceInput = args.p_price ?? {}
+    const siblings = rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === args.p_canvass_id)
+    const offer = insertRow("sor_canvass_offers", {
+      brochure: [],
+      ...offerInput,
+      canvass_id: args.p_canvass_id,
+      sort_order: siblings.length,
+    })
+    try {
+      insertRow("sor_canvass_offer_prices", { unit_price: null, comparison_rate: null, ...priceInput, offer_id: offer.id })
+    } catch (error) {
+      const rows = rowsOf("sor_canvass_offers")
+      rows.splice(rows.findIndex((o) => o.id === offer.id), 1)
+      throw error
+    }
+    return offer
+  })
 }
 
 /**
@@ -69,6 +94,10 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"] } = {}) {
           else insertRow("costing_component_costs", { component_id: canvass.component_id, ...patch })
           filled.acquire = true
         }
+      } else if (cost?.acquire_from_offer_id) {
+        // The figure came from an earlier winner and this one has no price: the value stays, the mark goes.
+        requireBand("costing_component_costs", "acquire_from_offer_id", ["purchasing"])
+        updateRow("costing_component_costs", cost, { acquire_from_offer_id: null })
       }
 
       if (!blank(offer.description) && (component.offer_specification_from_offer_id || blank(component.offer_specification))) {
@@ -78,6 +107,10 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"] } = {}) {
           offer_specification_from_offer_id: offer.id,
         })
         filled.offer_specification = true
+      } else if (component.offer_specification_from_offer_id && blank(offer.description)) {
+        // Same for Offer Specification: the text stays, the "from Canvass" claim goes.
+        requireBand("costing_components", "offer_specification_from_offer_id", ["purchasing"])
+        updateRow("costing_components", component, { offer_specification_from_offer_id: null })
       }
 
       const offerIds = new Set(rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === canvass.id).map((o) => o.id))

@@ -113,6 +113,45 @@ describe("the subject", () => {
     })
 })
 
+describe("the Canvassing status", () => {
+    const statusOf = async (id) => (await asSvc(svc().from("purchase_request_items").select("status").eq("id", id).single(), "item")).status
+    const makeItem = async (extra) =>
+        (
+            await asSvc(
+                svc().from("purchase_request_items").insert({ request_id: requestId, name: "Status item", quantity: 1, source: "new", requested_by: ids.dealOwner, ...extra }).select("id").single(),
+                "status item",
+            )
+        ).id
+
+    it("moves a To order item to Canvassing when a Canvass opens on it", async () => {
+        const item = await makeItem({ status: "to_order" })
+        await asSvc(svc().from("sor_canvasses").insert({ requested_item_id: item, created_by: ids.outsider }), "Canvass")
+        expect(await statusOf(item)).toBe("canvassing")
+        const events = await asSvc(svc().from("purchase_request_messages").select("metadata").eq("request_id", requestId), "events")
+        expect(events.some((e) => e.metadata?.event === "item_status_changed" && e.metadata?.item_id === item && e.metadata?.to === "canvassing")).toBe(true)
+    })
+
+    it("moves each To order item that names the Component when a Component Canvass opens", async () => {
+        const [first, second, closed] = [
+            await makeItem({ status: "to_order", source: "component", component_id: componentId }),
+            await makeItem({ status: "to_order", source: "component", component_id: componentId }),
+            await makeItem({ status: "ordered", source: "component", component_id: componentId }),
+        ]
+        await asSvc(svc().from("sor_canvasses").insert({ component_id: componentId, created_by: ids.outsider }), "Component Canvass")
+        expect(await statusOf(first)).toBe("canvassing")
+        expect(await statusOf(second)).toBe("canvassing")
+        expect(await statusOf(closed)).toBe("ordered")
+    })
+
+    it("leaves an item at any other status alone", async () => {
+        for (const status of ["requested", "ordered", "cancelled"]) {
+            const item = await makeItem({ status })
+            await asSvc(svc().from("sor_canvasses").insert({ requested_item_id: item, created_by: ids.outsider }), "Canvass")
+            expect(await statusOf(item), status).toBe(status)
+        }
+    })
+})
+
 describe("who reads a Canvass on a Requested Item", () => {
     let canvassId, offerId
 

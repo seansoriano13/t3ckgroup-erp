@@ -27,7 +27,7 @@ const WRONG_STATE = "55000"
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId, lineId
-let compFill, compRepick, compRefuse, compBrand, compItem
+let compFill, compRepick, compRefuse, compBrand, compItem, compStale
 let requestId, itemId
 const sorIds = []
 
@@ -101,6 +101,7 @@ beforeAll(async () => {
     compRefuse = await makeComponent(3)
     compBrand = await makeComponent(4, { brand: "Generic" })
     compItem = await makeComponent(5)
+    compStale = await makeComponent(6)
 
     requestId = (
         await asSvc(svc().from("purchase_requests").insert({ opportunity_id: sorId, created_by: ids.dealOwner }).select("id").single(), "request")
@@ -114,7 +115,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-    await svc().from("sor_canvasses").delete().in("component_id", [compFill, compRepick, compRefuse, compBrand, compItem].filter(Boolean))
+    await svc().from("sor_canvasses").delete().in("component_id", [compFill, compRepick, compRefuse, compBrand, compItem, compStale].filter(Boolean))
     await svc().from("sor_canvasses").delete().eq("requested_item_id", itemId ?? "00000000-0000-0000-0000-000000000000")
     await svc().from("purchase_request_items").delete().eq("request_id", requestId)
     await svc().from("purchase_requests").delete().eq("id", requestId)
@@ -217,6 +218,28 @@ describe("a hand edit takes the mark off", () => {
         const { error } = await (await clientFor("outsider")).from("costing_components").update({ offer_specification: "Typed by Purchasing" }).eq("id", compRepick)
         expect(error).toBeNull()
         expect(await component(compRepick)).toMatchObject({ offer_specification: "Typed by Purchasing", offer_specification_from_offer_id: null })
+    })
+})
+
+describe("a re-pick drops a mark the new winner cannot back", () => {
+    let canvass, priced, bare
+
+    beforeAll(async () => {
+        canvass = await makeCanvass(compStale)
+        priced = await makeOffer(canvass.id, { description: "Priced spec" }, { unit_price: 2000 })
+        bare = await makeOffer(canvass.id, { supplier_name: "Quote pending", description: "  " }, { unit_price: null })
+    })
+
+    it("keeps the Acquire and Offer Specification values but clears their marks", async () => {
+        expect((await winner("outsider", canvass.id, priced.id)).error).toBeNull()
+        expect(await costs(compStale)).toMatchObject({ acquire_unit: 2000, acquire_from_offer_id: priced.id })
+        expect(await component(compStale)).toMatchObject({ offer_specification: "Priced spec", offer_specification_from_offer_id: priced.id })
+
+        const { data, error } = await winner("outsider", canvass.id, bare.id)
+        expect(error).toBeNull()
+        expect(data.filled).toMatchObject({ acquire: false, offer_specification: false })
+        expect(await costs(compStale)).toMatchObject({ acquire_unit: 2000, acquire_from_offer_id: null })
+        expect(await component(compStale)).toMatchObject({ offer_specification: "Priced spec", offer_specification_from_offer_id: null })
     })
 })
 

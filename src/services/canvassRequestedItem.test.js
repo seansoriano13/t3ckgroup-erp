@@ -55,6 +55,30 @@ describe("Canvass on a Requested Item", () => {
     expect(db.rows("sor_canvasses")).toHaveLength(0)
   })
 
+  describe("the Canvassing status", () => {
+    const statusOf = (id) => db.rows("purchase_request_items").find((i) => i.id === id).status
+
+    it("moves a To order item to Canvassing when its Canvass opens", async () => {
+      const item = db.seed("purchase_request_items", { request_id: request.id, name: "Toner", quantity: 2, source: "new", requested_by: purchaser.id, status: "to_order" })
+      await canvassService.open({ requestedItemId: item.id }, purchaser.id)
+      expect(statusOf(item.id)).toBe("canvassing")
+    })
+
+    it("moves the To order items that name a Component when the Component's Canvass opens", async () => {
+      db.internal.rowsOf("purchase_request_items").find((i) => i.id === componentItem.id).status = "to_order"
+      const ordered = db.seed("purchase_request_items", { request_id: request.id, name: "Ambulance Folding Stretcher", quantity: 1, source: "component", component_id: componentId, requested_by: purchaser.id, status: "ordered" })
+      await canvassService.open({ componentId }, purchaser.id)
+      expect(statusOf(componentItem.id)).toBe("canvassing")
+      expect(statusOf(ordered.id)).toBe("ordered")
+    })
+
+    it("leaves an item at any other status alone", async () => {
+      expect(statusOf(plainItem.id)).toBe("requested")
+      await canvassService.open({ requestedItemId: plainItem.id }, purchaser.id)
+      expect(statusOf(plainItem.id)).toBe("requested")
+    })
+  })
+
   it("has no Canvass to show for an item nobody has canvassed", async () => {
     expect(await canvassService.getForRequestedItem(plainItem.id)).toBeNull()
     expect(await canvassService.getForRequestedItem(null)).toBeNull()

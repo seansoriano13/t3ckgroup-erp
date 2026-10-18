@@ -29,7 +29,7 @@ const MIGRATION = readFileSync("supabase/migrations/20261019100000_canvass_repoi
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId, lineId
-let compSubject, compNumber, compWrite, compOffer, compRead, compMigration
+let compSubject, compNumber, compWrite, compOffer, compRead, compMigration, compAdd
 let requestId, itemId
 const sorIds = []
 const canvassIds = []
@@ -99,6 +99,7 @@ beforeAll(async () => {
     compOffer = await component(4)
     compRead = await component(5)
     compMigration = await component(6)
+    compAdd = await component(7)
 
     // A Requested Item that names no Component, for the "both subjects" and "neither" checks.
     requestId = (
@@ -113,7 +114,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-    await svc().from("sor_canvasses").delete().in("component_id", [compSubject, compNumber, compWrite, compOffer, compRead, compMigration].filter(Boolean))
+    await svc().from("sor_canvasses").delete().in("component_id", [compSubject, compNumber, compWrite, compOffer, compRead, compMigration, compAdd].filter(Boolean))
     await svc().from("sor_canvasses").delete().eq("requested_item_id", itemId ?? "00000000-0000-0000-0000-000000000000")
     await svc().from("purchase_request_items").delete().eq("request_id", requestId)
     await svc().from("purchase_requests").delete().eq("id", requestId)
@@ -352,5 +353,53 @@ describe("the migration", () => {
             await client.query("rollback").catch(() => {})
             client.release()
         }
+    })
+})
+
+describe("canvass_add_offer", () => {
+    let canvass
+
+    beforeAll(async () => {
+        canvass = await makeCanvass(compAdd)
+    })
+
+    const add = async (who, offer, price = {}) => (await clientFor(who)).rpc("canvass_add_offer", { p_canvass_id: canvass.id, p_offer: offer, p_price: price })
+    const offersOf = async () => asSvc(svc().from("sor_canvass_offers").select("id, sort_order, supplier_name, currency").eq("canvass_id", canvass.id).order("sort_order"), "Offers")
+
+    it("adds the Offer and its prices row in one call, appended in order", async () => {
+        const first = await add("outsider", { supplier_name: "Redleaf Inc.", brochure: [], created_by: ids.outsider }, { unit_price: 78000 })
+        expect(first.error).toBeNull()
+        expect(first.data).toMatchObject({ supplier_name: "Redleaf Inc.", currency: "PHP", sort_order: 0, created_by: ids.outsider })
+
+        const second = await add("outsider", { supplier_name: "Ferno", currency: "USD" }, { unit_price: 1280, comparison_rate: 56.5625 })
+        expect(second.error).toBeNull()
+        expect(second.data.sort_order).toBe(1)
+
+        const prices = await asSvc(svc().from("sor_canvass_offer_prices").select("offer_id, unit_price, comparison_rate").in("offer_id", [first.data.id, second.data.id]), "prices")
+        expect(prices.find((p) => p.offer_id === first.data.id)).toMatchObject({ unit_price: 78000, comparison_rate: null })
+        expect(prices.find((p) => p.offer_id === second.data.id)).toMatchObject({ unit_price: 1280, comparison_rate: 56.5625 })
+    })
+
+    it("writes a blank prices row when no price is given", async () => {
+        const { data, error } = await add("outsider", { brand: "Unpriced" })
+        expect(error).toBeNull()
+        const rows = await asSvc(svc().from("sor_canvass_offer_prices").select("unit_price, comparison_rate").eq("offer_id", data.id), "prices")
+        expect(rows).toEqual([{ unit_price: null, comparison_rate: null }])
+    })
+
+    it("leaves no Offer behind when the prices row is refused", async () => {
+        const before = (await offersOf()).length
+        const { error } = await add("outsider", { supplier_name: "Bad rate", currency: "PHP" }, { unit_price: 10, comparison_rate: 2 })
+        expect(error?.code).toBe(CHECK_VIOLATION)
+        expect(await offersOf()).toHaveLength(before)
+    })
+
+    it("runs as the caller, so the Canvass policies still refuse a reader without write access", async () => {
+        const before = (await offersOf()).length
+        for (const who of ["dealOwner", "stageParticipant", "head", "ordinary"]) {
+            const { error } = await add(who, { supplier_name: "Not allowed" }, { unit_price: 1 })
+            expect(error, who).not.toBeNull()
+        }
+        expect(await offersOf()).toHaveLength(before)
     })
 })

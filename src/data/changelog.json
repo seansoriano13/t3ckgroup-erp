@@ -1,50 +1,21 @@
 [
     {
-        "date": "2026-10-19",
-        "title": "Canvass: Requested Items",
-        "version": "1.9.51",
-        "changes": [
-            "Items bought for Inventory, Supplies or Events can now be canvassed straight from the Purchase Request: each Requested Item has a Canvass action for Purchasing.",
-            "An item that is bought for a Costing Matrix Component opens that Component's Canvass instead, so a purchase is never canvassed twice.",
-            "Every Requested Item shows its Canvass number and whether it is signed off. Prices on an item's Canvass are shown only to people with Purchasing or Finance access."
-        ]
-    },
-    {
-        "date": "2026-10-19",
-        "title": "Canvass: sign-off by the purchasing approver",
-        "version": "1.9.50",
-        "changes": [
-            "The people on the Transmittal Check by list now sign off Canvasses. A Canvass needs a winner and a reason before it can be signed, and the person who opened it can't sign it.",
-            "Signing with fewer than three offers shows 'Two offers only — below the three-offer minimum' first. It is only a warning: you can still go ahead.",
-            "Changing an offer, a price, the winner or the reason on a signed Canvass takes the sign-off away, and the history says why. Nothing is locked, so a late quote can still be added.",
-            "The Approval Center has a new Canvass Sign-offs queue for the approvers, and they are notified when a Canvass is ready to sign. The Component's Canvass chip shows whether it is signed off."
-        ]
-    },
-    {
-        "date": "2026-10-19",
-        "title": "Canvass: the winner fills the Costing Matrix",
-        "version": "1.9.49",
-        "changes": [
-            "Marking an Offer the winner now fills its Component: the unit price goes into Acquire (a quote in another currency is converted at the rate you compared at), the Offer's description goes into Offer Specification, and its brochure is listed in the Component's documents.",
-            "Anything a Canvass filled shows 'from Canvass' beside it. The moment someone types over it, the label goes away. Picking a different winner later refreshes only what is still marked, so your corrections stay.",
-            "A foreign-currency Offer cannot be marked the winner until it has its comparison rate.",
-            "If the winning brand differs from the Component's Brand, the Deal Team sees 'Canvass says ...' with an Accept button. Brand is never changed without that click.",
-            "Changing the Offer Specification this way clears 'Evaluation approved', the same as typing it would."
-        ]
-    },
-    {
-        "date": "2026-10-19",
-        "title": "Canvass: compare suppliers on a Component",
+        "date": "2026-10-18",
+        "title": "Canvass: compare suppliers and pick a winner",
         "version": "1.9.48",
         "changes": [
-            "Purchasing can open a Canvass from any Component row on the Costing Matrix. It gets its own number (CNV_0001 onward) and holds the Offers you compare, the reason you chose a supplier, and your original working sheet.",
-            "Each Offer records the supplier (typed for now), brand, what was offered, the currency and amount as quoted, how long the quote holds, lead time, and a brochure. A quote past its date shows Quote expired.",
-            "For a quote in another currency, you type the rate you compared at, and the Offer shows its peso figure beside the quoted amount. That rate is only for comparing, not the rate that will be paid.",
-            "A Canvass with fewer than three Offers shows a warning, and never blocks you.",
-            "People who may see the SOR but not its costs see the Offers without any prices. Only Purchasing and Super Admin can change a Canvass.",
-            "The old procurement-request and Inclusion canvass is gone; an Inclusion can no longer be canvassed or take a cost from a canvass."
+            "Purchasing can now canvass an item before ordering it. Open a Canvass from a Component row on the Costing Matrix, or from any item on a Purchase Request that is not tied to a Component. Each Canvass gets its own number (CNV_0001 and so on).",
+            "Add each supplier quote as an offer: the supplier, brand, what was offered, the price, how long the quote holds, the lead time and a brochure. A quote in another currency also shows its peso figure, using the rate you typed. That rate is only for comparing, not what will be paid.",
+            "Pick the winning offer and write down why. On a Component, the winner fills in the price, the description and its brochure for you, and marks them \"from Canvass\". If someone types over a filled-in figure, the mark goes away and their figure stays.",
+            "If the winning brand is different from the Component's brand, the Deal Team sees it and can accept it with one click. The brand is never changed without that click.",
+            "A Canvass with fewer than three offers shows a warning, but it never stops you. Offers past their date show \"Quote expired\".",
+            "The purchasing approvers sign off Canvasses from a new Canvass Sign-offs page in the Approval Center, and they are told when one is ready. You cannot sign a Canvass you opened. If anyone changes an offer, a price, the winner or the reason after it is signed, the sign-off is taken away and the history says why.",
+            "Any Canvass can be printed on A4, with the recommended supplier and the reason at the top.",
+            "When a Canvass is opened for an item that was marked \"To order\", the item moves to \"Canvassing\" on its own.",
+            "People who can see the order but not its costs see the offers without any prices."
         ]
-    },    {
+    },
+    {
         "date": "2026-10-18",
         "title": "Costing Matrix: review fixes",
         "version": "1.9.47",

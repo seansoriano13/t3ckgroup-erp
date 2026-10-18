@@ -258,33 +258,13 @@ export const canvassService = {
       throw new Error("A PHP offer takes no comparison rate.");
     }
 
-    const { data: siblings, error: siblingsError } = await supabase
-      .from("sor_canvass_offers")
-      .select("id")
-      .eq("canvass_id", canvassId);
-    if (siblingsError) throw siblingsError;
-
-    const { data: offer, error } = await supabase
-      .from("sor_canvass_offers")
-      .insert({
-        brochure: [],
-        ...row,
-        currency,
-        canvass_id: canvassId,
-        sort_order: (siblings || []).length,
-        created_by: actorId || null,
-      })
-      .select()
-      .single();
+    // One call writes the Offer and its prices row together, so a failure leaves neither.
+    const { data: offer, error } = await supabase.rpc("canvass_add_offer", {
+      p_canvass_id: canvassId,
+      p_offer: { brochure: [], ...row, currency, created_by: actorId || null },
+      p_price: { unit_price: null, comparison_rate: null, ...price },
+    });
     if (error) throw error;
-
-    const { error: priceError } = await supabase
-      .from("sor_canvass_offer_prices")
-      .insert({ unit_price: null, comparison_rate: null, ...price, offer_id: offer.id });
-    if (priceError) {
-      await supabase.from("sor_canvass_offers").delete().eq("id", offer.id);
-      throw priceError;
-    }
 
     return stripMoney(offer);
   },

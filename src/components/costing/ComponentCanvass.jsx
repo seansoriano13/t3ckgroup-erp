@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Scale } from "lucide-react";
 
 import { Button } from "../ui/button";
+import { ExternalLink } from "../ui/external-link";
 import CanvassPanel from "../CanvassPanel";
 import { canvassService } from "../../services/canvassService";
 import { refusalMessage } from "./gridFormat";
@@ -61,9 +62,9 @@ function Citations({ documents }) {
     <ul className="flex flex-wrap items-center gap-x-2" aria-label="Brochures cited from the Canvass">
       {cited.map((doc) => (
         <li key={`${doc.offer_id}-${doc.url}`}>
-          <a className="underline underline-offset-2" href={doc.url} target="_blank" rel="noreferrer">
+          <ExternalLink className="underline underline-offset-2" href={doc.url}>
             {doc.name || "Brochure"}
-          </a>
+          </ExternalLink>
         </li>
       ))}
     </ul>

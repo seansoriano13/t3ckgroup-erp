@@ -18,6 +18,7 @@ import {
   isConfigured,
   jsonResponse,
 } from "../_shared/odoo.ts";
+import { containsPattern } from "../_shared/ilikePattern.ts";
 
 const MIN_QUERY_LENGTH = 2;
 const MAX_QUERY_LENGTH = 80;
@@ -55,7 +56,8 @@ Deno.serve(async (req) => {
       "search_read",
       [
         [
-          ["name", "ilike", name],
+          // `=ilike` with an escaped pattern, so a % or _ the person typed matches itself.
+          ["name", "=ilike", containsPattern(name)],
           ["is_company", "=", true],
           ["supplier_rank", ">", 0],
         ],
