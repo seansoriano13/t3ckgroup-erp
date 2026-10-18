@@ -1,96 +1,215 @@
-import { useState } from "react";
-import { ExternalLink } from "@/components/ui/external-link";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   Award,
+  ChevronDown,
+  ChevronUp,
   ExternalLink as ExternalLinkIcon,
   Pencil,
   Plus,
+  Printer,
   ShoppingCart,
-  Star,
   Trash2,
-  X,
 } from "lucide-react";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
-import { Button } from "./ui/button";
-import { AttachmentField, AttachmentList } from "./ui/Attachments";
-import { confirmActionToast, confirmDeleteToast } from "./ui/CustomToast";
-import { useFileAttachments } from "../hooks/useFileAttachments";
-import { projectEvaluationService } from "../services/projectEvaluationService";
-import {
-  MIN_CANVASS_OFFERS,
-  canvassNeedsMoreOffers,
-} from "../constants/projectEvaluation";
+import { ExternalLink } from "@/components/ui/external-link";
 import { Input } from "@/components/ui/input";
-
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import CanvassSignoffDialog from "./CanvassSignoffDialog";
+import { Button } from "./ui/button";
+import { AttachmentField, AttachmentList } from "./ui/Attachments";
+import { SelectField } from "./ui/SelectField";
+import { confirmDeleteToast } from "./ui/CustomToast";
+import { costingKeys } from "./costing/costingKeys";
+import { pesos } from "./costing/gridFormat";
+import { useFileAttachments } from "../hooks/useFileAttachments";
+import { useCanvassApprover } from "../hooks/useCanvassApprover";
+import { canvassService } from "../services/canvassService";
+import { openCanvassPrintWindow, printCanvass } from "../lib/pdf/canvassPrinter";
+import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
+import { useAuth } from "../context/AuthContext";
+import { CANVASS_CURRENCIES, DEFAULT_CURRENCY } from "../constants/canvass";
+import { offerCurrency } from "../utils/canvassMath";
+
 /**
- * Canvass (issue #46, Inclusion side #47) — the three-or-more supplier
- * comparison, recorded as structured Offers instead of an ad-hoc sheet nobody
- * can produce later as evidence.
+ * The Canvass (#275, built in #276): the supplier comparison for one Costing Matrix Component,
+ * recorded as Offers. `subject` is `{ componentId }` (or `{ requestedItemId }` once #280 mounts it
+ * on a Requested Item).
  *
- * `subject` is exactly one of `{ procurementRequestId }` or `{ inclusionId }`
- * — projectEvaluationService.subjectColumns enforces this the same way the
- * database's CHECK does (migration 0059).
+ * Money is whatever the service sent. A reader without the money tier gets Offers with no price
+ * keys at all, so every price, the comparison rate and the PHP figure simply do not draw. The
+ * panel never asks who the reader is; it draws what arrived.
+ *
+ * The winner (#278) and the sign-off (#279) sit below the Offers: the purchasing approver list signs
+ * from here (never the person who opened the Canvass), and any later change unsigns it.
  */
 
-const money = (value) =>
-  value === null || value === undefined || value === "" ? "—" : `₱${Number(value).toLocaleString()}`;
+const hasKey = (offer, key) => Object.prototype.hasOwnProperty.call(offer, key);
 
-function OfferForm({ initial, onSubmit, onCancel, isPending }) {
+/** A quoted amount in the Offer's own currency: peso sign for PHP, the code for the rest. */
+const quoted = (offer) => {
+  if (!hasKey(offer, "unit_price")) return null;
+  if (offer.unit_price === null || offer.unit_price === undefined) return "—";
+  if (offerCurrency(offer) === DEFAULT_CURRENCY) return pesos(offer.unit_price);
+  const amount = Number(offer.unit_price).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${offerCurrency(offer)} ${amount}`;
+};
+
+const fieldClass =
+  "h-auto rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8";
+
+/**
+ * The Offer's supplier (#277): free text that suggests matching Odoo suppliers as it is typed.
+ * Picking one records its Odoo id beside the name; typing again afterwards drops the id, since the
+ * name no longer says which Odoo supplier it was. A supplier Odoo doesn't know is simply typed.
+ */
+function SupplierField({ value, onTyped, onPicked }) {
+  const [open, setOpen] = useState(false);
+  const [debounced, setDebounced] = useState(value.trim());
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [value]);
+
+  const { data: suggestions = [] } = useQuery({
+    queryKey: ["canvass-supplier-search", debounced],
+    queryFn: () => canvassService.searchSuppliers(debounced),
+    enabled: open && debounced.length >= 2,
+    staleTime: 60_000,
+  });
+
+  return (
+    <div className="relative min-w-0">
+      <Input
+        autoFocus
+        aria-label="Supplier"
+        role="combobox"
+        aria-expanded={open && suggestions.length > 0}
+        aria-autocomplete="list"
+        autoComplete="off"
+        value={value}
+        onChange={(e) => {
+          onTyped(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && open) {
+            e.stopPropagation();
+            setOpen(false);
+          }
+        }}
+        placeholder="Supplier"
+        containerClassName="min-w-0"
+        className={`${fieldClass} font-semibold`}
+      />
+      {open && suggestions.length > 0 && (
+        <ul
+          role="listbox"
+          aria-label="Odoo suppliers"
+          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded-md border border-border bg-card py-1 shadow-md"
+        >
+          {suggestions.map((supplier) => (
+            <li key={supplier.id} role="option" aria-selected={false}>
+              <Button
+                type="button"
+                variant="ghost"
+                // mousedown, not click: the input's blur would close the list before a click lands.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onPicked(supplier);
+                  setOpen(false);
+                }}
+                className="h-auto w-full justify-start rounded-none px-2.5 py-1.5 text-left text-[13px] font-normal text-foreground"
+              >
+                {supplier.name}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
+  const [supplierName, setSupplierName] = useState(initial?.supplier_name || "");
+  const [odooSupplierId, setOdooSupplierId] = useState(initial?.odoo_supplier_id ?? null);
   const [brand, setBrand] = useState(initial?.brand || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [sourceLink, setSourceLink] = useState(initial?.source_link || "");
+  const [currency, setCurrency] = useState(initial ? offerCurrency(initial) : DEFAULT_CURRENCY);
   const [unitPrice, setUnitPrice] = useState(initial?.unit_price ?? "");
+  const [comparisonRate, setComparisonRate] = useState(initial?.comparison_rate ?? "");
+  const [validUntil, setValidUntil] = useState(initial?.valid_until || "");
   const [leadTime, setLeadTime] = useState(initial?.lead_time || "");
   const [qualityNote, setQualityNote] = useState(initial?.quality_note || "");
   const [remarks, setRemarks] = useState(initial?.remarks || "");
   const [existingBrochure, setExistingBrochure] = useState(initial?.brochure || []);
   const attachments = useFileAttachments({ max: 3 });
 
-  const canSubmit = brand.trim() || description.trim();
+  const foreign = currency !== DEFAULT_CURRENCY;
+  const canSubmit = supplierName.trim() || brand.trim() || description.trim();
 
   const submit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
     const uploaded = await attachments.upload();
-    onSubmit({
+    const input = {
+      supplierName: supplierName.trim(),
+      odooSupplierId: supplierName.trim() ? odooSupplierId : null,
       brand: brand.trim(),
       description: description.trim(),
       sourceLink: sourceLink.trim(),
-      unitPrice: unitPrice === "" ? null : Number(unitPrice),
+      currency,
+      validUntil: validUntil || null,
       leadTime: leadTime.trim(),
       qualityNote: qualityNote.trim(),
       remarks: remarks.trim(),
       brochure: [...existingBrochure, ...uploaded],
-    });
+    };
+    if (canReadMoney) {
+      input.unitPrice = unitPrice === "" ? null : Number(unitPrice);
+      input.comparisonRate = foreign && comparisonRate !== "" ? Number(comparisonRate) : null;
+    }
+    onSubmit(input);
   };
 
   return (
     <form
       onSubmit={submit}
+      aria-label={initial ? "Edit offer" : "New offer"}
       className="space-y-2.5 rounded-xl border border-dashed border-mauve-7 bg-muted/20 p-3"
     >
       <div className="grid grid-cols-2 gap-2">
-        <Input
-          autoFocus
-          value={brand}
-          onChange={(e) => setBrand(e.target.value)}
-          placeholder="Brand / supplier"
-          containerClassName="min-w-0" className="h-auto rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] font-semibold text-foreground outline-none focus:border-mauve-8"
+        <SupplierField
+          value={supplierName}
+          onTyped={(name) => {
+            setSupplierName(name);
+            setOdooSupplierId(null);
+          }}
+          onPicked={(supplier) => {
+            setSupplierName(supplier.name);
+            setOdooSupplierId(supplier.id);
+          }}
         />
         <Input
-          value={sourceLink}
-          onChange={(e) => setSourceLink(e.target.value)}
-          placeholder="Source link (optional)"
-          containerClassName="min-w-0" className="h-auto rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8"
+          aria-label="Brand"
+          value={brand}
+          onChange={(e) => setBrand(e.target.value)}
+          placeholder="Brand"
+          containerClassName="min-w-0"
+          className={fieldClass}
         />
       </div>
 
       <Textarea
+        aria-label="Description"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={2}
@@ -98,31 +217,86 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
         className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px] md:text-[12.5px]"
       />
 
+      <div className="grid grid-cols-[6rem_1fr_1fr] gap-2">
+        <SelectField
+          aria-label="Currency"
+          size="sm"
+          options={CANVASS_CURRENCIES.map((code) => ({ value: code, label: code }))}
+          value={currency}
+          onChange={(next) => setCurrency(next || DEFAULT_CURRENCY)}
+        />
+        {canReadMoney && (
+          <Input
+            type="number"
+            min="0"
+            step="any"
+            aria-label={`Unit price in ${currency}`}
+            value={unitPrice}
+            onChange={(e) => setUnitPrice(e.target.value)}
+            placeholder={`Unit price (${currency})`}
+            containerClassName="min-w-0"
+            className={fieldClass}
+          />
+        )}
+        {canReadMoney && foreign && (
+          <Input
+            type="number"
+            min="0"
+            step="any"
+            aria-label="Comparison rate"
+            value={comparisonRate}
+            onChange={(e) => setComparisonRate(e.target.value)}
+            placeholder={`Comparison rate (PHP per ${currency})`}
+            containerClassName="min-w-0"
+            className={fieldClass}
+          />
+        )}
+      </div>
+      {canReadMoney && foreign && (
+        <p className="text-[11px] text-muted-foreground">
+          The comparison rate is the rate you compared at, to read this quote in PHP. It is not the rate that will be paid.
+        </p>
+      )}
+
       <div className="grid grid-cols-3 gap-2">
         <Input
-          type="number"
-          min="0"
-          step="any"
-          value={unitPrice}
-          onChange={(e) => setUnitPrice(e.target.value)}
-          placeholder="Unit price"
-          containerClassName="min-w-0" className="h-auto rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8"
+          type="date"
+          aria-label="Quote valid until"
+          value={validUntil}
+          onChange={(e) => setValidUntil(e.target.value)}
+          title="Quote valid until"
+          containerClassName="min-w-0"
+          className={fieldClass}
         />
         <Input
+          aria-label="Lead time"
           value={leadTime}
           onChange={(e) => setLeadTime(e.target.value)}
           placeholder="Lead time"
-          containerClassName="min-w-0" className="h-auto rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8"
+          containerClassName="min-w-0"
+          className={fieldClass}
         />
         <Input
+          aria-label="Quality note"
           value={qualityNote}
           onChange={(e) => setQualityNote(e.target.value)}
           placeholder="Quality note"
-          containerClassName="min-w-0" className="h-auto rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8"
+          containerClassName="min-w-0"
+          className={fieldClass}
         />
       </div>
 
+      <Input
+        aria-label="Source link"
+        value={sourceLink}
+        onChange={(e) => setSourceLink(e.target.value)}
+        placeholder="Source link (optional)"
+        containerClassName="min-w-0"
+        className={fieldClass}
+      />
+
       <Textarea
+        aria-label="Remarks"
         value={remarks}
         onChange={(e) => setRemarks(e.target.value)}
         rows={1}
@@ -170,13 +344,15 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
   );
 }
 
-function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending }) {
+function OfferRow({ offer, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, onWin, isPending }) {
   const [isEditing, setIsEditing] = useState(false);
+  const title = offer.supplier_name || offer.brand || "this offer";
 
   if (isEditing) {
     return (
       <OfferForm
         initial={offer}
+        canReadMoney={canReadMoney}
         isPending={isPending}
         onCancel={() => setIsEditing(false)}
         onSubmit={(patch) => {
@@ -187,37 +363,24 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
     );
   }
 
+  const foreign = offerCurrency(offer) !== DEFAULT_CURRENCY;
+  // A foreign Offer can't win without the rate its Acquire would be converted at.
+  const needsRate = canReadMoney && foreign && (offer.comparison_rate === null || offer.comparison_rate === undefined || offer.comparison_rate === "");
+
   return (
     <div
+      data-testid="offer"
       className={`group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
-        offer.is_winner
-          ? "border-amber-7 bg-amber-a2"
-          : "border-border/60 bg-card hover:border-mauve-8"
+        offer.is_winner ? "border-amber-7 bg-amber-a2" : "border-border/60 bg-card hover:border-mauve-8"
       }`}
     >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        disabled={!canEdit || isPending || offer.is_winner}
-        onClick={() => onMarkWinner(offer.id)}
-        aria-label={offer.is_winner ? "Winning offer" : `Mark ${offer.brand || "this offer"} the winner`}
-        title={offer.is_winner ? "Winning offer" : "Mark as winner"}
-        className="h-auto w-auto mt-0.5 shrink-0 rounded-full p-1 transition-colors disabled:cursor-default hover:bg-transparent"
-      >
-        {offer.is_winner ? (
-          <Award size={16} className="text-amber-11" />
-        ) : (
-          <Star
-            size={16}
-            className="text-mauve-8 opacity-0 group-hover:opacity-100 hover:text-amber-9"
-          />
-        )}
-      </Button>
-
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-sm font-bold text-foreground">{offer.brand || "—"}</span>
+          {offer.is_winner && <Award size={14} className="text-amber-11" aria-label="Winning offer" />}
+          <span className="text-sm font-bold text-foreground">{offer.supplier_name || offer.brand || "—"}</span>
+          {offer.supplier_name && offer.brand && (
+            <span className="text-xs text-muted-foreground">{offer.brand}</span>
+          )}
           {offer.source_link && (
             <ExternalLink
               href={offer.source_link}
@@ -229,20 +392,31 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
               <ExternalLinkIcon size={11} />
             </ExternalLink>
           )}
-          <span className="ml-auto shrink-0 text-sm font-bold tabular-nums text-foreground">
-            {money(offer.unit_price)}
-          </span>
+          {offer.expired && (
+            <span className="rounded-full bg-red-a3 px-1.5 py-0.5 text-[10px] font-bold text-red-11">Quote expired</span>
+          )}
+          {quoted(offer) && (
+            <span className="ml-auto shrink-0 text-right text-sm font-bold tabular-nums text-foreground">
+              {quoted(offer)}
+              {foreign && (
+                <span className="block text-[11px] font-normal text-muted-foreground" data-testid="php-figure">
+                  {offer.php_figure === null || offer.php_figure === undefined
+                    ? "No comparison rate yet"
+                    : `${pesos(offer.php_figure)} at ${offer.comparison_rate}`}
+                </span>
+              )}
+            </span>
+          )}
         </div>
         {offer.description && (
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{offer.description}</p>
         )}
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
           {offer.lead_time && <span>Lead time: {offer.lead_time}</span>}
+          {offer.valid_until && <span>Valid until {offer.valid_until}</span>}
           {offer.quality_note && <span>Quality: {offer.quality_note}</span>}
         </div>
-        {offer.remarks && (
-          <p className="mt-1 text-[11px] italic text-muted-foreground/80">{offer.remarks}</p>
-        )}
+        {offer.remarks && <p className="mt-1 text-[11px] italic text-muted-foreground/80">{offer.remarks}</p>}
         {offer.brochure?.length > 0 && (
           <div className="mt-1.5">
             <AttachmentList attachments={offer.brochure} compact />
@@ -251,13 +425,50 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
       </div>
 
       {canEdit && (
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          {!offer.is_winner && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={isPending || needsRate}
+              onClick={() => onWin(offer.id)}
+              aria-label={`Mark ${title} the winner`}
+              title={needsRate ? "Add the comparison rate before this offer can win" : "Mark this offer the winner"}
+              className="mr-1 h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-amber-a3 hover:text-amber-11"
+            >
+              <Award size={12} className="mr-1" aria-hidden="true" />
+              Winner
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            disabled={index === 0 || isPending}
+            onClick={() => onMove(index, -1)}
+            aria-label={`Move ${title} up`}
+            className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+          >
+            <ChevronUp size={13} />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            disabled={index === count - 1 || isPending}
+            onClick={() => onMove(index, 1)}
+            aria-label={`Move ${title} down`}
+            className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+          >
+            <ChevronDown size={13} />
+          </Button>
           <Button
             type="button"
             variant="ghost"
             size="icon-xs"
             onClick={() => setIsEditing(true)}
-            aria-label={`Edit ${offer.brand || "offer"}`}
+            aria-label={`Edit ${title}`}
             className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
           >
             <Pencil size={13} />
@@ -267,13 +478,10 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
             variant="ghost"
             size="icon-xs"
             onClick={() =>
-              confirmDeleteToast(
-                "Remove this offer?",
-                `${offer.brand || "This offer"} comes off the comparison.`,
-                () => onRemove(offer.id),
-              )
+              confirmDeleteToast("Remove this offer?", `${title} comes off the comparison.`, () => onRemove(offer.id))
             }
             disabled={isPending}
+            aria-label={`Remove ${title}`}
             className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-red-a3 hover:text-red-11"
           >
             <Trash2 size={13} />
@@ -284,155 +492,174 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
   );
 }
 
-export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel, userId, canEdit }) {
+export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel, userId, canEdit, opportunityId }) {
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
+  const [reasonDraft, setReasonDraft] = useState(null);
+  const [isSigning, setIsSigning] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const { user } = useAuth();
+  const isApprover = useCanvassApprover(userId);
+  const attachments = useFileAttachments({ max: 3 });
 
-  const queryKey = ["canvass", subject?.procurementRequestId || subject?.inclusionId];
+  const subjectId = subject?.componentId || subject?.requestedItemId;
+  const queryKey = ["canvass", subject?.componentId ? "component" : "requestedItem", subjectId];
 
+  // A purchaser opening the panel opens the Canvass: opening is idempotent, so a second purchaser
+  // lands on the same one. A reader who cannot write only looks, and sees nothing if none exists.
   const { data: canvass, isLoading } = useQuery({
     queryKey,
-    queryFn: () => projectEvaluationService.getCanvass(subject),
-    enabled: open && Boolean(subject?.procurementRequestId || subject?.inclusionId),
+    queryFn: () => (canEdit ? canvassService.open(subject, userId) : canvassService.get(subject)),
+    enabled: open && Boolean(subjectId),
+  });
+
+  const { data: history = [] } = useQuery({
+    queryKey: [...queryKey, "signoffHistory", canvass?.id],
+    queryFn: () => canvassService.signoffHistory(canvass.id),
+    enabled: open && Boolean(canvass?.id),
   });
 
   const offers = canvass?.offers || [];
+  const canReadMoney = Boolean(canvass?.canReadMoney);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey });
-
-  const ensureCanvass = async () => {
-    if (canvass) return canvass;
-    return projectEvaluationService.getOrCreateCanvass(subject, userId);
+  const invalidate = () => {
+    // Prefix match: the sign-off history is keyed under the Canvass's own key.
+    queryClient.invalidateQueries({ queryKey });
+    if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.canvasses(opportunityId) });
   };
+  const onError = (err) => toast.error(err.message);
 
   const addMutation = useMutation({
-    mutationFn: async (input) => {
-      const c = await ensureCanvass();
-      return projectEvaluationService.addOffer(c.id, input, userId);
-    },
+    mutationFn: (input) => canvassService.addOffer(canvass.id, input, userId),
     onSuccess: () => {
       invalidate();
       setIsAdding(false);
     },
-    onError: (err) => toast.error(err.message),
+    onError,
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ offerId, patch }) => projectEvaluationService.updateOffer(offerId, patch),
+    mutationFn: ({ offerId, patch }) => canvassService.updateOffer(offerId, patch),
     onSuccess: invalidate,
-    onError: (err) => toast.error(err.message),
+    onError,
   });
 
   const removeMutation = useMutation({
-    mutationFn: (offerId) => projectEvaluationService.removeOffer(offerId),
+    mutationFn: (offerId) => canvassService.removeOffer(offerId),
     onSuccess: () => {
       invalidate();
       toast.success("Offer removed.");
     },
-    onError: (err) => toast.error(err.message),
+    onError,
   });
 
+  // Winning fills the Component (#278), so the matrix has to be read again as well as the Canvass.
   const winnerMutation = useMutation({
-    mutationFn: (offerId) => projectEvaluationService.markWinner(canvass.id, offerId),
+    mutationFn: (offerId) => canvassService.markWinner(canvass.id, offerId),
+    onSuccess: (result) => {
+      invalidate();
+      if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.all(opportunityId) });
+      const filled = result?.filled || {};
+      const what = [filled.acquire && "Acquire", filled.offer_specification && "Offer Specification", filled.documents && "documents"].filter(Boolean);
+      toast.success(what.length ? `Winner marked. Filled ${what.join(", ")} from this Canvass.` : "Winner marked.");
+    },
+    onError,
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: (ids) => canvassService.reorderOffers(canvass.id, ids),
+    onSuccess: invalidate,
+    onError,
+  });
+
+  const reasonMutation = useMutation({
+    mutationFn: (reason) => canvassService.setReason(canvass.id, reason),
     onSuccess: () => {
       invalidate();
-      // Issue #47/#48: winning an Inclusion's Canvass re-stamps that
-      // Inclusion's cost server-side, which the Project Evaluation's base
-      // cost and margin roll up from. Without this, both breakdowns keep
-      // showing the old figures until something unrelated happens to
-      // invalidate their own queries — up to the 15-minute staleTime.
-      // Harmless no-op when the subject is a Procurement Request, since
-      // nothing reads these keys then. Unscoped by opportunityId (unlike
-      // InclusionsPanel's own invalidate, which has it to hand) because this
-      // component only knows the Inclusion/Procurement Request id, not which
-      // SOR it belongs to.
-      queryClient.invalidateQueries({ queryKey: ["inclusions"] });
-      queryClient.invalidateQueries({ queryKey: ["projectEvaluation"] });
-      toast.success("Winner recorded.");
+      setReasonDraft(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError,
   });
 
   const attachMutation = useMutation({
-    mutationFn: async (descriptor) => {
-      const c = await ensureCanvass();
-      return projectEvaluationService.addCanvassAttachment(c.id, descriptor);
-    },
+    mutationFn: (next) => canvassService.setAttachments(canvass.id, next),
     onSuccess: invalidate,
-    onError: (err) => toast.error(err.message),
+    onError,
   });
 
-  const detachMutation = useMutation({
-    mutationFn: (url) => projectEvaluationService.removeCanvassAttachment(canvass.id, url),
-    onSuccess: invalidate,
-    onError: (err) => toast.error(err.message),
-  });
+  // The sheet is prices, so only a reader who received them gets the action. The window opens in the
+  // click (popup blockers); the Canvass is read and composed into it afterwards.
+  const handlePrint = async () => {
+    const printWindow = openCanvassPrintWindow();
+    if (!printWindow) {
+      toast.error("Allow pop-ups for this site to print the Canvass.");
+      return;
+    }
+    setPrinting(true);
+    try {
+      await printCanvass(subject, { printWindow, subjectLabel, opportunityId, printedBy: user?.name ?? null });
+    } catch (err) {
+      toast.error(err?.message || "The Canvass could not be printed.");
+    } finally {
+      setPrinting(false);
+    }
+  };
 
-  const signOffMutation = useMutation({
-    mutationFn: async () => {
-      const c = await ensureCanvass();
-      return projectEvaluationService.signOffCanvass(c.id, userId);
-    },
-    onSuccess: () => {
-      invalidate();
-      toast.success("Canvass signed off.");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const attachments = useFileAttachments({ max: 3 });
+  const move = (index, by) => {
+    const ids = offers.map((o) => o.id);
+    const target = index + by;
+    if (target < 0 || target >= ids.length) return;
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    reorderMutation.mutate(ids);
+  };
 
   const handleAttach = async () => {
     const uploaded = await attachments.upload();
-    for (const descriptor of uploaded) {
-      await attachMutation.mutateAsync(descriptor);
-    }
+    attachMutation.mutate([...(canvass?.attachments || []), ...uploaded]);
     attachments.clear();
   };
 
-  const doSignOff = () => signOffMutation.mutate();
+  const winner = offers.find((o) => o.is_winner);
+  const isSigned = Boolean(canvass?.signed_off_at);
+  const isCreator = Boolean(canvass && userId && canvass.created_by === userId);
+  const hasReason = Boolean(String(canvass?.reason ?? "").trim());
+  const readyToSign = Boolean(winner) && hasReason;
+  const lastSigned = isSigned ? [...history].reverse().find((h) => h.kind === "signed") : null;
+  const lastCleared = !isSigned ? [...history].reverse().find((h) => h.kind === "cleared") : null;
 
-  const handleSignOff = () => {
-    if (canvassNeedsMoreOffers(offers)) {
-      confirmActionToast(
-        "Fewer than 3 offers recorded",
-        `Policy is to compare at least ${MIN_CANVASS_OFFERS} suppliers. Sign off anyway?`,
-        "Sign off anyway",
-        "sign-off-under-minimum",
-        doSignOff,
-      );
-      return;
-    }
-    doSignOff();
-  };
+  const busy = updateMutation.isPending || removeMutation.isPending || reorderMutation.isPending || winnerMutation.isPending;
+  const reason = reasonDraft ?? canvass?.reason ?? "";
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart size={16} />
-            Canvass — {subjectLabel}
+            Canvass{canvass?.number ? ` ${canvass.number}` : ""} — {subjectLabel}
           </DialogTitle>
         </DialogHeader>
 
         <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
-          {isLoading && (
-            <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
+          {isLoading && <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>}
+
+          {!isLoading && !canvass && (
+            <p className="py-6 text-center text-xs text-muted-foreground">Nobody has started a Canvass here yet.</p>
           )}
 
-          {!isLoading && (
+          {!isLoading && canvass && (
             <>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
                   {offers.length} offer{offers.length === 1 ? "" : "s"}
-                  {canvassNeedsMoreOffers(offers) && (
-                    <span className="ml-1.5 text-amber-11">
-                      · policy asks for at least {MIN_CANVASS_OFFERS}
+                  {canvass.moreOffersWarning && (
+                    <span className="ml-1.5 text-amber-11" data-testid="more-offers-warning">
+                      · {canvass.moreOffersWarning}
                     </span>
                   )}
                 </span>
-                {canvass?.signed_off_at && (
+                {canvass.signed_off_at && (
                   <span className="text-[11px] font-semibold text-green-11">
                     Signed off by {canvass.signer?.name || "—"}
                   </span>
@@ -440,21 +667,26 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
               </div>
 
               <div className="space-y-1.5">
-                {offers.map((offer) => (
+                {offers.map((offer, index) => (
                   <OfferRow
                     key={offer.id}
                     offer={offer}
+                    index={index}
+                    count={offers.length}
                     canEdit={canEdit}
-                    isPending={updateMutation.isPending || removeMutation.isPending || winnerMutation.isPending}
-                    onMarkWinner={(id) => winnerMutation.mutate(id)}
+                    canReadMoney={canReadMoney}
+                    isPending={busy}
                     onUpdate={(id, patch) => updateMutation.mutate({ offerId: id, patch })}
                     onRemove={(id) => removeMutation.mutate(id)}
+                    onMove={move}
+                    onWin={(id) => winnerMutation.mutate(id)}
                   />
                 ))}
               </div>
 
               {canEdit && isAdding && (
                 <OfferForm
+                  canReadMoney={canReadMoney}
                   isPending={addMutation.isPending}
                   onCancel={() => setIsAdding(false)}
                   onSubmit={(input) => addMutation.mutate(input)}
@@ -466,17 +698,38 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   type="button"
                   variant="outline"
                   onClick={() => setIsAdding(true)}
-                  className="h-auto flex w-full items-center justify-center gap-1.5 rounded-xl border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+                  className="h-auto flex w-full items-center justify-center gap-1.5 rounded-xl border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-mauve-8 hover:bg-mauve-a3 hover:text-foreground"
                 >
                   <Plus size={14} /> Add offer
                 </Button>
               )}
 
               <div className="space-y-1.5 border-t border-border/60 pt-3">
-                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
-                  Original canvass sheet
-                </span>
-                {(canvass?.attachments || []).length > 0 && (
+                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Why this supplier</span>
+                {canEdit ? (
+                  <Textarea
+                    aria-label="Why this supplier"
+                    value={reason}
+                    onChange={(e) => setReasonDraft(e.target.value)}
+                    onBlur={() => {
+                      if (reasonDraft !== null && reasonDraft.trim() !== (canvass.reason || "")) {
+                        reasonMutation.mutate(reasonDraft);
+                      } else {
+                        setReasonDraft(null);
+                      }
+                    }}
+                    rows={3}
+                    placeholder="The reason the winner was chosen, in your own words. It prints as written."
+                    className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px] md:text-[12.5px]"
+                  />
+                ) : (
+                  <p className="whitespace-pre-wrap text-xs text-foreground">{canvass.reason || "—"}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5 border-t border-border/60 pt-3">
+                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Original canvass sheet</span>
+                {(canvass.attachments || []).length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <AttachmentList attachments={canvass.attachments} compact />
                     {canEdit &&
@@ -485,7 +738,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                           key={file.url}
                           type="button"
                           variant="link"
-                          onClick={() => detachMutation.mutate(file.url)}
+                          onClick={() => attachMutation.mutate(canvass.attachments.filter((a) => a.url !== file.url))}
                           className="h-auto p-0 text-[10px] font-semibold text-red-11 hover:underline"
                         >
                           remove
@@ -511,46 +764,89 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   </Button>
                 )}
               </div>
+
+              <div className="space-y-1.5 border-t border-border/60 pt-3" data-testid="canvass-signoff">
+                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Sign-off</span>
+                {isSigned ? (
+                  <p className="text-xs font-semibold text-green-11" data-testid="signoff-state">
+                    Signed off by {canvass.signer?.name || "—"}
+                    {lastSigned && ` on ${lastSigned.offer_count} offer${lastSigned.offer_count === 1 ? "" : "s"}`}
+                    .
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground" data-testid="signoff-state">
+                    Not signed off yet.
+                    {lastCleared?.reason && <span className="ml-1">It was unsigned because: {lastCleared.reason.charAt(0).toLowerCase() + lastCleared.reason.slice(1)}.</span>}
+                  </p>
+                )}
+                {!isSigned && isApprover && (
+                  <>
+                    {isCreator ? (
+                      <p className="text-[11px] text-muted-foreground">You opened this Canvass, so someone else on the approver list signs it.</p>
+                    ) : !readyToSign ? (
+                      <p className="text-[11px] text-muted-foreground">It needs a winner and a reason before it can be signed.</p>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={() => setIsSigning(true)}
+                        className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-bold"
+                      >
+                        Sign off
+                      </Button>
+                    )}
+                  </>
+                )}
+                {canEdit && isSigned && (
+                  <p className="text-[11px] text-muted-foreground">Changing an offer, a price, the winner or the reason unsigns it.</p>
+                )}
+              </div>
             </>
           )}
         </div>
 
-        {canEdit && (
-          <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+        <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+          {canvass && canPrintCanvass(canvass) && (
             <Button
               type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+              variant="outline"
+              disabled={printing}
+              onClick={handlePrint}
+              className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-semibold"
             >
-              Close
+              <Printer size={14} aria-hidden="true" />
+              Print
             </Button>
-            <Button
-              type="button"
-              onClick={handleSignOff}
-              disabled={signOffMutation.isPending || Boolean(canvass?.signed_off_at)}
-              className="h-auto rounded-lg px-3.5 py-1.5 text-[12px] font-bold disabled:opacity-40"
-            >
-              {canvass?.signed_off_at ? "Signed off" : "Sign off"}
-            </Button>
-          </div>
-        )}
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+          >
+            Close
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
-  );
-}
 
-export function CanvassTriggerButton({ onClick, offerCount }) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      onClick={onClick}
-      className="h-auto inline-flex items-center gap-1.5 rounded-md bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-colors hover:bg-mauve-3"
-      title="Compare suppliers"
-    >
-      <ShoppingCart size={11} />
-      <span>{offerCount > 0 ? `Canvass (${offerCount})` : "Canvass"}</span>
-    </Button>
+      {isSigning && canvass && (
+        <CanvassSignoffDialog
+          open={isSigning}
+          onOpenChange={setIsSigning}
+          summary={{
+            id: canvass.id,
+            number: canvass.number,
+            subjectLabel,
+            reason: canvass.reason,
+            offerCount: offers.length,
+            winnerLabel: winner ? [winner.supplier_name, winner.brand].filter(Boolean).join(" · ") : null,
+          }}
+          onSigned={() => {
+            invalidate();
+            queryClient.invalidateQueries({ queryKey: ["canvassSignoffQueue"] });
+          }}
+        />
+      )}
+    </>
   );
 }

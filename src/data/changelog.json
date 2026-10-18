@@ -1,6 +1,22 @@
 [
     {
         "date": "2026-10-18",
+        "title": "Canvass: compare suppliers and pick a winner",
+        "version": "1.9.48",
+        "changes": [
+            "Purchasing can now canvass an item before ordering it. Open a Canvass from a Component row on the Costing Matrix, or from any item on a Purchase Request that is not tied to a Component. Each Canvass gets its own number (CNV_0001 and so on).",
+            "Add each supplier quote as an offer: the supplier, brand, what was offered, the price, how long the quote holds, the lead time and a brochure. A quote in another currency also shows its peso figure, using the rate you typed. That rate is only for comparing, not what will be paid.",
+            "Pick the winning offer and write down why. On a Component, the winner fills in the price, the description and its brochure for you, and marks them \"from Canvass\". If someone types over a filled-in figure, the mark goes away and their figure stays.",
+            "If the winning brand is different from the Component's brand, the Deal Team sees it and can accept it with one click. The brand is never changed without that click.",
+            "A Canvass with fewer than three offers shows a warning, but it never stops you. Offers past their date show \"Quote expired\".",
+            "The purchasing approvers sign off Canvasses from a new Canvass Sign-offs page in the Approval Center, and they are told when one is ready. You cannot sign a Canvass you opened. If anyone changes an offer, a price, the winner or the reason after it is signed, the sign-off is taken away and the history says why.",
+            "Any Canvass can be printed on A4, with the recommended supplier and the reason at the top.",
+            "When a Canvass is opened for an item that was marked \"To order\", the item moves to \"Canvassing\" on its own.",
+            "People who can see the order but not its costs see the offers without any prices."
+        ]
+    },
+    {
+        "date": "2026-10-18",
         "title": "Costing Matrix: review fixes",
         "version": "1.9.47",
         "changes": [

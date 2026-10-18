@@ -10,6 +10,7 @@
  */
 
 import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './formViewModel';
+import { buildCanvassViewModel } from './canvassViewModel';
 import { buildCostingMatrixViewModel } from './costingMatrixViewModel';
 import { buildIpasViewModel } from './ipasViewModel';
 import { buildPackingListViewModel } from './packingListViewModel';
@@ -62,6 +63,12 @@ const FORM_TYPES = {
   // stamps nothing, so markPrinted is a no-op.
   costing_matrix: {
     buildViewModel: buildCostingMatrixViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #282: the Canvass prints on portrait A4 (canvassDocument.js) from `canvassService.get`'s shape,
+  // for a reader with the money tier only. Printing stamps nothing, so markPrinted is a no-op.
+  canvass: {
+    buildViewModel: buildCanvassViewModel,
     markPrinted: async () => {},
   },
   // Issue #259: the TSR prints as one A4 sheet (tsrDocument.js) from a TSR record.

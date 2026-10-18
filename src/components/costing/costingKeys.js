@@ -5,6 +5,8 @@ export const costingKeys = {
   matrix: (opportunityId) => ["costing", opportunityId, "matrix"],
   stock: (opportunityId) => ["costing", opportunityId, "stock"],
   requests: (opportunityId) => ["costing", opportunityId, "requests"],
+  /** The Canvass chip on each Component row (#276). */
+  canvasses: (opportunityId) => ["costing", opportunityId, "canvasses"],
   evaluationList: (opportunityId) => ["costing", opportunityId, "evaluationList"],
   sorLines: (opportunityId) => ["costing", opportunityId, "sorLines"],
   /** The rates and the signer lists (#270) belong to no SOR; the "costing" prefix still refreshes them with the rest. */

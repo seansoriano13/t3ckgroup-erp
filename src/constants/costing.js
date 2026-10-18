@@ -96,11 +96,22 @@ export const COMPONENT_BANDS = {
   po_rfq_no: [PURCHASING],
   sales_incharge_id: [SALES],
   purchasing_incharge_id: [PURCHASING],
+  // The Canvass fill (#278): which winning Offer filled Offer Specification, and the Component's documents.
+  offer_specification_from_offer_id: [PURCHASING],
+  documents: [PURCHASING],
   // The Evaluation of Specification (#271): written by members of the SOR's evaluation task, and by Purchasing access.
   compliance: [TECHNICAL],
   compliance_note: [TECHNICAL],
   recommended_alternative: [TECHNICAL],
 };
+
+/**
+ * Which winning Offer filled Acquire (#278), on the Component's costs row only: a cost-only row is
+ * never canvassed, so this stays out of COMPONENT_COST_TIERS / COMPONENT_COST_BANDS, which a
+ * cost-only row inherits. Acquire's own audience reads it; Purchasing writes it.
+ */
+export const COMPONENT_CANVASS_COST_TIERS = { acquire_from_offer_id: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK] };
+export const COMPONENT_CANVASS_COST_BANDS = { acquire_from_offer_id: [PURCHASING] };
 
 export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
@@ -250,6 +261,9 @@ export const COSTING_COLUMN_LABEL = {
   "costing_components.po_rfq_no": "P.O./RFQ No.",
   "costing_components.sales_incharge_id": "A Component's Sales incharge",
   "costing_components.purchasing_incharge_id": "A Component's Purchasing incharge",
+  "costing_components.offer_specification_from_offer_id": "Where the Offer Specification came from",
+  "costing_components.documents": "A Component's documents",
+  "costing_component_costs.acquire_from_offer_id": "Where Acquire came from",
   "costing_components.compliance": "Compliance",
   "costing_components.compliance_note": "A Compliance note",
   "costing_components.recommended_alternative": "The recommended alternative",

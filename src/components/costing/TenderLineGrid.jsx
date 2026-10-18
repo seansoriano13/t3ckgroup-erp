@@ -7,6 +7,7 @@ import ConfirmDialog from "../ui/ConfirmDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import { costingMatrixService, requestsByComponent } from "../../services/costingMatrixService";
+import { canvassService } from "../../services/canvassService";
 import { opportunityService } from "../../services/opportunityService";
 import { COSTING_BAND, COMPONENT_BANDS, inAnyBand, tierReads, tierReadsCost } from "../../constants/costing";
 import { formatPHP } from "../../constants/sor";
@@ -71,6 +72,16 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
     retry: false,
   });
   const requests = requestsByComponent(componentRequests);
+
+  // The Canvass on each Component (#276): its number and signed state, for the chip. No money.
+  const componentIds = lines.flatMap((l) => l.components.map((c) => c.id));
+  const { data: canvassRows } = useQuery({
+    queryKey: [...costingKeys.canvasses(opportunityId), componentIds],
+    queryFn: () => canvassService.listForComponents(componentIds),
+    enabled: componentIds.length > 0,
+    retry: false,
+  });
+  const canvasses = new Map((canvassRows || []).map((row) => [row.component_id, row]));
 
   const saveLine = async (line, fields) => {
     await costingMatrixService.updateTenderLine(line.id, fields);
@@ -278,7 +289,7 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                 </TableRow>
                 <TableRow data-testid="tender-line-components" className="bg-muted/20 hover:bg-muted/20">
                   <TableCell colSpan={columnCount} className="p-0">
-                    <ComponentBlock line={line} matrix={matrix} bundles={bundles} stockData={stockSnapshot?.data} incharge={incharge} writes={writes} requests={requests} />
+                    <ComponentBlock line={line} matrix={matrix} bundles={bundles} stockData={stockSnapshot?.data} incharge={incharge} writes={writes} requests={requests} canvasses={canvasses} opportunityId={opportunityId} actorId={actorId} />
                   </TableCell>
                 </TableRow>
                 </Fragment>

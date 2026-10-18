@@ -22,6 +22,139 @@ function raise(message) {
 }
 
 
+/**
+ * sor_canvasses (20261019100000_canvass_repoint.sql, #276): the number comes from a sequence in
+ * the database (CNV_ and four digits; here, one past the highest held) and a Canvass has exactly one subject. The
+ * fake parses simple CHECKs only, so the cross-column one is mirrored here; the policy tier proves
+ * the real one (90-canvass-tables.test.js).
+ */
+function assignCanvassNumber(row, context) {
+  const taken = context.rowsOf("sor_canvasses").map((r) => Number(String(r.number ?? "").replace(/\D/g, "")) || 0)
+  row.number = `CNV_${String(Math.max(0, ...taken) + 1).padStart(4, "0")}`
+}
+
+function requireOneCanvassSubject(row) {
+  if ((row.component_id ? 1 : 0) + (row.requested_item_id ? 1 : 0) !== 1) {
+    throw pgrstError(
+      "23514",
+      'new row for relation "sor_canvasses" violates check constraint "sor_canvasses_exactly_one_subject_chk"',
+      { status: 400 },
+    )
+  }
+}
+
+/** sor_canvasses_refuse_component_item() (20261019140000_canvass_requested_item_subject.sql, #280). */
+function refuseComponentItem(row, context) {
+  if (!row.requested_item_id) return
+  const item = context.rowsOf("purchase_request_items").find((i) => i.id === row.requested_item_id)
+  if (item?.component_id) {
+    throw pgrstError("23514", "This Requested Item names a Component. Canvass the Component instead.", { status: 400 })
+  }
+}
+
+/**
+ * sor_canvasses_mark_canvassing() (20261019170000_canvass_review_fixes.sql, spec #275): a new
+ * Canvass moves each Requested Item that is its subject, or that names its subject Component, from
+ * To order to Canvassing. An item at any other status is left alone. The fake has no caller, so the
+ * actor is null and the status is set directly (the real one also posts the status event).
+ */
+function markItemsCanvassing(row, old, context) {
+  if (old !== null) return
+  for (const item of context.rowsOf("purchase_request_items")) {
+    if (item.status !== "to_order") continue
+    if (item.id === row.requested_item_id || (row.component_id && item.component_id === row.component_id)) {
+      item.status = "canvassing"
+      item.status_changed_at = new Date().toISOString()
+    }
+  }
+}
+
+function keepCanvassNumber(row, old) {
+  if (row.number !== old.number) throw pgrstError("42501", "A Canvass number is never changed.", { status: 403 })
+}
+
+/** sor_canvass_offer_prices_check_rate(): a PHP Offer takes no comparison rate. */
+function refusePhpRate(row, context) {
+  if (row.comparison_rate === null || row.comparison_rate === undefined) return
+  const offer = context.rowsOf("sor_canvass_offers").find((o) => o.id === row.offer_id)
+  if (offer?.currency === "PHP") throw pgrstError("23514", "A PHP Offer takes no comparison rate.", { status: 400 })
+}
+
+/** sor_canvass_offers_check_currency(): the rate goes before an Offer turns PHP. */
+function refuseRateOnPhpOffer(row, old, context) {
+  if (row.currency !== "PHP" || row.currency === old.currency) return
+  const price = context.rowsOf("sor_canvass_offer_prices").find((p) => p.offer_id === row.id)
+  if (price?.comparison_rate !== null && price?.comparison_rate !== undefined) {
+    throw pgrstError("23514", "Clear the comparison rate before changing an Offer to PHP.", { status: 400 })
+  }
+}
+
+/**
+ * canvass_null_fill_mark() (20261019120000_canvass_winner_fills_matrix.sql, #278): a "from
+ * Canvass" mark goes when its field changes by any route but canvass_apply_winner. The RPC's
+ * stand-in (src/test/stubs/canvassRpc.js) sets `canvassFill.on` while it writes, as the real
+ * one sets canvass.fill.
+ */
+export const canvassFill = { on: false }
+
+function nullFillMark(markColumn, fieldColumn) {
+  return (row, old) => {
+    if (canvassFill.on) return
+    if (row[fieldColumn] !== old[fieldColumn]) row[markColumn] = null
+  }
+}
+
+/**
+ * canvass_clear_signoff() and its triggers (20261019130000_canvass_signoff.sql, #279): any insert,
+ * update or delete on a Canvass's Offers or their prices (bar a plain re-ordering), a winner
+ * change, or a change to the reason, while the Canvass is signed, unsigns it and appends a
+ * "cleared" event with the reason. The fake has no caller, so the actor is null. `old` is null for
+ * an insert and the row itself for a delete.
+ */
+function clearCanvassSignoff(canvassId, reason, context) {
+  const canvass = context.rowsOf("sor_canvasses").find((c) => c.id === canvassId)
+  if (!canvass || !canvass.signed_off_at) return
+  canvass.signed_off_by = null
+  canvass.signed_off_at = null
+  context.rowsOf("sor_canvass_signoff_events").push({
+    id: globalThis.crypto.randomUUID(),
+    canvass_id: canvassId,
+    kind: "cleared",
+    actor_id: null,
+    reason,
+    offer_count: context.rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === canvassId).length,
+    created_at: new Date().toISOString(),
+  })
+}
+
+function clearOnOfferChange(row, old, context) {
+  let reason
+  if (old === null) reason = "An Offer was added"
+  else if (old === row) reason = "An Offer was removed"
+  else {
+    const { sort_order: _a, updated_at: _b, ...now } = row
+    const { sort_order: _c, updated_at: _d, ...before } = old
+    if (JSON.stringify(now) === JSON.stringify(before)) return
+    reason = row.is_winner !== old.is_winner ? "The winner changed" : "An Offer was changed"
+  }
+  clearCanvassSignoff(row.canvass_id, reason, context)
+}
+
+function clearOnPriceChange(row, old, context) {
+  if (old && old !== row && row.unit_price === old.unit_price && row.comparison_rate === old.comparison_rate) return
+  const offer = context.rowsOf("sor_canvass_offers").find((o) => o.id === row.offer_id)
+  if (offer) clearCanvassSignoff(offer.canvass_id, "A price changed", context)
+}
+
+function clearOnReasonChange(row, old, context) {
+  if (old && old !== row && row.reason !== old.reason) clearCanvassSignoff(row.id, "The reason changed", context)
+}
+
+/** sor_canvass_signoff_events_append_only(): the history is never edited or removed. */
+function refuseHistoryEdit() {
+  throw pgrstError("42501", "The sign-off history is append-only.", { status: 403 })
+}
+
 function requireBundleParent(row, context) {
   const parent = context.rowsOf("costing_components").find((c) => c.id === row.component_id)
   if (!parent?.is_bundle) {
@@ -332,8 +465,33 @@ export const TRIGGERS = {
 
   costing_components: {
     beforeInsert: [requireDeviationNote],
-    beforeUpdate: [requireDeviationNote],
+    beforeUpdate: [requireDeviationNote, nullFillMark("offer_specification_from_offer_id", "offer_specification")],
     afterWrite: [(row, old, context) => clearEvaluationApproval("costing_components", row, old, context)],
+  },
+
+  costing_component_costs: {
+    beforeUpdate: [nullFillMark("acquire_from_offer_id", "acquire_unit")],
+  },
+
+  sor_canvasses: {
+    beforeInsert: [assignCanvassNumber, requireOneCanvassSubject, refuseComponentItem],
+    beforeUpdate: [requireOneCanvassSubject, keepCanvassNumber, (row, old, context) => refuseComponentItem(row, context)],
+    afterWrite: [clearOnReasonChange, markItemsCanvassing],
+  },
+
+  sor_canvass_signoff_events: {
+    beforeUpdate: [refuseHistoryEdit],
+  },
+
+  sor_canvass_offer_prices: {
+    beforeInsert: [(row, context) => refusePhpRate(row, context)],
+    beforeUpdate: [(row, old, context) => refusePhpRate(row, context)],
+    afterWrite: [clearOnPriceChange],
+  },
+
+  sor_canvass_offers: {
+    beforeUpdate: [refuseRateOnPhpOffer],
+    afterWrite: [clearOnOfferChange],
   },
 
   // costing_inclusions: costing_inclusion_needs_bundle() (20261018110000_costing_matrix_components.sql,

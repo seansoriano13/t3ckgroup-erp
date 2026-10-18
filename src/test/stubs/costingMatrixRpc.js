@@ -3,6 +3,7 @@ import { db, deleteRows, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import {
   BID_DECISION_TIERS,
+  COMPONENT_CANVASS_COST_TIERS,
   COMPONENT_COST_BANDS,
   COMPONENT_COST_TIERS,
   COST_ROW_TIERS,
@@ -89,6 +90,24 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
 
   stubRpc("costing_tier", () => tier)
 
+  // canvass_po_suppliers (#281): each Component whose P.O./RFQ No. names a live IPAS, with the supplier
+  // on that IPAS's stored Odoo copy. Re-implemented on the store; the real gate is the policy tier's.
+  stubRpc("canvass_po_suppliers", (args) => {
+    if (!tier) return []
+    const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
+    if (!matrix) return []
+    const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
+    return rowsOf("costing_components")
+      .filter((c) => lineIds.includes(c.tender_line_id) && c.po_rfq_no)
+      .flatMap((c) => {
+        const po = String(c.po_rfq_no).trim().toUpperCase()
+        const ipas = rowsOf("ipas").find((i) => i.po_number === po && i.state !== "cancelled")
+        if (!ipas) return []
+        const supplier = ipas.odoo_copy?.supplier ?? {}
+        return [{ component_id: c.id, po_number: ipas.po_number, supplier_id: supplier.id == null ? null : String(supplier.id), supplier_name: supplier.name ?? null }]
+      })
+  })
+
   stubRpc("costing_matrix_read", (args) => {
     if (!tier) return null
     const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
@@ -114,7 +133,11 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     }
 
     // A unit-cost row carries only the columns this tier may read; a tier that may read none gets no table.
-    const costColumns = Object.keys(COMPONENT_COST_TIERS).filter((c) => tierReadsCost(tier, c))
+    // The "from Canvass" mark on Acquire (#278) is read by the tiers that read Acquire.
+    const costColumns = [
+      ...Object.keys(COMPONENT_COST_TIERS).filter((c) => tierReadsCost(tier, c)),
+      ...Object.entries(COMPONENT_CANVASS_COST_TIERS).filter(([, tiers]) => tiers.includes(tier)).map(([c]) => c),
+    ]
     const onlyReadable = (row, keep) => Object.fromEntries(Object.entries(row).filter(([key]) => keep.includes(key)))
     const money = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrix.id)
     const rowColumns = Object.keys(COST_ROW_TIERS).filter((c) => tierReadsCostRow(tier, c))

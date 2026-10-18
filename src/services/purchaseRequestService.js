@@ -310,11 +310,46 @@ export const purchaseRequestService = {
       );
     }
 
+    // Each item's Canvass (#280): its own, or its Component's. Number and signed state only.
+    const canvassByItem = await this.canvassesForItems(items.data || []);
+
     return (items.data || []).map((item) => ({
       ...item,
       ...(lineByItem.has(item.id) ? { sorLine: lineByItem.get(item.id) } : {}),
       ...(componentByItem.has(item.id) ? { component: componentByItem.get(item.id) } : {}),
+      ...(canvassByItem.has(item.id) ? { canvass: canvassByItem.get(item.id) } : {}),
     }));
+  },
+
+  /**
+   * The Canvass of each item that has one (#280), as a Map of item id to
+   * `{ id, number, signed, viaComponent }`. An item that names a Component shows that Component's
+   * Canvass (`viaComponent`); any other shows its own. Only what the caller may read comes back,
+   * so an item with none, or one the caller can't see, simply has no entry.
+   */
+  async canvassesForItems(items = []) {
+    const own = items.filter((i) => !i.component_id).map((i) => i.id);
+    const componentIds = [...new Set(items.filter((i) => i.component_id).map((i) => i.component_id))];
+    const byItem = new Map();
+    if (own.length === 0 && componentIds.length === 0) return byItem;
+
+    const select = "id, number, requested_item_id, component_id, signed_off_at";
+    const [ownRows, componentRows] = await Promise.all([
+      own.length ? supabase.from("sor_canvasses").select(select).in("requested_item_id", own) : { data: [] },
+      componentIds.length ? supabase.from("sor_canvasses").select(select).in("component_id", componentIds) : { data: [] },
+    ]);
+    if (ownRows.error) throw ownRows.error;
+    if (componentRows.error) throw componentRows.error;
+
+    const shape = (c, viaComponent) => ({ id: c.id, number: c.number, signed: Boolean(c.signed_off_at), viaComponent });
+    for (const c of ownRows.data || []) byItem.set(c.requested_item_id, shape(c, false));
+    const byComponent = new Map((componentRows.data || []).map((c) => [c.component_id, c]));
+    for (const item of items) {
+      if (item.component_id && byComponent.has(item.component_id)) {
+        byItem.set(item.id, shape(byComponent.get(item.component_id), true));
+      }
+    }
+    return byItem;
   },
 
   // ── Status (#306) ────────────────────────────────────────────────────────
