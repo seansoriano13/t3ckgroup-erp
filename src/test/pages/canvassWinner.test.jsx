@@ -1,0 +1,86 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { screen, waitFor, within } from "@testing-library/react";
+
+import { renderWithProviders, setupUser } from "@/test/support";
+import { db } from "@/test/db/store";
+import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
+import { stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
+import { canvassService } from "@/services/canvassService";
+import { makeEmployee, makeOpportunity } from "@/test/factories";
+import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
+
+/**
+ * The winner on the Costing Matrix page (#278): Purchasing marks a winner in the Canvass panel and
+ * the row shows "from Canvass" on Acquire and Offer Specification; a winning brand that differs
+ * from Brand shows as "Canvass says ..." with an Accept for a Deal Team member only. Real
+ * components and services on the fake database; the matrix and winner functions are stubbed. The
+ * rules themselves are the policy tier's (91-canvass-winner.test.js).
+ */
+
+let authUser;
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
+
+describe("a winner on the Costing Matrix page", () => {
+  let purchaser;
+  let deal;
+  let component;
+  let canvass;
+  let redleaf;
+
+  const mount = ({ tier, bands }) => {
+    stubCostingMatrixRpcs({ tier, bands, actorId: purchaser.id });
+    stubCanvassWinnerRpcs({ bands });
+    renderWithProviders(<CostingMatrixSection opportunityId={deal.id} opportunity={deal} />);
+    return setupUser();
+  };
+
+  beforeEach(async () => {
+    stubCanvassMoneyRpc({ money: true });
+    purchaser = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true });
+    authUser = { id: purchaser.id };
+    deal = makeOpportunity({ registered_by: purchaser.id, deal_owner_id: purchaser.id, sales_reference: "S07983" });
+    const matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+    const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1 });
+    component = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "Ambulance Folding Stretcher", brand: "Generic" });
+
+    canvass = await canvassService.open({ componentId: component.id }, purchaser.id);
+    redleaf = await canvassService.addOffer(
+      canvass.id,
+      { supplierName: "Redleaf Inc.", brand: "Redleaf", description: "Folding stretcher, 227 kg", unitPrice: 78000 },
+      purchaser.id,
+    );
+    await canvassService.addOffer(canvass.id, { supplierName: "Ferno", brand: "Ferno", unitPrice: 82500 }, purchaser.id);
+  });
+
+  it("marks a winner from the panel and shows 'from Canvass' on Acquire and Offer Specification", async () => {
+    const user = mount({ tier: "cost", bands: ["purchasing"] });
+    await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
+    await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc\. the winner/ }));
+
+    await waitFor(() => expect(db.rows("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner).toBe(true));
+    await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
+    expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
+    // Purchasing does not get the Accept: Brand is Sales' column.
+    expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
+  });
+
+  it("offers the winning brand with an Accept to the Deal Team", async () => {
+    db.internal.rowsOf("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner = true;
+    const user = mount({ tier: "price", bands: ["sales"] });
+
+    const proposal = await screen.findByTestId("brand-proposal");
+    expect(proposal).toHaveTextContent("Canvass says Redleaf");
+
+    await user.click(within(proposal).getByRole("button", { name: /Accept brand Redleaf/ }));
+    await waitFor(() => expect(db.rows("costing_components")[0].brand).toBe("Redleaf"));
+    await waitFor(() => expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument());
+  });
+
+  it("shows no 'Canvass says' to anyone outside the Deal Team", async () => {
+    db.internal.rowsOf("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner = true;
+    mount({ tier: "cost", bands: ["purchasing"] });
+    await screen.findByTestId("component-canvass");
+    expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Canvass says/)).not.toBeInTheDocument();
+  });
+});

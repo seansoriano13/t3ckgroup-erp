@@ -574,7 +574,7 @@ describe("who reads what", () => {
     const read = await readMatrix("outsider")
     expect(read.tier).toBe("cost")
     const costs = tableOf(read, "costing_component_costs").find((c) => c.component_id === plainId)
-    expect(Object.keys(costs).sort()).toEqual(["acquire_unit", "component_id", "odoo_unit"])
+    expect(Object.keys(costs).sort()).toEqual(["acquire_from_offer_id", "acquire_unit", "component_id", "odoo_unit"])
     const [row] = tableOf(read, "costing_cost_rows")
     expect(Object.keys(row).sort()).toEqual(["acquire_unit", "created_at", "description", "id", "matrix_id", "odoo_unit", "position", "quantity"])
     expect(JSON.stringify(read)).not.toMatch(/final_acquire_unit|markup_factor/)
@@ -585,7 +585,7 @@ describe("who reads what", () => {
       const read = await readMatrix(who)
       expect(read.tier).toBe("closed_book")
       const costs = tableOf(read, "costing_component_costs").find((c) => c.component_id === plainId)
-      expect(Object.keys(costs).sort(), who).toEqual(["acquire_unit", "component_id", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit"])
+      expect(Object.keys(costs).sort(), who).toEqual(["acquire_from_offer_id", "acquire_unit", "component_id", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit"])
       const [row] = tableOf(read, "costing_cost_rows")
       expect(Object.keys(row), who).toEqual(expect.arrayContaining(["acquire_unit", "odoo_unit", "final_acquire_unit", "markup_factor", "description", "quantity"]))
       // The id of an old Inclusion is internal and never served.

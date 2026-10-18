@@ -26,7 +26,7 @@ import ComplianceCell from "./ComplianceCell";
 import InchargeSelects from "./InchargeSelects";
 import InclusionList from "./InclusionList";
 import ComponentRequests from "./ComponentRequests";
-import ComponentCanvass from "./ComponentCanvass";
+import ComponentCanvass, { BrandProposal, FromCanvass } from "./ComponentCanvass";
 
 const toOptions = (labels) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const STATUS_OPTIONS = toOptions(COMPONENT_STATUS_LABEL);
@@ -193,7 +193,10 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                             </p>
                           </div>
                           <div className="space-y-1">
-                            <p className="text-label text-muted-foreground">Offer Specification</p>
+                            <p className="text-label text-muted-foreground">
+                              Offer Specification
+                              {component.fromCanvass?.offerSpecification && <FromCanvass what="Offer Specification" number={component.canvass?.number} />}
+                            </p>
                             <Cell
                               label={label("Offer Specification")}
                               noun="Offer Specification"
@@ -288,6 +291,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                       </TableCell>
                       <TableCell className="align-top">
                         <Cell label={label("Brand")} value={component.brand} readOnly={!can("brand")} onSave={(value) => saveComponent(component, { brand: value })} />
+                        <BrandProposal component={component} canAccept={can("brand")} onAccepted={refresh} />
                       </TableCell>
                       <TableCell className="align-top">
                         <SelectCell
@@ -351,6 +355,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                             readOnly={!canCost("acquire_unit")}
                             onSave={(value) => saveComponent(component, { acquireUnit: value })}
                           />
+                          {component.fromCanvass?.acquire && <FromCanvass what="Acquire" number={component.canvass?.number} className="mt-1 block text-right" />}
                         </TableCell>
                       )}
                       {showAcquire && <TableCell className="text-right align-top text-sm tabular-nums">{pesos(component.totals.acquireTotal)}</TableCell>}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { isExpired, moreOffersWarning, needsMoreOffers, offerCurrency, phpFigure } from "./canvassMath"
+import { brandProposal, isExpired, moreOffersWarning, needsMoreOffers, offerCurrency, phpFigure } from "./canvassMath"
 
 // The prototype's sample (#236): CNV_0142 against 1.2 of S07983.
 const redleaf = { supplier_name: "Redleaf Inc.", currency: "PHP", unit_price: 78000 }
@@ -73,5 +73,20 @@ describe("isExpired", () => {
   it("never expires with no date", () => {
     expect(isExpired({ valid_until: null }, "2099-01-01")).toBe(false)
     expect(isExpired({}, "2099-01-01")).toBe(false)
+  })
+})
+
+describe("brandProposal (#278)", () => {
+  it("proposes the winner's brand when it differs from the Component's", () => {
+    expect(brandProposal({ brand: "Generic" }, { brand: "Toyota" })).toBe("Toyota")
+    expect(brandProposal({ brand: null }, { brand: "  Toyota " })).toBe("Toyota")
+  })
+
+  it("proposes nothing with no winner, no winning brand, or the brand already there", () => {
+    expect(brandProposal({ brand: "Generic" }, null)).toBeNull()
+    expect(brandProposal({ brand: "Generic" }, { brand: " " })).toBeNull()
+    expect(brandProposal({ brand: "Generic" }, {})).toBeNull()
+    expect(brandProposal({ brand: "Toyota" }, { brand: "toyota" })).toBeNull()
+    expect(brandProposal({ brand: "Land  Cruiser" }, { brand: "land cruiser" })).toBeNull()
   })
 })

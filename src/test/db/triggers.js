@@ -63,6 +63,21 @@ function refuseRateOnPhpOffer(row, old, context) {
   }
 }
 
+/**
+ * canvass_null_fill_mark() (20261019120000_canvass_winner_fills_matrix.sql, #278): a "from
+ * Canvass" mark goes when its field changes by any route but canvass_apply_winner. The RPC's
+ * stand-in (src/test/stubs/canvassRpc.js) sets `canvassFill.on` while it writes, as the real
+ * one sets canvass.fill.
+ */
+export const canvassFill = { on: false }
+
+function nullFillMark(markColumn, fieldColumn) {
+  return (row, old) => {
+    if (canvassFill.on) return
+    if (row[fieldColumn] !== old[fieldColumn]) row[markColumn] = null
+  }
+}
+
 function requireBundleParent(row, context) {
   const parent = context.rowsOf("costing_components").find((c) => c.id === row.component_id)
   if (!parent?.is_bundle) {
@@ -373,8 +388,12 @@ export const TRIGGERS = {
 
   costing_components: {
     beforeInsert: [requireDeviationNote],
-    beforeUpdate: [requireDeviationNote],
+    beforeUpdate: [requireDeviationNote, nullFillMark("offer_specification_from_offer_id", "offer_specification")],
     afterWrite: [(row, old, context) => clearEvaluationApproval("costing_components", row, old, context)],
+  },
+
+  costing_component_costs: {
+    beforeUpdate: [nullFillMark("acquire_from_offer_id", "acquire_unit")],
   },
 
   sor_canvasses: {
