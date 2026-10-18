@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-10-19",
+        "title": "Canvass: compare suppliers on a Component",
+        "version": "1.9.48",
+        "changes": [
+            "Purchasing can open a Canvass from any Component row on the Costing Matrix. It gets its own number (CNV_0001 onward) and holds the Offers you compare, the reason you chose a supplier, and your original working sheet.",
+            "Each Offer records the supplier (typed for now), brand, what was offered, the currency and amount as quoted, how long the quote holds, lead time, and a brochure. A quote past its date shows Quote expired.",
+            "For a quote in another currency, you type the rate you compared at, and the Offer shows its peso figure beside the quoted amount. That rate is only for comparing, not the rate that will be paid.",
+            "A Canvass with fewer than three Offers shows a warning, and never blocks you.",
+            "People who may see the SOR but not its costs see the Offers without any prices. Only Purchasing and Super Admin can change a Canvass.",
+            "The old procurement-request and Inclusion canvass is gone; an Inclusion can no longer be canvassed or take a cost from a canvass."
+        ]
+    },    {
         "date": "2026-10-18",
         "title": "Costing Matrix: review fixes",
         "version": "1.9.47",

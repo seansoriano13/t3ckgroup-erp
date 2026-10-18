@@ -13,6 +13,7 @@ import {
   COMPONENT_COST_BANDS,
   COMPONENT_SOURCE_LABEL,
   COMPONENT_STATUS_LABEL,
+  COSTING_BAND,
   ROW_EDIT_BANDS,
   inAnyBand,
   tierReadsCost,
@@ -25,6 +26,7 @@ import ComplianceCell from "./ComplianceCell";
 import InchargeSelects from "./InchargeSelects";
 import InclusionList from "./InclusionList";
 import ComponentRequests from "./ComponentRequests";
+import ComponentCanvass from "./ComponentCanvass";
 
 const toOptions = (labels) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const STATUS_OPTIONS = toOptions(COMPONENT_STATUS_LABEL);
@@ -46,7 +48,7 @@ const SOURCE_OPTIONS = toOptions(COMPONENT_SOURCE_LABEL);
  * matrix default) and can type an override if it is on the Final Acquire list; Sales and the Closed Book
  * see the Markup Price per unit and in total. Purchasing sees neither, so Acquire never meets a factor.
  */
-export default function ComponentBlock({ line, matrix, bundles, stockData, incharge, writes, requests = new Map() }) {
+export default function ComponentBlock({ line, matrix, bundles, stockData, incharge, writes, requests = new Map(), canvasses = new Map(), opportunityId, actorId }) {
   const { busy, run, refresh } = writes;
   const [removing, setRemoving] = useState(null);
   const [inchargeOpen, setInchargeOpen] = useState(() => new Set());
@@ -67,6 +69,8 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
   const markupColumns = (showFactor ? 1 : 0) + (showMarkupPrice ? 2 : 0);
   const columnCount = 4 + salesColumns + pmsColumns + mngtColumns + markupColumns + 1 + 1;
   const canEvaluate = inAnyBand(bands, COMPONENT_BANDS.compliance);
+  // A Canvass is Purchasing's own job (#276); every other reader of the matrix may open one that exists.
+  const canCanvass = inAnyBand(bands, [COSTING_BAND.PURCHASING]);
 
   const saveComponent = async (component, fields) => {
     await costingMatrixService.updateComponent(component.id, fields);
@@ -241,6 +245,13 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                           </Button>
                         </div>
                         <ComponentRequests items={requests.get(component.id)} />
+                        <ComponentCanvass
+                          component={component}
+                          canvass={canvasses.get(component.id)}
+                          canWrite={canCanvass}
+                          opportunityId={opportunityId}
+                          actorId={actorId}
+                        />
                         {inchargeOpen.has(component.id) && (
                           <div className="mt-2">
                             <InchargeSelects
