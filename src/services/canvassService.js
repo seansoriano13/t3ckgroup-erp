@@ -107,7 +107,27 @@ function withFigures(offer, canReadMoney) {
   return shaped;
 }
 
+const SUPPLIER_MIN_QUERY = 2;
+
 export const canvassService = {
+  /**
+   * Odoo suppliers whose name matches `query`, as `[{ id, name }]` (at most 10), for the Offer's
+   * supplier field. Never throws: with a short query, no match, or Odoo not answering it gives
+   * `[]`, and the purchaser simply types the supplier (saved with no Odoo id).
+   */
+  async searchSuppliers(query) {
+    const name = String(query ?? "").trim();
+    if (name.length < SUPPLIER_MIN_QUERY) return [];
+
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-supplier-search", { body: { query: name } });
+      if (error || !data?.success || !Array.isArray(data.suppliers)) return [];
+      return data.suppliers.slice(0, 10).map(({ id, name: supplier }) => ({ id, name: supplier }));
+    } catch {
+      return [];
+    }
+  },
+
   /**
    * The Canvass for a subject, with its Offers, or null when nobody has opened one. Offers come in
    * the order they were arranged. For a reader who may not see money, the Offers carry no
