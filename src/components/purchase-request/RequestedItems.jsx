@@ -7,6 +7,7 @@ import Spinner from "@/components/ui/Spinner";
 import AddRequestedItems from "./AddRequestedItems";
 import RequestedItemRow from "./RequestedItemRow";
 import RequestedItemActions from "./RequestedItemActions";
+import RequestedItemCanvass from "./RequestedItemCanvass";
 import StatusBadge from "../StatusBadge";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME, isClosedStatus } from "../../constants/purchaseRequest";
@@ -80,6 +81,7 @@ export default function RequestedItems({ request, renderActions }) {
               key={item.id}
               item={item}
               stockSnapshot={stockSnapshot}
+              canvass={<RequestedItemCanvass item={item} request={request} actor={actor} />}
               replaces={byId.get(item.substitute_for_item_id)}
               replacedBy={substituteOf.get(item.id)}
               actions={

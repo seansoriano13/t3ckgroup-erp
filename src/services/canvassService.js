@@ -17,7 +17,7 @@ import { isExpired, moreOffersWarning, needsMoreOffers, phpFigure } from "../uti
  *
  * Every figure comes from utils/canvassMath, so the panel, the sign-off and the print agree.
  * Later tickets add to this file: supplier search (#277), the winner (#278), sign-off (#279),
- * the Requested Item subject (#280).
+ * the Requested Item subject (#280, `getForRequestedItem`).
  */
 
 const CANVASS_SELECT = `
@@ -187,6 +187,17 @@ export const canvassService = {
   getForComponent(componentId) {
     if (!componentId) return Promise.resolve(null);
     return this.get({ componentId });
+  },
+
+  /**
+   * The Canvass of one Requested Item, or null (#280). Only an item that names no Component has
+   * one of its own: an item that names a Component is canvassed through the Component, and
+   * `open` refuses it. Prices come only to members with Purchasing access, Finance access or
+   * Super Admin; for any other member of the request the Offers carry no price keys.
+   */
+  getForRequestedItem(itemId) {
+    if (!itemId) return Promise.resolve(null);
+    return this.get({ requestedItemId: itemId });
   },
 
   /**
