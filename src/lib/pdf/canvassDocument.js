@@ -1,7 +1,8 @@
 /**
- * The printed Canvass as HTML (issue #282, spec #275, ADR 0014): one A4 portrait sheet, variant C
- * of the prototype ("Recommendation first"). The decision block leads; every Offer is tabled
- * beneath as evidence; the signatures close the page.
+ * The printed Canvass as HTML (issue #282, spec #275, ADR 0014): one A4 portrait sheet in the IPAS
+ * print's furniture (rail, serif name, hairlines, the signature band), so it reads as part of the
+ * same Purchasing paper set. The recommendation leads (variant C of the prototype); every Offer is
+ * tabled beneath as evidence; the signatures close the page.
  *
  * Pure: a view model (canvassViewModel.js) in, a document string out. Everything typed or read
  * from outside goes through `escapeHtml`.
@@ -12,66 +13,65 @@ import { CSS } from './ipasDocument';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 
 const EXTRA_CSS = `
-  .cnv-facts { display: flex; flex-wrap: wrap; gap: 6px 28px; padding: 7px 0; border-bottom: 1px solid var(--hair); }
-  .cnv-facts .fact { display: flex; flex-direction: column; gap: 2px; }
-  .cnv-facts .v { font-size: 9pt; font-weight: 600; }
-  .decision { border: 1.5px solid var(--rule); padding: 12px 16px; display: grid; grid-template-columns: 1fr 56mm; gap: 12px; border-radius: 4px; }
-  .decision h2 { font-family: var(--serif); font-size: 14pt; margin: 0 0 3px; font-weight: 600; }
-  .decision .why { font-size: 8.8pt; line-height: 1.35; margin: 5px 0 0; white-space: pre-wrap; }
-  .decision .why.none { color: var(--ink-faint); }
-  .decision .price { text-align: right; }
-  .decision .price .v { font-family: var(--mono); font-size: 16pt; line-height: 1.1; letter-spacing: -.02em; font-weight: 700; }
-  .decision .price .f { font-family: var(--mono); font-size: 7.6pt; color: var(--ink-mid); margin-top: 3px; }
-  .cnv-offers th, .cnv-offers td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--hair); font-size: 8pt; }
-  .cnv-offers thead th { font-size: 6.6pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-mid); border-bottom: 1.5px solid var(--rule); }
-  .cnv-offers td.num, .cnv-offers th.num { text-align: right; font-family: var(--mono); }
-  .cnv-offers tr.chosen td { background: var(--wash); }
-  .chip { display: inline-block; font-size: 6.2pt; letter-spacing: .07em; text-transform: uppercase; padding: 1px 6px; border: 1px solid var(--ink); border-radius: 3px; font-weight: 700; margin-left: 4px; }
-  .chip.warn { color: var(--flag); border-color: var(--flag); margin-left: 0; }
-  .cnv-warning { border: 1px solid var(--flag); color: var(--flag); padding: 5px 10px; font-size: 8.4pt; font-weight: 600; border-radius: 3px; margin-top: auto; }
-  .sigs.n3 { grid-template-columns: repeat(3, 1fr); margin-top: auto; padding-top: 4mm; }
-  .cnv-warning + .sigs.n3 { margin-top: 0; }
+  .head .r .x { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-faint); margin-top: 6px; }
+  .cnv-reason { font-family: var(--serif); font-size: 9.6pt; line-height: 1.5; white-space: pre-wrap; margin: 0; }
+  .cnv-offers td .sub { margin-top: 2px; }
+  .cnv-offers td.num .sub { font-size: 6.6pt; color: var(--ink-faint); white-space: normal; }
+  .cnv-offers td.num + td:not(.num), .cnv-offers th.num + th:not(.num) { padding-left: 12px; }
+  .sigs.n3 { grid-template-columns: repeat(3, 1fr); }
+  .cnv-warning { font-size: 8.2pt; font-weight: 600; color: var(--flag); border-top: 1px solid var(--ink); padding-top: 5px; }
 `;
 
-/** The decision block: the chosen supplier, brand, lead time and validity; the price large; the reason as written. */
-function decisionHtml(d) {
-  const reason = d.reason
-    ? `<p class="why">${esc(d.reason)}</p>`
-    : '<p class="why none">No reason recorded.</p>';
+const field = (label, value, { mono = false } = {}) =>
+  `<div class="f"><span class="k">${esc(label)}</span><span class="v${mono ? ' mono' : ''}">${esc(value)}</span></div>`;
+
+/** The head: the chosen supplier in the serif name slot, its unit price in the big-figure slot. */
+function headHtml(d) {
   const price = d.price
-    ? `<div class="k">Unit price</div><div class="v">${esc(d.price)}</div>${d.foreign ? `<div class="f">${esc(d.foreign)}</div>` : ''}`
+    ? `<div class="k">Unit price</div><div class="big">${esc(d.price)}</div>${d.foreign ? `<div class="x">${esc(d.foreign)}</div>` : ''}`
     : '';
-  return `<div class="decision">
-    <div><div class="k">Recommended</div><h2>${esc(d.supplier)}</h2>
-      ${d.detail ? `<div class="sub">${esc(d.detail)}</div>` : ''}${reason}</div>
-    <div class="price">${price}</div>
+  return `<div class="head">
+    <div class="l"><div class="kind">Canvass · Recommended</div>
+      <div class="who">${esc(d.supplier)}</div>
+      ${d.detail ? `<div class="meta">${esc(d.detail)}</div>` : ''}</div>
+    <div class="r">${price}</div>
   </div>`;
 }
 
-/** Every Offer, the chosen one marked. */
+/** The reason the winner was chosen, printed as the canvasser typed it. */
+function reasonHtml(reason) {
+  const body = reason ? `<p class="cnv-reason">${esc(reason)}</p>` : '<div class="empty">No reason recorded.</div>';
+  return `<section class="sec"><h3><span>Why this supplier</span></h3><div class="body">${body}</div></section>`;
+}
+
+/** Every Offer, the chosen one ticked. */
 function offersHtml(offers) {
-  if (offers.length === 0) return '<div class="sub">No offers recorded.</div>';
+  const count = `${offers.length} ${offers.length === 1 ? 'offer' : 'offers'}`;
+  if (offers.length === 0) {
+    return `<section class="sec"><h3><span>Offers</span><b>${count}</b></h3><div class="body"><div class="empty">No offers recorded.</div></div></section>`;
+  }
   const rows = offers
     .map(
       (o) => `<tr class="${o.chosen ? 'chosen' : ''}">
-        <td><b>${esc(o.supplier)}</b>${o.chosen ? '<span class="chip">chosen</span>' : ''}${o.brand ? `<div class="sub">${esc(o.brand)}</div>` : ''}</td>
+        <td><b>${esc(o.supplier)}</b>${o.chosen ? ' <span class="prov final">Chosen</span>' : ''}${o.brand ? `<div class="sub">${esc(o.brand)}</div>` : ''}</td>
         <td>${esc(o.offered)}${o.remarks ? `<div class="sub">${esc(o.remarks)}</div>` : ''}</td>
         <td class="num">${esc(o.quoted)}</td>
         <td class="num">${esc(o.php)}${o.foreign ? `<div class="sub">${esc(o.foreign)}</div>` : ''}</td>
         <td>${esc(o.leadTime)}</td>
         <td>${esc(o.validUntil)}</td>
-        <td>${o.brochure ? esc(o.brochure) : '<span class="chip warn">none</span>'}</td>
+        <td>${o.brochure ? esc(o.brochure) : '<span class="empty">None</span>'}</td>
       </tr>`,
     )
     .join('');
-  return `<table class="cnv-offers"><thead><tr>
-      <th>Supplier</th><th>Offered</th><th class="num">Quoted</th><th class="num">In PHP</th><th>Lead</th><th>Valid to</th><th>Brochure</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
+  return `<section class="sec"><h3><span>Offers</span><b>${count}</b></h3><div class="body">
+    <table class="cnv-offers"><thead><tr>
+      <th style="width:18%">Supplier</th><th>Offered</th><th class="num" style="width:13%">Quoted</th><th class="num" style="width:13%">In PHP</th><th style="width:9%">Lead</th><th style="width:11%">Valid to</th><th style="width:12%">Brochure</th>
+    </tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
-/** The three signature plates through `sigBlock`, so the stored-signature rule reads as on every other form. */
-function signaturesHtml(blocks) {
-  return `<div class="sigs n3">${blocks
+/** The three signature plates through `sigBlock`, in the band every Purchasing form closes with. */
+function bandHtml(blocks) {
+  return `<div class="band"><div class="sigs n3">${blocks
     .map((b) =>
       sigBlock({
         role: esc(b.role),
@@ -82,26 +82,27 @@ function signaturesHtml(blocks) {
         signatureBase64: b.signatureBase64 ? esc(b.signatureBase64) : undefined,
       }),
     )
-    .join('')}</div>`;
+    .join('')}</div></div>`;
 }
 
-/** The whole sheet as markup. */
+/** The whole sheet as markup, in the same furniture as the IPAS, Transmittal and Packing List. */
 export function buildCanvassSheetHtml(vm) {
   const h = vm.header;
-  const fact = (k, v) => `<div class="fact"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
+  const approved = vm.signatures[2]?.state === 'signed';
   return `<div class="sheet">
     <div class="rail"><span class="mark">${MARK}</span>
-      <span class="org"><b>T3CKGROUP</b>Purchasing</span>
-      <span class="doc"><div class="t">Canvass</div><div class="s">${esc(vm.number)}</div></span></div>
-    <div class="cnv-facts">
-      ${fact(h.subjectKind === 'Requested Item' ? 'Requested Item' : 'For', h.subject)}
-      ${h.raised ? fact('Raised', h.raised) : ''}
-      ${fact('Offers', String(h.offerCount))}
+      <span class="org"><b>T3CKGROUP</b>Purchasing department</span>
+      <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Canvass · ${approved ? 'Approved' : 'Not approved'}</div></span></div>
+    ${headHtml(vm.decision)}
+    <div class="hdr">
+      ${field(h.subjectKind === 'Requested Item' ? 'Requested Item' : 'SOR · Component', h.subject)}
+      ${field('Raised', h.raised)}
+      ${field('Offers', String(h.offerCount), { mono: true })}
     </div>
-    ${decisionHtml(vm.decision)}
+    ${reasonHtml(vm.decision.reason)}
     ${offersHtml(vm.offers)}
     ${vm.warning ? `<div class="cnv-warning" data-testid="more-offers-warning">${esc(vm.warning)}</div>` : ''}
-    ${signaturesHtml(vm.signatures)}
+    ${bandHtml(vm.signatures)}
     <div class="foot"><span>${esc(vm.number)}</span><span class="mid">${vm.printedOn ? `Printed ${esc(vm.printedOn)}${vm.printedBy ? ` by ${esc(vm.printedBy)}` : ''}` : ''}</span><span class="r">Purchasing</span></div>
   </div>`;
 }
