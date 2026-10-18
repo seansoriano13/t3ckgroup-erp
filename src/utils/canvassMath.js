@@ -61,3 +61,18 @@ export function isExpired(offer, today = todayIso()) {
   if (!offer || isBlank(offer.valid_until)) return false;
   return isoDay(today) >= isoDay(offer.valid_until);
 }
+
+const normaliseBrand = (value) => String(value ?? "").trim().replace(/\s+/g, " ");
+
+/**
+ * The brand a winning Offer proposes for a Component, or null (#278). A Canvass only ever
+ * proposes: Brand is Sales' column, and Sales accepts. Nothing is proposed when there is no
+ * winner, the winner names no brand, or the Component already carries it (case and spacing
+ * ignored, so "toyota" does not argue with "Toyota").
+ */
+export function brandProposal(component, winningOffer) {
+  const proposed = normaliseBrand(winningOffer?.brand);
+  if (!proposed) return null;
+  if (normaliseBrand(component?.brand).toLowerCase() === proposed.toLowerCase()) return null;
+  return proposed;
+}

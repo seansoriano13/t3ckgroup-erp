@@ -3,6 +3,7 @@ import { db, deleteRows, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import {
   BID_DECISION_TIERS,
+  COMPONENT_CANVASS_COST_TIERS,
   COMPONENT_COST_BANDS,
   COMPONENT_COST_TIERS,
   COST_ROW_TIERS,
@@ -114,7 +115,11 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     }
 
     // A unit-cost row carries only the columns this tier may read; a tier that may read none gets no table.
-    const costColumns = Object.keys(COMPONENT_COST_TIERS).filter((c) => tierReadsCost(tier, c))
+    // The "from Canvass" mark on Acquire (#278) is read by the tiers that read Acquire.
+    const costColumns = [
+      ...Object.keys(COMPONENT_COST_TIERS).filter((c) => tierReadsCost(tier, c)),
+      ...Object.entries(COMPONENT_CANVASS_COST_TIERS).filter(([, tiers]) => tiers.includes(tier)).map(([c]) => c),
+    ]
     const onlyReadable = (row, keep) => Object.fromEntries(Object.entries(row).filter(([key]) => keep.includes(key)))
     const money = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrix.id)
     const rowColumns = Object.keys(COST_ROW_TIERS).filter((c) => tierReadsCostRow(tier, c))

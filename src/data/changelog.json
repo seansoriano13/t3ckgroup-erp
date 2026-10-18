@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-19",
+        "title": "Canvass: the winner fills the Costing Matrix",
+        "version": "1.9.49",
+        "changes": [
+            "Marking an Offer the winner now fills its Component: the unit price goes into Acquire (a quote in another currency is converted at the rate you compared at), the Offer's description goes into Offer Specification, and its brochure is listed in the Component's documents.",
+            "Anything a Canvass filled shows 'from Canvass' beside it. The moment someone types over it, the label goes away. Picking a different winner later refreshes only what is still marked, so your corrections stay.",
+            "A foreign-currency Offer cannot be marked the winner until it has its comparison rate.",
+            "If the winning brand differs from the Component's Brand, the Deal Team sees 'Canvass says ...' with an Accept button. Brand is never changed without that click.",
+            "Changing the Offer Specification this way clears 'Evaluation approved', the same as typing it would."
+        ]
+    },
+    {
+        "date": "2026-10-19",
         "title": "Canvass: compare suppliers on a Component",
         "version": "1.9.48",
         "changes": [

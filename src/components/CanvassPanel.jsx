@@ -337,7 +337,7 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
   );
 }
 
-function OfferRow({ offer, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, isPending }) {
+function OfferRow({ offer, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, onWin, isPending }) {
   const [isEditing, setIsEditing] = useState(false);
   const title = offer.supplier_name || offer.brand || "this offer";
 
@@ -357,6 +357,8 @@ function OfferRow({ offer, index, count, canEdit, canReadMoney, onUpdate, onRemo
   }
 
   const foreign = offerCurrency(offer) !== DEFAULT_CURRENCY;
+  // A foreign Offer can't win without the rate its Acquire would be converted at.
+  const needsRate = canReadMoney && foreign && (offer.comparison_rate === null || offer.comparison_rate === undefined || offer.comparison_rate === "");
 
   return (
     <div
@@ -417,6 +419,21 @@ function OfferRow({ offer, index, count, canEdit, canReadMoney, onUpdate, onRemo
 
       {canEdit && (
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          {!offer.is_winner && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={isPending || needsRate}
+              onClick={() => onWin(offer.id)}
+              aria-label={`Mark ${title} the winner`}
+              title={needsRate ? "Add the comparison rate before this offer can win" : "Mark this offer the winner"}
+              className="mr-1 h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-amber-a3 hover:text-amber-11"
+            >
+              <Award size={12} className="mr-1" aria-hidden="true" />
+              Winner
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -518,6 +535,19 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     onError,
   });
 
+  // Winning fills the Component (#278), so the matrix has to be read again as well as the Canvass.
+  const winnerMutation = useMutation({
+    mutationFn: (offerId) => canvassService.markWinner(canvass.id, offerId),
+    onSuccess: (result) => {
+      invalidate();
+      if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.all(opportunityId) });
+      const filled = result?.filled || {};
+      const what = [filled.acquire && "Acquire", filled.offer_specification && "Offer Specification", filled.documents && "documents"].filter(Boolean);
+      toast.success(what.length ? `Winner marked. Filled ${what.join(", ")} from this Canvass.` : "Winner marked.");
+    },
+    onError,
+  });
+
   const reorderMutation = useMutation({
     mutationFn: (ids) => canvassService.reorderOffers(canvass.id, ids),
     onSuccess: invalidate,
@@ -553,7 +583,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     attachments.clear();
   };
 
-  const busy = updateMutation.isPending || removeMutation.isPending || reorderMutation.isPending;
+  const busy = updateMutation.isPending || removeMutation.isPending || reorderMutation.isPending || winnerMutation.isPending;
   const reason = reasonDraft ?? canvass?.reason ?? "";
 
   return (
@@ -604,6 +634,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     onUpdate={(id, patch) => updateMutation.mutate({ offerId: id, patch })}
                     onRemove={(id) => removeMutation.mutate(id)}
                     onMove={move}
+                    onWin={(id) => winnerMutation.mutate(id)}
                   />
                 ))}
               </div>

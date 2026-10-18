@@ -198,11 +198,19 @@ export const canvassService = {
 
     const { data, error } = await supabase
       .from("sor_canvasses")
-      .select("id, number, component_id, signed_off_at, offers:sor_canvass_offers(id)")
+      .select("id, number, component_id, signed_off_at, offers:sor_canvass_offers(id, brand, supplier_name, is_winner)")
       .in("component_id", ids);
     if (error) throw error;
 
-    return (data || []).map(({ offers, ...canvass }) => ({ ...canvass, offerCount: (offers || []).length }));
+    // The winner's brand and supplier are not money, so a Stage Participant gets them too (#278).
+    return (data || []).map(({ offers, ...canvass }) => {
+      const winner = (offers || []).find((o) => o.is_winner);
+      return {
+        ...canvass,
+        offerCount: (offers || []).length,
+        winner: winner ? { id: winner.id, brand: winner.brand ?? null, supplierName: winner.supplier_name ?? null } : null,
+      };
+    });
   },
 
   /**
@@ -349,6 +357,31 @@ export const canvassService = {
       .eq("id", canvassId)
       .select()
       .single();
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Marks an Offer the winner (`canvass_apply_winner`): the old winner is cleared, and on a
+   * Component the Offer fills Acquire (price x comparison rate when foreign), Offer Specification
+   * and the Component's documents, each marked "from Canvass" until someone edits it. A field a
+   * person has typed over is left alone. Refused for a foreign Offer with no comparison rate.
+   * Returns `{ offer_id, filled: { acquire, offer_specification, documents } }`.
+   */
+  async markWinner(canvassId, offerId) {
+    if (!canvassId || !offerId) throw new Error("A Canvass id and an offer id are required.");
+    const { data, error } = await supabase.rpc("canvass_apply_winner", { p_canvass_id: canvassId, p_offer_id: offerId });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Sales accepts the winning Offer's brand into the Component's Brand (`costing_accept_brand`).
+   * Only the Deal Team may; the database refuses anyone else. Returns `{ brand }`.
+   */
+  async acceptBrand(componentId) {
+    if (!componentId) throw new Error("A Component id is required.");
+    const { data, error } = await supabase.rpc("costing_accept_brand", { p_component_id: componentId });
     if (error) throw error;
     return data;
   },

@@ -3,6 +3,8 @@ import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusal
 import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, matrixMarkup, matrixTotals, summary } from "../utils/costingMath";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
+import { canvassService } from "./canvassService";
+import { brandProposal } from "../utils/canvassMath";
 
 /**
  * The Costing Matrix (#267, spec #266). The database decides who may read and
@@ -335,6 +337,31 @@ export function shapeBidDecision(row) {
   return decision;
 }
 
+/**
+ * Adds the Canvass to each Component (#278): `canvass` ({ number, signed, winner }) or null, the
+ * brand the winner proposes (`brandProposal`, null when none or already the Component's), and
+ * `fromCanvass` ({ acquire, offerSpecification }) for the fields still marked as filled from a
+ * Canvass. Names and brands only, no price, so every tier that reads the matrix gets it.
+ */
+async function withCanvass(shaped) {
+  if (!shaped) return shaped;
+  const components = shaped.tenderLines.flatMap((line) => line.components);
+  const canvasses = await canvassService.listForComponents(components.map((c) => c.id));
+  const byComponent = new Map(canvasses.map((c) => [c.component_id, c]));
+  for (const component of components) {
+    const canvass = byComponent.get(component.id) ?? null;
+    component.canvass = canvass
+      ? { id: canvass.id, number: canvass.number, signed: Boolean(canvass.signed_off_at), winner: canvass.winner }
+      : null;
+    component.brandProposal = brandProposal(component, canvass?.winner);
+    component.fromCanvass = {
+      acquire: Boolean(component.acquire_from_offer_id),
+      offerSpecification: Boolean(component.offer_specification_from_offer_id),
+    };
+  }
+  return shaped;
+}
+
 /** Requested Items grouped by the Component they name: a Map of component id -> items, oldest first. */
 export function requestsByComponent(requests) {
   return groupBy(requests, "component_id");
@@ -375,7 +402,7 @@ export const costingMatrixService = {
     if (error) throw error;
     // The rates are only needed for the summary, which only the Closed Book tier is given.
     const settings = data && tierReadsSummary(data.tier) ? await costingMatrixService.getSettings() : null;
-    return shapeMatrix(data, settings);
+    return withCanvass(shapeMatrix(data, settings));
   },
 
   /**
