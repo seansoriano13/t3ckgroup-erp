@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
-import { DEFAULT_CURRENCY, OFFER_MONEY_KEYS } from "../constants/canvass";
+import { CANVASS_NOTIFICATION, DEFAULT_CURRENCY, OFFER_MONEY_KEYS } from "../constants/canvass";
+import { notificationService } from "./notificationService";
 import { isExpired, moreOffersWarning, needsMoreOffers, phpFigure } from "../utils/canvassMath";
 
 /**
@@ -358,6 +359,7 @@ export const canvassService = {
       .select()
       .single();
     if (error) throw error;
+    await this.notifyApprovers(canvassId);
     return data;
   },
 
@@ -372,7 +374,89 @@ export const canvassService = {
     if (!canvassId || !offerId) throw new Error("A Canvass id and an offer id are required.");
     const { data, error } = await supabase.rpc("canvass_apply_winner", { p_canvass_id: canvassId, p_offer_id: offerId });
     if (error) throw error;
+    await this.notifyApprovers(canvassId);
     return data;
+  },
+
+  /**
+   * Tells the purchasing approver list that a Canvass is ready to sign: it has a winner and a
+   * reason and is unsigned. The database says whether that is so and who is on the list (the list
+   * is not readable to a purchaser). Never throws: a notice that fails must not undo the edit that
+   * made the Canvass ready. Returns how many people were told.
+   */
+  async notifyApprovers(canvassId) {
+    try {
+      const { data, error } = await supabase.rpc("canvass_signoff_audience", { p_canvass_id: canvassId });
+      if (error || !data?.ready) return 0;
+      const ids = data.notify_ids ?? [];
+      await Promise.all(
+        ids.map((recipient_id) =>
+          notificationService.createNotification({
+            recipient_id,
+            type: CANVASS_NOTIFICATION.READY_TO_SIGN,
+            title: `${data.number} is ready to sign`,
+            message: `Canvass ${data.number} has a winner and a reason. It needs the purchasing approver's sign-off.`,
+            reference_id: canvassId,
+          }),
+        ),
+      );
+      return ids.length;
+    } catch (err) {
+      console.error("Could not notify the Canvass approvers:", err);
+      return 0;
+    }
+  },
+
+  /**
+   * Signs the Canvass off (`canvass_sign`): only the purchasing approver list, never the person who
+   * opened it, and only with a winner and a reason. Fewer than three Offers never blocks; the
+   * count is recorded and the screen warns beforehand. Returns `{ canvass_id, number,
+   * signed_off_at, offer_count }`.
+   */
+  async sign(canvassId) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    const { data, error } = await supabase.rpc("canvass_sign", { p_canvass_id: canvassId });
+    if (error) throw error;
+    return data;
+  },
+
+  /** The sign-off history, oldest first: `{ id, kind, reason, offer_count, created_at, actor }`. */
+  async signoffHistory(canvassId) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    const { data, error } = await supabase
+      .from("sor_canvass_signoff_events")
+      .select("id, canvass_id, kind, actor_id, reason, offer_count, created_at, actor:employees!sor_canvass_signoff_events_actor_id_fkey(id, name, avatar_path)")
+      .eq("canvass_id", canvassId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * The Approval Center queue: Canvasses with a winner and a reason that nobody has signed, for a
+   * member of the approver list (anyone else gets none, and never one they opened themselves).
+   * Names only, no money.
+   */
+  async pendingSignoffs() {
+    const { data, error } = await supabase.rpc("canvass_pending_signoffs");
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      canvassId: row.canvass_id,
+      number: row.number,
+      componentId: row.component_id ?? null,
+      requestedItemId: row.requested_item_id ?? null,
+      subjectName: row.subject_name ?? null,
+      reason: row.reason,
+      creatorId: row.creator_id ?? null,
+      creatorName: row.creator_name ?? null,
+      opportunityId: row.opportunity_id ?? null,
+      projectTitle: row.project_title ?? null,
+      clientName: row.client_name ?? null,
+      offerCount: Number(row.offer_count) || 0,
+      winnerBrand: row.winner_brand ?? null,
+      winnerSupplier: row.winner_supplier ?? null,
+      waitingSince: row.waiting_since,
+    }));
   },
 
   /**

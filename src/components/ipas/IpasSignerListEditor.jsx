@@ -28,7 +28,7 @@ const WHO = {
   [TRANSMITTAL_STAFF_LIST.WAREHOUSE]: "Signs a Transmittal's Warehouse checking and releasing; may raise one and sign Received in Odoo. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.TECHNICAL]: "Signs a Transmittal's Technical inspection and is the TCA in-charge. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.LOGISTICS]: "May raise a Transmittal. Reads Transmittals, not the IPAS.",
-  [TRANSMITTAL_STAFF_LIST.CHECK_BY]: "Checks a finished Transmittal (two different people close it). Reads Transmittals, not the IPAS.",
+  [TRANSMITTAL_STAFF_LIST.CHECK_BY]: "Checks a finished Transmittal (two different people close it) and signs off Canvasses as the purchasing approver. Reads Transmittals, not the IPAS.",
 };
 
 const ALL_LISTS = [...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS];

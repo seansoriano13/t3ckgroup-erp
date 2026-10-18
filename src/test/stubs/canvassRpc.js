@@ -107,3 +107,77 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"] } = {}) {
     return { brand }
   })
 }
+
+/**
+ * `canvass_sign`, `canvass_signoff_audience` and `canvass_pending_signoffs`
+ * (supabase/migrations/20261019130000_canvass_signoff.sql, #279), re-implemented on the in-memory
+ * store. The fake has no caller, so a test says who is calling and who is on the purchasing
+ * approver list (`transmittal_check_by`): `actorId`, and `approverIds`. The clearing triggers are
+ * mirrored in src/test/db/triggers.js. The real rules (the list, the creator, the refusals, the
+ * append-only history) are the policy tier's (92-canvass-signoff.test.js).
+ */
+export function stubCanvassSignoffRpcs({ actorId, approverIds = [] } = {}) {
+  const onList = () => approverIds.includes(actorId)
+  const winnerOf = (canvass) => rowsOf("sor_canvass_offers").find((o) => o.canvass_id === canvass.id && o.is_winner)
+  const ready = (canvass) => !canvass.signed_off_at && String(canvass.reason ?? "").trim() !== "" && Boolean(winnerOf(canvass))
+
+  stubRpc("canvass_sign", (args) => {
+    const refuse = (code, message, status = 400) => {
+      throw pgrstError(code, `canvass_sign: ${message}`, { status })
+    }
+    if (!actorId) refuse("42501", "sign in first", 403)
+    if (!onList()) refuse("42501", "only the purchasing approver list can sign a Canvass", 403)
+    const canvass = rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)
+    if (!canvass) refuse("P0002", "not found", 404)
+    if (canvass.created_by === actorId) refuse("42501", "you can't sign a Canvass you opened", 403)
+    if (canvass.signed_off_at) refuse("55000", "already signed")
+    if (!winnerOf(canvass)) refuse("22023", "pick a winner first")
+    if (String(canvass.reason ?? "").trim() === "") refuse("22023", "give the reason for the winner first")
+
+    const offerCount = rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === canvass.id).length
+    const at = new Date().toISOString()
+    updateRow("sor_canvasses", canvass, { signed_off_by: actorId, signed_off_at: at })
+    insertRow("sor_canvass_signoff_events", {
+      canvass_id: canvass.id,
+      kind: "signed",
+      actor_id: actorId,
+      reason: String(canvass.reason).trim(),
+      offer_count: offerCount,
+      created_at: at,
+    })
+    return { canvass_id: canvass.id, number: canvass.number, signed_off_at: at, offer_count: offerCount }
+  })
+
+  stubRpc("canvass_signoff_audience", (args) => {
+    const canvass = rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)
+    if (!canvass || !ready(canvass)) return { ready: false, number: null, notify_ids: [] }
+    return { ready: true, number: canvass.number, notify_ids: approverIds.filter((id) => id !== canvass.created_by) }
+  })
+
+  stubRpc("canvass_pending_signoffs", () => {
+    if (!onList()) return []
+    return rowsOf("sor_canvasses")
+      .filter((c) => ready(c) && c.created_by !== actorId)
+      .map((c) => {
+        const winner = winnerOf(c)
+        const component = rowsOf("costing_components").find((x) => x.id === c.component_id)
+        return {
+          canvass_id: c.id,
+          number: c.number,
+          component_id: c.component_id ?? null,
+          requested_item_id: c.requested_item_id ?? null,
+          subject_name: component?.name ?? null,
+          reason: c.reason,
+          creator_id: c.created_by ?? null,
+          creator_name: rowsOf("employees").find((e) => e.id === c.created_by)?.name ?? null,
+          opportunity_id: null,
+          project_title: null,
+          client_name: null,
+          offer_count: rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === c.id).length,
+          winner_brand: winner.brand ?? null,
+          winner_supplier: winner.supplier_name ?? null,
+          waiting_since: c.updated_at ?? c.created_at,
+        }
+      })
+  })
+}

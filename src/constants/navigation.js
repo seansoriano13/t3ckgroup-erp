@@ -22,6 +22,7 @@ import {
   ReceiptText,
   PackageCheck,
   Gavel,
+  Scale,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -281,6 +282,16 @@ export const NAV_MODULES = {
         link: "/approvals/bid-decisions",
         icon: Gavel,
         isPermitted: (ctx) => ctx.isBidDecider,
+        exactMatch: true,
+      },
+      {
+        // Canvass sign-offs (#279): Canvasses with a winner and a reason, waiting for the
+        // purchasing approver list (the one that approves Transmittals).
+        key: "approvals.canvassSignoffs",
+        label: "Canvass Sign-offs",
+        link: "/approvals/canvass-signoffs",
+        icon: Scale,
+        isPermitted: (ctx) => ctx.isTransmittalCheckBy,
         exactMatch: true,
       },
     ],
