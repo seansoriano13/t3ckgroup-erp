@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import { canvassService } from "./canvassService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc"
+import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
  * The Canvass (#276), through the service's public methods on the fake PostgREST. What is asserted
@@ -186,6 +188,86 @@ describe("canvassService", () => {
       expect(rows[0]).toMatchObject({ number: "CNV_0001", component_id: component.id, offerCount: 3 })
       expect(rows[0]).not.toHaveProperty("offers")
       expect(await canvassService.listForComponents([])).toEqual([])
+    })
+  })
+
+  describe("supplier search (Odoo stubbed)", () => {
+    const suppliers = [
+      { id: 41, name: "Redleaf Inc." },
+      { id: 52, name: "Redleaf Medical Corp." },
+    ]
+
+    it("suggests Odoo suppliers for what was typed", async () => {
+      let asked
+      stubEdgeFunction("odoo-supplier-search", (body) => {
+        asked = body
+        return { success: true, suppliers }
+      })
+      expect(await canvassService.searchSuppliers("  redleaf ")).toEqual(suppliers)
+      expect(asked).toEqual({ query: "redleaf" })
+    })
+
+    it("does not ask Odoo for a one-letter query", async () => {
+      let called = false
+      stubEdgeFunction("odoo-supplier-search", () => {
+        called = true
+        return { success: true, suppliers }
+      })
+      expect(await canvassService.searchSuppliers("r")).toEqual([])
+      expect(await canvassService.searchSuppliers("  ")).toEqual([])
+      expect(called).toBe(false)
+    })
+
+    it("gives no suggestions when Odoo does not answer", async () => {
+      stubEdgeFunction("odoo-supplier-search", { success: false, message: "down" })
+      expect(await canvassService.searchSuppliers("redleaf")).toEqual([])
+    })
+
+    it("stores the Odoo id of a picked supplier", async () => {
+      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      const offer = await canvassService.addOffer(
+        canvass.id,
+        { supplierName: suppliers[0].name, odooSupplierId: suppliers[0].id, unitPrice: 78000 },
+        purchaser.id,
+      )
+      expect(offer).toMatchObject({ supplier_name: "Redleaf Inc.", odoo_supplier_id: 41 })
+    })
+
+    it("saves a typed supplier that Odoo does not know with a null id", async () => {
+      stubEdgeFunction("odoo-supplier-search", { success: true, suppliers: [] })
+      expect(await canvassService.searchSuppliers("Brand New Supplier")).toEqual([])
+
+      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      const offer = await canvassService.addOffer(canvass.id, { supplierName: "Brand New Supplier" }, purchaser.id)
+      expect(offer.supplier_name).toBe("Brand New Supplier")
+      expect(offer.odoo_supplier_id ?? null).toBeNull()
+    })
+
+    it("clears the id when the name is edited afterwards", async () => {
+      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      const offer = await canvassService.addOffer(
+        canvass.id,
+        { supplierName: "Redleaf Inc.", odooSupplierId: 41 },
+        purchaser.id,
+      )
+      const edited = await canvassService.updateOffer(offer.id, { supplierName: "Redleaf Philippines", odooSupplierId: null })
+      expect(edited).toMatchObject({ supplier_name: "Redleaf Philippines", odoo_supplier_id: null })
+    })
+  })
+
+  describe("the odoo-supplier-search function", () => {
+    const source = readFileSync("supabase/functions/odoo-supplier-search/index.ts", "utf8")
+    const config = readFileSync("supabase/config.toml", "utf8")
+
+    it("keeps the gateway's JWT check on, so an unauthenticated call is refused", () => {
+      const block = config.split("[functions.odoo-supplier-search]")[1]?.split("[functions.")[0]
+      expect(block).toBeDefined()
+      expect(block).not.toMatch(/verify_jwt/)
+    })
+
+    it("only reads from Odoo", () => {
+      const methods = [...source.matchAll(/"(search_read|search|read|create|write|unlink)"/g)].map((m) => m[1])
+      expect(methods).toEqual(["search_read"])
     })
   })
 })
