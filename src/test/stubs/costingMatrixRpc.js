@@ -90,6 +90,24 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
 
   stubRpc("costing_tier", () => tier)
 
+  // canvass_po_suppliers (#281): each Component whose P.O./RFQ No. names a live IPAS, with the supplier
+  // on that IPAS's stored Odoo copy. Re-implemented on the store; the real gate is the policy tier's.
+  stubRpc("canvass_po_suppliers", (args) => {
+    if (!tier) return []
+    const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
+    if (!matrix) return []
+    const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
+    return rowsOf("costing_components")
+      .filter((c) => lineIds.includes(c.tender_line_id) && c.po_rfq_no)
+      .flatMap((c) => {
+        const po = String(c.po_rfq_no).trim().toUpperCase()
+        const ipas = rowsOf("ipas").find((i) => i.po_number === po && i.state !== "cancelled")
+        if (!ipas) return []
+        const supplier = ipas.odoo_copy?.supplier ?? {}
+        return [{ component_id: c.id, po_number: ipas.po_number, supplier_id: supplier.id == null ? null : String(supplier.id), supplier_name: supplier.name ?? null }]
+      })
+  })
+
   stubRpc("costing_matrix_read", (args) => {
     if (!tier) return null
     const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
