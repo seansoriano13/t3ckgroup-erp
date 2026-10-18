@@ -8,6 +8,7 @@ import {
   ExternalLink as ExternalLinkIcon,
   Pencil,
   Plus,
+  Printer,
   ShoppingCart,
   Trash2,
 } from "lucide-react";
@@ -27,6 +28,9 @@ import { pesos } from "./costing/gridFormat";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { useCanvassApprover } from "../hooks/useCanvassApprover";
 import { canvassService } from "../services/canvassService";
+import { openCanvassPrintWindow, printCanvass } from "../lib/pdf/canvassPrinter";
+import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
+import { useAuth } from "../context/AuthContext";
 import { CANVASS_CURRENCIES, DEFAULT_CURRENCY } from "../constants/canvass";
 import { offerCurrency } from "../utils/canvassMath";
 
@@ -493,6 +497,8 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const [isAdding, setIsAdding] = useState(false);
   const [reasonDraft, setReasonDraft] = useState(null);
   const [isSigning, setIsSigning] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const { user } = useAuth();
   const isApprover = useCanvassApprover(userId);
   const attachments = useFileAttachments({ max: 3 });
 
@@ -580,6 +586,24 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     onSuccess: invalidate,
     onError,
   });
+
+  // The sheet is prices, so only a reader who received them gets the action. The window opens in the
+  // click (popup blockers); the Canvass is read and composed into it afterwards.
+  const handlePrint = async () => {
+    const printWindow = openCanvassPrintWindow();
+    if (!printWindow) {
+      toast.error("Allow pop-ups for this site to print the Canvass.");
+      return;
+    }
+    setPrinting(true);
+    try {
+      await printCanvass(subject, { printWindow, subjectLabel, opportunityId, printedBy: user?.name ?? null });
+    } catch (err) {
+      toast.error(err?.message || "The Canvass could not be printed.");
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const move = (index, by) => {
     const ids = offers.map((o) => o.id);
@@ -781,6 +805,18 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+          {canvass && canPrintCanvass(canvass) && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={printing}
+              onClick={handlePrint}
+              className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-semibold"
+            >
+              <Printer size={14} aria-hidden="true" />
+              Print
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
