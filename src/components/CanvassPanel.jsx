@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import CanvassSignoffDialog from "./CanvassSignoffDialog";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
 import { SelectField } from "./ui/SelectField";
@@ -24,6 +25,7 @@ import { confirmDeleteToast } from "./ui/CustomToast";
 import { costingKeys } from "./costing/costingKeys";
 import { pesos } from "./costing/gridFormat";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { useCanvassApprover } from "../hooks/useCanvassApprover";
 import { canvassService } from "../services/canvassService";
 import { CANVASS_CURRENCIES, DEFAULT_CURRENCY } from "../constants/canvass";
 import { offerCurrency } from "../utils/canvassMath";
@@ -37,7 +39,8 @@ import { offerCurrency } from "../utils/canvassMath";
  * keys at all, so every price, the comparison rate and the PHP figure simply do not draw. The
  * panel never asks who the reader is; it draws what arrived.
  *
- * The winner (#278) and sign-off (#279) are later tickets and add to this panel.
+ * The winner (#278) and the sign-off (#279) sit below the Offers: the purchasing approver list signs
+ * from here (never the person who opened the Canvass), and any later change unsigns it.
  */
 
 const hasKey = (offer, key) => Object.prototype.hasOwnProperty.call(offer, key);
@@ -489,6 +492,8 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [reasonDraft, setReasonDraft] = useState(null);
+  const [isSigning, setIsSigning] = useState(false);
+  const isApprover = useCanvassApprover(userId);
   const attachments = useFileAttachments({ max: 3 });
 
   const subjectId = subject?.componentId || subject?.requestedItemId;
@@ -502,10 +507,17 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     enabled: open && Boolean(subjectId),
   });
 
+  const { data: history = [] } = useQuery({
+    queryKey: [...queryKey, "signoffHistory", canvass?.id],
+    queryFn: () => canvassService.signoffHistory(canvass.id),
+    enabled: open && Boolean(canvass?.id),
+  });
+
   const offers = canvass?.offers || [];
   const canReadMoney = Boolean(canvass?.canReadMoney);
 
   const invalidate = () => {
+    // Prefix match: the sign-off history is keyed under the Canvass's own key.
     queryClient.invalidateQueries({ queryKey });
     if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.canvasses(opportunityId) });
   };
@@ -583,10 +595,19 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     attachments.clear();
   };
 
+  const winner = offers.find((o) => o.is_winner);
+  const isSigned = Boolean(canvass?.signed_off_at);
+  const isCreator = Boolean(canvass && userId && canvass.created_by === userId);
+  const hasReason = Boolean(String(canvass?.reason ?? "").trim());
+  const readyToSign = Boolean(winner) && hasReason;
+  const lastSigned = isSigned ? [...history].reverse().find((h) => h.kind === "signed") : null;
+  const lastCleared = !isSigned ? [...history].reverse().find((h) => h.kind === "cleared") : null;
+
   const busy = updateMutation.isPending || removeMutation.isPending || reorderMutation.isPending || winnerMutation.isPending;
   const reason = reasonDraft ?? canvass?.reason ?? "";
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
@@ -719,6 +740,42 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   </Button>
                 )}
               </div>
+
+              <div className="space-y-1.5 border-t border-border/60 pt-3" data-testid="canvass-signoff">
+                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Sign-off</span>
+                {isSigned ? (
+                  <p className="text-xs font-semibold text-green-11" data-testid="signoff-state">
+                    Signed off by {canvass.signer?.name || "—"}
+                    {lastSigned && ` on ${lastSigned.offer_count} offer${lastSigned.offer_count === 1 ? "" : "s"}`}
+                    .
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground" data-testid="signoff-state">
+                    Not signed off yet.
+                    {lastCleared?.reason && <span className="ml-1">It was unsigned because: {lastCleared.reason.charAt(0).toLowerCase() + lastCleared.reason.slice(1)}.</span>}
+                  </p>
+                )}
+                {!isSigned && isApprover && (
+                  <>
+                    {isCreator ? (
+                      <p className="text-[11px] text-muted-foreground">You opened this Canvass, so someone else on the approver list signs it.</p>
+                    ) : !readyToSign ? (
+                      <p className="text-[11px] text-muted-foreground">It needs a winner and a reason before it can be signed.</p>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={() => setIsSigning(true)}
+                        className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-bold"
+                      >
+                        Sign off
+                      </Button>
+                    )}
+                  </>
+                )}
+                {canEdit && isSigned && (
+                  <p className="text-[11px] text-muted-foreground">Changing an offer, a price, the winner or the reason unsigns it.</p>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -735,5 +792,25 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         </div>
       </DialogContent>
     </Dialog>
+
+      {isSigning && canvass && (
+        <CanvassSignoffDialog
+          open={isSigning}
+          onOpenChange={setIsSigning}
+          summary={{
+            id: canvass.id,
+            number: canvass.number,
+            subjectLabel,
+            reason: canvass.reason,
+            offerCount: offers.length,
+            winnerLabel: winner ? [winner.supplier_name, winner.brand].filter(Boolean).join(" · ") : null,
+          }}
+          onSigned={() => {
+            invalidate();
+            queryClient.invalidateQueries({ queryKey: ["canvassSignoffQueue"] });
+          }}
+        />
+      )}
+    </>
   );
 }

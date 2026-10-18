@@ -17,3 +17,14 @@ export const CANVASS_NUMBER_PATTERN = /^CNV_\d{4,}$/;
 
 /** An Offer's money keys, present only for a reader who may see money. */
 export const OFFER_MONEY_KEYS = ["unit_price", "comparison_rate"];
+
+/** The notification the purchasing approver list gets when a Canvass is ready to sign (#279). */
+export const CANVASS_NOTIFICATION = {
+  READY_TO_SIGN: "CANVASS_READY_TO_SIGN",
+};
+
+/** What a sign-off history row records. */
+export const CANVASS_SIGNOFF_KIND = {
+  SIGNED: "signed",
+  CLEARED: "cleared",
+};
