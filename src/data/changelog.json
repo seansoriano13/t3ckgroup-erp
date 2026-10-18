@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-19",
+        "title": "Canvass: Requested Items",
+        "version": "1.9.51",
+        "changes": [
+            "Items bought for Inventory, Supplies or Events can now be canvassed straight from the Purchase Request: each Requested Item has a Canvass action for Purchasing.",
+            "An item that is bought for a Costing Matrix Component opens that Component's Canvass instead, so a purchase is never canvassed twice.",
+            "Every Requested Item shows its Canvass number and whether it is signed off. Prices on an item's Canvass are shown only to people with Purchasing or Finance access."
+        ]
+    },
+    {
+        "date": "2026-10-19",
         "title": "Canvass: sign-off by the purchasing approver",
         "version": "1.9.50",
         "changes": [

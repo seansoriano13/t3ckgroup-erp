@@ -31,7 +31,7 @@ import {
  * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
  * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
  */
-export default function RequestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
+export default function RequestedItemRow({ item, stockSnapshot, actions = null, canvass = null, replaces = null, replacedBy = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   const change = sorLineChange(item);
   const lines = item.odoo_po_line_ids || [];
@@ -61,6 +61,8 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
           {componentLabel(item)}
         </p>
       )}
+
+      {canvass}
 
       {(replaces || replacedBy) && (
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">

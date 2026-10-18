@@ -43,6 +43,15 @@ function requireOneCanvassSubject(row) {
   }
 }
 
+/** sor_canvasses_refuse_component_item() (20261019140000_canvass_requested_item_subject.sql, #280). */
+function refuseComponentItem(row, context) {
+  if (!row.requested_item_id) return
+  const item = context.rowsOf("purchase_request_items").find((i) => i.id === row.requested_item_id)
+  if (item?.component_id) {
+    throw pgrstError("23514", "This Requested Item names a Component. Canvass the Component instead.", { status: 400 })
+  }
+}
+
 function keepCanvassNumber(row, old) {
   if (row.number !== old.number) throw pgrstError("42501", "A Canvass number is never changed.", { status: 403 })
 }
@@ -448,8 +457,8 @@ export const TRIGGERS = {
   },
 
   sor_canvasses: {
-    beforeInsert: [assignCanvassNumber, requireOneCanvassSubject],
-    beforeUpdate: [requireOneCanvassSubject, keepCanvassNumber],
+    beforeInsert: [assignCanvassNumber, requireOneCanvassSubject, refuseComponentItem],
+    beforeUpdate: [requireOneCanvassSubject, keepCanvassNumber, (row, old, context) => refuseComponentItem(row, context)],
     afterWrite: [clearOnReasonChange],
   },
 
