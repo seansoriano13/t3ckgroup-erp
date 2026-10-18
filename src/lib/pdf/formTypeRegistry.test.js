@@ -3,6 +3,7 @@ import { getFormType } from './formTypeRegistry';
 import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './formViewModel';
 import { buildIpasViewModel } from './ipasViewModel';
 import { buildCostingMatrixViewModel } from './costingMatrixViewModel';
+import { buildCanvassViewModel } from './canvassViewModel';
 
 describe('getFormType', () => {
   it('resolves SIL and OFFSET to the TG-11 builder', () => {
@@ -25,6 +26,11 @@ describe('getFormType', () => {
   it('resolves costing_matrix to its own view model builder and stamps nothing (#274)', async () => {
     expect(getFormType('costing_matrix').buildViewModel).toBe(buildCostingMatrixViewModel);
     await expect(getFormType('costing_matrix').markPrinted({ id: 'matrix-1' }, 'hr-1')).resolves.toBeUndefined();
+  });
+
+  it('resolves canvass to its own view model builder and stamps nothing (#282)', async () => {
+    expect(getFormType('canvass').buildViewModel).toBe(buildCanvassViewModel);
+    await expect(getFormType('canvass').markPrinted({ id: 'cnv-1' }, 'hr-1')).resolves.toBeUndefined();
   });
 
   it('stamps nothing when an IPAS is printed', async () => {
