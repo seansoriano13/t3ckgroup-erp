@@ -48,6 +48,22 @@ async function purge(client, { sorIds = null, emailLike = null } = {}) {
 
     // Money and child tables hang off the matrix directly or through a parent;
     // costing_matrix_filter writes the same "belongs to matrix $1" test the read uses.
+    // A Canvass hangs off a Component (#276). The cascade is off here, so it goes first, by hand.
+    const ofMatrix = `select c.id from public.costing_components c
+        join public.costing_tender_lines l on l.id = c.tender_line_id
+        where l.matrix_id = any($1::uuid[])`
+    await client.query(
+        `delete from public.sor_canvass_offer_prices where offer_id in (
+           select o.id from public.sor_canvass_offers o join public.sor_canvasses v on v.id = o.canvass_id
+           where v.component_id in (${ofMatrix}))`,
+        [matrixIds],
+    )
+    await client.query(
+        `delete from public.sor_canvass_offers where canvass_id in (
+           select v.id from public.sor_canvasses v where v.component_id in (${ofMatrix}))`,
+        [matrixIds],
+    )
+    await client.query(`delete from public.sor_canvasses where component_id in (${ofMatrix})`, [matrixIds])
     await client.query(`delete from public.costing_events where matrix_id = any($1::uuid[])`, [matrixIds])
     for (const { table_name: name } of tables) {
         const { rows: filter } = await client.query(`select public.costing_matrix_filter($1, 't') as f`, [name])

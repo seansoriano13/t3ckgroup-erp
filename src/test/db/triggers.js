@@ -22,6 +22,47 @@ function raise(message) {
 }
 
 
+/**
+ * sor_canvasses (20261019100000_canvass_repoint.sql, #276): the number comes from a sequence in
+ * the database (CNV_ and four digits; here, one past the highest held) and a Canvass has exactly one subject. The
+ * fake parses simple CHECKs only, so the cross-column one is mirrored here; the policy tier proves
+ * the real one (90-canvass-tables.test.js).
+ */
+function assignCanvassNumber(row, context) {
+  const taken = context.rowsOf("sor_canvasses").map((r) => Number(String(r.number ?? "").replace(/\D/g, "")) || 0)
+  row.number = `CNV_${String(Math.max(0, ...taken) + 1).padStart(4, "0")}`
+}
+
+function requireOneCanvassSubject(row) {
+  if ((row.component_id ? 1 : 0) + (row.requested_item_id ? 1 : 0) !== 1) {
+    throw pgrstError(
+      "23514",
+      'new row for relation "sor_canvasses" violates check constraint "sor_canvasses_exactly_one_subject_chk"',
+      { status: 400 },
+    )
+  }
+}
+
+function keepCanvassNumber(row, old) {
+  if (row.number !== old.number) throw pgrstError("42501", "A Canvass number is never changed.", { status: 403 })
+}
+
+/** sor_canvass_offer_prices_check_rate(): a PHP Offer takes no comparison rate. */
+function refusePhpRate(row, context) {
+  if (row.comparison_rate === null || row.comparison_rate === undefined) return
+  const offer = context.rowsOf("sor_canvass_offers").find((o) => o.id === row.offer_id)
+  if (offer?.currency === "PHP") throw pgrstError("23514", "A PHP Offer takes no comparison rate.", { status: 400 })
+}
+
+/** sor_canvass_offers_check_currency(): the rate goes before an Offer turns PHP. */
+function refuseRateOnPhpOffer(row, old, context) {
+  if (row.currency !== "PHP" || row.currency === old.currency) return
+  const price = context.rowsOf("sor_canvass_offer_prices").find((p) => p.offer_id === row.id)
+  if (price?.comparison_rate !== null && price?.comparison_rate !== undefined) {
+    throw pgrstError("23514", "Clear the comparison rate before changing an Offer to PHP.", { status: 400 })
+  }
+}
+
 function requireBundleParent(row, context) {
   const parent = context.rowsOf("costing_components").find((c) => c.id === row.component_id)
   if (!parent?.is_bundle) {
@@ -334,6 +375,20 @@ export const TRIGGERS = {
     beforeInsert: [requireDeviationNote],
     beforeUpdate: [requireDeviationNote],
     afterWrite: [(row, old, context) => clearEvaluationApproval("costing_components", row, old, context)],
+  },
+
+  sor_canvasses: {
+    beforeInsert: [assignCanvassNumber, requireOneCanvassSubject],
+    beforeUpdate: [requireOneCanvassSubject, keepCanvassNumber],
+  },
+
+  sor_canvass_offer_prices: {
+    beforeInsert: [(row, context) => refusePhpRate(row, context)],
+    beforeUpdate: [(row, old, context) => refusePhpRate(row, context)],
+  },
+
+  sor_canvass_offers: {
+    beforeUpdate: [refuseRateOnPhpOffer],
   },
 
   // costing_inclusions: costing_inclusion_needs_bundle() (20261018110000_costing_matrix_components.sql,
