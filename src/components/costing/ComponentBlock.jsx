@@ -27,6 +27,7 @@ import InchargeSelects from "./InchargeSelects";
 import InclusionList from "./InclusionList";
 import ComponentRequests from "./ComponentRequests";
 import ComponentCanvass, { BrandProposal, FromCanvass } from "./ComponentCanvass";
+import SupplierMismatch from "./SupplierMismatch";
 
 const toOptions = (labels) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const STATUS_OPTIONS = toOptions(COMPONENT_STATUS_LABEL);
@@ -324,6 +325,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                           readOnly={!can("po_rfq_no")}
                           onSave={(value) => saveComponent(component, { poRfqNo: value })}
                         />
+                        <SupplierMismatch mismatch={component.supplierMismatch} />
                       </TableCell>
                       <TableCell className="align-top">
                         <SelectCell

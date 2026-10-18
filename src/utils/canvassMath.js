@@ -76,3 +76,46 @@ export function brandProposal(component, winningOffer) {
   if (normaliseBrand(component?.brand).toLowerCase() === proposed.toLowerCase()) return null;
   return proposed;
 }
+
+const COMPANY_SUFFIX = /\s(inc|corp|corporation|co|company|ltd|limited)$/;
+
+/**
+ * A supplier's name for comparing: lower case, punctuation turned to spaces, spacing collapsed and
+ * a trailing Inc / Corp / Co / Ltd dropped, so "Redleaf Inc." and "REDLEAF INC" are one name.
+ */
+export function normaliseSupplierName(value) {
+  let name = String(value ?? "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  // A suffix can stack ("Acme Co Ltd"), so drop them one at a time.
+  for (let next = name.replace(COMPANY_SUFFIX, ""); next !== name; next = name.replace(COMPANY_SUFFIX, "")) name = next;
+  return name;
+}
+
+const supplierId = (value) => (isBlank(value) || Number.isNaN(Number(value)) ? null : Number(value));
+
+/**
+ * Where a PO is placed with someone other than the winning Offer's supplier (#281), or null.
+ * `poSupplier` is `{ id, name }` read from the PO's stored Odoo copy; null when none is known (no
+ * PO, no IPAS, or no supplier on it). Compared by Odoo id when both sides have one, otherwise by
+ * normalised name. Returns `{ poSupplier, winner }` (the names to show) on a mismatch. It only
+ * reports: nothing is blocked. With no winner, or nothing to compare by, there is nothing to say.
+ */
+export function supplierMismatch(winningOffer, poSupplier) {
+  if (!poSupplier) return null;
+  const poId = supplierId(poSupplier.id);
+  const poName = String(poSupplier.name ?? "").trim();
+  if (poId === null && !poName) return null;
+
+  const winnerId = supplierId(winningOffer?.odooSupplierId ?? winningOffer?.odoo_supplier_id);
+  const winnerName = String(winningOffer?.supplierName ?? winningOffer?.supplier_name ?? "").trim();
+  if (!winningOffer || (winnerId === null && !winnerName)) return null;
+
+  const same =
+    poId !== null && winnerId !== null
+      ? poId === winnerId
+      : normaliseSupplierName(poName) === normaliseSupplierName(winnerName);
+  if (same) return null;
+  return { poSupplier: poName || null, winner: winnerName || null };
+}

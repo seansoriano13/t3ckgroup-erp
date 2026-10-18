@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { brandProposal, isExpired, moreOffersWarning, needsMoreOffers, offerCurrency, phpFigure } from "./canvassMath"
+import { brandProposal, isExpired, moreOffersWarning, needsMoreOffers, normaliseSupplierName, offerCurrency, phpFigure, supplierMismatch } from "./canvassMath"
 
 // The prototype's sample (#236): CNV_0142 against 1.2 of S07983.
 const redleaf = { supplier_name: "Redleaf Inc.", currency: "PHP", unit_price: 78000 }
@@ -88,5 +88,46 @@ describe("brandProposal (#278)", () => {
     expect(brandProposal({ brand: "Generic" }, {})).toBeNull()
     expect(brandProposal({ brand: "Toyota" }, { brand: "toyota" })).toBeNull()
     expect(brandProposal({ brand: "Land  Cruiser" }, { brand: "land cruiser" })).toBeNull()
+  })
+})
+
+describe("supplierMismatch (#281)", () => {
+  const winner = { supplierName: "Redleaf Inc.", odooSupplierId: null }
+
+  it("matches the same supplier despite case, spacing, punctuation and a trailing Inc", () => {
+    expect(supplierMismatch(winner, { name: "REDLEAF INC" })).toBeNull()
+    expect(supplierMismatch(winner, { name: "  redleaf,  inc. " })).toBeNull()
+    expect(supplierMismatch(winner, { name: "Redleaf" })).toBeNull()
+    expect(supplierMismatch({ supplierName: "Flywheel Co., Ltd." }, { name: "Flywheel" })).toBeNull()
+  })
+
+  it("flags a different supplier, with the names to show", () => {
+    expect(supplierMismatch(winner, { name: "Flywheel Corp." })).toEqual({ poSupplier: "Flywheel Corp.", winner: "Redleaf Inc." })
+  })
+
+  it("lets the Odoo id win over the name when both sides have one", () => {
+    expect(supplierMismatch({ supplierName: "Redleaf Inc.", odooSupplierId: 553 }, { id: "553", name: "Something Else Corp." })).toBeNull()
+    expect(supplierMismatch({ supplierName: "Redleaf Inc.", odooSupplierId: 553 }, { id: 700, name: "Redleaf Inc." })).toEqual({
+      poSupplier: "Redleaf Inc.",
+      winner: "Redleaf Inc.",
+    })
+  })
+
+  it("falls back to the name when only one side has an id", () => {
+    expect(supplierMismatch({ supplierName: "Redleaf Inc.", odooSupplierId: 553 }, { id: null, name: "REDLEAF INC" })).toBeNull()
+    expect(supplierMismatch({ supplierName: "Redleaf Inc." }, { id: 553, name: "Flywheel Corp." })).not.toBeNull()
+  })
+
+  it("says nothing with no PO supplier or no winner", () => {
+    expect(supplierMismatch(winner, null)).toBeNull()
+    expect(supplierMismatch(winner, undefined)).toBeNull()
+    expect(supplierMismatch(winner, { id: null, name: "  " })).toBeNull()
+    expect(supplierMismatch(null, { name: "Flywheel Corp." })).toBeNull()
+    expect(supplierMismatch({ supplierName: "" }, { name: "Flywheel Corp." })).toBeNull()
+  })
+
+  it("normalises a name for comparing", () => {
+    expect(normaliseSupplierName("Acme Co., Ltd.")).toBe("acme")
+    expect(normaliseSupplierName("Co-Op Supplies")).toBe("co op supplies")
   })
 })

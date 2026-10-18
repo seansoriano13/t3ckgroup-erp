@@ -4,7 +4,7 @@ import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, cos
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 import { canvassService } from "./canvassService";
-import { brandProposal } from "../utils/canvassMath";
+import { brandProposal, supplierMismatch } from "../utils/canvassMath";
 
 /**
  * The Costing Matrix (#267, spec #266). The database decides who may read and
@@ -343,7 +343,7 @@ export function shapeBidDecision(row) {
  * `fromCanvass` ({ acquire, offerSpecification }) for the fields still marked as filled from a
  * Canvass. Names and brands only, no price, so every tier that reads the matrix gets it.
  */
-async function withCanvass(shaped) {
+async function withCanvass(shaped, opportunityId) {
   if (!shaped) return shaped;
   const components = shaped.tenderLines.flatMap((line) => line.components);
   const canvasses = await canvassService.listForComponents(components.map((c) => c.id));
@@ -359,7 +359,43 @@ async function withCanvass(shaped) {
       offerSpecification: Boolean(component.offer_specification_from_offer_id),
     };
   }
+  await attachSupplierMismatch(components, opportunityId);
   return shaped;
+}
+
+/**
+ * Sets `supplierMismatch` on each Component (#281): `{ po, poSupplier, winner }` when its PO, read from
+ * the IPAS's stored Odoo copy, is with a supplier other than the winning Offer's, else null. It only
+ * reports; nothing is blocked. Names, no money, so every tier gets it.
+ */
+async function attachSupplierMismatch(components, opportunityId) {
+  for (const component of components) component.supplierMismatch = null;
+  const withWinner = components.filter((c) => c.canvass?.winner && c.po_rfq_no);
+  if (withWinner.length === 0 || !opportunityId) return;
+
+  const { data: pos, error } = await supabase.rpc("canvass_po_suppliers", { p_opportunity_id: opportunityId });
+  if (error) throw error;
+  const poByComponent = new Map((pos ?? []).map((row) => [row.component_id, row]));
+  const withPo = withWinner.filter((c) => poByComponent.has(c.id));
+  if (withPo.length === 0) return;
+
+  // The winner's Odoo id is not on the Canvass chip; the Offer row has it (not money).
+  const { data: offers, error: offersError } = await supabase
+    .from("sor_canvass_offers")
+    .select("id, odoo_supplier_id")
+    .in("id", withPo.map((c) => c.canvass.winner.id));
+  if (offersError) throw offersError;
+  const odooIds = new Map((offers ?? []).map((o) => [o.id, o.odoo_supplier_id ?? null]));
+
+  for (const component of withPo) {
+    const po = poByComponent.get(component.id);
+    const winner = component.canvass.winner;
+    const mismatch = supplierMismatch(
+      { supplierName: winner.supplierName, odooSupplierId: odooIds.get(winner.id) },
+      { id: po.supplier_id, name: po.supplier_name },
+    );
+    component.supplierMismatch = mismatch ? { po: po.po_number, ...mismatch } : null;
+  }
 }
 
 /** Requested Items grouped by the Component they name: a Map of component id -> items, oldest first. */
@@ -402,7 +438,7 @@ export const costingMatrixService = {
     if (error) throw error;
     // The rates are only needed for the summary, which only the Closed Book tier is given.
     const settings = data && tierReadsSummary(data.tier) ? await costingMatrixService.getSettings() : null;
-    return withCanvass(shapeMatrix(data, settings));
+    return withCanvass(shapeMatrix(data, settings), opportunityId);
   },
 
   /**
