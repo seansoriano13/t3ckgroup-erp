@@ -183,6 +183,19 @@ export const canvassService = {
     };
   },
 
+  /**
+   * The Offer Projection (#321) of a Component's Canvass: one `{ offer_id, acquire_unit,
+   * markup_price_unit }` per Offer, or null when the caller is not Purchasing or the Closed Book or the
+   * Canvass has no Component. Worked out in the database so the markup factor stays there; nothing is
+   * stored.
+   */
+  async projection(canvassId) {
+    if (!canvassId) return null;
+    const { data, error } = await supabase.rpc("canvass_offer_projection", { p_canvass_id: canvassId });
+    if (error) throw error;
+    return Array.isArray(data) ? data : null;
+  },
+
   /** The Canvass of one Costing Matrix Component, or null. */
   getForComponent(componentId) {
     if (!componentId) return Promise.resolve(null);

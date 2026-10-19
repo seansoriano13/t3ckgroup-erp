@@ -33,6 +33,9 @@ import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
 import { useAuth } from "../context/AuthContext";
 import { CANVASS_CURRENCIES, DEFAULT_CURRENCY } from "../constants/canvass";
 import { offerCurrency } from "../utils/canvassMath";
+import { projectOffer } from "../utils/offerProjection";
+import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
+import { COSTING_TIER } from "../constants/costing";
 import { useReferenceRate } from "../hooks/useReferenceRate";
 import { formatReferenceRate } from "../utils/referenceRate";
 import { getCurrentLocalDate } from "../utils/formatDate.js";
@@ -378,7 +381,37 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
   );
 }
 
-function OfferRow({ offer, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, onWin, isPending }) {
+/**
+ * "If this offer wins" (#321): the Component's Acquire and Markup Price under this Offer, and, for the
+ * Closed Book, the Tender Line's margin and what the matrix summary would become. A look at the live
+ * matrix, never stored. Shows nothing where the Offer has no figure (a foreign Offer with no rate).
+ */
+function OfferProjection({ projection }) {
+  if (!projection) return null;
+  const { margin, summary } = projection;
+  return (
+    <div className="mt-1.5 rounded-lg bg-mauve-a2 px-2 py-1.5 text-[11px] text-muted-foreground" data-testid="offer-projection">
+      <span className="font-semibold text-foreground">If this offer wins</span>
+      <span className="ml-2" data-testid="projection-acquire">Acquire {pesos(projection.acquireUnit)}</span>
+      {projection.markupPriceUnit !== null && (
+        <span className="ml-2" data-testid="projection-markup-price">Markup Price {pesos(projection.markupPriceUnit)}</span>
+      )}
+      {margin && (
+        <span className="ml-2" data-testid="projection-margin">
+          Margin {pesos(margin.projected.amount)}
+          {margin.projected.percent !== null && ` (${margin.projected.percent}%)`} · now {pesos(margin.current.amount)}
+        </span>
+      )}
+      {summary && (
+        <span className="ml-2" data-testid="projection-summary">
+          Revenue {pesos(summary.revenue.to)} · now {pesos(summary.revenue.from)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, onWin, isPending }) {
   const [isEditing, setIsEditing] = useState(false);
   const title = offer.supplier_name || offer.brand || "this offer";
 
@@ -451,6 +484,7 @@ function OfferRow({ offer, index, count, canEdit, canReadMoney, onUpdate, onRemo
           {offer.quality_note && <span>Quality: {offer.quality_note}</span>}
         </div>
         {offer.remarks && <p className="mt-1 text-[11px] italic text-muted-foreground/80">{offer.remarks}</p>}
+        <OfferProjection projection={projection} />
         {offer.brochure?.length > 0 && (
           <div className="mt-1.5">
             <AttachmentList attachments={offer.brochure} compact />
@@ -555,6 +589,25 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
 
   const offers = canvass?.offers || [];
   const canReadMoney = Boolean(canvass?.canReadMoney);
+
+  // Offer Projection (#321): only a Canvass on a Component has a row to project. The database serves
+  // Purchasing and the Closed Book their figures; the Closed Book's matrix adds the margin and summary.
+  const hasComponent = Boolean(canvass?.component_id);
+  const { data: projections } = useQuery({
+    queryKey: [...queryKey, "projection", canvass?.id],
+    queryFn: () => canvassService.projection(canvass.id),
+    enabled: open && hasComponent,
+    // The markup factor changes on the matrix, not here, so never trust a cached figure.
+    staleTime: 0,
+  });
+  const { data: tier } = useCostingTier(open && hasComponent && projections ? opportunityId : null);
+  const { data: matrix } = useCostingMatrix(tier === COSTING_TIER.CLOSED_BOOK ? opportunityId : null);
+  const projectionOf = (offer) =>
+    projectOffer({
+      projection: (projections || []).find((p) => p.offer_id === offer.id),
+      componentId: canvass?.component_id,
+      matrix,
+    });
 
   const invalidate = () => {
     // Prefix match: the sign-off history is keyed under the Canvass's own key.
@@ -705,6 +758,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   <OfferRow
                     key={offer.id}
                     offer={offer}
+                    projection={projectionOf(offer)}
                     index={index}
                     count={offers.length}
                     canEdit={canEdit}

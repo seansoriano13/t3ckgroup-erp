@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-10-20",
+        "title": "Canvass: see what the costing becomes if an offer wins",
+        "version": "1.9.51",
+        "changes": [
+            "Canvass: beside each offer on a Component, Purchasing now sees what the cost and the selling price would be if that offer won. It updates when the offer's price or rate changes, and nothing is saved.",
+            "An offer in dollars or euros with no rate yet shows no figure, rather than a wrong one.",
+            "The Closed Book also sees what the line's margin and the Costing Matrix summary would become."
+        ]
+    },
+    {
         "date": "2026-10-19",
         "title": "Reference Rates: a daily exchange rate, always dated",
         "version": "1.9.50",
