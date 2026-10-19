@@ -18,6 +18,7 @@ import {
   ShoppingCart,
   PackageCheck,
   Calculator,
+  Boxes,
   Tags,
   Database,
   Type,
@@ -28,6 +29,7 @@ import {
 import { CONDITION_KINDS } from "../../constants/stageGate"
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields"
 import { acceptsLabel } from "../../utils/attachments"
+import { packingListNotifySummary } from "../../utils/packingListAction"
 
 /**
  * "Purchasing (group)" / "Ana Reyes" for an assignment condition's `who`
@@ -115,6 +117,13 @@ export const ACTION_KIND_META = {
     label: "Open Costing Matrix",
     icon: Calculator,
     hint: "Opens the SOR's Costing Matrix. One per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
+  },
+  request_packing_list: {
+    label: "Request Packing List",
+    icon: Boxes,
+    hint: "Starts a draft Packing List and tells the Warehouse to pack.",
     // Saves no title of its own, so it is named by its label.
     titled: false,
   },
@@ -210,6 +219,11 @@ export function actionSummary(action, { employees = [] } = {}) {
       ? employees.find((e) => e.id === config.purchasingIncharge.id)?.name ?? "someone no longer listed"
       : null
     summary = buyer ? `${label} · Purchasing: ${buyer}` : `${label} · no Purchasing Incharge named`
+  } else if (action?.kind === "request_packing_list") {
+    summary = `${label} · ${packingListNotifySummary(
+      config,
+      (id) => employees.find((e) => e.id === id)?.name ?? "someone no longer listed",
+    )}`
   } else if (config.priority) {
     summary = `${label} · ${String(config.priority).toLowerCase()} priority`
   }

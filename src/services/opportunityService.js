@@ -1061,6 +1061,8 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
               await notePurchaseRequestOpened(existing.id, to, action.id, created.request_id, actorId);
             } else if (created.kind === "open_costing_matrix" && created.matrix_id) {
               await noteCostingMatrixOpened(existing.id, to, action.id, created.matrix_id, actorId);
+            } else if (created.kind === "request_packing_list") {
+              await notePackingListRequested(existing.id, to, action.id, created.packing_list_id, actorId);
             } else if (created.kind === "create_group_task" && created.group_task_id) {
               await opportunityService.addSystemNote(
                 existing.id,
@@ -1497,6 +1499,22 @@ function noteCostingMatrixOpened(opportunityId, stage, actionId, matrixId, actor
   );
 }
 
+/**
+ * Issue #464 — the SOR's note that a Stage Action asked the Warehouse to pack. `sor_request_packing_list`
+ * reads the action's saved config itself and does the notifying, so this note is all the client adds.
+ * A run that found an open Packing List created nothing (`packingListId` null) and says so.
+ */
+function notePackingListRequested(opportunityId, stage, actionId, packingListId, actorId) {
+  return opportunityService.addSystemNote(
+    opportunityId,
+    packingListId
+      ? `Packing List requested on entering Stage: ${stage.name}.`
+      : `Packing List already open, none requested on entering Stage: ${stage.name}.`,
+    { event: "STAGE_ACTION_PACKING_LIST_REQUESTED", stageId: stage.id, actionId, packingListId: packingListId ?? null },
+    actorId,
+  );
+}
+
 /** How a failed Stage Action is named to the person who moved the SOR. */
 function stageActionName(action) {
   const config = action?.config ?? {};
@@ -1504,6 +1522,7 @@ function stageActionName(action) {
   if (typeof named === "string" && named.trim()) return named.trim();
   if (action?.kind === "open_purchase_request") return "Purchase Request";
   if (action?.kind === "open_costing_matrix") return "Costing Matrix";
+  if (action?.kind === "request_packing_list") return "Packing List request";
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";
 }
 
@@ -3062,6 +3081,17 @@ export const opportunityService = {
       await noteCostingMatrixOpened(existing.id, stage, action.id, matrixId, actorId).catch(() => {});
       return { outcome: "created" };
     }
+    if (action.kind === "request_packing_list") {
+      const { data: packingListId, error: openError } = await supabase.rpc("sor_request_packing_list", {
+        p_run_id: runId,
+      });
+      if (openError) {
+        await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "failed" });
+        throw openError;
+      }
+      await notePackingListRequested(existing.id, stage, action.id, packingListId, actorId).catch(() => {});
+      return { outcome: "created" };
+    }
     await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
     return { outcome: "created" };
   },
@@ -3135,6 +3165,8 @@ export const opportunityService = {
           ? { kind: "purchase_request" }
           : action.kind === "open_costing_matrix"
           ? { kind: "costing_matrix" }
+          : action.kind === "request_packing_list"
+          ? { kind: "packing_list" }
           : action.kind === "create_group_task"
           ? {
               kind: "group",

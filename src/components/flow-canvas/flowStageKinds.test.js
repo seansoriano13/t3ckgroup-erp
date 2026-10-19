@@ -31,10 +31,15 @@ describe("flowStageKinds", () => {
       "create_individual_task",
       "open_costing_matrix",
       "open_purchase_request",
+      "request_packing_list",
     ])
   })
 
   describe("actionTitle", () => {
+    it("names a Request Packing List, which carries no title", () => {
+      expect(actionTitle({ kind: "request_packing_list", config: {} })).toBe("Request Packing List")
+    })
+
     it("names an Open Costing Matrix, which carries no title", () => {
       expect(actionTitle({ kind: "open_costing_matrix", config: {} })).toBe("Open Costing Matrix")
     })
@@ -87,6 +92,18 @@ describe("flowStageKinds", () => {
       expect(
         actionSummary({ kind: "create_individual_task", config: { priority: "HIGH" } }),
       ).toBe("Individual Task · high priority")
+    })
+
+    it("says who a Request Packing List tells: the Warehouse list, or the people named", () => {
+      expect(actionSummary({ kind: "request_packing_list", config: {} })).toBe(
+        "Request Packing List · tells the Warehouse list",
+      )
+      expect(
+        actionSummary(
+          { kind: "request_packing_list", config: { notify: [{ type: "employee", id: "p-1" }] } },
+          { employees: [{ id: "p-1", name: "Pia Reyes" }] },
+        ),
+      ).toBe("Request Packing List · tells Pia Reyes")
     })
 
     it("names the Purchasing Incharge an Open Costing Matrix will set, or says there is none", () => {

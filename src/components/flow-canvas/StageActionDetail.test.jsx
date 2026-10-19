@@ -65,6 +65,20 @@ describe("StageActionDetail", () => {
     expect(screen.getByText("Mia")).toBeInTheDocument();
   });
 
+  it("says a Request Packing List tells the Warehouse list by default, or the people named", () => {
+    const { unmount } = render(<StageActionDetail action={{ kind: "request_packing_list", config: {} }} employees={[]} />);
+    expect(screen.getByText(/and tells the Warehouse list\./)).toBeInTheDocument();
+    unmount();
+
+    render(
+      <StageActionDetail
+        action={{ kind: "request_packing_list", config: { notify: [{ type: "employee", id: "emp-1" }] } }}
+        employees={[{ id: "emp-1", name: "Pia" }]}
+      />,
+    );
+    expect(screen.getByText(/and tells Pia\./)).toBeInTheDocument();
+  });
+
   it("says an Open Costing Matrix defaults to the Deal Owner and tells nobody", () => {
     render(<StageActionDetail action={{ kind: "open_costing_matrix", config: {} }} employees={[]} />);
 
