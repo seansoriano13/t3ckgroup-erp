@@ -37,6 +37,10 @@ export const MOCK = {
   "technical": { name: "Mock Technical Staff", department: "OPERATIONS", sub_department: "TECHNICAL", role: "TECHNICIAN", has_task_flow: true },
   "flow-editor": { name: "Mock Flow Editor", department: "OPERATIONS", sub_department: "IT", role: "IT STAFF", can_edit_sales_flows: true },
   "plain": { name: "Mock Plain Employee", department: "OPERATIONS", sub_department: "WAREHOUSE", role: "WAREHOUSE STAFF" },
+  // Purchasing stories (docs/stories/purchasing): a second purchaser who is not on
+  // the request, and an approver for the lists nobody else sits on.
+  "purchaser-2": { name: "Mock Purchaser Two", department: "OPERATIONS", sub_department: "PURCHASING", role: "PURCHASER", has_purchasing_flow: true, has_task_flow: true },
+  "approver": { name: "Mock Approver", department: "ADMIN", sub_department: "ADMIN", role: "GENERAL MANAGER", is_head: true, has_task_flow: true },
 }
 
 const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow", "has_finance_flow", "has_retail_access"]
@@ -48,6 +52,17 @@ const LOCAL_LISTS = {
   transmittal_technical: ["technical"],
   transmittal_logistics: ["logistics"],
   transmittal_check_by: ["ops-head", "admin-head"],
+  s1_approved: ["admin-head"],
+  s3_approved: ["admin-head"],
+  s7_received: ["ops-head"],
+  s7_noted: ["sales-head"],
+  s7_checked: ["approver"],
+  s7_approved: ["approver"],
+}
+// Local stack only: the Costing Matrix lists (Super Admin stays off them, on purpose).
+const LOCAL_COSTING_LISTS = {
+  final_acquire: ["approver"],
+  evaluation: ["ops-head"],
 }
 const LOCAL_CALL_SIGNS = { "ops-head": "1001", "admin-head": "102" }
 
@@ -110,6 +125,16 @@ async function main() {
         for (const key of keys) {
           await c.query(
             `insert into public.ipas_signer_lists (list_key, employee_id)
+             select $1, id from public.employees where email = $2 on conflict (list_key, employee_id) do nothing`,
+            [list, `${key}@${MOCK_DOMAIN}`],
+          )
+        }
+        console.log(`ok  ${list}: ${keys.join(", ")}`)
+      }
+      for (const [list, keys] of Object.entries(LOCAL_COSTING_LISTS)) {
+        for (const key of keys) {
+          await c.query(
+            `insert into public.costing_signer_lists (list_key, employee_id)
              select $1, id from public.employees where email = $2 on conflict (list_key, employee_id) do nothing`,
             [list, `${key}@${MOCK_DOMAIN}`],
           )
