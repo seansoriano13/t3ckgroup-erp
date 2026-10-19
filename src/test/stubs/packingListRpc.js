@@ -16,7 +16,7 @@ const refuse = (code, message) => {
  *
  * `actorId` stands in for get_employee_id(). Making a list needs `purchasing`
  * or a place on the Warehouse list (seed `ipas_signer_lists`). Editing and
- * packing need the creator or `purchasing`. Who may read, and the freezes, are
+ * packing need the creator, `purchasing` or a place on the Warehouse list. Who may read, and the freezes, are
  * the policy tier's to prove.
  */
 export function stubPackingListRpcs({ actorId, purchasing = false } = {}) {
@@ -36,8 +36,8 @@ export function stubPackingListRpcs({ actorId, purchasing = false } = {}) {
   const editable = (listId) => {
     const list = findRow("packing_lists", listId)
     if (!list) refuse("P0002", "packing list: no such Packing List")
-    if (!(purchasing || list.created_by === actorId)) {
-      refuse("42501", "packing list: only its creator or Purchasing changes a Packing List")
+    if (!(purchasing || list.created_by === actorId || onList("transmittal_warehouse"))) {
+      refuse("42501", "packing list: only its creator, Purchasing or the Warehouse list changes a Packing List")
     }
     if (list.state !== "draft") refuse("42501", `packing list: ${list.number} is packed and can't be changed`)
     return list
