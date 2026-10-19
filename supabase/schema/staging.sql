@@ -16053,12 +16053,15 @@ CREATE OR REPLACE FUNCTION public.sor_my_sors_facets(p_opportunity_ids uuid[])
  SET search_path TO 'public'
 AS $function$
   select o.id, o.sor_code, st.name,
-    greatest(
-      o.updated_at,
-      (select max(greatest(v.entered_at, v.left_at)) from public.sor_stage_visits v where v.opportunity_id = o.id),
-      (select max(l.created_at) from public.sales_opportunity_logs l where l.opportunity_id = o.id)
-    ),
-    -- The client is shown to Full and Participant readers only, as elsewhere.
+    -- Last activity and the client are shown to Full and Participant readers
+    -- only, as elsewhere; a locked reader gets neither.
+    case when public.sor_access_level(o.id) in ('full', 'participant') then
+      greatest(
+        o.updated_at,
+        (select max(greatest(v.entered_at, v.left_at)) from public.sor_stage_visits v where v.opportunity_id = o.id),
+        (select max(l.created_at) from public.sales_opportunity_logs l where l.opportunity_id = o.id)
+      )
+    end,
     case when public.sor_access_level(o.id) in ('full', 'participant') then o.client_name end
   from public.sales_opportunities o
   left join public.sale_types st on st.id = o.sale_type_id

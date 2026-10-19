@@ -115,6 +115,23 @@ describe("migrateSavedMySorsFilters", () => {
     expect(migrateSavedMySorsFilters(DEFAULT_MY_SORS_FILTERS)).toBe(DEFAULT_MY_SORS_FILTERS)
   })
 
+  it("puts a row with no last activity under its latest window's end, else its start, for a period", () => {
+    const ended = row({
+      id: "e",
+      isOpen: false,
+      lastActivityAt: null,
+      windows: [
+        { source: "mention", createdAt: "2026-07-01T02:00:00Z", closedAt: "2026-07-10T02:00:00Z" },
+        { source: "mention", createdAt: "2026-09-01T02:00:00Z", closedAt: "2026-09-10T02:00:00Z" },
+      ],
+    })
+    const noClose = row({ id: "n", lastActivityAt: null, windows: [{ source: "mention", createdAt: "2026-08-05T02:00:00Z", closedAt: null }] })
+    const go = (period) => applyMySorsFilters([ended, noClose], { ...DEFAULT_MY_SORS_FILTERS, access: MY_SORS_ALL, timeframe: "MONTHLY", period }).map((r) => r.id)
+    expect(go("2026-09")).toEqual(["e"])
+    expect(go("2026-08")).toEqual(["n"])
+    expect(go("2026-07")).toEqual([])
+  })
+
   it("keeps rows with no last activity when no period is chosen", () => {
     const noActivity = [row({ id: "z", lastActivityAt: null })]
     expect(applyMySorsFilters(noActivity, DEFAULT_MY_SORS_FILTERS)).toHaveLength(1)

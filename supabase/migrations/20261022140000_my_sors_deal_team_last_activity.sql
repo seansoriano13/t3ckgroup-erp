@@ -12,8 +12,10 @@
 -- `sor_my_sors_facets` gains `last_activity_at`. `sales_opportunities` has no
 -- such column and `updated_at` is only a default (nothing bumps it on a stage
 -- move or a note), so it is the newest of: updated_at, the latest Stage Visit
--- entered or left, and the latest note. Dropped and recreated because the
--- return type changes. It also returns the client name, for the search box.
+-- entered or left, and the latest log entry (notes and system entries).
+-- Dropped and recreated because the return type changes. It also returns the
+-- client name, for the search box. Both are given to Full and Participant
+-- readers only; a locked reader (closed Mention Window) gets null for each.
 
 create or replace function public.sor_my_deal_team_sor_ids()
 returns setof uuid
@@ -54,12 +56,15 @@ security definer
 set search_path = public
 as $function$
   select o.id, o.sor_code, st.name,
-    greatest(
-      o.updated_at,
-      (select max(greatest(v.entered_at, v.left_at)) from public.sor_stage_visits v where v.opportunity_id = o.id),
-      (select max(l.created_at) from public.sales_opportunity_logs l where l.opportunity_id = o.id)
-    ),
-    -- The client is shown to Full and Participant readers only, as elsewhere.
+    -- Last activity and the client are shown to Full and Participant readers
+    -- only, as elsewhere; a locked reader gets neither.
+    case when public.sor_access_level(o.id) in ('full', 'participant') then
+      greatest(
+        o.updated_at,
+        (select max(greatest(v.entered_at, v.left_at)) from public.sor_stage_visits v where v.opportunity_id = o.id),
+        (select max(l.created_at) from public.sales_opportunity_logs l where l.opportunity_id = o.id)
+      )
+    end,
     case when public.sor_access_level(o.id) in ('full', 'participant') then o.client_name end
   from public.sales_opportunities o
   left join public.sale_types st on st.id = o.sale_type_id

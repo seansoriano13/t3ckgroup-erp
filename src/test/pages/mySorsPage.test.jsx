@@ -212,6 +212,9 @@ describe("My SORs", () => {
     const row = screen.getByText("S01234").closest("tr");
     expect(row).toHaveTextContent("Deal Team");
     expect(row).toHaveTextContent(/Sees the whole SOR \(Full access\)/);
+    // The Deal Team window has no start date: a dash, never "Invalid Date".
+    expect(row).not.toHaveTextContent("Invalid Date");
+    expect(row.querySelector("td:last-child")).toHaveTextContent("—");
 
     // Access: Full keeps it; Why I'm here: Mentioned drops it.
     await user.click(screen.getByText("Current access"));

@@ -39,6 +39,13 @@ export function migrateSavedMySorsFilters(filters) {
 
 const localPeriod = (iso, timeframe) => (iso ? periodValue(timeframe, new Date(iso)) : null)
 
+/** The date a row sits under in the period filter: last activity, else its latest window's end, else its start. */
+function rowDate(r) {
+  if (r.lastActivityAt) return r.lastActivityAt
+  const times = (key) => (r.windows || []).map((w) => w[key]).filter(Boolean).sort()
+  return times("closedAt").pop() || times("createdAt").pop() || null
+}
+
 export function applyMySorsFilters(rows, filters) {
   const f = { ...DEFAULT_MY_SORS_FILTERS, ...filters }
   const needle = f.search.trim().toLowerCase()
@@ -53,8 +60,9 @@ export function applyMySorsFilters(rows, filters) {
     if (f.via === SOURCE_CALLED_IN && !r.windows.some((w) => w.source !== SOURCE_MENTION && w.source !== SOURCE_DEAL_TEAM)) return false
     if (f.stage !== MY_SORS_ALL && r.currentStageName !== f.stage) return false
     if (f.flow !== MY_SORS_ALL && r.saleTypeName !== f.flow) return false
-    // The SOR's last activity, not when a window opened.
-    if (f.period && localPeriod(r.lastActivityAt, f.timeframe) !== f.period) return false
+    // The SOR's last activity, not when a window opened. Locked / ended rows
+    // carry none, so they fall back to their own window's time.
+    if (f.period && localPeriod(rowDate(r), f.timeframe) !== f.period) return false
     return true
   })
 }

@@ -204,6 +204,14 @@ describe("Mention Window", () => {
         expect(none).toEqual([])
     })
 
+    it("My SORs hides last activity and client from a person whose Mention Window has closed (#478)", async () => {
+        const { data, error } = await (await clientFor("outsider")).rpc("sor_my_sors_facets", { p_opportunity_ids: [sorId] })
+        expect(error).toBeNull()
+        expect(data).toHaveLength(1)
+        expect(data[0].last_activity_at).toBeNull()
+        expect(data[0].client_name).toBeNull()
+    })
+
     it("My SORs lists only the SORs the caller is on the Deal Team of, with a last-activity time (#478)", async () => {
         const mine = await (await clientFor("dealOwner")).rpc("sor_my_deal_team_sor_ids")
         expect(mine.error).toBeNull()
