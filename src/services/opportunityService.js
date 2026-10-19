@@ -29,6 +29,7 @@ import {
   missingStageFields,
 } from "../constants/stageGate";
 import { isCostingKind } from "../utils/costingConditions";
+import { isOrderKind } from "../utils/orderConditions";
 import { normaliseTeam, resolvePeople, DEAL_TEAM_ROLES } from "../utils/resolvePeople";
 import { employeeGroupService } from "./employeeGroupService";
 import {
@@ -504,6 +505,22 @@ async function resolveCostingInputs(conditions, opportunityId) {
 }
 
 /**
+ * Goods checked / Orders filed's evidence (#465, #466): `order_condition_inputs`, counts of
+ * the SOR's open Transmittals and unfiled IPAS, read through a SECURITY DEFINER RPC because
+ * the mover may not be able to read either. Undefined when no condition asks for it; the
+ * evaluator fails closed on that.
+ */
+async function resolveOrderInputs(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => isOrderKind(r.kind));
+  if (!needsIt) return undefined;
+  const { data, error } = await supabase.rpc("order_condition_inputs", {
+    p_opportunity_id: opportunityId,
+  });
+  if (error) throw error;
+  return data ?? { unclosed_slips: 0, unfiled_orders: 0 };
+}
+
+/**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
  * .scratch/stage-gate-engine/issues/) — throws if any required condition
  * on any Stage the move crosses is unsatisfied, naming what's missing.
@@ -533,6 +550,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   const hasPurchasing = await resolveHasPurchasing(conditions, opportunityId);
   const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, opportunityId);
   const costingInputs = await resolveCostingInputs(conditions, opportunityId);
+  const orderInputs = await resolveOrderInputs(conditions, opportunityId);
 
   const gateResult = evaluateCrossing({
     fromCode,
@@ -547,6 +565,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     hasPurchasing,
     purchaseRequestItems,
     costingInputs,
+    orderInputs,
   });
 
   if (!gateResult.blocked) return;
@@ -1168,6 +1187,7 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
   // Read for every active Costing condition on the Stage, required or not: a met one
   // stamps "bid submitted" below when the SOR leaves through it.
   const costingInputs = await resolveCostingInputs(conditionsForFrom, existing.id);
+  const orderInputs = await resolveOrderInputs(conditions, existing.id);
 
   for (const condition of conditions) {
     const result = evaluateCondition(condition, {
@@ -1179,6 +1199,7 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
       hasPurchasing,
       purchaseRequestItems,
       costingInputs,
+      orderInputs,
     });
     if (result.status === CONDITION_STATUS.UNSATISFIED) {
       missing.push({ stage: from, condition, ...(result.detail ? { detail: result.detail } : {}) });
@@ -3943,6 +3964,7 @@ export const opportunityService = {
     const hasPurchasing = await resolveHasPurchasing(conditions, target.id);
     const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, target.id);
     const costingInputs = await resolveCostingInputs(conditions, target.id);
+    const orderInputs = await resolveOrderInputs(conditions, target.id);
 
     return conditions
       .map((condition) => ({
@@ -3956,6 +3978,7 @@ export const opportunityService = {
           hasPurchasing,
           purchaseRequestItems,
           costingInputs,
+          orderInputs,
         }),
       }))
       // Issue #203: a removed kind (field, project_evaluation) always reads
@@ -4071,11 +4094,12 @@ export const opportunityService = {
 
       if (stageConditions.length === 0) continue;
 
-      const [hasInclusions, hasPurchasing, purchaseRequestItems, costingInputs] = await Promise.all([
+      const [hasInclusions, hasPurchasing, purchaseRequestItems, costingInputs, orderInputs] = await Promise.all([
         resolveHasInclusions(stageConditions, opportunity.id),
         resolveHasPurchasing(stageConditions, opportunity.id),
         resolvePurchaseRequestItems(stageConditions, opportunity.id),
         resolveCostingInputs(stageConditions, opportunity.id),
+        resolveOrderInputs(stageConditions, opportunity.id),
       ]);
 
       const missing = stageConditions.filter(
@@ -4089,6 +4113,7 @@ export const opportunityService = {
             hasPurchasing,
             purchaseRequestItems,
             costingInputs,
+            orderInputs,
           }).status === CONDITION_STATUS.UNSATISFIED,
       );
       if (missing.length > 0) blocked[opportunity.id] = missing;
@@ -4487,12 +4512,13 @@ export const opportunityService = {
           return { ...visit, conditions: [], attachments: attachments || [] };
         }
 
-        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing, purchaseRequestItems, costingInputs] = await Promise.all([
+        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing, purchaseRequestItems, costingInputs, orderInputs] = await Promise.all([
           gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt, preloaded }),
           resolveHasInclusions(conditions, opportunityId, { asOf: visit.leftAt }),
           resolveHasPurchasing(conditions, opportunityId, { asOf: visit.leftAt }),
           resolvePurchaseRequestItems(conditions, opportunityId),
           resolveCostingInputs(conditions, opportunityId),
+          resolveOrderInputs(conditions, opportunityId),
         ]);
 
         return {
@@ -4510,6 +4536,7 @@ export const opportunityService = {
                 purchaseRequestItems,
                 purchaseRequestAsOf: visit.leftAt,
                 costingInputs,
+                orderInputs,
               });
 
               let matchedFiles = [];

@@ -19,6 +19,7 @@
 import { stageByCode } from "./sor"
 import { isSettled } from "./purchaseRequest"
 import { evaluateCostingCondition } from "../utils/costingConditions"
+import { evaluateOrderCondition } from "../utils/orderConditions"
 
 export const CONDITION_KINDS = {
   ATTACHMENT: "attachment",
@@ -43,6 +44,8 @@ export const CONDITION_KINDS = {
   // Issue #463: Purchasing has costed every Component and cost-only row and a Purchasing
   // Incharge is named. Same evidence and evaluator as Costing settled.
   COSTING_PRICED: "costing_priced",
+  // Issue #465: every submitted, uncancelled Transmittal naming the SOR is Closed.
+  GOODS_CHECKED: "goods_checked",
 }
 
 /**
@@ -61,6 +64,7 @@ export const NEW_CONDITION_KINDS = [
   CONDITION_KINDS.PURCHASING_SETTLED,
   CONDITION_KINDS.COSTING_SETTLED,
   CONDITION_KINDS.COSTING_PRICED,
+  CONDITION_KINDS.GOODS_CHECKED,
 ]
 
 export const CONDITION_STATUS = {
@@ -185,6 +189,9 @@ export function evaluateCondition(condition, {
   // Costing settled's evidence (#272): `costing_condition_inputs` (booleans and
   // counts). Left undefined (nobody loaded it), it fails closed.
   costingInputs = undefined,
+  // Goods checked / Orders filed evidence (#465, #466): `order_condition_inputs` (counts).
+  // Left undefined (nobody loaded it), it fails closed.
+  orderInputs = undefined,
 } = {}) {
   if (condition.archived_at) return notApplicable()
   if (asOf && condition.created_at && condition.created_at > asOf) return notApplicable()
@@ -249,6 +256,10 @@ export function evaluateCondition(condition, {
     case CONDITION_KINDS.COSTING_SETTLED:
     case CONDITION_KINDS.COSTING_PRICED: {
       const { met, failing, messages } = evaluateCostingCondition(condition.kind, costingInputs)
+      return met ? satisfied() : unsatisfied({ failing, messages })
+    }
+    case CONDITION_KINDS.GOODS_CHECKED: {
+      const { met, failing, messages } = evaluateOrderCondition(condition.kind, orderInputs)
       return met ? satisfied() : unsatisfied({ failing, messages })
     }
     default:
@@ -330,6 +341,7 @@ export function evaluateCrossing({
   hasPurchasing = false,
   purchaseRequestItems = undefined,
   costingInputs = undefined,
+  orderInputs = undefined,
 }) {
   const crossed = stagesCrossed(fromCode, toCode, stages)
   const missing = []
@@ -347,6 +359,7 @@ export function evaluateCrossing({
         hasPurchasing,
         purchaseRequestItems,
         costingInputs,
+        orderInputs,
       })
       if (result.status === CONDITION_STATUS.UNSATISFIED) {
         missing.push({ stage, condition })

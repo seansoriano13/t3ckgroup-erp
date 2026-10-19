@@ -19,6 +19,7 @@ import {
   PackageCheck,
   Calculator,
   Tags,
+  ClipboardCheck,
   Database,
   Type,
   Hash,
@@ -90,6 +91,11 @@ export const CONDITION_KIND_META = {
     label: "Costing priced",
     icon: Tags,
     hint: "Purchasing has costed the matrix: at least one Component, an Acquire unit cost on every Component and cost-only row, and a Purchasing Incharge named. Unmet when there is no matrix.",
+  },
+  [CONDITION_KINDS.GOODS_CHECKED]: {
+    label: "Goods checked",
+    icon: ClipboardCheck,
+    hint: "Every submitted Transmittal with a line naming this SOR is Closed or Cancelled. Drafts don't count, and an SOR with no Transmittal meets it.",
   },
 }
 

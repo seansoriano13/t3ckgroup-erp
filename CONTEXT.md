@@ -357,13 +357,24 @@ _Avoid_: Manual Action, Conditional Action
 Something that must be true before an SOR may *leave* a Stage. Verifiable kinds
 — attachment, tickbox, assignment, deadline, purchasing settled (every
 Requested Item closed), and costing settled (every Tender Line priced, no blank
-cost, the evaluation approved, and the offer within ABC) — plus Note Conditions. Something a
+cost, the evaluation approved, and the offer within ABC), goods checked (every
+submitted Transmittal naming the SOR closed) — plus Note Conditions. Something a
 deal must fill in is a Stage Field, never a condition. An attachment condition
 is met only by a file given through that condition, not by any matching file on
 the SOR. A deadline never blocks; it warns on approach and marks the deal
 overdue on breach. Conditions guard moving on, never going back: a Revert or a
 Return is not blocked by them, nor by a required Stage Field.
 _Avoid_: Gate, Requirement, Rule
+
+**Goods checked**:
+A Stage Condition, met when every submitted Transmittal with a line naming the
+SOR is Closed (both Check by signatures) or Cancelled. It exists because a
+Transmittal is per slip and cannot mount on a Stage. A Draft is ignored, as it
+has not entered a check; an SOR no Transmittal names meets it; a slip carrying
+lines for two SORs counts for both. A line rated NA does not hold it open: the
+check happened, and the replacement rides a new slip that must itself close.
+Placed by Operations, on Government at the exit of Project Delivery.
+_Avoid_: Goods received, Delivery checked
 
 **Note Condition**:
 A condition written in plain words because the system cannot express it, kept
