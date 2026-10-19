@@ -3,16 +3,19 @@ import { CircleDot, GitBranch, KeyRound, Workflow } from "lucide-react";
 import FilterBar from "../ui/FilterBar";
 import { FilterSelect } from "../ui/FilterDropdown";
 import PeriodFilter from "../ui/PeriodFilter";
-import { DEFAULT_MY_SORS_FILTERS, MY_SORS_ALL, hasActiveMySorsFilters, mySorsFilterOptions } from "../../utils/mySorsFilters";
+import { DEFAULT_MY_SORS_FILTERS, MY_SORS_ALL, MY_SORS_CURRENT, hasActiveMySorsFilters, mySorsFilterOptions } from "../../utils/mySorsFilters";
 
 const ACCESS_OPTIONS = [
+  { value: MY_SORS_CURRENT, label: "Current access" },
   { value: MY_SORS_ALL, label: "All access" },
+  { value: "FULL", label: "Full" },
   { value: "OPEN", label: "In window" },
   { value: "ENDED", label: "Access ended" },
 ];
 
 const VIA_OPTIONS = [
   { value: MY_SORS_ALL, label: "Any reason" },
+  { value: "deal_team", label: "Deal Team" },
   { value: "called_in", label: "Called in" },
   { value: "mention", label: "Mentioned" },
 ];
@@ -23,8 +26,8 @@ const chipProps = { className: "h-9 w-auto gap-2 px-2.5", wrapperClassName: "w-a
 
 /**
  * My SORs' filter line (#478), the repo's one FilterBar: search, Access, Why
- * I'm here and Stage inline; Sales Flow and the period a window opened in
- * behind Filters. `filters` is `DEFAULT_MY_SORS_FILTERS`-shaped; the pure
+ * I'm here and Stage inline; Sales Flow and the period of last activity
+ * behind Filters (the period is the SOR's last activity). `filters` is `DEFAULT_MY_SORS_FILTERS`-shaped; the pure
  * module applies them (`applyMySorsFilters`).
  */
 export default function MySorsFilterBar({ rows, filters, onChange, onClearAll, saveDefault }) {

@@ -204,6 +204,22 @@ describe("Mention Window", () => {
         expect(none).toEqual([])
     })
 
+    it("My SORs lists only the SORs the caller is on the Deal Team of, with a last-activity time (#478)", async () => {
+        const mine = await (await clientFor("dealOwner")).rpc("sor_my_deal_team_sor_ids")
+        expect(mine.error).toBeNull()
+        expect(mine.data).toEqual(expect.arrayContaining([sorId, oldSor]))
+
+        // Support Sales 1 is on this SOR's Deal Team; a mentioned person is not.
+        const support = await (await clientFor("support")).rpc("sor_my_deal_team_sor_ids")
+        expect(support.data).toContain(sorId)
+        expect(support.data).not.toContain(oldSor)
+        const outsider = await (await clientFor("outsider")).rpc("sor_my_deal_team_sor_ids")
+        expect(outsider.data ?? []).not.toContain(sorId)
+
+        const { data } = await (await clientFor("dealOwner")).rpc("sor_my_sors_facets", { p_opportunity_ids: [sorId] })
+        expect(new Date(data[0].last_activity_at).getTime()).toBeGreaterThan(0)
+    })
+
     it("an SOR with no Stage Visit keeps the permanent header grant", async () => {
         const { error } = await mention("dealOwner", [ids.outsider], oldSor)
         expect(error).toBeNull()

@@ -17,6 +17,7 @@ import StatusBadge from "../StatusBadge";
  * them, so "why can I see this" keeps every answer without a row each.
  */
 const VIA_LABEL = {
+  deal_team: "Deal Team",
   action: "Task",
   assignment: "Assignment",
   purchase_request: "Purchase request",

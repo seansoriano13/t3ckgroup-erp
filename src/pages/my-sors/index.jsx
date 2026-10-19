@@ -114,7 +114,7 @@ function MySorsScreen() {
   return (
     <PageShell
       title="My SORs"
-      description="SORs you were called or mentioned into, and how far your access reaches."
+      description="SORs you are on the Deal Team of, were called into or were mentioned in, and how far your access reaches."
       toolbar={
         rows.length > 0 && (
           <MySorsFilterBar

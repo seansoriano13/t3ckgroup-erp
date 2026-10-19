@@ -3444,7 +3444,10 @@ export const opportunityService = {
     // called in": one per visit the person was mentioned on, closed once the
     // SOR has left it. RLS lets a person read only their own rows.
     const mentionRows = await opportunityService.getMyMentionGrants(employeeId);
-    if ((!windows || windows.length === 0) && mentionRows.length === 0) return [];
+
+    // #478: the SORs this person is on the Deal Team of — Full access, no window.
+    const dealTeamIds = await opportunityService.getMyDealTeamSorIds();
+    if ((!windows || windows.length === 0) && mentionRows.length === 0 && dealTeamIds.length === 0) return [];
 
     const shape = windows?.length ? await shapeAccessWindows(windows) : () => null;
 
@@ -3461,7 +3464,12 @@ export const opportunityService = {
       if (!byOpportunity.has(m.opportunity_id)) byOpportunity.set(m.opportunity_id, []);
     }
 
-    // #478: the SOR code and Sales Flow the filters need. Never fatal.
+    for (const id of dealTeamIds) {
+      if (!byOpportunity.has(id)) byOpportunity.set(id, []);
+    }
+    const dealTeam = new Set(dealTeamIds);
+
+    // #478: the SOR code, Sales Flow and last activity the filters need. Never fatal.
     const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]).catch(() => ({}));
 
     const rows = await Promise.all(
@@ -3469,6 +3477,9 @@ export const opportunityService = {
         const summary = await opportunityService.getLockedSummary(opportunityId).catch(() => null);
         const mentions = mentionsByOpportunity.get(opportunityId) || [];
         const allWindows = [
+          ...(dealTeam.has(opportunityId)
+            ? [{ id: `deal-team-${opportunityId}`, source: "deal_team", closedAt: null, createdAt: null, reachLabel: "the whole SOR (Full access)" }]
+            : []),
           ...ownWindows.map(shape),
           ...mentions.map((m) => ({
             id: `mention-${m.id ?? opportunityId}`,
@@ -3479,7 +3490,11 @@ export const opportunityService = {
             createdAt: m.created_at ?? null,
             reachLabel: m.stage_visit_id ? "this Stage until it moves" : "this SOR, read-only",
           })),
-        ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        ].sort(
+          (a, b) =>
+            Number(b.source === "deal_team") - Number(a.source === "deal_team") ||
+            new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
+        );
         return {
           opportunityId,
           salesReference: summary?.sales_reference ?? null,
@@ -3487,6 +3502,7 @@ export const opportunityService = {
           currentStageName: summary?.current_stage_name ?? null,
           sorCode: facets[opportunityId]?.sorCode ?? null,
           saleTypeName: facets[opportunityId]?.saleTypeName ?? null,
+          lastActivityAt: facets[opportunityId]?.lastActivityAt ?? null,
           isOpen: allWindows.some((w) => !w.closedAt),
           windows: allWindows,
         };
@@ -3548,13 +3564,27 @@ export const opportunityService = {
     }));
   },
 
+  /**
+   * #478: the SORs this person is on the Deal Team of (`sor_my_deal_team_sor_ids`,
+   * the one Deal Team definition). Never throws: My SORs must still list the
+   * windows if this fails.
+   */
+  async getMyDealTeamSorIds() {
+    const { data, error } = await supabase.rpc("sor_my_deal_team_sor_ids");
+    if (error) return [];
+    return (data || []).map((r) => (typeof r === "string" ? r : r.sor_my_deal_team_sor_ids)).filter(Boolean);
+  },
+
   /** #478: `sor_my_sors_facets` keyed by SOR â€” the SOR code and Sales Flow. */
   async getMySorsFacets(opportunityIds) {
     if (!opportunityIds?.length) return {};
     const { data, error } = await supabase.rpc("sor_my_sors_facets", { p_opportunity_ids: opportunityIds });
     if (error) throw error;
     return Object.fromEntries(
-      (data || []).map((r) => [r.opportunity_id, { sorCode: r.sor_code ?? null, saleTypeName: r.sale_type_name ?? null }]),
+      (data || []).map((r) => [
+        r.opportunity_id,
+        { sorCode: r.sor_code ?? null, saleTypeName: r.sale_type_name ?? null, lastActivityAt: r.last_activity_at ?? null },
+      ]),
     );
   },
 
