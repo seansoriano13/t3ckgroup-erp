@@ -805,6 +805,18 @@ writes nothing to Odoo; a delivery reference can be typed on it. Not the
 which is the paper that came with the goods.
 _Avoid_: Packing Slip, Box List, Delivery Note
 
+**Request Packing List**:
+A **Stage Action** that asks the Warehouse to pack. When it runs it creates a
+draft **Packing List** for the SOR, but only if the SOR has no open (unsigned,
+still draft) Packing List; otherwise it creates nothing and tells nobody. When
+it creates one it notifies the Warehouse staff list, or the people and groups
+its config names instead. The draft is exactly a hand-made one: whoever signs
+is "Packed by", signing closes it, there is no approver, and nothing is written
+to Odoo. A Packing List can still be made by hand without the action. Replaces
+the "Prepare the packing list each boxes" checklist line in the NTP "PMS" group
+task.
+_Avoid_: Packing task, Pack request
+
 **Landed Cost**:
 An item's true unit cost once everything is apportioned onto it —
 `unit price + duties/item + freight/item + other charges/item` — worked out the

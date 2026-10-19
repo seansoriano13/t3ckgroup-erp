@@ -7,6 +7,7 @@ import { parseChecklist } from "../../utils/checklist";
 import { Switch } from "../ui/switch";
 import { extraRequesters, purchaseRequestSummary } from "../../utils/purchaseRequestAction";
 import { costingMatrixSummary } from "../../utils/costingMatrixAction";
+import { packingListSummary } from "../../utils/packingListAction";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -81,6 +82,8 @@ export default function StageActionDetail({
       ? "Purchasing members"
       : action.kind === "open_costing_matrix"
       ? "Extra members"
+      : action.kind === "request_packing_list"
+      ? "Told to pack"
       : assigneeNames.length === 0
       ? null
       : assigneeNames.length <= 2
@@ -106,7 +109,9 @@ export default function StageActionDetail({
         )}
       </Field>
 
-      {action.kind === "open_costing_matrix" ? (
+      {action.kind === "request_packing_list" ? (
+        <Field label="Packing List">{packingListSummary(config, nameOf)}</Field>
+      ) : action.kind === "open_costing_matrix" ? (
         <>
           <Field label="Costing Matrix">{costingMatrixSummary(config, nameOf)}</Field>
           {config.purchasingIncharge?.id ? null : (
