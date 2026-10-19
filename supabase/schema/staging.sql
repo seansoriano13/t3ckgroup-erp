@@ -429,6 +429,24 @@ create table if not exists public."crm_pipeline_stages" (
   "is_itb_gate" boolean not null default false
 );
 
+create table if not exists public."currency_rate_currencies" (
+  "currency" text not null,
+  "divergence_pct" numeric not null default 2,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."currency_rates" (
+  "id" uuid not null default gen_random_uuid(),
+  "currency" text not null,
+  "rate_date" date not null,
+  "php_per_unit" numeric not null,
+  "source" text not null,
+  "fetched_at" timestamp with time zone not null default now(),
+  "overridden_by" uuid,
+  "overridden_at" timestamp with time zone,
+  "replaced_php_per_unit" numeric
+);
+
 create table if not exists public."employee_group_members" (
   "id" uuid not null default gen_random_uuid(),
   "group_id" uuid not null,
@@ -1710,6 +1728,8 @@ alter table costing_tender_lines add constraint "costing_tender_lines_pkey" PRIM
 alter table costing_virtual_columns add constraint "costing_virtual_columns_pkey" PRIMARY KEY (table_name, column_name);
 alter table crm_lead_sources add constraint "crm_lead_sources_pkey" PRIMARY KEY (value);
 alter table crm_pipeline_stages add constraint "crm_pipeline_stages_pkey" PRIMARY KEY (code);
+alter table currency_rate_currencies add constraint "currency_rate_currencies_pkey" PRIMARY KEY (currency);
+alter table currency_rates add constraint "currency_rates_pkey" PRIMARY KEY (id);
 alter table employee_group_members add constraint "employee_group_members_pkey" PRIMARY KEY (id);
 alter table employee_group_teams add constraint "employee_group_teams_pkey" PRIMARY KEY (id);
 alter table employee_groups add constraint "employee_groups_pkey" PRIMARY KEY (id);
@@ -1804,6 +1824,7 @@ alter table commission_splits add constraint "commission_splits_unique_role" UNI
 alter table committee_roles add constraint "committee_roles_role_name_key" UNIQUE (role_name);
 alter table costing_matrices add constraint "costing_matrices_opportunity_key" UNIQUE (opportunity_id);
 alter table costing_signer_lists add constraint "costing_signer_lists_unique" UNIQUE (list_key, employee_id);
+alter table currency_rates add constraint "currency_rates_currency_day_key" UNIQUE (currency, rate_date);
 alter table employee_group_members add constraint "employee_group_members_group_employee_key" UNIQUE (group_id, employee_id);
 alter table employee_group_teams add constraint "employee_group_teams_group_team_key" UNIQUE (group_id, team);
 alter table flow_edges add constraint "flow_edges_unique" UNIQUE (flow_id, from_stage_id, to_stage_id);
@@ -1891,6 +1912,9 @@ alter table costing_tender_line_prices add constraint "costing_tender_line_price
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_offer_chk" CHECK (((final_offer_unit IS NULL) OR (final_offer_unit >= (0)::numeric)));
 alter table costing_tender_lines add constraint "costing_tender_lines_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table costing_tender_lines add constraint "costing_tender_lines_source_chk" CHECK ((source = ANY (ARRAY['typed'::text, 'sor_line'::text])));
+alter table currency_rate_currencies add constraint "currency_rate_currencies_currency_check" CHECK (((currency ~ '^[A-Z]{3}$'::text) AND (currency <> 'PHP'::text)));
+alter table currency_rate_currencies add constraint "currency_rate_currencies_divergence_pct_check" CHECK ((divergence_pct > (0)::numeric));
+alter table currency_rates add constraint "currency_rates_php_per_unit_check" CHECK ((php_per_unit > (0)::numeric));
 alter table employees add constraint "employees_call_sign_chk" CHECK (((call_sign IS NULL) OR ((length(btrim(call_sign)) > 0) AND (call_sign = btrim(call_sign)))));
 alter table faq_data add constraint "faq_data_id_check" CHECK ((id = 1));
 alter table flow_edges add constraint "flow_edges_no_self_loop" CHECK ((from_stage_id <> to_stage_id));
@@ -2008,7 +2032,7 @@ alter table sor_stage_participants add constraint "sor_stage_participants_source
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
-alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text])));
+alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
@@ -2091,6 +2115,8 @@ alter table costing_tables add constraint "costing_tables_parent_table_fkey" FOR
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_tender_line_id_fkey" FOREIGN KEY (tender_line_id) REFERENCES costing_tender_lines(id) ON DELETE CASCADE;
 alter table costing_tender_lines add constraint "costing_tender_lines_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_tender_lines add constraint "costing_tender_lines_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
+alter table currency_rates add constraint "currency_rates_currency_fkey" FOREIGN KEY (currency) REFERENCES currency_rate_currencies(currency) ON UPDATE CASCADE;
+alter table currency_rates add constraint "currency_rates_overridden_by_fkey" FOREIGN KEY (overridden_by) REFERENCES employees(id);
 alter table employee_group_members add constraint "employee_group_members_added_by_fkey" FOREIGN KEY (added_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table employee_group_members add constraint "employee_group_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 alter table employee_group_members add constraint "employee_group_members_group_id_fkey" FOREIGN KEY (group_id) REFERENCES employee_groups(id) ON DELETE CASCADE;
@@ -2535,6 +2561,8 @@ alter table public."costing_tender_line_prices" enable row level security;
 alter table public."costing_tender_lines" enable row level security;
 alter table public."costing_virtual_columns" enable row level security;
 alter table public."crm_pipeline_stages" enable row level security;
+alter table public."currency_rate_currencies" enable row level security;
+alter table public."currency_rates" enable row level security;
 alter table public."employee_group_members" enable row level security;
 alter table public."employee_group_teams" enable row level security;
 alter table public."employee_groups" enable row level security;
@@ -3073,6 +3101,16 @@ create policy "crm_pipeline_stages_write" on public."crm_pipeline_stages"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+create policy "currency_rate_currencies_read" on public."currency_rate_currencies"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "currency_rates_read" on public."currency_rates"
+  as permissive
+  for select
+  to authenticated
+  using (true);
 create policy "Employees can read employee group members" on public."employee_group_members"
   as permissive
   for select
@@ -6655,6 +6693,52 @@ AS $function$
   ), false)
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.canvass_offer_projection(p_canvass_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_component uuid;
+  v_factor    numeric;
+  v_result    jsonb;
+begin
+  select c.component_id into v_component from public.sor_canvasses c where c.id = p_canvass_id;
+  if v_component is null then
+    return null;
+  end if;
+
+  if coalesce(public.costing_tier(public.canvass_component_opportunity(v_component)), '') not in ('closed_book', 'cost') then
+    return null;
+  end if;
+
+  select k.markup_factor into v_factor from public.costing_component_costs k where k.component_id = v_component;
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'offer_id', o.id,
+      'acquire_unit', a.acquire,
+      'markup_price_unit', public.costing_component_markup_price(v_component, a.acquire, v_factor)
+    ) order by o.sort_order, o.created_at
+  ), '[]'::jsonb)
+  into v_result
+  from public.sor_canvass_offers o
+  left join public.sor_canvass_offer_prices p on p.offer_id = o.id
+  cross join lateral (
+    select case
+      when p.unit_price is null then null
+      when o.currency = 'PHP' then round(p.unit_price, 2)
+      when p.comparison_rate is null then null
+      else round(p.unit_price * p.comparison_rate, 2)
+    end as acquire
+  ) a
+  where o.canvass_id = p_canvass_id;
+
+  return v_result;
+end
+$function$
+;
 CREATE OR REPLACE FUNCTION public.canvass_pending_signoffs()
  RETURNS jsonb
  LANGUAGE sql
@@ -9542,6 +9626,15 @@ begin
     timeout_milliseconds := p_timeout_ms
   );
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.invoke_currency_rates_fetch()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select public.invoke_cron_edge_function('currency-rates-fetch');
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.invoke_retail_sync(p_mode text DEFAULT NULL::text)
@@ -12504,6 +12597,40 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.override_currency_rate(p_currency text, p_rate_date date, p_php_per_unit numeric)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  if not coalesce(public.is_super_admin(), false) then
+    raise exception 'Only a Super Admin can override a Reference Rate.' using errcode = '42501';
+  end if;
+  if p_php_per_unit is null or p_php_per_unit <= 0 then
+    raise exception 'A Reference Rate must be more than zero.' using errcode = '22023';
+  end if;
+
+  -- Currencies are added on demand: overriding one starts fetching it too.
+  insert into public.currency_rate_currencies (currency) values (upper(p_currency))
+  on conflict (currency) do nothing;
+
+  insert into public.currency_rates
+    (currency, rate_date, php_per_unit, source, overridden_by, overridden_at, replaced_php_per_unit)
+  values
+    (upper(p_currency), p_rate_date, p_php_per_unit, 'override', public.get_employee_id(), now(), null)
+  on conflict (currency, rate_date) do update
+    set replaced_php_per_unit = case
+          when public.currency_rates.overridden_at is null then public.currency_rates.php_per_unit
+          else public.currency_rates.replaced_php_per_unit
+        end,
+        php_per_unit = excluded.php_per_unit,
+        source = 'override',
+        overridden_by = excluded.overridden_by,
+        overridden_at = excluded.overridden_at;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.packing_list_add_box(p_packing_list_id uuid, p_marks text DEFAULT NULL::text, p_seal_no text DEFAULT NULL::text, p_gross_weight_kg numeric DEFAULT NULL::numeric)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -14000,6 +14127,21 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.record_currency_rate(p_currency text, p_rate_date date, p_php_per_unit numeric, p_source text)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  insert into public.currency_rates (currency, rate_date, php_per_unit, source, fetched_at)
+  values (upper(p_currency), p_rate_date, p_php_per_unit, p_source, now())
+  on conflict (currency, rate_date) do update
+    set php_per_unit = excluded.php_per_unit,
+        source = excluded.source,
+        fetched_at = excluded.fetched_at
+    where public.currency_rates.overridden_at is null;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.record_stage_visit()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -14085,6 +14227,20 @@ begin
 
   return NEW;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.reference_rate(p_currency text, p_on date)
+ RETURNS TABLE(currency text, rate_date date, php_per_unit numeric, source text, overridden boolean, divergence_pct numeric)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO ''
+AS $function$
+  select r.currency, r.rate_date, r.php_per_unit, r.source, r.overridden_at is not null, c.divergence_pct
+  from public.currency_rates r
+  join public.currency_rate_currencies c on c.currency = r.currency
+  where r.currency = upper(p_currency) and r.rate_date <= p_on
+  order by r.rate_date desc
+  limit 1;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.reorder_leave_categories(p_ordering jsonb)
