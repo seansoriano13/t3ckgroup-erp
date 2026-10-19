@@ -79,3 +79,57 @@ describe("evaluateCondition: goods_checked kind", () => {
     expect(evaluateCondition(archived, { orderInputs: { unclosed_slips: 5 } }).status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
   })
 })
+
+describe("orders_filed (#466)", () => {
+  it("is met when no IPAS is left unfiled", () => {
+    expect(evaluateOrderCondition("orders_filed", { unclosed_slips: 4, unfiled_orders: 0 })).toEqual({
+      met: true,
+      failing: [],
+      messages: [],
+    })
+  })
+
+  it("is unmet while any IPAS is unfiled, and says how many", () => {
+    expect(evaluateOrderCondition("orders_filed", { unfiled_orders: 1 })).toEqual({
+      met: false,
+      failing: ["orders_not_filed"],
+      messages: ["1 IPAS naming this SOR is not filed yet."],
+    })
+    expect(evaluateOrderCondition("orders_filed", { unfiled_orders: 2 }).messages).toEqual([
+      "2 IPAS naming this SOR are not filed yet.",
+    ])
+  })
+
+  it("does not read the Transmittal count, nor Goods checked the IPAS count", () => {
+    expect(evaluateOrderCondition("orders_filed", { unclosed_slips: 9, unfiled_orders: 0 }).met).toBe(true)
+    expect(evaluateOrderCondition("goods_checked", { unclosed_slips: 0, unfiled_orders: 9 }).met).toBe(true)
+  })
+
+  it("fails closed when nobody loaded the evidence", () => {
+    expect(evaluateOrderCondition("orders_filed", undefined).met).toBe(false)
+  })
+})
+
+describe("evaluateCondition: orders_filed kind", () => {
+  it("is offered in the picker", () => {
+    expect(NEW_CONDITION_KINDS).toContain(CONDITION_KINDS.ORDERS_FILED)
+    expect(isOrderKind("orders_filed")).toBe(true)
+  })
+
+  it("is satisfied when every IPAS is filed", () => {
+    expect(evaluateCondition(condition("orders_filed"), { orderInputs: { unfiled_orders: 0 } }).status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+
+  it("is unsatisfied and carries the failing checks as detail", () => {
+    const result = evaluateCondition(condition("orders_filed"), { orderInputs: { unfiled_orders: 3 } })
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
+    expect(result.detail).toEqual({
+      failing: ["orders_not_filed"],
+      messages: ["3 IPAS naming this SOR are not filed yet."],
+    })
+  })
+
+  it("is unsatisfied with no evidence", () => {
+    expect(evaluateCondition(condition("orders_filed")).status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+})

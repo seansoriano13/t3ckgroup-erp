@@ -46,6 +46,8 @@ export const CONDITION_KINDS = {
   COSTING_PRICED: "costing_priced",
   // Issue #465: every submitted, uncancelled Transmittal naming the SOR is Closed.
   GOODS_CHECKED: "goods_checked",
+  // Issue #466: every uncancelled IPAS naming the SOR is filed. Not mounted on Government yet.
+  ORDERS_FILED: "orders_filed",
 }
 
 /**
@@ -65,6 +67,7 @@ export const NEW_CONDITION_KINDS = [
   CONDITION_KINDS.COSTING_SETTLED,
   CONDITION_KINDS.COSTING_PRICED,
   CONDITION_KINDS.GOODS_CHECKED,
+  CONDITION_KINDS.ORDERS_FILED,
 ]
 
 export const CONDITION_STATUS = {
@@ -258,7 +261,8 @@ export function evaluateCondition(condition, {
       const { met, failing, messages } = evaluateCostingCondition(condition.kind, costingInputs)
       return met ? satisfied() : unsatisfied({ failing, messages })
     }
-    case CONDITION_KINDS.GOODS_CHECKED: {
+    case CONDITION_KINDS.GOODS_CHECKED:
+    case CONDITION_KINDS.ORDERS_FILED: {
       const { met, failing, messages } = evaluateOrderCondition(condition.kind, orderInputs)
       return met ? satisfied() : unsatisfied({ failing, messages })
     }

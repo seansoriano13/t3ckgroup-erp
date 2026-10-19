@@ -20,6 +20,7 @@ import {
   Calculator,
   Tags,
   ClipboardCheck,
+  FileCheck,
   Database,
   Type,
   Hash,
@@ -96,6 +97,11 @@ export const CONDITION_KIND_META = {
     label: "Goods checked",
     icon: ClipboardCheck,
     hint: "Every submitted Transmittal with a line naming this SOR is Closed or Cancelled. Drafts don't count, and an SOR with no Transmittal meets it.",
+  },
+  [CONDITION_KINDS.ORDERS_FILED]: {
+    label: "Orders filed",
+    icon: FileCheck,
+    hint: "Every IPAS naming this SOR that isn't cancelled has been filed (section 7 approved). An SOR no IPAS names meets it.",
   },
 }
 

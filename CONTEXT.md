@@ -358,7 +358,8 @@ Something that must be true before an SOR may *leave* a Stage. Verifiable kinds
 — attachment, tickbox, assignment, deadline, purchasing settled (every
 Requested Item closed), and costing settled (every Tender Line priced, no blank
 cost, the evaluation approved, and the offer within ABC), goods checked (every
-submitted Transmittal naming the SOR closed) — plus Note Conditions. Something a
+submitted Transmittal naming the SOR closed), orders filed (every uncancelled
+IPAS naming the SOR filed) — plus Note Conditions. Something a
 deal must fill in is a Stage Field, never a condition. An attachment condition
 is met only by a file given through that condition, not by any matching file on
 the SOR. A deadline never blocks; it warns on approach and marks the deal
@@ -375,6 +376,16 @@ lines for two SORs counts for both. A line rated NA does not hold it open: the
 check happened, and the replacement rides a new slip that must itself close.
 Placed by Operations, on Government at the exit of Project Delivery.
 _Avoid_: Goods received, Delivery checked
+
+**Orders filed**:
+A Stage Condition, met when every IPAS naming the SOR that is not cancelled
+has been filed — section 7 approved, so its Landed Cost is final. It exists
+because an IPAS is per Odoo PO and cannot mount on a Stage. An SOR no IPAS
+names meets it; an IPAS naming several SORs counts for each. Built with the
+IPAS block but not placed on Government yet: Finance does not file in the ERP
+yet, and a gate on closing would stall deals and commission. Operations can
+place it later.
+_Avoid_: Orders closed, Orders settled
 
 **Note Condition**:
 A condition written in plain words because the system cannot express it, kept

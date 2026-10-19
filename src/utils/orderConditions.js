@@ -10,9 +10,11 @@
  *                                       Transmittal at all meets it. A line rated NA doesn't
  *                                       stop it: the replacement rides a new slip that must
  *                                       itself close.
+ *   orders_filed   unfiled_orders = 0   every IPAS naming the SOR that is not cancelled is filed
+ *                                       (section 7 approved). No IPAS at all meets it.
  */
 
-export const ORDER_CONDITION_KINDS = ["goods_checked"];
+export const ORDER_CONDITION_KINDS = ["goods_checked", "orders_filed"];
 
 export const isOrderKind = (kind) => ORDER_CONDITION_KINDS.includes(kind);
 
@@ -21,6 +23,7 @@ const plural = (n, one, many) => (n === 1 ? one : many);
 
 export const EVALUATORS = {
   goods_checked: (inputs) => (count(inputs?.unclosed_slips) === 0 ? { met: true, failing: [] } : { met: false, failing: ["slips_not_closed"] }),
+  orders_filed: (inputs) => (count(inputs?.unfiled_orders) === 0 ? { met: true, failing: [] } : { met: false, failing: ["orders_not_filed"] }),
 };
 
 /** Plain words per failing check, given the evidence (for the counts). */
@@ -28,6 +31,10 @@ export const WORDING = {
   slips_not_closed: (i) => {
     const n = count(i?.unclosed_slips);
     return `${n} ${plural(n, "Transmittal naming this SOR is", "Transmittals naming this SOR are")} not Closed yet.`;
+  },
+  orders_not_filed: (i) => {
+    const n = count(i?.unfiled_orders);
+    return `${n} ${plural(n, "IPAS naming this SOR is", "IPAS naming this SOR are")} not filed yet.`;
   },
 };
 

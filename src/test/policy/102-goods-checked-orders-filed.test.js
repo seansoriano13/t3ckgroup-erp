@@ -16,16 +16,18 @@
  * flow the Transmittal tests already prove); IPAS go through the real `ipas_create`.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
+import { FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
+import { purgeIpas } from "./support/ipas.js"
+import { purgeFixtureTransmittals } from "./support/transmittals.js"
 
 const svc = () => serviceClient()
 
 let saleTypeId, flowId, stageId
 let sorA, sorB, sorQuiet
 const sorIds = []
-const slipIds = []
+const ipasIds = []
 
 const asSvc = async (query, what) => {
     const { data, error } = await query
@@ -41,6 +43,61 @@ const counts = async (sorId, who = "dealOwner") => {
     return data
 }
 
+let poSeq = 0
+const nextPo = () => `P9${String(60000 + (poSeq += 1)).padStart(6, "0")}`
+
+const copyFor = (po) => ({
+    po: { id: 860000 + poSeq, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
+    supplier: { id: 9_600_000 + poSeq, name: "Orders Filed Supplier", contact: null },
+    lines: [
+        { line_id: 880000 + poSeq * 10, product_id: 7400, name: "Rope", quantity: 4, unit: "Unit", price_unit: 900, price_subtotal: 3600, taxes: [], analytic: [], brand: null },
+    ],
+    receipts: { status: "pending", done: 0, total: 1 },
+    bills: { count: 0, draft: 0 },
+})
+
+/** An IPAS raised through the real `ipas_create`, as Purchasing, naming the given SORs. */
+async function raise(sors, purpose = "project") {
+    const po = nextPo()
+    const { data, error } = await (await clientFor("outsider")).rpc("ipas_create", {
+        p_po_number: po,
+        p_priority: "high",
+        p_source: "local",
+        p_purpose: purpose,
+        p_sor_ids: sors,
+        p_remarks: null,
+        p_odoo_copy: copyFor(po),
+    })
+    if (error) throw new Error(`ipas_create ${po}: ${error.message}`)
+    ipasIds.push(data.id)
+    return data.id
+}
+
+/** Files or cancels an IPAS the way the table's checks need, past the triggers that freeze it. */
+async function setIpasState(id, state) {
+    const client = await sql().connect()
+    try {
+        await client.query("begin")
+        await client.query("set local session_replication_role = replica")
+        await client.query(
+            `update public.ipas
+                set state = $2,
+                    filed_at = case when $2 = 'filed' then now() else null end,
+                    cancelled_at = case when $2 = 'cancelled' then now() else null end,
+                    cancelled_by = case when $2 = 'cancelled' then $3::uuid else null end,
+                    cancel_reason = case when $2 = 'cancelled' then 'policy test' else null end
+              where id = $1`,
+            [id, state, ids.outsider],
+        )
+        await client.query("commit")
+    } catch (error) {
+        await client.query("rollback").catch(() => {})
+        throw error
+    } finally {
+        client.release()
+    }
+}
+
 let slipSeq = 0
 /**
  * A slip with one typed line per SOR named. The lines go in while it is still a draft (a submitted
@@ -54,7 +111,6 @@ async function slip(state, sors) {
         [`${MARKER}-TG-${(slipSeq += 1)}`, ids.warehouse],
     )
     const id = rows[0].id
-    slipIds.push(id)
     for (const [i, sor] of sors.entries()) {
         await sql().query(
             `insert into public.transmittal_lines (transmittal_id, position, kind, description, quantity, unit, opportunity_id)
@@ -95,6 +151,7 @@ async function setSlipState(id, state) {
 
 beforeAll(async () => {
     await ensureCastLoaded()
+    await asSvc(svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider), "purchasing flag")
 
     saleTypeId = (await asSvc(svc().from("sale_types").insert({ name: `${MARKER} Orders` }).select("id").single(), "sale type")).id
     flowId = (await asSvc(svc().from("sales_flows").insert({ sale_type_id: saleTypeId }).select("id").single(), "flow")).id
@@ -108,20 +165,11 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-    // A Transmittal is never deleted by the front door: triggers refuse it, and the lines hang off it.
-    const client = await sql().connect()
-    try {
-        await client.query("begin")
-        await client.query("set local session_replication_role = replica")
-        await client.query(`delete from public.transmittal_lines where transmittal_id = any($1::uuid[])`, [slipIds])
-        await client.query(`delete from public.transmittals where id = any($1::uuid[])`, [slipIds])
-        await client.query("commit")
-    } catch (error) {
-        await client.query("rollback").catch(() => {})
-        throw error
-    } finally {
-        client.release()
-    }
+    await purgeIpas(ipasIds)
+    await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
+    // A Transmittal is never deleted by the front door: triggers refuse it, and its lines, SOR links and
+    // stages hang off it. The shared helper removes what the fixture employees prepared.
+    await purgeFixtureTransmittals(`%@${FIXTURE_DOMAIN}`)
     await svc().from("sales_opportunities").delete().in("id", sorIds)
     await svc().from("stage_conditions").delete().eq("stage_id", stageId)
     await svc().from("flow_stages").delete().eq("flow_id", flowId)
@@ -131,7 +179,7 @@ afterAll(async () => {
 
 describe("the condition kinds", () => {
     it("are accepted by the kind CHECK, alongside every older kind", async () => {
-        for (const kind of ["goods_checked", "costing_priced", "costing_settled", "purchasing_settled", "attachment"]) {
+        for (const kind of ["goods_checked", "orders_filed", "costing_priced", "costing_settled", "purchasing_settled", "attachment"]) {
             const { data, error } = await svc().from("stage_conditions").insert({ stage_id: stageId, kind, label: `${MARKER} ${kind}` }).select("id").single()
             expect(error, kind).toBeNull()
             await svc().from("stage_conditions").delete().eq("id", data.id)
@@ -190,6 +238,58 @@ describe("Goods checked: the Transmittals the SOR is named on", () => {
         const before = (await counts(sorQuiet)).unclosed_slips
         await slip("warehouse_checking", [other])
         expect((await counts(sorQuiet)).unclosed_slips).toBe(before)
+    })
+})
+
+describe("Orders filed: the IPAS the SOR is named on", () => {
+    let freshA, freshB
+
+    beforeAll(async () => {
+        freshA = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+        freshB = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+        sorIds.push(freshA, freshB)
+    })
+
+    it("is zero for an SOR no IPAS names", async () => {
+        expect((await counts(sorQuiet)).unfiled_orders).toBe(0)
+    })
+
+    it("counts an open IPAS until it is filed, and not after", async () => {
+        const id = await raise([sorA])
+        expect((await counts(sorA)).unfiled_orders).toBe(1)
+        await setIpasState(id, "filed")
+        expect((await counts(sorA)).unfiled_orders).toBe(0)
+    })
+
+    it("ignores a cancelled IPAS", async () => {
+        const id = await raise([sorQuiet])
+        expect((await counts(sorQuiet)).unfiled_orders).toBe(1)
+        await setIpasState(id, "cancelled")
+        expect((await counts(sorQuiet)).unfiled_orders).toBe(0)
+    })
+
+    it("counts an IPAS naming several SORs for each, and releases each when it is filed", async () => {
+        const id = await raise([freshA, freshB])
+        expect((await counts(freshA)).unfiled_orders).toBe(1)
+        expect((await counts(freshB)).unfiled_orders).toBe(1)
+        await setIpasState(id, "filed")
+        expect((await counts(freshA)).unfiled_orders).toBe(0)
+        expect((await counts(freshB)).unfiled_orders).toBe(0)
+    })
+
+    it("does not count an IPAS that names only another SOR, nor an inventory IPAS naming none", async () => {
+        const before = (await counts(freshA)).unfiled_orders
+        await raise([freshB])
+        await raise([], "inventory")
+        expect((await counts(freshA)).unfiled_orders).toBe(before)
+    })
+
+    it("keeps Goods checked and Orders filed apart: an open slip leaves the IPAS count alone", async () => {
+        const before = (await counts(freshA)).unfiled_orders
+        await slip("warehouse_checking", [freshA])
+        const after = await counts(freshA)
+        expect(after.unfiled_orders).toBe(before)
+        expect(after.unclosed_slips).toBeGreaterThan(0)
     })
 })
 
