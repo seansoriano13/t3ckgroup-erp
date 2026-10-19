@@ -178,6 +178,28 @@ describe("where there is nothing to project", () => {
     })
 })
 
+describe("agreeing with the winner", () => {
+    // canvass_apply_winner writes the Acquire a winning Offer fills; the projection must show that same figure.
+    it.each([
+        ["a PHP offer", {}, { unit_price: 78000.5 }],
+        ["a foreign offer, rounded to the centavo", { currency: "USD" }, { unit_price: 1280.33, comparison_rate: 56.5625 }],
+    ])("shows the Acquire %s then fills when it wins", async (_label, extra, price) => {
+        const comp = (
+            await asSvc(svc().from("costing_components").insert({ tender_line_id: lineId, position: 9, name: "Parity", quantity: 1 }).select("id").single(), "Component")
+        ).id
+        const canvass = (await asSvc(svc().from("sor_canvasses").insert({ component_id: comp, created_by: ids.outsider }).select("id").single(), "Canvass")).id
+        const offer = await makeOffer(canvass, extra, price)
+
+        const projected = byOffer((await project("outsider", canvass)).data, offer).acquire_unit
+        const won = await (await clientFor("outsider")).rpc("canvass_apply_winner", { p_canvass_id: canvass, p_offer_id: offer.id })
+        expect(won.error).toBeNull()
+        const filled = (await svc().from("costing_component_costs").select("acquire_unit").eq("component_id", comp).single()).data.acquire_unit
+
+        expect(Number(projected)).toBe(Number(filled))
+        await svc().from("sor_canvasses").delete().eq("id", canvass)
+    })
+})
+
 describe("writing nothing", () => {
     it("leaves the Component's cost row untouched", async () => {
         const before = await svc().from("costing_component_costs").select("*").eq("component_id", compId).maybeSingle()
