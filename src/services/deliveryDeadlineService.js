@@ -24,7 +24,7 @@ export const deliveryDeadlineService = {
     return new Map((data ?? []).map((row) => [row.opportunity_id, { dueAt: row.due_at, days: row.days }]));
   },
 
-  /** N, the days before the deadline at which an unreceived order is near. Defaults to 5. */
+  /** N, the days before the deadline at which an unreceived order is near. Falls back to DEFAULT_NEAR_DAYS. */
   async getNearDays() {
     const { data, error } = await supabase.from("order_deadline_setting").select("near_days").maybeSingle();
     if (error) throw error;

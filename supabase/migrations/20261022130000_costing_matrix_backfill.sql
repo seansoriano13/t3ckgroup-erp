@@ -189,8 +189,9 @@ grant execute on function public.sor_open_costing_matrix(uuid, jsonb) to authent
 -- _costing_backfill_hits: (SOR, mounting action) pairs the SOR is at or past
 -- ---------------------------------------------------------------------------
 -- Reads each live SOR's own Flow Snapshot: its Open Costing Matrix actions and
--- its edges (the live flow_edges only when the snapshot carries none), and
--- walks forward from the mounting stage. Both snapshot action shapes (an array,
+-- its edges, and walks forward from the mounting stage. A snapshot without an
+-- `edges` array is never guessed at from the live flow_edges: its SOR comes back
+-- with has_edges = false and the backfill skips it. Both snapshot action shapes (an array,
 -- or arrays keyed by Stage) are read, as in _sor_action_run_saved_action.
 -- `seq` orders a SOR's actions as the snapshot lists them.
 create or replace function public._costing_backfill_hits()
@@ -200,7 +201,8 @@ returns table (
   action_id uuid,
   action_config jsonb,
   mounting_stage_id uuid,
-  seq bigint
+  seq bigint,
+  has_edges boolean
 )
 language sql
 stable
@@ -208,7 +210,8 @@ security definer
 set search_path = public
 as $$
   with recursive sor as (
-    select o.id, o.flow_stage_id, fs.flow_id, fs.snapshot_data
+    select o.id, o.flow_stage_id, fs.flow_id, fs.snapshot_data,
+           coalesce(jsonb_typeof(fs.snapshot_data->'edges') = 'array', false) as has_edges
       from public.sales_opportunities o
       join public.flow_snapshots fs on fs.id = o.flow_snapshot_id
      where not coalesce(o.is_deleted, false)
@@ -239,11 +242,6 @@ as $$
       lateral jsonb_array_elements(
         case when jsonb_typeof(s.snapshot_data->'edges') = 'array' then s.snapshot_data->'edges' else '[]'::jsonb end
       ) e
-    union all
-    select s.id, fe.from_stage_id, fe.to_stage_id
-      from sor s
-      join public.flow_edges fe on fe.flow_id = s.flow_id
-     where jsonb_typeof(s.snapshot_data->'edges') is distinct from 'array'
   ),
   reach(opp, mount, stage) as (
     select distinct a.opp, a.stage_id, a.stage_id from acts a where a.stage_id is not null
@@ -253,11 +251,13 @@ as $$
       join edges e on e.opp = r.opp and e.f = r.stage
   )
   select a.opp, a.flow_id, (a.act->>'id')::uuid, coalesce(a.act->'config', '{}'::jsonb), a.stage_id,
-         row_number() over (partition by a.opp order by a.stage_id, a.ord)
+         row_number() over (partition by a.opp order by a.stage_id, a.ord),
+         s.has_edges
     from acts a
     join sor s on s.id = a.opp
-    join reach r on r.opp = a.opp and r.mount = a.stage_id and r.stage = s.flow_stage_id
-   where a.stage_id is not null;
+    left join reach r on r.opp = a.opp and r.mount = a.stage_id and r.stage = s.flow_stage_id
+   where a.stage_id is not null
+     and (r.opp is not null or not s.has_edges);
 $$;
 
 revoke all on function public._costing_backfill_hits() from public, anon, authenticated;
@@ -270,6 +270,8 @@ revoke all on function public._costing_backfill_hits() from public, anon, authen
 --   opened              real run: this SOR got a matrix
 --   already_has_matrix  left alone (this is what makes a second run a no-op)
 --   failed              real run: this SOR could not be opened (see reason); the rest ran
+--   skipped_no_snapshot_edges  its Flow Snapshot has no edges array, so where it stands
+--                       cannot be told; nothing is written (dry and real runs alike)
 create or replace function public.costing_matrix_backfill(p_dry_run boolean default true)
 returns table (
   flow_id uuid,
@@ -297,6 +299,7 @@ declare
   v_mount_names text;
   v_reason text;
   v_at_stage boolean;
+  v_has_edges boolean;
 begin
   if not (coalesce(auth.role(), '') = 'service_role' or public.is_super_admin()) then
     raise exception 'costing_matrix_backfill: service role or Super Admin only' using errcode = '42501';
@@ -312,8 +315,9 @@ begin
     select id into v_existing from public.costing_matrices m where m.opportunity_id = v_sor.opp_id;
 
     select string_agg(distinct format('"%s"', coalesce(st.name, h.mounting_stage_id::text)), ', '),
-           bool_or(h.mounting_stage_id = v_opp.flow_stage_id)
-      into v_mount_names, v_at_stage
+           bool_or(h.mounting_stage_id = v_opp.flow_stage_id),
+           bool_and(h.has_edges)
+      into v_mount_names, v_at_stage, v_has_edges
       from public._costing_backfill_hits() h
       left join public.flow_stages st on st.id = h.mounting_stage_id
      where h.opportunity_id = v_sor.opp_id;
@@ -323,7 +327,11 @@ begin
       else format('Downstream of the stage that mounts Open Costing Matrix (%s)', v_mount_names)
     end;
 
-    if v_existing is not null then
+    if not v_has_edges then
+      v_outcome := 'skipped_no_snapshot_edges';
+      v_matrix := null;
+      v_reason := format('Flow Snapshot has no edges, so the SOR''s position cannot be told (mounts Open Costing Matrix at %s)', v_mount_names);
+    elsif v_existing is not null then
       v_outcome := 'already_has_matrix';
       v_matrix := v_existing;
     elsif p_dry_run then

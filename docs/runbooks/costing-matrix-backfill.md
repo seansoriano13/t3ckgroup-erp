@@ -15,6 +15,8 @@ Super Admin or service role only. Run it through the Supabase SQL editor or a se
    ```
 
    One row per SOR, grouped by flow (`flow_id`, `flow_name`). Check the SORs and the `reason` column make sense: `would_open` for SORs at or downstream of the mounting stage, `already_has_matrix` for the ones that need nothing. Soft-deleted SORs and SORs upstream of the stage are not listed.
+
+   `skipped_no_snapshot_edges` marks an SOR whose Flow Snapshot has no `edges` array. Its place in the flow cannot be told, and the live flow edges are deliberately not used instead, so it is reported and nothing is written for it, in dry and real runs alike. Check each one by hand and open its matrix from the SOR if it needs one.
 2. **Staging, real run.**
 
    ```sql
@@ -22,7 +24,7 @@ Super Admin or service role only. Run it through the Supabase SQL editor or a se
    ```
 
    Every `would_open` row becomes `opened` with a `matrix_id`. A `failed` row names the cause in `reason` (for example, the configured Purchasing Incharge has no Purchasing access); the other SORs still ran. Fix the cause and run it again.
-3. **Staging, run it again.** Every row must say `already_has_matrix` (or `failed` again for an unfixed cause). Nothing new is created.
+3. **Staging, run it again.** Every row must say `already_has_matrix` (or `failed` again for an unfixed cause, or `skipped_no_snapshot_edges` again). Nothing new is created.
 4. **Prod release.** With the release migrations applied, repeat steps 1 to 3 on prod, dry run first, and compare the dry run with the staging one. Prod DDL is a manual workflow; this is a data step that follows it.
 
 ## Side effects to expect

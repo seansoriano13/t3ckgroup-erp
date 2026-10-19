@@ -24,7 +24,7 @@ async function one(query, what) {
     return data.id
 }
 
-async function sorAt(stageId, { deleted = false } = {}) {
+async function sorAt(stageId, { deleted = false, snapshot = null } = {}) {
     const id = await makeSor({
         registeredBy: ids.dealOwner,
         dealOwnerId: ids.dealOwner,
@@ -32,9 +32,9 @@ async function sorAt(stageId, { deleted = false } = {}) {
         flowStageId: stageId,
     })
     sorIds.push(id)
-    const set = await svc().from("sales_opportunities").update({ flow_snapshot_id: snapshotId, is_deleted: deleted }).eq("id", id)
+    const set = await svc().from("sales_opportunities").update({ flow_snapshot_id: snapshot ?? snapshotId, is_deleted: deleted }).eq("id", id)
     if (set.error) throw new Error(set.error.message)
-    const visit = await svc().from("sor_stage_visits").update({ flow_snapshot_id: snapshotId }).eq("opportunity_id", id)
+    const visit = await svc().from("sor_stage_visits").update({ flow_snapshot_id: snapshot ?? snapshotId }).eq("opportunity_id", id)
     if (visit.error) throw new Error(visit.error.message)
     return id
 }
@@ -89,6 +89,13 @@ beforeAll(async () => {
     sors.later = await sorAt(laterId)
     sors.deleted = await sorAt(laterId, { deleted: true })
     sors.has = await sorAt(laterId)
+    // A snapshot that carries no edges array: the live flow_edges must not stand in for it.
+    const { edges: _edges, ...noEdgesData } = (await svc().from("flow_snapshots").select("snapshot_data").eq("id", snapshotId).single()).data.snapshot_data
+    const noEdgesSnapshotId = await one(
+        svc().from("flow_snapshots").insert({ flow_id: flowId, version: 9951, snapshot_data: noEdgesData }),
+        "snapshot without edges",
+    )
+    sors.noEdges = await sorAt(laterId, { snapshot: noEdgesSnapshotId })
     const existing = await svc().from("costing_matrices").insert({ opportunity_id: sors.has }).select("id").single()
     if (existing.error) throw new Error(existing.error.message)
 })
@@ -114,13 +121,15 @@ describe("dry run", () => {
         const rows = mine(data)
         const byOpp = Object.fromEntries(rows.map((r) => [r.opportunity_id, r]))
 
-        expect(Object.keys(byOpp).sort()).toEqual([sors.atMount, sors.later, sors.has].sort())
+        expect(Object.keys(byOpp).sort()).toEqual([sors.atMount, sors.later, sors.has, sors.noEdges].sort())
         expect(byOpp[sors.atMount].outcome).toBe("would_open")
         expect(byOpp[sors.atMount].reason).toMatch(/^At the stage/)
         expect(byOpp[sors.later].outcome).toBe("would_open")
         expect(byOpp[sors.later].reason).toMatch(/^Downstream/)
         expect(byOpp[sors.later].mounting_stage).toContain("Mount")
         expect(byOpp[sors.has].outcome).toBe("already_has_matrix")
+        // No edges in its snapshot: reported, never guessed from the live edges.
+        expect(byOpp[sors.noEdges].outcome).toBe("skipped_no_snapshot_edges")
         // Not upstream, not deleted.
         expect(byOpp[sors.upstream]).toBeUndefined()
         expect(byOpp[sors.deleted]).toBeUndefined()
@@ -171,6 +180,9 @@ describe("real run", () => {
         expect(had[0].purchasing_incharge_id).toBeNull()
         expect(await matricesOf(sors.upstream)).toHaveLength(0)
         expect(await matricesOf(sors.deleted)).toHaveLength(0)
+        // Skipped in a real run too, and nothing written for it.
+        expect(rows.find((r) => r.opportunity_id === sors.noEdges).outcome).toBe("skipped_no_snapshot_edges")
+        expect(await matricesOf(sors.noEdges)).toHaveLength(0)
     })
 
     it("creates nothing the second time", async () => {
@@ -179,8 +191,9 @@ describe("real run", () => {
 
         const { data, error } = await svc().rpc("costing_matrix_backfill", { p_dry_run: false })
         expect(error).toBeNull()
-        expect(mine(data).every((r) => r.outcome === "already_has_matrix")).toBe(true)
-        expect(mine(data)).toHaveLength(3)
+        const rows = mine(data).filter((r) => r.opportunity_id !== sors.noEdges)
+        expect(rows.every((r) => r.outcome === "already_has_matrix")).toBe(true)
+        expect(rows).toHaveLength(3)
 
         for (const key of Object.keys(sors)) expect(await matricesOf(sors[key])).toEqual(before[key])
     })

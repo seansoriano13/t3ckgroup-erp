@@ -2043,7 +2043,7 @@ alter table sor_stage_participants add constraint "sor_stage_participants_source
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
-alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text, 'goods_checked'::text, 'orders_filed'::text])));
+alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
@@ -4270,13 +4270,14 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._costing_backfill_hits()
- RETURNS TABLE(opportunity_id uuid, flow_id uuid, action_id uuid, action_config jsonb, mounting_stage_id uuid, seq bigint)
+ RETURNS TABLE(opportunity_id uuid, flow_id uuid, action_id uuid, action_config jsonb, mounting_stage_id uuid, seq bigint, has_edges boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
   with recursive sor as (
-    select o.id, o.flow_stage_id, fs.flow_id, fs.snapshot_data
+    select o.id, o.flow_stage_id, fs.flow_id, fs.snapshot_data,
+           coalesce(jsonb_typeof(fs.snapshot_data->'edges') = 'array', false) as has_edges
       from public.sales_opportunities o
       join public.flow_snapshots fs on fs.id = o.flow_snapshot_id
      where not coalesce(o.is_deleted, false)
@@ -4307,11 +4308,6 @@ AS $function$
       lateral jsonb_array_elements(
         case when jsonb_typeof(s.snapshot_data->'edges') = 'array' then s.snapshot_data->'edges' else '[]'::jsonb end
       ) e
-    union all
-    select s.id, fe.from_stage_id, fe.to_stage_id
-      from sor s
-      join public.flow_edges fe on fe.flow_id = s.flow_id
-     where jsonb_typeof(s.snapshot_data->'edges') is distinct from 'array'
   ),
   reach(opp, mount, stage) as (
     select distinct a.opp, a.stage_id, a.stage_id from acts a where a.stage_id is not null
@@ -4321,11 +4317,13 @@ AS $function$
       join edges e on e.opp = r.opp and e.f = r.stage
   )
   select a.opp, a.flow_id, (a.act->>'id')::uuid, coalesce(a.act->'config', '{}'::jsonb), a.stage_id,
-         row_number() over (partition by a.opp order by a.stage_id, a.ord)
+         row_number() over (partition by a.opp order by a.stage_id, a.ord),
+         s.has_edges
     from acts a
     join sor s on s.id = a.opp
-    join reach r on r.opp = a.opp and r.mount = a.stage_id and r.stage = s.flow_stage_id
-   where a.stage_id is not null;
+    left join reach r on r.opp = a.opp and r.mount = a.stage_id and r.stage = s.flow_stage_id
+   where a.stage_id is not null
+     and (r.opp is not null or not s.has_edges);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._costing_component_labels(p_component_ids uuid[])
@@ -8229,6 +8227,7 @@ declare
   v_mount_names text;
   v_reason text;
   v_at_stage boolean;
+  v_has_edges boolean;
 begin
   if not (coalesce(auth.role(), '') = 'service_role' or public.is_super_admin()) then
     raise exception 'costing_matrix_backfill: service role or Super Admin only' using errcode = '42501';
@@ -8244,8 +8243,9 @@ begin
     select id into v_existing from public.costing_matrices m where m.opportunity_id = v_sor.opp_id;
 
     select string_agg(distinct format('"%s"', coalesce(st.name, h.mounting_stage_id::text)), ', '),
-           bool_or(h.mounting_stage_id = v_opp.flow_stage_id)
-      into v_mount_names, v_at_stage
+           bool_or(h.mounting_stage_id = v_opp.flow_stage_id),
+           bool_and(h.has_edges)
+      into v_mount_names, v_at_stage, v_has_edges
       from public._costing_backfill_hits() h
       left join public.flow_stages st on st.id = h.mounting_stage_id
      where h.opportunity_id = v_sor.opp_id;
@@ -8255,7 +8255,11 @@ begin
       else format('Downstream of the stage that mounts Open Costing Matrix (%s)', v_mount_names)
     end;
 
-    if v_existing is not null then
+    if not v_has_edges then
+      v_outcome := 'skipped_no_snapshot_edges';
+      v_matrix := null;
+      v_reason := format('Flow Snapshot has no edges, so the SOR''s position cannot be told (mounts Open Costing Matrix at %s)', v_mount_names);
+    elsif v_existing is not null then
       v_outcome := 'already_has_matrix';
       v_matrix := v_existing;
     elsif p_dry_run then
