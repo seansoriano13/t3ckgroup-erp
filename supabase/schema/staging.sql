@@ -897,6 +897,13 @@ create table if not exists public."order_ageing_rules" (
   "updated_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."order_deadline_setting" (
+  "id" boolean not null default true,
+  "near_days" integer not null default 5,
+  "updated_by" uuid,
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."overtime_requests" (
   "id" uuid not null default gen_random_uuid(),
   "employee_id" uuid not null,
@@ -1242,7 +1249,8 @@ create table if not exists public."sor_action_runs" (
   "carried_from_visit_id" uuid,
   "held_at" timestamp with time zone,
   "purchase_request_id" uuid,
-  "costing_matrix_id" uuid
+  "costing_matrix_id" uuid,
+  "packing_list_id" uuid
 );
 
 create table if not exists public."sor_canvass_offer_prices" (
@@ -1763,6 +1771,7 @@ alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_pkey" PRIMARY KEY (id);
 alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
 alter table order_ageing_rules add constraint "order_ageing_rules_pkey" PRIMARY KEY (step);
+alter table order_deadline_setting add constraint "order_deadline_setting_pkey" PRIMARY KEY (id);
 alter table overtime_requests add constraint "overtime_requests_pkey" PRIMARY KEY (id);
 alter table packing_list_boxes add constraint "packing_list_boxes_pkey" PRIMARY KEY (id);
 alter table packing_list_contents add constraint "packing_list_contents_pkey" PRIMARY KEY (id);
@@ -1922,7 +1931,7 @@ alter table flow_form_fields add constraint "flow_form_fields_custom_shape_chk" 
 alter table flow_form_fields add constraint "flow_form_fields_default_key_chk" CHECK ((((source = 'default'::text) AND (default_key IS NOT NULL)) OR ((source = 'custom'::text) AND (default_key IS NULL))));
 alter table flow_form_fields add constraint "flow_form_fields_source_chk" CHECK ((source = ANY (ARRAY['default'::text, 'custom'::text])));
 alter table flow_form_fields add constraint "flow_form_fields_type_chk" CHECK (((field_type IS NULL) OR (field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text]))));
-alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text, 'open_purchase_request'::text, 'open_costing_matrix'::text])));
+alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text, 'open_purchase_request'::text, 'open_costing_matrix'::text, 'request_packing_list'::text])));
 alter table flow_stage_fields add constraint "flow_stage_fields_label_not_blank" CHECK ((btrim(label) <> ''::text));
 alter table flow_stage_fields add constraint "flow_stage_fields_sor_field_chk" CHECK ((((source = 'sor'::text) AND (sor_field IS NOT NULL)) OR ((source = 'custom'::text) AND (sor_field IS NULL))));
 alter table flow_stage_fields add constraint "flow_stage_fields_source_chk" CHECK ((source = ANY (ARRAY['sor'::text, 'custom'::text])));
@@ -1980,6 +1989,8 @@ alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
 alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['purchase_order'::text, 'with_pop'::text, 'import_clearance'::text, 'delivered'::text, 'received_in_odoo'::text, 'create_bill'::text, 'actual_checking'::text, 'no_transmittal'::text, 'check_open'::text, 'ready_to_file'::text])));
+alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
+alter table order_deadline_setting add constraint "order_deadline_setting_one_row_chk" CHECK ((id = true));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table overtime_requests add constraint "overtime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED_PAID'::text, 'APPROVED_OFFSET'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table packing_list_boxes add constraint "packing_list_boxes_box_no_chk" CHECK ((box_no >= 1));
@@ -2032,7 +2043,7 @@ alter table sor_stage_participants add constraint "sor_stage_participants_source
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
-alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text])));
+alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text, 'goods_checked'::text, 'orders_filed'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
@@ -2180,6 +2191,7 @@ alter table offset_leaves add constraint "offset_leaves_head_id_fkey" FOREIGN KE
 alter table offset_leaves add constraint "offset_leaves_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table offset_leaves add constraint "offset_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 alter table order_ageing_rules add constraint "order_ageing_rules_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table order_deadline_setting add constraint "order_deadline_setting_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
@@ -2247,6 +2259,7 @@ alter table sor_action_runs add constraint "sor_action_runs_costing_matrix_id_fk
 alter table sor_action_runs add constraint "sor_action_runs_decided_by_fkey" FOREIGN KEY (decided_by) REFERENCES employees(id);
 alter table sor_action_runs add constraint "sor_action_runs_group_task_id_fkey" FOREIGN KEY (group_task_id) REFERENCES committee_tasks(id) ON DELETE SET NULL;
 alter table sor_action_runs add constraint "sor_action_runs_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sor_action_runs add constraint "sor_action_runs_packing_list_id_fkey" FOREIGN KEY (packing_list_id) REFERENCES packing_lists(id) ON DELETE SET NULL;
 alter table sor_action_runs add constraint "sor_action_runs_purchase_request_id_fkey" FOREIGN KEY (purchase_request_id) REFERENCES purchase_requests(id) ON DELETE SET NULL;
 alter table sor_action_runs add constraint "sor_action_runs_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
 alter table sor_action_runs add constraint "sor_action_runs_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
@@ -2596,6 +2609,7 @@ alter table public."notifications" enable row level security;
 alter table public."odoo_retail_queue" enable row level security;
 alter table public."offset_leaves" enable row level security;
 alter table public."order_ageing_rules" enable row level security;
+alter table public."order_deadline_setting" enable row level security;
 alter table public."overtime_requests" enable row level security;
 alter table public."packing_list_boxes" enable row level security;
 alter table public."packing_list_contents" enable row level security;
@@ -3540,6 +3554,22 @@ create policy "order_ageing_rules_update" on public."order_ageing_rules"
   to authenticated
   using ((has_purchasing_access() OR COALESCE(is_super_admin(), false)))
   with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
+create policy "order_deadline_setting_insert" on public."order_deadline_setting"
+  as permissive
+  for insert
+  to authenticated
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
+create policy "order_deadline_setting_read" on public."order_deadline_setting"
+  as permissive
+  for select
+  to authenticated
+  using ((get_employee_id() IS NOT NULL));
+create policy "order_deadline_setting_update" on public."order_deadline_setting"
+  as permissive
+  for update
+  to authenticated
+  using ((has_purchasing_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
 create policy "Employees can view their own overtime" on public."overtime_requests"
   as permissive
   for select
@@ -4166,6 +4196,138 @@ create policy "undertime_requests_update" on public."undertime_requests"
 -- Functions
 -- ============================================================
 
+CREATE OR REPLACE FUNCTION public._costing_action_open_args(p_opp sales_opportunities, p_config jsonb, p_visit uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_config jsonb := coalesce(p_config, '{}'::jsonb);
+  v_sel jsonb;
+  v_sales uuid;
+  v_buyer uuid;
+  v_until text;
+  v_until_stage uuid;
+  v_members jsonb;
+  v_assigners jsonb;
+begin
+  -- Sales Incharge: the configured role or person; the Deal Owner role by default.
+  v_sel := coalesce(v_config->'salesIncharge', jsonb_build_object('type', 'role', 'role', 'deal_owner'));
+  v_sales := case v_sel->>'type'
+    when 'employee' then nullif(v_sel->>'id', '')::uuid
+    when 'role' then case v_sel->>'role'
+      when 'deal_owner' then p_opp.deal_owner_id
+      when 'closing_sales' then p_opp.closing_sales_id
+      when 'support_sales' then coalesce(p_opp.support_sales_1_id, p_opp.support_sales_2_id)
+      when 'sales_director' then p_opp.sales_director_id
+      when 'registrar' then p_opp.registered_by
+    end
+  end;
+  select e.id into v_sales from public.employees e where e.id = v_sales and not coalesce(e.is_deleted, false);
+
+  if v_config->'purchasingIncharge'->>'type' = 'employee' then
+    select e.id into v_buyer from public.employees e
+     where e.id = nullif(v_config->'purchasingIncharge'->>'id', '')::uuid and not coalesce(e.is_deleted, false);
+  end if;
+
+  v_until := coalesce(nullif(v_config->'access'->>'until', ''), 'stage_left');
+  if v_until in ('stage_entered', 'later_stage_left') then
+    v_until_stage := nullif(v_config->'access'->>'stageId', '')::uuid;
+  end if;
+
+  select coalesce(jsonb_agg(e.id), '[]'::jsonb) into v_members
+  from public.employees e
+  where not coalesce(e.is_deleted, false)
+    and exists (
+      select 1 from jsonb_array_elements(
+        case when jsonb_typeof(v_config->'extras') = 'array' then v_config->'extras' else '[]'::jsonb end
+      ) s
+      where public.sor_selector_covers(s, p_opp, e.id)
+    );
+
+  select coalesce(jsonb_agg(e.id), '[]'::jsonb) into v_assigners
+  from public.employees e
+  where not coalesce(e.is_deleted, false)
+    and exists (
+      select 1 from jsonb_array_elements(
+        case when jsonb_typeof(v_config->'assigners') = 'array' then v_config->'assigners' else '[]'::jsonb end
+      ) s
+      where public.sor_selector_covers(s, p_opp, e.id)
+    );
+
+  return jsonb_build_object(
+    'sales_incharge_id', v_sales,
+    'purchasing_incharge_id', v_buyer,
+    'default_preset_id', nullif(v_config->>'markupPresetId', ''),
+    'member_ids', v_members,
+    'opened_visit_id', p_visit,
+    'access_until', v_until,
+    'access_until_stage_id', v_until_stage,
+    'assigner_ids', v_assigners
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._costing_backfill_hits()
+ RETURNS TABLE(opportunity_id uuid, flow_id uuid, action_id uuid, action_config jsonb, mounting_stage_id uuid, seq bigint)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with recursive sor as (
+    select o.id, o.flow_stage_id, fs.flow_id, fs.snapshot_data
+      from public.sales_opportunities o
+      join public.flow_snapshots fs on fs.id = o.flow_snapshot_id
+     where not coalesce(o.is_deleted, false)
+       and o.flow_stage_id is not null
+  ),
+  acts as (
+    select s.id as opp, s.flow_id, a.value as act, a.ord as ord,
+           nullif(coalesce(a.value->>'stage_id', a.key), '')::uuid as stage_id
+      from sor s,
+      lateral (
+        select e.value, e.ordinality as ord, null::text as key
+          from jsonb_array_elements(
+            case when jsonb_typeof(s.snapshot_data->'actions') = 'array' then s.snapshot_data->'actions' else '[]'::jsonb end
+          ) with ordinality e(value, ordinality)
+        union all
+        select e.value, e.ordinality, g.key
+          from jsonb_each(
+            case when jsonb_typeof(s.snapshot_data->'actions') = 'object' then s.snapshot_data->'actions' else '{}'::jsonb end
+          ) g,
+          jsonb_array_elements(g.value) with ordinality e(value, ordinality)
+      ) a
+     where a.value->>'kind' = 'open_costing_matrix'
+       and coalesce(a.value->>'archived_at', '') = ''
+  ),
+  edges as (
+    select s.id as opp, (e.value->>'from_stage_id')::uuid as f, (e.value->>'to_stage_id')::uuid as t
+      from sor s,
+      lateral jsonb_array_elements(
+        case when jsonb_typeof(s.snapshot_data->'edges') = 'array' then s.snapshot_data->'edges' else '[]'::jsonb end
+      ) e
+    union all
+    select s.id, fe.from_stage_id, fe.to_stage_id
+      from sor s
+      join public.flow_edges fe on fe.flow_id = s.flow_id
+     where jsonb_typeof(s.snapshot_data->'edges') is distinct from 'array'
+  ),
+  reach(opp, mount, stage) as (
+    select distinct a.opp, a.stage_id, a.stage_id from acts a where a.stage_id is not null
+    union
+    select r.opp, r.mount, e.t
+      from reach r
+      join edges e on e.opp = r.opp and e.f = r.stage
+  )
+  select a.opp, a.flow_id, (a.act->>'id')::uuid, coalesce(a.act->'config', '{}'::jsonb), a.stage_id,
+         row_number() over (partition by a.opp order by a.stage_id, a.ord)
+    from acts a
+    join sor s on s.id = a.opp
+    join reach r on r.opp = a.opp and r.mount = a.stage_id and r.stage = s.flow_stage_id
+   where a.stage_id is not null;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._costing_component_labels(p_component_ids uuid[])
  RETURNS TABLE(component_id uuid, label text, name text)
  LANGUAGE sql
@@ -4993,8 +5155,8 @@ begin
   if not found then
     raise exception 'packing list: no such Packing List' using errcode = 'P0002';
   end if;
-  if not (coalesce(public.has_purchasing_access(), false) or v_row.created_by = v_actor) then
-    raise exception 'packing list: only its creator or Purchasing changes a Packing List' using errcode = '42501';
+  if not (public.packing_list_can_create() or v_row.created_by = v_actor) then
+    raise exception 'packing list: only its creator, Purchasing or the Warehouse list changes a Packing List' using errcode = '42501';
   end if;
   if v_row.state <> 'draft' then
     raise exception 'packing list: % is packed and can''t be changed', v_row.number using errcode = '42501';
@@ -8048,6 +8210,99 @@ AS $function$
     end
   order by (sl.quantity = (l.sor_line_snapshot ->> 'quantity')::numeric) desc, sl.sort_order, sl.created_at
   limit 1
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_matrix_backfill(p_dry_run boolean DEFAULT true)
+ RETURNS TABLE(flow_id uuid, flow_name text, opportunity_id uuid, sales_reference text, current_stage text, mounting_stage text, reason text, outcome text, matrix_id uuid)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_sor record;
+  v_opp public.sales_opportunities;
+  v_visit uuid;
+  v_hit record;
+  v_matrix uuid;
+  v_existing uuid;
+  v_outcome text;
+  v_mount_names text;
+  v_reason text;
+  v_at_stage boolean;
+begin
+  if not (coalesce(auth.role(), '') = 'service_role' or public.is_super_admin()) then
+    raise exception 'costing_matrix_backfill: service role or Super Admin only' using errcode = '42501';
+  end if;
+
+  for v_sor in
+    select h.opportunity_id as opp_id, h.flow_id as fid
+      from public._costing_backfill_hits() h
+     group by h.opportunity_id, h.flow_id
+     order by h.flow_id, h.opportunity_id
+  loop
+    select * into v_opp from public.sales_opportunities where id = v_sor.opp_id;
+    select id into v_existing from public.costing_matrices m where m.opportunity_id = v_sor.opp_id;
+
+    select string_agg(distinct format('"%s"', coalesce(st.name, h.mounting_stage_id::text)), ', '),
+           bool_or(h.mounting_stage_id = v_opp.flow_stage_id)
+      into v_mount_names, v_at_stage
+      from public._costing_backfill_hits() h
+      left join public.flow_stages st on st.id = h.mounting_stage_id
+     where h.opportunity_id = v_sor.opp_id;
+
+    v_reason := case
+      when v_at_stage then format('At the stage that mounts Open Costing Matrix (%s)', v_mount_names)
+      else format('Downstream of the stage that mounts Open Costing Matrix (%s)', v_mount_names)
+    end;
+
+    if v_existing is not null then
+      v_outcome := 'already_has_matrix';
+      v_matrix := v_existing;
+    elsif p_dry_run then
+      v_outcome := 'would_open';
+      v_matrix := null;
+    else
+      select v.id into v_visit from public.sor_stage_visits v
+       where v.opportunity_id = v_sor.opp_id and v.left_at is null and v.undone_at is null
+       order by v.sequence desc limit 1;
+
+      v_matrix := null;
+      -- One SOR failing (say, a configured Incharge who has since lost Purchasing
+      -- access) rolls back that SOR alone and is reported, so the rest still run;
+      -- a later run retries it.
+      begin
+        -- The first action creates the matrix; any further one tops it up,
+        -- exactly as it would have on entering its stage.
+        for v_hit in
+          select * from public._costing_backfill_hits() h
+           where h.opportunity_id = v_sor.opp_id
+           order by h.seq
+        loop
+          v_matrix := public.costing_open_matrix(
+            v_sor.opp_id,
+            public._costing_action_open_args(v_opp, v_hit.action_config, v_visit)
+          );
+        end loop;
+        v_outcome := 'opened';
+      exception when others then
+        v_matrix := null;
+        v_outcome := 'failed';
+        v_reason := v_reason || ' - not opened: ' || sqlerrm;
+      end;
+    end if;
+
+    flow_id := v_sor.fid;
+    flow_name := (select st.name from public.sale_types st where st.id = v_opp.sale_type_id);
+    opportunity_id := v_sor.opp_id;
+    sales_reference := v_opp.sales_reference;
+    current_stage := (select fs.name from public.flow_stages fs where fs.id = v_opp.flow_stage_id);
+    mounting_stage := v_mount_names;
+    reason := v_reason;
+    outcome := v_outcome;
+    matrix_id := v_matrix;
+    return next;
+  end loop;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_matrix_filter(p_table text, p_alias text DEFAULT 't'::text, p_depth integer DEFAULT 0)
@@ -12597,6 +12852,48 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.order_condition_inputs(p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.get_employee_id() is null then
+    raise exception 'order_condition_inputs: sign in first' using errcode = '42501';
+  end if;
+  if public.sor_access_level(p_opportunity_id) = 'none' then
+    raise exception 'order_condition_inputs: you can''t see this SOR' using errcode = '42501';
+  end if;
+
+  return jsonb_build_object(
+    'unclosed_slips',
+      (select count(distinct t.id)
+         from public.transmittals t
+         join public.transmittal_lines l on l.transmittal_id = t.id
+        where l.opportunity_id = p_opportunity_id
+          and t.state in ('warehouse_checking', 'warehouse_releasing', 'technical_inspection', 'awaiting_check')),
+    'unfiled_orders',
+      (select count(distinct i.id)
+         from public.ipas i
+         join public.ipas_sors s on s.ipas_id = i.id
+        where s.opportunity_id = p_opportunity_id
+          and i.state = 'open')
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.order_deadline_setting_stamp()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  new.updated_at = now();
+  new.updated_by = coalesce(public.get_employee_id(), new.updated_by);
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.override_currency_rate(p_currency text, p_rate_date date, p_php_per_unit numeric)
  RETURNS void
  LANGUAGE plpgsql
@@ -15620,6 +15917,74 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_delivery_deadlines(p_opportunity_ids uuid[])
+ RETURNS TABLE(opportunity_id uuid, due_at timestamp with time zone, days integer)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with asked as (
+    select o.id, o.flow_snapshot_id
+      from public.sales_opportunities o
+     where public.get_employee_id() is not null
+       and o.id = any (coalesce(p_opportunity_ids, '{}'::uuid[]))
+       and not o.is_deleted
+       and (
+         coalesce(public.has_purchasing_access(), false)
+         or coalesce(public.has_finance_access(), false)
+         or coalesce(public.is_super_admin(), false)
+         or coalesce(public.sor_access_level(o.id), 'none') <> 'none'
+       )
+  ),
+  conds as (
+    select a.id as opportunity_id,
+           c.cond->>'stage_id' as stage_id,
+           (c.cond->'config'->>'days')::integer as days
+      from asked a
+      join public.flow_snapshots fs on fs.id = a.flow_snapshot_id
+      cross join lateral (
+        select e.cond
+          from jsonb_array_elements(
+                 case jsonb_typeof(fs.snapshot_data->'conditions')
+                   when 'array' then fs.snapshot_data->'conditions'
+                   when 'object' then (
+                     select coalesce(jsonb_agg(x.val), '[]'::jsonb)
+                       from jsonb_each(fs.snapshot_data->'conditions') je,
+                            jsonb_array_elements(je.value) x(val)
+                      where jsonb_typeof(je.value) = 'array'
+                   )
+                   else '[]'::jsonb
+                 end
+               ) e(cond)
+         where e.cond->>'kind' = 'deadline'
+           and (e.cond->>'archived_at') is null
+           and (e.cond->'config'->>'days') ~ '^[0-9]+$'
+      ) c
+  ),
+  dated as (
+    select c.opportunity_id,
+           c.days,
+           (
+             select v.entered_at
+               from public.sor_stage_visits v
+              where v.opportunity_id = c.opportunity_id
+                and v.flow_stage_id::text = c.stage_id
+                and v.undone_at is null
+              order by v.entered_at desc
+              limit 1
+           ) as entered_at
+      from conds c
+     where c.days > 0
+  )
+  select distinct on (d.opportunity_id)
+         d.opportunity_id,
+         d.entered_at + (d.days || ' days')::interval as due_at,
+         d.days
+    from dated d
+   where d.entered_at is not null
+   order by d.opportunity_id, d.entered_at + (d.days || ' days')::interval;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_due_follow_ups(p_now timestamp with time zone DEFAULT now())
  RETURNS TABLE(opportunity_id uuid, stage_visit_id uuid, stage_id uuid, entered_at timestamp with time zone, every_days integer, recipients jsonb, due_at timestamp with time zone)
  LANGUAGE sql
@@ -16044,16 +16409,8 @@ declare
   v_actor uuid := public.get_employee_id();
   v_run public.sor_action_runs;
   v_action jsonb;
-  v_config jsonb;
   v_opp public.sales_opportunities;
-  v_sel jsonb;
-  v_sales uuid;
-  v_buyer uuid;
   v_visit uuid;
-  v_until text;
-  v_until_stage uuid;
-  v_members jsonb;
-  v_assigners jsonb;
   v_matrix uuid;
 begin
   if v_actor is null then
@@ -16085,28 +16442,8 @@ begin
     raise exception 'sor_open_costing_matrix: run % is not an Open Costing Matrix action', p_run_id
       using errcode = '22023';
   end if;
-  v_config := coalesce(v_action->'config', '{}'::jsonb);
 
   select * into v_opp from public.sales_opportunities where id = v_run.opportunity_id;
-
-  -- Sales Incharge: the configured role or person; the Deal Owner role by default.
-  v_sel := coalesce(v_config->'salesIncharge', jsonb_build_object('type', 'role', 'role', 'deal_owner'));
-  v_sales := case v_sel->>'type'
-    when 'employee' then nullif(v_sel->>'id', '')::uuid
-    when 'role' then case v_sel->>'role'
-      when 'deal_owner' then v_opp.deal_owner_id
-      when 'closing_sales' then v_opp.closing_sales_id
-      when 'support_sales' then coalesce(v_opp.support_sales_1_id, v_opp.support_sales_2_id)
-      when 'sales_director' then v_opp.sales_director_id
-      when 'registrar' then v_opp.registered_by
-    end
-  end;
-  select e.id into v_sales from public.employees e where e.id = v_sales and not coalesce(e.is_deleted, false);
-
-  if v_config->'purchasingIncharge'->>'type' = 'employee' then
-    select e.id into v_buyer from public.employees e
-     where e.id = nullif(v_config->'purchasingIncharge'->>'id', '')::uuid and not coalesce(e.is_deleted, false);
-  end if;
 
   v_visit := coalesce(
     v_run.stage_visit_id,
@@ -16114,41 +16451,11 @@ begin
       where v.opportunity_id = v_run.opportunity_id and v.left_at is null and v.undone_at is null
       order by v.sequence desc limit 1)
   );
-  v_until := coalesce(nullif(v_config->'access'->>'until', ''), 'stage_left');
-  if v_until in ('stage_entered', 'later_stage_left') then
-    v_until_stage := nullif(v_config->'access'->>'stageId', '')::uuid;
-  end if;
 
-  select coalesce(jsonb_agg(e.id), '[]'::jsonb) into v_members
-  from public.employees e
-  where not coalesce(e.is_deleted, false)
-    and exists (
-      select 1 from jsonb_array_elements(
-        case when jsonb_typeof(v_config->'extras') = 'array' then v_config->'extras' else '[]'::jsonb end
-      ) s
-      where public.sor_selector_covers(s, v_opp, e.id)
-    );
-
-  select coalesce(jsonb_agg(e.id), '[]'::jsonb) into v_assigners
-  from public.employees e
-  where not coalesce(e.is_deleted, false)
-    and exists (
-      select 1 from jsonb_array_elements(
-        case when jsonb_typeof(v_config->'assigners') = 'array' then v_config->'assigners' else '[]'::jsonb end
-      ) s
-      where public.sor_selector_covers(s, v_opp, e.id)
-    );
-
-  v_matrix := public.costing_open_matrix(v_run.opportunity_id, jsonb_build_object(
-    'sales_incharge_id', v_sales,
-    'purchasing_incharge_id', v_buyer,
-    'default_preset_id', nullif(v_config->>'markupPresetId', ''),
-    'member_ids', v_members,
-    'opened_visit_id', v_visit,
-    'access_until', v_until,
-    'access_until_stage_id', v_until_stage,
-    'assigner_ids', v_assigners
-  ));
+  v_matrix := public.costing_open_matrix(
+    v_run.opportunity_id,
+    public._costing_action_open_args(v_opp, coalesce(v_action->'config', '{}'::jsonb), v_visit)
+  );
 
   update public.sor_action_runs
   set outcome = 'created', costing_matrix_id = v_matrix
@@ -16611,6 +16918,109 @@ begin
   where nullif(trim(item ->> 'product_name'), '') is not null;
 
   return;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_request_packing_list(p_run_id uuid, p_config jsonb DEFAULT '{}'::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_run public.sor_action_runs;
+  v_action jsonb;
+  v_config jsonb;
+  v_opp public.sales_opportunities;
+  v_row public.packing_lists;
+  v_notify uuid[];
+  v_to uuid;
+begin
+  if v_actor is null then
+    raise exception 'sor_request_packing_list: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_run from public.sor_action_runs where id = p_run_id for update;
+  if v_run.id is null then
+    raise exception 'sor_request_packing_list: run % not found', p_run_id;
+  end if;
+  -- `created` with a decision is a Decider's Create.
+  if not (v_run.outcome = 'pending' or (v_run.outcome = 'created' and v_run.decided_by is not null)) then
+    raise exception 'sor_request_packing_list: run % is not pending', p_run_id using errcode = '42501';
+  end if;
+  if v_run.packing_list_id is not null then
+    raise exception 'sor_request_packing_list: run % already created its Packing List', p_run_id using errcode = '42501';
+  end if;
+
+  if not (
+    public.sor_can_edit_opportunity(v_run.opportunity_id)
+    or public.sor_access_level(v_run.opportunity_id) = 'full'
+  ) then
+    raise exception 'sor_request_packing_list: actor % lacks full access to opportunity %', v_actor, v_run.opportunity_id
+      using errcode = '42501';
+  end if;
+
+  v_action := public._sor_action_run_saved_action(p_run_id);
+  if v_action->>'kind' is distinct from 'request_packing_list' then
+    raise exception 'sor_request_packing_list: run % is not a Request Packing List action', p_run_id
+      using errcode = '22023';
+  end if;
+  v_config := coalesce(v_action->'config', '{}'::jsonb);
+
+  select * into v_opp from public.sales_opportunities
+   where id = v_run.opportunity_id and not coalesce(is_deleted, false);
+  if v_opp.id is null then
+    raise exception 'sor_request_packing_list: opportunity % not found', v_run.opportunity_id using errcode = '22023';
+  end if;
+
+  -- An open (unsigned) Packing List already asks the Warehouse to pack: do nothing.
+  if exists (
+    select 1 from public.packing_lists p
+     where p.opportunity_id = v_opp.id and p.state = 'draft'
+  ) then
+    update public.sor_action_runs set outcome = 'created' where id = p_run_id;
+    return null;
+  end if;
+
+  insert into public.packing_lists (opportunity_id, created_by)
+  values (v_opp.id, v_actor)
+  returning * into v_row;
+
+  perform public._packing_list_event(v_row.id, v_actor, 'created', jsonb_build_object('number', v_row.number));
+
+  -- Who to tell: the config's people and groups, else the Warehouse staff list.
+  if jsonb_typeof(v_config->'notify') = 'array' and jsonb_array_length(v_config->'notify') > 0 then
+    select coalesce(array_agg(e.id), '{}'::uuid[]) into v_notify
+    from public.employees e
+    where not coalesce(e.is_deleted, false)
+      and e.id <> v_actor
+      and exists (
+        select 1 from jsonb_array_elements(v_config->'notify') s
+        where public.sor_selector_covers(s, v_opp, e.id)
+      );
+  else
+    v_notify := public._ipas_list_members(array['transmittal_warehouse'], v_actor);
+  end if;
+
+  foreach v_to in array coalesce(v_notify, '{}'::uuid[])
+  loop
+    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+    values (
+      v_to,
+      v_actor,
+      'PACKING_LIST_REQUESTED',
+      'Packing List requested',
+      format('Please pack "%s": draft Packing List %s is ready.', coalesce(v_opp.project_title, 'this deal'), v_row.number),
+      v_row.id::text
+    );
+  end loop;
+
+  update public.sor_action_runs
+  set outcome = 'created', packing_list_id = v_row.id
+  where id = p_run_id;
+
+  return v_row.id;
 end;
 $function$
 ;
@@ -17328,6 +17738,12 @@ begin
           'action_id', v_action->>'action_id',
           'kind', 'open_costing_matrix',
           'matrix_id', public.sor_open_costing_matrix(v_run.id, '{}'::jsonb)
+        );
+      elsif v_action->>'kind' = 'request_packing_list' then
+        v_created := v_created || jsonb_build_object(
+          'action_id', v_action->>'action_id',
+          'kind', 'request_packing_list',
+          'packing_list_id', public.sor_request_packing_list(v_run.id, '{}'::jsonb)
         );
       else
         raise exception 'sor_run_stage_actions: no builder for kind %', v_action->>'kind';
@@ -19808,6 +20224,7 @@ CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER order_ageing_rules_stamp BEFORE INSERT OR UPDATE ON public.order_ageing_rules FOR EACH ROW EXECUTE FUNCTION order_ageing_rules_stamp();
+CREATE TRIGGER order_deadline_setting_stamp BEFORE INSERT OR UPDATE ON public.order_deadline_setting FOR EACH ROW EXECUTE FUNCTION order_deadline_setting_stamp();
 CREATE TRIGGER overtime_requests_guard_head_status BEFORE UPDATE ON public.overtime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER packing_list_boxes_guard BEFORE INSERT OR DELETE OR UPDATE ON public.packing_list_boxes FOR EACH ROW EXECUTE FUNCTION packing_list_boxes_guard();
 CREATE TRIGGER packing_list_contents_guard BEFORE INSERT OR DELETE OR UPDATE ON public.packing_list_contents FOR EACH ROW EXECUTE FUNCTION packing_list_contents_guard();
