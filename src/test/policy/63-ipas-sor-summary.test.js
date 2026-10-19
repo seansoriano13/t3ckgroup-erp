@@ -210,7 +210,10 @@ describe("the summary of an SOR's IPAS", () => {
     })
 
     it("carries none of the IPAS's money or bank values, whatever is on file", async () => {
-        const text = JSON.stringify(await summaries("dealOwner", sorA))
+        // Ids are random UUIDs, whose hex digits can contain a short sentinel like "7788" by chance.
+        // Drop them so only real values are searched; money and bank values are never UUID-shaped.
+        const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+        const text = JSON.stringify(await summaries("dealOwner", sorA)).replace(UUID, "")
         for (const secret of [String(AMOUNT), "123456", "4321", ACCOUNT_NUMBER, "7788", BANK_NAME, "Supplier Inc.", PROOF_URL, "cloudinary"]) {
             expect(text, `the summary mentions ${secret}`).not.toContain(secret)
         }

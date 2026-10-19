@@ -16390,13 +16390,48 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.sor_my_sors_facets(p_opportunity_ids uuid[])
- RETURNS TABLE(opportunity_id uuid, sor_code text, sale_type_name text)
+CREATE OR REPLACE FUNCTION public.sor_my_deal_team_sor_ids()
+ RETURNS SETOF uuid
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select o.id, o.sor_code, st.name
+  select o.id from public.sales_opportunities o
+  where o.registered_by = public.get_employee_id() and not o.is_deleted and not o.is_scratch
+  union
+  select o.id from public.sales_opportunities o
+  where o.deal_owner_id = public.get_employee_id() and not o.is_deleted and not o.is_scratch
+  union
+  select o.id from public.sales_opportunities o
+  where o.closing_sales_id = public.get_employee_id() and not o.is_deleted and not o.is_scratch
+  union
+  select o.id from public.sales_opportunities o
+  where o.support_sales_1_id = public.get_employee_id() and not o.is_deleted and not o.is_scratch
+  union
+  select o.id from public.sales_opportunities o
+  where o.support_sales_2_id = public.get_employee_id() and not o.is_deleted and not o.is_scratch
+  union
+  select o.id from public.sales_opportunities o
+  where o.sales_director_id = public.get_employee_id() and not o.is_deleted and not o.is_scratch
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_my_sors_facets(p_opportunity_ids uuid[])
+ RETURNS TABLE(opportunity_id uuid, sor_code text, sale_type_name text, last_activity_at timestamp with time zone, client_name text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select o.id, o.sor_code, st.name,
+    -- Last activity and the client are shown to Full and Participant readers
+    -- only, as elsewhere; a locked reader gets neither.
+    case when public.sor_access_level(o.id) in ('full', 'participant') then
+      greatest(
+        o.updated_at,
+        (select max(greatest(v.entered_at, v.left_at)) from public.sor_stage_visits v where v.opportunity_id = o.id),
+        (select max(l.created_at) from public.sales_opportunity_logs l where l.opportunity_id = o.id)
+      )
+    end,
+    case when public.sor_access_level(o.id) in ('full', 'participant') then o.client_name end
   from public.sales_opportunities o
   left join public.sale_types st on st.id = o.sale_type_id
   where o.id = any (p_opportunity_ids)

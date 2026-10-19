@@ -4202,6 +4202,8 @@ describe("getMySors", () => {
     // No flow_stage_id: the insert trigger would record visit sequence 1 and
     // collide with the visits these tests place by hand.
     deal = makeOpportunity({ sale_type_id: saleType.id })
+    stubRpc("sor_my_deal_team_sor_ids", () => [])
+    stubRpc("sor_my_sors_facets", () => [])
     stubRpc("sor_locked_summary", () => [
       {
         sales_reference: "S01234",
