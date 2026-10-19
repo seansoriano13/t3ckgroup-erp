@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-10-19",
+        "title": "Reference Rates: a daily exchange rate, always dated",
+        "version": "1.9.50",
+        "changes": [
+            "Purchasing now has a Reference Rate for US dollars and euros: what one unit is worth in pesos, taken once a day from the European Central Bank. It always shows the day it is for, for example \"USD 1 = ₱62.97 · 16 Oct\". On weekends and holidays it shows the last day the bank published.",
+            "Canvass: when you add an offer in dollars or euros, the comparison rate is filled in with today's Reference Rate. You can type over it, and what you type is what is saved and printed. If no rate is available, you type it yourself as before.",
+            "IPAS: when you record a payment on a dollar or euro PO, the Reference Rate for the payment's date shows next to the rate you entered. If the two are far apart, you see a warning to check the PHP debited against the remittance advice. It never fills in the PHP debited and never stops you saving.",
+            "Settings > Purchasing > Reference rates lists the recent rates. A Super Admin can correct a day's rate; the list shows who corrected it and what it was before."
+        ]
+    },
+    {
+        "date": "2026-10-19",
         "title": "Costing Matrix: what each purchase actually cost",
         "version": "1.9.49",
         "changes": [
