@@ -269,6 +269,7 @@ describe("navigation registry", () => {
       expect(purchasingGroup).toBeDefined();
       expect(purchasingGroup.links.map((l) => l.label)).toEqual([
         "Purchase Requests",
+        "Purchasing Dashboard",
         "IPAS",
         "Order Monitoring",
         "Transmittals",
@@ -282,9 +283,9 @@ describe("navigation registry", () => {
     // Order Monitoring (#263) is for Purchasing access, Finance access and Super
     // Admins only, so a sign-off list reaches IPAS without it.
     it.each([
-      ["Finance access", { has_finance_flow: true }, ["Purchase Requests", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
+      ["Finance access", { has_finance_flow: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
       ["a sign-off list", { isIpasSigner: true }, ["Purchase Requests", "IPAS", "Transmittals", "Packing Lists"]],
-      ["a Super Admin", { isSuperAdmin: true }, ["Purchase Requests", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
+      ["a Super Admin", { isSuperAdmin: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
     ])("offers IPAS to someone with %s", (_, flags, labels) => {
       const groups = getFilteredNavigationGroups({ id: "reader", ...flags });
       const purchasing = groups.find((g) => g.key === "purchasing");

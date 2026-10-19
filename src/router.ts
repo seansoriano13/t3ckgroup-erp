@@ -31,6 +31,7 @@ export type Path =
   | `/profile`
   | `/purchasing`
   | `/purchasing/ipas`
+  | `/purchasing/dashboard`
   | `/purchasing/ipas/:id`
   | `/purchasing/ipas/settings`
   | `/purchasing/order-monitoring`

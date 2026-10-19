@@ -23,6 +23,7 @@ import {
   PackageCheck,
   Gavel,
   Scale,
+  LayoutDashboard,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -157,6 +158,17 @@ export const NAV_MODULES = {
         link: "/purchasing",
         icon: ShoppingCart,
         isPermitted: () => true,
+        exactMatch: true,
+      },
+      // The Purchasing Dashboard (#322): every SOR's buying grouped by what is
+      // outstanding. Same readers as Order Monitoring; the database limits
+      // the rows and the page sends anyone else home.
+      {
+        key: "purchasing.dashboard",
+        label: "Purchasing Dashboard",
+        link: "/purchasing/dashboard",
+        icon: LayoutDashboard,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow,
         exactMatch: true,
       },
       // The IPAS (#241): one per purchase order that needs one. Read by
