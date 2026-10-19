@@ -154,6 +154,8 @@ export const SEED_TABLES = [
   "costing_bid_decisions",
   "costing_signoffs",
   "costing_events",
+  "currency_rate_currencies",
+  "currency_rates",
 ]
 
 /** Tables the migrations build that the seed deliberately leaves out, each with why. */

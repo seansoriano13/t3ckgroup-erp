@@ -33,6 +33,9 @@ import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
 import { useAuth } from "../context/AuthContext";
 import { CANVASS_CURRENCIES, DEFAULT_CURRENCY } from "../constants/canvass";
 import { offerCurrency } from "../utils/canvassMath";
+import { useReferenceRate } from "../hooks/useReferenceRate";
+import { formatReferenceRate } from "../utils/referenceRate";
+import { getCurrentLocalDate } from "../utils/formatDate.js";
 
 /**
  * The Canvass (#275, built in #276): the supplier comparison for one Costing Matrix Component,
@@ -146,6 +149,9 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
   const [currency, setCurrency] = useState(initial ? offerCurrency(initial) : DEFAULT_CURRENCY);
   const [unitPrice, setUnitPrice] = useState(initial?.unit_price ?? "");
   const [comparisonRate, setComparisonRate] = useState(initial?.comparison_rate ?? "");
+  // Whether the comparison rate holds the Reference Rate we put there (#317), so a change of
+  // currency may replace it. Anything typed, or an Offer's saved rate, is never replaced.
+  const [rateIsSuggested, setRateIsSuggested] = useState(false);
   const [validUntil, setValidUntil] = useState(initial?.valid_until || "");
   const [leadTime, setLeadTime] = useState(initial?.lead_time || "");
   const [qualityNote, setQualityNote] = useState(initial?.quality_note || "");
@@ -154,6 +160,22 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
   const attachments = useFileAttachments({ max: 3 });
 
   const foreign = currency !== DEFAULT_CURRENCY;
+  const today = getCurrentLocalDate();
+  const { data: referenceRate, isFetched: referenceChecked, isError: referenceFailed } = useReferenceRate(currency, today, {
+    enabled: canReadMoney && foreign,
+  });
+
+  // Pre-fill a new Offer from today's Reference Rate. The typed value is what is stored and
+  // printed (#275); a saved Offer is never re-filled.
+  useEffect(() => {
+    if (initial || !canReadMoney || !foreign || !referenceChecked) return;
+    const blank = comparisonRate === "" || comparisonRate === null;
+    if (!blank && !rateIsSuggested) return;
+    setComparisonRate(referenceRate ? String(referenceRate.php_per_unit) : "");
+    setRateIsSuggested(Boolean(referenceRate));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new rate or currency re-suggests
+  }, [referenceRate, referenceChecked, currency, foreign, canReadMoney]);
+
   const canSubmit = supplierName.trim() || brand.trim() || description.trim();
 
   const submit = async (e) => {
@@ -245,13 +267,25 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
             step="any"
             aria-label="Comparison rate"
             value={comparisonRate}
-            onChange={(e) => setComparisonRate(e.target.value)}
+            onChange={(e) => {
+              setComparisonRate(e.target.value);
+              setRateIsSuggested(false);
+            }}
             placeholder={`Comparison rate (PHP per ${currency})`}
             containerClassName="min-w-0"
             className={fieldClass}
           />
         )}
       </div>
+      {canReadMoney && foreign && referenceChecked && (
+        <p className="text-[11px] text-muted-foreground" data-testid="offer-reference-rate">
+          {referenceFailed
+            ? "The Reference Rate couldn't be loaded. Type the rate you compared at."
+            : referenceRate
+            ? `Reference Rate: ${formatReferenceRate(referenceRate, today)}${referenceRate.rate_date < today ? " (the latest available)" : ""}.`
+            : `No Reference Rate for ${currency} yet. Type the rate you compared at.`}
+        </p>
+      )}
       {canReadMoney && foreign && (
         <p className="text-[11px] text-muted-foreground">
           The comparison rate is the rate you compared at, to read this quote in PHP. It is not the rate that will be paid.

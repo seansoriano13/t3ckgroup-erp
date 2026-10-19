@@ -119,6 +119,9 @@ verify_jwt = false
 [functions.odoo-sor-sync]
 verify_jwt = false
 
+[functions.currency-rates-fetch]
+verify_jwt = false
+
 [functions.odoo-document-admin]
 [functions.odoo-po-ipas]
 [functions.odoo-po-rollup]

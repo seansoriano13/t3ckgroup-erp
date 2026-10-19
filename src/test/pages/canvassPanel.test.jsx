@@ -5,6 +5,7 @@ import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
+import { stubRpc } from "@/test/msw/server";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
 import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
@@ -111,5 +112,56 @@ describe("the Canvass on a Component row", () => {
     mount({ tier: "price", bands: ["sales"], money: true });
     await screen.findByTestId("component");
     expect(screen.queryByTestId("component-canvass")).not.toBeInTheDocument();
+  });
+
+  describe("the Reference Rate on a foreign Offer (#317)", () => {
+    const usd = { currency: "USD", rate_date: "2026-09-17", php_per_unit: 58.2, source: "ECB", overridden: false, divergence_pct: 2 };
+    const startForeignOffer = async (user) => {
+      await canvassService.open({ componentId: component.id }, purchaser.id);
+      await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
+      await user.click(await screen.findByRole("button", { name: /add offer/i }));
+      await user.type(screen.getByLabelText("Supplier"), "Hong Kong");
+      await user.click(screen.getByLabelText("Currency"));
+      await user.click(await screen.findByRole("option", { name: "USD" }));
+    };
+
+    it("pre-fills the comparison rate with its date, and stores the typed value", async () => {
+      const asked = [];
+      const user = mount();
+      stubRpc("reference_rate", (args) => {
+        asked.push(args.p_currency);
+        return args.p_currency === "USD" ? [usd] : [];
+      });
+      await startForeignOffer(user);
+
+      const rate = screen.getByLabelText("Comparison rate");
+      await waitFor(() => expect(rate).toHaveValue(58.2));
+      expect(screen.getByTestId("offer-reference-rate")).toHaveTextContent(/USD 1 = ₱58\.20 · 17 Sep/);
+      expect(asked).toContain("USD");
+
+      await user.clear(rate);
+      await user.type(rate, "58.5");
+      await user.type(screen.getByLabelText("Unit price in USD"), "100");
+      await user.click(screen.getByRole("button", { name: /save offer/i }));
+
+      await waitFor(() => expect(db.rows("sor_canvass_offer_prices")).toHaveLength(1));
+      expect(Number(db.rows("sor_canvass_offer_prices")[0].comparison_rate)).toBe(58.5);
+    });
+
+    it("still takes a typed comparison rate when no Reference Rate is available", async () => {
+      const user = mount();
+      stubRpc("reference_rate", () => []);
+      await startForeignOffer(user);
+
+      expect(await screen.findByTestId("offer-reference-rate")).toHaveTextContent(/No Reference Rate for USD/);
+      const rate = screen.getByLabelText("Comparison rate");
+      expect(rate).toHaveValue(null);
+      await user.type(rate, "57");
+      await user.type(screen.getByLabelText("Unit price in USD"), "100");
+      await user.click(screen.getByRole("button", { name: /save offer/i }));
+
+      await waitFor(() => expect(db.rows("sor_canvass_offer_prices")).toHaveLength(1));
+      expect(Number(db.rows("sor_canvass_offer_prices")[0].comparison_rate)).toBe(57);
+    });
   });
 });

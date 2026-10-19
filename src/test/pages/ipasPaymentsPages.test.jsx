@@ -7,7 +7,7 @@ import IpasSettingsRedirect from "@/pages/purchasing/ipas/settings";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
-import { stubEdgeFunction } from "@/test/msw/server";
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -186,6 +186,47 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       // The section row (its number first); the card's "Review section 3 · …" link names it too.
       await user.click(await screen.findByRole("button", { name: /^3 · Computation status & Landed Cost/ }));
       expect(await screen.findByTestId("ipas-landed-line")).toBeInTheDocument();
+    });
+
+    it("shows the Reference Rate for the payment's date beside the typed rate, flags a wide gap, and never pre-fills", { timeout: 20000 }, async () => {
+      const row = ipas({ po_number: "P02446", source: "import", odoo_copy: poCopy("P02446", { currency: "USD" }), created_by: purchaser.id });
+      stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02446", { currency: "USD" }) });
+      const asked = [];
+      stubRpc("reference_rate", (args) => {
+        asked.push(args.p_on);
+        return [{ currency: "USD", rate_date: "2026-09-12", php_per_unit: 58.2, source: "ECB", overridden: false, divergence_pct: 2 }];
+      });
+      const user = setupUser();
+
+      renderDetail(row.id, "purchasing", "edit");
+      await user.click(await screen.findByRole("button", { name: /Add payment/ }));
+      const dialog = await topDialog();
+      await pick(user, dialog, "Method", "Alipay");
+      const date = within(dialog).getByLabelText("Date");
+      await user.clear(date);
+      await user.type(date, "2026-09-12");
+
+      // Context only: the PHP debited is never filled in from the Reference Rate.
+      const phpDebited = within(dialog).getByLabelText("PHP debited");
+      expect(phpDebited).toHaveValue("");
+      const line = await within(dialog).findByTestId("payment-reference-rate");
+      expect(line).toHaveTextContent(/reference: ₱58\.20 on 12 Sep/);
+      expect(asked).toContain("2026-09-12");
+
+      await user.type(within(dialog).getByLabelText("Amount (USD)"), "1000");
+      await user.type(phpDebited, "58440");
+      expect(line).toHaveTextContent(/you typed ₱58\.44/);
+      expect(within(dialog).queryByTestId("payment-rate-divergence")).not.toBeInTheDocument();
+
+      await user.clear(phpDebited);
+      await user.type(phpDebited, "5844");
+      expect(within(dialog).getByTestId("payment-rate-divergence")).toBeInTheDocument();
+      // It flags; it blocks nothing.
+      const submit = within(dialog).getByRole("button", { name: "Record payment" });
+      expect(submit).toBeEnabled();
+      await user.click(submit);
+      await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
+      expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 1000, php_debited: 5844 });
     });
 
     it("edits and removes a payment, asking before it goes", async () => {

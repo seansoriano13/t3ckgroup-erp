@@ -34,6 +34,8 @@ import { getCurrentLocalDate } from "../../utils/formatDate.js";
 import { isIsoDate, optionsForPicker, parseAmountInput } from "../../utils/ipasPayments";
 import { isPhpCurrency } from "../../utils/landedCost";
 import AmountInput from "./AmountInput";
+import { useReferenceRate } from "../../hooks/useReferenceRate";
+import { formatRateDay, formatRateNumber, rateDivergence } from "../../utils/referenceRate";
 
 const KIND_OPTIONS = IPAS_PAYMENT_KINDS.map((value) => ({ value, label: IPAS_PAYMENT_KIND_LABELS[value] }));
 
@@ -91,6 +93,15 @@ function Body({ ipas, payment, onSave, onClose }) {
   const amount = parseAmountInput(form.amount);
   const php = parseAmountInput(form.phpDebited);
   const fee = parseAmountInput(form.chargeFeePhp);
+
+  // Context only (#317): the Reference Rate for the payment's date sits beside the typed rate
+  // and flags a wide gap. It never fills the PHP debited: that is what the bank converted at.
+  const { data: referenceRate, isFetched: referenceChecked, isError: referenceFailed } = useReferenceRate(ipas.currency, form.paidOn, {
+    enabled: !isPhpPo && isIsoDate(form.paidOn),
+  });
+  const typedRate =
+    !isPhpPo && amount.ok && php.ok && amount.value > 0 && php.value > 0 ? php.value / amount.value : null;
+  const divergence = rateDivergence(typedRate, referenceRate);
 
   const problems = [];
   if (!isIsoDate(form.paidOn)) problems.push("Give the date of the payment.");
@@ -179,6 +190,26 @@ function Body({ ipas, payment, onSave, onClose }) {
                 error={form.phpDebited !== "" && !php.ok ? "Not a number" : undefined}
               />
             </FieldBox>
+          )}
+          {!isPhpPo && referenceChecked && (
+            <p className="text-xs text-muted-foreground sm:col-span-2" data-testid="payment-reference-rate">
+              {referenceFailed ? (
+                "The Reference Rate couldn't be loaded."
+              ) : referenceRate ? (
+                <>
+                  reference: ₱{formatRateNumber(referenceRate.php_per_unit)} on {formatRateDay(referenceRate.rate_date)}
+                  {referenceRate.rate_date < form.paidOn && " (the latest before this date)"}
+                  {typedRate !== null && <> — you typed ₱{formatRateNumber(typedRate)}</>}
+                </>
+              ) : (
+                `No Reference Rate for ${currency} on or before this date.`
+              )}
+              {divergence?.flagged && (
+                <span className="mt-0.5 block font-medium text-amber-700 dark:text-amber-400" data-testid="payment-rate-divergence">
+                  That is {divergence.pct.toFixed(1)}% away from the reference. Check the PHP debited against the remittance advice.
+                </span>
+              )}
+            </p>
           )}
           <FieldBox label="Charge fee (PHP)" bare>
             <AmountInput

@@ -5,6 +5,7 @@ import IpasOptionListEditor from "../ipas/IpasOptionListEditor";
 import IpasSignerListEditor from "../ipas/IpasSignerListEditor";
 import TransmittalFirstNumber from "../transmittals/TransmittalFirstNumber";
 import OrderAgeingRules from "./OrderAgeingRules";
+import ReferenceRates from "./ReferenceRates";
 import { IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../constants/ipas";
 import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
 
@@ -13,6 +14,9 @@ const SIGNERS_TAB = "signers";
 
 /** The sub-tab for how many days each order step may take (#262). */
 const AGEING_TAB = "ageing";
+
+/** The sub-tab for the daily Reference Rates (#317); overridable by Super Admins. */
+const RATES_TAB = "rates";
 
 /** The Transmittal option lists (#252), edited beside the IPAS ones. */
 const TRANSMITTAL_LISTS = [TRANSMITTAL_OPTION_LIST.PRODUCT, TRANSMITTAL_OPTION_LIST.REFERENCE];
@@ -33,12 +37,14 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
     ...IPAS_OPTION_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
     ...TRANSMITTAL_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
     { value: AGEING_TAB, label: "Ageing rules" },
+    { value: RATES_TAB, label: "Reference rates" },
     ...(isSuperAdmin ? [{ value: SIGNERS_TAB, label: "Sign-off lists" }] : []),
   ];
   // The sign-off lists tab only exists for Super Admins; anyone else stays on an option list.
   const showSigners = list === SIGNERS_TAB && isSuperAdmin;
   const showAgeing = list === AGEING_TAB;
-  const optionList = list === SIGNERS_TAB || showAgeing ? IPAS_OPTION_LISTS[0] : list;
+  const showRates = list === RATES_TAB;
+  const optionList = list === SIGNERS_TAB || showAgeing || showRates ? IPAS_OPTION_LISTS[0] : list;
 
   return (
     <div className="space-y-4" data-testid="purchasing-settings">
@@ -49,8 +55,10 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
           apply to new rows; existing rows keep their option.
         </p>
       </div>
-      <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : showAgeing ? AGEING_TAB : optionList} onChange={setList} tabs={tabs} />
-      {showAgeing ? (
+      <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : showAgeing ? AGEING_TAB : showRates ? RATES_TAB : optionList} onChange={setList} tabs={tabs} />
+      {showRates ? (
+        <ReferenceRates isSuperAdmin={isSuperAdmin} />
+      ) : showAgeing ? (
         <OrderAgeingRules />
       ) : showSigners ? (
         <>
