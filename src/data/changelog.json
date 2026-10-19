@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-10-19",
+        "title": "My SORs: your own SORs too, and filters that follow the latest activity",
+        "version": "1.9.53",
+        "changes": [
+            "My SORs now also lists the SORs where you are on the Deal Team, marked Deal Team with Full access, next to the ones you were called or mentioned into.",
+            "The Access filter has a new Full choice, and the Why I'm here filter has a new Deal Team choice.",
+            "The period filter now looks at when an SOR last had activity (a stage move, a note or an edit), not when your access opened.",
+            "SORs where your access has ended are still hidden until you pick Access ended. Save as default and Clear all work as before."
+        ]
+    },
+    {
         "date": "2026-10-21",
         "title": "Purchasing Dashboard: where every project's buying stands",
         "version": "1.9.52",

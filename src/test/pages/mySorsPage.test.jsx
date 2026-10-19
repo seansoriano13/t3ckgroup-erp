@@ -52,6 +52,8 @@ describe("My SORs", () => {
     bid = makeFlowStage({ flow_id: flow.id, name: "Bid Submitted" });
     deal = makeOpportunity({ sale_type_id: saleType.id });
 
+    stubRpc("sor_my_deal_team_sor_ids", () => []);
+    stubRpc("sor_my_sors_facets", () => []);
     stubRpc("sor_locked_summary", () => [
       {
         sales_reference: "S01234",
@@ -124,7 +126,7 @@ describe("My SORs", () => {
     expect(await screen.findByText("No open access right now")).toBeInTheDocument();
     expect(screen.getByText(/1 SOR where your access has ended/)).toBeInTheDocument();
 
-    await user.click(screen.getByText("In window"));
+    await user.click(screen.getByText("Current access"));
     await user.click(await screen.findByRole("button", { name: "Access ended" }));
 
     // The SOR someone worked last month is what they come here looking for.
@@ -197,14 +199,44 @@ describe("My SORs", () => {
     expect(screen.getByText("Technical Review")).toBeInTheDocument();
   });
 
-  it("searches Sales Reference and project", async () => {
+  it("lists an SOR I am on the Deal Team of as Deal Team with Full access, and filters by it (#478)", async () => {
+    stubRpc("sor_my_deal_team_sor_ids", () => [deal.id]);
+    stubRpc("sor_my_sors_facets", () => [
+      { opportunity_id: deal.id, sor_code: "SOR-1", sale_type_name: "Government", last_activity_at: "2026-10-06T02:00:00Z" },
+    ]);
+
+    renderPage();
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("S01234")).toBeInTheDocument();
+    const row = screen.getByText("S01234").closest("tr");
+    expect(row).toHaveTextContent("Deal Team");
+    expect(row).toHaveTextContent(/Sees the whole SOR \(Full access\)/);
+    // The Deal Team window has no start date: a dash, never "Invalid Date".
+    expect(row).not.toHaveTextContent("Invalid Date");
+    expect(row.querySelector("td:last-child")).toHaveTextContent("—");
+
+    // Access: Full keeps it; Why I'm here: Mentioned drops it.
+    await user.click(screen.getByText("Current access"));
+    await user.click(await screen.findByRole("button", { name: "Full" }));
+    expect(screen.getByText("S01234")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Any reason"));
+    await user.click(await screen.findByRole("button", { name: "Mentioned" }));
+    expect(screen.queryByText("S01234")).toBeNull();
+  });
+
+  it("searches Sales Reference, client and project", async () => {
+    stubRpc("sor_my_sors_facets", () => [
+      { opportunity_id: deal.id, sor_code: "SOR-1", sale_type_name: "Government", last_activity_at: null, client_name: "Metro Hospital Corp" },
+    ]);
     const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
     makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id });
 
     renderPage();
     const user = userEvent.setup();
     await screen.findByText("S01234");
-    const box = screen.getByRole("textbox", { name: "Search reference, SOR code or project" });
+    const box = screen.getByRole("textbox", { name: "Search reference, SOR code, client or project" });
 
     await user.type(box, "equipment");
     expect(screen.getByText("S01234")).toBeInTheDocument();
@@ -214,8 +246,27 @@ describe("My SORs", () => {
     expect(screen.getByText("S01234")).toBeInTheDocument();
 
     await user.clear(box);
+    await user.type(box, "metro hosp");
+    expect(screen.getByText("S01234")).toBeInTheDocument();
+
+    await user.clear(box);
     await user.type(box, "zzz");
     expect(screen.queryByText("S01234")).toBeNull();
     expect(screen.getByText(/No SOR matches these filters/)).toBeInTheDocument();
+  });
+
+  it("reads a default saved before Current access existed (access OPEN) as Current access (#478)", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id });
+    localStorage.setItem(
+      `erp_saved_filters_my_sors_${me.id}`,
+      JSON.stringify({ search: "", access: "OPEN", via: "ALL", stage: "ALL", flow: "ALL", timeframe: "MONTHLY", period: "" }),
+    );
+    try {
+      renderPage();
+      expect(await screen.findByText("Current access")).toBeInTheDocument();
+    } finally {
+      localStorage.removeItem(`erp_saved_filters_my_sors_${me.id}`);
+    }
   });
 });

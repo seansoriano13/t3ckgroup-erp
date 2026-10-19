@@ -3,6 +3,7 @@ import { systemAuditLogService } from "./systemAuditLogService";
 import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
 import { accessWindowSummary } from "../utils/stageAudience";
+import { SOURCE_DEAL_TEAM, SOURCE_MENTION } from "../utils/mySorsFilters";
 import { sorStageParticipantService } from "./sorStageParticipantService";
 import { pipelineStageService } from "./pipelineStageService";
 import { getCurrentLocalDate } from "../utils/formatDate";
@@ -3444,7 +3445,10 @@ export const opportunityService = {
     // called in": one per visit the person was mentioned on, closed once the
     // SOR has left it. RLS lets a person read only their own rows.
     const mentionRows = await opportunityService.getMyMentionGrants(employeeId);
-    if ((!windows || windows.length === 0) && mentionRows.length === 0) return [];
+
+    // #478: the SORs this person is on the Deal Team of: Full access, no window.
+    const dealTeamIds = await opportunityService.getMyDealTeamSorIds();
+    if ((!windows || windows.length === 0) && mentionRows.length === 0 && dealTeamIds.length === 0) return [];
 
     const shape = windows?.length ? await shapeAccessWindows(windows) : () => null;
 
@@ -3461,32 +3465,46 @@ export const opportunityService = {
       if (!byOpportunity.has(m.opportunity_id)) byOpportunity.set(m.opportunity_id, []);
     }
 
-    // #478: the SOR code and Sales Flow the filters need. Never fatal.
-    const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]).catch(() => ({}));
+    for (const id of dealTeamIds) {
+      if (!byOpportunity.has(id)) byOpportunity.set(id, []);
+    }
+    const dealTeam = new Set(dealTeamIds);
+
+    // #478: the SOR code, client, Sales Flow and last activity the filters need.
+    const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]);
 
     const rows = await Promise.all(
       [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
         const summary = await opportunityService.getLockedSummary(opportunityId).catch(() => null);
         const mentions = mentionsByOpportunity.get(opportunityId) || [];
         const allWindows = [
+          ...(dealTeam.has(opportunityId)
+            ? [{ id: `deal-team-${opportunityId}`, source: SOURCE_DEAL_TEAM, closedAt: null, createdAt: null, reachLabel: "the whole SOR (Full access)" }]
+            : []),
           ...ownWindows.map(shape),
           ...mentions.map((m) => ({
             id: `mention-${m.id ?? opportunityId}`,
-            source: "mention",
+            source: SOURCE_MENTION,
             mentionedBy: m.granted_by_name ?? null,
             calledInAtStageName: m.stage_name ?? null,
             closedAt: m.closed_at ?? null,
             createdAt: m.created_at ?? null,
             reachLabel: m.stage_visit_id ? "this Stage until it moves" : "this SOR, read-only",
           })),
-        ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        ].sort(
+          (a, b) =>
+            Number(b.source === SOURCE_DEAL_TEAM) - Number(a.source === SOURCE_DEAL_TEAM) ||
+            new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
+        );
         return {
           opportunityId,
           salesReference: summary?.sales_reference ?? null,
           projectTitle: summary?.project_title ?? null,
           currentStageName: summary?.current_stage_name ?? null,
           sorCode: facets[opportunityId]?.sorCode ?? null,
+          clientName: facets[opportunityId]?.clientName ?? null,
           saleTypeName: facets[opportunityId]?.saleTypeName ?? null,
+          lastActivityAt: facets[opportunityId]?.lastActivityAt ?? null,
           isOpen: allWindows.some((w) => !w.closedAt),
           windows: allWindows,
         };
@@ -3548,13 +3566,28 @@ export const opportunityService = {
     }));
   },
 
-  /** #478: `sor_my_sors_facets` keyed by SOR — the SOR code and Sales Flow. */
+  /**
+   * #478: the SORs this person is on the Deal Team of (`sor_my_deal_team_sor_ids`,
+   * the one Deal Team definition). Throws on failure: a silent empty list would
+   * hide the person's own SORs.
+   */
+  async getMyDealTeamSorIds() {
+    const { data, error } = await supabase.rpc("sor_my_deal_team_sor_ids");
+    if (error) throw error;
+    // A `setof uuid` function comes back as a plain array of uuid strings.
+    return data || [];
+  },
+
+  /** #478: `sor_my_sors_facets` keyed by SOR — the SOR code, client, Sales Flow and last activity. */
   async getMySorsFacets(opportunityIds) {
     if (!opportunityIds?.length) return {};
     const { data, error } = await supabase.rpc("sor_my_sors_facets", { p_opportunity_ids: opportunityIds });
     if (error) throw error;
     return Object.fromEntries(
-      (data || []).map((r) => [r.opportunity_id, { sorCode: r.sor_code ?? null, saleTypeName: r.sale_type_name ?? null }]),
+      (data || []).map((r) => [
+        r.opportunity_id,
+        { sorCode: r.sor_code ?? null, clientName: r.client_name ?? null, saleTypeName: r.sale_type_name ?? null, lastActivityAt: r.last_activity_at ?? null },
+      ]),
     );
   },
 
