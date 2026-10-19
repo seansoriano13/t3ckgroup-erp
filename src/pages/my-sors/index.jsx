@@ -11,7 +11,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import MySorsTable from "../../components/sor/MySorsTable";
 import MySorsFilterBar from "../../components/sor/MySorsFilterBar";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
-import { DEFAULT_MY_SORS_FILTERS, applyMySorsFilters, hasActiveMySorsFilters } from "../../utils/mySorsFilters";
+import { DEFAULT_MY_SORS_FILTERS, applyMySorsFilters, hasActiveMySorsFilters, migrateSavedMySorsFilters } from "../../utils/mySorsFilters";
 import { useAuth } from "../../context/AuthContext";
 import { opportunityService } from "../../services/opportunityService";
 
@@ -65,7 +65,7 @@ function MySorsScreen() {
     user?.id,
     DEFAULT_MY_SORS_FILTERS,
   );
-  const [filters, setFilters] = useState(initial);
+  const [filters, setFilters] = useState(() => migrateSavedMySorsFilters(initial));
   const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery({

@@ -10,6 +10,7 @@ import {
 import { useTableSort } from "../../hooks/useTableSort";
 import { Tooltip } from "../ui/Tooltip";
 import StatusBadge from "../StatusBadge";
+import { SOURCE_DEAL_TEAM, SOURCE_MENTION } from "../../utils/mySorsFilters";
 
 /**
  * My SORs as a Register table: one row per SOR, showing its most recent
@@ -17,11 +18,11 @@ import StatusBadge from "../StatusBadge";
  * them, so "why can I see this" keeps every answer without a row each.
  */
 const VIA_LABEL = {
-  deal_team: "Deal Team",
+  [SOURCE_DEAL_TEAM]: "Deal Team",
   action: "Task",
   assignment: "Assignment",
   purchase_request: "Purchase request",
-  mention: "Mention",
+  [SOURCE_MENTION]: "Mention",
 };
 
 const formatSince = (iso) =>

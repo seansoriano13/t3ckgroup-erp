@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest"
-import { DEFAULT_MY_SORS_FILTERS, MY_SORS_ALL, applyMySorsFilters, hasActiveMySorsFilters, mySorsFilterOptions } from "./mySorsFilters"
+import {
+  DEFAULT_MY_SORS_FILTERS,
+  MY_SORS_ALL,
+  MY_SORS_CURRENT,
+  MY_SORS_ENDED,
+  MY_SORS_FULL,
+  MY_SORS_IN_WINDOW,
+  SOURCE_CALLED_IN,
+  SOURCE_DEAL_TEAM,
+  SOURCE_MENTION,
+  applyMySorsFilters,
+  hasActiveMySorsFilters,
+  migrateSavedMySorsFilters,
+  mySorsFilterOptions,
+} from "./mySorsFilters"
 
 const row = (over) => ({
   opportunityId: over.id,
   salesReference: null,
   projectTitle: null,
   sorCode: null,
+  clientName: null,
   currentStageName: null,
   saleTypeName: null,
   isOpen: true,
@@ -19,6 +34,7 @@ const rows = [
     salesReference: "SR-001",
     projectTitle: "Hospital chillers",
     sorCode: "SOR-0042",
+    clientName: "Metro Hospital Corp",
     currentStageName: "Costing",
     saleTypeName: "Government",
     lastActivityAt: "2026-10-06T02:00:00Z",
@@ -49,24 +65,25 @@ describe("applyMySorsFilters", () => {
   it("hides ended access by default", () => {
     expect(run({})).toEqual(["a", "c"])
     expect(run({ access: MY_SORS_ALL })).toEqual(["a", "b", "c"])
-    expect(run({ access: "ENDED" })).toEqual(["b"])
+    expect(run({ access: MY_SORS_ENDED })).toEqual(["b"])
   })
 
   it("splits Full from In window", () => {
-    expect(run({ access: "FULL" })).toEqual(["c"])
-    expect(run({ access: "OPEN" })).toEqual(["a"])
+    expect(run({ access: MY_SORS_FULL })).toEqual(["c"])
+    expect(run({ access: MY_SORS_IN_WINDOW })).toEqual(["a"])
   })
 
-  it("searches Sales Reference, SOR code and project", () => {
+  it("searches Sales Reference, SOR code, client and project", () => {
+    expect(run({ access: MY_SORS_ALL, search: "metro hosp" })).toEqual(["a"])
     expect(run({ access: MY_SORS_ALL, search: "sr-002" })).toEqual(["b"])
     expect(run({ access: MY_SORS_ALL, search: "0042" })).toEqual(["a"])
     expect(run({ access: MY_SORS_ALL, search: "cctv" })).toEqual(["b"])
   })
 
   it("filters by why I'm here, Stage and Sales Flow", () => {
-    expect(run({ access: MY_SORS_ALL, via: "deal_team" })).toEqual(["c"])
-    expect(run({ access: MY_SORS_ALL, via: "mention" })).toEqual(["a"])
-    expect(run({ access: MY_SORS_ALL, via: "called_in" })).toEqual(["b"])
+    expect(run({ access: MY_SORS_ALL, via: SOURCE_DEAL_TEAM })).toEqual(["c"])
+    expect(run({ access: MY_SORS_ALL, via: SOURCE_MENTION })).toEqual(["a"])
+    expect(run({ access: MY_SORS_ALL, via: SOURCE_CALLED_IN })).toEqual(["b"])
     expect(run({ access: MY_SORS_ALL, stage: "Quotation" })).toEqual(["b"])
     expect(run({ access: MY_SORS_ALL, flow: "Government" })).toEqual(["a"])
   })
@@ -87,5 +104,19 @@ describe("mySorsFilterOptions / hasActiveMySorsFilters", () => {
   it("counts the default view as not narrowed", () => {
     expect(hasActiveMySorsFilters(DEFAULT_MY_SORS_FILTERS)).toBe(false)
     expect(hasActiveMySorsFilters({ ...DEFAULT_MY_SORS_FILTERS, search: "x" })).toBe(true)
+  })
+})
+
+describe("migrateSavedMySorsFilters", () => {
+  it("reads an old saved access of OPEN as Current access, and leaves everything else alone", () => {
+    expect(migrateSavedMySorsFilters({ ...DEFAULT_MY_SORS_FILTERS, access: "OPEN" }).access).toBe(MY_SORS_CURRENT)
+    const inWindow = { ...DEFAULT_MY_SORS_FILTERS, access: MY_SORS_IN_WINDOW }
+    expect(migrateSavedMySorsFilters(inWindow)).toBe(inWindow)
+    expect(migrateSavedMySorsFilters(DEFAULT_MY_SORS_FILTERS)).toBe(DEFAULT_MY_SORS_FILTERS)
+  })
+
+  it("keeps rows with no last activity when no period is chosen", () => {
+    const noActivity = [row({ id: "z", lastActivityAt: null })]
+    expect(applyMySorsFilters(noActivity, DEFAULT_MY_SORS_FILTERS)).toHaveLength(1)
   })
 })

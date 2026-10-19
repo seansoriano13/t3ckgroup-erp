@@ -220,6 +220,27 @@ describe("Mention Window", () => {
         expect(new Date(data[0].last_activity_at).getTime()).toBeGreaterThan(0)
     })
 
+    it("My SORs Deal Team list leaves out soft-deleted and scratch SORs (#478)", async () => {
+        const svc = serviceClient()
+        const deleted = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+        const scratch = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+        try {
+            const marked = await Promise.all([
+                svc.from("sales_opportunities").update({ is_deleted: true }).eq("id", deleted),
+                svc.from("sales_opportunities").update({ is_scratch: true }).eq("id", scratch),
+            ])
+            marked.forEach((r) => expect(r.error).toBeNull())
+
+            const { data, error } = await (await clientFor("dealOwner")).rpc("sor_my_deal_team_sor_ids")
+            expect(error).toBeNull()
+            expect(data).toContain(sorId)
+            expect(data).not.toContain(deleted)
+            expect(data).not.toContain(scratch)
+        } finally {
+            await svc.from("sales_opportunities").delete().in("id", [deleted, scratch])
+        }
+    })
+
     it("an SOR with no Stage Visit keeps the permanent header grant", async () => {
         const { error } = await mention("dealOwner", [ids.outsider], oldSor)
         expect(error).toBeNull()

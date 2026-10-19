@@ -1,5 +1,6 @@
 import { Lock } from "lucide-react";
 import { Button } from "../ui/button";
+import { SOURCE_MENTION } from "../../utils/mySorsFilters";
 
 /**
  * One SOR the person was called into: which Stage it is on, why they can see
@@ -42,7 +43,7 @@ export default function MySorRow({ row, onOpen }) {
       <ul className="space-y-1">
         {row.windows.map((w) => (
           <li key={w.id} className="text-xs leading-relaxed text-muted-foreground">
-            {w.source === "mention" ? (
+            {w.source === SOURCE_MENTION ? (
               <>
                 Mentioned
                 {w.calledInAtStageName ? <> at <span className="font-bold text-foreground">{w.calledInAtStageName}</span></> : ""}
