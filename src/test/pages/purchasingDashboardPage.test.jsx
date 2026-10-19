@@ -85,6 +85,28 @@ describe("Purchasing Dashboard page", () => {
   });
 
 
+  it("shows the client's delivery deadline on the On order group only, marked near or late (#467)", async () => {
+    const inDays = (days) => new Date(Date.now() + days * 86_400_000).toISOString();
+    stubRpc("sor_delivery_deadlines", () => [
+      { opportunity_id: "sor-1", due_at: inDays(2), days: 15 },
+      { opportunity_id: "sor-2", due_at: inDays(-3), days: 15 },
+    ]);
+    stubRpc("purchasing_dashboard_rows", () => [
+      row({ grp: "on_order", target_kind: "purchase_request", target_id: "pr-1", request_id: "pr-1", item_count: 2 }),
+      row({ grp: "to_source", target_kind: "purchase_request", target_id: "pr-1", request_id: "pr-1", item_count: 1 }),
+      row({ opportunity_id: "sor-2", sales_reference: "S07984", grp: "on_order", target_kind: "purchase_request", target_id: "pr-2", request_id: "pr-2", item_count: 1 }),
+      row({ opportunity_id: "sor-3", sales_reference: "S07985", grp: "on_order", target_kind: "purchase_request", target_id: "pr-3", request_id: "pr-3", item_count: 1 }),
+    ]);
+    renderPage();
+
+    const near = await within(await screen.findByTestId("sor-on_order-sor-1")).findByText(/Client deadline/);
+    expect(near).toHaveAttribute("data-deadline", "near");
+    const late = await within(screen.getByTestId("sor-on_order-sor-2")).findByText(/Client deadline/);
+    expect(late).toHaveAttribute("data-deadline", "late");
+    expect(within(screen.getByTestId("sor-on_order-sor-3")).queryByText(/Client deadline/)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("sor-to_source-sor-1")).queryByText(/Client deadline/)).not.toBeInTheDocument();
+  });
+
   it("shows the five groups with counts, and the SOR in all four of its groups", async () => {
     renderPage();
     expect(await screen.findByRole("heading", { level: 1, name: /purchasings*dashboard/i })).toBeInTheDocument();

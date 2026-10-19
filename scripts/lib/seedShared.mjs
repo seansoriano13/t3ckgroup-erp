@@ -136,6 +136,7 @@ export const SEED_TABLES = [
   "packing_list_contents",
   // Order Monitoring ageing rules (#262): one number per step, no people in it.
   "order_ageing_rules",
+  "order_deadline_setting",
   // Costing Matrix (#266): settings, presets and signer lists first; the matrix
   // points at an SOR, its rows at the matrix, money rows at their row, and
   // decisions, sign-offs and events at the matrix.

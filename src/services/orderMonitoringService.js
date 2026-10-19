@@ -3,6 +3,8 @@ import { IPAS_STATE, IPAS_STATUS_SOURCE } from "../constants/ipas";
 import { ORDER_GROUP } from "../constants/orderMonitoring";
 import { TRANSMITTAL_RATING } from "../constants/transmittals";
 import { orderAgeingRulesService } from "./orderAgeingRulesService";
+import { deliveryDeadlineService } from "./deliveryDeadlineService";
+import { deadlineMark, earliestDueAt } from "../utils/deliveryDeadline";
 import { transmittalService } from "./transmittalService";
 import { finiteNumber } from "../utils/landedCost";
 import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas } from "../utils/ipas";
@@ -99,13 +101,17 @@ async function loadOrders(today) {
   if (ipasRows.length === 0) return [];
 
   const ids = ipasRows.map((row) => row.id);
-  const [sorsByIpas, paymentsByIpas, costsAt, slipsByIpas, rules] = await Promise.all([
+  const [sorsByIpas, paymentsByIpas, costsAt, slipsByIpas, rules, nearDays] = await Promise.all([
     readSors(ids),
     readPayments(ids),
     readCostsCompleteAt(ids),
     transmittalService.forOrders(ids, { includeDrafts: true }),
     orderAgeingRulesService.getRules(),
+    deliveryDeadlineService.getNearDays(),
   ]);
+  const deadlines = await deliveryDeadlineService.forSors(
+    [...sorsByIpas.values()].flatMap((list) => list.map((sor) => sor.opportunity_id)),
+  );
 
   return ipasRows.map((row) => {
     const payments = paymentsByIpas.get(row.id) ?? [];
@@ -138,6 +144,14 @@ async function loadOrders(today) {
       today,
     );
 
+    const received = shaped.buyerTrack.find((step) => step.key === "received_in_odoo")?.ticked ?? false;
+    const deadline = deadlineMark({
+      dueAt: earliestDueAt((sorsByIpas.get(row.id) ?? []).map((sor) => sor.opportunity_id), deadlines),
+      receivedInOdoo: received,
+      nearDays,
+      today,
+    });
+
     return {
       id: row.id,
       number: row.number,
@@ -162,6 +176,7 @@ async function loadOrders(today) {
       ruleDays: standing.ruleDays,
       late: standing.late,
       daysPastRule: standing.daysPastRule,
+      deadline,
     };
   });
 }
