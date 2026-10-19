@@ -188,12 +188,14 @@ describe("the summary of an SOR's IPAS", () => {
         }
     })
 
-    it("has exactly the agreed key set: no money or bank column", async () => {
+    it("has exactly the agreed key set: no payment or bank column, Landed Cost only as total and mark (#283)", async () => {
         const [row] = await summaries("dealOwner", sorA)
         expect(Object.keys(row).sort()).toEqual([
             "buyer_track",
             "computation_status",
             "ipas_id",
+            "landed_cost_mark",
+            "landed_cost_total_php",
             "number",
             "po_number",
             "purpose",

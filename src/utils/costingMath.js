@@ -136,7 +136,29 @@ export function lineTotals(tenderLine, components = []) {
     percentOfAbc: abc !== null && offer !== null ? percentOf(pesosFromCentavos(offer), pesosFromCentavos(abc)) : null,
     acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.acquire_unit, c?.quantity)))),
     odooTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.odoo_unit, c?.quantity)))),
+    landedCost: landedCostRollup(list),
   };
+}
+
+/**
+ * The Landed Cost of a set of Components added up (#283): `{ total, mark }`, or null while any
+ * Component is blank, when there are none, or when the tier was never sent Landed Cost (a
+ * Component with no `landed_cost` key). `provisional` while any Component is, else `final`.
+ * It is a fourth cost beside Acquire, Odoo and Final Acquire: nothing else here reads it.
+ */
+export function landedCostRollup(components) {
+  const list = components ?? [];
+  if (list.length === 0) return null;
+  let total = 0n;
+  let provisional = false;
+  for (const component of list) {
+    const landed = component?.landed_cost;
+    const cents = landed ? extendedCentavos(landed.total, 1) : null;
+    if (cents === null) return null;
+    total += cents;
+    if (landed.mark !== "final") provisional = true;
+  }
+  return { total: pesosFromCentavos(total), mark: provisional ? "provisional" : "final" };
 }
 
 /**
@@ -176,6 +198,9 @@ export function matrixTotals(tenderLines) {
     missingOffer,
     overAbc: both && finalOfferTotal > abcTotal,
     percentOfAbc: both ? percentOf(pesosFromCentavos(finalOfferTotal), pesosFromCentavos(abcTotal)) : null,
+    // Every Tender Line's Components, blank while any line is (a line with no Component included).
+    // Cost-only rows have no Requested Item, so they never take part.
+    landedCost: lines.some((line) => (line?.components ?? []).length === 0) ? null : landedCostRollup(lines.flatMap((line) => line.components)),
   };
 }
 

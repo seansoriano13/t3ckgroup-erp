@@ -115,6 +115,21 @@ describe("ipasService.summariesForSor", () => {
     }
   })
 
+  it("carries Landed Cost's total and mark for the matrix's money tier only (#283)", async () => {
+    await raise()
+    const participant = (await ipasService.summariesForSor(sorA.id))[0]
+    expect(participant.landedCost).toBeNull()
+    const { data: participantRows } = await supabase.rpc("ipas_summaries_for_sor", { p_opportunity_id: sorA.id })
+    expect(Object.keys(participantRows[0]).sort()).toEqual([...IPAS_SUMMARY_KEYS].sort())
+
+    stubIpasRpcs({ actorId: buyer.id, costingMoney: true })
+    const { data: moneyRows } = await supabase.rpc("ipas_summaries_for_sor", { p_opportunity_id: sorA.id })
+    expect(Object.keys(moneyRows[0]).sort()).toEqual([...IPAS_SUMMARY_KEYS].sort())
+    const money = (await ipasService.summariesForSor(sorA.id))[0]
+    expect(money.landedCost).toMatchObject({ mark: "provisional" })
+    expect(money.landedCost.total).toBeGreaterThan(0)
+  })
+
   it("ticks With P.O.P once a payment carries proof, without exposing the payment", async () => {
     await raise()
     const [ipas] = db.rows("ipas")

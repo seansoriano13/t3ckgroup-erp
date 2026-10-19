@@ -16,6 +16,7 @@ import { Cell, StockBadge } from "./GridCell";
 import { factorLabel, percentLabel, pesos } from "./gridFormat";
 import { useCostingWrites, useInchargeOptions } from "./useCostingWrites";
 import ComponentBlock from "./ComponentBlock";
+import { LandedCostRollup } from "./LandedCost";
 import BidDecisionPanel from "./BidDecisionPanel";
 import CostingSummary from "./CostingSummary";
 import CostRowGrid from "./CostRowGrid";
@@ -330,6 +331,13 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
           <span className="font-semibold tabular-nums">{totals.percentOfAbc.toFixed(1)}%</span>
           <span className="text-muted-foreground">of the ABC</span>
           {totals.overAbc && <StatusBadge label="Over ABC" theme="red" title="The Final Offer total is above the ABC total" />}
+        </p>
+      )}
+
+      {"landedCost" in totals && (
+        <p className="flex flex-wrap items-center gap-2 text-sm" data-testid="matrix-landed-cost">
+          <span className="text-muted-foreground">Landed Cost, every Component</span>
+          <LandedCostRollup rollup={totals.landedCost} />
         </p>
       )}
 

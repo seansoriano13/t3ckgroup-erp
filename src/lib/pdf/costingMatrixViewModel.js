@@ -9,7 +9,8 @@
  *   Sheet 1, the money sheet   Closed Book only (Super Admins and the Final Acquire list): one row per
  *                              Tender Line, the cost-only rows, the summary (or why it is incomplete),
  *                              the margin strip, the Bid Decision, deviations in prose, a Landed Cost
- *                              column that reads "awaiting purchase", and the four signature blocks.
+ *                              column (each Tender Line's figure with "provisional" or "final", or
+ *                              "awaiting purchase" while blank, #283), and the four signature blocks.
  *   Sheet 2, the appendix      every tier that can read the matrix: each Tender Specification in full
  *                              against its Components' Offer Specifications, Compliance and notes, then
  *                              the Inclusions with their covered count. No figures.
@@ -29,6 +30,13 @@ import { printAmount, printDate, printDateTime } from './ipasViewModel';
 
 const BLANK = '—';
 const LANDED_COST = 'awaiting purchase';
+
+/**
+ * A Landed Cost roll-up as the print shows it (#283): the figure and its mark ('provisional' or
+ * 'final'), or "awaiting purchase" with no mark while it is blank. One layout before and after.
+ */
+const landedOf = (rollup, format) =>
+  rollup ? { landedCost: format(rollup.total), landedCostMark: rollup.mark } : { landedCost: LANDED_COST, landedCostMark: null };
 
 const text = (value) => {
   const out = typeof value === 'string' ? value.trim() : '';
@@ -173,7 +181,7 @@ function moneySheet(matrix, people) {
     finalAcquire: figure(finalAcquireTotal(line.components)),
     finalOffer: figure(line.totals.finalOfferTotal),
     achieved: factorLabel(line.markup.achievedFactor),
-    landedCost: LANDED_COST,
+    ...landedOf(line.totals.landedCost, figure),
   }));
 
   const costRows = matrix.costRows.map((row) => ({
@@ -213,12 +221,12 @@ function moneySheet(matrix, people) {
       abcPercent: percentText(summary.percentOfAbc),
       abcBar,
       overAbc: Boolean(summary.overAbc),
-      landedCost: LANDED_COST,
+      ...landedOf(matrix.totals?.landedCost, peso),
     },
     bidDecision: bidDecisionOf(matrix, people),
     deviations: deviationsOf(matrix),
     notEvaluated: matrix.compliance?.notEvaluated ?? 0,
-    landedCost: LANDED_COST,
+    ...landedOf(matrix.totals?.landedCost, peso),
     signoffs: SIGN_BLOCKS.map((block) => signoffBox(block, matrix.signoffs?.[block.key]?.signoff ?? null, matrix, people)),
   };
 }

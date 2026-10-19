@@ -46,6 +46,7 @@ describe("percentOf", () => {
 describe("lineTotals", () => {
   it("totals ABC and Final Offer", () => {
     expect(lineTotals({ quantity: 2, abc_unit: 120000, final_offer_unit: 99500.5 })).toEqual({
+      landedCost: null,
       abcTotal: 240000,
       finalOfferTotal: 199001,
       overAbc: false,
@@ -62,6 +63,7 @@ describe("lineTotals", () => {
 
   it("leaves a figure null when its input is blank or the tier never received it", () => {
     expect(lineTotals({ quantity: 2, abc_unit: 100 })).toEqual({
+      landedCost: null,
       abcTotal: 200,
       finalOfferTotal: null,
       overAbc: false,
@@ -70,6 +72,7 @@ describe("lineTotals", () => {
       odooTotal: null,
     });
     expect(lineTotals({ quantity: 2, abc_unit: null, final_offer_unit: 5 })).toEqual({
+      landedCost: null,
       abcTotal: null,
       finalOfferTotal: 10,
       overAbc: false,
@@ -78,6 +81,7 @@ describe("lineTotals", () => {
       odooTotal: null,
     });
     expect(lineTotals({ quantity: 2 })).toEqual({
+      landedCost: null,
       abcTotal: null,
       finalOfferTotal: null,
       overAbc: false,
@@ -160,6 +164,7 @@ describe("matrixTotals", () => {
 
   it("sums the lines and shows Final Offer against the ABC", () => {
     expect(matrixTotals(lines)).toEqual({
+      landedCost: null,
       abcTotal: 3200000,
       finalOfferTotal: 2980000,
       missingAbc: 0,
@@ -178,6 +183,7 @@ describe("matrixTotals", () => {
   it("counts blanks and never treats them as zero", () => {
     const partial = matrixTotals([...lines, { quantity: 1, abc_unit: 500 }, { quantity: 1 }]);
     expect(partial).toEqual({
+      landedCost: null,
       abcTotal: null,
       finalOfferTotal: null,
       missingAbc: 1,
@@ -198,7 +204,7 @@ describe("matrixTotals", () => {
   });
 
   it("gives nothing for an empty matrix", () => {
-    expect(matrixTotals([])).toEqual({ abcTotal: null, finalOfferTotal: null, missingAbc: 0, missingOffer: 0, overAbc: false, percentOfAbc: null });
+    expect(matrixTotals([])).toEqual({ abcTotal: null, finalOfferTotal: null, missingAbc: 0, missingOffer: 0, overAbc: false, percentOfAbc: null, landedCost: null });
     expect(matrixTotals(undefined).missingOffer).toBe(0);
   });
 });

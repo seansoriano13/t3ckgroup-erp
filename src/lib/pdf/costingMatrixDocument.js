@@ -131,6 +131,10 @@ function moneyHead(vm) {
   </div>`;
 }
 
+/** A Landed Cost cell: the figure over its mark, or "awaiting purchase" while blank (#283). */
+const landedCell = (l) =>
+  l.landedCostMark ? `${esc(l.landedCost)}<div class="sub">${esc(l.landedCostMark)}</div>` : `<span class="wait">${esc(l.landedCost)}</span>`;
+
 /** The Tender Lines and cost-only rows under the owner bands: who writes each column. */
 function moneyTable(money) {
   const lines = money.lines
@@ -139,7 +143,7 @@ function moneyTable(money) {
         <td>${esc(l.name)}<div class="sub">${esc(l.detail)}</div></td>
         <td class="num">${esc(l.abc)}</td><td class="num">${esc(l.finalOffer)}</td>
         <td class="num">${esc(l.acquire)}</td><td class="num">${esc(l.finalAcquire)}</td>
-        <td class="num">${esc(l.achieved)}</td><td class="num"><span class="wait">${esc(l.landedCost)}</span></td></tr>`,
+        <td class="num">${esc(l.achieved)}</td><td class="num">${landedCell(l)}</td></tr>`,
     )
     .join('');
   const costRows = money.costRows
@@ -184,7 +188,7 @@ function figures(money) {
   const s = money.strip;
   const margin = `<div class="blk"><div class="k">Margin</div><div class="rows">
     ${row('Cost', s.cost, { hint: 'Final Acquire total' })}
-    ${row('Landed cost', s.landedCost, { wait: true })}
+    ${row(s.landedCostMark ? `Landed cost · ${s.landedCostMark}` : 'Landed cost', s.landedCost, { wait: !s.landedCostMark })}
     ${row('Markup target', s.target)}
     ${row('Achieved', s.achieved)}
   </div></div>`;

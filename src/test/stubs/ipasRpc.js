@@ -1,6 +1,7 @@
 import { stubRpc } from "@/test/msw/server"
 import { db, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
+import { computeLandedCost } from "@/utils/landedCost"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
@@ -91,6 +92,8 @@ export function stubIpasRpcs({
   finance = undefined,
   superAdmin = false,
   sorReader = true,
+  // #283: whether the caller is in the SOR's Costing Matrix money tier (costing_can_read_money).
+  costingMoney = false,
 } = {}) {
   const hasFinance = finance ?? money === true
   const requirePurchasing = (fn) => {
@@ -406,9 +409,25 @@ export function stubIpasRpcs({
             3: roles(3, ["prepared", "approved"]),
             7: roles(7, ["received", "noted", "checked", "approved"]),
           },
+          ...summaryLandedCost(row),
         }
       })
   })
+
+  // #283: the IPAS's Landed Cost total and mark, for the matrix's money tier only.
+  const summaryLandedCost = (row) => {
+    if (!costingMoney) return { landed_cost_total_php: null, landed_cost_mark: null }
+    const lc = computeLandedCost({
+      copy: row.odoo_copy,
+      payments: rowsOf("ipas_payments").filter((p) => p.ipas_id === row.id),
+      charges: rowsOf("ipas_charges").filter((p) => p.ipas_id === row.id),
+      split: row.landed_cost_split || "value",
+      computationStatus: row.computation_status || "encoding",
+      filed: row.state === "filed",
+    })
+    if (lc.lines.length === 0 && lc.status === "unavailable" && lc.reason !== "no_payments") return { landed_cost_total_php: null, landed_cost_mark: null }
+    return { landed_cost_total_php: lc.totals?.landedPhp ?? null, landed_cost_mark: lc.status }
+  }
 
   // #265: the dates and Transmittal facts the SOR section needs for each
   // order's standing. The same gate as the summary; dates and slip facts only.

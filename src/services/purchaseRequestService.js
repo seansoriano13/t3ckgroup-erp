@@ -450,6 +450,15 @@ export const purchaseRequestService = {
     return data;
   },
 
+  /**
+   * Unlinks an item from its Costing Matrix Component (#283), so the Component can be deleted.
+   * Purchasing access only; the unlink is kept in the matrix's history.
+   */
+  async detachComponent(itemId) {
+    const { error } = await supabase.rpc("purchase_request_item_detach_component", { p_item_id: itemId });
+    if (error) throw error;
+  },
+
   /** Withdraws an item: the one change the sales side may make. */
   async cancelItem(itemId) {
     return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.CANCELLED);

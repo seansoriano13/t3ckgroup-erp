@@ -191,6 +191,30 @@ describe("the printed Costing Matrix, view model", () => {
     expect(html).toContain("specification appendix");
   });
 
+  it("fills the Landed Cost column with its mark once it arrives, and prints none for a participant (#283)", () => {
+    const withLanded = (tier, rollup) => {
+      const matrix = shapeMatrix(readAs(tier), tier === COSTING_TIER.CLOSED_BOOK ? { ...DEFAULT_COSTING_SETTINGS } : null);
+      // What costingMatrixService.get attaches for the money tier.
+      matrix.tenderLines[0].totals = { ...matrix.tenderLines[0].totals, landedCost: rollup };
+      matrix.totals = { ...matrix.totals, landedCost: rollup };
+      return buildCostingMatrixViewModel({ matrix, opportunity: OPPORTUNITY, people: PEOPLE });
+    };
+
+    const provisional = withLanded(COSTING_TIER.CLOSED_BOOK, { total: 2251234.5, mark: "provisional" });
+    expect(provisional.money.lines[0]).toMatchObject({ landedCost: "2,251,234.50", landedCostMark: "provisional" });
+    expect(provisional.money.strip).toMatchObject({ landedCost: "PHP 2,251,234.50", landedCostMark: "provisional" });
+    const html = buildCostingMatrixDocument(provisional);
+    expect(html).toContain("2,251,234.50");
+    expect(html).toContain("provisional");
+
+    expect(withLanded(COSTING_TIER.CLOSED_BOOK, { total: 2251234.5, mark: "final" }).money.lines[0].landedCostMark).toBe("final");
+    expect(withLanded(COSTING_TIER.CLOSED_BOOK, null).money.lines[0]).toMatchObject({ landedCost: "awaiting purchase", landedCostMark: null });
+
+    const participant = withLanded(COSTING_TIER.PARTICIPANT, { total: 2251234.5, mark: "final" });
+    expect("money" in participant).toBe(false);
+    expect(JSON.stringify(participant)).not.toContain("2,251,234");
+  });
+
   it("doesn't print the money sheet for a lower tier even when a caller hands over a Closed Book matrix", () => {
     const matrix = shapeMatrix(readAs(COSTING_TIER.CLOSED_BOOK), { ...DEFAULT_COSTING_SETTINGS });
     const vm = buildCostingMatrixViewModel({ matrix: { ...matrix, tier: COSTING_TIER.PRICE }, opportunity: OPPORTUNITY, people: PEOPLE });

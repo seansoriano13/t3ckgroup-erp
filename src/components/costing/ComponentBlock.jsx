@@ -15,8 +15,10 @@ import {
   COMPONENT_STATUS_LABEL,
   COSTING_BAND,
   ROW_EDIT_BANDS,
+  COSTING_TIER,
   inAnyBand,
   tierReadsCost,
+  tierReadsLandedCost,
 } from "../../constants/costing";
 import { extended, finalAcquireTotal } from "../../utils/costingMath";
 import { Cell, SelectCell, StockBadge } from "./GridCell";
@@ -28,6 +30,8 @@ import InclusionList from "./InclusionList";
 import ComponentRequests from "./ComponentRequests";
 import ComponentCanvass, { BrandProposal, FromCanvass } from "./ComponentCanvass";
 import SupplierMismatch from "./SupplierMismatch";
+import ComponentPurchases from "./ComponentPurchases";
+import { LandedCostCell, LandedCostRollup } from "./LandedCost";
 
 const toOptions = (labels) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const STATUS_OPTIONS = toOptions(COMPONENT_STATUS_LABEL);
@@ -48,6 +52,10 @@ const SOURCE_OPTIONS = toOptions(COMPONENT_SOURCE_LABEL);
  * Markup (#269): the Closed Book sees each Component's factor (×1.35 and +35%, its own override or the
  * matrix default) and can type an override if it is on the Final Acquire list; Sales and the Closed Book
  * see the Markup Price per unit and in total. Purchasing sees neither, so Acquire never meets a factor.
+ *
+ * Landed Cost (#283): a fourth cost beside Acquire, Odoo and Final Acquire, for the money tier only,
+ * with its Provisional or Final mark or why it is blank. Under P.O./RFQ No., every tier sees the
+ * Requested Items' PO numbers, each PO's IPAS and "ordered 3 of 5".
  */
 export default function ComponentBlock({ line, matrix, bundles, stockData, incharge, writes, requests = new Map(), canvasses = new Map(), opportunityId, actorId }) {
   const { busy, run, refresh } = writes;
@@ -63,12 +71,14 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
   const showFinal = tierReadsCost(tier, "final_acquire_unit");
   const showFactor = tierReadsCost(tier, "markup_factor");
   const showMarkupPrice = tierReadsCost(tier, "markup_price_unit");
+  const showLanded = tierReadsLandedCost(tier);
 
   const salesColumns = 2 + (showOdoo ? 2 : 0);
   const pmsColumns = 3 + (showAcquire ? 2 : 0);
   const mngtColumns = showFinal ? 2 : 0;
+  const landedColumns = showLanded ? 2 : 0;
   const markupColumns = (showFactor ? 1 : 0) + (showMarkupPrice ? 2 : 0);
-  const columnCount = 4 + salesColumns + pmsColumns + mngtColumns + markupColumns + 1 + 1;
+  const columnCount = 4 + salesColumns + pmsColumns + mngtColumns + landedColumns + markupColumns + 1 + 1;
   const canEvaluate = inAnyBand(bands, COMPONENT_BANDS.compliance);
   // A Canvass is Purchasing's own job (#276); every other reader of the matrix may open one that exists.
   const canCanvass = inAnyBand(bands, [COSTING_BAND.PURCHASING]);
@@ -134,6 +144,11 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                     MNGT
                   </BandHeader>
                 )}
+                {showLanded && (
+                  <BandHeader band="pms" span={landedColumns}>
+                    Actual
+                  </BandHeader>
+                )}
                 {markupColumns > 0 && (
                   <BandHeader band="mngt" span={markupColumns}>
                     Markup
@@ -160,6 +175,8 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                 {showAcquire && <TableHead className="w-32 min-w-32 text-right">Acquire total</TableHead>}
                 {showFinal && <TableHead className="w-36 min-w-36 text-right">Final Acquire / unit</TableHead>}
                 {showFinal && <TableHead className="w-32 min-w-32 text-right">Final Acquire total</TableHead>}
+                {showLanded && <TableHead className="w-36 min-w-36 text-right">Landed Cost / unit</TableHead>}
+                {showLanded && <TableHead className="w-32 min-w-32 text-right">Landed Cost total</TableHead>}
                 {showFactor && <TableHead className="w-36 min-w-36 text-right">Markup factor</TableHead>}
                 {showMarkupPrice && <TableHead className="w-36 min-w-36 text-right">Markup Price / unit</TableHead>}
                 {showMarkupPrice && <TableHead className="w-36 min-w-36 text-right">Markup Price total</TableHead>}
@@ -326,6 +343,12 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                           onSave={(value) => saveComponent(component, { poRfqNo: value })}
                         />
                         <SupplierMismatch mismatch={component.supplierMismatch} />
+                        <ComponentPurchases
+                          component={component}
+                          linkIpas={tier !== COSTING_TIER.PARTICIPANT}
+                          canPick={inAnyBand(bands, [COSTING_BAND.PURCHASING])}
+                          onPicked={refresh}
+                        />
                       </TableCell>
                       <TableCell className="align-top">
                         <SelectCell
@@ -377,6 +400,16 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                       )}
                       {showFinal && (
                         <TableCell className="text-right align-top text-sm tabular-nums">{pesos(extended(component.final_acquire_unit, component.quantity))}</TableCell>
+                      )}
+                      {showLanded && (
+                        <TableCell className="align-top">
+                          <LandedCostCell landedCost={component.landed_cost} which="unit" />
+                        </TableCell>
+                      )}
+                      {showLanded && (
+                        <TableCell className="align-top">
+                          <LandedCostCell landedCost={component.landed_cost} which="total" />
+                        </TableCell>
                       )}
                       {showFactor && (
                         <TableCell className="align-top">
@@ -431,7 +464,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                   </Fragment>
                 );
               })}
-              {(showAcquire || showOdoo || showFinal || showMarkupPrice) && (
+              {(showAcquire || showOdoo || showFinal || showMarkupPrice || showLanded) && (
                 <TableRow data-testid="component-totals">
                   <TableCell colSpan={6} className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Components total
@@ -459,6 +492,12 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                       )}
                     </TableCell>
                   )}
+                  {showLanded && <TableCell />}
+                  {showLanded && (
+                    <TableCell className="text-right text-sm font-semibold">
+                      <LandedCostRollup rollup={line.totals.landedCost} />
+                    </TableCell>
+                  )}
                   {showFactor && <TableCell />}
                   {showMarkupPrice && <TableCell />}
                   {showMarkupPrice && <TableCell className="text-right text-sm font-semibold tabular-nums">{pesos(line.markup.priceTotal)}</TableCell>}
@@ -475,7 +514,7 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
         open={Boolean(removing)}
         onOpenChange={(open) => !open && setRemoving(null)}
         title={removing ? `Remove Component ${removing.number}?` : "Remove Component?"}
-        description="Its costs and Inclusions go with it. The change stays in the history."
+        description="Its costs and Inclusions go with it. The change stays in the history. A Component with a Requested Item or a typed P.O./RFQ No. can't be removed until it is unlinked."
         confirmLabel="Remove"
         tone="destructive"
         onConfirm={() => {

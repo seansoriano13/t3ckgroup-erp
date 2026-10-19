@@ -18,6 +18,8 @@ import {
   tierReadsCost,
 } from "@/constants/costing"
 import { markupPriceUnit, matrixTotals } from "@/utils/costingMath"
+import { computeLandedCost } from "@/utils/landedCost"
+import { tierReadsLandedCost } from "@/constants/costing"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
@@ -304,6 +306,81 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       if (row) updateRow("costing_tender_lines", row, { position: index + 1 })
     })
     return null
+  })
+
+  // #283: the matrix's Components, for the two reads below.
+  const componentsOf = (opportunityId) => {
+    const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === opportunityId)
+    if (!matrix) return []
+    const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
+    return rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id))
+  }
+  const LIVE = ["ordered", "received"]
+  const liveIpas = (po) =>
+    po ? rowsOf("ipas").filter((i) => i.po_number === String(po).trim() && i.state !== "cancelled").sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] ?? null : null
+  const orderedOf = (componentId) =>
+    rowsOf("purchase_request_items").filter((i) => i.component_id === componentId && LIVE.includes(i.status)).reduce((sum, i) => sum + Number(i.quantity), 0)
+
+  // costing_component_purchases (#283): PO numbers and IPAS per Component, no money, every tier.
+  stubRpc("costing_component_purchases", (args) => {
+    if (!tier) return []
+    return componentsOf(args.p_opportunity_id).map((c) => {
+      const items = rowsOf("purchase_request_items").filter((i) => i.component_id === c.id)
+      const typed = c.po_rfq_no ? String(c.po_rfq_no).trim() || null : null
+      const pos = [...new Set([...items.filter((i) => i.status !== "cancelled").map((i) => i.po_number || null), typed].filter(Boolean))].sort()
+      return {
+        component_id: c.id,
+        po_rfq_no: typed,
+        ordered_quantity: orderedOf(c.id),
+        requests: items.map((i) => ({ item_id: i.id, request_id: i.request_id, name: i.name, po_number: i.po_number || null, status: i.status, odoo_po_line_ids: i.odoo_po_line_ids ?? [] })),
+        ipas: pos.map((po) => {
+          const ipas = liveIpas(po)
+          return { po_number: po, ipas_id: ipas?.id ?? null, number: ipas?.number ?? null, state: ipas?.state ?? null }
+        }),
+      }
+    })
+  })
+
+  // costing_landed_costs (#283): the money tier only. Re-implemented on the store with the IPAS's
+  // own Landed Cost maths; that the SQL matches it is the policy tier's (95-costing-landed-cost).
+  stubRpc("costing_landed_costs", (args) => {
+    if (!tierReadsLandedCost(tier)) return []
+    const linesOf = (ipas) => {
+      const lc = computeLandedCost({
+        copy: ipas.odoo_copy,
+        payments: rowsOf("ipas_payments").filter((p) => p.ipas_id === ipas.id),
+        charges: rowsOf("ipas_charges").filter((p) => p.ipas_id === ipas.id),
+        split: ipas.landed_cost_split || "value",
+        computationStatus: ipas.computation_status || "encoding",
+        filed: ipas.state === "filed",
+      })
+      return new Map((ipas.odoo_copy?.lines ?? []).map((l) => [l.line_id, { total: lc.lines.find((x) => x.lineId === l.line_id)?.landedPhp ?? null, mark: lc.status }]))
+    }
+    const live = rowsOf("purchase_request_items").filter((i) => LIVE.includes(i.status))
+    return componentsOf(args.p_opportunity_id).map((c) => {
+      const items = live.filter((i) => i.component_id === c.id)
+      const row = { component_id: c.id, total_php: null, unit_php: null, mark: null, blank_reason: null, ordered_quantity: orderedOf(c.id) }
+      if (items.length === 0) return { ...row, blank_reason: "not_ordered" }
+      let total = 0
+      let final = true
+      for (const item of items) {
+        const ipas = liveIpas(item.po_number)
+        const picked = item.odoo_po_line_ids ?? []
+        if (!ipas || picked.length === 0) return { ...row, blank_reason: "po_line_not_picked" }
+        const lines = linesOf(ipas)
+        for (const id of picked) {
+          const line = lines.get(id)
+          if (!line) return { ...row, blank_reason: "line_removed" }
+          if (line.mark === "unavailable" || line.total === null) return { ...row, blank_reason: "landed_cost_unavailable" }
+          const claimants = live.filter((i) => liveIpas(i.po_number)?.id === ipas.id && (i.odoo_po_line_ids ?? []).includes(id))
+          const quantity = claimants.reduce((sum, i) => sum + Number(i.quantity), 0)
+          total += claimants.length <= 1 ? line.total : (line.total * Number(item.quantity)) / quantity
+          if (line.mark !== "final") final = false
+        }
+      }
+      const rounded = Math.round(total * 100) / 100
+      return { ...row, total_php: rounded, unit_php: Math.round((rounded / Number(c.quantity)) * 100) / 100, mark: final ? "final" : "provisional" }
+    })
   })
 
   // #273: the Requested Items that name a Component of this SOR's matrix, as {id, component_id, status, request_id}.

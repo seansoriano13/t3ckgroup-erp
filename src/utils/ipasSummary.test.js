@@ -23,11 +23,19 @@ const row = (over = {}) => ({
 })
 
 describe("IPAS_SUMMARY_KEYS", () => {
-  it("names no money or bank column", () => {
-    const text = IPAS_SUMMARY_KEYS.join(" ")
+  it("names no payment or bank column; Landed Cost's total and mark are the only money (#283)", () => {
+    const text = IPAS_SUMMARY_KEYS.filter((key) => !["landed_cost_total_php", "landed_cost_mark"].includes(key)).join(" ")
     for (const word of ["amount", "payment", "charge", "bank", "account", "landed", "cost", "price", "total", "proof"]) {
       expect(text).not.toContain(word)
     }
+  })
+})
+
+describe("shapeIpasSummary: Landed Cost (#283)", () => {
+  it("reads the total and its mark for a money reader, and nothing for anyone else", () => {
+    expect(shapeIpasSummary(row({ landed_cost_total_php: "7580.00", landed_cost_mark: "provisional" })).landedCost).toEqual({ total: 7580, mark: "provisional" })
+    expect(shapeIpasSummary(row({ landed_cost_total_php: null, landed_cost_mark: "unavailable" })).landedCost).toEqual({ total: null, mark: "unavailable" })
+    expect(shapeIpasSummary(row({ landed_cost_total_php: null, landed_cost_mark: null })).landedCost).toBeNull()
   })
 })
 

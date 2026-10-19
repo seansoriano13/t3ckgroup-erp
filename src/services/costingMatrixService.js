@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
-import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsBidDecision, tierReadsSummary } from "../constants/costing";
-import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, matrixMarkup, matrixTotals, summary } from "../utils/costingMath";
+import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, summary } from "../utils/costingMath";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 import { canvassService } from "./canvassService";
@@ -398,6 +398,81 @@ async function attachSupplierMismatch(components, opportunityId) {
   }
 }
 
+/**
+ * Adds what each Component's purchase came to (#283).
+ *
+ * Every tier: `purchases` = `{ poNumbers, ipas, requests, orderedQuantity, orderedShort }`; `requests` are
+ * `{ itemId, requestId, name, poNumber, status, pickedLineIds }`. `poNumbers`
+ * are its Requested Items' PO numbers and the typed P.O./RFQ No., de-duplicated; `ipas` is, per PO
+ * number, `{ poNumber, ipasId, number, state }` (null fields where no IPAS exists); `orderedShort` is
+ * `{ ordered, of }` when the Ordered and Received items don't add up to the Component's quantity
+ * ("ordered 3 of 5"), else null. No money.
+ *
+ * The money tier only: `landed_cost` = `{ total, unit, mark, blankReason }` on each Component, and
+ * `totals.landedCost` on each Tender Line and on the matrix (costingMath.landedCostRollup). For any
+ * other tier the `landed_cost` key is absent. Landed Cost feeds nothing else: markup, the summary,
+ * Revenue and "Costing settled" were worked out before it arrives and never read it.
+ */
+async function withPurchases(shaped, opportunityId) {
+  if (!shaped || !opportunityId) return shaped;
+  const components = shaped.tenderLines.flatMap((line) => line.components);
+  const money = tierReadsLandedCost(shaped.tier);
+  const [purchases, landed] = await Promise.all([
+    supabase.rpc("costing_component_purchases", { p_opportunity_id: opportunityId }),
+    money ? supabase.rpc("costing_landed_costs", { p_opportunity_id: opportunityId }) : Promise.resolve({ data: null }),
+  ]);
+  if (purchases.error) throw purchases.error;
+  if (landed.error) throw landed.error;
+
+  const purchasesBy = new Map((purchases.data ?? []).map((row) => [row.component_id, row]));
+  const landedBy = new Map((landed.data ?? []).map((row) => [row.component_id, row]));
+  for (const component of components) {
+    component.purchases = shapePurchases(purchasesBy.get(component.id), component);
+    if (money) component.landed_cost = shapeLandedCost(landedBy.get(component.id));
+  }
+  // A tier that reads no Landed Cost gets no key for it, not a null.
+  for (const line of shaped.tenderLines) {
+    const { landedCost: _none, ...totals } = line.totals;
+    line.totals = money ? { ...totals, landedCost: landedCostRollup(line.components) } : totals;
+  }
+  const { landedCost: _none, ...totals } = shaped.totals;
+  shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines).landedCost } : totals;
+  return shaped;
+}
+
+const numberOrNull = (value) => (value === null || value === undefined || value === "" ? null : Number(value));
+
+function shapePurchases(row, component) {
+  const requests = (row?.requests ?? []).map((r) => ({
+    itemId: r.item_id,
+    requestId: r.request_id ?? null,
+    name: r.name ?? "",
+    poNumber: r.po_number ?? null,
+    status: r.status,
+    pickedLineIds: r.odoo_po_line_ids ?? [],
+  }));
+  const ipas = (row?.ipas ?? []).map((i) => ({ poNumber: i.po_number, ipasId: i.ipas_id ?? null, number: i.number ?? null, state: i.state ?? null }));
+  const ordered = numberOrNull(row?.ordered_quantity) ?? 0;
+  const of = numberOrNull(component.quantity);
+  return {
+    poNumbers: ipas.map((i) => i.poNumber),
+    ipas,
+    requests,
+    orderedQuantity: ordered,
+    orderedShort: ordered > 0 && of !== null && ordered !== of ? { ordered, of } : null,
+  };
+}
+
+function shapeLandedCost(row) {
+  if (!row) return { total: null, unit: null, mark: null, blankReason: "not_ordered" };
+  return {
+    total: numberOrNull(row.total_php),
+    unit: numberOrNull(row.unit_php),
+    mark: row.mark ?? null,
+    blankReason: row.blank_reason ?? null,
+  };
+}
+
 /** Requested Items grouped by the Component they name: a Map of component id -> items, oldest first. */
 export function requestsByComponent(requests) {
   return groupBy(requests, "component_id");
@@ -438,7 +513,7 @@ export const costingMatrixService = {
     if (error) throw error;
     // The rates are only needed for the summary, which only the Closed Book tier is given.
     const settings = data && tierReadsSummary(data.tier) ? await costingMatrixService.getSettings() : null;
-    return withCanvass(shapeMatrix(data, settings), opportunityId);
+    return withPurchases(await withCanvass(shapeMatrix(data, settings), opportunityId), opportunityId);
   },
 
   /**

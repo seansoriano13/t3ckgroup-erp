@@ -17,12 +17,16 @@ import {
 
 /**
  * The columns `ipas_summaries_for_sor` returns, and nothing else. A test holds
- * the database to exactly this set: it must never grow a money or bank column.
+ * the database to exactly this set: it must never grow a payment or bank column.
+ * The one money pair is Landed Cost's total and mark (#283), filled only for the
+ * Costing Matrix's money tier and null for everyone else.
  */
 export const IPAS_SUMMARY_KEYS = [
   "buyer_track",
   "computation_status",
   "ipas_id",
+  "landed_cost_mark",
+  "landed_cost_total_php",
   "number",
   "po_number",
   "purpose",
@@ -102,6 +106,13 @@ export function shapeIpasSummary(row) {
       IPAS_COMPUTATION_STATUS_LABELS[row.computation_status] ??
       IPAS_COMPUTATION_STATUS_LABELS[IPAS_COMPUTATION_STATUS.ENCODING],
     signoffs: signoffProgress(row.signoffs),
+    // #283: null for a reader outside the matrix's money tier.
+    landedCost:
+      row.landed_cost_mark && row.landed_cost_mark !== "unavailable" && row.landed_cost_total_php !== null && row.landed_cost_total_php !== undefined
+        ? { total: Number(row.landed_cost_total_php), mark: row.landed_cost_mark }
+        : row.landed_cost_mark === "unavailable"
+          ? { total: null, mark: "unavailable" }
+          : null,
     isFiled: row.state === IPAS_STATE.FILED,
     isCancelled: row.state === IPAS_STATE.CANCELLED,
   };

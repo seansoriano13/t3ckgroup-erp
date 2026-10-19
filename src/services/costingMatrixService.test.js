@@ -63,6 +63,7 @@ describe("costingMatrixService", () => {
     })
     // The second line has no prices yet: nothing is zero.
     expect(read.tenderLines[1].totals).toEqual({
+      landedCost: null,
       abcTotal: null,
       finalOfferTotal: null,
       overAbc: false,

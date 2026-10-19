@@ -1,5 +1,21 @@
 [
     {
+        "date": "2026-10-19",
+        "title": "Costing Matrix: what each purchase actually cost",
+        "version": "1.9.49",
+        "changes": [
+            "The Costing Matrix has a new Landed Cost column, after Final Acquire. It shows what a Component's purchase actually cost, worked out from the PO lines Purchasing picked and that IPAS's payments and charges.",
+            "Each Landed Cost is marked Provisional until every IPAS it comes from has its costs complete, then Final. Each Tender Line and the whole matrix add theirs up, and stay blank while any Component is still blank.",
+            "When there is no figure yet, the matrix says why: Not ordered yet, PO line not picked, Landed Cost not yet available, or Pick the PO line again. Purchasing can pick the line again right there.",
+            "Landed Cost changes nothing else. Markup, Final Acquire, the summary, Revenue and Costing settled keep reading the estimates, and no sign-off is cleared.",
+            "Under P.O./RFQ No., everyone who can see the matrix now sees the PO numbers of its Requested Items, each PO's IPAS number and state, and a note such as \"ordered 3 of 5\" when the order is short.",
+            "A Component with a Requested Item or a typed P.O./RFQ No. can't be removed until it is unlinked, and neither can its Tender Line. Purchasing can unlink a Requested Item from the Component; the history keeps who did it and when.",
+            "The IPAS summaries on the PMS tab show each IPAS's Landed Cost and its mark to the people who can see the matrix's costs.",
+            "The printed Costing Matrix fills its Landed Cost column with each figure and its mark, or \"awaiting purchase\".",
+            "Stage Participants see the PO and IPAS columns but no Landed Cost, on screen and in print."
+        ]
+    },
+    {
         "date": "2026-10-18",
         "title": "Canvass: compare suppliers and pick a winner",
         "version": "1.9.48",

@@ -9,6 +9,8 @@ import { pluralize } from "../../utils/plural";
 import { IPAS_PURPOSE_LABELS } from "../../constants/ipas";
 import { ORDER_OWNER_LABELS } from "../../constants/orderMonitoring";
 import IpasStateBadge from "./IpasStateBadge";
+import { LandedCostMark } from "../costing/LandedCost";
+import { formatPHP } from "../../constants/sor";
 import { useIpasSorSummaries } from "./useIpasSorSummaries";
 
 /** Opens the full IPAS in its own tab, so the SOR stays where it is. */
@@ -82,6 +84,21 @@ function SummaryRow({ summary, canOpen }) {
           <dt className="text-muted-foreground">Costing</dt>
           <dd className="font-medium text-foreground">{summary.computationLabel}</dd>
         </div>
+        {summary.landedCost && (
+          <div className="flex items-baseline gap-2" data-testid="ipas-summary-landed-cost">
+            <dt className="text-muted-foreground">Landed Cost</dt>
+            <dd className="flex items-center gap-2 font-medium text-foreground tabular-nums">
+              {summary.landedCost.mark === "unavailable" ? (
+                "Not yet available"
+              ) : (
+                <>
+                  {formatPHP(summary.landedCost.total)}
+                  <LandedCostMark mark={summary.landedCost.mark} />
+                </>
+              )}
+            </dd>
+          </div>
+        )}
         {summary.signoffs.map((section) => (
           <div key={section.section} className="flex items-baseline gap-2">
             <dt className="text-muted-foreground">

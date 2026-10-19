@@ -157,6 +157,23 @@ export const MATRIX_MONEY_BANDS = {
   opex: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
 };
 
+/**
+ * Does this tier receive Landed Cost (#283)? The matrix's money tier (costing_can_read_money):
+ * Closed Book, cost and price. A Stage Participant never does.
+ */
+export const tierReadsLandedCost = (tier) => [COSTING_TIER.CLOSED_BOOK, COSTING_TIER.COST, COSTING_TIER.PRICE].includes(tier);
+
+/** Why a Component shows no Landed Cost (costing_landed_costs.blank_reason, #283), in words. */
+export const LANDED_COST_BLANK_LABEL = {
+  not_ordered: "Not ordered yet",
+  po_line_not_picked: "PO line not picked",
+  landed_cost_unavailable: "Landed Cost not yet available",
+  line_removed: "Pick the PO line again",
+};
+
+/** A Landed Cost's mark: provisional until every IPAS it draws from has Costs complete. */
+export const LANDED_COST_MARK_LABEL = { provisional: "Provisional", final: "Final" };
+
 /** Does this tier receive the summary? Only Closed Book does: the figures it works from are Closed Book's. */
 export const tierReadsSummary = (tier) => tier === COSTING_TIER.CLOSED_BOOK;
 
