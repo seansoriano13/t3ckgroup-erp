@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DASHBOARD_GROUP, dashboardView, linkFor, sorSummary } from "./purchasingDashboard";
+import { DASHBOARD_GROUP, dashboardView, linkFor, rowLabel, sorSummary } from "./purchasingDashboard";
 
 const NOW = new Date("2026-10-21T00:00:00Z");
 const daysAgo = (days) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
@@ -86,5 +86,28 @@ describe("linkFor", () => {
     expect(linkFor(row({ target_kind: "canvass", request_id: null }))).toEqual({ to: "/sors", state: { openOpportunityId: "sor-1" } });
     expect(linkFor(row({ target_kind: "costing_matrix", request_id: null }))).toEqual({ to: "/sors", state: { openOpportunityId: "sor-1" } });
     expect(linkFor(row({ target_kind: "transmittal", target_id: "tr-1" }))).toEqual({ to: "/purchasing/transmittals/tr-1" });
+    expect(linkFor(row({ target_kind: "ipas", target_id: "ip-1" }))).toEqual({ to: "/purchasing/ipas/ip-1" });
+    expect(rowLabel(row({ target_kind: "ipas", target_label: "TGIPAS_9" }))).toBe("IPAS TGIPAS_9");
+  });
+});
+
+describe("Direct requests and the ageing rules", () => {
+  const direct = row({ opportunity_id: null, sales_reference: null, project_title: "Direct request", target_id: "pr-9", request_id: "pr-9", item_count: 2 });
+
+  it("lists a Direct request on its own, keyed by the request", () => {
+    const view = dashboardView([...ROWS, direct], {}, NOW);
+    const entry = groupOf(view, DASHBOARD_GROUP.TO_SOURCE).sors.find((sor) => sor.direct);
+    expect(entry).toMatchObject({ id: "request:pr-9", itemCount: 2 });
+    expect(sorSummary([direct], "request:pr-9")).toBe("2 to source");
+  });
+
+  it("keeps only IPAS that Order Monitoring marks late", () => {
+    const rows = [
+      row({ grp: DASHBOARD_GROUP.ON_ORDER, target_kind: "ipas", target_id: "ip-late", item_count: 3 }),
+      row({ grp: DASHBOARD_GROUP.ON_ORDER, target_kind: "ipas", target_id: "ip-fine", item_count: 5 }),
+      row({ item_count: 7 }),
+    ];
+    const view = dashboardView(rows, { lateIpasIds: new Set(["ip-late"]) }, NOW);
+    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 3, 0]);
   });
 });

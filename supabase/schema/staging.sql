@@ -14147,13 +14147,16 @@ AS $function$
   ),
   items as (
     select i.*, r.opportunity_id, r.buyer_id, r.title as request_title,
-           coalesce(c.purchasing_incharge_id, cm.purchasing_incharge_id, r.buyer_id) as canvasser_id
+           coalesce(c.purchasing_incharge_id, cm.purchasing_incharge_id, r.buyer_id) as canvasser_id,
+           case when nullif(btrim(i.po_number), '') is not null then public._lc_ipas_for_po(i.po_number) end as ipas_id
       from public.purchase_request_items i
       join public.purchase_requests r on r.id = i.request_id
-      join sors s on s.id = r.opportunity_id
+      cross join gate
       left join public.costing_components c on c.id = i.component_id
       left join public.costing_tender_lines ct on ct.id = c.tender_line_id
       left join public.costing_matrices cm on cm.id = ct.matrix_id
+     where gate.ok
+       and (r.opportunity_id is null or r.opportunity_id in (select id from sors))
   ),
   matrices as (
     select m.id, m.opportunity_id, m.created_at, m.purchasing_incharge_id, d.verdict, d.decided_at
@@ -14226,14 +14229,19 @@ AS $function$
    where c.verdict = 'go' and c.acquire_unit is not null and not c.is_ordered
    group by c.opportunity_id
   union all
-  -- On order: Ordered, not yet Received, one row per Purchase Request
-  select i.opportunity_id, 'on_order', 'purchase_request', i.request_id,
-         max(i.request_title), count(*)::int,
+  -- On order: Ordered, not yet Received. One row per IPAS when the PO has one,
+  -- else per Purchase Request.
+  select i.opportunity_id, 'on_order',
+         case when i.ipas_id is not null then 'ipas' else 'purchase_request' end,
+         coalesce(i.ipas_id, i.request_id),
+         coalesce((select ip.number from public.ipas ip where ip.id = i.ipas_id), max(i.request_title)),
+         count(*)::int,
          count(*) filter (where i.id not in (select item_id from has_canvass))::int,
-         max(i.buyer_id::text)::uuid, max(i.canvasser_id::text)::uuid, min(coalesce(i.status_changed_at, i.created_at)), i.request_id
+         max(i.buyer_id::text)::uuid, max(i.canvasser_id::text)::uuid, min(coalesce(i.status_changed_at, i.created_at)),
+         max(i.request_id::text)::uuid
     from items i
    where i.status = 'ordered'
-   group by i.opportunity_id, i.request_id
+   group by i.opportunity_id, i.ipas_id, coalesce(i.ipas_id, i.request_id)
   union all
   -- To check: submitted Transmittals moving through their checks
   select ts.opportunity_id, 'to_check', 'transmittal', t.id, t.number,
@@ -14243,11 +14251,26 @@ AS $function$
     join public.transmittal_sors ts on ts.transmittal_id = t.id
     join sors s on s.id = ts.opportunity_id
    where t.state in ('warehouse_checking', 'warehouse_releasing', 'technical_inspection', 'awaiting_check')
+  union all
+  -- To check: Received on an IPAS that no Transmittal names yet. Items with no
+  -- IPAS are left out: nothing links them to a Transmittal, and older ones were
+  -- received before Transmittals existed.
+  select i.opportunity_id, 'to_check', 'ipas', i.ipas_id,
+         (select ip.number from public.ipas ip where ip.id = i.ipas_id),
+         count(*)::int, 0,
+         max(i.buyer_id::text)::uuid, max(i.canvasser_id::text)::uuid, min(coalesce(i.status_changed_at, i.created_at)),
+         max(i.request_id::text)::uuid
+    from items i
+   where i.status = 'received' and i.ipas_id is not null
+     and not exists (
+       select 1 from public.transmittal_ipas ti join public.transmittals t on t.id = ti.transmittal_id
+        where ti.ipas_id = i.ipas_id and t.state <> 'cancelled')
+   group by i.opportunity_id, i.ipas_id
   )
   -- The SOR's name is filled once here rather than in each branch above.
-  select r.opportunity_id, s.sales_reference, s.project_title, r.grp, r.target_kind, r.target_id, r.target_label,
+  select r.opportunity_id, s.sales_reference, coalesce(s.project_title, case when r.opportunity_id is null then 'Direct request' end), r.grp, r.target_kind, r.target_id, r.target_label,
          r.item_count, r.no_canvass_count, r.buyer_id, r.canvasser_id, r.since, r.request_id
-    from r join sors s on s.id = r.opportunity_id
+    from r left join sors s on s.id = r.opportunity_id
    where r.item_count > 0
 $function$
 ;

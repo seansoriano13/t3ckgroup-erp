@@ -12,9 +12,11 @@ import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
 import { useAuth } from "../../../context/AuthContext";
 import { purchasingDashboardService } from "../../../services/purchasingDashboardService";
+import { orderMonitoringService } from "../../../services/orderMonitoringService";
 import { getPermissionContext } from "../../../utils/permissions";
 import {
   DASHBOARD_GROUP_HINTS,
+  LATE_BY_RULES,
   ageDays,
   dashboardView,
   linkFor,
@@ -36,6 +38,7 @@ const AGEING = [
   { value: "7", label: "7 days or more" },
   { value: "14", label: "14 days or more" },
   { value: "30", label: "30 days or more" },
+  { value: LATE_BY_RULES, label: "Late by the ageing rules" },
 ];
 
 function personOptions(rows, key, names, allLabel) {
@@ -46,7 +49,7 @@ function personOptions(rows, key, names, allLabel) {
   ];
 }
 
-function GroupSection({ group, rows, onOpen, today }) {
+function GroupSection({ group, rows, onOpen, today, lateIpasIds }) {
   return (
     <section aria-labelledby={`group-${group.key}`} className="flex flex-col gap-2">
       <div>
@@ -66,7 +69,7 @@ function GroupSection({ group, rows, onOpen, today }) {
             <li key={sor.id} className="flex flex-col gap-1.5 px-4 py-3" data-testid={`sor-${group.key}-${sor.id}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="font-medium">
-                  {sor.salesReference ?? "No S number"} — {sor.projectTitle}
+                  {sor.direct ? "Direct request" : `${sor.salesReference ?? "No S number"} — ${sor.projectTitle}`}
                 </span>
                 <span className="tabular-nums text-sm">
                   {sor.itemCount} {group.label.toLowerCase()}
@@ -82,6 +85,7 @@ function GroupSection({ group, rows, onOpen, today }) {
                     onClick={() => onOpen(row)}
                   >
                     {rowLabel(row)} · {row.item_count} · {ageDays(row.since, today)}d
+                    {row.target_kind === "ipas" && lateIpasIds.has(row.target_id) ? " · late" : ""}
                   </Button>
                 ))}
               </div>
@@ -112,12 +116,23 @@ function PurchasingDashboard() {
     enabled: rows.length > 0,
   });
 
+  // The ageing rules (#262) live in Order Monitoring; its standing marks which
+  // IPAS are late, and the dashboard reuses that rather than a second copy.
+  const hasIpas = rows.some((row) => row.target_kind === "ipas");
+  const { data: orders = [] } = useQuery({
+    queryKey: ["order-monitoring", "list"],
+    queryFn: () => orderMonitoringService.list(),
+    enabled: hasIpas,
+  });
+  const lateIpasIds = useMemo(() => new Set(orders.filter((order) => order.late).map((order) => order.id)), [orders]);
+
   const today = new Date();
   const filters = {
     sor,
     buyerId: buyerId === ALL ? null : buyerId,
     canvasserId: canvasserId === ALL ? null : canvasserId,
-    minAgeDays: age === ALL ? null : Number(age),
+    minAgeDays: age === ALL || age === LATE_BY_RULES ? null : Number(age),
+    lateIpasIds: age === LATE_BY_RULES ? lateIpasIds : null,
     noCanvass,
   };
   const view = dashboardView(rows, filters, today);
@@ -182,7 +197,7 @@ function PurchasingDashboard() {
             ))}
           </div>
           {view.groups.map((group) => (
-            <GroupSection key={group.key} group={group} rows={rows} onOpen={open} today={today} />
+            <GroupSection key={group.key} group={group} rows={rows} onOpen={open} today={today} lateIpasIds={lateIpasIds} />
           ))}
         </>
       )}

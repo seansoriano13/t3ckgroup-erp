@@ -6,8 +6,10 @@
         "changes": [
             "Purchasing has a new Purchasing Dashboard. It groups all buying by what is still to do: To source, To price, To order, On order and To check, with how many items and SORs are in each.",
             "One SOR shows in every group it has work in, for example \"4 to source, 2 on order\". It is never squeezed into one stage.",
-            "Each entry opens the record that owns the work: the Purchase Request, the SOR's Costing Matrix, or the Transmittal.",
-            "Filter by SOR, Buyer, Canvasser, ageing, or items ordered with no canvass. The dashboard shows counts only, never money.",
+            "Each entry opens the record that owns the work: the Purchase Request, the SOR's Costing Matrix, the IPAS, or the Transmittal. Orders whose PO has an IPAS are listed by IPAS.",
+            "To check also shows items received on an IPAS that has no Transmittal yet.",
+            "Direct requests, which have no SOR, are counted too.",
+            "Filter by SOR, Buyer, Canvasser, ageing, or items ordered with no canvass. The ageing filter can also show only orders that are late by Order Monitoring's ageing rules. The dashboard shows counts only, never money.",
             "Purchase Requests and Order Monitoring stay as they are."
         ]
     },

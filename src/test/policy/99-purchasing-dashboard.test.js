@@ -14,12 +14,16 @@ import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeCostingForSors } from "./support/costing.js"
+import { purgeIpas } from "./support/ipas.js"
 
 const svc = () => serviceClient()
 
 let sorId, matrixId, lineId, requestId
 let unpricedComp, orderedComp, canvassId
 const sorIds = []
+const RUN = Date.now() % 100000
+const ipasIds = []
+let directRequestId
 
 const asSvc = async (query, what) => {
     const { data, error } = await query
@@ -73,7 +77,7 @@ beforeAll(async () => {
     await asSvc(
         svc()
             .from("purchase_request_items")
-            .insert({ request_id: requestId, name: "Siren", source: "new", requested_by: ids.dealOwner, component_id: orderedComp, status: "ordered", po_number: `P99${Date.now() % 100000}` })
+            .insert({ request_id: requestId, name: "Siren", source: "new", requested_by: ids.dealOwner, component_id: orderedComp, status: "ordered", po_number: `P99${RUN}` })
             .select("id")
             .single(),
         "Ordered Item",
@@ -81,6 +85,11 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+    await purgeIpas(ipasIds)
+    if (directRequestId) {
+        await svc().from("purchase_request_items").delete().eq("request_id", directRequestId)
+        await svc().from("purchase_requests").delete().eq("id", directRequestId)
+    }
     await svc().from("sor_canvasses").delete().eq("id", canvassId)
     await svc().from("purchase_request_items").delete().eq("request_id", requestId)
     await svc().from("purchase_requests").delete().eq("id", requestId)
@@ -173,5 +182,53 @@ describe("what moves the SOR between groups", () => {
         expect(rows.some((row) => row.grp === "to_order")).toBe(false)
         expect(rows.find((row) => row.grp === "to_price").item_count).toBe(2)
         await asSvc(svc().from("costing_bid_decisions").update({ cleared_at: null, cleared_reason: null }).eq("matrix_id", matrixId), "unclear")
+    })
+})
+
+async function raiseIpas(po) {
+    const { data, error } = await (await clientFor("outsider")).rpc("ipas_create", {
+        p_po_number: po,
+        p_priority: "high",
+        p_source: "local",
+        p_purpose: "project",
+        p_sor_ids: [sorId],
+        p_remarks: null,
+        p_odoo_copy: {
+            po: { id: 990000 + RUN, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
+            supplier: { id: 553, name: "Scorpe Technologies", contact: null },
+            lines: [{ line_id: 940000 + RUN, product_id: 5350, name: "Siren", quantity: 1, unit: "Unit", price_unit: 1, price_subtotal: 1, taxes: [], analytic: [] }],
+            receipts: { status: "pending", done: 0, total: 1 },
+            bills: { count: 0, draft: 0 },
+        },
+    })
+    if (error) throw new Error(`ipas_create ${po}: ${error.message}`)
+    ipasIds.push(data.id)
+    return data.id
+}
+
+describe("the known gaps (#322 follow-up)", () => {
+    it("lists an order whose PO has an IPAS under that IPAS, so it opens there", async () => {
+        const ipasId = await raiseIpas(`P99${RUN}`)
+        const rows = mine((await dashboard("outsider")).data)
+        const onOrder = rows.find((row) => row.grp === "on_order")
+        expect(onOrder).toMatchObject({ target_kind: "ipas", target_id: ipasId, request_id: requestId, item_count: 1 })
+    })
+
+    it("puts an item received on an IPAS no Transmittal names yet into To check", async () => {
+        await asSvc(svc().from("purchase_request_items").update({ status: "received" }).eq("request_id", requestId).eq("status", "ordered"), "receive")
+        const rows = mine((await dashboard("outsider")).data)
+        expect(rows.find((row) => row.grp === "to_check")).toMatchObject({ target_kind: "ipas", target_id: ipasIds[0], item_count: 1 })
+        expect(rows.some((row) => row.grp === "on_order")).toBe(false)
+        await asSvc(svc().from("purchase_request_items").update({ status: "ordered" }).eq("request_id", requestId).eq("status", "received"), "unreceive")
+    })
+
+    it("counts a Direct request, which has no SOR", async () => {
+        directRequestId = (await asSvc(svc().from("purchase_requests").insert({ created_by: ids.dealOwner, title: `${MARKER} Direct` }).select("id").single(), "direct")).id
+        await asSvc(svc().from("purchase_request_items").insert({ request_id: directRequestId, name: "Toner", source: "new", requested_by: ids.dealOwner }), "direct item")
+        const { data } = await dashboard("outsider")
+        const direct = data.find((row) => row.target_id === directRequestId)
+        expect(direct).toMatchObject({ opportunity_id: null, project_title: "Direct request", grp: "to_source", item_count: 1 })
+        expect(mine((await dashboard("ordinary")).data)).toEqual([])
+        expect((await dashboard("ordinary")).data.some((row) => row.target_id === directRequestId)).toBe(false)
     })
 })

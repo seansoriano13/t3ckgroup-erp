@@ -16,6 +16,10 @@ import { getPermissionContext } from "@/utils/permissions";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
+vi.mock("@/services/orderMonitoringService", () => ({
+  orderMonitoringService: { list: async () => [{ id: "ip-late", late: true }, { id: "ip-fine", late: false }] },
+}));
+
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mockUser.current, isAuthLoading: false, logout: vi.fn() }),
 }));
@@ -60,6 +64,26 @@ describe("Purchasing Dashboard page", () => {
     mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
     stubRpc("purchasing_dashboard_rows", () => ROWS);
   });
+
+  it("opens an order on its IPAS and narrows to IPAS late by the ageing rules", async () => {
+    stubRpc("purchasing_dashboard_rows", () => [
+      row({ grp: "on_order", target_kind: "ipas", target_id: "ip-late", target_label: "TGIPAS_1", item_count: 2 }),
+      row({ grp: "on_order", target_kind: "ipas", target_id: "ip-fine", target_label: "TGIPAS_2", item_count: 5 }),
+      row({ opportunity_id: null, sales_reference: null, project_title: "Direct request", grp: "to_source", target_kind: "purchase_request", target_id: "pr-9", request_id: "pr-9", item_count: 1 }),
+    ]);
+    renderPage();
+    expect(await screen.findByText("Direct request")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /IPAS TGIPAS_1 · 2 · 0d · late/ })).toBeInTheDocument();
+
+    const user = setupUser();
+    await user.click(screen.getByRole("button", { name: /Any age/ }));
+    await user.click(await screen.findByRole("button", { name: "Late by the ageing rules" }));
+    expect(await screen.findByRole("heading", { name: /On order \(2 items, 1 SOR\)/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /IPAS TGIPAS_1/ }));
+    expect(await screen.findByText("At /purchasing/ipas/ip-late")).toBeInTheDocument();
+  });
+
 
   it("shows the five groups with counts, and the SOR in all four of its groups", async () => {
     renderPage();
