@@ -13,6 +13,9 @@ import { Button } from "../../../components/ui/button";
 import { useAuth } from "../../../context/AuthContext";
 import { purchasingDashboardService } from "../../../services/purchasingDashboardService";
 import { orderMonitoringService } from "../../../services/orderMonitoringService";
+import { deliveryDeadlineService } from "../../../services/deliveryDeadlineService";
+import { deadlineMark } from "../../../utils/deliveryDeadline";
+import { DeadlineLine } from "../order-monitoring/_components/parts";
 import { getPermissionContext } from "../../../utils/permissions";
 import {
   DASHBOARD_GROUP_HINTS,
@@ -49,7 +52,7 @@ function personOptions(rows, key, names, allLabel) {
   ];
 }
 
-function GroupSection({ group, rows, onOpen, today, lateIpasIds }) {
+function GroupSection({ group, rows, onOpen, today, lateIpasIds, deadlineOf }) {
   return (
     <section aria-labelledby={`group-${group.key}`} className="flex flex-col gap-2">
       <div>
@@ -75,6 +78,7 @@ function GroupSection({ group, rows, onOpen, today, lateIpasIds }) {
                   {sor.itemCount} {group.label.toLowerCase()}
                 </span>
               </div>
+              {group.key === "on_order" && <DeadlineLine deadline={deadlineOf(sor.id)} />}
               <p className="text-xs text-muted-foreground">All outstanding: {sorSummary(rows, sor.id)}</p>
               <div className="flex flex-wrap gap-1.5">
                 {sor.rows.map((row) => (
@@ -126,7 +130,28 @@ function PurchasingDashboard() {
   });
   const lateIpasIds = useMemo(() => new Set(orders.filter((order) => order.late).map((order) => order.id)), [orders]);
 
+  // The client's delivery deadline (#467), merged in here for the SORs in the On order group only.
+  const onOrderSorIds = useMemo(
+    () => [...new Set(rows.filter((row) => row.grp === "on_order" && row.opportunity_id).map((row) => row.opportunity_id))].sort(),
+    [rows],
+  );
+  const { data: deadlines = new Map() } = useQuery({
+    queryKey: ["purchasing-dashboard", "deadlines", onOrderSorIds],
+    queryFn: () => deliveryDeadlineService.forSors(onOrderSorIds),
+    enabled: onOrderSorIds.length > 0,
+  });
+  const { data: nearDays } = useQuery({
+    queryKey: ["order-monitoring", "deadline-near-days"],
+    queryFn: () => deliveryDeadlineService.getNearDays(),
+    enabled: onOrderSorIds.length > 0,
+  });
+
   const today = new Date();
+  // Whatever is in the On order group is not received yet, so it is marked against the deadline.
+  const deadlineOf = (sorId) => {
+    const dueAt = deadlines.get(sorId)?.dueAt;
+    return dueAt ? deadlineMark({ dueAt, nearDays, today }) : null;
+  };
   const filters = {
     sor,
     buyerId: buyerId === ALL ? null : buyerId,
@@ -197,7 +222,7 @@ function PurchasingDashboard() {
             ))}
           </div>
           {view.groups.map((group) => (
-            <GroupSection key={group.key} group={group} rows={rows} onOpen={open} today={today} lateIpasIds={lateIpasIds} />
+            <GroupSection key={group.key} group={group} rows={rows} onOpen={open} today={today} lateIpasIds={lateIpasIds} deadlineOf={deadlineOf} />
           ))}
         </>
       )}
