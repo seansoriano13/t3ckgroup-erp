@@ -1,5 +1,4 @@
 import {
-  ODOO_URL,
   authenticate,
   executeKw,
   isConfigured,
@@ -12,13 +11,6 @@ import {
   selectRereadOrders,
   type ReadNoteFacts,
 } from "../_shared/noteReread.ts";
-import {
-  PROOF_LOG_MARKER,
-  extractProofImages,
-  isPaymentNote,
-  pickExactSor,
-  salesReferenceFrom,
-} from "./payment.ts";
 import { isAuthorizedCaller } from "../_shared/cronAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
@@ -255,87 +247,6 @@ async function loadStoredOrders(): Promise<any[]> {
   return stored;
 }
 
-// How far back each run looks for payment notes. The every-5-minutes run only
-// needs the last hour; the nightly run covers two days so a missed run is caught.
-// A note already imported is skipped by its Odoo message id, so overlap is safe.
-const PAYMENT_NOTE_LOOKBACK_HOURS: Record<SyncMode, number> = { pending: 1, full: 48 };
-
-/**
- * Payment notes (issue #324): an Odoo chatter note with "MODE OF PAYMENT" and
- * "AMOUNT". This used to close a deal as Won, falling back to a fuzzy
- * customer-name match that could pick the wrong deal. Now it only ATTACHES the
- * note's proof-of-payment images, and only to the one live SOR whose
- * sales_reference is exactly the Odoo order number. No name match, no "most
- * recent open lead", no status or Stage change: whether a deal is Paid is a
- * person's call. A note that matches no SOR, or more than one, is skipped.
- */
-async function attachPaymentProofs(uid: number, mode: SyncMode) {
-  const from = odooDate(new Date(Date.now() - PAYMENT_NOTE_LOOKBACK_HOURS[mode] * 3600 * 1000));
-  // Ids first, bodies in small slices: these notes carry screenshots.
-  const ids: number[] = await executeKw(uid, "mail.message", "search", [
-    [
-      ["model", "=", "sale.order"],
-      ["message_type", "=", "comment"],
-      ["body", "ilike", "MODE OF PAYMENT"],
-      ["write_date", ">=", from],
-    ],
-  ]);
-
-  let attached = 0;
-  let skipped = 0;
-  for (let i = 0; i < ids.length; i += NOTE_BATCH_SIZE) {
-    const notes = await executeKw(uid, "mail.message", "read", [ids.slice(i, i + NOTE_BATCH_SIZE), ["id", "record_name", "body"]]);
-    for (const note of notes) {
-      const html = typeof note.body === "string" ? note.body : "";
-      const soNumber = salesReferenceFrom(note.record_name);
-      if (!soNumber || !isPaymentNote(html.replace(/<[^>]*>/g, " "))) {
-        skipped++;
-        continue;
-      }
-
-      const { data: rows, error: findError } = await supabase
-        .from("sales_opportunities")
-        .select("id, is_deleted")
-        .eq("sales_reference", soNumber);
-      if (findError) throw findError;
-      const sorId = pickExactSor(rows);
-      if (!sorId) {
-        skipped++;
-        continue;
-      }
-
-      const proofs = extractProofImages(html, ODOO_URL || "");
-      if (proofs.length === 0) {
-        skipped++;
-        continue;
-      }
-
-      // Once per Odoo note, so a second payment on the same order still lands.
-      const { data: existing, error: seenError } = await supabase
-        .from("sales_opportunity_logs")
-        .select("id")
-        .eq("opportunity_id", sorId)
-        .eq("metadata->>odoo_message_id", String(note.id))
-        .limit(1);
-      if (seenError) throw seenError;
-      if (existing.length > 0) {
-        skipped++; // already imported on an earlier run
-        continue;
-      }
-
-      const { error } = await supabase.from("sales_opportunity_logs").insert({
-        opportunity_id: sorId,
-        type: "SYSTEM",
-        content: `Odoo Sync: ${PROOF_LOG_MARKER}.`,
-        metadata: { attachments: proofs, odoo_message_id: String(note.id), odoo_so_number: soNumber },
-      });
-      if (error) throw error;
-      attached++;
-    }
-  }
-  return { paymentNotesRead: ids.length, proofsAttached: attached, paymentNotesSkipped: skipped };
-}
-
 // ---------------------------------------------------------------------------
 // Main sync
 // ---------------------------------------------------------------------------
@@ -479,6 +390,16 @@ async function runSync(
     upserted += writes.length;
   }
 
+  // The other half of this function used to close a matching SOR as Won when a
+  // "MODE OF PAYMENT" + "AMOUNT" note appeared, falling back to an
+  // ilike('%partner_name%') match against any open lead. Running hourly against
+  // production, that is a deal silently marked Won because two customers share
+  // a word in their name. Removed outright rather than disabled — a hazard one
+  // manual invocation away is worse than no feature. The goal is worth keeping,
+  // so it is written up as issue #324, to come back with an exact
+  // sales_reference match and no fuzzy fallback.
+  // This function syncs retail, and nothing else.
+
   return {
     mode,
     window: label,
@@ -524,22 +445,9 @@ Deno.serve(async (req: Request) => {
     if (modeParam !== null && modeParam !== "full") {
       return jsonResponse({ success: false, error: "mode must be 'full' or left out." }, 400);
     }
-    const mode: SyncMode = modeParam === "full" ? "full" : "pending";
-    const stats = await runSync(since, until, mode);
-    // Payment notes run on the regular schedule only, not on a historical load.
-    // Its own try: a failure here must not make a good retail sync look failed.
-    let payments: Record<string, unknown> | null = null;
-    if (!since) {
-      try {
-        payments = await attachPaymentProofs(await authenticate(), mode);
-      } catch (err: any) {
-        console.error("[odoo-sor-sync] Payment notes failed:", err);
-        payments = { error: err.message };
-      }
-    }
-    console.log("[odoo-sor-sync] Payment notes:", payments);
+    const stats = await runSync(since, until, modeParam === "full" ? "full" : "pending");
     console.log("[odoo-sor-sync] Sync complete:", stats);
-    return jsonResponse({ success: true, message: "Sync complete", stats, payments });
+    return jsonResponse({ success: true, message: "Sync complete", stats });
   } catch (err: any) {
     console.error("[odoo-sor-sync] Error:", err);
     return jsonResponse({ success: false, error: err.message }, 500);
