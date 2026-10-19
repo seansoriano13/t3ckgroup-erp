@@ -11,8 +11,8 @@
  * Everything runs through the real `ipas_create`, `ipas_add_payment`,
  * `ipas_update_payment`, `ipas_remove_payment`, `ipas_add_charge`,
  * `ipas_update_charge`, `ipas_remove_charge` and `ipas_set_header`. Landed Cost
- * is computed by the client (src/utils/landedCost.js), so it is proven in the
- * service tests, not here.
+ * is worked out by the database (`_ipas_landed_cost`, #283); its maths is held
+ * to the fake's in 96-ipas-landed-cost-parity.test.js.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"

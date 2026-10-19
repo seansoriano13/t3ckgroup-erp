@@ -1,7 +1,7 @@
 import { stubRpc } from "@/test/msw/server"
 import { db, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
-import { computeLandedCost } from "@/utils/landedCost"
+import { computeLandedCost } from "@/test/stubs/landedCostFake"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
@@ -361,6 +361,22 @@ export function stubIpasRpcs({
   // the fake has no identity for, so `sorReader: false` is a caller who can't
   // read the SOR. It returns exactly the columns the real function does and
   // never a money or bank column.
+  // ipas_landed_cost (#283): the IPAS page's Landed Cost, for whoever may read the IPAS. The real
+  // maths is the database's; this answers with the fake's copy (landedCostFake.js).
+  stubRpc("ipas_landed_cost", (args) => {
+    if (!reader) return null
+    const row = rowsOf("ipas").find((r) => r.id === args.p_ipas_id)
+    if (!row) return null
+    return computeLandedCost({
+      copy: row.odoo_copy,
+      payments: rowsOf("ipas_payments").filter((p) => p.ipas_id === row.id),
+      charges: rowsOf("ipas_charges").filter((p) => p.ipas_id === row.id),
+      split: row.landed_cost_split || "value",
+      computationStatus: row.computation_status || "encoding",
+      filed: row.state === "filed",
+    })
+  })
+
   stubRpc("ipas_summaries_for_sor", (args) => {
     if (!sorReader) return []
     const sorId = args.p_opportunity_id

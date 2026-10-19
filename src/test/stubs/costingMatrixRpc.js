@@ -18,7 +18,7 @@ import {
   tierReadsCost,
 } from "@/constants/costing"
 import { markupPriceUnit, matrixTotals } from "@/utils/costingMath"
-import { computeLandedCost } from "@/utils/landedCost"
+import { computeLandedCost } from "@/test/stubs/landedCostFake"
 import { tierReadsLandedCost } from "@/constants/costing"
 
 const rowsOf = (table) => db.internal.rowsOf(table)

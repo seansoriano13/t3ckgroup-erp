@@ -7,6 +7,9 @@
  * again with the same `shapeIpas` the service uses, so what the screen shows
  * while it waits is exactly what the refetch will say once the server agrees.
  * Nothing here talks to the network.
+ *
+ * Landed Cost is the one exception: the database works it out (#283), so while an
+ * edit waits the page keeps the last figure it read, and the refetch brings the new one.
  */
 
 import { IPAS_SIGNOFF_ROLE } from "../constants/ipas";
@@ -14,8 +17,8 @@ import { shapeIpas } from "./ipas";
 import { parseAmountInput } from "./ipasPayments";
 
 /** The rows `reshapeIpas` needs, as `ipasService.get` read them. */
-export function rawOf({ row, sors, payments, charges, documents, options, signoffs }) {
-  return { row, sors, payments, charges, documents, options, signoffs };
+export function rawOf({ row, sors, payments, charges, documents, options, signoffs, landedCost }) {
+  return { row, sors, payments, charges, documents, options, signoffs, landedCost };
 }
 
 /**
@@ -32,6 +35,7 @@ export function reshapeIpas(current, edit) {
     documents: raw.documents,
     options: raw.options,
     signoffs: raw.signoffs,
+    landedCost: raw.landedCost,
   });
   return { ...current, ...shaped, options: raw.options, raw };
 }

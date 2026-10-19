@@ -91,9 +91,10 @@ export class IpasError extends Error {
  * database decides who may make it and writes the history row (ADR 0013). The option lists are plain rows under
  * row level security (nobody deletes one).
  *
- * Landed Cost is not stored: `get` works it out from the Odoo copy, the payment
- * and charge rows and the spread and status columns (utils/landedCost.js), so a
- * changed PO, payment or charge shows at once.
+ * Landed Cost is not stored: `get` reads it from the database (`ipas_landed_cost`,
+ * the one copy of the maths, #283), worked from the Odoo copy, the payment and
+ * charge rows and the spread and status columns, so a changed PO, payment or
+ * charge shows on the next read.
  *
  * The Odoo read is `odoo-po-ipas` (read-only). Creating reads the PO first and
  * stores that copy; the database never talks to Odoo.
@@ -256,7 +257,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs, landed] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -280,8 +281,9 @@ export const ipasService = {
       readBankDetails(id),
       transmittalService.forIpas(id),
       supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
+      supabase.rpc("ipas_landed_cost", { p_ipas_id: id }),
     ]);
-    for (const result of [events, payments, charges, options, documents, signoffs]) {
+    for (const result of [events, payments, charges, options, documents, signoffs, landed]) {
       if (result.error) throw result.error;
     }
 
@@ -293,6 +295,7 @@ export const ipasService = {
       options: options.data || [],
       signoffs: signoffs.data || [],
       slips,
+      landedCost: landed.data ?? null,
     };
 
     return {

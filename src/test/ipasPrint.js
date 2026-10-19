@@ -10,6 +10,7 @@
  */
 
 import { shapeBankDetails, shapeIpas } from "@/utils/ipas"
+import { computeLandedCost } from "@/test/stubs/landedCostFake"
 
 const OPTIONS = [
   { id: "opt-bank-tt", list: "payment_method", label: "Bank TT", active: true, sort: 1 },
@@ -164,14 +165,20 @@ export function makePrintableIpas({
     signoffRow(1, "approved", RAMOS),
     signoffRow(3, "prepared", BAUTISTA),
   ]
-  const shaped = shapeIpas(ipasRow(row), sors, {
-    payments: PAYMENTS,
-    charges: CHARGES,
-    documents: DOCUMENTS,
-    options: OPTIONS,
-    signoffs: sign,
-    ...extras,
-  })
+  const full = ipasRow(row)
+  const sections = { payments: PAYMENTS, charges: CHARGES, documents: DOCUMENTS, options: OPTIONS, signoffs: sign, ...extras }
+  // What ipas_landed_cost returns for these rows (#283: the database works it out; the fake's copy here).
+  const landedCost =
+    sections.landedCost ??
+    computeLandedCost({
+      copy: full.odoo_copy,
+      payments: sections.payments,
+      charges: sections.charges,
+      split: full.landed_cost_split || "value",
+      computationStatus: full.computation_status || "encoding",
+      filed: full.state === "filed",
+    })
+  const shaped = shapeIpas(full, sors, { ...sections, landedCost })
   return {
     ...shaped,
     bankDetails: canReadBankDetails ? shapeBankDetails(bank) : null,

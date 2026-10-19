@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { allocate, computeLandedCost, isPhpCurrency, paidRate, paymentPhp } from "./landedCost"
+import { allocate, computeLandedCost, paidRate } from "./landedCostFake"
+import { isPhpCurrency, paymentPhp } from "@/utils/landedCost"
 import { IPAS_LANDED_COST_REASON, IPAS_LANDED_COST_STATUS } from "@/constants/ipas"
 
 const line = (id, quantity, price_unit, over = {}) => ({

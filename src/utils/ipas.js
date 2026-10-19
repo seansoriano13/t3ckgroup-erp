@@ -2,7 +2,7 @@
  * Pure helpers for the IPAS (spec #241). No network, no React.
  */
 
-import { computeLandedCost, finiteNumber } from "./landedCost";
+import { finiteNumber, isPhpCurrency } from "./landedCost";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { deriveTransmittalTrack } from "./ipasTransmittals";
 import {
@@ -16,6 +16,7 @@ import { section7Signoffs, sectionSignoffs, shapeSignoffs } from "./ipasSignoffs
 import {
   IPAS_COMPUTATION_STATUS,
   IPAS_LANDED_COST_SPLIT,
+  IPAS_LANDED_COST_STATUS,
   IPAS_OVERRIDE,
   IPAS_OVERRIDE_FIELDS,
   IPAS_PURPOSE,
@@ -339,12 +340,27 @@ export function analyticNames(copy) {
   return [...new Set((copy?.lines ?? []).flatMap((line) => line?.analytic ?? []).filter(Boolean))];
 }
 
+/** What the page shows when no Landed Cost came back: unavailable, never a guessed figure. */
+function unreadLandedCost(currency, split) {
+  return {
+    status: IPAS_LANDED_COST_STATUS.UNAVAILABLE,
+    reason: null,
+    currency,
+    isForeign: !isPhpCurrency(currency),
+    rate: null,
+    split,
+    usedSplit: split,
+    lines: [],
+    totals: null,
+  };
+}
+
 /**
  * The money of an IPAS: its payment and charge rows (with their option labels),
  * the header amounts derived from them, the freight service, and Landed Cost.
  * Whatever the rows hold, this never throws: unusable figures read as absent.
  */
-function shapeMoney(row, { payments = [], charges = [], options = [] }) {
+function shapeMoney(row, { payments = [], charges = [], options = [], landedCost = null }) {
   const byId = new Map(options.map((option) => [option.id, option]));
   const shapedPayments = payments.map((payment) => shapePayment(payment, byId));
   const shapedCharges = charges.map((charge) => shapeCharge(charge, byId));
@@ -360,14 +376,8 @@ function shapeMoney(row, { payments = [], charges = [], options = [] }) {
     freightService: row.freight_service_id ? (byId.get(row.freight_service_id) ?? null) : null,
     landedCostSplit: split,
     computationStatus,
-    landedCost: computeLandedCost({
-      copy: row.odoo_copy,
-      payments: shapedPayments,
-      charges: shapedCharges,
-      split,
-      computationStatus,
-      filed: row.state === IPAS_STATE.FILED,
-    }),
+    // Worked out by the database (ipas_landed_cost, #283), the one copy of the maths.
+    landedCost: landedCost ?? unreadLandedCost(currency, split),
   };
 }
 
