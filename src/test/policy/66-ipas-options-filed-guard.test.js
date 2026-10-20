@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 import { tryUpdate } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -55,7 +55,7 @@ async function makeOption(list, label, over = {}) {
 
 async function raise() {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",
@@ -168,7 +168,7 @@ describe("an option a filed IPAS uses", () => {
                 const client = await clientFor(who)
                 const result = await client.from("ipas_options").update({ label: `Renamed ${row.label}` }).eq("id", row.id).select("id")
 
-                expect(result.error?.code).toBe("55000")
+                expect(result.error?.code).toBe("22023")
                 expect(result.error?.message).toMatch(/used on a filed IPAS/)
                 expect((await optionRow(row.id)).label).toBe(row.label)
             })
@@ -178,7 +178,7 @@ describe("an option a filed IPAS uses", () => {
     it("can't be renamed by the service role either: the rule holds for every client", async () => {
         const { error } = await svc().from("ipas_options").update({ label: `Sneaky ${RUN}` }).eq("id", opt.method.id)
 
-        expect(error?.code).toBe("55000")
+        expect(error?.code).toBe("22023")
         expect((await optionRow(opt.method.id)).label).toBe(opt.method.label)
     })
 
@@ -186,7 +186,7 @@ describe("an option a filed IPAS uses", () => {
         for (const patch of [{ applies_to: "import" }, { used_for: "filing" }, { applies_to: "local", used_for: "both" }]) {
             for (const who of ["outsider", "superAdmin"]) {
                 const result = await tryUpdate(await clientFor(who), "ipas_options", opt.kind.id, patch)
-                expect(result.code, `${who} ${JSON.stringify(patch)}`).toBe("55000")
+                expect(result.code, `${who} ${JSON.stringify(patch)}`).toBe("22023")
             }
         }
         expect(await optionRow(opt.kind.id)).toMatchObject({ applies_to: "both", used_for: "documentation" })
@@ -239,7 +239,7 @@ describe("an option only open IPAS use", () => {
         expect(await stateOf(ipas.id)).toBe("filed")
         for (const row of Object.values(o)) {
             const result = await tryUpdate(await clientFor("outsider"), "ipas_options", row.id, { label: `${row.label} x` })
-            expect(result.code).toBe("55000")
+            expect(result.code).toBe("22023")
         }
     })
 })

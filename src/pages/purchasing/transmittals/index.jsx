@@ -15,6 +15,7 @@ import { SelectField } from "../../../components/ui/SelectField";
 import { TablePager } from "../../../components/ui/TablePager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { usePaging } from "../../../hooks/usePaging";
+import { formatPreparedAt } from "../../../utils/preparedAt";
 import { useAuth } from "../../../context/AuthContext";
 import { transmittalService } from "../../../services/transmittalService";
 import { transmittalKeys } from "../../../components/transmittals/transmittalKeys";
@@ -214,7 +215,7 @@ function TransmittalsList() {
                     onClick={() => navigate(`/purchasing/transmittals/${row.id}`)}
                   >
                     <TableCell className="font-mono font-semibold">{row.number}</TableCell>
-                    <TableCell>{row.preparedOn}</TableCell>
+                    <TableCell>{formatPreparedAt(row.preparedOn)}</TableCell>
                     <TableCell>{TRANSMITTAL_ORIGIN_LABELS[row.origin] ?? row.origin}</TableCell>
                     <TableCell>{row.entity}</TableCell>
                     <TableCell>{TRANSMITTAL_PRIORITY_LABELS[row.priority] ?? row.priority}</TableCell>

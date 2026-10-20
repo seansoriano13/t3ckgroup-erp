@@ -3,7 +3,8 @@ import { DetailRow } from "../ui/DetailParts";
 import { SelectField } from "../ui/SelectField";
 import { IpasSection } from "./IpasSections";
 import { IPAS_OPTION_LIST, ipasSectionLabel } from "../../constants/ipas";
-import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
+import { optionsForPicker } from "../../utils/ipasPayments";
+import { formatPreparedAt } from "../../utils/preparedAt";
 import { useEditable } from "@/components/record/sectionChrome";
 
 const NONE = "__none__";
@@ -59,7 +60,7 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick 
                 <Link to={`/purchasing/transmittals/${slip.id}`} className="font-medium text-foreground underline-offset-2 hover:underline">
                   {slip.number}
                 </Link>
-                {slip.date && <span className="text-xs text-muted-foreground">{formatDay(slip.date)}</span>}
+                {slip.date && <span className="text-xs text-muted-foreground">{formatPreparedAt(slip.date, { dayOnly: true })}</span>}
                 {slip.priority && <span className="text-xs capitalize text-muted-foreground">{slip.priority}</span>}
                 <span className="text-xs text-muted-foreground">{slip.stateLabel}</span>
                 {slip.naCount > 0 && (

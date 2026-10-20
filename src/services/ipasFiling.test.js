@@ -142,7 +142,7 @@ describe("ipasService: section 7 and Filing", () => {
       as(receiver)
       await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({
         code: "55000",
-        message: expect.stringMatching(/sections 1 and 3/),
+        message: expect.stringMatching(/sections 1 and 2/),
       })
 
       as(buyer)
@@ -389,6 +389,13 @@ describe("ipasService: section 7 and Filing", () => {
       expect(bothApproved.notified).toBe(1)
       expect(sent(IPAS_NOTIFICATION.SECTION_7_READY).map((n) => n.recipient_id)).toEqual([receiver.id])
       expect(sent(IPAS_NOTIFICATION.SECTION_7_READY)[0]).toMatchObject({ reference_id: ipas.id, sender_id: approver.id })
+      // The notice names the sections the screen shows (#552): 1 and 2 approved, 4 ready.
+      expect(sent(IPAS_NOTIFICATION.SECTION_7_READY)[0]).toMatchObject({
+        title: "IPAS ready to receive",
+        message: expect.stringContaining("sections 1 and 2 are approved. Section 4 is ready for Received."),
+      })
+      expect(sent("IPAS_SIGNOFF_READY").map((n) => n.message).join(" ")).toMatch(/section 2 \(Purchasing & Finance\)/)
+      expect(sent("IPAS_SIGNOFF_READY").map((n) => n.message).join(" ")).not.toMatch(/section 3/)
 
       // Received: the Noted and Checked lists.
       as(receiver)
@@ -447,7 +454,7 @@ describe("ipasService: section 7 and Filing", () => {
       const [kind] = Object.values(options.charge_kind)
       const [method] = Object.values(options.payment_method)
       const attempts = [
-        () => ipasService.setPurposeAndSors(ipas.id, { purpose: "supplies", sorIds: [] }),
+        () => ipasService.setPurpose(ipas.id, "supplies"),
         () => ipasService.overrideField(ipas.id, "entity", "Other"),
         () => ipasService.setHeader(ipas.id, { piNumber: "PI-9" }),
         () =>
@@ -535,7 +542,7 @@ describe("ipasService: section 7 and Filing", () => {
       await ipasService.reopen(ipas.id, "Fix the Purpose")
 
       as(buyer)
-      await ipasService.setPurposeAndSors(ipas.id, { purpose: "supplies", sorIds: [] })
+      await ipasService.setPurpose(ipas.id, "supplies")
       expect(rowOf(ipas.id).purpose).toBe("supplies")
 
       await receivedNotedChecked(ipas)

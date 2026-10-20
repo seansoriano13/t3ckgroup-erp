@@ -21,7 +21,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
 import { makeSor } from "./support/rows.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 
 const svc = () => serviceClient()
 
@@ -51,7 +51,7 @@ const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 
 async function raise({ purpose = "project", sorIds = [], source = "local" } = {}) {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: source,
@@ -270,7 +270,10 @@ describe("who gets rows: the SOR read rule", () => {
     it("gives a full IPAS reader who is also on the deal the same summary the table can open", async () => {
         const dealOwnerRows = await summaries("dealOwner", sorA)
         const superRows = await summaries("superAdmin", sorA)
-        expect(superRows).toEqual(dealOwnerRows)
+        // Landed Cost is cost (#546): the Super Admin (closed_book) may get it, the Deal Team never.
+        const withoutLandedCost = (rows) =>
+          rows.map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => !key.startsWith("landed_cost_"))))
+        expect(withoutLandedCost(superRows)).toEqual(withoutLandedCost(dealOwnerRows))
         const { data } = await (await clientFor("superAdmin")).from("ipas").select("id").eq("id", both.id)
         expect(data).toHaveLength(1)
     })

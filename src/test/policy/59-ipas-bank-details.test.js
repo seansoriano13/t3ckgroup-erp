@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql, rlsStatus } from "./support/stack.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 import { RLS_VIOLATION } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -45,7 +45,7 @@ const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 /** Raises an IPAS for the given supplier as the purchaser. */
 async function raise(supplierId) {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",
@@ -310,9 +310,9 @@ describe("who writes bank details", () => {
         const cancelled = await raise(nextSupplier())
         await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Wrong PO" })
 
-        expect((await setBank("outsider", filed.id)).error?.code).toBe("55000")
-        expect((await setBank("outsider", cancelled.id)).error?.code).toBe("55000")
-        expect((await setBank("outsider", "00000000-0000-0000-0000-000000000000")).error?.code).toBe("P0002")
+        expect((await setBank("outsider", filed.id)).error?.code).toBe("22023")
+        expect((await setBank("outsider", cancelled.id)).error?.code).toBe("22023")
+        expect((await setBank("outsider", "00000000-0000-0000-0000-000000000000")).error?.code).toBe("22023")
         expect(await bankRow(filed.id)).toBeNull()
         expect(await bankRow(cancelled.id)).toBeNull()
     })

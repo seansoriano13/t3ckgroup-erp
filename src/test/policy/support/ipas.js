@@ -10,7 +10,8 @@
  *
  * Children go first and by hand, because the cascade is off too.
  */
-import { sql } from "./stack.js"
+import { serviceClient, sql } from "./stack.js"
+import { ids as castIds, castEmail } from "./cast.js"
 
 const CHILDREN = [
     ["ipas_events", "ipas_id"],
@@ -78,4 +79,37 @@ async function withoutTriggers(work) {
     } finally {
         client.release()
     }
+}
+
+/**
+ * Raises an IPAS the way the app now does (#550): the server asks Odoo itself and
+ * calls `ipas_raise_from_odoo` for the caller with its own verdict and copy. Odoo
+ * is faked here by passing the answer: `p_odoo_copy` is what Odoo "said", and
+ * `p_verdict` is 'found' (default), 'not_found' or 'unavailable'. Same argument
+ * names as the old `ipas_create`; the result is `{ data, error }`.
+ */
+export function raiseIpas(actorId, args) {
+    const { p_odoo_copy = null, p_verdict = "found", ...rest } = args
+    return serviceClient().rpc("ipas_raise_from_odoo", {
+        p_actor: actorId,
+        ...rest,
+        p_verdict,
+        p_odoo_copy,
+    })
+}
+
+/** Raises as the purchaser (the cast's `outsider`, who holds Purchasing in these files). */
+export const raiseAsPurchaser = (args) => raiseIpas(castIds.outsider, args)
+
+/**
+ * Refresh-on-open as the server does it (#550): the odoo-po-ipas edge function reads
+ * Odoo, then records the copy as the signed-in reader `who`. A signed-in caller can't
+ * call `ipas_record_odoo_copy` itself any more. `args` are that RPC's arguments.
+ */
+export function recordOdooCopyAs(who, args) {
+    return serviceClient().rpc("ipas_refresh_from_odoo", {
+        p_actor_email: castEmail(who),
+        p_ipas_id: args.p_ipas_id,
+        p_odoo_copy: args.p_odoo_copy,
+    })
 }

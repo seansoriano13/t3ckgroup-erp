@@ -12,6 +12,7 @@ import {
 } from "@/constants/transmittals";
 import { STATE as GATE_STATE, STATE_WORD } from "@/components/record/statePalette";
 import { formatDate } from "@/utils/formatDate.js";
+import { formatPreparedAt } from "@/utils/preparedAt";
 import { stageRowOf, stagesOf, transmittalStateLabel } from "@/utils/transmittals";
 
 export const STAGE_TITLE = {
@@ -80,8 +81,10 @@ export function rightsOf(t, { userId = null, lists = [], hasPurchasingFlow = fal
   const awaiting = t.state === STATE.AWAITING_CHECK;
   // A slip carrying a PO line is checked only once Received in Odoo is signed.
   const needsReceipt = !t.odooReceivedAt && hasPoLine(t);
-  const mayTakeFirst = onCheckBy && awaiting && !first && second?.id !== userId;
-  const mayTakeSecond = onCheckBy && awaiting && !second && first?.id !== userId;
+  // The preparer never signs Check by on their own slip.
+  const notPreparer = t.preparedById !== userId;
+  const mayTakeFirst = onCheckBy && notPreparer && awaiting && !first && second?.id !== userId;
+  const mayTakeSecond = onCheckBy && notPreparer && awaiting && !second && first?.id !== userId;
 
   // The co-signer holds the slot still waiting: the second, or the first when the completer signed second.
   const awaitingConfirm = (stage) => {
@@ -311,7 +314,7 @@ export function summariesOf(t, gates) {
     [SECTION.DETAILS]: [
       t.entity,
       `${t.priority[0].toUpperCase()}${t.priority.slice(1)} priority`,
-      `prepared ${formatDate(t.preparedOn)}${t.preparedBy?.name ? ` by ${t.preparedBy.name}` : ""}`,
+      `prepared ${formatPreparedAt(t.preparedOn)}${t.preparedBy?.name ? ` by ${t.preparedBy.name}` : ""}`,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -349,7 +352,8 @@ export function stageIsOpen(t, stage) {
 
 /**
  * The one line under "Your move": what the viewer can do, or who the slip
- * waits on. `offered` are the moves the viewer has.
+ * waits on. `offered` are the moves the viewer has; each carries the
+ * `section` it belongs to, which is the gate key.
  */
 export function statusLine(t, gates, offered) {
   if (t.state === STATE.CANCELLED) return "Cancelled. Nothing to do.";
@@ -358,8 +362,11 @@ export function statusLine(t, gates, offered) {
     return offered.length > 0 ? "A draft. Submit it when the lines are right." : "A draft. Waiting for its preparer to submit it.";
   }
   const now = gates.find((gate) => gate.now);
-  if (offered.length > 0) return `Waiting for you${now ? `: ${now.label}` : ""}`;
-  return now
-    ? `Nothing needs you right now. Waiting on ${now.waitsOn} for ${now.label}.`
-    : `Nothing needs you right now. ${transmittalStateLabel(t.state)}.`;
+  if (!now) {
+    return offered.length > 0 ? "Waiting for you" : `Nothing needs you right now. ${transmittalStateLabel(t.state)}.`;
+  }
+
+  // Only a move on the next step counts: a move on an earlier step doesn't make it the viewer's turn.
+  if (offered.some((item) => item.section === now.key)) return `Waiting for you: ${now.label}`;
+  return `Next: ${now.label}, waiting on ${now.waitsOn}`;
 }

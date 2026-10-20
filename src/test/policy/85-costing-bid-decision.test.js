@@ -113,7 +113,7 @@ describe("before there is anything to judge", () => {
     it("refuses a decision while a Tender Line has no Final Offer, and queues nothing", async () => {
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineOneId, { abc_unit: 1100.1, final_offer_unit: 1001.15 })).toBeNull()
         const { error } = await decide("ipasSigner", "go")
-        expect(error?.code).toBe("23514")
+        expect(error?.code).toBe("22023")
         expect(error?.message).toBe("costing_bid: every Tender Line needs a Final Offer before the bid can be decided")
         expect(await rows()).toHaveLength(0)
 

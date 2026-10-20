@@ -23,6 +23,7 @@ import {
   IPAS_SECTION_7_LIST,
   IPAS_SECTION_7_ROLES,
   ipasSectionLabel,
+  ipasSectionNo,
   ipasSectionName,
   IPAS_SIGNER_LISTS,
   IPAS_SIGNOFF_ROLE,
@@ -49,6 +50,7 @@ import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
+import { REFUSAL } from "../constants/refusal";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
 import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
@@ -188,9 +190,9 @@ export const ipasService = {
   // ── Raise, list, read ────────────────────────────────────────────────────
 
   /**
-   * Raises an IPAS against an Odoo PO. Reads the PO first and refuses when
-   * Odoo doesn't have it (PO_NOT_FOUND) or couldn't be asked
-   * (ODOO_UNAVAILABLE); an RFQ is accepted. The database refuses a second live
+   * Raises an IPAS against an Odoo PO. The server reads the PO from Odoo
+   * itself (#550) and refuses when Odoo doesn't have it (PO_NOT_FOUND) or
+   * couldn't be asked (ODOO_UNAVAILABLE); an RFQ is accepted. The database refuses a second live
    * IPAS for the PO (23505) and a Project with no SOR (22023). Returns the
    * new row, with its TGIPAS_ number.
    */
@@ -202,19 +204,26 @@ export const ipasService = {
     requireOneOf(purpose, IPAS_PURPOSES, "Pick a Purpose.");
     requireSorsFitPurpose(purpose, sorIds);
 
-    const copy = await ipasService.readPurchaseOrder(po);
+    // The server asks Odoo itself and stores its own copy (#550); nothing the
+    // browser holds about the PO is sent.
+    let answer;
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-po-ipas", {
+        body: { action: "raise", poNumber: po, priority, source, purpose, sorIds, remarks: remarks || null },
+      });
+      if (error) throw error;
+      answer = data;
+    } catch {
+      throw unavailable(po);
+    }
 
-    const { data, error } = await supabase.rpc("ipas_create", {
-      p_po_number: po,
-      p_priority: priority,
-      p_source: source,
-      p_purpose: purpose,
-      p_sor_ids: sorIds,
-      p_remarks: remarks || null,
-      p_odoo_copy: copy,
-    });
-    if (error) throw error;
-    return data;
+    if (answer?.success && answer.ipas) return answer.ipas;
+    if (answer?.hint === "odoo_not_found") {
+      throw new IpasError(IPAS_ERROR.PO_NOT_FOUND, `Odoo has no purchase order named ${po}.`);
+    }
+    if (answer?.hint === "odoo_unavailable" || !answer?.refused) throw unavailable(po);
+    // Any other refusal reads as the database's own, with its code.
+    throw Object.assign(new Error(String(answer.message ?? "").replace(/^ipas_create:\s*/, "")), { code: answer.code });
   },
 
   /**
@@ -346,8 +355,9 @@ export const ipasService = {
   // ── The Odoo copy ────────────────────────────────────────────────────────
 
   /**
-   * Refreshes an IPAS's stored copy from Odoo: reads the PO (`odoo-po-ipas`) and
-   * hands it to `ipas_record_odoo_copy`, which stores it with its fetch time
+   * Refreshes an IPAS's stored copy from Odoo: asks `odoo-po-ipas` (refresh
+   * mode), which reads the PO and records it through the server-only
+   * `ipas_refresh_from_odoo`, which stores it with its fetch time
    * and a change note, fills a blank contact and P.I #, and, when lines or the
    * total changed, clears the live section 1 and 3 approvals. The preparers of
    * those sections are notified here.
@@ -374,22 +384,40 @@ export const ipasService = {
       return { ok: true, skipped: true, changed: false, fetchedAt: row.odoo_fetched_at };
     }
 
-    let copy;
+    // The server reads the PO from Odoo and records it itself (#550): the browser
+    // names the IPAS and never sends a copy to be stored.
+    let answer;
     try {
-      copy = await ipasService.readPurchaseOrder(row.po_number);
-    } catch (failure) {
+      const { data: reply, error: invokeError } = await supabase.functions.invoke("odoo-po-ipas", {
+        body: { action: "refresh", ipasId: id },
+      });
+      if (invokeError) throw invokeError;
+      answer = reply;
+    } catch {
+      const failure = unavailable(row.po_number);
+      return failedRefresh(failure.code, failure.message, row.odoo_fetched_at);
+    }
+
+    if (answer?.skipped) return { ok: true, skipped: true, changed: false, fetchedAt: row.odoo_fetched_at };
+    if (answer?.found === false) {
       return failedRefresh(
-        failure?.code ?? IPAS_ERROR.ODOO_UNAVAILABLE,
-        failure?.message || "Odoo didn't answer.",
+        IPAS_ERROR.PO_NOT_FOUND,
+        answer.message || `Odoo has no purchase order named ${row.po_number}.`,
         row.odoo_fetched_at,
       );
     }
-
-    const { data, error: rpcError } = await supabase.rpc("ipas_record_odoo_copy", {
-      p_ipas_id: id,
-      p_odoo_copy: copy,
-    });
-    if (rpcError) return failedRefresh(IPAS_ERROR.REFRESH_FAILED, rpcError.message, row.odoo_fetched_at);
+    if (answer?.refused) {
+      return failedRefresh(
+        IPAS_ERROR.REFRESH_FAILED,
+        String(answer.message ?? "").replace(/^[a-z_]+:\s*/, ""),
+        row.odoo_fetched_at,
+      );
+    }
+    if (!answer?.success || !answer.refreshed) {
+      const failure = unavailable(row.po_number);
+      return failedRefresh(failure.code, failure.message, row.odoo_fetched_at);
+    }
+    const data = answer.result;
 
     const preparerIds = data?.preparer_ids ?? [];
     if (preparerIds.length > 0) {
@@ -457,9 +485,10 @@ export const ipasService = {
    */
   async setHeader(
     id,
-    { supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus, googleSheet, ganttChart } = {},
+    { supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus, googleSheet, ganttChart, remarks } = {},
   ) {
     const fields = {};
+    if (remarks !== undefined) fields.remarks = remarks ?? "";
     if (supplierContact !== undefined) fields.supplier_contact = supplierContact ?? "";
     if (piNumber !== undefined) fields.pi_number = piNumber ?? "";
     if (piQtAmount !== undefined) {
@@ -815,8 +844,8 @@ export const ipasService = {
         .select()
         .single();
       // An option a filed IPAS uses keeps its name and marks: the database
-      // refuses (55000) for everyone. Say so in a sentence the page can show.
-      if (error?.code === "55000") {
+      // refuses (22023, "ipas_options: ...") for everyone. Say so in a sentence the page can show.
+      if (error?.code === REFUSAL.INVALID && /^ipas_options:/.test(error.message ?? "")) {
         throw new IpasError(
           IPAS_ERROR.OPTION_ON_FILED,
           `"${name}" is used on a filed IPAS and can't be changed. Deactivate it and add a new one instead.`,
@@ -940,7 +969,7 @@ export const ipasService = {
       requireOneOf(
         role,
         IPAS_SECTION_7_ROLES,
-        "Section 7 is Received, then Noted and Checked, then Approved.",
+        `Section ${ipasSectionNo(7)} is Received, then Noted and Checked, then Approved.`,
       );
     } else {
       requireOneOf(
@@ -1326,17 +1355,16 @@ export const ipasService = {
   // ── Changes ──────────────────────────────────────────────────────────────
 
   /**
-   * Changes an open IPAS's Purpose and SORs together. A Project needs one or
-   * more SORs; any other Purpose takes none. The database refuses a filed or
-   * cancelled IPAS. Returns the row.
+   * Changes an open IPAS's Purpose (#242). Its SORs are fixed when it is raised
+   * (#551): the database refuses a different SOR list, and a Purpose that doesn't
+   * fit the SORs it has (a Project has SORs, any other Purpose none). Returns the row.
    */
-  async setPurposeAndSors(id, { purpose, sorIds = [] }) {
+  async setPurpose(id, purpose) {
     requireOneOf(purpose, IPAS_PURPOSES, "Pick a Purpose.");
-    requireSorsFitPurpose(purpose, sorIds);
     const { data, error } = await supabase.rpc("ipas_set_purpose_and_sors", {
       p_ipas_id: id,
       p_purpose: purpose,
-      p_sor_ids: sorIds,
+      p_sor_ids: null,
     });
     if (error) throw error;
     return data;
@@ -1358,14 +1386,14 @@ export const ipasService = {
 
 function requireSignoffSection(section) {
   if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, "Sections 1, 3 and 7 are signed off.");
+    throw new IpasError(IPAS_ERROR.INVALID, `Sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(7)} are signed off.`);
   }
 }
 
 /** Sections 1, 3 and 7 are returned. */
 function requireSendBackSection(section) {
   if (!IPAS_SEND_BACK_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1, 3 and 7 can be returned.");
+    throw new IpasError(IPAS_ERROR.INVALID, `Only sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(7)} can be returned.`);
   }
 }
 
@@ -1376,25 +1404,25 @@ function stageNotification(stage, { label, section, role }) {
       return {
         type: IPAS_NOTIFICATION.SECTION_7_READY,
         title: "IPAS ready to receive",
-        message: `${label}: sections 1 and 3 are approved. Section 7 is ready for Received.`,
+        message: `${label}: sections ${ipasSectionNo(1)} and ${ipasSectionNo(3)} are approved. Section ${ipasSectionNo(7)} is ready for Received.`,
       };
     case IPAS_SIGNOFF_STAGE.NOTED_CHECKED_READY:
       return {
         type: IPAS_NOTIFICATION.SECTION_7_READY,
         title: "IPAS ready to note and check",
-        message: `${label}: received. Section 7 is ready for Noted and Checked.`,
+        message: `${label}: received. Section ${ipasSectionNo(7)} is ready for Noted and Checked.`,
       };
     case IPAS_SIGNOFF_STAGE.APPROVE_READY:
       return {
         type: IPAS_NOTIFICATION.SECTION_7_READY,
         title: "IPAS ready to approve and file",
-        message: `${label}: noted and checked. Approved in section 7 files the IPAS.`,
+        message: `${label}: noted and checked. Approved in section ${ipasSectionNo(7)} files the IPAS.`,
       };
     default:
       return {
         type: IPAS_NOTIFICATION.SIGNOFF_READY,
         title: "IPAS ready for approval",
-        message: `${label}: section ${section} (${ipasSectionName(section)}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
+        message: `${label}: section ${ipasSectionNo(section)} (${ipasSectionName(section)}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
       };
   }
 }

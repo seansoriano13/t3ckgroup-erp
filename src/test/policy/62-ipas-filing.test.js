@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
 import { makeSor } from "./support/rows.js"
 
 const svc = () => serviceClient()
@@ -48,7 +48,8 @@ const copyFor = (po, supplierId = 553, lines = [line(1)]) => ({
     bills: { count: 0, draft: 0 },
 })
 
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) =>
+    name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
 
 let sorId
 let methodId
@@ -57,7 +58,7 @@ let chargeKindId
 /** Raises an IPAS as the purchaser. `project` names the file's SOR. */
 async function raise({ project = false } = {}) {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",
@@ -184,12 +185,12 @@ describe("section 7: the order", () => {
             expect(error?.code, role).toBeDefined()
         }
         const none = await sign("finance", ipas.id, 7, "received")
-        expect(none.error?.code).toBe("55000")
-        expect(none.error?.message).toMatch(/sections 1 and 3/)
+        expect(none.error?.code).toBe("22023")
+        expect(none.error?.message).toMatch(/sections 1 and 2/)
 
         await approvedThrough(ipas, [1])
         const onlyOne = await sign("finance", ipas.id, 7, "received")
-        expect(onlyOne.error?.code).toBe("55000")
+        expect(onlyOne.error?.code).toBe("22023")
 
         await approvedThrough(ipas, [3])
         expect((await sign("finance", ipas.id, 7, "received")).error).toBeNull()
@@ -202,7 +203,7 @@ describe("section 7: the order", () => {
 
         for (const [who, role] of [["ordinary", "noted"], ["support", "checked"]]) {
             const { error } = await sign(who, ipas.id, 7, role)
-            expect(error?.code, role).toBe("55000")
+            expect(error?.code, role).toBe("22023")
             expect(error?.message).toMatch(/Received comes first/)
         }
 
@@ -214,7 +215,7 @@ describe("section 7: the order", () => {
         )
 
         const twice = await sign("finance", ipas.id, 7, "received")
-        expect(twice.error?.code).toBe("55000")
+        expect(twice.error?.code).toBe("22023")
     })
 
     it("refuses Approved until Received, Noted and Checked are all given", async () => {
@@ -222,11 +223,11 @@ describe("section 7: the order", () => {
         await approvedThrough(ipas)
         await setStatus(ipas.id, "lc_odoo_done")
 
-        expect((await sign("ipasSigner", ipas.id, 7, "approved")).error?.code).toBe("55000")
+        expect((await sign("ipasSigner", ipas.id, 7, "approved")).error?.code).toBe("22023")
         await signOk("finance", ipas.id, 7, "received")
         await signOk("ordinary", ipas.id, 7, "noted")
         const missing = await sign("ipasSigner", ipas.id, 7, "approved")
-        expect(missing.error?.code).toBe("55000")
+        expect(missing.error?.code).toBe("22023")
         expect(missing.error?.message).toMatch(/Received, Noted and Checked/)
         expect((await rowOf(ipas.id)).state).toBe("open")
     })
@@ -242,8 +243,8 @@ describe("section 7: the order", () => {
         expect(error).toBeNull()
 
         const noted = await sign("ordinary", ipas.id, 7, "noted")
-        expect(noted.error?.code).toBe("55000")
-        expect(noted.error?.message).toMatch(/sections 1 and 3/)
+        expect(noted.error?.code).toBe("22023")
+        expect(noted.error?.message).toMatch(/sections 1 and 2/)
     })
 
     it("belongs to each step's list: a purchaser, a Super Admin off the list and a stranger are refused", async () => {
@@ -272,7 +273,7 @@ describe("filing", () => {
             await setStatus(ipas.id, status)
 
             const { error } = await sign("ipasSigner", ipas.id, 7, "approved")
-            expect(error?.code, status).toBe("55000")
+            expect(error?.code, status).toBe("22023")
             expect(error?.message).toMatch(/LC Odoo Done/)
             const row = await rowOf(ipas.id)
             expect(row.state).toBe("open")
@@ -296,7 +297,10 @@ describe("filing", () => {
         const ipas = await raise()
         await approvedThrough(ipas)
         await receivedNotedChecked(ipas)
-        await setStatus(ipas.id, "checked")
+        // #547: Checked by is Finance's step. Purchasing takes the status to LC Odoo Done, Finance gives Checked by.
+        expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
+        expect((await rpc("finance", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { computation_status: "checked" } })).error).toBeNull()
+        expect((await rowOf(ipas.id)).computation_status).toBe("checked")
         expect((await sign("ipasSigner", ipas.id, 7, "approved")).error).toBeNull()
         expect((await rowOf(ipas.id)).state).toBe("filed")
     })
@@ -304,7 +308,7 @@ describe("filing", () => {
     it("refuses any further sign-off on a filed IPAS", async () => {
         const { ipas } = await filed()
         const { error } = await sign("finance", ipas.id, 7, "received")
-        expect(error?.code).toBe("55000")
+        expect(error?.code).toBe("22023")
     })
 })
 
@@ -381,12 +385,12 @@ describe("the freeze", () => {
         for (const table of Object.keys(rows)) {
             const key = table === "ipas_bank_details" ? "ipas_id" : "id"
             const update = await svc().from(table).update(patches[table]).eq(key, rows[table][key])
-            expect(update.error?.code, `${table} update`).toBe("55000")
+            expect(update.error?.code, `${table} update`).toBe("22023")
             const del = await svc().from(table).delete().eq(key, rows[table][key])
-            expect(del.error?.code, `${table} delete`).toBe("55000")
+            expect(del.error?.code, `${table} delete`).toBe("22023")
             if (inserts[table]) {
                 const insert = await svc().from(table).insert(inserts[table])
-                expect(insert.error?.code, `${table} insert`).toBe("55000")
+                expect(insert.error?.code, `${table} insert`).toBe("22023")
             }
         }
 
@@ -425,7 +429,7 @@ describe("the freeze", () => {
             { odoo_change_note: { x: 1 } },
         ]) {
             const { error } = await svc().from("ipas").update(patch).eq("id", ipas.id)
-            expect(error?.code, JSON.stringify(patch)).toBe("55000")
+            expect(error?.code, JSON.stringify(patch)).toBe("22023")
         }
         await expect(sql().query(`delete from public.ipas where id = $1`, [ipas.id])).rejects.toThrow(/filed and frozen/)
         expect(await rowOf(ipas.id)).toEqual(before)
@@ -441,7 +445,7 @@ describe("the freeze", () => {
         expect((await rowOf(ipas.id)).odoo_changed_since_filing).toBe(false)
 
         const mixed = await svc().from("ipas").update({ odoo_changed_since_filing: true, remarks: "Sneaky" }).eq("id", ipas.id)
-        expect(mixed.error?.code).toBe("55000")
+        expect(mixed.error?.code).toBe("22023")
         expect((await rowOf(ipas.id)).odoo_changed_since_filing).toBe(false)
     })
 
@@ -453,7 +457,7 @@ describe("the freeze", () => {
             rpc("outsider", "ipas_set_bank_details", { p_ipas_id: ipas.id, p_bank_name: "X", p_account_name: "Y", p_account_number: "1" }),
             rpc("outsider", "ipas_override_field", { p_ipas_id: ipas.id, p_field: "entity", p_value: "TG" }),
         ])
-        for (const { error } of refusals) expect(error?.code).toBe("55000")
+        for (const { error } of refusals) expect(error?.code).toBe("22023")
     })
 
     it("leaves the CHECK constraints answering on an open IPAS", async () => {
@@ -509,8 +513,8 @@ describe("reopening", () => {
         expect((await rowOf(ipas.id)).state).toBe("filed")
 
         const open = await raise()
-        expect((await reopen("superAdmin", open.id, "Not filed")).error?.code).toBe("55000")
-        expect((await reopen("superAdmin", "00000000-0000-0000-0000-000000000000", "Nope")).error?.code).toBe("P0002")
+        expect((await reopen("superAdmin", open.id, "Not filed")).error?.code).toBe("22023")
+        expect((await reopen("superAdmin", "00000000-0000-0000-0000-000000000000", "Nope")).error?.code).toBe("22023")
     })
 
     it("clears section 7 only, keeps sections 1 and 3 approved, and writes the history", async () => {
@@ -549,11 +553,12 @@ describe("reopening", () => {
             p_php_debited: null, p_charge_fee_php: 0, p_method_id: methodId, p_check_no: null, p_proof_url: null,
         })
         expect(payment.error).toBeNull()
+        // A Project keeps its SORs even when reopened (#551).
         const purpose = await rpc("outsider", "ipas_set_purpose_and_sors", { p_ipas_id: ipas.id, p_purpose: "inventory", p_sor_ids: [] })
-        expect(purpose.error).toBeNull()
+        expect(purpose.error?.code).toBe("22023")
 
         // Section 7 starts again from Received.
-        expect((await sign("ordinary", ipas.id, 7, "noted")).error?.code).toBe("55000")
+        expect((await sign("ordinary", ipas.id, 7, "noted")).error?.code).toBe("22023")
         await receivedNotedChecked(ipas)
         expect((await sign("ipasSigner", ipas.id, 7, "approved")).error).toBeNull()
         expect((await rowOf(ipas.id)).state).toBe("filed")
@@ -564,7 +569,7 @@ describe("cancelling", () => {
     it("is refused while filed, and works once the IPAS is reopened", async () => {
         const { ipas } = await filed()
         const refused = await rpc("outsider", "ipas_cancel", { p_ipas_id: ipas.id, p_reason: "Changed our minds" })
-        expect(refused.error?.code).toBe("55000")
+        expect(refused.error?.code).toBe("22023")
         expect(refused.error?.message).toMatch(/reopens/)
         expect((await rowOf(ipas.id)).state).toBe("filed")
 

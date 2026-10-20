@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
+import { raiseAsPurchaser } from "./support/ipas.js"
 import { makeSor } from "./support/rows.js"
 import { canRead } from "./support/access.js"
 
@@ -32,7 +33,7 @@ const odooCopy = (po) => ({
 /** A live IPAS for a PO that names the SOR, so the slip's line carries it. */
 async function raiseIpasFor(sorId) {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",

@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
+import { raiseAsPurchaser } from "./support/ipas.js"
 import { canRead } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -34,7 +35,7 @@ const odooCopy = (po) => ({
 
 async function raiseIpas() {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",

@@ -5,7 +5,7 @@ import { Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import CanvassPanel from "../CanvassPanel";
-import { MEMBER_SIDE } from "../../constants/purchaseRequest";
+import { ITEM_STATUS, MEMBER_SIDE } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
 
 /**
@@ -27,7 +27,8 @@ export default function RequestedItemCanvass({ item, request, actor }) {
 
   const canvass = item.canvass ?? null;
   const canWrite = actor?.side === MEMBER_SIDE.PURCHASING;
-  if (!canvass && !canWrite) return null;
+  // A cancelled item can't be canvassed; one that already has a Canvass keeps its button to read it.
+  if (!canvass && (!canWrite || item.status === ITEM_STATUS.CANCELLED)) return null;
 
   const viaComponent = Boolean(item.component_id);
   const subject = viaComponent ? { componentId: item.component_id } : { requestedItemId: item.id };

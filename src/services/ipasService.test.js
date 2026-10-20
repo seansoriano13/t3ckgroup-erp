@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { ipasService } from "./ipasService"
 import { db } from "@/test/db/store"
 import { supabase } from "@/lib/supabase"
-import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
+import { stubEdgeFunction } from "@/test/msw/server"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeFlowStage, makeOpportunity } from "@/test/factories"
 import { stubIpasRpcs } from "@/test/stubs/ipasRpc"
 import { IPAS_ERROR, IPAS_NOTIFICATION, IPAS_WARNING } from "@/constants/ipas"
+import { REFUSAL } from "@/constants/refusal"
 
 /**
  * IPAS raise, list and cancel (#242) through the service, against the fake
@@ -259,46 +260,39 @@ describe("ipasService", () => {
   })
 
   describe("change and cancel", () => {
-    let sor, otherSor
+    let sor
 
     beforeEach(() => {
       stubEdgeFunction("odoo-po-ipas", odooPo())
       sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" })
-      otherSor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S06070" })
     })
 
-    it("changes Purpose and SORs together, and keeps the change in history", async () => {
-      const row = await raise({ purpose: "project", sorIds: [sor.id] })
-
-      await ipasService.setPurposeAndSors(row.id, { purpose: "project", sorIds: [sor.id, otherSor.id] })
-      expect(db.rows("ipas_sors")).toHaveLength(2)
-
-      const updated = await ipasService.setPurposeAndSors(row.id, { purpose: "supplies", sorIds: [] })
-      expect(updated.purpose).toBe("supplies")
-      expect(db.rows("ipas_sors")).toEqual([])
-      expect(db.rows("ipas_events").map((e) => e.kind)).toEqual([
-        "created",
-        "purpose_sors_changed",
-        "purpose_sors_changed",
-      ])
-    })
-
-    it("refuses a Project with no SOR and a non-Project with one, and changes nothing", async () => {
+    it("changes the Purpose, keeps the change in history, and leaves the SOR list alone", async () => {
       const row = await raise({ purpose: "inventory" })
-      await expect(ipasService.setPurposeAndSors(row.id, { purpose: "project", sorIds: [] })).rejects.toMatchObject({
-        code: IPAS_ERROR.INVALID,
-      })
-      await expect(ipasService.setPurposeAndSors(row.id, { purpose: "inventory", sorIds: [sor.id] })).rejects.toMatchObject({
-        code: IPAS_ERROR.INVALID,
-      })
+
+      const updated = await ipasService.setPurpose(row.id, "supplies")
+      expect(updated.purpose).toBe("supplies")
+      expect(db.rows("ipas_events").map((e) => e.kind)).toEqual(["created", "purpose_sors_changed"])
+    })
+
+    it("refuses a Purpose that doesn't fit the SORs it has, and changes nothing", async () => {
+      const stock = await raise({ purpose: "inventory" })
+      await expect(ipasService.setPurpose(stock.id, "project")).rejects.toMatchObject({ code: REFUSAL.INVALID })
       expect(db.rows("ipas")[0].purpose).toBe("inventory")
+    })
+
+    it("keeps a Project's SORs: its Purpose can't move away from them", async () => {
+      const project = await raise({ purpose: "project", sorIds: [sor.id] })
+      await expect(ipasService.setPurpose(project.id, "events")).rejects.toMatchObject({ code: REFUSAL.INVALID })
+      expect(db.rows("ipas")[0].purpose).toBe("project")
+      expect(db.rows("ipas_sors")).toHaveLength(1)
     })
 
     it("refuses a change to a filed IPAS", async () => {
       const row = await raise()
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).state = "filed"
 
-      await expect(ipasService.setPurposeAndSors(row.id, { purpose: "events", sorIds: [] })).rejects.toMatchObject({
+      await expect(ipasService.setPurpose(row.id, "events")).rejects.toMatchObject({
         code: "55000",
       })
     })
@@ -705,7 +699,7 @@ describe("ipasService", () => {
           detail: { fields: { pi_number: { from: null, to: "PI-1" } } },
         })
 
-        const direct = await supabase.rpc("ipas_set_header", { p_ipas_id: row.id, p_fields: { remarks: "x" } })
+        const direct = await supabase.rpc("ipas_set_header", { p_ipas_id: row.id, p_fields: { purpose: "x" } })
         expect(direct.error?.code).toBe("22023")
         await expect(ipasService.setHeader(row.id, {})).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
       })
@@ -977,16 +971,21 @@ describe("ipasService", () => {
       })
     })
 
-    it("keeps working through the one RPC the page calls, with a stubbed failure", async () => {
-      stubRpc("ipas_record_odoo_copy", () => {
+    it("keeps working when the refresh function itself fails", async () => {
+      stubEdgeFunction("odoo-po-ipas", () => {
         throw new Error("boom")
       })
-      odoo = { ...odoo, lines: [line(1)] }
 
       const read = await ipasService.get(row.id)
 
-      expect(read.refresh).toMatchObject({ ok: false, reason: IPAS_ERROR.REFRESH_FAILED })
+      expect(read.refresh).toMatchObject({ ok: false, reason: IPAS_ERROR.ODOO_UNAVAILABLE })
       expect(read.lines).toHaveLength(2)
+    })
+
+    it("a signed-in caller can't store a copy of their own making", async () => {
+      await expect(
+        supabase.rpc("ipas_record_odoo_copy", { p_ipas_id: row.id, p_odoo_copy: odooPo({ lines: [line(9)] }) }),
+      ).resolves.toMatchObject({ error: { code: "42501" } })
     })
   })
 })

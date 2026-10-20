@@ -162,9 +162,10 @@ Guide §6. Project requests are opened by a Stage Action (FLOW-01). Where a stor
   2. On another item, try `ABC123`.
   3. On another item, try `P9999999`.
 - **You should see**:
-  - Step 1 saves as `P02401` (trimmed, upper case) after an Odoo check.
+  - Step 1 saves as `P02401` (trimmed, upper case) after the server checked it with Odoo, and reads "Confirmed in Odoo".
   - Step 2 is refused as the wrong shape.
-  - Step 3 says Odoo has no such PO. It must not say "could not check".
+  - Step 3 is refused and says Odoo has no such PO, naming it. Nothing is saved. It must not say "could not check".
+  - A direct call that sends its own "verified" mark is refused; the mark only comes from the server.
 
 ### PR-18 · "Could not check" when Odoo is down
 - **Guide**: §6, §15
@@ -173,7 +174,19 @@ Guide §6. Project requests are opened by a Stage Action (FLOW-01). Where a stor
   1. Stop the functions server (ask the human, or note BLOCKED if you cannot).
   2. Set an item to Ordered with `P02396`.
   3. Start the functions server again.
-- **You should see**: the message says Odoo could not be checked. It must not say the PO does not exist.
+- **You should see**: the PO is saved as "Not checked — Odoo did not answer", with a warning on screen. The message says Odoo could not be checked. It must not say the PO does not exist, and it is not refused.
+
+### PR-18b · Correct PO on an Ordered item
+- **Guide**: §6 The item status path
+- **Log in as**: purchaser, then sales-exec
+- **Needs**: an item Ordered with a wrong PO (for example `P02396`) and, if possible, a picked line
+- **Steps**:
+  1. As purchaser, choose Correct PO on the Ordered item and enter `P02401`.
+  2. Try Correct PO with `P9999999`.
+  3. Read the item's history. Look at any picked PO lines.
+  4. Move the item to Received. Look for Correct PO.
+  5. As sales-exec, look for Correct PO on an Ordered item.
+- **You should see**: step 1 saves, checked against Odoo again ("Confirmed in Odoo"). Step 2 is refused, naming the PO. Step 3: the history has both the old and the new PO number, and the lines picked on the old PO are cleared. Step 4: no Correct PO once Received. Step 5: only Purchasing can correct. An Ordered item with no PO can also get its first PO this way.
 
 ### PR-19 · Pick PO lines, and "PO line not picked"
 - **Guide**: §6 Edge cases

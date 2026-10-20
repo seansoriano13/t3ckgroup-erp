@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql, rlsStatus } from "./support/stack.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 import { canRead, tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -41,7 +41,7 @@ const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 /** Raises an IPAS as the purchaser (pesos unless `currency` says otherwise). */
 async function raise(currency = "Php") {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",
@@ -331,19 +331,19 @@ describe("recording payments", () => {
         await file(filed.id)
 
         const added = await addPayment("outsider", filed.id)
-        expect(added.error?.code).toBe("55000")
+        expect(added.error?.code).toBe("22023")
         const changed = await rpc("outsider", "ipas_update_payment", { ...payment(filed.id), p_ipas_id: undefined, p_payment_id: row.id, p_amount: 1 })
-        expect(changed.error?.code).toBe("55000")
+        expect(changed.error?.code).toBe("22023")
         const removed = await rpc("outsider", "ipas_remove_payment", { p_payment_id: row.id })
-        expect(removed.error?.code).toBe("55000")
+        expect(removed.error?.code).toBe("22023")
         expect(Number((await paymentRow(row.id)).amount)).toBe(500)
 
         const cancelled = await raise()
         await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Dropped" })
-        expect((await addPayment("outsider", cancelled.id)).error?.code).toBe("55000")
+        expect((await addPayment("outsider", cancelled.id)).error?.code).toBe("22023")
 
         const missing = await addPayment("outsider", "00000000-0000-0000-0000-000000000000")
-        expect(missing.error?.code).toBe("P0002")
+        expect(missing.error?.code).toBe("22023")
     })
 })
 
@@ -536,8 +536,8 @@ describe("recording charges", () => {
 
         const kept = await rpc("outsider", "ipas_add_charge", charge(ipas.id))
         await file(ipas.id)
-        expect((await rpc("outsider", "ipas_add_charge", charge(ipas.id))).error?.code).toBe("55000")
-        expect((await rpc("outsider", "ipas_remove_charge", { p_charge_id: kept.data.id })).error?.code).toBe("55000")
+        expect((await rpc("outsider", "ipas_add_charge", charge(ipas.id))).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_remove_charge", { p_charge_id: kept.data.id })).error?.code).toBe("22023")
     })
 
     it("reads rows to Purchasing, Finance, signers and Super Admins, and none to a plain employee", async () => {
@@ -633,7 +633,7 @@ describe("the typed header values", () => {
         await svc().from("ipas_options").update({ active: true }).eq("id", freightIds.fedex)
 
         await file(ipas.id)
-        expect((await setHeader("outsider", ipas.id, { pi_qt_amount: 99 })).error?.code).toBe("55000")
+        expect((await setHeader("outsider", ipas.id, { pi_qt_amount: 99 })).error?.code).toBe("22023")
     })
 
     it("writes no history for a repeat", async () => {
@@ -710,11 +710,11 @@ describe("the section 2 ticks (#241)", () => {
     it("refuses a filed IPAS (the frozen-state 55000) and a cancelled one", async () => {
         const filedIpas = await raise()
         await file(filedIpas.id)
-        expect((await setHeader("outsider", filedIpas.id, { google_sheet: true })).error?.code).toBe("55000")
+        expect((await setHeader("outsider", filedIpas.id, { google_sheet: true })).error?.code).toBe("22023")
 
         const cancelled = await raise()
         expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Dropped" })).error).toBeNull()
-        expect((await setHeader("outsider", cancelled.id, { gantt_chart: true })).error?.code).toBe("55000")
+        expect((await setHeader("outsider", cancelled.id, { gantt_chart: true })).error?.code).toBe("22023")
     })
 
     it("can't be written to the table directly by Purchasing", async () => {

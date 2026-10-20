@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ChevronDown, ListChecks, Replace } from "lucide-react";
+import { ChevronDown, ListChecks, Pencil, Replace } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import Spinner from "@/components/ui/Spinner";
 import StatusBadge from "../StatusBadge";
 import { NewProductDialog } from "./AddRequestedItems";
-import { OrderItemDialog, PickPoLinesDialog } from "./PoDialogs";
+import { CorrectPoDialog, OrderItemDialog, PickPoLinesDialog } from "./PoDialogs";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   ITEM_STATUS,
@@ -77,6 +77,49 @@ function MenuItem({ children, onClick, tone }) {
 }
 
 /**
+ * The menu takes clicks only once its opening animation is over. Keep this a little longer than
+ * the `.popover-enter` animation in src/index.css (0.15s = 150ms): change one, change the other.
+ */
+const MENU_OPEN_MS = 200;
+
+/**
+ * The status menu's body. A click that lands while the menu is still opening picks nothing, so a
+ * quick click cannot choose whatever slid under the pointer.
+ */
+function StatusMenu({ close, children }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), MENU_OPEN_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  // Escape closes the menu and goes no further: the request panel (a dialog) must stay open.
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      close();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [close]);
+  return (
+    <div
+      role="menu"
+      aria-busy={!ready}
+      className={cn("flex min-w-[180px] flex-col p-1", !ready && "pointer-events-none")}
+      onClickCapture={(e) => {
+        if (!ready) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
  * Issue #306 — what the signed-in member may do to one Requested Item, for
  * RequestedItems' row action slot.
  *
@@ -95,6 +138,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   const [substituting, setSubstituting] = useState(false);
   const [ordering, setOrdering] = useState(false);
   const [pickingLines, setPickingLines] = useState(false);
+  const [correctingPo, setCorrectingPo] = useState(false);
   const requestId = request?.id;
   const side = actor?.side ?? null;
   const onPo =
@@ -118,7 +162,9 @@ export default function RequestedItemActions({ item, request, actor }) {
   const next = allowedTransitions(item.status, side);
   const canSubstitute = !!actor?.canSubstitute && !isClosedStatus(item.status);
   const canPickLines = onPo && poLineIds.length > 0;
-  const canInteract = next.length > 0 || canSubstitute || canPickLines;
+  // #549: Purchasing can correct the PO while the item is Ordered; Received is fixed.
+  const canCorrectPo = side === MEMBER_SIDE.PURCHASING && item.status === ITEM_STATUS.ORDERED;
+  const canInteract = next.length > 0 || canSubstitute || canPickLines || canCorrectPo;
 
   if (!canInteract) {
     return (
@@ -159,6 +205,9 @@ export default function RequestedItemActions({ item, request, actor }) {
         />
       )}
       {ordering && <OrderItemDialog open onOpenChange={setOrdering} item={item} requestId={requestId} />}
+      {canCorrectPo && correctingPo && (
+        <CorrectPoDialog open onOpenChange={setCorrectingPo} item={item} requestId={requestId} />
+      )}
       {canPickLines && pickingLines && (
         <PickPoLinesDialog open onOpenChange={setPickingLines} item={item} requestId={requestId} lineIds={poLineIds} />
       )}
@@ -196,7 +245,7 @@ export default function RequestedItemActions({ item, request, actor }) {
         }
       >
         {({ close }) => (
-          <div className="flex min-w-[180px] flex-col p-1">
+          <StatusMenu close={close}>
             {onPath.map((status) => (
               <MenuItem
                 key={status}
@@ -219,7 +268,18 @@ export default function RequestedItemActions({ item, request, actor }) {
                 Pick PO line…
               </MenuItem>
             )}
-            {(onPath.length > 0 || canPickLines) && (waysOut.length > 0 || canSubstitute) && (
+            {canCorrectPo && (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  setCorrectingPo(true);
+                }}
+              >
+                <Pencil size={14} />
+                Correct PO…
+              </MenuItem>
+            )}
+            {(onPath.length > 0 || canPickLines || canCorrectPo) && (waysOut.length > 0 || canSubstitute) && (
               <div className="my-1 h-px bg-border" />
             )}
             {canSubstitute && (
@@ -245,7 +305,7 @@ export default function RequestedItemActions({ item, request, actor }) {
                 {status === ITEM_STATUS.CANCELLED ? "Cancel item" : ITEM_STATUS_LABELS[status]}
               </MenuItem>
             ))}
-          </div>
+          </StatusMenu>
         )}
       </Dropdown>
       {dialogs}

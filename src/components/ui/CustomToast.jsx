@@ -35,6 +35,7 @@ export function CustomToast({
     else if (resolvedVariant === "error") displayTitle = "Error";
     else if (resolvedVariant === "loading") displayTitle = "Processing...";
     else if (resolvedVariant === "info") displayTitle = "Information";
+    else if (resolvedVariant === "warning") displayTitle = "Warning";
     else if (resolvedVariant === "confirm") displayTitle = "Confirm Action";
   }
 
@@ -62,6 +63,12 @@ export function CustomToast({
       color: "text-violet-9",
       bg: "bg-primary/10",
       border: "border-violet-9/20",
+    },
+    warning: {
+      icon: AlertTriangle,
+      color: "text-amber-11",
+      bg: "bg-amber-a3",
+      border: "border-amber-a5",
     },
     confirm: {
       icon: AlertTriangle,
@@ -211,4 +218,16 @@ export const undoableSuccessToast = (message, label, onUndo, duration = 6000) =>
     ),
     { duration, id },
   );
+};
+
+/**
+ * A warning toast: the action went through, but something needs a second look.
+ * Stays up longer than a success so it is read.
+ *
+ * @param {string} message
+ * @param {number} [duration=8000] - Auto-dismiss after this many ms
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export const warningToast = (message, duration = 8000) => {
+  toast.custom((t) => <CustomToast t={t} variant="warning" description={message} />, { duration });
 };

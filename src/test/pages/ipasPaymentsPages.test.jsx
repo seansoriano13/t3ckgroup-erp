@@ -407,6 +407,28 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.getByRole("button", { name: "Checked by" })).toBeDisabled();
     });
 
+    it("locks Checked by for Purchasing, and the current step looks selected", async () => {
+      const row = ipas({ po_number: "P02552", computation_status: "lc_odoo_done" });
+
+      renderDetail(row.id, "costing", "edit");
+
+      const checked = await screen.findByRole("button", { name: "Checked by" });
+      expect(checked).toBeDisabled();
+      expect(checked).toHaveAttribute("title", "Finance gives Checked by");
+      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "LC GS Done" })).toBeEnabled();
+    });
+
+    it("gives Purchasing no way to take Checked by back", async () => {
+      const row = ipas({ po_number: "P02552", computation_status: "checked" });
+
+      renderDetail(row.id, "costing", "edit");
+
+      // No step is open to Purchasing: the pills are plain, and Checked by is the current one.
+      expect(await screen.findByText("Checked by", { selector: "[aria-current='step']" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "LC Odoo Done" })).not.toBeInTheDocument();
+    });
+
     it("gives a reader with neither access no way to record anything", async () => {
       mockUser.current = reader;
       stubIpasRpcs({ actorId: reader.id, purchasing: false, money: false });

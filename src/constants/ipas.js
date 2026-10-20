@@ -120,6 +120,7 @@ export const IPAS_HEADER_FIELD = {
   COMPUTATION_STATUS: "computation_status",
   GOOGLE_SHEET: "google_sheet",
   GANTT_CHART: "gantt_chart",
+  REMARKS: "remarks",
 };
 
 /** Payment kinds (ipas_payments.kind). */
@@ -462,6 +463,21 @@ export const IPAS_PART_NAMES = {
 /** The part a stored sign-off section (1, 3 or 7) is. */
 export const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 7: "filing" };
 
+/**
+ * The number a stored sign-off section (1, 3 or 7) shows as: 1, 2, 4 (#552).
+ * The one mapping every screen, notice, history line and Settings list name
+ * reads. Anything it doesn't know comes back as it was given.
+ */
+export function ipasSectionNo(section) {
+  const no = IPAS_PART_NO[IPAS_SECTION_PART[section]];
+  return no === undefined ? section : no;
+}
+
+/** "section 4": a stored sign-off section as it reads inside a sentence. */
+export function ipasSectionWord(section) {
+  return `section ${ipasSectionNo(section)}`;
+}
+
 /** A stored sign-off section's name, unnumbered: "Purchasing", "Purchasing & Finance", "Filing". */
 export function ipasSectionName(section) {
   return IPAS_PART_NAMES[IPAS_SECTION_PART[section]] ?? "";
@@ -503,12 +519,12 @@ export const IPAS_SECTION_7_LIST = {
 };
 
 export const IPAS_SIGNER_LIST_LABELS = {
-  [IPAS_SIGNER_LIST.S1_APPROVED]: "Section 1 · Approved",
-  [IPAS_SIGNER_LIST.S3_APPROVED]: "Section 3 · Approved",
-  [IPAS_SIGNER_LIST.S7_RECEIVED]: "Section 7 · Received",
-  [IPAS_SIGNER_LIST.S7_NOTED]: "Section 7 · Noted",
-  [IPAS_SIGNER_LIST.S7_CHECKED]: "Section 7 · Checked",
-  [IPAS_SIGNER_LIST.S7_APPROVED]: "Section 7 · Approved (files the IPAS)",
+  [IPAS_SIGNER_LIST.S1_APPROVED]: `Section ${ipasSectionNo(1)} · Approved`,
+  [IPAS_SIGNER_LIST.S3_APPROVED]: `Section ${ipasSectionNo(3)} · Approved`,
+  [IPAS_SIGNER_LIST.S7_RECEIVED]: `Section ${ipasSectionNo(7)} · Received`,
+  [IPAS_SIGNER_LIST.S7_NOTED]: `Section ${ipasSectionNo(7)} · Noted`,
+  [IPAS_SIGNER_LIST.S7_CHECKED]: `Section ${ipasSectionNo(7)} · Checked`,
+  [IPAS_SIGNER_LIST.S7_APPROVED]: `Section ${ipasSectionNo(7)} · Approved (files the IPAS)`,
 };
 
 /** The list that approves a section: section 1 and 3's Approved. */

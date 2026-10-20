@@ -61,9 +61,8 @@ describe("costingMatrixService", () => {
       created_by: salesperson.id,
       totals: { abcTotal: 240000, finalOfferTotal: 199001, overAbc: false },
     })
-    // The second line has no prices yet: nothing is zero.
+    // The second line has no prices yet: nothing is zero. The price tier reads no cost, so no `landedCost` key (#546).
     expect(read.tenderLines[1].totals).toEqual({
-      landedCost: null,
       abcTotal: null,
       finalOfferTotal: null,
       overAbc: false,
@@ -455,6 +454,12 @@ describe("costingMatrixService", () => {
       );
       expect(toRuleError({ code: "23514", message: "costing_move_inclusion: an Inclusion can only sit under a bundle Component" })).toBeInstanceOf(CostingRuleError);
       expect(toRuleError({ code: "23514", message: "new row violates check constraint" })).toBeNull();
+      // #556: the matrix functions now refuse these with 22023
+      expect(toRuleError({ code: "22023", message: "costing_incharge: the Sales incharge must be on the SOR's Deal Team" }).message).toBe(
+        "The Sales incharge must be on the SOR's Deal Team.",
+      );
+      expect(toRuleError({ code: "22023", message: "costing_bid: write the reason for the decision" })).toBeInstanceOf(CostingRuleError);
+      expect(toRuleError({ code: "22023", message: "costing_set_money: not a number" })).toBeNull();
       expect(toRuleError({ code: "42501", message: "costing_inclusion: x" })).toBeNull();
       expect(toRuleError(null)).toBeNull();
     });

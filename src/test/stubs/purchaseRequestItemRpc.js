@@ -1,4 +1,4 @@
-import { stubRpc } from "@/test/msw/server"
+import { stubRpc, stubEdgeFunction } from "@/test/msw/server"
 import { db, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { ITEM_STATUS_LABELS, allowedTransitions } from "@/constants/purchaseRequest"
@@ -34,7 +34,7 @@ const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().t
  * Odoo product id and refuses a Component on another SOR's matrix; who may add is proven in
  * 83-costing-purchase-request-items.test.js.
  */
-export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {}, purchasing = false }) {
+export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {}, purchasing = false, odoo = null }) {
   const postAdded = (item) => {
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
@@ -224,15 +224,57 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     const item = findRow("purchase_request_items", args.p_item_id)
     if (!item) refuse(`purchase_request_set_item_status: item ${args.p_item_id} not found`, "P0002")
     const details = args.p_details || {}
+    // #548: a signed-in caller never sets the Odoo check.
+    if ("po_verification" in details) {
+      refuse("purchase_request_set_item_status: only the server may record a PO check", "42501")
+    }
+    // A PO number is saved only by the server path, after it asks Odoo.
+    if ((details.po_number || "").toString().trim()) {
+      refuse("purchase_request_set_item_status: a PO number is saved by the server after Odoo is asked; use the Order / Correct PO action", "42501")
+    }
+    return setStatus(item, args.p_status, details, false)
+  })
+
+  function setStatus(item, status, details, server) {
     const po = (details.po_number || "").trim().toUpperCase() || null
-    if (Object.keys(details).length && args.p_status !== "ordered") {
-      refuse(`purchase_request_set_item_status: ${ITEM_STATUS_LABELS[args.p_status]} takes no details`, "22023")
+    if (Object.keys(details).length && status !== "ordered") {
+      refuse(`purchase_request_set_item_status: ${ITEM_STATUS_LABELS[status]} takes no details`, "22023")
     }
     if (po && !/^P\d+$/.test(po)) refuse(`purchase_request_set_item_status: ${po} isn't an Odoo PO number`, "22023")
-    const poFields = po ? { po_number: po, po_verification: details.po_verification || "UNVERIFIED" } : null
-    const moved = move(item, args.p_status, poFields, "purchase_request_set_item_status")
+    const poFields = po ? { po_number: po, po_verification: (server && details.po_verification) || "UNVERIFIED" } : null
+    const moved = move(item, status, poFields, "purchase_request_set_item_status")
     return poFields ? updateRow("purchase_request_items", item, poFields) : moved
-  })
+  }
+
+  // #548: the `odoo-po-verify` edge function in save mode, with Odoo faked as
+  // `odoo` ('found' | 'not_found' | 'unreachable'). Mirrors
+  // purchase_request_item_apply_po_check; the verdicts are proven in
+  // 103-purchase-request-po-check.test.js.
+  if (odoo) {
+    stubEdgeFunction("odoo-po-verify", (body) => {
+      const item = findRow("purchase_request_items", body.itemId)
+      const po = (body.poNumber || "").trim().toUpperCase()
+      if (!item) return { success: false, refused: true, message: `item ${body.itemId} not found` }
+      if (odoo === "not_found") {
+        return { success: false, refused: true, message: `Odoo has no purchase order ${po}; check the number and try again` }
+      }
+      const verification = odoo === "found" ? "VERIFIED" : "PENDING_VERIFICATION"
+      if (body.action === "correct") {
+        if (sideOf(item.request_id) !== "purchasing") return { success: false, refused: true, message: "purchase_request_correct_po: only Purchasing corrects an item's PO".replace(/^[a-z_]+: /, "") }
+        if (item.status !== "ordered") return { success: false, refused: true, message: `${item.name} is ${item.status}, not Ordered; a PO can only be corrected while the item is Ordered` }
+        const corrected = updateRow("purchase_request_items", item, { po_number: po, po_verification: verification, odoo_po_line_ids: [] })
+        insertRow("purchase_request_messages", {
+          request_id: item.request_id,
+          author_id: actorId,
+          content: `${item.name}: PO ${item.po_number || "none"} → ${po}.`,
+          metadata: { event: "item_po_corrected", item_id: item.id, from_po: item.po_number, to_po: po },
+        })
+        return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: corrected }
+      }
+      const updated = setStatus(item, "ordered", { po_number: po, po_verification: verification }, true)
+      return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: updated }
+    })
+  }
 
   const ipasOf = (poNumber) => (poNumber && ipasLines[poNumber]) || []
 

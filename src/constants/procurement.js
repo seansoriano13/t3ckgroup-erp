@@ -194,7 +194,7 @@ export const PO_VERIFICATION = {
 export const PO_VERIFICATION_LABELS = {
   [PO_VERIFICATION.UNVERIFIED]: "Not checked",
   [PO_VERIFICATION.VERIFIED]: "Confirmed in Odoo",
-  [PO_VERIFICATION.PENDING]: "Odoo unreachable — will re-check",
+  [PO_VERIFICATION.PENDING]: "Not checked — Odoo did not answer",
   [PO_VERIFICATION.NOT_FOUND]: "Not found in Odoo",
 };
 

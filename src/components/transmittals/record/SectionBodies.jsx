@@ -9,6 +9,7 @@ import { ExternalLink, Trash2, Upload } from "lucide-react";
 
 import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { FileInput } from "@/components/ui/FileInput";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import {
 import { transmittalService } from "@/services/transmittalService";
 import { ipasErrorMessage } from "@/utils/ipas";
 import { evidenceOf, stageRowOf, transmittalStateLabel } from "@/utils/transmittals";
+import { formatPreparedAt } from "@/utils/preparedAt";
 import { WarehouseRatings } from "../WarehouseRatings";
 import { choosesSlot, picksOtherSigner, stageBlocker } from "./transmittalMoves";
 import { STAGE_SIGNERS, STAGE_TITLE } from "./transmittalRecord";
@@ -80,7 +82,7 @@ export function DetailsBody({ t }) {
   return (
     <section className="grid grid-cols-1 gap-4 text-[13px] sm:grid-cols-2">
       <Fact label="TG03" value={<span className="font-mono font-semibold">{t.number}</span>} />
-      <Fact label="Prepared" value={`${t.preparedOn}${t.preparedBy ? ` · ${t.preparedBy.name}` : ""}`} />
+      <Fact label="Prepared" value={`${formatPreparedAt(t.preparedOn)}${t.preparedBy ? ` · ${t.preparedBy.name}` : ""}`} />
       <Fact label="State" value={<StatusBadge theme="blue" label={transmittalStateLabel(t.state)} />} />
       <Fact
         label="Origin"
@@ -385,6 +387,8 @@ export function OdooBody({ t, rights, odooRef, setOdooRef }) {
  */
 export function CheckByBody({ t, rights, userId, onChanged }) {
   const [busy, setBusy] = useState(false);
+  // Declining asks first, like Sign, Confirm and Undo; applying again does not.
+  const [decliningNumber, setDecliningNumber] = useState(null);
   const setDeclined = async (number, decline) => {
     setBusy(true);
     try {
@@ -405,7 +409,12 @@ export function CheckByBody({ t, rights, userId, onChanged }) {
         {slot?.signatureDeclined && <span className="ml-1 text-muted-foreground">(signature not applied)</span>}
       </p>
       {slot && userId && slot.id === userId && (
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => setDeclined(number, !slot.signatureDeclined)}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => (slot.signatureDeclined ? setDeclined(number, false) : setDecliningNumber(number))}
+        >
           {slot.signatureDeclined ? "Apply my signature" : "Decline my signature"}
         </Button>
       )}
@@ -423,6 +432,15 @@ export function CheckByBody({ t, rights, userId, onChanged }) {
         </p>
       )}
       <ClearedList entries={t.cleared.filter((c) => c.kind === "check_by")} />
+      <ConfirmDialog
+        open={decliningNumber !== null}
+        onOpenChange={(open) => !open && setDecliningNumber(null)}
+        title={`Decline my signature on Check by (${decliningNumber ?? ""})?`}
+        confirmLabel="Decline"
+        onConfirm={() => setDeclined(decliningNumber, true)}
+      >
+        <p className="text-sm text-muted-foreground">The slip will print your name only, without your signature.</p>
+      </ConfirmDialog>
     </div>
   );
 }

@@ -37,7 +37,7 @@ Guide §2, §16 "Access and visibility". Most other files also check access insi
   2. Try `/purchasing/ipas` and the IPAS id from the slip by address.
 - **You should see**: the slip shows IPAS number, PO number, SOR reference and project title. No price, amount or currency figure anywhere. The IPAS itself does not open.
 
-### ACC-04 · Section 7 Noted and Checked get no bank details
+### ACC-04 · Section 4 Noted and Checked get no bank details
 - **Guide**: §9 Bank details, §16
 - **Log in as**: sales-head (Noted), then admin-head (section 1 list)
 - **Needs**: IPAS-11 (bank details typed on IPAS-A)
@@ -64,19 +64,22 @@ Guide §2, §16 "Access and visibility". Most other files also check access insi
 
 ### ACC-07 · Costing tiers
 - **Guide**: §2 Costing tiers
-- **Log in as**: approver, purchaser, sales-exec, sales-exec-2 (one after another)
-- **Needs**: CM-03 (a matrix on S990002 with Acquire, factor and Final Offer filled)
+- **Log in as**: approver, purchaser, sales-exec, ops-head, sales-exec-2 (one after another)
+- **Needs**: CM-03 (a matrix on the FLOW-00 SOR with Acquire, factor and Final Offer filled), and an IPAS feeding a Landed Cost on one Component (CM-20), and a Canvass with an Offer priced (CNV stories).
 - **Steps**:
-  1. Each person opens SOR S990002, PMS tab, Costing Matrix.
+  1. Each person opens the SOR, PMS tab, Costing Matrix, and a Component's Canvass.
 - **You should see**:
-  | Person | Tier | Acquire | Markup factor | Final Acquire | Markup Price | Final Offer |
-  |---|---|---|---|---|---|---|
-  | approver | closed_book | yes | yes | yes | yes | yes |
-  | purchaser | cost | yes | no | no | no (only via Canvass projection) | no |
-  | sales-exec | price | no | no | no | yes | yes |
-  | sales-exec-2 | none | no matrix | | | | |
+  | Person | Tier | ABC | Acquire | Markup factor | Final Acquire | Markup Price | Final Offer | Landed Cost | Offer prices |
+  |---|---|---|---|---|---|---|---|---|---|
+  | approver | closed_book | yes | yes | yes | yes | yes | yes | yes | yes |
+  | purchaser | cost | yes | yes | no | no | no (only via Canvass projection) | no | yes | yes |
+  | sales-exec | price | yes | no | no | no | yes | yes | **no** | **no** |
+  | ops-head (Evaluation list only) | participant | no | no | no | no | no | no | no | no |
+  | sales-exec-2 | none | no matrix | | | | | | | |
+  - sales-exec has no Landed Cost columns on the Components and no Landed Cost total in the SOR's IPAS summaries, and a direct database call for them returns no rows.
+  - approver and ops-head open the SOR with no mention and no Deal Team role, because it has a matrix.
 
-### ACC-08 · A purchaser loses sight of a request once it has another Buyer
+### ACC-08 · A purchaser keeps sight of a request when another purchaser takes it
 - **Guide**: §6 The request, §16
 - **Log in as**: purchaser, then purchaser-2
 - **Needs**: an unassigned Project request (PR-05)
@@ -84,4 +87,5 @@ Guide §2, §16 "Access and visibility". Most other files also check access insi
   1. As purchaser-2, open `/purchasing`, filter Unassigned. Note the request is listed.
   2. As purchaser, Take the request.
   3. As purchaser-2, reload `/purchasing` and open the request's address directly.
-- **You should see**: after step 2, purchaser-2 no longer sees the request in the list, and the direct address shows nothing.
+  4. As purchaser-2, open the request's member list.
+- **You should see**: after step 2, purchaser-2 still sees the request in the list, and the direct address opens it. Every Purchasing holder is a member of every live Purchase Request, Project ones included, so purchaser-2 is on the member list and the request shows purchaser as Buyer.

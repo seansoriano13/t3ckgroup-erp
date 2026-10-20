@@ -28,6 +28,7 @@ import {
   CalendarDays,
 } from "lucide-react"
 
+import { ipasSectionNo } from "../../constants/ipas"
 import { CONDITION_KINDS } from "../../constants/stageGate"
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields"
 import { acceptsLabel } from "../../utils/attachments"
@@ -103,7 +104,7 @@ export const CONDITION_KIND_META = {
   [CONDITION_KINDS.ORDERS_FILED]: {
     label: "Orders filed",
     icon: FileCheck,
-    hint: "Every IPAS naming this SOR that isn't cancelled has been filed (section 7 approved). An SOR no IPAS names meets it.",
+    hint: `Every IPAS naming this SOR that isn't cancelled has been filed (section ${ipasSectionNo(7)} approved). An SOR no IPAS names meets it.`,
   },
 }
 

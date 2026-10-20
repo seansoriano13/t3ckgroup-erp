@@ -110,6 +110,15 @@ describe("Transmittal record page", () => {
     service.checkBy.mockResolvedValue({ number: "TG03_0007" });
   });
 
+  it("tells a viewer who is not on the Check by list who the slip waits on", async () => {
+    service.myStaffLists.mockResolvedValue([]);
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Your move" })).toBeInTheDocument();
+    expect(await screen.findByText("Next: Check by, waiting on the Check by list")).toBeInTheDocument();
+    expect(screen.queryByText(/^Waiting for you/)).not.toBeInTheDocument();
+  });
+
   it("shows the numbers, a row per section and who it waits on", async () => {
     renderPage();
 
@@ -148,6 +157,44 @@ describe("Transmittal record page", () => {
     await user.click(buttons[0]);
     await confirmMove(user, "Sign Check by (1)", "Sign");
     await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("t1", 1));
+  });
+
+  it("offers the slip's preparer no Check by sign buttons", async () => {
+    mockUser.current = { id: PREPARER, name: "Pat Prep", employee_type: "staff" };
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Your move" });
+    expect(screen.queryByRole("button", { name: /^Sign Check by/ })).not.toBeInTheDocument();
+  });
+
+  it("asks before declining my signature, with the same dialog as Sign", async () => {
+    const user = setupUser();
+    service.get.mockResolvedValue(
+      shapeTransmittal(
+        raw({
+          stages: [
+            {
+              id: "s1",
+              stage: "warehouse_checking",
+              completed_at: "2026-10-02T01:00:00Z",
+              first_signer: { name: "Ann" },
+              first_signer_id: PREPARER,
+              second_signer: { name: "Maria Check" },
+              second_signer_id: ME.id,
+              second_confirmed: false,
+            },
+          ],
+        }),
+      ),
+    );
+    service.confirmSignature = vi.fn().mockResolvedValue({});
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Decline my signature on Warehouse checking" }));
+    expect(service.confirmSignature).not.toHaveBeenCalled();
+    await confirmMove(user, "Decline my signature on Warehouse checking", "Decline");
+
+    await waitFor(() => expect(service.confirmSignature).toHaveBeenCalledWith("s1", false));
   });
 
   it("undoes a Check by with a reason, asked in a dialog", async () => {

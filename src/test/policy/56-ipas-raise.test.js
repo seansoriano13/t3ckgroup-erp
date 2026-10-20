@@ -14,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql, rlsStatus } from "./support/stack.js"
 import { makeSor } from "./support/rows.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, raiseIpas } from "./support/ipas.js"
 import { canRead, tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -49,7 +49,7 @@ const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 
 /** Raises an IPAS as the purchaser, failing the test loudly if it can't. */
 async function raise(over = {}, po = nextPo()) {
-    const { data, error } = await rpc("outsider", "ipas_create", ARGS(po, over))
+    const { data, error } = await raiseAsPurchaser(ARGS(po, over))
     if (error) throw new Error(`ipas_create ${po}: ${error.message}`)
     return data
 }
@@ -136,13 +136,13 @@ describe("raising an IPAS", () => {
         ["no Odoo copy", { p_odoo_copy: null }],
         ["an Odoo copy with no lines", { p_odoo_copy: { po: { name: "P1" } } }],
     ])("refuses %s", async (_, over) => {
-        const { error } = await rpc("outsider", "ipas_create", ARGS(nextPo(), over))
+        const { error } = await raiseAsPurchaser(ARGS(nextPo(), over))
         expect(error?.code).toBe("22023")
     })
 
     it("refuses an Odoo copy that is for a different PO", async () => {
         const po = nextPo()
-        const { error } = await rpc("outsider", "ipas_create", ARGS(po, { p_odoo_copy: odooCopy(nextPo()) }))
+        const { error } = await raiseAsPurchaser(ARGS(po, { p_odoo_copy: odooCopy(nextPo()) }))
         expect(error?.code).toBe("22023")
         expect(error?.message).toMatch(/not P9/)
     })
@@ -152,7 +152,7 @@ describe("one live IPAS per PO", () => {
     it("refuses a second live IPAS for the same PO, naming the first", async () => {
         const po = nextPo()
         const first = await raise({}, po)
-        const { error } = await rpc("outsider", "ipas_create", ARGS(po))
+        const { error } = await raiseAsPurchaser(ARGS(po))
         expect(error?.code).toBe("23505")
         expect(error?.message).toContain(first.number)
     })
@@ -183,7 +183,7 @@ describe("one live IPAS per PO", () => {
         expect((await readRow("ipas", first.id)).state).toBe("cancelled")
 
         // And the second is live again.
-        expect((await rpc("outsider", "ipas_create", ARGS(po))).error?.code).toBe("23505")
+        expect((await raiseAsPurchaser(ARGS(po))).error?.code).toBe("23505")
     })
 
     it("never changes a PO number after insert", async () => {
@@ -223,20 +223,20 @@ describe("a Project needs an SOR; no other Purpose may have one", () => {
     })
 
     it("refuses a Project with no SOR, and a non-Project with one", async () => {
-        const project = await rpc("outsider", "ipas_create", ARGS(nextPo(), { p_purpose: "project", p_sor_ids: [] }))
+        const project = await raiseAsPurchaser(ARGS(nextPo(), { p_purpose: "project", p_sor_ids: [] }))
         expect(project.error?.code).toBe("22023")
         for (const purpose of ["inventory", "supplies", "events"]) {
-            const other = await rpc("outsider", "ipas_create", ARGS(nextPo(), { p_purpose: purpose, p_sor_ids: [sorA] }))
+            const other = await raiseAsPurchaser(ARGS(nextPo(), { p_purpose: purpose, p_sor_ids: [sorA] }))
             expect(other.error?.code, purpose).toBe("22023")
         }
     })
 
     it("refuses an SOR that doesn't exist", async () => {
-        const { error } = await rpc("outsider", "ipas_create", ARGS(nextPo(), {
+        const { error } = await raiseAsPurchaser(ARGS(nextPo(), {
             p_purpose: "project",
             p_sor_ids: ["00000000-0000-0000-0000-000000000000"],
         }))
-        expect(error?.code).toBe("P0002")
+        expect(error?.code).toBe("22023")
     })
 
     it("refuses to commit a Project IPAS with no SOR, however it is written", async () => {
@@ -249,7 +249,7 @@ describe("a Project needs an SOR; no other Purpose may have one", () => {
             odoo_copy: odooCopy(po),
             created_by: ids.outsider,
         })
-        expect(error?.code).toBe("23514")
+        expect(error?.code).toBe("22023")
         expect(error?.message).toMatch(/needs at least one SOR/)
         const { data } = await svc().from("ipas").select("id").eq("po_number", po)
         expect(data).toEqual([])
@@ -266,7 +266,7 @@ describe("a Project needs an SOR; no other Purpose may have one", () => {
                 [po, odooCopy(po), ids.outsider],
             )
             await client.query(`insert into public.ipas_sors (ipas_id, opportunity_id) values ($1, $2)`, [rows[0].id, sorA])
-            await expect(client.query("commit")).rejects.toMatchObject({ code: "23514" })
+            await expect(client.query("commit")).rejects.toMatchObject({ code: "22023" })
         } finally {
             await client.query("rollback").catch(() => {})
             client.release()
@@ -278,67 +278,88 @@ describe("a Project needs an SOR; no other Purpose may have one", () => {
     it("refuses to commit a Project IPAS whose last SOR is removed", async () => {
         const ipas = await raise({ p_purpose: "project", p_sor_ids: [sorA] })
         const { error } = await svc().from("ipas_sors").delete().eq("ipas_id", ipas.id)
-        expect(error?.code).toBe("23514")
+        expect(error?.code).toBe("22023")
         const { data } = await svc().from("ipas_sors").select("id").eq("ipas_id", ipas.id)
         expect(data).toHaveLength(1)
     })
 
-    it("lets Purpose and SORs change together until Filing, with history", async () => {
-        const ipas = await raise({ p_purpose: "project", p_sor_ids: [sorA] })
-
-        const widened = await rpc("outsider", "ipas_set_purpose_and_sors", {
-            p_ipas_id: ipas.id,
-            p_purpose: "project",
-            p_sor_ids: [sorA, sorB],
-        })
-        expect(widened.error).toBeNull()
-        expect((await svc().from("ipas_sors").select("id").eq("ipas_id", ipas.id)).data).toHaveLength(2)
+    it("lets the Purpose change until Filing, with history, and keeps the SOR list", async () => {
+        const ipas = await raise({ p_purpose: "inventory", p_sor_ids: [] })
 
         const supplies = await rpc("outsider", "ipas_set_purpose_and_sors", {
             p_ipas_id: ipas.id,
             p_purpose: "supplies",
-            p_sor_ids: [],
+            p_sor_ids: null,
         })
         expect(supplies.error).toBeNull()
         expect(supplies.data.purpose).toBe("supplies")
-        expect((await svc().from("ipas_sors").select("id").eq("ipas_id", ipas.id)).data).toEqual([])
 
-        const back = await rpc("outsider", "ipas_set_purpose_and_sors", {
+        const events = await rpc("outsider", "ipas_set_purpose_and_sors", {
             p_ipas_id: ipas.id,
-            p_purpose: "project",
-            p_sor_ids: [sorB],
+            p_purpose: "events",
+            p_sor_ids: [],
         })
-        expect(back.error).toBeNull()
+        expect(events.error).toBeNull()
 
-        const { data: events } = await svc()
+        const { data: history } = await svc()
             .from("ipas_events")
             .select("kind")
             .eq("ipas_id", ipas.id)
             .order("created_at")
-        expect(events.map((e) => e.kind)).toEqual([
-            "created",
-            "purpose_sors_changed",
-            "purpose_sors_changed",
-            "purpose_sors_changed",
-        ])
+        expect(history.map((e) => e.kind)).toEqual(["created", "purpose_sors_changed", "purpose_sors_changed"])
     })
 
-    it("refuses a Purpose change that breaks the rule, leaving the IPAS as it was", async () => {
+    it("refuses any change to the SOR list after raising, through ipas_set_purpose_and_sors", async () => {
         const ipas = await raise({ p_purpose: "project", p_sor_ids: [sorA] })
-        const noSor = await rpc("outsider", "ipas_set_purpose_and_sors", {
+        const sorsOf = async () => (await svc().from("ipas_sors").select("opportunity_id").eq("ipas_id", ipas.id)).data
+
+        for (const list of [[sorA, sorB], [sorB], []]) {
+            const changed = await rpc("outsider", "ipas_set_purpose_and_sors", {
+                p_ipas_id: ipas.id,
+                p_purpose: "project",
+                p_sor_ids: list,
+            })
+            expect(changed.error?.code).toBe("22023")
+            expect(changed.error?.message).toMatch(/can't be changed after it is raised/)
+        }
+        expect(await sorsOf()).toEqual([{ opportunity_id: sorA }])
+
+        // Sending the list it already has, or none at all, is not a change.
+        const same = await rpc("outsider", "ipas_set_purpose_and_sors", {
             p_ipas_id: ipas.id,
             p_purpose: "project",
-            p_sor_ids: [],
-        })
-        expect(noSor.error?.code).toBe("22023")
-        const stillSor = await rpc("outsider", "ipas_set_purpose_and_sors", {
-            p_ipas_id: ipas.id,
-            p_purpose: "events",
             p_sor_ids: [sorA],
         })
-        expect(stillSor.error?.code).toBe("22023")
-        expect((await readRow("ipas", ipas.id)).purpose).toBe("project")
-        expect((await svc().from("ipas_sors").select("id").eq("ipas_id", ipas.id)).data).toHaveLength(1)
+        expect(same.error).toBeNull()
+        const none = await rpc("outsider", "ipas_set_purpose_and_sors", {
+            p_ipas_id: ipas.id,
+            p_purpose: "project",
+            p_sor_ids: null,
+        })
+        expect(none.error).toBeNull()
+        const { data: history } = await svc().from("ipas_events").select("id").eq("ipas_id", ipas.id)
+        expect(history).toHaveLength(1)
+    })
+
+    it("refuses a Purpose that doesn't fit the SORs it has, leaving the IPAS as it was", async () => {
+        const project = await raise({ p_purpose: "project", p_sor_ids: [sorA] })
+        const toEvents = await rpc("outsider", "ipas_set_purpose_and_sors", {
+            p_ipas_id: project.id,
+            p_purpose: "events",
+            p_sor_ids: null,
+        })
+        expect(toEvents.error?.code).toBe("22023")
+        expect((await readRow("ipas", project.id)).purpose).toBe("project")
+
+        const stock = await raise({ p_purpose: "inventory", p_sor_ids: [] })
+        const toProject = await rpc("outsider", "ipas_set_purpose_and_sors", {
+            p_ipas_id: stock.id,
+            p_purpose: "project",
+            p_sor_ids: [sorA],
+        })
+        expect(toProject.error?.code).toBe("22023")
+        expect((await readRow("ipas", stock.id)).purpose).toBe("inventory")
+        expect((await svc().from("ipas_sors").select("id").eq("ipas_id", stock.id)).data).toEqual([])
     })
 
     it("writes no event when nothing changed", async () => {
@@ -356,7 +377,7 @@ describe("a Project needs an SOR; no other Purpose may have one", () => {
             p_purpose: "events",
             p_sor_ids: [],
         })
-        expect(onFiled.error?.code).toBe("55000")
+        expect(onFiled.error?.code).toBe("22023")
         expect((await readRow("ipas", filed.id)).purpose).toBe("inventory")
 
         const cancelled = await raise()
@@ -366,7 +387,7 @@ describe("a Project needs an SOR; no other Purpose may have one", () => {
             p_purpose: "events",
             p_sor_ids: [],
         })
-        expect(onCancelled.error?.code).toBe("55000")
+        expect(onCancelled.error?.code).toBe("22023")
     })
 })
 
@@ -400,13 +421,13 @@ describe("cancelling", () => {
         const filed = await raise()
         await sql().query(`update public.ipas set state = 'filed', filed_at = now() where id = $1`, [filed.id])
         const onFiled = await rpc("outsider", "ipas_cancel", { p_ipas_id: filed.id, p_reason: "Oops" })
-        expect(onFiled.error?.code).toBe("55000")
+        expect(onFiled.error?.code).toBe("22023")
         expect(onFiled.error?.message).toMatch(/reopens it/)
         expect((await readRow("ipas", filed.id)).state).toBe("filed")
 
         const twice = await raise()
         await rpc("outsider", "ipas_cancel", { p_ipas_id: twice.id, p_reason: "Once" })
-        expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: twice.id, p_reason: "Twice" })).error?.code).toBe("55000")
+        expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: twice.id, p_reason: "Twice" })).error?.code).toBe("22023")
     })
 
     it("reports an IPAS that isn't there", async () => {
@@ -414,7 +435,7 @@ describe("cancelling", () => {
             p_ipas_id: "00000000-0000-0000-0000-000000000000",
             p_reason: "x",
         })
-        expect(error?.code).toBe("P0002")
+        expect(error?.code).toBe("22023")
     })
 })
 
@@ -424,7 +445,7 @@ describe("history can't be edited", () => {
     beforeAll(async () => {
         ipas = await raise()
         await rpc("outsider", "ipas_cancel", { p_ipas_id: ipas.id, p_reason: "Dropped" })
-        const { data } = await svc().from("ipas_events").select("id").eq("ipas_id", ipas.id).limit(1)
+        const { data } = await svc().from("ipas_events").select("id").eq("ipas_id", ipas.id).eq("kind", "created").limit(1)
         eventId = data[0].id
     })
 
@@ -519,7 +540,7 @@ describe("who reads an IPAS", () => {
             const client = await clientFor("deleted")
             expect((await client.rpc("ipas_can_read")).data).toBe(false)
             expect(await canRead(client, "ipas", ipas.id)).toBe(false)
-            const create = await client.rpc("ipas_create", ARGS(nextPo()))
+            const create = await raiseIpas(ids.deleted, ARGS(nextPo()))
             expect(create.error?.code).toBe("42501")
         } finally {
             await svc().from("employees").update({ has_purchasing_flow: false, has_finance_flow: false }).eq("id", ids.deleted)
@@ -554,7 +575,7 @@ describe("who changes an IPAS", () => {
     })
 
     it.each(CAST_KEYS.filter((k) => k !== "outsider"))("refuses %s raising an IPAS", async (who) => {
-        const { error } = await rpc(who, "ipas_create", ARGS(nextPo()))
+        const { error } = await raiseIpas(ids[who], ARGS(nextPo()))
         expect(error?.code, `${who} raised an IPAS`).toBe("42501")
     })
 
@@ -656,8 +677,8 @@ describe("finding SORs to attach", () => {
         try {
             const after = await rpc("outsider", "ipas_find_sors", { p_refs: null, p_search: "rope rescue" })
             expect(after.data.map((r) => r.opportunity_id)).not.toContain(sorB)
-            const raised = await rpc("outsider", "ipas_create", ARGS(nextPo(), { p_purpose: "project", p_sor_ids: [sorB] }))
-            expect(raised.error?.code).toBe("P0002")
+            const raised = await raiseAsPurchaser(ARGS(nextPo(), { p_purpose: "project", p_sor_ids: [sorB] }))
+            expect(raised.error?.code).toBe("22023")
         } finally {
             await svc().from("sales_opportunities").update({ is_deleted: false }).eq("id", sorB)
         }

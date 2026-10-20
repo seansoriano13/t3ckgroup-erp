@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { makeSor } from "./support/rows.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 
 const svc = () => serviceClient()
 const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
@@ -51,7 +51,7 @@ beforeAll(async () => {
     const set = await svc().from("sales_opportunities").update({ sales_reference: ref }).eq("id", sorId)
     if (set.error) throw set.error
 
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: "P9880001",
         p_priority: "high",
         p_source: "local",

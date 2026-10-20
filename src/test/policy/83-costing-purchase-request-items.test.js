@@ -244,7 +244,7 @@ describe("the item keeps its own copy", () => {
         const lineId = (await asSvc(svc().from("costing_components").select("tender_line_id").eq("id", hose).single(), "line")).tender_line_id
         const extra = await makeComponent(lineId, 9, { name: "Spare" })
         const { data: spare } = await addFrom("outsider", [extra])
-        expect((await svc().from("costing_components").delete().eq("id", extra)).error?.code).toBe("55000")
+        expect((await svc().from("costing_components").delete().eq("id", extra)).error?.code).toBe("22023")
         const unlinked = await (await clientFor("outsider")).rpc("purchase_request_item_detach_component", { p_item_id: spare[0] })
         expect(unlinked.error).toBeNull()
         await asSvc(svc().from("costing_components").delete().eq("id", extra), "remove the Component")

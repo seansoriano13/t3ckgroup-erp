@@ -4,13 +4,13 @@
  *   ipas_line_landed_costs     per PO line, #218's maths (internal: read here as the superuser)
  *   costing_landed_costs       per Component: picked lines' Landed Cost, shared lines split by
  *                              quantity, blank never partial, provisional until every IPAS is final;
- *                              money tier only
+ *                              cost tiers only (closed_book, cost: #546)
  *   costing_component_purchases  PO numbers and IPAS per Component, no money, every tier
  *   delete guards               linked Components and their Tender Lines refuse deletion until unlinked
- *   ipas_summaries_for_sor     Landed Cost for money readers, null for everyone else
+ *   ipas_summaries_for_sor     Landed Cost for cost readers (#546), null for everyone else
  *
  * The cast, on SOR A (dealOwner's): dealOwner (Deal Team), outsider (Purchasing access),
- * ipasSigner (final_acquire list) read money; technical (open Stage Participant window) and
+ * ipasSigner (final_acquire list) read cost; dealOwner (price tier, #546), technical (open Stage Participant window) and
  * ordinary don't. SOR B (closingSales') shares a PO line with SOR A.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -236,25 +236,25 @@ describe("ipas_line_landed_costs", () => {
 
 describe("costing_landed_costs: the sums", () => {
     it("gives a sole claimant the whole line, and sums a bundle's several lines", async () => {
-        const rows = await landed("dealOwner")
+        const rows = await landed("outsider")
         expect(rows.get(c.hose)).toMatchObject({ total_php: 7500, unit_php: 1250, mark: "provisional", blank_reason: null })
         expect(rows.get(c.bundle)).toMatchObject({ total_php: 29200, unit_php: 29200, mark: "final" })
     })
 
     it("splits a line two SORs share by the quantity each claims, 2:3", async () => {
-        expect((await landed("dealOwner")).get(c.sharedA)).toMatchObject({ total_php: 200, unit_php: 100 })
-        expect((await landed("closingSales", sorB)).get(c.sharedB)).toMatchObject({ total_php: 300, unit_php: 100 })
+        expect((await landed("outsider")).get(c.sharedA)).toMatchObject({ total_php: 200, unit_php: 100 })
+        expect((await landed("superAdmin", sorB)).get(c.sharedB)).toMatchObject({ total_php: 300, unit_php: 100 })
     })
 
     it("gives a cancelled item's share back", async () => {
         await asSvc(svc().from("purchase_request_items").update({ status: "cancelled" }).eq("id", items.sharedB), "cancel")
-        expect((await landed("dealOwner")).get(c.sharedA)).toMatchObject({ total_php: 500 })
-        expect((await landed("closingSales", sorB)).get(c.sharedB)).toMatchObject({ blank_reason: "not_ordered", total_php: null })
+        expect((await landed("outsider")).get(c.sharedA)).toMatchObject({ total_php: 500 })
+        expect((await landed("superAdmin", sorB)).get(c.sharedB)).toMatchObject({ blank_reason: "not_ordered", total_php: null })
         await asSvc(svc().from("purchase_request_items").update({ status: "ordered" }).eq("id", items.sharedB), "restore")
     })
 
     it("says why a Component is blank, never a partial figure", async () => {
-        const rows = await landed("dealOwner")
+        const rows = await landed("outsider")
         expect(rows.get(c.notPicked)).toMatchObject({ blank_reason: "po_line_not_picked", total_php: null, mark: null })
         expect(rows.get(c.removed)).toMatchObject({ blank_reason: "line_removed", total_php: null })
         expect(rows.get(c.unavailable)).toMatchObject({ blank_reason: "landed_cost_unavailable", total_php: null })
@@ -262,9 +262,9 @@ describe("costing_landed_costs: the sums", () => {
     })
 
     it("is provisional while any IPAS it draws from is, final once all are, and final when filed", async () => {
-        expect((await landed("dealOwner")).get(c.multi)).toMatchObject({ total_php: 380, unit_php: 190, mark: "provisional" })
+        expect((await landed("outsider")).get(c.multi)).toMatchObject({ total_php: 380, unit_php: 190, mark: "provisional" })
         await exec(`update public.ipas set computation_status = 'lc_odoo_done' where id = $1`, [ipas.php])
-        expect((await landed("dealOwner")).get(c.multi)).toMatchObject({ mark: "final" })
+        expect((await landed("outsider")).get(c.multi)).toMatchObject({ mark: "final" })
         await exec(`update public.ipas set computation_status = 'encoding' where id = $1`, [ipas.php])
 
         const client = await sql().connect()
@@ -276,7 +276,7 @@ describe("costing_landed_costs: the sums", () => {
         } finally {
             client.release()
         }
-        expect((await landed("dealOwner")).get(c.multi)).toMatchObject({ mark: "final" })
+        expect((await landed("outsider")).get(c.multi)).toMatchObject({ mark: "final" })
         await exec(`update public.ipas set state = 'open' where id = $1`, [ipas.php]).catch(async () => {
             const back = await sql().connect()
             try {
@@ -292,11 +292,11 @@ describe("costing_landed_costs: the sums", () => {
 })
 
 describe("costing_landed_costs: who", () => {
-    it.each(["dealOwner", "outsider", "ipasSigner"])("%s gets rows", async (who) => {
+    it.each(["outsider", "ipasSigner"])("%s gets rows", async (who) => {
         expect((await landed(who)).get(c.hose)?.total_php).toBe(7500)
     })
 
-    it.each(["technical", "ordinary"])("%s gets nothing", async (who) => {
+    it.each(["dealOwner", "technical", "ordinary"])("%s gets nothing", async (who) => {
         expect((await landed(who)).size).toBe(0)
     })
 
@@ -331,7 +331,7 @@ describe("costing_component_purchases", () => {
 describe("linked rows", () => {
     it("refuses deleting a Component with a Requested Item until it's detached, and keeps the unlink in history", async () => {
         const refused = await svc().from("costing_components").delete().eq("id", c.notOrdered)
-        expect(refused.error?.code).toBe("55000")
+        expect(refused.error?.code).toBe("22023")
 
         const denied = await (await clientFor("dealOwner")).rpc("purchase_request_item_detach_component", { p_item_id: items.notOrdered })
         expect(denied.error?.code).toBe("42501")
@@ -347,24 +347,24 @@ describe("linked rows", () => {
     })
 
     it("refuses a Component and its Tender Line with a typed PO until it's cleared", async () => {
-        expect((await svc().from("costing_components").delete().eq("id", c.typedPo)).error?.code).toBe("55000")
-        expect((await svc().from("costing_tender_lines").delete().eq("id", linkedLine)).error?.code).toBe("55000")
+        expect((await svc().from("costing_components").delete().eq("id", c.typedPo)).error?.code).toBe("22023")
+        expect((await svc().from("costing_tender_lines").delete().eq("id", linkedLine)).error?.code).toBe("22023")
         await asSvc(svc().from("costing_components").update({ po_rfq_no: null }).eq("id", c.typedPo), "clear PO")
         expect((await svc().from("costing_tender_lines").delete().eq("id", linkedLine)).error).toBeNull()
     })
 })
 
 describe("ipas_summaries_for_sor", () => {
-    it("carries Landed Cost for a money reader", async () => {
-        const { data, error } = await (await clientFor("dealOwner")).rpc("ipas_summaries_for_sor", { p_opportunity_id: sorA })
+    it("carries Landed Cost for a cost reader", async () => {
+        const { data, error } = await (await clientFor("superAdmin")).rpc("ipas_summaries_for_sor", { p_opportunity_id: sorA })
         expect(error).toBeNull()
         const row = data.find((r) => r.ipas_id === ipas.php)
         expect(Number(row.landed_cost_total_php)).toBe(7580)
         expect(row.landed_cost_mark).toBe("provisional")
     })
 
-    it("gives a participant no Landed Cost", async () => {
-        const { data } = await (await clientFor("technical")).rpc("ipas_summaries_for_sor", { p_opportunity_id: sorA })
+    it.each(["technical", "dealOwner"])("gives %s no Landed Cost", async (who) => {
+        const { data } = await (await clientFor(who)).rpc("ipas_summaries_for_sor", { p_opportunity_id: sorA })
         for (const row of data ?? []) {
             expect(row.landed_cost_total_php).toBeNull()
             expect(row.landed_cost_mark).toBeNull()

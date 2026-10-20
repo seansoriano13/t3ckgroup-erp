@@ -1,3 +1,5 @@
+import { ipasSectionNo } from "./ipas";
+
 /**
  * Order Monitoring (spec #261): the steps an ageing rule can be set on, in the
  * order an order runs. The first seven are the IPAS buyer track; the last three
@@ -72,6 +74,6 @@ export const ORDER_OWNER_LABELS = {
   [ORDER_OWNER.WAREHOUSE]: "Warehouse",
   [ORDER_OWNER.TECHNICAL]: "Technical",
   [ORDER_OWNER.CHECK_BY]: "Check by signers",
-  [ORDER_OWNER.SIGNERS]: "Section 7 signers",
+  [ORDER_OWNER.SIGNERS]: `Section ${ipasSectionNo(7)} signers`,
   [ORDER_OWNER.OTHERS]: "Supplier, forwarder or port",
 };

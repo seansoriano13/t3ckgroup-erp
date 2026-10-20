@@ -4,11 +4,11 @@ import { PackageCheck } from "lucide-react";
 import { Button } from "../ui/button";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
+import { formatPreparedAt } from "../../utils/preparedAt";
 import { sorHandoffsService } from "../../services/sorHandoffsService";
 
-/** "Oct 15, 2026" from a date-only `prepared_on`, read as a local date. */
-const preparedDate = (day) =>
-  new Date(`${day}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+/** "Oct 15, 2026" from `prepared_on`, the day in Manila time. */
+const preparedDate = (value) => formatPreparedAt(value, { dayOnly: true });
 
 /** Opens the full record in its own tab, so the SOR stays where it is. */
 const openTransmittal = (id) =>

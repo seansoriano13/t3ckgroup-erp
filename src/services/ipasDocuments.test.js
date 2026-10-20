@@ -521,12 +521,12 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       ).rejects.toMatchObject({ code: "IPAS_INVALID" })
     })
 
-    it("says so in a sentence when the database refuses a change to an option a filed IPAS uses (55000)", async () => {
+    it("says so in a sentence when the database refuses a change to an option a filed IPAS uses (22023)", async () => {
       const kind = options.document_kind["Quotation (Local)"]
       server.use(
         http.patch(`${BASE_URL}/rest/v1/ipas_options`, () =>
           HttpResponse.json(
-            { code: "55000", message: 'ipas_options: "Quotation (Local)" is used on a filed IPAS. Deactivate it and add a new one instead.', details: null, hint: null },
+            { code: "22023", message: 'ipas_options: "Quotation (Local)" is used on a filed IPAS. Deactivate it and add a new one instead.', details: null, hint: null },
             { status: 400 },
           ),
         ),

@@ -78,6 +78,7 @@ const HEADER_LABELS = {
   [IPAS_HEADER_FIELD.SUPPLIER_CONTACT]: "Supplier's name",
   [IPAS_HEADER_FIELD.PI_NUMBER]: "P.I #",
   [IPAS_HEADER_FIELD.PI_QT_AMOUNT]: "P.I/QT Amount",
+  [IPAS_HEADER_FIELD.REMARKS]: "Remarks",
 };
 
 /** The fixed currency shown before a typed amount ("PHP", "USD"; pesos when the PO has none). */
@@ -92,6 +93,8 @@ function typingInitialValue(field, ipas) {
       return ipas.contact ?? "";
     case IPAS_HEADER_FIELD.PI_NUMBER:
       return ipas.piNumber ?? "";
+    case IPAS_HEADER_FIELD.REMARKS:
+      return ipas.remarks ?? "";
     case IPAS_HEADER_FIELD.PI_QT_AMOUNT:
       return ipas.piQtAmount === null || ipas.piQtAmount === undefined ? "" : String(ipas.piQtAmount);
     default:
@@ -424,6 +427,7 @@ function IpasPage() {
         supplierContact: field === IPAS_HEADER_FIELD.SUPPLIER_CONTACT ? value : undefined,
         piNumber: field === IPAS_HEADER_FIELD.PI_NUMBER ? value : undefined,
         piQtAmount: field === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? value : undefined,
+        remarks: field === IPAS_HEADER_FIELD.REMARKS ? value : undefined,
       }),
     onMutate: ({ field, value }) => ({
       rollback: patchCache(
@@ -432,6 +436,7 @@ function IpasPage() {
             supplierContact: field === IPAS_HEADER_FIELD.SUPPLIER_CONTACT ? value : undefined,
             piNumber: field === IPAS_HEADER_FIELD.PI_NUMBER ? value : undefined,
             piQtAmount: field === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? value : undefined,
+            remarks: field === IPAS_HEADER_FIELD.REMARKS ? value : undefined,
           }),
         ),
       ),
@@ -1154,7 +1159,11 @@ function IpasPage() {
         open={typing !== null}
         onOpenChange={(open) => !open && setTyping(null)}
         title={`Edit ${HEADER_LABELS[typing] ?? ""}`}
-        description="What you type is kept; Odoo fills this only while it is blank."
+        description={
+          typing === IPAS_HEADER_FIELD.REMARKS
+            ? "Kept in the IPAS history. Remarks are fixed once the IPAS is filed."
+            : "What you type is kept; Odoo fills this only while it is blank."
+        }
         label={HEADER_LABELS[typing] ?? ""}
         prefix={typing === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? currencyPrefix(ipas.currency) : undefined}
         placeholder={typing === IPAS_HEADER_FIELD.PI_QT_AMOUNT ? "0.00" : undefined}

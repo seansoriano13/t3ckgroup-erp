@@ -289,7 +289,7 @@ export function IpasChangeNote({ note, currency }) {
 }
 
 /** Header: Entity, Priority, Source, Purpose, who raised it and when. */
-export function IpasHeaderSection({ ipas, canChange: granted = false, onEditOverride, onResetOverride }) {
+export function IpasHeaderSection({ ipas, canChange: granted = false, onEditOverride, onResetOverride, onEditHeader }) {
   const canChange = useEditable(granted);
   return (
     <IpasSection title="Header">
@@ -305,7 +305,12 @@ export function IpasHeaderSection({ ipas, canChange: granted = false, onEditOver
         <DetailRow label="Purpose">{IPAS_PURPOSE_LABELS[ipas.purpose]}</DetailRow>
         <DetailRow label="Date created">{formatDate(ipas.created_at)}</DetailRow>
         <DetailRow label="Created by">{ipas.creator?.name}</DetailRow>
-        <DetailRow label="Remarks">{ipas.remarks}</DetailRow>
+        <TypedRow
+          label="Remarks"
+          value={ipas.remarks}
+          canChange={canChange && Boolean(onEditHeader)}
+          onEdit={() => onEditHeader("remarks")}
+        />
       </Facts>
     </IpasSection>
   );
@@ -692,6 +697,7 @@ const HEADER_FIELD_NAMES = {
   computation_status: "Computation status",
   google_sheet: "Googlesheet",
   gantt_chart: "Gantt Chart",
+  remarks: "Remarks",
 };
 
 const BANK_FIELD_NAMES = {

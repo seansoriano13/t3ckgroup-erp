@@ -2,6 +2,7 @@
  * Pure helpers for the IPAS (spec #241). No network, no React.
  */
 
+import { REFUSAL } from "../constants/refusal";
 import { finiteNumber, isPhpCurrency } from "./landedCost";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { deriveTransmittalTrack } from "./ipasTransmittals";
@@ -283,10 +284,20 @@ const NETWORK_FAILURE = /^(?:typeerror:\s*)?(failed to fetch|networkerror when a
 
 export const IPAS_OFFLINE_MESSAGE = "Can't reach the server. Check your connection and try again.";
 
+/**
+ * What a refusal says when the database sent no sentence. Every refusal the IPAS,
+ * Transmittal and Costing functions raise carries one of these three codes (#556).
+ */
+export const REFUSAL_MESSAGES = {
+  [REFUSAL.NOT_ALLOWED]: "You are not allowed to do that.",
+  [REFUSAL.INVALID]: "That can't be done right now.",
+  [REFUSAL.DUPLICATE]: "That already exists.",
+};
+
 /** A database error's message without the RPC's own name in front of it; a dropped connection in plain words. */
 export function ipasErrorMessage(error, fallback = "Something went wrong.") {
   const raw = error?.message;
-  if (!raw || typeof raw !== "string") return fallback;
+  if (!raw || typeof raw !== "string") return REFUSAL_MESSAGES[error?.code] ?? fallback;
   if (NETWORK_FAILURE.test(raw.trim())) return IPAS_OFFLINE_MESSAGE;
   // Database refusals lead with the function name (ipas_create:, transmittal_check:),
   // or with "packing list:" for the Packing List RPCs.

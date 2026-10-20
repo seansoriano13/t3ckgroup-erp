@@ -1,4 +1,4 @@
-import { CircleAlert, Check, Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, Check, Lock, Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { DetailRow } from "../ui/DetailParts";
@@ -10,6 +10,7 @@ import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
 import { useEditable } from "@/components/record/sectionChrome";
 import {
+  IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_LANDED_COST_REASON,
@@ -329,9 +330,11 @@ export function LandedCostBadge({ status }) {
  * LC Odoo Done, Checked by) and Landed Cost per line and per unit with its
  * provisional or final mark and how it was spread.
  *
- * The status moves one step either way. Purchasing moves every step; Finance
- * (or a Super Admin) only gives and takes back Checked by, which `canSetStatus
- * (from, to)` says.
+ * The status moves one step either way. Purchasing moves the steps up to LC
+ * Odoo Done and never gives or takes back Checked by (it shows locked); Finance
+ * (or a Super Admin who isn't Purchasing) only gives and takes back Checked by,
+ * which `canSetStatus(from, to)` says. The current step looks selected for
+ * everyone.
  */
 export function IpasCostingSection({ ipas, canChange: granted = false, canSetStatus, onSetStatus, onSetSplit }) {
   const canChange = useEditable(granted);
@@ -353,6 +356,8 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
             {IPAS_COMPUTATION_STATUSES.map((status, index) => {
               const done = index <= currentIndex;
               const current = index === currentIndex;
+              const checkedStep = status === IPAS_COMPUTATION_STATUS.CHECKED;
+              const locked = checkedStep && !current && !mayStep(status, index) && Boolean(canSetStatus) && canStep && anyStep;
               return (
                 <li key={status}>
                   {canStep && anyStep ? (
@@ -361,17 +366,19 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
                       variant={current ? "secondary" : "outline"}
                       aria-pressed={current}
                       disabled={!current && !mayStep(status, index)}
-                      className="gap-1.5"
+                      title={locked ? "Finance gives Checked by" : undefined}
+                      className={`gap-1.5 ${current ? "border-foreground/40 font-semibold" : ""}`}
                       onClick={() => !current && onSetStatus(status)}
                     >
                       {done && !current && <Check size={13} aria-hidden="true" />}
+                      {locked && <Lock size={12} aria-hidden="true" />}
                       {IPAS_COMPUTATION_STATUS_LABELS[status]}
                     </Button>
                   ) : (
                     <span
                       className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[0.8rem] font-medium ${
                         current
-                          ? "border-border bg-secondary text-foreground"
+                          ? "border-foreground/40 bg-secondary font-semibold text-foreground"
                           : done
                             ? "border-green-400 text-green-11"
                             : "border-border text-muted-foreground"

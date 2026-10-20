@@ -14,57 +14,40 @@
 // comes back as a 200 with `found: false`, never an error. The caller
 // distinguishes "Odoo says no" from "Odoo did not answer", because the first is
 // a real answer and the second must not read as one.
+//
+// Two modes (#548):
+//   - lookup (no `itemId`): the plain check above.
+//   - save (`itemId`, `poNumber`, optional `action`, default "order"): asks Odoo,
+//     then calls the database's service-role-only
+//     purchase_request_item_apply_po_check as the signed-in caller, which makes
+//     the verdict (verified / refused naming the PO / saved as not checked) and
+//     the item status move. The browser never sends a verdict.
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import { callerEmail } from "../_shared/caller.ts";
 import {
   authenticate,
   corsHeaders,
   executeKw,
+  findPurchaseOrder,
   isConfigured,
   jsonResponse,
+  normalizePoNumber,
 } from "../_shared/odoo.ts";
 
-// Odoo numbers a confirmed purchase.order P0####, mirroring the S0#### it gives
-// a sale.order. Kept permissive on width, matching SALES_REFERENCE_PATTERN.
-const PO_NUMBER_PATTERN = /^P\d+$/;
-
-function normalizePoNumber(value: unknown) {
-  const ref = String(value ?? "").trim().toUpperCase();
-  return PO_NUMBER_PATTERN.test(ref) ? ref : null;
-}
-
-/**
- * Finds a purchase order by number. Falls back to a fuzzy match for the same
- * reason findOrder does: references get typed without their leading zeroes.
- */
-async function findPurchaseOrder(uid: number, ref: string) {
-  const fields = [
-    "id",
-    "name",
-    "state",
-    "partner_id",
-    "date_order",
-    "date_planned",
-    "amount_total",
-  ];
-
-  const exact = await executeKw(
-    uid,
-    "purchase.order",
-    "search_read",
-    [[["name", "=", ref]], fields],
-    { limit: 1 },
-  );
-  if (exact.length) return exact[0];
-
-  const fuzzy = await executeKw(
-    uid,
-    "purchase.order",
-    "search_read",
-    [[["name", "ilike", ref]], fields],
-    { limit: 1 },
-  );
-  return fuzzy[0] || null;
-}
+// A typed number is confirmed with a fuzzy fallback (references get typed
+// without their leading zeroes), and only the fields this function reports.
+const ORDER_FIELDS = [
+  "id",
+  "name",
+  "state",
+  "partner_id",
+  "date_order",
+  "date_planned",
+  "amount_total",
+];
+const findOrderByNumber = (uid: number, ref: string) =>
+  findPurchaseOrder(uid, ref, ORDER_FIELDS, { fuzzy: true });
 
 async function fetchOrderProducts(uid: number, orderId: number) {
   const lines = await executeKw(
@@ -93,9 +76,88 @@ async function fetchOrderProducts(uid: number, orderId: number) {
     .filter((p: { name: string }) => p.name);
 }
 
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+/**
+ * What Odoo said about a PO, in the three words the database's server-only
+ * path understands: 'found', 'not_found' (a real "no such order") or
+ * 'unreachable' (not configured, down, rate-limited — Odoo did not answer).
+ */
+async function askOdoo(ref: string) {
+  if (!isConfigured()) return { answer: "unreachable", message: "Odoo integration is not configured on the server." };
+  try {
+    const uid = await authenticate();
+    const order = await findOrderByNumber(uid, ref);
+    if (!order) return { answer: "not_found", message: `No Odoo purchase order found matching "${ref}".` };
+    return { answer: "found", order, uid };
+  } catch (err) {
+    console.error("odoo-po-verify error:", err);
+    return { answer: "unreachable", message: err instanceof Error ? err.message : "Odoo lookup failed." };
+  }
+}
+
+/**
+ * The actions that save a PO on an item. Each is a verdict the database makes
+ * from Odoo's answer (purchase_request_item_apply_po_check); the browser never
+ * names the verdict. "correct" (#549) swaps the PO on an Ordered item.
+ */
+const PO_ACTIONS = new Set(["order", "correct"]);
+
+/** The database's refusal, without the function name it leads with. */
+const refusalText = (message: string) => message.replace(/^[a-z_]+: /, "");
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonResponse({ success: false, message: "Invalid request body." });
+  }
+  const { poNumber, itemId } = body;
+  const ref = normalizePoNumber(poNumber);
+
+  // Save mode (#548): an item is given, so the server checks the PO and makes
+  // the move itself. Without an item this is the plain lookup below.
+  if (itemId) {
+    const action = String(body.action ?? "order");
+    if (!PO_ACTIONS.has(action)) {
+      return jsonResponse({ success: false, refused: true, message: `${action} is not a PO action.` });
+    }
+    if (!ref) {
+      return jsonResponse({
+        success: false,
+        refused: true,
+        message: 'Enter a valid PO Number — "P" followed by digits, e.g. P01234.',
+      });
+    }
+    const email = await callerEmail(req);
+    if (!email) {
+      return jsonResponse({ success: false, refused: true, message: "Sign in to change an item." }, 401);
+    }
+
+    const odoo = await askOdoo(ref);
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await admin.rpc("purchase_request_item_apply_po_check", {
+      p_actor_email: email,
+      p_item_id: itemId,
+      p_action: action,
+      p_po_number: ref,
+      p_odoo: odoo.answer,
+    });
+    if (error) {
+      return jsonResponse({ success: false, refused: true, message: refusalText(error.message) });
+    }
+    return jsonResponse({
+      success: true,
+      verdict: odoo.answer === "found" ? "verified" : "not_checked",
+      item: data,
+      ...(odoo.answer === "unreachable" ? { message: odoo.message } : {}),
+    });
   }
 
   if (!isConfigured()) {
@@ -108,14 +170,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  let poNumber: unknown;
-  try {
-    ({ poNumber } = await req.json());
-  } catch {
-    return jsonResponse({ success: false, message: "Invalid request body." });
-  }
-
-  const ref = normalizePoNumber(poNumber);
   if (!ref) {
     return jsonResponse({
       success: true,
@@ -126,7 +180,7 @@ Deno.serve(async (req) => {
 
   try {
     const uid = await authenticate();
-    const order = await findPurchaseOrder(uid, ref);
+    const order = await findOrderByNumber(uid, ref);
 
     if (!order) {
       return jsonResponse({

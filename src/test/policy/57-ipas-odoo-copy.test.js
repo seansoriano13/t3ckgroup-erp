@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
 import { tryUpdate, tryDelete } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -55,12 +55,13 @@ const copyFor = (po, over = {}) => ({
     bills: over.bills ?? { count: 0, draft: 0 },
 })
 
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) =>
+    name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
 
 /** Raises an IPAS as the purchaser, failing the test loudly if it can't. */
 async function raise(copyOver = {}) {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",
@@ -203,11 +204,11 @@ describe("refreshing the copy", () => {
         }
 
         const missing = await record("outsider", "00000000-0000-0000-0000-000000000000", copyFor(nextPo()))
-        expect(missing.error?.code).toBe("P0002")
+        expect(missing.error?.code).toBe("22023")
 
         await rpc("outsider", "ipas_cancel", { p_ipas_id: ipas.id, p_reason: "Dropped" })
         const cancelled = await record("outsider", ipas.id, changed(ipas, { lines: [line(1)] }))
-        expect(cancelled.error?.code).toBe("55000")
+        expect(cancelled.error?.code).toBe("22023")
         expect((await readRow(ipas.id)).odoo_copy.lines).toHaveLength(2)
     })
 
@@ -336,12 +337,12 @@ describe("overrides", () => {
     it("is refused on a filed or cancelled IPAS", async () => {
         const filed = await raise()
         await file(filed.id)
-        expect((await rpc("outsider", "ipas_override_field", { p_ipas_id: filed.id, p_field: "entity", p_value: "TG" })).error?.code).toBe("55000")
-        expect((await rpc("outsider", "ipas_reset_override", { p_ipas_id: filed.id, p_field: "entity" })).error?.code).toBe("55000")
+        expect((await rpc("outsider", "ipas_override_field", { p_ipas_id: filed.id, p_field: "entity", p_value: "TG" })).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_reset_override", { p_ipas_id: filed.id, p_field: "entity" })).error?.code).toBe("22023")
 
         const cancelled = await raise()
         await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Dropped" })
-        expect((await rpc("outsider", "ipas_override_field", { p_ipas_id: cancelled.id, p_field: "entity", p_value: "TG" })).error?.code).toBe("55000")
+        expect((await rpc("outsider", "ipas_override_field", { p_ipas_id: cancelled.id, p_field: "entity", p_value: "TG" })).error?.code).toBe("22023")
     })
 })
 
@@ -392,7 +393,8 @@ describe("contact and P.I # fill while blank", () => {
         const [event] = await eventsOf(ipas.id, "header_changed")
         expect(event.detail.fields).toEqual({ pi_number: { from: null, to: "PI-1" } })
 
-        for (const fields of [{ remarks: "x" }, { number: "TGIPAS_001" }, { supplier_contact: "ok", state: "filed" }]) {
+        // Remarks became editable in #551 (policy test 106), so it is no longer in this refused list.
+        for (const fields of [{ number: "TGIPAS_001" }, { supplier_contact: "ok", state: "filed" }]) {
             const { error } = await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: fields })
             expect(error?.code).toBe("22023")
         }
@@ -408,7 +410,7 @@ describe("contact and P.I # fill while blank", () => {
         }
         await file(ipas.id)
         const filed = await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { pi_number: "Late" } })
-        expect(filed.error?.code).toBe("55000")
+        expect(filed.error?.code).toBe("22023")
         expect((await readRow(ipas.id)).pi_number).toBeNull()
     })
 })

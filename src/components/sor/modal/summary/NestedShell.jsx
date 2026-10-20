@@ -10,7 +10,7 @@
  * The variants differ only in how the Summary is laid out and whether the
  * crumb also lists the sibling views (`nav="pills"`) or only the path.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -88,7 +88,11 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
       setView("now");
     }
   }, [ctx.pendingStage]);
+  // Back to Summary only when the window moves to a different SOR, never on mount or a re-render.
+  const lastId = useRef(p.id);
   useEffect(() => {
+    if (lastId.current === p.id) return;
+    lastId.current = p.id;
     setView("summary");
     setOpened(["summary"]);
   }, [p.id]);

@@ -327,3 +327,44 @@ export async function fetchProductStock(uid, productIds) {
     products,
   };
 }
+
+// Odoo numbers a confirmed purchase.order P0####. Kept permissive on width,
+// matching SALES_REFERENCE_PATTERN.
+export const PO_NUMBER_PATTERN = /^P\d+$/;
+
+/** A typed PO number as Odoo names it ("p01234 " -> "P01234"), or null if it isn't one. */
+export function normalizePoNumber(value: unknown) {
+  const ref = String(value ?? "").trim().toUpperCase();
+  return PO_NUMBER_PATTERN.test(ref) ? ref : null;
+}
+
+/**
+ * Finds a purchase order by its exact number. With `fuzzy`, falls back to an
+ * `ilike` match for the same reason findOrder does (references get typed
+ * without their leading zeroes): fine for confirming a typed number exists,
+ * but never for raising a record against it.
+ */
+export async function findPurchaseOrder(
+  uid,
+  ref,
+  fields = ["id", "name", "state", "partner_id"],
+  { fuzzy = false } = {},
+) {
+  const exact = await executeKw(
+    uid,
+    "purchase.order",
+    "search_read",
+    [[["name", "=", ref]], fields],
+    { limit: 1 },
+  );
+  if (exact.length || !fuzzy) return exact[0] || null;
+
+  const near = await executeKw(
+    uid,
+    "purchase.order",
+    "search_read",
+    [[["name", "ilike", ref]], fields],
+    { limit: 1 },
+  );
+  return near[0] || null;
+}

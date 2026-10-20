@@ -541,7 +541,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       await ipasService.addCharge(ipas.id, { kindId: options.charge_kind["Brokerage Fee"].id, chargedOn: "2026-10-05", amountPhp: "150" })
       await ipasService.overrideField(ipas.id, "entity", "T3CK Holdings")
       await ipasService.setHeader(ipas.id, { piNumber: "PI-77" })
-      await ipasService.setPurposeAndSors(ipas.id, { purpose: "supplies", sorIds: [] })
+      await ipasService.setPurpose(ipas.id, "supplies")
 
       expect(live()).toEqual(before)
       expect(db.rows("ipas_signoffs").filter((s) => s.cleared_at)).toEqual([])

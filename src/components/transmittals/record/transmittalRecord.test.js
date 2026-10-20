@@ -272,8 +272,10 @@ describe("statusLine, sectionState and summaries", () => {
   it("says what the viewer can do, or who the slip waits on", () => {
     const t = slip();
     const gates = gatesOf(t);
-    expect(statusLine(t, gates, [{}])).toBe("Waiting for you: Warehouse checking");
-    expect(statusLine(t, gates, [])).toBe("Nothing needs you right now. Waiting on the Warehouse for Warehouse checking.");
+    expect(statusLine(t, gates, [{ section: STAGE.WAREHOUSE_CHECKING }])).toBe("Waiting for you: Warehouse checking");
+    expect(statusLine(t, gates, [])).toBe("Next: Warehouse checking, waiting on the Warehouse");
+    // A move on another step is not the viewer's turn.
+    expect(statusLine(t, gates, [{ section: SECTION.CHECK_BY }])).toBe("Next: Warehouse checking, waiting on the Warehouse");
     expect(statusLine(slip({ state: STATE.CLOSED }), [], [])).toBe("Closed. Nothing left to do.");
   });
 

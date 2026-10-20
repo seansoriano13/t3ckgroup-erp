@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql, rlsStatus } from "./support/stack.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
 import { tryInsert, tryUpdate, tryDelete } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -48,12 +48,13 @@ const copyFor = (po, supplierId = 553, lines = [line(1)]) => ({
     bills: { count: 0, draft: 0 },
 })
 
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) =>
+    name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
 
 /** Raises an IPAS as the purchaser. */
 async function raise(supplierId = nextSupplier()) {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",
@@ -369,7 +370,7 @@ describe("ipas_sign: Prepared", () => {
         const ipas = await raise()
         await signOk("outsider", ipas.id, 1, "prepared")
         const again = await sign("outsider", ipas.id, 1, "prepared")
-        expect(again.error?.code).toBe("55000")
+        expect(again.error?.code).toBe("22023")
         expect(await liveKeys(ipas.id)).toEqual(["1/prepared"])
     })
 
@@ -458,7 +459,7 @@ describe("ipas_sign: Approved", () => {
     it("needs the section prepared first", async () => {
         const ipas = await raise()
         const { error } = await sign("ipasSigner", ipas.id, 1, "approved")
-        expect(error?.code).toBe("55000")
+        expect(error?.code).toBe("22023")
         expect(error?.message).toMatch(/hasn't been prepared/)
     })
 
@@ -468,7 +469,7 @@ describe("ipas_sign: Approved", () => {
         await signOk("outsider", ipas.id, 1, "prepared")
         await signOk("ipasSigner", ipas.id, 1, "approved")
         const again = await sign("finance", ipas.id, 1, "approved")
-        expect(again.error?.code).toBe("55000")
+        expect(again.error?.code).toBe("22023")
         expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared"])
     })
 
@@ -505,15 +506,15 @@ describe("ipas_sign: what it refuses", () => {
         const filed = await raise()
         await signOk("outsider", filed.id, 1, "prepared")
         await file(filed.id)
-        expect((await sign("ipasSigner", filed.id, 1, "approved")).error?.code).toBe("55000")
-        expect((await sign("outsider", filed.id, 3, "prepared")).error?.code).toBe("55000")
+        expect((await sign("ipasSigner", filed.id, 1, "approved")).error?.code).toBe("22023")
+        expect((await sign("outsider", filed.id, 3, "prepared")).error?.code).toBe("22023")
 
         const cancelled = await raise()
         await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Wrong PO" })
-        expect((await sign("outsider", cancelled.id, 1, "prepared")).error?.code).toBe("55000")
+        expect((await sign("outsider", cancelled.id, 1, "prepared")).error?.code).toBe("22023")
 
         const missing = await sign("outsider", "00000000-0000-0000-0000-000000000000", 1, "prepared")
-        expect(missing.error?.code).toBe("P0002")
+        expect(missing.error?.code).toBe("22023")
 
         const anon = await anonymousClient().rpc("ipas_sign", { p_ipas_id: filed.id, p_section: 1, p_role: "prepared" })
         expect(anon.error).toBeTruthy()
@@ -586,13 +587,13 @@ describe("ipas_send_back", () => {
 
     it("refuses a section with nothing signed, a section that can't be sent back, and a filed or cancelled IPAS", async () => {
         const ipas = await raise()
-        expect((await sendBack("ipasSigner", ipas.id, 1, "Nothing here")).error?.code).toBe("55000")
+        expect((await sendBack("ipasSigner", ipas.id, 1, "Nothing here")).error?.code).toBe("22023")
         expect((await sendBack("ipasSigner", ipas.id, 7, "x")).error?.code).toBe("42501") // on no section 7 list
         expect((await sendBack("ipasSigner", ipas.id, 2, "x")).error?.code).toBe("22023")
 
         const filed = await approved()
         await file(filed.id)
-        expect((await sendBack("ipasSigner", filed.id, 1, "Too late")).error?.code).toBe("55000")
+        expect((await sendBack("ipasSigner", filed.id, 1, "Too late")).error?.code).toBe("22023")
         expect(await liveKeys(filed.id)).toEqual(["1/approved", "1/prepared"])
     })
 })

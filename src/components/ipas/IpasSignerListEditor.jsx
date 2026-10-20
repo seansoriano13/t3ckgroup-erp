@@ -5,7 +5,7 @@ import PeoplePicker from "../ui/PeoplePicker";
 import PageLoading from "../ui/PageLoading";
 import QueryError from "../ui/QueryError";
 import { ipasService } from "../../services/ipasService";
-import { IPAS_SIGNER_LISTS, IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS } from "../../constants/ipas";
+import { IPAS_SIGNER_LISTS, IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS, ipasSectionNo } from "../../constants/ipas";
 import {
   TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STAFF_LIST_LABELS,
@@ -19,12 +19,12 @@ import { ipasPendingPrefix, ipasSignerListLogKey, ipasSignerListsKey } from "./i
 const LOG_LIMIT = 20;
 
 const WHO = {
-  [IPAS_SIGNER_LIST.S1_APPROVED]: "Approves section 1: buying from and paying the supplier. Never the person who prepared it.",
-  [IPAS_SIGNER_LIST.S3_APPROVED]: "Approves section 3: the importation charges and documents. Never the person who prepared it.",
+  [IPAS_SIGNER_LIST.S1_APPROVED]: `Approves section ${ipasSectionNo(1)}: buying from and paying the supplier. Never the person who prepared it.`,
+  [IPAS_SIGNER_LIST.S3_APPROVED]: `Approves section ${ipasSectionNo(3)}: the importation charges and documents. Never the person who prepared it.`,
   [IPAS_SIGNER_LIST.S7_RECEIVED]: "Receives the IPAS first when it is filed.",
   [IPAS_SIGNER_LIST.S7_NOTED]: "Notes the IPAS at filing, after it is received.",
   [IPAS_SIGNER_LIST.S7_CHECKED]: "Checks the IPAS at filing, after it is received.",
-  [IPAS_SIGNER_LIST.S7_APPROVED]: "Approves section 7, which files the IPAS.",
+  [IPAS_SIGNER_LIST.S7_APPROVED]: `Approves section ${ipasSectionNo(7)}, which files the IPAS.`,
   [TRANSMITTAL_STAFF_LIST.WAREHOUSE]: "Signs a Transmittal's Warehouse checking and releasing; may raise one and sign Received in Odoo. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.TECHNICAL]: "Signs a Transmittal's Technical inspection and is the TCA in-charge. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.LOGISTICS]: "May raise a Transmittal. Reads Transmittals, not the IPAS.",
@@ -114,7 +114,7 @@ export default function IpasSignerListEditor() {
                 <span className="font-medium text-foreground">{entry.actorName ?? "Someone"}</span>{" "}
                 {entry.action === "added" ? "added" : "removed"}{" "}
                 <span className="font-medium text-foreground">{entry.employeeName ?? "someone"}</span>{" "}
-                {entry.action === "added" ? "to" : "from"} {IPAS_SIGNER_LIST_LABELS[entry.listKey] ?? entry.listKey} ·{" "}
+                {entry.action === "added" ? "to" : "from"} {ALL_LIST_LABELS[entry.listKey] ?? entry.listKey} ·{" "}
                 {formatDate(entry.at)}
               </li>
             ))}

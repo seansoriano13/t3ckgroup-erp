@@ -251,3 +251,31 @@ carries an active Costing settled condition and that it is met, and the legacy
 `sor_inclusions` backfill into a matrix is removed (a matrix exists only once
 Open Costing Matrix runs). The PMS tab shows for everyone who can see the SOR
 (Finance reads the IPAS there); only its Costing Matrix section needs a tier.
+
+### 2026-10-23 — the Final Acquire and Evaluation lists are a second way into an SOR
+
+From #545 (spec #544), after the first full purchasing run found people on both lists
+stuck at "You're not on this SOR".
+
+Everything above is the stage-scoped way in: Deal Team, Always sees, Stage Participants,
+Mention Windows. **Being on the Final Acquire list or the Evaluation list is a second,
+list-based way in.** Either list opens any SOR that has a Costing Matrix, from the Bid
+Decisions or Evaluation queue, at any stage. It needs no Mention and no Stage Participant
+window, and it does not end when the stage moves. `sor_access_level` answers `participant`
+for it, so the SOR modal and its PMS tab open on the money-free record.
+
+Why: both lists exist to sign the matrix off, and the queues already show them the SOR.
+Making the Deal Owner mention the approver, with access that ends at the next stage, left
+the Bid Decision waiting on someone else. The Evaluation list had no way in at all unless
+it was also in Purchasing.
+
+What does not change:
+
+- **It is not Deal Team or Stage Participant membership.** No Stage Visit data opens, and
+  Expected Value and commission stay Deal Team only.
+- **An SOR with no Costing Matrix stays closed** to both lists, so a list is not access to
+  every deal.
+- **Tiers.** The Final Acquire list keeps the Closed Book tier. The Evaluation list reads
+  the matrix at the participant tier (no money), checked last in `costing_tier`, so a
+  caller who already holds a higher tier keeps it.
+- The Evaluation approval rule (on the list, every Component has a verdict) is untouched.

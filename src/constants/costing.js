@@ -158,10 +158,10 @@ export const MATRIX_MONEY_BANDS = {
 };
 
 /**
- * Does this tier receive Landed Cost (#283)? The matrix's money tier (costing_can_read_money):
- * Closed Book, cost and price. A Stage Participant never does.
+ * Does this tier receive Landed Cost (#283, #546)? Landed Cost is cost (costing_can_read_cost):
+ * Closed Book and cost only. The price tier and a Stage Participant never do.
  */
-export const tierReadsLandedCost = (tier) => [COSTING_TIER.CLOSED_BOOK, COSTING_TIER.COST, COSTING_TIER.PRICE].includes(tier);
+export const tierReadsLandedCost = (tier) => [COSTING_TIER.CLOSED_BOOK, COSTING_TIER.COST].includes(tier);
 
 /** Why a Component shows no Landed Cost (costing_landed_costs.blank_reason, #283), in words. */
 export const LANDED_COST_BLANK_LABEL = {

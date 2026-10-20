@@ -189,9 +189,13 @@ describe("what the viewer may return, and who may check", () => {
     expect(signoffRights({ ...section(), ipasState: "filed" }).returnMode).toBeNull()
   })
 
-  it("lets Purchasing step anywhere and Finance or a Super Admin only Checked by", () => {
+  it("lets Purchasing step up to LC Odoo Done and Finance or a Super Admin only Checked by", () => {
     const base = { from: "lc_odoo_done", to: "checked" }
-    expect(canSetComputationStatus({ ...base, hasPurchasingFlow: true })).toBe(true)
+    expect(canSetComputationStatus({ ...base, hasPurchasingFlow: true })).toBe(false)
+    expect(canSetComputationStatus({ from: "checked", to: "lc_odoo_done", hasPurchasingFlow: true })).toBe(false)
+    expect(canSetComputationStatus({ ...base, hasPurchasingFlow: true, isSuperAdmin: true })).toBe(false)
+    expect(canSetComputationStatus({ ...base, hasPurchasingFlow: true, hasFinanceFlow: true })).toBe(false)
+    expect(canSetComputationStatus({ from: "lc_gs_done", to: "lc_odoo_done", hasPurchasingFlow: true })).toBe(true)
     expect(canSetComputationStatus({ from: "encoding", to: "encoded", hasPurchasingFlow: true })).toBe(true)
     expect(canSetComputationStatus({ ...base, hasFinanceFlow: true })).toBe(true)
     expect(canSetComputationStatus({ ...base, isSuperAdmin: true })).toBe(true)

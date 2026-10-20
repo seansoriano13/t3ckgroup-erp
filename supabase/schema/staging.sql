@@ -1621,7 +1621,7 @@ create table if not exists public."transmittal_stages" (
 create table if not exists public."transmittals" (
   "id" uuid not null default gen_random_uuid(),
   "number" text not null default ('TG03-'::text || (nextval('transmittal_number_seq'::regclass))::text),
-  "prepared_on" date not null default CURRENT_DATE,
+  "prepared_on" timestamp with time zone not null default now(),
   "origin" text not null,
   "origin_other" text,
   "check_warehouse" boolean not null default false,
@@ -2043,7 +2043,7 @@ alter table sor_stage_participants add constraint "sor_stage_participants_source
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
-alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text])));
+alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text, 'goods_checked'::text, 'orders_filed'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
@@ -4569,7 +4569,7 @@ begin
       from public.sales_opportunities o
      where o.id = any (v_ids) and not coalesce(o.is_deleted, false);
     if v_found <> cardinality(v_ids) then
-      raise exception '%: one of those SORs no longer exists', p_fn using errcode = 'P0002';
+      raise exception '%: one of those SORs no longer exists', p_fn using errcode = '22023';
     end if;
   end if;
   return v_ids;
@@ -4860,12 +4860,12 @@ declare
 begin
   select * into v_row from public.ipas_documents where id = p_document_id;
   if v_row.id is null then
-    raise exception '%: document % not found', p_fn, p_document_id using errcode = 'P0002';
+    raise exception '%: document % not found', p_fn, p_document_id using errcode = '22023';
   end if;
   perform public._ipas_lock_open(p_fn, v_row.ipas_id);
   select * into v_row from public.ipas_documents where id = p_document_id for update;
   if v_row.id is null then
-    raise exception '%: document % not found', p_fn, p_document_id using errcode = 'P0002';
+    raise exception '%: document % not found', p_fn, p_document_id using errcode = '22023';
   end if;
   return v_row;
 end;
@@ -4882,13 +4882,13 @@ declare
 begin
   select * into v_row from public.ipas where id = p_ipas_id for update;
   if v_row.id is null then
-    raise exception '%: IPAS % not found', p_fn, p_ipas_id using errcode = 'P0002';
+    raise exception '%: IPAS % not found', p_fn, p_ipas_id using errcode = '22023';
   end if;
   if v_row.state = 'filed' then
-    raise exception '%: % is filed; a Super Admin reopens it first', p_fn, v_row.number using errcode = '55000';
+    raise exception '%: % is filed; a Super Admin reopens it first', p_fn, v_row.number using errcode = '22023';
   end if;
   if v_row.state = 'cancelled' then
-    raise exception '%: % is cancelled', p_fn, v_row.number using errcode = '55000';
+    raise exception '%: % is cancelled', p_fn, v_row.number using errcode = '22023';
   end if;
   return v_row;
 end;
@@ -5042,6 +5042,15 @@ begin
     raise exception '%: % must be a real date', p_fn, p_label using errcode = '22023';
   end;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_section_no(p_section integer)
+ RETURNS integer
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select case p_section when 3 then 2 when 7 then 4 else p_section end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_signoff_list_key(p_section integer, p_role text)
@@ -5759,6 +5768,104 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_set_item_status(p_item_id uuid, p_status text, p_details jsonb, p_server boolean)
+ RETURNS purchase_request_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_details jsonb := coalesce(p_details, '{}'::jsonb);
+  v_item public.purchase_request_items;
+  v_side text;
+  v_key text;
+  v_po text;
+  v_verification text;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_set_item_status: not signed in' using errcode = '42501';
+  end if;
+  if p_status is null or p_status not in (
+    'requested', 'from_stock', 'to_order', 'canvassing', 'ordered', 'received',
+    'substituted', 'cannot_source', 'cancelled'
+  ) then
+    raise exception 'purchase_request_set_item_status: % is not an item status', coalesce(p_status, 'null') using errcode = '22023';
+  end if;
+  if jsonb_typeof(v_details) <> 'object' then
+    raise exception 'purchase_request_set_item_status: details must be an object' using errcode = '22023';
+  end if;
+  -- #548: the Odoo check is the server's word, never the browser's.
+  if v_details ? 'po_verification' and not p_server then
+    raise exception 'purchase_request_set_item_status: only the server may record a PO check; send the PO number and it is checked against Odoo for you'
+      using errcode = '42501';
+  end if;
+
+  -- Only Ordered takes details: its PO number and what Odoo said about it.
+  if p_status <> 'ordered' and v_details <> '{}'::jsonb then
+    raise exception 'purchase_request_set_item_status: % takes no details', public._purchase_request_item_status_label(p_status)
+      using errcode = '22023';
+  end if;
+  for v_key in select jsonb_object_keys(v_details) loop
+    if v_key not in ('po_number', 'po_verification') then
+      raise exception 'purchase_request_set_item_status: Ordered takes a PO number and its check, not %', v_key
+        using errcode = '22023';
+    end if;
+  end loop;
+
+  if v_details ? 'po_number' and jsonb_typeof(v_details->'po_number') not in ('string', 'null') then
+    raise exception 'purchase_request_set_item_status: the PO number must be text' using errcode = '22023';
+  end if;
+  v_po := nullif(upper(btrim(v_details->>'po_number')), '');
+  v_verification := nullif(btrim(v_details->>'po_verification'), '');
+  if v_po is not null and v_po !~ '^P[0-9]+$' then
+    raise exception 'purchase_request_set_item_status: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', v_po
+      using errcode = '22023';
+  end if;
+  -- A PO number is recorded only by the server path, after it asked Odoo; a signed-in
+  -- caller sending one would store it unchecked and skip the Odoo not-found refusal.
+  if v_po is not null and not p_server then
+    raise exception 'purchase_request_set_item_status: a PO number is saved by the server after Odoo is asked; use the Order / Correct PO action'
+      using errcode = '42501';
+  end if;
+  if v_verification is not null and v_po is null then
+    raise exception 'purchase_request_set_item_status: a PO check needs a PO number' using errcode = '22023';
+  end if;
+  if v_verification is not null
+     and v_verification not in ('UNVERIFIED', 'VERIFIED', 'PENDING_VERIFICATION', 'NOT_FOUND') then
+    raise exception 'purchase_request_set_item_status: % is not a PO check result', v_verification using errcode = '22023';
+  end if;
+  if v_po is not null then
+    v_verification := coalesce(v_verification, 'UNVERIFIED');
+    v_details := jsonb_build_object('po_number', v_po, 'po_verification', v_verification);
+  else
+    v_details := '{}'::jsonb;
+  end if;
+
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception 'purchase_request_set_item_status: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+
+  v_side := public.purchase_request_actor_side(v_item.request_id);
+  if v_side is null then
+    raise exception 'purchase_request_set_item_status: only the request''s members may change an item' using errcode = '42501';
+  end if;
+
+  v_item := public._purchase_request_item_move(v_item, p_status, v_side, v_actor, v_details, 'purchase_request_set_item_status');
+
+  if v_po is not null then
+    update public.purchase_request_items
+       set po_number = v_po,
+           po_verification = v_verification
+     where id = v_item.id
+    returning * into v_item;
+  end if;
+
+  return v_item;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_side_on(p_req purchase_requests, p_employee_id uuid)
  RETURNS text
  LANGUAGE sql
@@ -6143,7 +6250,7 @@ begin
         from public.ipas i
        where i.id = nullif(v_line->>'ipas_id', '')::uuid;
       if not found or v_ipas.state = 'cancelled' then
-        raise exception 'transmittal: line % names an IPAS that isn''t live', v_position using errcode = 'P0002';
+        raise exception 'transmittal: line % names an IPAS that isn''t live', v_position using errcode = '22023';
       end if;
 
       select l into v_po_line
@@ -6178,7 +6285,7 @@ begin
            select 1 from public.sales_opportunities o
             where o.id = v_opportunity and not coalesce(o.is_deleted, false)
          ) then
-        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = 'P0002';
+        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = '22023';
       end if;
 
       insert into public.transmittal_lines (
@@ -6206,7 +6313,7 @@ begin
            select 1 from public.sales_opportunities o
             where o.id = v_opportunity and not coalesce(o.is_deleted, false)
          ) then
-        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = 'P0002';
+        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = '22023';
       end if;
 
       insert into public.transmittal_lines (
@@ -7068,7 +7175,7 @@ CREATE OR REPLACE FUNCTION public.canvass_subject_can_read_money(p_component_id 
 AS $function$
   select case
     when p_component_id is not null then
-      coalesce(public.costing_can_read_money(public.canvass_component_opportunity(p_component_id)), false)
+      coalesce(public.costing_can_read_cost(public.canvass_component_opportunity(p_component_id)), false)
     when p_requested_item_id is not null then
       public.canvass_subject_can_read(null, p_requested_item_id)
       and (
@@ -7166,7 +7273,7 @@ begin
 
   v_opp := public.canvass_component_opportunity(p_component_id);
   if v_opp is null then
-    raise exception 'costing_accept_brand: not found' using errcode = 'P0002';
+    raise exception 'costing_accept_brand: not found' using errcode = '22023';
   end if;
   if not (public.costing_can_read(v_opp) and public.costing_in_band(v_opp, 'sales')) then
     raise exception 'costing_accept_brand: only the Deal Team can accept a brand' using errcode = '42501';
@@ -7177,7 +7284,7 @@ begin
     join public.sor_canvass_offers o on o.canvass_id = c.id and o.is_winner
    where c.component_id = p_component_id;
   if v_brand is null then
-    raise exception 'costing_accept_brand: the Canvass has no winning brand' using errcode = '55000';
+    raise exception 'costing_accept_brand: the Canvass has no winning brand' using errcode = '22023';
   end if;
 
   -- As the caller, so the Sales band trigger judges the write too.
@@ -7198,7 +7305,7 @@ declare
   v_id  uuid;
 begin
   if v_opp is null then
-    raise exception 'costing_add_cost_row: not found' using errcode = 'P0002';
+    raise exception 'costing_add_cost_row: not found' using errcode = '22023';
   end if;
   if not public.costing_can_read(v_opp) then
     raise exception 'costing_add_cost_row: not allowed' using errcode = '42501';
@@ -7286,7 +7393,7 @@ begin
   if old.is_bundle and not new.is_bundle
      and exists (select 1 from public.costing_inclusions i where i.component_id = new.id) then
     raise exception 'costing_inclusion: move or remove this Component''s Inclusions before it stops being a bundle'
-      using errcode = '23514';
+      using errcode = '22023';
   end if;
   return new;
 end;
@@ -7308,6 +7415,15 @@ CREATE OR REPLACE FUNCTION public.costing_can_read(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select public.costing_tier(p_opportunity_id) is not null
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_can_read_cost(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.costing_tier(p_opportunity_id) in ('closed_book', 'cost'), false)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_can_read_money(p_opportunity_id uuid)
@@ -7349,14 +7465,14 @@ begin
      and (tg_op = 'INSERT' or new.sales_incharge_id is distinct from old.sales_incharge_id)
      and not coalesce(public.sor_is_deal_team(v_sor, new.sales_incharge_id), false) then
     raise exception 'costing_incharge: the Sales incharge must be on the SOR''s Deal Team'
-      using errcode = '23514';
+      using errcode = '22023';
   end if;
 
   if new.purchasing_incharge_id is not null
      and (tg_op = 'INSERT' or new.purchasing_incharge_id is distinct from old.purchasing_incharge_id)
      and not public._employee_has_purchasing_access(new.purchasing_incharge_id) then
     raise exception 'costing_incharge: the Purchasing incharge must have Purchasing access'
-      using errcode = '23514';
+      using errcode = '22023';
   end if;
   return new;
 end;
@@ -7503,7 +7619,7 @@ begin
   v_link := public._costing_component_link(old.id, old.po_rfq_no);
   if v_link is not null then
     raise exception 'This Component is linked to %. Unlink it before deleting.', v_link
-      using errcode = '55000', hint = 'costing_component_linked';
+      using errcode = '22023', hint = 'costing_component_linked';
   end if;
   return old;
 end;
@@ -7710,16 +7826,16 @@ begin
     raise exception 'costing_bid: sign in first' using errcode = '42501';
   end if;
   if v_opp is null then
-    raise exception 'costing_bid: matrix not found' using errcode = 'P0002';
+    raise exception 'costing_bid: matrix not found' using errcode = '22023';
   end if;
   if public.costing_tier(v_opp) is distinct from 'closed_book' then
     raise exception 'costing_bid: only a Super Admin or the Final Acquire list can decide a bid' using errcode = '42501';
   end if;
   if p_verdict is null or p_verdict not in ('go', 'no_go', 'revise') then
-    raise exception 'costing_bid: the verdict must be Go, No-go or Revise' using errcode = '23514';
+    raise exception 'costing_bid: the verdict must be Go, No-go or Revise' using errcode = '22023';
   end if;
   if p_reason is null or length(btrim(p_reason)) = 0 then
-    raise exception 'costing_bid: write the reason for the decision' using errcode = '23514';
+    raise exception 'costing_bid: write the reason for the decision' using errcode = '22023';
   end if;
 
   -- One decision at a time per matrix (ADR 0013).
@@ -7727,7 +7843,7 @@ begin
 
   select * into v_totals from public.costing_bid_totals(p_matrix_id);
   if v_totals.line_count = 0 or v_totals.missing_offer > 0 then
-    raise exception 'costing_bid: every Tender Line needs a Final Offer before the bid can be decided' using errcode = '23514';
+    raise exception 'costing_bid: every Tender Line needs a Final Offer before the bid can be decided' using errcode = '22023';
   end if;
 
   update public.costing_bid_decisions
@@ -7939,7 +8055,7 @@ AS $function$
 begin
   if not exists (select 1 from public.costing_components c where c.id = new.component_id and c.is_bundle) then
     raise exception 'costing_inclusion: an Inclusion can only sit under a bundle Component'
-      using errcode = '23514';
+      using errcode = '22023';
   end if;
   return new;
 end;
@@ -7976,7 +8092,7 @@ AS $function$
     join public.costing_tender_lines t on t.id = c.tender_line_id
     join public.costing_matrices m on m.id = t.matrix_id
     where m.opportunity_id = p_opportunity_id
-      and public.costing_can_read_money(p_opportunity_id)
+      and public.costing_can_read_cost(p_opportunity_id)
   ),
   -- Ordered and Received claim; Cancelled, Substituted and Cannot source claim nothing.
   live as (
@@ -8324,7 +8440,7 @@ begin
   end if;
   select * into v_def from public.costing_tables where table_name = p_table;
   if not found then
-    raise exception 'costing_matrix_filter: % is not a costing table', p_table;
+    raise exception 'costing_matrix_filter: % is not a costing table', p_table using errcode = '22023';
   end if;
   if v_def.parent_table is null then
     return format('%s.matrix_id = $1', p_alias);
@@ -8353,7 +8469,7 @@ begin
   loop
     v_depth := v_depth + 1;
     if v_depth > 8 then
-      raise exception 'costing_matrix_of: % nests too deep', p_table;
+      raise exception 'costing_matrix_of: % nests too deep', p_table using errcode = '22023';
     end if;
     if v_table = 'costing_matrices' then
       return (v_row ->> 'id')::uuid;
@@ -8458,11 +8574,11 @@ declare
 begin
   select * into v_inc from public.costing_inclusions where id = p_inclusion_id;
   if not found then
-    raise exception 'costing_move_inclusion: Inclusion not found' using errcode = 'P0002';
+    raise exception 'costing_move_inclusion: Inclusion not found' using errcode = '22023';
   end if;
   select * into v_target from public.costing_components where id = p_component_id;
   if not found then
-    raise exception 'costing_move_inclusion: Component not found' using errcode = 'P0002';
+    raise exception 'costing_move_inclusion: Component not found' using errcode = '22023';
   end if;
 
   v_from := public.costing_matrix_of('costing_inclusions', to_jsonb(v_inc));
@@ -8475,7 +8591,7 @@ begin
     raise exception 'costing_move_inclusion: the Component is on another SOR''s matrix' using errcode = '22023';
   end if;
   if not v_target.is_bundle then
-    raise exception 'costing_move_inclusion: an Inclusion can only sit under a bundle Component' using errcode = '23514';
+    raise exception 'costing_move_inclusion: an Inclusion can only sit under a bundle Component' using errcode = '22023';
   end if;
   if v_inc.component_id = p_component_id then
     return;
@@ -8524,7 +8640,7 @@ declare
   v_emp         uuid;
 begin
   if not exists (select 1 from public.sales_opportunities where id = p_opportunity_id) then
-    raise exception 'costing_open_matrix: SOR not found' using errcode = 'P0002';
+    raise exception 'costing_open_matrix: SOR not found' using errcode = '22023';
   end if;
 
   perform set_config('costing.bypass', 'on', true);
@@ -8677,7 +8793,7 @@ begin
   select matrix_id into v_matrix from public.costing_cost_rows where id = p_row_id;
   v_opp := public.costing_matrix_opp(v_matrix);
   if v_opp is null then
-    raise exception 'costing_remove_cost_row: not found' using errcode = 'P0002';
+    raise exception 'costing_remove_cost_row: not found' using errcode = '22023';
   end if;
   if not public.costing_can_read(v_opp) then
     raise exception 'costing_remove_cost_row: not allowed' using errcode = '42501';
@@ -8697,7 +8813,7 @@ declare
   i     integer;
 begin
   if v_opp is null then
-    raise exception 'costing_reorder_tender_lines: not found' using errcode = 'P0002';
+    raise exception 'costing_reorder_tender_lines: not found' using errcode = '22023';
   end if;
   if not public.costing_can_read(v_opp) then
     raise exception 'costing_reorder_tender_lines: not allowed' using errcode = '42501';
@@ -8769,7 +8885,7 @@ begin
   end if;
   v_opp := public.costing_matrix_opp(v_matrix);
   if v_opp is null then
-    raise exception 'costing_set_money: not found' using errcode = 'P0002';
+    raise exception 'costing_set_money: not found' using errcode = '22023';
   end if;
   -- A read tier is needed, with one exception (#270): Finance access alone has no tier on
   -- the SOR, yet Finance types Marketing and OPEX. That passes only when every column in the
@@ -8892,7 +9008,7 @@ begin
 
   v_opp := public.costing_matrix_opp(p_matrix_id);
   if v_opp is null then
-    raise exception 'costing_sign: not found' using errcode = 'P0002';
+    raise exception 'costing_sign: not found' using errcode = '22023';
   end if;
   if not public.costing_can_read(v_opp) then
     raise exception 'costing_sign: not allowed' using errcode = '42501';
@@ -8923,9 +9039,9 @@ begin
     where s.matrix_id = p_matrix_id and s.role = p_role and s.cleared_at is null
   ) then
     if p_role = 'evaluation_approved' then
-      raise exception 'costing_sign: the evaluation is already approved' using errcode = '55000';
+      raise exception 'costing_sign: the evaluation is already approved' using errcode = '22023';
     end if;
-    raise exception 'costing_sign: that sign-off is already signed' using errcode = '55000';
+    raise exception 'costing_sign: that sign-off is already signed' using errcode = '22023';
   end if;
 
   if p_role = 'evaluation_approved' then
@@ -8936,7 +9052,7 @@ begin
     if v_missing > 0 then
       raise exception 'costing_sign: % Component% no verdict yet',
         v_missing, case when v_missing = 1 then ' has' else 's have' end
-        using errcode = '55000';
+        using errcode = '22023';
     end if;
   end if;
 
@@ -9007,7 +9123,7 @@ begin
   limit 1;
   if v_link is not null then
     raise exception 'A Component on this Tender Line is linked to %. Unlink it before deleting.', v_link
-      using errcode = '55000', hint = 'costing_component_linked';
+      using errcode = '22023', hint = 'costing_component_linked';
   end if;
   return old;
 end;
@@ -9050,6 +9166,10 @@ AS $function$
         and p.employee_id = public.get_employee_id()
         and p.closed_at is null
     ) then 'participant'
+    -- #545: the Evaluation list reads the matrix with no money, whatever the stage.
+    when public.costing_on_list('evaluation')
+      and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
+    then 'participant'
     else null
   end
 $function$
@@ -9942,7 +10062,7 @@ begin
           and t.state not in ('draft', 'cancelled')
      ) then
     raise exception 'Actual Checking is stamped by the Transmittals once one is submitted for this IPAS'
-      using errcode = 'P0001';
+      using errcode = '42501';
   end if;
   return new;
 end;
@@ -10159,14 +10279,14 @@ begin
 
   select * into v_row from public.ipas where id = p_ipas_id for update;
   if v_row.id is null then
-    raise exception 'ipas_cancel: IPAS % not found', p_ipas_id using errcode = 'P0002';
+    raise exception 'ipas_cancel: IPAS % not found', p_ipas_id using errcode = '22023';
   end if;
   if v_row.state = 'filed' then
     raise exception 'ipas_cancel: % is filed; a Super Admin reopens it before it can be cancelled', v_row.number
-      using errcode = '55000';
+      using errcode = '22023';
   end if;
   if v_row.state = 'cancelled' then
-    raise exception 'ipas_cancel: % is already cancelled', v_row.number using errcode = '55000';
+    raise exception 'ipas_cancel: % is already cancelled', v_row.number using errcode = '22023';
   end if;
 
   update public.ipas
@@ -10209,7 +10329,7 @@ begin
 
   if v_number is not null then
     raise exception '%: % is filed and frozen; a Super Admin reopens it first', tg_table_name, v_number
-      using errcode = '55000';
+      using errcode = '22023';
   end if;
   if tg_op = 'DELETE' then return old; end if;
   return new;
@@ -10222,83 +10342,12 @@ CREATE OR REPLACE FUNCTION public.ipas_create(p_po_number text, p_priority text,
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare
-  v_actor uuid := public.get_employee_id();
-  v_po text := upper(btrim(p_po_number));
-  v_sors uuid[];
-  v_existing text;
-  v_row public.ipas;
 begin
-  if v_actor is null then
+  if public.get_employee_id() is null then
     raise exception 'ipas_create: not signed in' using errcode = '42501';
   end if;
-  if not public.has_purchasing_access() then
-    raise exception 'ipas_create: only Purchasing raises an IPAS' using errcode = '42501';
-  end if;
-
-  if v_po is null or v_po !~ '^P[0-9]+$' then
-    raise exception 'ipas_create: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', coalesce(p_po_number, 'null')
-      using errcode = '22023';
-  end if;
-  if p_priority is null or p_priority not in ('very_high', 'high', 'medium') then
-    raise exception 'ipas_create: % isn''t a Priority', coalesce(p_priority, 'null') using errcode = '22023';
-  end if;
-  if p_source is null or p_source not in ('import', 'local') then
-    raise exception 'ipas_create: % isn''t a Source', coalesce(p_source, 'null') using errcode = '22023';
-  end if;
-  if p_purpose is null or p_purpose not in ('project', 'inventory', 'supplies', 'events') then
-    raise exception 'ipas_create: % isn''t a Purpose', coalesce(p_purpose, 'null') using errcode = '22023';
-  end if;
-
-  -- The copy is what the service read from Odoo for exactly this PO.
-  if p_odoo_copy is null
-     or jsonb_typeof(p_odoo_copy) <> 'object'
-     or jsonb_typeof(p_odoo_copy->'po') is distinct from 'object'
-     or jsonb_typeof(p_odoo_copy->'lines') is distinct from 'array' then
-    raise exception 'ipas_create: the Odoo copy is missing' using errcode = '22023';
-  end if;
-  if upper(btrim(p_odoo_copy->'po'->>'name')) is distinct from v_po then
-    raise exception 'ipas_create: the Odoo copy is for %, not %', coalesce(p_odoo_copy->'po'->>'name', 'no PO'), v_po
-      using errcode = '22023';
-  end if;
-
-  v_sors := public._ipas_clean_sor_ids('ipas_create', p_purpose, p_sor_ids);
-
-  select i.number into v_existing
-    from public.ipas i
-   where i.po_number = v_po and i.state <> 'cancelled';
-  if v_existing is not null then
-    raise exception 'ipas_create: % already has a live IPAS (%); cancel it to raise a new one', v_po, v_existing
-      using errcode = '23505';
-  end if;
-
-  insert into public.ipas (
-    po_number, odoo_po_id, priority, source, purpose, remarks, odoo_copy, created_by
-  ) values (
-    v_po,
-    case when (p_odoo_copy->'po'->>'id') ~ '^[0-9]+$' then (p_odoo_copy->'po'->>'id')::integer end,
-    p_priority,
-    p_source,
-    p_purpose,
-    nullif(btrim(p_remarks), ''),
-    p_odoo_copy,
-    v_actor
-  )
-  returning * into v_row;
-
-  insert into public.ipas_sors (ipas_id, opportunity_id)
-  select v_row.id, s from unnest(v_sors) s;
-
-  perform public._ipas_write_event(v_row.id, v_actor, 'created', jsonb_build_object(
-    'number', v_row.number,
-    'po_number', v_row.po_number,
-    'priority', v_row.priority,
-    'source', v_row.source,
-    'purpose', v_row.purpose,
-    'sor_ids', to_jsonb(v_sors)
-  ));
-
-  return v_row;
+  raise exception 'ipas_create: an IPAS is raised through the server, which reads the PO from Odoo itself; reload the page and try again'
+    using errcode = '42501';
 end;
 $function$
 ;
@@ -10331,10 +10380,10 @@ begin
     end if;
     select count(*) into v_count from public.ipas_sors s where s.ipas_id = v_id;
     if v_purpose = 'project' and v_count = 0 then
-      raise exception '% is a Project IPAS and needs at least one SOR', v_number using errcode = '23514';
+      raise exception '% is a Project IPAS and needs at least one SOR', v_number using errcode = '22023';
     end if;
     if v_purpose <> 'project' and v_count > 0 then
-      raise exception '% is not a Project IPAS and can''t name an SOR', v_number using errcode = '23514';
+      raise exception '% is not a Project IPAS and can''t name an SOR', v_number using errcode = '22023';
     end if;
   end loop;
   return null;
@@ -10439,7 +10488,7 @@ begin
   end if;
 
   if tg_op = 'DELETE' then
-    raise exception 'ipas: % is filed and frozen; it can''t be deleted', old.number using errcode = '55000';
+    raise exception 'ipas: % is filed and frozen; it can''t be deleted', old.number using errcode = '22023';
   end if;
 
   if coalesce(current_setting('ipas.reopening', true), '') = 'on' then
@@ -10452,7 +10501,7 @@ begin
     return new;
   end if;
 
-  raise exception 'ipas: % is filed and frozen; a Super Admin reopens it first', old.number using errcode = '55000';
+  raise exception 'ipas: % is filed and frozen; a Super Admin reopens it first', old.number using errcode = '22023';
 end;
 $function$
 ;
@@ -10542,7 +10591,7 @@ begin
     or new.used_for is distinct from old.used_for
   ) and public.ipas_option_on_filed(old.id) then
     raise exception 'ipas_options: "%" is used on a filed IPAS. Deactivate it and add a new one instead.', old.label
-      using errcode = '55000';
+      using errcode = '22023';
   end if;
   return new;
 end;
@@ -10589,13 +10638,13 @@ begin
 
   select * into v_row from public.ipas where id = p_ipas_id for update;
   if v_row.id is null then
-    raise exception 'ipas_override_field: IPAS % not found', p_ipas_id using errcode = 'P0002';
+    raise exception 'ipas_override_field: IPAS % not found', p_ipas_id using errcode = '22023';
   end if;
   if v_row.state = 'filed' then
-    raise exception 'ipas_override_field: % is filed; a Super Admin reopens it first', v_row.number using errcode = '55000';
+    raise exception 'ipas_override_field: % is filed; a Super Admin reopens it first', v_row.number using errcode = '22023';
   end if;
   if v_row.state = 'cancelled' then
-    raise exception 'ipas_override_field: % is cancelled', v_row.number using errcode = '55000';
+    raise exception 'ipas_override_field: % is cancelled', v_row.number using errcode = '22023';
   end if;
 
   v_from := case p_field
@@ -10647,6 +10696,97 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_raise_from_odoo(p_actor uuid, p_po_number text, p_priority text, p_source text, p_purpose text, p_sor_ids uuid[], p_remarks text, p_verdict text, p_odoo_copy jsonb)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_po text := upper(btrim(p_po_number));
+  v_sors uuid[];
+  v_existing text;
+  v_row public.ipas;
+begin
+  if p_actor is null or not public._employee_has_purchasing_access(p_actor) then
+    raise exception 'ipas_create: only Purchasing raises an IPAS' using errcode = '42501';
+  end if;
+
+  if v_po is null or v_po !~ '^P[0-9]+$' then
+    raise exception 'ipas_create: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', coalesce(p_po_number, 'null')
+      using errcode = '22023';
+  end if;
+  if p_priority is null or p_priority not in ('very_high', 'high', 'medium') then
+    raise exception 'ipas_create: % isn''t a Priority', coalesce(p_priority, 'null') using errcode = '22023';
+  end if;
+  if p_source is null or p_source not in ('import', 'local') then
+    raise exception 'ipas_create: % isn''t a Source', coalesce(p_source, 'null') using errcode = '22023';
+  end if;
+  if p_purpose is null or p_purpose not in ('project', 'inventory', 'supplies', 'events') then
+    raise exception 'ipas_create: % isn''t a Purpose', coalesce(p_purpose, 'null') using errcode = '22023';
+  end if;
+
+  -- What Odoo said, as the server heard it.
+  if p_verdict is distinct from 'found' then
+    if p_verdict = 'not_found' then
+      raise exception 'ipas_create: Odoo has no purchase order named %', v_po using errcode = '22023', hint = 'odoo_not_found';
+    elsif p_verdict = 'unavailable' then
+      raise exception 'ipas_create: Odoo couldn''t be asked about %; try again shortly', v_po using errcode = '22023', hint = 'odoo_unavailable';
+    end if;
+    raise exception 'ipas_create: % isn''t an Odoo verdict', coalesce(p_verdict, 'null') using errcode = '22023';
+  end if;
+
+  if p_odoo_copy is null
+     or jsonb_typeof(p_odoo_copy) <> 'object'
+     or jsonb_typeof(p_odoo_copy->'po') is distinct from 'object'
+     or jsonb_typeof(p_odoo_copy->'lines') is distinct from 'array' then
+    raise exception 'ipas_create: the Odoo copy is missing' using errcode = '22023';
+  end if;
+  if upper(btrim(p_odoo_copy->'po'->>'name')) is distinct from v_po then
+    raise exception 'ipas_create: the Odoo copy is for %, not %', coalesce(p_odoo_copy->'po'->>'name', 'no PO'), v_po
+      using errcode = '22023';
+  end if;
+
+  v_sors := public._ipas_clean_sor_ids('ipas_create', p_purpose, p_sor_ids);
+
+  select i.number into v_existing
+    from public.ipas i
+   where i.po_number = v_po and i.state <> 'cancelled';
+  if v_existing is not null then
+    raise exception 'ipas_create: % already has a live IPAS (%); cancel it to raise a new one', v_po, v_existing
+      using errcode = '23505';
+  end if;
+
+  insert into public.ipas (
+    po_number, odoo_po_id, priority, source, purpose, remarks, odoo_copy, created_by
+  ) values (
+    v_po,
+    case when (p_odoo_copy->'po'->>'id') ~ '^[0-9]+$' then (p_odoo_copy->'po'->>'id')::integer end,
+    p_priority,
+    p_source,
+    p_purpose,
+    nullif(btrim(p_remarks), ''),
+    p_odoo_copy,
+    p_actor
+  )
+  returning * into v_row;
+
+  insert into public.ipas_sors (ipas_id, opportunity_id)
+  select v_row.id, s from unnest(v_sors) s;
+
+  perform public._ipas_write_event(v_row.id, p_actor, 'created', jsonb_build_object(
+    'number', v_row.number,
+    'po_number', v_row.po_number,
+    'priority', v_row.priority,
+    'source', v_row.source,
+    'purpose', v_row.purpose,
+    'sor_ids', to_jsonb(v_sors)
+  ));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_record_odoo_copy(p_ipas_id uuid, p_odoo_copy jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -10682,7 +10822,7 @@ begin
 
   select * into v_row from public.ipas where id = p_ipas_id for update;
   if v_row.id is null then
-    raise exception 'ipas_record_odoo_copy: IPAS % not found', p_ipas_id using errcode = 'P0002';
+    raise exception 'ipas_record_odoo_copy: IPAS % not found', p_ipas_id using errcode = '22023';
   end if;
   if upper(btrim(p_odoo_copy->'po'->>'name')) is distinct from v_row.po_number then
     raise exception 'ipas_record_odoo_copy: the Odoo copy is for %, not %',
@@ -10691,7 +10831,7 @@ begin
   end if;
   if v_row.state = 'cancelled' then
     raise exception 'ipas_record_odoo_copy: % is cancelled and keeps the copy it had', v_row.number
-      using errcode = '55000';
+      using errcode = '22023';
   end if;
 
   v_before := v_row;
@@ -10775,6 +10915,25 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_refresh_from_odoo(p_actor_email text, p_ipas_id uuid, p_odoo_copy jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'ipas_record_odoo_copy: not signed in' using errcode = '42501';
+  end if;
+
+  -- Act as the caller the edge function authenticated: identity is the JWT email claim.
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+
+  return public.ipas_record_odoo_copy(p_ipas_id, p_odoo_copy);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_remove_charge(p_charge_id uuid)
  RETURNS ipas_charges
  LANGUAGE plpgsql
@@ -10789,13 +10948,13 @@ declare
 begin
   select ipas_id into v_ipas_id from public.ipas_charges where id = p_charge_id;
   if v_ipas_id is null then
-    raise exception 'ipas_remove_charge: charge % not found', p_charge_id using errcode = 'P0002';
+    raise exception 'ipas_remove_charge: charge % not found', p_charge_id using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_remove_charge', v_ipas_id);
   delete from public.ipas_charges where id = p_charge_id returning * into v_row;
   if v_row.id is null then
-    raise exception 'ipas_remove_charge: charge % not found', p_charge_id using errcode = 'P0002';
+    raise exception 'ipas_remove_charge: charge % not found', p_charge_id using errcode = '22023';
   end if;
 
   perform public._ipas_write_event(v_ipas.id, v_actor, 'charge_removed', jsonb_build_object(
@@ -10823,11 +10982,11 @@ begin
   v_row := public._ipas_lock_document('ipas_remove_document', p_document_id);
   if v_row.kind_id is not null then
     raise exception 'ipas_remove_document: % is a listed document kind; only a document added by hand can be removed', public._ipas_document_label(v_row)
-      using errcode = '55000';
+      using errcode = '22023';
   end if;
   if v_row.finance_has then
     raise exception 'ipas_remove_document: Finance has ticked this document; ask Finance to untick it first'
-      using errcode = '55000';
+      using errcode = '22023';
   end if;
   v_label := public._ipas_document_label(v_row);
 
@@ -10858,13 +11017,13 @@ declare
 begin
   select ipas_id into v_ipas_id from public.ipas_payments where id = p_payment_id;
   if v_ipas_id is null then
-    raise exception 'ipas_remove_payment: payment % not found', p_payment_id using errcode = 'P0002';
+    raise exception 'ipas_remove_payment: payment % not found', p_payment_id using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_remove_payment', v_ipas_id);
   delete from public.ipas_payments where id = p_payment_id returning * into v_row;
   if v_row.id is null then
-    raise exception 'ipas_remove_payment: payment % not found', p_payment_id using errcode = 'P0002';
+    raise exception 'ipas_remove_payment: payment % not found', p_payment_id using errcode = '22023';
   end if;
 
   perform public._ipas_write_event(v_ipas.id, v_actor, 'payment_removed', jsonb_build_object(
@@ -10911,10 +11070,10 @@ begin
 
   select * into v_row from public.ipas where id = p_ipas_id for update;
   if v_row.id is null then
-    raise exception 'ipas_reopen: IPAS % not found', p_ipas_id using errcode = 'P0002';
+    raise exception 'ipas_reopen: IPAS % not found', p_ipas_id using errcode = '22023';
   end if;
   if v_row.state <> 'filed' then
-    raise exception 'ipas_reopen: % isn''t filed', v_row.number using errcode = '55000';
+    raise exception 'ipas_reopen: % isn''t filed', v_row.number using errcode = '22023';
   end if;
 
   -- The freeze lets this one update through; the setting lasts for this
@@ -10972,13 +11131,13 @@ begin
 
   select * into v_row from public.ipas where id = p_ipas_id for update;
   if v_row.id is null then
-    raise exception 'ipas_reset_override: IPAS % not found', p_ipas_id using errcode = 'P0002';
+    raise exception 'ipas_reset_override: IPAS % not found', p_ipas_id using errcode = '22023';
   end if;
   if v_row.state = 'filed' then
-    raise exception 'ipas_reset_override: % is filed; a Super Admin reopens it first', v_row.number using errcode = '55000';
+    raise exception 'ipas_reset_override: % is filed; a Super Admin reopens it first', v_row.number using errcode = '22023';
   end if;
   if v_row.state = 'cancelled' then
-    raise exception 'ipas_reset_override: % is cancelled', v_row.number using errcode = '55000';
+    raise exception 'ipas_reset_override: % is cancelled', v_row.number using errcode = '22023';
   end if;
 
   v_from := case p_field
@@ -11033,7 +11192,7 @@ begin
     raise exception 'ipas_send_back: the reason is 500 characters at most' using errcode = '22023';
   end if;
   if p_section is null or p_section not in (1, 3, 7) then
-    raise exception 'ipas_send_back: only sections 1, 3 and 7 can be returned' using errcode = '22023';
+    raise exception 'ipas_send_back: only sections 1, 2 and 4 can be returned' using errcode = '22023';
   end if;
 
   -- Refuses a filed or cancelled IPAS (55000): a filed one is reopened, not returned.
@@ -11042,7 +11201,7 @@ begin
   if p_section = 7 then
     -- Anyone on a section 7 list, whichever sign-off they give.
     if not public._ipas_can_sign_section(7, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section 7 returns it' using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section 4 returns it' using errcode = '42501';
     end if;
 
     -- Section 7 is open once sections 1 and 3 are approved.
@@ -11053,7 +11212,7 @@ begin
       select 1 from public.ipas_signoffs s
        where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
     ) then
-      raise exception 'ipas_send_back: section 7 isn''t open yet; sections 1 and 3 must be approved first' using errcode = '55000';
+      raise exception 'ipas_send_back: section 4 isn''t open yet; sections 1 and 2 must be approved first' using errcode = '22023';
     end if;
 
     with cleared as (
@@ -11073,7 +11232,7 @@ begin
     v_preparers := '{}'::uuid[];
   else
     if not public._ipas_can_sign_section(p_section, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section % returns it', p_section using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section % returns it', public._ipas_section_no(p_section) using errcode = '42501';
     end if;
 
     with cleared as (
@@ -11113,7 +11272,7 @@ begin
   end if;
 
   if cardinality(v_roles) = 0 then
-    raise exception 'ipas_send_back: section % has nothing to return', p_section using errcode = '55000';
+    raise exception 'ipas_send_back: section % has nothing to return', public._ipas_section_no(p_section) using errcode = '22023';
   end if;
 
   perform public._ipas_write_event(v_ipas.id, v_actor, 'sent_back', jsonb_build_object(
@@ -11321,6 +11480,7 @@ declare
   v_sheet boolean;
   v_gantt boolean;
   v_label text;
+  v_remarks text;
   v_is_purchasing boolean;
   v_changes jsonb := '{}'::jsonb;
 begin
@@ -11340,7 +11500,7 @@ begin
   for v_key in select jsonb_object_keys(p_fields) loop
     if v_key not in (
       'supplier_contact', 'pi_number', 'pi_qt_amount', 'freight_service_id', 'landed_cost_split', 'computation_status',
-      'google_sheet', 'gantt_chart'
+      'google_sheet', 'gantt_chart', 'remarks'
     ) then
       raise exception 'ipas_set_header: % isn''t a header field you can type here', v_key using errcode = '22023';
     end if;
@@ -11348,13 +11508,22 @@ begin
 
   select * into v_row from public.ipas where id = p_ipas_id for update;
   if v_row.id is null then
-    raise exception 'ipas_set_header: IPAS % not found', p_ipas_id using errcode = 'P0002';
+    raise exception 'ipas_set_header: IPAS % not found', p_ipas_id using errcode = '22023';
   end if;
   if v_row.state = 'filed' then
-    raise exception 'ipas_set_header: % is filed; a Super Admin reopens it first', v_row.number using errcode = '55000';
+    raise exception 'ipas_set_header: % is filed; a Super Admin reopens it first', v_row.number using errcode = '22023';
   end if;
   if v_row.state = 'cancelled' then
-    raise exception 'ipas_set_header: % is cancelled', v_row.number using errcode = '55000';
+    raise exception 'ipas_set_header: % is cancelled', v_row.number using errcode = '22023';
+  end if;
+
+  -- Remarks: free text, blank clears. A non-text value is refused with a sentence.
+  v_remarks := v_row.remarks;
+  if jsonb_exists(p_fields, 'remarks') then
+    if jsonb_typeof(p_fields->'remarks') not in ('string', 'null') then
+      raise exception 'ipas_set_header: Remarks must be text' using errcode = '22023';
+    end if;
+    v_remarks := nullif(btrim(p_fields->>'remarks'), '');
   end if;
 
   v_contact := case when jsonb_exists(p_fields, 'supplier_contact') then nullif(btrim(p_fields->>'supplier_contact'), '') else v_row.supplier_contact end;
@@ -11420,9 +11589,17 @@ begin
     end if;
   end if;
 
-  -- Finance and Super Admins (who aren't Purchasing) only move Checked by: from LC Odoo Done
-  -- to Checked by, or back, and nothing else in the same call.
-  if not v_is_purchasing then
+  -- Checked by belongs to Finance (#547). Purchasing, a Super Admin in Purchasing included, moves
+  -- the status only from Encoding up to LC Odoo Done: it never gives Checked by and never takes it back.
+  if v_is_purchasing then
+    if v_status is distinct from v_row.computation_status
+       and (v_status = 'checked' or v_row.computation_status = 'checked') then
+      raise exception 'ipas_set_header: Checked by is Finance''s step; Purchasing can''t give it or take it back'
+        using errcode = '42501';
+    end if;
+  else
+    -- Finance and Super Admins (who aren't Purchasing) only move Checked by: from LC Odoo Done
+    -- to Checked by, or back, and nothing else in the same call.
     if (select count(*) from jsonb_object_keys(p_fields)) <> 1
        or not jsonb_exists(p_fields, 'computation_status')
        or not (
@@ -11476,6 +11653,9 @@ begin
   if v_gantt is distinct from v_row.gantt_chart then
     v_changes := v_changes || jsonb_build_object('gantt_chart', jsonb_build_object('from', v_row.gantt_chart, 'to', v_gantt));
   end if;
+  if v_remarks is distinct from v_row.remarks then
+    v_changes := v_changes || jsonb_build_object('remarks', jsonb_build_object('from', v_row.remarks, 'to', v_remarks));
+  end if;
   if v_changes = '{}'::jsonb then
     return v_row;
   end if;
@@ -11488,7 +11668,8 @@ begin
          landed_cost_split = v_split,
          computation_status = v_status,
          google_sheet = v_sheet,
-         gantt_chart = v_gantt
+         gantt_chart = v_gantt,
+         remarks = v_remarks
    where id = v_row.id
   returning * into v_row;
 
@@ -11558,36 +11739,53 @@ begin
 
   select * into v_row from public.ipas where id = p_ipas_id for update;
   if v_row.id is null then
-    raise exception 'ipas_set_purpose_and_sors: IPAS % not found', p_ipas_id using errcode = 'P0002';
+    raise exception 'ipas_set_purpose_and_sors: IPAS % not found', p_ipas_id using errcode = '22023';
   end if;
   if v_row.state = 'filed' then
     raise exception 'ipas_set_purpose_and_sors: % is filed; a Super Admin reopens it first', v_row.number
-      using errcode = '55000';
+      using errcode = '22023';
   end if;
   if v_row.state = 'cancelled' then
-    raise exception 'ipas_set_purpose_and_sors: % is cancelled', v_row.number using errcode = '55000';
+    raise exception 'ipas_set_purpose_and_sors: % is cancelled', v_row.number using errcode = '22023';
   end if;
 
-  v_after := public._ipas_clean_sor_ids('ipas_set_purpose_and_sors', p_purpose, p_sor_ids);
   select coalesce(array_agg(s.opportunity_id order by s.opportunity_id), '{}'::uuid[]) into v_before
     from public.ipas_sors s where s.ipas_id = v_row.id;
-  select coalesce(array_agg(x order by x), '{}'::uuid[]) into v_after from unnest(v_after) x;
 
-  if v_row.purpose = p_purpose and v_before = v_after then
+  -- #551: the SOR list is fixed when the IPAS is raised. A list may be sent (older
+  -- callers do) only if it is the list already there; null means "leave it".
+  if p_sor_ids is not null then
+    if array_position(p_sor_ids, null) is not null then
+      raise exception 'ipas_set_purpose_and_sors: an SOR id is missing' using errcode = '22023';
+    end if;
+    select coalesce(array_agg(distinct x order by x), '{}'::uuid[]) into v_after from unnest(p_sor_ids) x;
+    if v_after is distinct from v_before then
+      raise exception 'ipas_set_purpose_and_sors: the SORs of % can''t be changed after it is raised; cancel it and raise a new one', v_row.number
+        using errcode = '22023';
+    end if;
+  end if;
+
+  -- The Purpose still has to fit the SORs it already has.
+  if p_purpose = 'project' and cardinality(v_before) = 0 then
+    raise exception 'ipas_set_purpose_and_sors: a Project IPAS needs at least one SOR, and the SORs can''t be changed after it is raised' using errcode = '22023';
+  end if;
+  if p_purpose <> 'project' and cardinality(v_before) > 0 then
+    raise exception 'ipas_set_purpose_and_sors: % names SORs, so it can only be a Project; the SORs can''t be changed after it is raised', v_row.number
+      using errcode = '22023';
+  end if;
+
+  if v_row.purpose = p_purpose then
     return v_row;
   end if;
 
   v_from := v_row.purpose;
-  delete from public.ipas_sors where ipas_id = v_row.id;
   update public.ipas set purpose = p_purpose where id = v_row.id returning * into v_row;
-  insert into public.ipas_sors (ipas_id, opportunity_id)
-  select v_row.id, s from unnest(v_after) s;
 
   perform public._ipas_write_event(v_row.id, v_actor, 'purpose_sors_changed', jsonb_build_object(
     'purpose_from', v_from,
     'purpose_to', v_row.purpose,
     'sor_ids_from', to_jsonb(v_before),
-    'sor_ids_to', to_jsonb(v_after)
+    'sor_ids_to', to_jsonb(v_before)
   ));
 
   return v_row;
@@ -11642,7 +11840,7 @@ begin
      )
    limit 1;
   if v_missing is not null then
-    raise exception 'ipas_set_signer_list: employee % isn''t an active employee', v_missing using errcode = 'P0002';
+    raise exception 'ipas_set_signer_list: employee % isn''t an active employee', v_missing using errcode = '22023';
   end if;
 
   select coalesce(array_agg(x), '{}'::uuid[]) into v_added from unnest(v_wanted) as x where x <> all (v_have);
@@ -11808,7 +12006,7 @@ begin
     raise exception 'ipas_sign: not signed in' using errcode = '42501';
   end if;
   if p_section is null or p_role is null or not public._ipas_signoff_pair_ok(p_section, p_role) then
-    raise exception 'ipas_sign: section % has no % sign-off', coalesce(p_section::text, 'null'), coalesce(p_role, 'null')
+    raise exception 'ipas_sign: section % has no % sign-off', coalesce(public._ipas_section_no(p_section)::text, 'null'), coalesce(p_role, 'null')
       using errcode = '22023';
   end if;
 
@@ -11829,7 +12027,7 @@ begin
     select 1 from public.ipas_signoffs s
      where s.ipas_id = v_ipas.id and s.section = p_section and s.role = p_role and s.cleared_at is null
   ) then
-    raise exception 'ipas_sign: section % is already % on %', p_section, p_role, v_ipas.number using errcode = '55000';
+    raise exception 'ipas_sign: section % is already % on %', public._ipas_section_no(p_section), p_role, v_ipas.number using errcode = '22023';
   end if;
 
   if p_role = 'approved' and p_section in (1, 3) then
@@ -11837,10 +12035,10 @@ begin
       from public.ipas_signoffs s
      where s.ipas_id = v_ipas.id and s.section = p_section and s.role = 'prepared' and s.cleared_at is null;
     if v_prepared.id is null then
-      raise exception 'ipas_sign: section % hasn''t been prepared yet', p_section using errcode = '55000';
+      raise exception 'ipas_sign: section % hasn''t been prepared yet', public._ipas_section_no(p_section) using errcode = '22023';
     end if;
     if v_prepared.signed_by = v_actor then
-      raise exception 'ipas_sign: you prepared section %, so someone else approves it', p_section using errcode = '42501';
+      raise exception 'ipas_sign: you prepared section %, so someone else approves it', public._ipas_section_no(p_section) using errcode = '42501';
     end if;
   end if;
 
@@ -11854,7 +12052,7 @@ begin
       select 1 from public.ipas_signoffs s
        where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
     ) then
-      raise exception 'ipas_sign: section 7 opens once sections 1 and 3 are approved' using errcode = '55000';
+      raise exception 'ipas_sign: section 4 opens once sections 1 and 2 are approved' using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.
@@ -11862,7 +12060,7 @@ begin
       select 1 from public.ipas_signoffs s
        where s.ipas_id = v_ipas.id and s.section = 7 and s.role = 'received' and s.cleared_at is null
     ) then
-      raise exception 'ipas_sign: Received comes first; % can only be given after it', initcap(p_role) using errcode = '55000';
+      raise exception 'ipas_sign: Received comes first; % can only be given after it', initcap(p_role) using errcode = '22023';
     end if;
 
     if p_role = 'approved' then
@@ -11870,11 +12068,11 @@ begin
         select count(*) from public.ipas_signoffs s
          where s.ipas_id = v_ipas.id and s.section = 7 and s.role in ('received', 'noted', 'checked') and s.cleared_at is null
       ) < 3 then
-        raise exception 'ipas_sign: Approved needs Received, Noted and Checked first' using errcode = '55000';
+        raise exception 'ipas_sign: Approved needs Received, Noted and Checked first' using errcode = '22023';
       end if;
       if v_ipas.computation_status not in ('lc_odoo_done', 'checked') then
         raise exception 'ipas_sign: % can''t be filed until LC Odoo Done: Landed Cost is still provisional, and Filing freezes it as final', v_ipas.number
-          using errcode = '55000';
+          using errcode = '22023';
       end if;
     end if;
   end if;
@@ -12298,7 +12496,7 @@ AS $function$
         and exists (select 1 from public.transmittal_lines l where l.transmittal_id = t.id and l.ipas_id = i.id)
     ) slips
   ) tg
-  -- #283: the IPAS's Landed Cost total and mark, for money-tier readers only.
+  -- #283: the IPAS's Landed Cost total and mark, for cost-tier readers only.
   cross join lateral (
     select
       case when bool_or(l.mark = 'unavailable') then null else sum(l.total_php) end as total,
@@ -12307,7 +12505,7 @@ AS $function$
            when bool_and(l.mark = 'final') then 'final'
            else 'provisional' end as mark
     from public.ipas_line_landed_costs(i.id) l
-    where public.costing_can_read_money(p_opportunity_id)
+    where public.costing_can_read_cost(p_opportunity_id)
   ) lcost
   where (select public.sor_access_level(p_opportunity_id)) = 'full'
     and i.purpose = 'project'
@@ -12397,13 +12595,13 @@ begin
     raise exception 'ipas_undo_approval: the reason is 500 characters at most' using errcode = '22023';
   end if;
   if p_section is null or p_section not in (1, 3) then
-    raise exception 'ipas_undo_approval: only sections 1 and 3 have an approval to undo' using errcode = '22023';
+    raise exception 'ipas_undo_approval: only sections 1 and 2 have an approval to undo' using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_undo_approval', p_ipas_id);
 
   if not public._ipas_can_sign_section(p_section, v_actor) then
-    raise exception 'ipas_undo_approval: only a signer of section % undoes its approval', p_section using errcode = '42501';
+    raise exception 'ipas_undo_approval: only a signer of section % undoes its approval', public._ipas_section_no(p_section) using errcode = '42501';
   end if;
 
   update public.ipas_signoffs s
@@ -12412,7 +12610,7 @@ begin
   returning s.signed_by into v_approver;
 
   if not found then
-    raise exception 'ipas_undo_approval: section % has no approval to undo', p_section using errcode = '55000';
+    raise exception 'ipas_undo_approval: section % has no approval to undo', public._ipas_section_no(p_section) using errcode = '22023';
   end if;
 
   -- Section 4 stood on both approvals: its open sign-offs go too.
@@ -12473,13 +12671,13 @@ declare
 begin
   select ipas_id into v_ipas_id from public.ipas_charges where id = p_charge_id;
   if v_ipas_id is null then
-    raise exception 'ipas_update_charge: charge % not found', p_charge_id using errcode = 'P0002';
+    raise exception 'ipas_update_charge: charge % not found', p_charge_id using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_update_charge', v_ipas_id);
   select * into v_before from public.ipas_charges where id = p_charge_id for update;
   if v_before.id is null then
-    raise exception 'ipas_update_charge: charge % not found', p_charge_id using errcode = 'P0002';
+    raise exception 'ipas_update_charge: charge % not found', p_charge_id using errcode = '22023';
   end if;
 
   if p_charged_on is null then
@@ -12541,13 +12739,13 @@ declare
 begin
   select ipas_id into v_ipas_id from public.ipas_payments where id = p_payment_id;
   if v_ipas_id is null then
-    raise exception 'ipas_update_payment: payment % not found', p_payment_id using errcode = 'P0002';
+    raise exception 'ipas_update_payment: payment % not found', p_payment_id using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_update_payment', v_ipas_id);
   select * into v_before from public.ipas_payments where id = p_payment_id for update;
   if v_before.id is null then
-    raise exception 'ipas_update_payment: payment % not found', p_payment_id using errcode = 'P0002';
+    raise exception 'ipas_update_payment: payment % not found', p_payment_id using errcode = '22023';
   end if;
 
   v_clean := public._ipas_clean_payment(
@@ -13871,6 +14069,101 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_item_apply_po_check(p_actor_email text, p_item_id uuid, p_action text, p_po_number text, p_odoo text)
+ RETURNS purchase_request_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_po text := nullif(upper(btrim(p_po_number)), '');
+  v_verification text;
+  v_actor uuid;
+  v_item public.purchase_request_items;
+  v_old text;
+begin
+  if p_action is null or p_action not in ('order', 'correct') then
+    raise exception 'purchase_request_item_apply_po_check: % is not a PO action', coalesce(p_action, 'null') using errcode = '22023';
+  end if;
+  if p_odoo is null or p_odoo not in ('found', 'not_found', 'unreachable') then
+    raise exception 'purchase_request_item_apply_po_check: % is not an Odoo answer', coalesce(p_odoo, 'null') using errcode = '22023';
+  end if;
+  if v_po is null or v_po !~ '^P[0-9]+$' then
+    raise exception 'purchase_request_set_item_status: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', coalesce(p_po_number, '') using errcode = '22023';
+  end if;
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'purchase_request_set_item_status: not signed in' using errcode = '42501';
+  end if;
+
+  -- Act as the caller the edge function authenticated: identity is the JWT email claim.
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+
+  if p_action = 'correct' then
+    v_actor := public.get_employee_id();
+    if v_actor is null then
+      raise exception 'purchase_request_correct_po: not signed in' using errcode = '42501';
+    end if;
+    select * into v_item from public.purchase_request_items where id = p_item_id for update;
+    if v_item.id is null then
+      raise exception 'purchase_request_correct_po: item % not found', p_item_id using errcode = 'P0002';
+    end if;
+    if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
+      raise exception 'purchase_request_correct_po: only Purchasing corrects an item''s PO' using errcode = '42501';
+    end if;
+    if v_item.status <> 'ordered' then
+      raise exception 'purchase_request_correct_po: % is %, not Ordered; a PO can only be corrected while the item is Ordered',
+        v_item.name, public._purchase_request_item_status_label(v_item.status)
+        using errcode = '22023';
+    end if;
+    if v_item.po_number is not distinct from v_po then
+      raise exception 'purchase_request_correct_po: % is already on PO %', v_item.name, v_po using errcode = '22023';
+    end if;
+  end if;
+
+  v_verification := case p_odoo
+    when 'found' then 'VERIFIED'
+    when 'unreachable' then 'PENDING_VERIFICATION'
+    else null
+  end;
+  if v_verification is null then
+    raise exception 'purchase_request_set_item_status: Odoo has no purchase order %; check the number and try again', v_po
+      using errcode = '22023';
+  end if;
+
+  if p_action = 'order' then
+    return public._purchase_request_set_item_status(
+      p_item_id, 'ordered',
+      jsonb_build_object('po_number', v_po, 'po_verification', v_verification),
+      true);
+  end if;
+
+  -- 'correct': swap the PO, drop lines picked on the old one, and say so in the request.
+  v_old := v_item.po_number;
+  update public.purchase_request_items
+     set po_number = v_po,
+         po_verification = v_verification,
+         odoo_po_line_ids = '{}'
+   where id = v_item.id
+  returning * into v_item;
+
+  perform public._purchase_request_post_event(
+    v_item.request_id,
+    v_actor,
+    format('%s: PO %s → %s.', v_item.name, coalesce(v_old, 'none'), v_po),
+    jsonb_build_object(
+      'event', 'item_po_corrected',
+      'item_id', v_item.id,
+      'from_po', v_old,
+      'to_po', v_po,
+      'po_verification', v_verification
+    )
+  );
+
+  return v_item;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_item_detach_component(p_item_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -14291,84 +14584,8 @@ CREATE OR REPLACE FUNCTION public.purchase_request_set_item_status(p_item_id uui
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare
-  v_actor uuid := public.get_employee_id();
-  v_details jsonb := coalesce(p_details, '{}'::jsonb);
-  v_item public.purchase_request_items;
-  v_side text;
-  v_key text;
-  v_po text;
-  v_verification text;
 begin
-  if v_actor is null then
-    raise exception 'purchase_request_set_item_status: not signed in' using errcode = '42501';
-  end if;
-  if p_status is null or p_status not in (
-    'requested', 'from_stock', 'to_order', 'canvassing', 'ordered', 'received',
-    'substituted', 'cannot_source', 'cancelled'
-  ) then
-    raise exception 'purchase_request_set_item_status: % is not an item status', coalesce(p_status, 'null') using errcode = '22023';
-  end if;
-  if jsonb_typeof(v_details) <> 'object' then
-    raise exception 'purchase_request_set_item_status: details must be an object' using errcode = '22023';
-  end if;
-
-  -- Only Ordered takes details: its PO number and what Odoo said about it.
-  if p_status <> 'ordered' and v_details <> '{}'::jsonb then
-    raise exception 'purchase_request_set_item_status: % takes no details', public._purchase_request_item_status_label(p_status)
-      using errcode = '22023';
-  end if;
-  for v_key in select jsonb_object_keys(v_details) loop
-    if v_key not in ('po_number', 'po_verification') then
-      raise exception 'purchase_request_set_item_status: Ordered takes a PO number and its check, not %', v_key
-        using errcode = '22023';
-    end if;
-  end loop;
-
-  if v_details ? 'po_number' and jsonb_typeof(v_details->'po_number') not in ('string', 'null') then
-    raise exception 'purchase_request_set_item_status: the PO number must be text' using errcode = '22023';
-  end if;
-  v_po := nullif(upper(btrim(v_details->>'po_number')), '');
-  v_verification := nullif(btrim(v_details->>'po_verification'), '');
-  if v_po is not null and v_po !~ '^P[0-9]+$' then
-    raise exception 'purchase_request_set_item_status: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', v_po
-      using errcode = '22023';
-  end if;
-  if v_verification is not null and v_po is null then
-    raise exception 'purchase_request_set_item_status: a PO check needs a PO number' using errcode = '22023';
-  end if;
-  if v_verification is not null
-     and v_verification not in ('UNVERIFIED', 'VERIFIED', 'PENDING_VERIFICATION', 'NOT_FOUND') then
-    raise exception 'purchase_request_set_item_status: % is not a PO check result', v_verification using errcode = '22023';
-  end if;
-  if v_po is not null then
-    v_verification := coalesce(v_verification, 'UNVERIFIED');
-    v_details := jsonb_build_object('po_number', v_po, 'po_verification', v_verification);
-  else
-    v_details := '{}'::jsonb;
-  end if;
-
-  select * into v_item from public.purchase_request_items where id = p_item_id for update;
-  if v_item.id is null then
-    raise exception 'purchase_request_set_item_status: item % not found', p_item_id using errcode = 'P0002';
-  end if;
-
-  v_side := public.purchase_request_actor_side(v_item.request_id);
-  if v_side is null then
-    raise exception 'purchase_request_set_item_status: only the request''s members may change an item' using errcode = '42501';
-  end if;
-
-  v_item := public._purchase_request_item_move(v_item, p_status, v_side, v_actor, v_details, 'purchase_request_set_item_status');
-
-  if v_po is not null then
-    update public.purchase_request_items
-       set po_number = v_po,
-           po_verification = v_verification
-     where id = v_item.id
-    returning * into v_item;
-  end if;
-
-  return v_item;
+  return public._purchase_request_set_item_status(p_item_id, p_status, p_details, false);
 end;
 $function$
 ;
@@ -15305,6 +15522,11 @@ AS $function$
           or public.sor_always_sees(o, public.get_employee_id())
         )
     ) then 'full'
+    -- #545: the Final Acquire list or the Evaluation list, on an SOR that has a Costing Matrix.
+    -- Independent of stage, mention and Stage Participants.
+    when (public.costing_on_list('final_acquire') or public.costing_on_list('evaluation'))
+      and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
+    then 'participant'
     when exists (
       select 1 from public.sor_stage_participants p
       where p.opportunity_id = p_opportunity_id
@@ -18218,7 +18440,7 @@ begin
 
   select * into v_stage from public.transmittal_stages s where s.id = p_stage_id;
   if not found then
-    raise exception 'transmittal_attach_evidence: that stage doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_attach_evidence: that stage doesn''t exist' using errcode = '22023';
   end if;
   select * into v_row from public.transmittals t where t.id = v_stage.transmittal_id;
 
@@ -18301,7 +18523,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_cancel: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_cancel: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
   if not (v_row.prepared_by = v_actor or coalesce(public.has_purchasing_access(), false)) then
     raise exception 'transmittal_cancel: only the preparer or Purchasing cancels a slip' using errcode = '42501';
@@ -18361,7 +18583,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_check: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_check: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
   if not public.transmittal_on_list('transmittal_check_by') then
     raise exception 'transmittal_check: only the Check by list signs a Transmittal' using errcode = '42501';
@@ -18451,7 +18673,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_check_signature: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_check_signature: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
   if (case p_slot when 1 then v_row.check_by_first_id else v_row.check_by_second_id end) is distinct from v_actor then
     raise exception 'transmittal_check_signature: only the person who signed that Check by can decline or apply its signature'
@@ -18532,7 +18754,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_complete_stage: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_complete_stage: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
   if v_row.state in ('closed', 'cancelled') then
     raise exception 'transmittal_complete_stage: % is %', v_row.number, v_row.state using errcode = '42501';
@@ -18558,7 +18780,7 @@ begin
       values (p_transmittal_id, p_stage)
       returning * into v_stage;
     else
-      raise exception 'transmittal_complete_stage: % has no % stage', v_row.number, p_stage using errcode = 'P0002';
+      raise exception 'transmittal_complete_stage: % has no % stage', v_row.number, p_stage using errcode = '22023';
     end if;
   end if;
 
@@ -18601,7 +18823,7 @@ begin
   if p_other_signer_id is not null then
     select e.name into v_other_name from public.employees e where e.id = p_other_signer_id;
     if not found then
-      raise exception 'transmittal_complete_stage: that signatory doesn''t exist' using errcode = 'P0002';
+      raise exception 'transmittal_complete_stage: that signatory doesn''t exist' using errcode = '22023';
     end if;
   else
     v_other_name := nullif(btrim(coalesce(p_other_signer_name, '')), '');
@@ -18740,7 +18962,7 @@ begin
 
   select * into v_stage from public.transmittal_stages s where s.id = p_stage_id for update;
   if not found then
-    raise exception 'transmittal_confirm_signature: that stage doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_confirm_signature: that stage doesn''t exist' using errcode = '22023';
   end if;
   if v_stage.completed_at is null then
     raise exception 'transmittal_confirm_signature: the stage isn''t signed yet' using errcode = '22023';
@@ -19033,7 +19255,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_rate: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_rate: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
 
   -- Technical inspection is rated by the Technical list; Warehouse checking by the Warehouse list.
@@ -19144,7 +19366,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_received_in_odoo: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_received_in_odoo: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
   if not (public.transmittal_on_list('transmittal_warehouse') or coalesce(public.has_purchasing_access(), false)) then
     raise exception 'transmittal_received_in_odoo: only the Warehouse list or Purchasing records the Odoo receipt'
@@ -19187,7 +19409,7 @@ begin
 
   select * into v_ev from public.pms_evidence e where e.id = p_evidence_id for update;
   if not found then
-    raise exception 'transmittal_remove_evidence: that file doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_remove_evidence: that file doesn''t exist' using errcode = '22023';
   end if;
   if v_ev.uploaded_by is distinct from v_actor then
     raise exception 'transmittal_remove_evidence: only the uploader removes a file' using errcode = '42501';
@@ -19314,7 +19536,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_submit: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_submit: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
   if not (v_row.prepared_by = v_actor or coalesce(public.has_purchasing_access(), false)) then
     raise exception 'transmittal_submit: only the preparer or Purchasing submits a slip' using errcode = '42501';
@@ -19399,7 +19621,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_undo_signature: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_undo_signature: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
   if v_row.state in ('draft', 'cancelled') then
     raise exception 'transmittal_undo_signature: % is %; nothing is signed', v_row.number, v_row.state
@@ -19598,7 +19820,7 @@ begin
 
   select * into v_row from public.transmittals t where t.id = p_transmittal_id for update;
   if not found then
-    raise exception 'transmittal_update_draft: that Transmittal doesn''t exist' using errcode = 'P0002';
+    raise exception 'transmittal_update_draft: that Transmittal doesn''t exist' using errcode = '22023';
   end if;
   if not (v_row.prepared_by = v_actor or coalesce(public.has_purchasing_access(), false)) then
     raise exception 'transmittal_update_draft: only the preparer or Purchasing changes a slip' using errcode = '42501';

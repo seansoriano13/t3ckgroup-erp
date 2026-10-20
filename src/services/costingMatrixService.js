@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { REFUSAL } from "../constants/refusal";
 import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, summary } from "../utils/costingMath";
 import { summariseCompleteness } from "../constants/projectEvaluation";
@@ -100,7 +101,9 @@ const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
  * may not take it), or null when `error` is anything else.
  */
 export function toRuleError(error) {
-  if (error?.code !== "23514" && !(error?.code === "42501" && /^costing_bid: /.test(error?.message ?? ""))) return null;
+  // A CHECK violation (23514), a rule a matrix function refuses (22023, #556), or a Bid Decision refused to someone who may not take it (42501).
+  const ruleRefusal = error?.code === REFUSAL.INVALID && RULE_MESSAGE.test(error?.message ?? "");
+  if (error?.code !== "23514" && !ruleRefusal && !(error?.code === REFUSAL.NOT_ALLOWED && /^costing_bid: /.test(error?.message ?? ""))) return null;
   if (DEVIATION_NOTE_CHECK.test(error.message ?? "")) return new CostingRuleError("A deviation needs a note.", error.code);
   const match = RULE_MESSAGE.exec(error.message ?? "");
   if (!match) return null;
@@ -1001,7 +1004,7 @@ export const costingMatrixService = {
 
 /** A duplicate preset name in words; anything else as it came. */
 function presetError(error) {
-  return error?.code === "23505" ? new Error("There is already a markup preset with that name.") : error;
+  return error?.code === REFUSAL.DUPLICATE ? new Error("There is already a markup preset with that name.") : error;
 }
 
 async function insertLine(matrixId, columns) {
