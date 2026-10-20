@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Pencil, ReceiptText } from "lucide-react";
+import { ArrowLeft, ReceiptText } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
@@ -32,7 +32,6 @@ import HeaderActions from "../../../components/ipas/record/HeaderActions";
 import SectionDrawer from "../../../components/ipas/record/SectionDrawer";
 import SectionsList from "../../../components/ipas/record/SectionsList";
 import { buildBlocks } from "../../../components/ipas/record/blocks";
-import { canEditSection } from "../../../components/ipas/record/moves";
 import { digestIpas, filingSummary, isInPlace } from "../../../components/ipas/record/digest";
 import { CHROME, RecordSectionChrome } from "../../../components/record/sectionChrome";
 import { useEditSection } from "../../../components/ipas/record/useEditSection";
@@ -856,6 +855,8 @@ function IpasPage() {
   const on = {
     print: () => startPrint(false),
     printFiling: () => startPrint(true),
+    // The one page-level Edit: opens the Header edit view for now; #581's long form repoints it.
+    edit: () => openEdit("header"),
     editPurpose: () => setEditing(true),
     cancel: () => setCancelling(true),
     reopen: () => setReopening(true),
@@ -929,12 +930,6 @@ function IpasPage() {
   const preview = (key) => (
     <div className="space-y-4">
       <RecordSectionChrome.Provider value={CHROME.DRAWER}>{blocks[key]}</RecordSectionChrome.Provider>
-      {canEditSection(key, ctx) && (
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openEdit(key)}>
-          <Pencil size={14} aria-hidden="true" />
-          Edit section
-        </Button>
-      )}
     </div>
   );
   const inPlaceBodies = {

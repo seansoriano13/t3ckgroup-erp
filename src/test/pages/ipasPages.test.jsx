@@ -407,7 +407,7 @@ describe("IPAS pages", () => {
     });
 
     // Every section of Everything else is a dropdown; Header and Sales read there and edit in the edit view.
-    it("expands Header in place, and its Edit section opens the edit view and comes back to it", async () => {
+    it("expands Header in place, and the page Edit button opens the edit view and comes back to it", async () => {
       const row = ipas({ po_number: "P02552", remarks: "For the Capas deal", created_by: purchaser.id });
       const user = setupUser();
       renderDetail(row.id);
@@ -419,8 +419,8 @@ describe("IPAS pages", () => {
       // Read-only under the row: Remarks is edited in the edit view.
       expect(screen.queryByRole("button", { name: /^Edit Remarks/ })).not.toBeInTheDocument();
 
-      // Each closed section's body stays mounted (inert), so look inside this row only.
-      await user.click(within(trigger.closest("li")).getByRole("button", { name: "Edit section" }));
+      expect(screen.queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Edit" }));
       expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Header" })).toBeInTheDocument();
 
@@ -430,7 +430,7 @@ describe("IPAS pages", () => {
       await waitFor(() => expect(back).toHaveFocus());
     }, 20000);
 
-    it("expands Sales in place read-only, with Edit section", async () => {
+    it("expands Sales in place read-only, with no per-section edit button", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       renderDetail(row.id, "sales");
 
@@ -439,21 +439,20 @@ describe("IPAS pages", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       const section = within(trigger.closest("li"));
       expect(section.queryByRole("checkbox", { name: "Googlesheet" })).not.toBeInTheDocument();
-      expect(section.getByRole("button", { name: "Edit section" })).toBeInTheDocument();
+      expect(section.queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
     });
 
-    it("offers no Edit section in Header, Sales or History to a viewer who may not change them", async () => {
+    it("offers no page Edit button to a viewer who may not change the IPAS", async () => {
       mockUser.current = finance;
       const row = ipas({ po_number: "P02552" });
       const user = setupUser();
       renderDetail(row.id);
 
-      for (const name of [/^Header/, /Sales & Operation/, /^History/]) {
-        const trigger = await screen.findByRole("button", { name });
-        await user.click(trigger);
-        expect(trigger).toHaveAttribute("aria-expanded", "true");
-        expect(within(trigger.closest("li")).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
-      }
+      const trigger = await screen.findByRole("button", { name: /^Header/ });
+      await user.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
