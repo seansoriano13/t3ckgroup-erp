@@ -162,3 +162,74 @@ describe("picking the PO line", () => {
     expect(within(row).queryAllByRole("button")).toEqual([])
   })
 })
+
+describe("Correct PO", () => {
+  async function openCorrectDialog(user) {
+    const row = await rowNamed("Full Body Harness")
+    await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
+    await user.click(screen.getByRole("button", { name: /Correct PO/ }))
+    return { row, dialog: await screen.findByRole("dialog") }
+  }
+
+  it("swaps the PO on an Ordered item, checks it, and clears the picked line", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
+    seedItem({ status: "ordered", po_number: "P01111", po_verification: "VERIFIED", odoo_po_line_ids: [501] })
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const { row, dialog } = await openCorrectDialog(user)
+    await user.type(within(dialog).getByLabelText("New PO number"), "p01234")
+    await user.click(within(dialog).getByRole("button", { name: "Check PO and correct" }))
+
+    await waitFor(() => expect(within(row).getByText("PO P01234")).toBeInTheDocument())
+    expect(db.rows("purchase_request_items")[0]).toMatchObject({ po_number: "P01234", po_verification: "VERIFIED", odoo_po_line_ids: [] })
+  })
+
+  it("keeps the old PO when Odoo says the new one doesn't exist", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "not_found" })
+    seedItem({ status: "ordered", po_number: "P01111", po_verification: "VERIFIED" })
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const { dialog } = await openCorrectDialog(user)
+    await user.type(within(dialog).getByLabelText("New PO number"), "P09999")
+    await user.click(within(dialog).getByRole("button", { name: "Check PO and correct" }))
+
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Check PO and correct" })).toBeEnabled())
+    expect(db.rows("purchase_request_items")[0]).toMatchObject({ po_number: "P01111" })
+  })
+
+  it("won't send a number that isn't an Odoo PO", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
+    seedItem({ status: "ordered", po_number: "P01111", po_verification: "VERIFIED" })
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const { dialog } = await openCorrectDialog(user)
+    await user.type(within(dialog).getByLabelText("New PO number"), "PO-12")
+    expect(within(dialog).getByRole("button", { name: "Check PO and correct" })).toBeDisabled()
+  })
+
+  it("is not offered to the sales side", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: salesperson.id, odoo: "found" })
+    seedItem({ status: "ordered", po_number: "P01111", po_verification: "VERIFIED" })
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const row = await rowNamed("Full Body Harness")
+    await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
+    expect(screen.getByRole("button", { name: "Cancel item" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Correct PO/ })).not.toBeInTheDocument()
+  })
+
+  it("is not offered once the item is Received", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
+    seedItem({ status: "received", po_number: "P01111", po_verification: "VERIFIED" })
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const row = await rowNamed("Full Body Harness")
+    expect(within(row).queryByRole("button", { name: "Change status of Full Body Harness" })).not.toBeInTheDocument()
+  })
+})

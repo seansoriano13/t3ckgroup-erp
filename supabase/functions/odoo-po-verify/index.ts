@@ -127,9 +127,9 @@ async function askOdoo(ref: string) {
 /**
  * The actions that save a PO on an item. Each is a verdict the database makes
  * from Odoo's answer (purchase_request_item_apply_po_check); the browser never
- * names the verdict. "Correct PO" (#549) is one more entry here.
+ * names the verdict. "correct" (#549) swaps the PO on an Ordered item.
  */
-const PO_ACTIONS = new Set(["order"]);
+const PO_ACTIONS = new Set(["order", "correct"]);
 
 /** The database's refusal, without the function name it leads with. */
 const refusalText = (message: string) => message.replace(/^[a-z_]+: /, "");
