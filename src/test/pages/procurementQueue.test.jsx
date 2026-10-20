@@ -157,4 +157,40 @@ describe("Procurement Queue", () => {
     expect(await within(buyer).findByText("Pia Buyer")).toBeInTheDocument()
     expect(within(sheet).queryByRole("button", { name: /^take$/i })).not.toBeInTheDocument()
   })
+
+  it("marks a Direct row with the word and a left border, and a project row with neither (#572)", async () => {
+    db.seed("purchase_requests", { opportunity_id: null, title: "Odoo cable", created_by: salesperson.id, buyer_id: null })
+    renderAt()
+
+    const direct = await rowFor("Direct")
+    expect(direct.querySelector("td")).toHaveClass("border-l-2")
+
+    const project = await rowFor("S01001")
+    expect(within(project).queryByText("Direct")).not.toBeInTheDocument()
+    expect(project.querySelector("td")).not.toHaveClass("border-l-2")
+  })
+
+  it("Open full switches to full screen, with a way back, and the next request opens the same way (#571)", async () => {
+    localStorage.clear()
+    const user = setupUser()
+    const first = renderAt(`/purchasing?request=${unassigned.id}`)
+
+    await user.click(await screen.findByRole("button", { name: "Open full" }))
+    expect(await screen.findByRole("button", { name: "Show in side panel" })).toBeInTheDocument()
+    first.unmount()
+
+    renderAt(`/purchasing?request=${taken.id}`)
+    const back = await screen.findByRole("button", { name: "Show in side panel" })
+    await user.click(back)
+    expect(await screen.findByRole("button", { name: "Open full" })).toBeInTheDocument()
+  }, 20_000)
+
+  it("opens in the slide-over when browser storage throws (#571)", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked")
+    })
+    renderAt(`/purchasing?request=${unassigned.id}`)
+    expect(await screen.findByRole("button", { name: "Open full" })).toBeInTheDocument()
+    vi.restoreAllMocks()
+  })
 })
