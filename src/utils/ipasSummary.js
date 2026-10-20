@@ -38,11 +38,11 @@ export const IPAS_SUMMARY_KEYS = [
 /** The roles shown for each section's progress, in the order they are given. */
 const SECTION_STEPS = {
   1: [
-    { role: "prepared", label: "Prepared" },
+    { role: "prepared", label: "Submitted" },
     { role: "approved", label: "Approved" },
   ],
   3: [
-    { role: "prepared", label: "Prepared" },
+    { role: "prepared", label: "Submitted" },
     { role: "approved", label: "Approved" },
   ],
   7: [

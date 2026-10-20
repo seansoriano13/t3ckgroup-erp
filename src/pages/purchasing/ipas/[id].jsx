@@ -27,6 +27,7 @@ import { IpasFiledNotice } from "../../../components/ipas/IpasFiling";
 import { IpasWarnings } from "../../../components/ipas/IpasSections";
 import DecisionCard from "../../../components/ipas/record/DecisionCard";
 import InlineError from "../../../components/record/InlineError";
+import EditForm from "../../../components/ipas/record/EditForm";
 import Figures from "../../../components/ipas/record/Figures";
 import HeaderActions from "../../../components/ipas/record/HeaderActions";
 import SectionDrawer from "../../../components/ipas/record/SectionDrawer";
@@ -128,8 +129,8 @@ function typingInitialValue(field, ipas) {
  * Supplier Origin (Import only) and the buyer track with the source of each
  * status.
  *
- * #247 adds the sign-offs of sections 1 and 3 at the foot of each: Prepared
- * (Purchasing access), Approved (the section's list, never the preparer) and
+ * #247 adds the sign-offs of sections 1 and 3 at the foot of each: Submitted
+ * (Purchasing access), Approved (the section's list, never the submitter) and
  * Return with a reason (the section's list). Each person is offered only
  * what the database will let them do; it refuses the rest.
  *
@@ -281,8 +282,8 @@ function IpasPage() {
       if (role === IPAS_SIGNOFF_ROLE.PREPARED) {
         toast.success(
           notified > 0
-            ? `Section ${ipasSectionLabel(section)} prepared. The approvers were told.`
-            : `Section ${ipasSectionLabel(section)} prepared. Nobody is on its approval list yet.`,
+            ? `Section ${ipasSectionLabel(section)} submitted. The approvers were told.`
+            : `Section ${ipasSectionLabel(section)} submitted. Nobody is on its approval list yet.`,
         );
       } else {
         toast.success(`Section ${ipasSectionLabel(section)} approved.`);
@@ -384,7 +385,7 @@ function IpasPage() {
           `Section ${ipasSectionLabel(7)} returned. Received, Noted and Checked were cleared and the people who gave them were told.`,
         );
       } else {
-        toast.success(`Section ${ipasSectionLabel(section)} returned to its preparer.`);
+        toast.success(`Section ${ipasSectionLabel(section)} returned to its submitter.`);
       }
       signoffChanged();
     },
@@ -664,6 +665,35 @@ function IpasPage() {
     },
   });
 
+  // The long edit form's one Save (#581): every typed change goes in together, in order, and
+  // the page re-reads once at the end. The first failure stops the rest and is kept with Retry;
+  // what was typed stays in the form.
+  const saveAll = useMutation({
+    mutationFn: async (plan) => {
+      try {
+        for (const item of plan.overrides) {
+          if (item.reset) await ipasService.resetOverride(id, item.field);
+          else await ipasService.overrideField(id, item.field, item.value);
+        }
+        if (Object.keys(plan.header).length > 0) await ipasService.setHeader(id, plan.header);
+        if (plan.location !== undefined) await ipasService.setItemLocation(id, plan.location);
+        if (Object.keys(plan.origin).length > 0) await ipasService.setSupplierOrigin(id, plan.origin);
+        for (const item of plan.typed) await ipasService.setTypedStatus(id, item.kind, item.date);
+        if (plan.stamp !== undefined) await ipasService.stampActualChecking(id, { stamped: plan.stamp });
+      } finally {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ipasKey(id) }),
+          queryClient.invalidateQueries({ queryKey: ipasListKey }),
+        ]);
+      }
+    },
+    onSuccess: () => {
+      setChangeFailure(null);
+      toast.success("Saved.");
+    },
+    onError: (error, plan) => failChange(error, () => saveAll.mutate(plan)),
+  });
+
   const stamp = useMutation({
     mutationFn: (stamped) => ipasService.stampActualChecking(id, { stamped }),
     onMutate: (stamped) => ({ rollback: patchCache(optimistic.stampActualChecking({ stamped, by })) }),
@@ -833,8 +863,8 @@ function IpasPage() {
         mode: undo ? "undo" : "return",
         label: ipasSectionLabel(section),
         effect: undo
-          ? "Takes back the approval only. Prepared stays, so it waits for an approver again."
-          : "Clears Prepared and Approved and tells whoever prepared it.",
+          ? "Takes back the approval only. Submitted stays, so it waits for an approver again."
+          : "Clears Submitted and Approved and tells whoever submitted it.",
         clears: filingGiven.map((line) => `${ipasSectionLabel(7)}: ${line}`),
       };
     });
@@ -855,7 +885,7 @@ function IpasPage() {
   const on = {
     print: () => startPrint(false),
     printFiling: () => startPrint(true),
-    // The one page-level Edit: opens the Header edit view for now; #581's long form repoints it.
+    // The one page-level Edit: opens the long edit form at its first section (#581).
     edit: () => openEdit("header"),
     editPurpose: () => setEditing(true),
     cancel: () => setCancelling(true),
@@ -939,23 +969,27 @@ function IpasPage() {
     status: inline("status"),
     history: inline("history"),
   };
+  // The long edit form (#581). Its money and sign-off cards reuse the section bodies with
+  // their own dialogs; "Edit" on the P.I/QT Amount there goes to the typed field instead.
+  const formBlocks = editKey
+    ? buildBlocks({ ...ctx, on: { ...on, editAmount: () => document.getElementById("f-piQtAmount")?.focus() } })
+    : null;
   const editView = editKey ? (
-    <div className="space-y-6">
-      <div>
-        <Button variant="ghost" size="sm" className="gap-1.5" onClick={backToPreview}>
-          <ArrowLeft size={14} aria-hidden="true" />
-          Back to preview
-        </Button>
-        {shownFailure && (
-          <InlineError
-            message={shownFailure.message}
-            onRetry={shownFailure.retry}
-            onDismiss={() => setChangeFailure(null)}
-          />
-        )}
-      </div>
-      <RecordSectionChrome.Provider value={CHROME.CARD}>{blocks[editKey]}</RecordSectionChrome.Provider>
-    </div>
+    <EditForm
+      ipas={ipas}
+      blocks={formBlocks}
+      canChange={canChange}
+      focusKey={editKey}
+      saving={saveAll.isPending}
+      onSave={(plan) => saveAll.mutateAsync(plan)}
+      onBack={backToPreview}
+      onEditPurpose={canChange && !ipas.sors?.length ? on.editPurpose : null}
+      failure={
+        shownFailure && (
+          <InlineError message={shownFailure.message} onRetry={shownFailure.retry} onDismiss={() => setChangeFailure(null)} />
+        )
+      }
+    />
   ) : null;
 
   // The dialog closes on a failure too (its onConfirm catches): the failure then

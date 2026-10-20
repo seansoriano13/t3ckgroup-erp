@@ -394,7 +394,7 @@ export const IPAS_SIGNOFF_ROLE = {
 };
 
 export const IPAS_SIGNOFF_ROLE_LABELS = {
-  [IPAS_SIGNOFF_ROLE.PREPARED]: "Prepared",
+  [IPAS_SIGNOFF_ROLE.PREPARED]: "Submitted",
   [IPAS_SIGNOFF_ROLE.APPROVED]: "Approved",
   [IPAS_SIGNOFF_ROLE.RECEIVED]: "Received",
   [IPAS_SIGNOFF_ROLE.NOTED]: "Noted",
@@ -403,7 +403,7 @@ export const IPAS_SIGNOFF_ROLE_LABELS = {
 
 /** What the button says for each sign-off a person gives (section 7's Approved files the IPAS). */
 export const IPAS_SIGNOFF_ROLE_ACTIONS = {
-  [IPAS_SIGNOFF_ROLE.PREPARED]: "Prepare",
+  [IPAS_SIGNOFF_ROLE.PREPARED]: "Submit",
   [IPAS_SIGNOFF_ROLE.APPROVED]: "Approve",
   [IPAS_SIGNOFF_ROLE.RECEIVED]: "Receive",
   [IPAS_SIGNOFF_ROLE.NOTED]: "Note",
@@ -497,7 +497,7 @@ export function ipasSectionLabel(partOrSection) {
 
 /**
  * The signer lists (ipas_signer_lists.list_key): who may give each sign-off
- * after Prepared. Super Admins edit them; Prepared needs Purchasing access.
+ * after Prepared. Super Admins edit them; Submit needs Purchasing access.
  */
 export const IPAS_SIGNER_LIST = {
   S1_APPROVED: "s1_approved",

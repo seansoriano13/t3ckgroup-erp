@@ -63,8 +63,8 @@ export function movesFor(ctx, digest) {
         move(`prepare-${section}`, PART[section], {
           kind: "prepare",
           icon: PenLine,
-          label: `Prepare section ${label}`,
-          verb: "Prepare",
+          label: `Submit section ${label}`,
+          verb: "Submit",
           run: (from) => on.prepare(section, from),
         }, digest),
       );

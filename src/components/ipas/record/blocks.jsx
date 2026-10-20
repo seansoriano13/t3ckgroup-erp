@@ -52,6 +52,9 @@ export function buildBlocks(ctx) {
   );
 
   return {
+    // Parts the long edit form places itself (#581): the payments and section 1's sign-offs.
+    payments,
+    signoffs1: signoffs(1),
     header: (
       <IpasHeaderSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} onEditHeader={on.editHeader} />
     ),
