@@ -8,6 +8,7 @@ import { makeEmployee, makeFlowStage, makeOpportunity } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -155,7 +156,7 @@ describe("IPAS pages", () => {
     const openDialog = async (user) => {
       renderList();
       await user.click(await screen.findByRole("button", { name: /Raise IPAS/ }));
-      return screen.findByRole("dialog");
+      return findOtherDialog();
     };
 
     const check = async (user, dialog, po = "P02552") => {
@@ -237,7 +238,7 @@ describe("IPAS pages", () => {
       renderDetail(row.id, "purchasing");
 
       // The drawer is modal, so the page behind it is hidden from role queries.
-      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      expect(await findOtherDialog()).toBeInTheDocument();
       // The item shows in section 1 and again in Landed Cost (#244).
       expect((await screen.findAllByText("Greenspirit 2 Cutter")).length).toBeGreaterThan(0);
       expect(screen.getByText("SCORPE")).toBeInTheDocument();
@@ -299,7 +300,7 @@ describe("IPAS pages", () => {
       renderDetail(row.id);
       await openMore(user);
       await user.click(await screen.findByRole("button", { name: "Cancel IPAS" }));
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findOtherDialog();
       const confirm = within(dialog).getByRole("button", { name: "Cancel IPAS" });
       expect(confirm).toBeDisabled();
 
@@ -369,7 +370,7 @@ describe("IPAS pages", () => {
 
       await user.keyboard("{Escape}");
 
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
       expect(screen.getByRole("button", { name: /^2 · / })).toHaveFocus();
     });
 
@@ -381,7 +382,7 @@ describe("IPAS pages", () => {
       const trigger = await screen.findByRole("button", { name: /^6 · Logistics/ });
       expect(trigger).toHaveAttribute("aria-expanded", "true");
       expect(screen.getByText("Item Location")).toBeInTheDocument();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
     });
 
     it("toggles a section of Everything else in place from its row, and J stays in Money and sign-offs", async () => {
@@ -393,7 +394,7 @@ describe("IPAS pages", () => {
       expect(trigger).toHaveAttribute("aria-expanded", "false");
       await user.click(trigger);
       expect(trigger).toHaveAttribute("aria-expanded", "true");
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       await user.click(trigger);
       expect(trigger).toHaveAttribute("aria-expanded", "false");
 
@@ -416,7 +417,7 @@ describe("IPAS pages", () => {
       const trigger = await screen.findByRole("button", { name: /^Header/ });
       await user.click(trigger);
       expect(trigger).toHaveAttribute("aria-expanded", "true");
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       // Read-only under the row: Remarks is edited in the edit view.
       expect(screen.queryByRole("button", { name: /^Edit Remarks/ })).not.toBeInTheDocument();
 
@@ -437,7 +438,7 @@ describe("IPAS pages", () => {
 
       const trigger = await screen.findByRole("button", { name: /Sales & Operation/ });
       expect(trigger).toHaveAttribute("aria-expanded", "true");
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       const section = within(trigger.closest("li"));
       expect(section.queryByRole("checkbox", { name: "Googlesheet" })).not.toBeInTheDocument();
       expect(section.queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
@@ -454,7 +455,7 @@ describe("IPAS pages", () => {
       expect(trigger).toHaveAttribute("aria-expanded", "true");
       expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
     });
 
     it("says not found for an IPAS the database doesn't return", async () => {

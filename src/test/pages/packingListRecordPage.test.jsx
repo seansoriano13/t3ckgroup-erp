@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 
 import PackingListPageRoute from "@/pages/purchasing/packing-lists/[id]";
 import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
+import { findOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 const service = vi.hoisted(() => ({
@@ -113,7 +114,7 @@ describe("Packing List record page", () => {
     const user = setupUser();
     renderPage("?open=packed_by");
 
-    const drawer = await screen.findByRole("dialog");
+    const drawer = await findOtherDialog();
     const buttons = within(drawer).getAllByRole("button", { name: "Sign Packed by" });
     expect(buttons).toHaveLength(1);
     await user.click(buttons[0]);

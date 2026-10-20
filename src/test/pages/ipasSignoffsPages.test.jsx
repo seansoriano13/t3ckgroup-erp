@@ -10,6 +10,7 @@ import { db } from "@/test/db/store";
 import { waitForNetworkIdle } from "@/test/network";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { findOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 const toastError = vi.hoisted(() => vi.fn());
@@ -459,7 +460,7 @@ describe("IPAS sign-offs", () => {
 
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 2` }));
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findOtherDialog();
       await user.type(within(dialog).getByPlaceholderText(/What does the submitter need to fix/), "Wrong supplier");
       await user.click(within(dialog).getByRole("button", { name: "Return" }));
 
@@ -480,7 +481,7 @@ describe("IPAS sign-offs", () => {
       renderQueue();
       await user.click(await screen.findByText("Scorpe Technologies"));
 
-      const sheet = await screen.findByRole("dialog");
+      const sheet = await findOtherDialog();
       expect(within(sheet).getByText("Submitted it")).toBeInTheDocument();
       expect(within(sheet).getByText(row.po_number)).toBeInTheDocument();
       expect(within(sheet).getByRole("link", { name: "Open the IPAS" })).toHaveAttribute("href", `/purchasing/ipas/${row.id}`);

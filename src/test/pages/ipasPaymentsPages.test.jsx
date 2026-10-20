@@ -9,6 +9,7 @@ import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -114,7 +115,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
       // The payment is typed right there, in a new form of its own: no dialog.
       const payment = await screen.findByRole("group", { name: "Payment 1" });
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
 
       await pick(user, payment, /^Kind/, "Down payment");
       await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "3000");
@@ -227,7 +228,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.click(within(payment).getByRole("button", { name: "Remove payment 1" }));
 
       expect(screen.queryByRole("group", { name: "Payment 1" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: /^Save all/ })).toBeDisabled();
     });
 
@@ -260,7 +261,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await waitFor(() => expect(screen.getByText("All changes saved")).toBeInTheDocument());
       await user.click(screen.getByRole("button", { name: "Back to preview" }));
       await user.click(within(await screen.findByRole("dialog", { name: "1 · Purchasing" })).getByRole("button", { name: "Close" }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
       // The section row (its number first); the card's "Review section 3 · …" link names it too.
       await user.click(await screen.findByRole("button", { name: /^3 · Computation status & Landed Cost/ }));
       expect(await screen.findByTestId("ipas-landed-line")).toBeInTheDocument();
@@ -386,7 +387,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       renderDetail(row.id, "finance", "edit");
       await user.click(await screen.findByRole("button", { name: /Add charge/ }));
       const charge = await screen.findByRole("group", { name: "Charge 1" });
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       await pick(user, charge, /^Kind/, "Brokerage Fee");
       await user.type(within(charge).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "4,200");
       await saveAll(user);
@@ -717,7 +718,7 @@ describe("IPAS settings", () => {
     renderSettings();
     await screen.findAllByTestId("ipas-option-row");
     await user.click(screen.getByRole("button", { name: "Rename Credit Card" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findOtherDialog();
     const field = within(dialog).getByRole("textbox");
     await user.clear(field);
     await user.type(field, "Corporate Card");

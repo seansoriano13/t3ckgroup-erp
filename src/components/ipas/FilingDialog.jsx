@@ -67,6 +67,7 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
       open
       onOpenChange={(next) => !next && onClose()}
       crumbs={["IPAS", number, "File"]}
+      title={`File ${number}?`}
       actions={
         <Button size="lg" disabled={saving || warnings.isLoading} onClick={submit}>
           {saving ? "Filing…" : unticked.length > 0 ? "File anyway" : "Approve and file"}

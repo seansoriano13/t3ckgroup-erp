@@ -56,6 +56,7 @@ function Body({
       open
       onOpenChange={(next) => !next && onClose()}
       crumbs={["IPAS", title]}
+      title={title}
       actions={
         <Button size="lg" variant="destructive" disabled={trimmed === "" || saving} onClick={submit}>
           {saving ? busyLabel : submitLabel}

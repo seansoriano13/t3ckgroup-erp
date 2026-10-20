@@ -8,6 +8,7 @@ import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -252,7 +253,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       await user.click(await screen.findByRole("button", { name: "Add document" }));
       // A new row to fill in, right there: no dialog.
       const fresh = await screen.findByRole("group", { name: "New document 1" });
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       expect(within(fresh).getByText("Needed")).toBeInTheDocument();
       await user.click(within(fresh).getByRole("combobox"));
       await user.click(await screen.findByRole("option", { name: /Something else/ }));
@@ -327,7 +328,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
         expect(within(block).getByText(label)).toBeInTheDocument();
       }
       await user.click(within(block).getByRole("button", { name: "Edit dates" }));
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findOtherDialog();
       await user.type(within(dialog).getByLabelText("Shipped Out"), "2026-10-01");
       await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -380,7 +381,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       renderDetail(row.id, "status");
       const delivered = await screen.findByTestId("ipas-track-delivered");
       await user.click(within(delivered).getByRole("button", { name: "Type date" }));
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findOtherDialog();
       await user.type(within(dialog).getByLabelText("Delivered"), "2026-10-09");
       await user.click(within(dialog).getByRole("button", { name: "Save" }));
 

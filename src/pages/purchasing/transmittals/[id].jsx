@@ -449,6 +449,7 @@ function TransmittalPage({ onClose }) {
           open
           onOpenChange={(open) => !open && setUndoing(null)}
           crumbs={["Transmittal", t.number, `Undo ${undoing.label}`]}
+          title={`Undo ${undoing.label}?`}
           cancelLabel="Keep it signed"
           actions={
             <Button variant="destructive" size="lg" onClick={undo} disabled={busy || undoReason.trim() === ""}>
@@ -471,6 +472,7 @@ function TransmittalPage({ onClose }) {
           open
           onOpenChange={(open) => !open && setCancelling(false)}
           crumbs={["Transmittal", t.number, "Cancel"]}
+          title={`Cancel ${t.number}?`}
           cancelLabel="Keep it"
           actions={
             <Button size="lg" onClick={cancel} disabled={busy || reason.trim() === ""}>

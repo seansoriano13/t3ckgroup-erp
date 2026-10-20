@@ -8,6 +8,7 @@ import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { findOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -267,7 +268,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(within(region2).queryByRole("button", { name: "Reopen" })).not.toBeInTheDocument();
     const user = setupUser();
     await user.click(within(await screen.findByTestId("ipas-filed-notice")).getByRole("button", { name: "Reopen" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findOtherDialog();
     expect(within(dialog).getByPlaceholderText("Why is this filed IPAS being reopened?")).toBeInTheDocument();
   });
 

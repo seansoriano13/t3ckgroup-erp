@@ -19,7 +19,8 @@ function isTypingTarget(target) {
 /** Another dialog (a confirmation, a reason) is open on top of the drawer. */
 function otherDialogOpen() {
   return [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].some(
-    (dialog) => !dialog.hasAttribute(DRAWER_ATTR),
+    // The record modal the drawer sits over (a wide ModalShell) is not "another" dialog.
+    (dialog) => !dialog.hasAttribute(DRAWER_ATTR) && dialog.dataset.modalShell !== "wide",
   );
 }
 

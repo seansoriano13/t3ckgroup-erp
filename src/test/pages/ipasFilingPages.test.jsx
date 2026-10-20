@@ -9,6 +9,7 @@ import { db } from "@/test/db/store";
 import { waitForNetworkIdle } from "@/test/network";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { findOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 const toastError = vi.hoisted(() => vi.fn());
@@ -410,7 +411,7 @@ describe("IPAS section 7 and Filing", () => {
       renderDetail(row.id);
       await user.click(await within(await screen.findByTestId("ipas-filed-notice")).findByRole("button", { name: "Reopen" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findOtherDialog();
       const submit = within(dialog).getByRole("button", { name: "Reopen" });
       expect(submit).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/Why is this filed IPAS being reopened/), "Charges were misread");
@@ -476,7 +477,7 @@ describe("IPAS section 7 and Filing", () => {
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 4` }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findOtherDialog();
       await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Wrong supplier");
       await user.click(within(dialog).getByRole("button", { name: "Return" }));
 
@@ -498,7 +499,7 @@ describe("IPAS section 7 and Filing", () => {
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 4` }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findOtherDialog();
       expect(await within(dialog).findByTestId("ipas-filing-warnings")).toBeInTheDocument();
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
       await user.click(within(dialog).getByRole("button", { name: "File anyway" }));
@@ -516,7 +517,7 @@ describe("IPAS section 7 and Filing", () => {
       renderQueue();
       await user.click(await screen.findByText("Scorpe Technologies"));
 
-      const sheet = await screen.findByRole("dialog");
+      const sheet = await findOtherDialog();
       expect(within(sheet).getByText("Your step")).toBeInTheDocument();
       expect(within(sheet).getByText("Gave the sign-off before yours")).toBeInTheDocument();
       expect(within(sheet).getByRole("button", { name: "Receive" })).toBeInTheDocument();

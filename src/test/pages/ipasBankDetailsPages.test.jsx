@@ -7,6 +7,7 @@ import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -86,7 +87,7 @@ describe("IPAS page: bank details", () => {
     await user.type(within(block).getByRole("textbox", { name: /^Bank Name/ }), "BDO");
     await user.type(within(block).getByRole("textbox", { name: /^Account Name/ }), "Scorpe Technologies Inc.");
     await user.type(within(block).getByRole("textbox", { name: /^Account #/ }), "0012 3456 7890");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(queryOtherDialog()).not.toBeInTheDocument();
     await user.click(save);
 
     await waitFor(() => expect(db.rows("ipas_bank_details")).toHaveLength(1));

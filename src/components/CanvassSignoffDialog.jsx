@@ -35,6 +35,7 @@ export default function CanvassSignoffDialog({ open, onOpenChange, summary, onSi
       open={open}
       onOpenChange={onOpenChange}
       crumbs={["Canvass", summary?.number, "Sign off"].filter(Boolean)}
+      title={`Sign off Canvass ${summary?.number ?? ""}`.trim()}
       actions={
         <Button
           type="button"

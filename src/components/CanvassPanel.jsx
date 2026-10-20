@@ -824,10 +824,10 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         ) : null
       }
     >
-      <p className="flex items-center gap-2 text-base font-medium">
+      <h3 className="flex items-center gap-2 text-base font-medium">
         <ShoppingCart size={16} />
         Canvass{canvass?.number ? ` ${canvass.number}` : ""}{title ? ` — ${title}` : ""}
-      </p>
+      </h3>
         <div className="space-y-3">
           {isLoading && <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>}
 

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import TransmittalDetailPage from "@/pages/purchasing/transmittals/[id]";
 import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
 import { shapeTransmittal } from "@/utils/transmittals";
+import { findOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 const service = vi.hoisted(() => ({
@@ -148,7 +149,7 @@ describe("Transmittal record page", () => {
     const user = setupUser();
     renderPage("t1", "?open=check_by");
 
-    const drawer = await screen.findByRole("dialog");
+    const drawer = await findOtherDialog();
     expect(within(drawer).getByText("Check by (1)")).toBeInTheDocument();
     // The body names who signed; the one sign button for the slot is the drawer's bar.
     const buttons = within(drawer).getAllByRole("button", { name: "Sign Check by (1)" });

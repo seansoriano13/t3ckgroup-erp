@@ -8,6 +8,7 @@ import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -164,7 +165,7 @@ describe("IPAS signing with the evidence in view", () => {
 
       const trigger = await screen.findByRole("button", { name: /^History/ });
       expect(trigger).toHaveAttribute("aria-expanded", "true");
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       const section = trigger.closest("li");
       expect(within(section).queryByRole("button", { name: /^Submit|^Approve|^Return|^Undo|^Edit section/ })).not.toBeInTheDocument();
     });
@@ -198,7 +199,7 @@ describe("IPAS signing with the evidence in view", () => {
       await user.click(within(drawer).getByRole("button", { name: "Edit section" }));
 
       expect(await screen.findByRole("button", { name: "Add payment" })).toBeInTheDocument();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       expect(screen.queryByRole("region", { name: "Your move" })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: "Back to preview" }));
@@ -222,7 +223,7 @@ describe("IPAS signing with the evidence in view", () => {
       await act(() => router.navigate(-1));
       await waitFor(() => expect(router.state.location.search).toBe(""));
       expect(await screen.findByRole("button", { name: /^1 · Purchasing/ })).toHaveFocus();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
     });
 
@@ -293,7 +294,7 @@ describe("IPAS signing with the evidence in view", () => {
       expect(screen.getByRole("dialog", { name: "1 · Purchasing" })).toBeInTheDocument();
 
       await act(() => router.navigate(-1));
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
       expect(router.state.location.search).toBe("");
     });
 
@@ -350,7 +351,7 @@ describe("IPAS signing with the evidence in view", () => {
       const dialog = await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" });
       await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
       expect(db.rows("ipas_signoffs").filter((s) => s.role === "approved")).toEqual([]);
     });
 
@@ -376,7 +377,7 @@ describe("IPAS signing with the evidence in view", () => {
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Mark LC GS Done" }));
       // Undoable from its toast, so it asks nothing first.
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(queryOtherDialog()).not.toBeInTheDocument();
 
       await waitFor(() => expect(rowOf(row.id).computation_status).toBe("lc_gs_done"));
       expect(toastSpy).toHaveBeenCalled();
@@ -455,7 +456,7 @@ describe("IPAS signing with the evidence in view", () => {
       await user.click(within(dialog).getByRole("button", { name: "Return" }));
 
       // UI first: the dialog is gone, the failure is kept on the page with Retry.
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
       const alert = await screen.findByRole("alert");
       expect(db.rows("ipas_signoffs").some((s) => s.cleared_reason)).toBe(false);
 

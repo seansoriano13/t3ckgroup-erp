@@ -58,6 +58,7 @@ function Body({
       open
       onOpenChange={(next) => !next && onClose()}
       crumbs={["IPAS", title]}
+      title={title}
       actions={
         <Button size="lg" disabled={!ready || saving} onClick={submit}>
           {saving ? "Saving…" : submitLabel}
