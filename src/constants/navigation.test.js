@@ -270,6 +270,7 @@ describe("navigation registry", () => {
       expect(purchasingGroup.links.map((l) => l.label)).toEqual([
         "Purchase Requests",
         "Purchasing Dashboard",
+        "Canvasses",
         "IPAS",
         "Order Monitoring",
         "Transmittals",
@@ -285,7 +286,7 @@ describe("navigation registry", () => {
     it.each([
       ["Finance access", { has_finance_flow: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
       ["a sign-off list", { isIpasSigner: true }, ["Purchase Requests", "IPAS", "Transmittals", "Packing Lists"]],
-      ["a Super Admin", { isSuperAdmin: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
+      ["a Super Admin", { isSuperAdmin: true }, ["Purchase Requests", "Purchasing Dashboard", "Canvasses", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
     ])("offers IPAS to someone with %s", (_, flags, labels) => {
       const groups = getFilteredNavigationGroups({ id: "reader", ...flags });
       const purchasing = groups.find((g) => g.key === "purchasing");
