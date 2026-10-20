@@ -1,5 +1,6 @@
 import { Ban, FileLock2, Pencil, Printer } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import IpasStateBadge from "@/components/ipas/IpasStateBadge";
 import RecordMoreMenu from "@/components/record/RecordMoreMenu";
 import { PrintPreviewButton } from "./PrintPreview";
@@ -27,6 +28,12 @@ export default function HeaderActions({ ctx }) {
     <>
       <IpasStateBadge state={ipas.state} />
       <PrintPreviewButton ctx={ctx} />
+      {can.change && (
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={on.edit}>
+          <Pencil size={14} aria-hidden="true" />
+          Edit
+        </Button>
+      )}
       <RecordMoreMenu items={items} />
       {back}
     </>
