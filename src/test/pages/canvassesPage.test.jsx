@@ -95,10 +95,36 @@ describe("the Canvasses page", () => {
     expect(await screen.findByRole("heading", { name: /Canvass CNV_0002/ })).toBeInTheDocument();
     expect(await screen.findAllByTestId("offer")).toHaveLength(1);
   });
+});
 
-  it("sends someone without Purchasing access home", async () => {
-    mockUser.current = makeEmployee({ name: "Ordinary" });
-    renderPage();
-    expect(await screen.findByText("Home")).toBeInTheDocument();
+describe("the Canvasses page opened from a Requested Item", () => {
+  const renderAt = (url) =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/purchasing/canvasses" element={<CanvassesPage />} />
+          <Route path="*" element={<p>Home</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it("lets a reader without Purchasing access in, instead of sending them home", async () => {
+    mockUser.current = makeEmployee({ name: "Ana Reyes", has_purchasing_flow: false });
+    stubCanvassMoneyRpc({ money: false });
+    stubCanvassWinnerRpcs({ bands: [] });
+    stubCanvassListRpcs({ actorId: mockUser.current.id });
+    renderAt("/purchasing/canvasses");
+    expect(await screen.findByRole("heading", { name: "Canvasses" })).toBeInTheDocument();
+    expect(screen.queryByText("Home")).not.toBeInTheDocument();
+  });
+
+  it("opens a draft for an item that has no Canvass yet, creating nothing", async () => {
+    mockUser.current = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true });
+    stubCanvassMoneyRpc({ money: true });
+    stubCanvassWinnerRpcs({ bands: ["purchasing"] });
+    stubCanvassListRpcs({ actorId: mockUser.current.id });
+    renderAt("/purchasing/canvasses?item=22222222-2222-4222-8222-222222222222");
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(db.rows("sor_canvasses")).toHaveLength(0);
   });
 });
