@@ -424,7 +424,7 @@ describe("history can't be edited", () => {
     beforeAll(async () => {
         ipas = await raise()
         await rpc("outsider", "ipas_cancel", { p_ipas_id: ipas.id, p_reason: "Dropped" })
-        const { data } = await svc().from("ipas_events").select("id").eq("ipas_id", ipas.id).limit(1)
+        const { data } = await svc().from("ipas_events").select("id").eq("ipas_id", ipas.id).eq("kind", "created").limit(1)
         eventId = data[0].id
     })
 

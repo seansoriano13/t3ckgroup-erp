@@ -148,7 +148,8 @@ describe("Evaluation list", () => {
         expect(await level("ordinary", noMatrixSorId)).toBe("none")
         expect(await tier("ordinary", noMatrixSorId)).toBeNull()
         const read = await rpc("ordinary", "costing_matrix_read", { p_opportunity_id: noMatrixSorId })
-        expect(read.error).not.toBeNull()
+        // A closed matrix read answers null, not an error (costing_matrix_read).
+        expect(read.data).toBeNull()
     })
 
     it("approves the Evaluation once every Component has a verdict, and not before", async () => {

@@ -392,7 +392,8 @@ describe("contact and P.I # fill while blank", () => {
         const [event] = await eventsOf(ipas.id, "header_changed")
         expect(event.detail.fields).toEqual({ pi_number: { from: null, to: "PI-1" } })
 
-        for (const fields of [{ remarks: "x" }, { number: "TGIPAS_001" }, { supplier_contact: "ok", state: "filed" }]) {
+        // Remarks became editable in #551 (policy test 106), so it is no longer in this refused list.
+        for (const fields of [{ number: "TGIPAS_001" }, { supplier_contact: "ok", state: "filed" }]) {
             const { error } = await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: fields })
             expect(error?.code).toBe("22023")
         }
