@@ -387,6 +387,21 @@ export const purchaseRequestService = {
     return data;
   },
 
+  /**
+   * Takes back one status change: the item goes back to the status it had.
+   * `changedAt` is the changed item's `status_changed_at`, which names the
+   * change. The database allows it only to whoever made it, shortly after, and
+   * while nothing has changed the item since. Returns the item as it is now.
+   */
+  async undoItemStatus(itemId, changedAt) {
+    const { data, error } = await supabase.rpc("purchase_request_undo_item_status", {
+      p_item_id: itemId,
+      p_changed_at: changedAt,
+    });
+    if (error) throw error;
+    return data;
+  },
+
   // ── PO number and PO lines (#312) ────────────────────────────────────────
 
   /**

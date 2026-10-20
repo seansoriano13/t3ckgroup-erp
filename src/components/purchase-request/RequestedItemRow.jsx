@@ -1,5 +1,9 @@
+import { useEffect, useState } from "react";
 import { AlertTriangle, Calculator, FileText, Replace } from "lucide-react";
 
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/Tooltip";
 import StatusBadge from "../StatusBadge";
 import StaleStockBadge from "./StaleStockBadge";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
@@ -15,6 +19,52 @@ import {
   requestedItemStock,
   sorLineChange,
 } from "../../utils/requestedItem";
+
+/**
+ * The item's name, held to two lines: a long Odoo product name ends in an
+ * ellipsis, shows in full on hover, and opens in full with "Show full name".
+ */
+function ItemName({ name }) {
+  const [text, setText] = useState(null);
+  const [cut, setCut] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!text || open) return undefined;
+    const check = () => setCut(text.scrollHeight > text.clientHeight + 1);
+    check();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(check);
+    observer.observe(text);
+    return () => observer.disconnect();
+  }, [text, name, open]);
+
+  return (
+    <>
+      <Tooltip content={cut && !open ? name : null} side="top" align="start" className="max-w-sm">
+        <p
+          ref={setText}
+          className={cn("text-sm font-semibold text-foreground break-words leading-snug", !open && "line-clamp-2")}
+          data-testid="requested-item-name"
+        >
+          {name}
+        </p>
+      </Tooltip>
+      {cut && (
+        <Button
+          type="button"
+          variant="link"
+          size="xs"
+          aria-expanded={open}
+          className="h-auto px-0 text-muted-foreground"
+          onClick={() => setOpen((was) => !was)}
+        >
+          {open ? "Show less" : "Show full name"}
+        </Button>
+      )}
+    </>
+  );
+}
 
 /**
  * One Requested Item (#305) as it was picked or described: its amount and
@@ -40,7 +90,7 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
     <li className="flex flex-col gap-2 py-3" data-testid="requested-item">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground break-words leading-snug">{item.name}</p>
+          <ItemName name={item.name} />
           <p className="mt-0.5 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">{formatAmount(item.quantity, item.unit)}</span>
             {" · "}
