@@ -52,8 +52,8 @@ import { flowStageTonesByName } from "../../constants/salesFlow";
  * an unassigned row offers Take right in the table. The filter bar narrows by
  * open or closed and by kind (Project / Direct), and searches. The slide-over
  * holds the whole request (`PurchaseRequestView`: members, Requested Items,
- * chat) with the Buyer pinned in its footer; "Open full" opens it full screen
- * instead, and each person's last choice sticks (`PurchaseRequestSlideOver`).
+ * chat) with the Buyer pinned in its footer; on desktop it opens full
+ * screen instead (`PurchaseRequestSlideOver`).
  */
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
@@ -401,7 +401,6 @@ function PurchaseRequests() {
 
       <PurchaseRequestSlideOver
         request={openRow}
-        userId={user?.id}
         crumb="Purchase Requests"
         index={stepping ? index : 0}
         total={stepping ? visible.length : 1}

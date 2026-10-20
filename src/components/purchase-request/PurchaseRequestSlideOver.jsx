@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { PackageSearch } from "lucide-react";
 
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import SlideOver, { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import StatusBadge from "@/components/StatusBadge";
 import OpenSorButton from "./OpenSorButton";
@@ -30,52 +31,37 @@ const sheetIdentity = (row) => ({
   subtitle: [requestStageLabel(row), itemsSummary(row)].filter(Boolean).join(" · "),
 });
 
-const OPEN_AS = { DRAWER: "drawer", FULL: "full" };
-const openAsKey = (userId) => `purchase_request_open_as:${userId ?? "anon"}`;
+/** Desktop widths open a request full screen; narrower ones use the drawer. */
+const DESKTOP = "(min-width: 768px)";
 
-function readOpenAs(userId) {
+/** The old per-person drawer/full choice is gone; clear what it left behind. */
+function clearOldOpenAsChoice() {
   try {
-    return localStorage.getItem(openAsKey(userId)) === OPEN_AS.FULL ? OPEN_AS.FULL : OPEN_AS.DRAWER;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("purchase_request_open_as:")) localStorage.removeItem(key);
+    }
   } catch {
-    return OPEN_AS.DRAWER;
-  }
-}
-
-function writeOpenAs(userId, openAs) {
-  try {
-    localStorage.setItem(openAsKey(userId), openAs);
-  } catch {
-    // Storage is blocked or full: the choice just isn't remembered.
+    // Storage is blocked: nothing to clean.
   }
 }
 
 /**
  * A Purchase Request picked from a list (the Purchase Requests list, the
- * Purchasing Dashboard), open beside it in the slide-over or full screen in
- * the RecordModal. "Open full" in the slide-over and "Show in side panel" in
- * the modal switch between them, and the last choice is remembered per person
- * in this browser, so their next request opens the same way. Storage that is
- * missing or throws only means it opens in the slide-over.
+ * Purchasing Dashboard). A request holds too much for a drawer, so on desktop
+ * widths it opens full screen in the RecordModal; on mobile widths it opens in
+ * the slide-over.
  *
  * `request` is a queue-shaped row (null = closed); `index`, `total` and
- * `onStep` step through the list it came from.
+ * `onStep` step through the list it came from (drawer only).
  */
-export default function PurchaseRequestSlideOver({ request, userId, crumb, index, total, onStep, onClose }) {
-  const [openAs, setOpenAs] = useState(() => readOpenAs(userId));
-  const choose = (next) => {
-    setOpenAs(next);
-    writeOpenAs(userId, next);
-  };
+export default function PurchaseRequestSlideOver({ request, crumb, index, total, onStep, onClose }) {
+  const desktop = useMediaQuery(DESKTOP);
+  useEffect(clearOldOpenAsChoice, []);
 
-  if (openAs === OPEN_AS.FULL) {
+  if (desktop) {
     if (!request) return null;
-    return (
-      <PurchaseRequestModal
-        requestId={request.id}
-        onClose={onClose}
-        onShowSidePanel={() => choose(OPEN_AS.DRAWER)}
-      />
-    );
+    return <PurchaseRequestModal requestId={request.id} onClose={onClose} />;
   }
 
   return (
@@ -88,8 +74,6 @@ export default function PurchaseRequestSlideOver({ request, userId, crumb, index
       total={total}
       onStep={onStep}
       onClose={onClose}
-      onOpenFull={() => choose(OPEN_AS.FULL)}
-      openFullLabel="Open full"
       headerActions={(row) => <OpenSorButton request={row} compact />}
     >
       {(row) => (

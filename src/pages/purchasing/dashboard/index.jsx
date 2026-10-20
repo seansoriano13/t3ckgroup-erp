@@ -47,7 +47,7 @@ function RegisterToolbar({ register }) {
   return <OrderRegisterToolbar register={register} options={rows} />;
 }
 
-function PurchasingDashboard({ userId }) {
+function PurchasingDashboard() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = TABS.some((t) => t.value === params.get("tab")) ? params.get("tab") : DASHBOARD_TAB.NEEDS;
@@ -97,7 +97,6 @@ function PurchasingDashboard({ userId }) {
 
       <PurchaseRequestSlideOver
         request={recordId ? request : null}
-        userId={userId}
         crumb="Purchasing Dashboard"
         onClose={close}
       />
@@ -113,5 +112,5 @@ export default function PurchasingDashboardPage() {
   if (!user || !(ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow)) {
     return <Navigate to="/" replace />;
   }
-  return <PurchasingDashboard userId={user.id} />;
+  return <PurchasingDashboard />;
 }
