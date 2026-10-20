@@ -401,7 +401,7 @@ export default function EditForm({
         )}
         {notice}
         {failure}
-        <ol className="flex gap-1 overflow-x-auto">
+        <ol className="flex gap-1 overflow-x-auto scrollbar-minimal pb-1">
           {progress.map((p) => {
             const complete = p.total > 0 && p.left === 0;
             const no = p.title.match(NUMBERED)?.[1];
