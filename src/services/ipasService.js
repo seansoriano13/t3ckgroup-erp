@@ -463,6 +463,15 @@ export const ipasService = {
     return data;
   },
 
+  /**
+   * Save all's safety check (#581): refuses when an event newer than `since` (the newest one the
+   * form loaded) exists, meaning someone else saved first. A null `since` skips it.
+   */
+  async assertUnchanged(id, since) {
+    const { error } = await supabase.rpc("ipas_assert_unchanged", { p_ipas_id: id, p_since: since ?? null });
+    if (error) throw error;
+  },
+
   /** Resets an overridden field to Odoo's value in one action. Returns the row. */
   async resetOverride(id, field) {
     requireOverridable(field);
