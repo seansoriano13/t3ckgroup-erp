@@ -171,6 +171,16 @@ export const NAV_MODULES = {
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow,
         exactMatch: true,
       },
+      // Canvasses (#566, ADR 0034): every Canvass, project ones included. For
+      // everyone with Purchasing access; the page sends anyone else home.
+      {
+        key: "purchasing.canvasses",
+        label: "Canvasses",
+        link: "/purchasing/canvasses",
+        icon: Scale,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow,
+        exactMatch: true,
+      },
       // The IPAS (#241): one per purchase order that needs one. Read by
       // Purchasing access, Finance access, Super Admins and the sign-off
       // lists; the database refuses everyone else, so this only spares the

@@ -361,6 +361,10 @@ async function withCanvass(shaped, opportunityId) {
       acquire: Boolean(component.acquire_from_offer_id),
       offerSpecification: Boolean(component.offer_specification_from_offer_id),
     };
+    // Values a winner filled while the Canvass has no winner now (it was un-picked): derived, not stored.
+    component.canvassNoWinner = Boolean(
+      canvass && !canvass.winner && (component.fromCanvass.acquire || component.fromCanvass.offerSpecification),
+    );
   }
   await attachSupplierMismatch(components, opportunityId);
   return shaped;

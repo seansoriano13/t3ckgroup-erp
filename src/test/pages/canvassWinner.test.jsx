@@ -4,7 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
-import { stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
+import { seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
 import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
@@ -16,6 +16,12 @@ import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
  * components and services on the fake database; the matrix and winner functions are stubbed. The
  * rules themselves are the policy tier's (91-canvass-winner.test.js).
  */
+
+// The confirm toast needs a Toaster the page tests do not mount; confirming is what these tests need.
+vi.mock("@/components/ui/CustomToast", async (importOriginal) => ({
+  ...(await importOriginal()),
+  confirmActionToast: (_title, _description, _confirmText, _type, onConfirm) => onConfirm(),
+}));
 
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
@@ -43,7 +49,7 @@ describe("a winner on the Costing Matrix page", () => {
     const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1 });
     component = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "Ambulance Folding Stretcher", brand: "Generic" });
 
-    canvass = await canvassService.open({ componentId: component.id }, purchaser.id);
+    canvass = await seedCanvass({ componentId: component.id }, purchaser.id);
     redleaf = await canvassService.addOffer(
       canvass.id,
       { supplierName: "Redleaf Inc.", brand: "Redleaf", description: "Folding stretcher, 227 kg", unitPrice: 78000 },
@@ -62,6 +68,29 @@ describe("a winner on the Costing Matrix page", () => {
     expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
     // Purchasing does not get the Accept: Brand is Sales' column.
     expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
+  });
+
+  it("un-picks the winner: no winner, sign-off cleared, values kept, and a note on the row", async () => {
+    const user = mount({ tier: "cost", bands: ["purchasing"] });
+    await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
+    await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc. the winner/ }));
+    await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
+    expect(screen.queryByTestId("canvass-no-winner-note")).not.toBeInTheDocument();
+    db.internal.rowsOf("sor_canvasses")[0].signed_off_at = "2026-10-20T01:00:00Z";
+
+    await user.click(await screen.findByRole("button", { name: /Clear Redleaf Inc. as the winner/ }));
+
+    await waitFor(() => expect(db.rows("sor_canvass_offers").some((o) => o.is_winner)).toBe(false));
+    expect(db.rows("sor_canvasses")[0].signed_off_at).toBeNull();
+    // What the winner filled stays, still marked.
+    expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
+    expect(await screen.findByTestId("no-winner-note")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("canvass-no-winner-note")).toHaveTextContent("CNV_0001"));
+    expect(screen.getAllByTestId("from-canvass")).toHaveLength(2);
+
+    // A new winner takes the note away.
+    await user.click(await screen.findByRole("button", { name: /Mark Ferno the winner/ }));
+    await waitFor(() => expect(screen.queryByTestId("canvass-no-winner-note")).not.toBeInTheDocument());
   });
 
   it("offers the winning brand with an Accept to the Deal Team", async () => {

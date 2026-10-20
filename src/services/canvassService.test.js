@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { canvassService } from "./canvassService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
-import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc"
+import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc"
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { containsPattern } from "../../supabase/functions/_shared/ilikePattern.ts"
 
@@ -40,38 +40,52 @@ describe("canvassService", () => {
     )
   }
 
-  describe("opening", () => {
-    it("has no Canvass until somebody opens one", async () => {
+  describe("starting (ADR 0034: the first Offer gives the number)", () => {
+    it("has no Canvass, and reading writes none, until the first Offer is saved", async () => {
       expect(await canvassService.getForComponent(component.id)).toBeNull()
+      expect(await canvassService.get({})).toBeNull()
+      expect(db.rows("sor_canvasses")).toHaveLength(0)
     })
 
-    it("opens one Canvass with a CNV_ number", async () => {
-      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
-      expect(canvass.number).toBe("CNV_0001")
-      expect(canvass.component_id).toBe(component.id)
-      expect(canvass.created_by).toBe(purchaser.id)
-      expect(canvass.offers).toEqual([])
+    it("starts one Canvass with a CNV_ number when the first Offer is saved", async () => {
+      const started = await canvassService.start({ componentId: component.id }, {}, { supplierName: "Ferno" }, purchaser.id)
+      expect(started.number).toBe("CNV_0001")
+      const canvass = await canvassService.getForComponent(component.id)
+      expect(canvass).toMatchObject({ id: started.canvassId, number: "CNV_0001", component_id: component.id, created_by: purchaser.id })
+      expect(canvass.offers.map((o) => o.supplier_name)).toEqual(["Ferno"])
     })
 
-    it("opened twice returns the same Canvass with the same number", async () => {
-      const first = await canvassService.open({ componentId: component.id }, purchaser.id)
-      const second = await canvassService.open({ componentId: component.id }, purchaser.id)
-      expect(second.id).toBe(first.id)
-      expect(second.number).toBe(first.number)
+    it("a second first Offer on the same subject joins the same Canvass", async () => {
+      const first = await canvassService.start({ componentId: component.id }, {}, { supplierName: "Ferno" }, purchaser.id)
+      const second = await canvassService.start({ componentId: component.id }, {}, { supplierName: "Redleaf" }, purchaser.id)
+      expect(second.canvassId).toBe(first.canvassId)
       expect(db.rows("sor_canvasses")).toHaveLength(1)
+      expect(db.rows("sor_canvass_offers")).toHaveLength(2)
     })
 
     it("numbers each Component's Canvass in turn", async () => {
-      await canvassService.open({ componentId: component.id }, purchaser.id)
-      const second = await canvassService.open({ componentId: other.id }, purchaser.id)
+      await canvassService.start({ componentId: component.id }, {}, { supplierName: "Ferno" }, purchaser.id)
+      const second = await canvassService.start({ componentId: other.id }, {}, { supplierName: "Ferno" }, purchaser.id)
       expect(second.number).toBe("CNV_0002")
     })
 
-    it("refuses a subject that is neither a Component nor a Requested Item, or both", async () => {
-      await expect(canvassService.open({}, purchaser.id)).rejects.toThrow(/exactly one/)
+    it("starts a Canvass with no subject when it says what is being bought, and its starter is the Canvasser", async () => {
+      const started = await canvassService.start({}, { productName: " Printer toner " }, { supplierName: "Octagon" }, purchaser.id)
+      const canvass = await canvassService.get({ canvassId: started.canvassId })
+      expect(canvass).toMatchObject({ product_name: "Printer toner", component_id: null, requested_item_id: null, canvasser_id: purchaser.id })
+    })
+
+    it("refuses a Canvass with no subject that doesn't say what it is for, and one with both subjects", async () => {
+      await expect(canvassService.start({}, {}, { supplierName: "Octagon" }, purchaser.id)).rejects.toThrow(/what is being bought/)
       await expect(
-        canvassService.open({ componentId: component.id, requestedItemId: "x" }, purchaser.id),
-      ).rejects.toThrow(/exactly one/)
+        canvassService.start({ componentId: component.id, requestedItemId: "x" }, {}, { supplierName: "Ferno" }, purchaser.id),
+      ).rejects.toThrow(/never both/)
+      expect(db.rows("sor_canvasses")).toHaveLength(0)
+    })
+
+    it("an empty first Offer starts nothing", async () => {
+      await expect(canvassService.start({ componentId: component.id }, {}, {}, purchaser.id)).rejects.toThrow(/at least a supplier/)
+      expect(db.rows("sor_canvasses")).toHaveLength(0)
     })
   })
 
@@ -79,7 +93,7 @@ describe("canvassService", () => {
     let canvass
 
     beforeEach(async () => {
-      canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      canvass = await seedCanvass({ componentId: component.id }, purchaser.id)
     })
 
     it("gives each Offer its PHP figure, and the foreign one at its rate", async () => {
@@ -184,7 +198,7 @@ describe("canvassService", () => {
 
   describe("for a reader without money", () => {
     it("carries the Offers without any price key", async () => {
-      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      const canvass = await seedCanvass({ componentId: component.id }, purchaser.id)
       await sample(canvass)
 
       stubCanvassMoneyRpc({ money: false })
@@ -202,7 +216,7 @@ describe("canvassService", () => {
 
   describe("the chip on a Component row", () => {
     it("lists a light row for each Component that has a Canvass", async () => {
-      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      const canvass = await seedCanvass({ componentId: component.id }, purchaser.id)
       await sample(canvass)
       const rows = await canvassService.listForComponents([component.id, other.id])
       expect(rows).toHaveLength(1)
@@ -245,7 +259,7 @@ describe("canvassService", () => {
     })
 
     it("stores the Odoo id of a picked supplier", async () => {
-      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      const canvass = await seedCanvass({ componentId: component.id }, purchaser.id)
       const offer = await canvassService.addOffer(
         canvass.id,
         { supplierName: suppliers[0].name, odooSupplierId: suppliers[0].id, unitPrice: 78000 },
@@ -258,14 +272,14 @@ describe("canvassService", () => {
       stubEdgeFunction("odoo-supplier-search", { success: true, suppliers: [] })
       expect(await canvassService.searchSuppliers("Brand New Supplier")).toEqual([])
 
-      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      const canvass = await seedCanvass({ componentId: component.id }, purchaser.id)
       const offer = await canvassService.addOffer(canvass.id, { supplierName: "Brand New Supplier" }, purchaser.id)
       expect(offer.supplier_name).toBe("Brand New Supplier")
       expect(offer.odoo_supplier_id ?? null).toBeNull()
     })
 
     it("clears the id when the name is edited afterwards", async () => {
-      const canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+      const canvass = await seedCanvass({ componentId: component.id }, purchaser.id)
       const offer = await canvassService.addOffer(
         canvass.id,
         { supplierName: "Redleaf Inc.", odooSupplierId: 41 },
