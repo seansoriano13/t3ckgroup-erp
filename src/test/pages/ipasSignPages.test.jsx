@@ -158,12 +158,15 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(drawer).getByRole("button", { name: "Receive section 4 · Filing" })).toBeInTheDocument();
     });
 
-    it("has no footer for a section with no sign-off", async () => {
+    it("gives History no moves and no Edit section: it expands under its row", async () => {
       const row = ipas();
       renderDetail(row.id, "history");
 
-      const drawer = await screen.findByRole("dialog", { name: "History" });
-      expect(within(drawer).queryByRole("button", { name: /^Prepare|^Approve|^Return|^Undo|^Edit section/ })).not.toBeInTheDocument();
+      const trigger = await screen.findByRole("button", { name: /^History/ });
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      const section = trigger.closest("li");
+      expect(within(section).queryByRole("button", { name: /^Prepare|^Approve|^Return|^Undo|^Edit section/ })).not.toBeInTheDocument();
     });
 
     // #533: money reads in the drawer; editing is in the edit view.

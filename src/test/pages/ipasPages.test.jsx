@@ -363,14 +363,13 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = setupUser();
 
-      renderDetail(row.id, "header");
-      const dialog = await screen.findByRole("dialog");
-      expect(within(dialog).getByText("Header")).toBeInTheDocument();
+      renderDetail(row.id, "finance");
+      expect(await screen.findByRole("dialog", { name: /^2 · / })).toBeInTheDocument();
 
       await user.keyboard("{Escape}");
 
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-      expect(screen.getByRole("button", { name: /^Header/ })).toHaveFocus();
+      expect(screen.getByRole("button", { name: /^2 · / })).toHaveFocus();
     });
 
     // #533: a short section expands under its row, with no drawer.
@@ -384,7 +383,7 @@ describe("IPAS pages", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
-    it("toggles a short section in place from its row, and J skips it in the drawer", async () => {
+    it("toggles a section of Everything else in place from its row, and J stays in Money and sign-offs", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = setupUser();
       renderDetail(row.id);
@@ -397,11 +396,65 @@ describe("IPAS pages", () => {
       await user.click(trigger);
       expect(trigger).toHaveAttribute("aria-expanded", "false");
 
-      // From Sales, J goes to History: Logistics and Status are not in the drawer's order.
-      await user.click(screen.getByRole("button", { name: /Sales & Operation/ }));
-      await screen.findByRole("dialog", { name: /Sales & Operation/ });
+      // From section 4, J goes nowhere: Everything else is not in the drawer's order.
+      await user.click(screen.getByRole("button", { name: /^3 · / }));
+      await screen.findByRole("dialog", { name: /^3 · / });
       fireEvent.keyDown(window, { key: "j" });
-      expect(await screen.findByRole("dialog", { name: "History" })).toBeInTheDocument();
+      expect(await screen.findByRole("dialog", { name: /^4 · / })).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: "j" });
+      expect(screen.getByRole("dialog", { name: /^4 · / })).toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: "Header" })).not.toBeInTheDocument();
+    });
+
+    // Every section of Everything else is a dropdown; Header and Sales read there and edit in the edit view.
+    it("expands Header in place, and its Edit section opens the edit view and comes back to it", async () => {
+      const row = ipas({ po_number: "P02552", remarks: "For the Capas deal", created_by: purchaser.id });
+      const user = setupUser();
+      renderDetail(row.id);
+
+      const trigger = await screen.findByRole("button", { name: /^Header/ });
+      await user.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      // Read-only under the row: Remarks is edited in the edit view.
+      expect(screen.queryByRole("button", { name: /^Edit Remarks/ })).not.toBeInTheDocument();
+
+      // Each closed section's body stays mounted (inert), so look inside this row only.
+      await user.click(within(trigger.closest("li")).getByRole("button", { name: "Edit section" }));
+      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Header" })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Back to preview" }));
+      const back = await screen.findByRole("button", { name: /^Header/ });
+      expect(back).toHaveAttribute("aria-expanded", "true");
+      await waitFor(() => expect(back).toHaveFocus());
+    });
+
+    it("expands Sales in place read-only, with Edit section", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      renderDetail(row.id, "sales");
+
+      const trigger = await screen.findByRole("button", { name: /Sales & Operation/ });
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      const section = within(trigger.closest("li"));
+      expect(section.queryByRole("checkbox", { name: "Googlesheet" })).not.toBeInTheDocument();
+      expect(section.getByRole("button", { name: "Edit section" })).toBeInTheDocument();
+    });
+
+    it("offers no Edit section in Header, Sales or History to a viewer who may not change them", async () => {
+      mockUser.current = finance;
+      const row = ipas({ po_number: "P02552" });
+      const user = setupUser();
+      renderDetail(row.id);
+
+      for (const name of [/^Header/, /Sales & Operation/, /^History/]) {
+        const trigger = await screen.findByRole("button", { name });
+        await user.click(trigger);
+        expect(trigger).toHaveAttribute("aria-expanded", "true");
+        expect(within(trigger.closest("li")).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
+      }
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     it("says not found for an IPAS the database doesn't return", async () => {
