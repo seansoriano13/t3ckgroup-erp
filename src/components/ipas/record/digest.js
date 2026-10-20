@@ -186,18 +186,19 @@ export function sectionTitle(key) {
 /**
  * The sections in list order: money and sign-offs first, then (`secondary`)
  * everything else. `key` is what the drawer and `?open=` use. `inPlace` marks
- * the short sections that expand under their row instead of opening the drawer.
+ * the sections that expand under their row instead of opening the drawer:
+ * every one of "Everything else". Money and sign-offs keep the drawer for now.
  */
 export const SECTIONS = [
   { key: "purchasing" },
   { key: "finance" },
   { key: "costing" },
   { key: "filing" },
-  { key: "header", secondary: true },
-  { key: "sales", secondary: true },
+  { key: "header", secondary: true, inPlace: true },
+  { key: "sales", secondary: true, inPlace: true },
   { key: "logistics", secondary: true, inPlace: true },
   { key: "status", secondary: true, inPlace: true },
-  { key: "history", secondary: true },
+  { key: "history", secondary: true, inPlace: true },
 ].map((section) => ({ ...section, title: sectionTitle(section.key) }));
 
 /** The sections the drawer shows (J and K step through these); the in-place ones are skipped. */

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, ReceiptText } from "lucide-react";
+import { ArrowLeft, Pencil, ReceiptText } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
@@ -32,6 +32,7 @@ import HeaderActions from "../../../components/ipas/record/HeaderActions";
 import SectionDrawer from "../../../components/ipas/record/SectionDrawer";
 import SectionsList from "../../../components/ipas/record/SectionsList";
 import { buildBlocks } from "../../../components/ipas/record/blocks";
+import { canEditSection } from "../../../components/ipas/record/moves";
 import { digestIpas, filingSummary, isInPlace } from "../../../components/ipas/record/digest";
 import { CHROME, RecordSectionChrome } from "../../../components/record/sectionChrome";
 import { useEditSection } from "../../../components/ipas/record/useEditSection";
@@ -221,7 +222,8 @@ function IpasPage() {
     enabled: Boolean(id),
   });
 
-  // Leaving the edit view (its link, or Back) returns to the overview with that section's row focused.
+  // Leaving the edit view (its link, or Back) returns to the overview with that section's row
+  // focused: under the row when it expands in place, unless the drawer came back and holds focus.
   useEffect(() => {
     if (editKey) {
       editedKey.current = editKey;
@@ -230,8 +232,8 @@ function IpasPage() {
     const from = editedKey.current;
     if (!from) return;
     editedKey.current = null;
-    if (!current && !inPlace) rowEls.current[from]?.focus();
-  }, [editKey, current, inPlace]);
+    if (!current) rowEls.current[from]?.focus();
+  }, [editKey, current]);
 
   useEffect(() => {
     if (!refresh.dataUpdatedAt) return;
@@ -921,9 +923,26 @@ function IpasPage() {
   const blocks = buildBlocks(ctx);
   // A row opens its section in the drawer; a short section toggles in place under its row.
   const openRow = (key) => (isInPlace(key) && inPlace === key ? closeSection() : openSection(key));
+  // Logistics and Status are edited right there, under their row. Header and Sales show
+  // read-only, as the drawer did, and edit in the edit view: their Edit section goes there.
+  const inline = (key) => <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks[key]}</RecordSectionChrome.Provider>;
+  const preview = (key) => (
+    <div className="space-y-4">
+      <RecordSectionChrome.Provider value={CHROME.DRAWER}>{blocks[key]}</RecordSectionChrome.Provider>
+      {canEditSection(key, ctx) && (
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openEdit(key)}>
+          <Pencil size={14} aria-hidden="true" />
+          Edit section
+        </Button>
+      )}
+    </div>
+  );
   const inPlaceBodies = {
-    logistics: <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks.logistics}</RecordSectionChrome.Provider>,
-    status: <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks.status}</RecordSectionChrome.Provider>,
+    header: preview("header"),
+    sales: preview("sales"),
+    logistics: inline("logistics"),
+    status: inline("status"),
+    history: inline("history"),
   };
   const editView = editKey ? (
     <div className="space-y-6">
