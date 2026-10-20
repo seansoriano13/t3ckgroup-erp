@@ -104,15 +104,15 @@ describe("a signed-in caller can't set the Odoo check", () => {
         expect(error?.code).toBe("42501")
     })
 
-    it("a PO number alone still goes through, as Not checked", async () => {
+    it("refuses a PO number alone from a signed-in caller, saving nothing", async () => {
         const id = await seedItem()
-        const { data, error } = await (await clientFor("stageParticipant")).rpc("purchase_request_set_item_status", {
+        const { error } = await (await clientFor("stageParticipant")).rpc("purchase_request_set_item_status", {
             p_item_id: id,
             p_status: "ordered",
             p_details: { po_number: PO },
         })
-        expect(error).toBeNull()
-        expect(data).toMatchObject({ status: "ordered", po_number: PO, po_verification: "UNVERIFIED" })
+        expect(error?.code).toBe("42501")
+        expect(await item(id)).toMatchObject({ status: "to_order", po_number: null })
     })
 
     it("Ordered with no PO number is unchanged", async () => {

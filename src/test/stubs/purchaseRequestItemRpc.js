@@ -228,6 +228,10 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     if ("po_verification" in details) {
       refuse("purchase_request_set_item_status: only the server may record a PO check", "42501")
     }
+    // A PO number is saved only by the server path, after it asks Odoo.
+    if ((details.po_number || "").toString().trim()) {
+      refuse("purchase_request_set_item_status: a PO number is saved by the server after Odoo is asked; use the Order / Correct PO action", "42501")
+    }
     return setStatus(item, args.p_status, details, false)
   })
 
