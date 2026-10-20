@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   IPAS_PART_NAMES,
   IPAS_PART_NO,
+  IPAS_SIGNER_LIST_LABELS,
   ipasSectionLabel,
+  ipasSectionNo,
+  ipasSectionWord,
 } from "./ipas";
 
 /**
@@ -29,6 +32,25 @@ describe("the IPAS section numbers", () => {
 
   it("reads anything it doesn't know as it is given", () => {
     expect(ipasSectionLabel("nope")).toBe("nope");
+  });
+});
+
+describe("ipasSectionNo (#552)", () => {
+  it("maps the stored sign-off sections 1, 3 and 7 to the numbers the screen shows", () => {
+    expect([1, 3, 7].map(ipasSectionNo)).toEqual([1, 2, 4]);
+    expect(ipasSectionNo("3")).toBe(2);
+    expect(ipasSectionWord(7)).toBe("section 4");
+  });
+
+  it("names the Settings sign-off lists with the display numbers", () => {
+    expect(IPAS_SIGNER_LIST_LABELS).toEqual({
+      s1_approved: "Section 1 · Approved",
+      s3_approved: "Section 2 · Approved",
+      s7_received: "Section 4 · Received",
+      s7_noted: "Section 4 · Noted",
+      s7_checked: "Section 4 · Checked",
+      s7_approved: "Section 4 · Approved (files the IPAS)",
+    });
   });
 });
 

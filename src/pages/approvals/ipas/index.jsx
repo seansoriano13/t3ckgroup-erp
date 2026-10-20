@@ -12,7 +12,7 @@ import SendBackDialog from "../../../components/ipas/SendBackDialog";
 import FilingDialog from "../../../components/ipas/FilingDialog";
 import { ipasKey, ipasListKey, ipasPendingKey, ipasPendingPrefix } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
-import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_ACTIONS, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../../../constants/ipas";
+import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_ACTIONS, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel, ipasSectionNo } from "../../../constants/ipas";
 import { ipasToItem } from "../../../utils/approvalItems.js";
 import { ipasErrorMessage } from "../../../utils/ipas";
 import { canSendBackItem } from "../../../utils/ipasSignoffs";
@@ -105,8 +105,8 @@ function IpasSignoffsQueue() {
     onSuccess: (result, { item }) => {
       if (result.filed) toast.success(`${item.ref} is filed.`);
       else if (item.source.section === 7) {
-        toast.success(`${item.ref} section 7 ${IPAS_SIGNOFF_ROLE_LABELS[item.source.role].toLowerCase()}.`);
-      } else toast.success(`${item.ref} section ${item.source.section} approved.`);
+        toast.success(`${item.ref} section ${ipasSectionNo(7)} ${IPAS_SIGNOFF_ROLE_LABELS[item.source.role].toLowerCase()}.`);
+      } else toast.success(`${item.ref} section ${ipasSectionNo(item.source.section)} approved.`);
       advance(item);
       settled(item);
     },
@@ -127,8 +127,8 @@ function IpasSignoffsQueue() {
     onSuccess: (_, { item }) => {
       toast.success(
         item.source.section === 7
-          ? `${item.ref} section 7 returned. The people who had signed it were told.`
-          : `${item.ref} section ${item.source.section} returned to its preparer.`,
+          ? `${item.ref} section ${ipasSectionNo(7)} returned. The people who had signed it were told.`
+          : `${item.ref} section ${ipasSectionNo(item.source.section)} returned to its preparer.`,
       );
       advance(item);
       settled(item);
@@ -191,7 +191,7 @@ function IpasSignoffsQueue() {
                   <Button
                     variant="outline"
                     size="icon-sm"
-                    aria-label={`Return ${item.ref} section ${item.source.section}`}
+                    aria-label={`Return ${item.ref} section ${ipasSectionNo(item.source.section)}`}
                     disabled={busy}
                     onClick={() => setSendingBack(item)}
                   >
@@ -209,7 +209,7 @@ function IpasSignoffsQueue() {
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  aria-label={`${verbOf(item)} ${item.ref} section ${item.source.section}`}
+                  aria-label={`${verbOf(item)} ${item.ref} section ${ipasSectionNo(item.source.section)}`}
                   disabled={busy}
                   className="hover:border-green-7 hover:bg-green-3 hover:text-green-11"
                   onClick={() => give(item)}
@@ -222,7 +222,7 @@ function IpasSignoffsQueue() {
           empty={{
             title: "Nothing waiting on you right now",
             description:
-              "IPAS sign-offs that are ready for you show up here: prepared sections for approval, and section 7's steps as each one before it is given.",
+              `IPAS sign-offs that are ready for you show up here: prepared sections for approval, and section ${ipasSectionNo(7)}'s steps as each one before it is given.`,
           }}
         />
       </ApprovalCenterLayout>

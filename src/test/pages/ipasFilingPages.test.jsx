@@ -449,7 +449,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Receive ${row.number} section 7` }));
+      await user.click(await screen.findByRole("button", { name: `Receive ${row.number} section 4` }));
 
       await waitFor(() => expect(screen.getByText("Nothing waiting on you right now")).toBeInTheDocument());
       expect(db.rows("ipas_signoffs").filter((s) => s.section === 7).map((s) => s.role)).toEqual(["received"]);
@@ -462,7 +462,7 @@ describe("IPAS section 7 and Filing", () => {
 
       renderQueue();
 
-      await screen.findByRole("button", { name: `Receive ${row.number} section 7` });
+      await screen.findByRole("button", { name: `Receive ${row.number} section 4` });
       expect(screen.queryByRole("button", { name: /^Return/ })).not.toBeInTheDocument();
     });
 
@@ -474,7 +474,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 7` }));
+      await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 4` }));
 
       const dialog = await screen.findByRole("dialog");
       await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Wrong supplier");
@@ -496,7 +496,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 7` }));
+      await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 4` }));
 
       const dialog = await screen.findByRole("dialog");
       expect(await within(dialog).findByTestId("ipas-filing-warnings")).toBeInTheDocument();

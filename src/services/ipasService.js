@@ -23,6 +23,7 @@ import {
   IPAS_SECTION_7_LIST,
   IPAS_SECTION_7_ROLES,
   ipasSectionLabel,
+  ipasSectionNo,
   ipasSectionName,
   IPAS_SIGNER_LISTS,
   IPAS_SIGNOFF_ROLE,
@@ -940,7 +941,7 @@ export const ipasService = {
       requireOneOf(
         role,
         IPAS_SECTION_7_ROLES,
-        "Section 7 is Received, then Noted and Checked, then Approved.",
+        `Section ${ipasSectionNo(7)} is Received, then Noted and Checked, then Approved.`,
       );
     } else {
       requireOneOf(
@@ -1358,14 +1359,14 @@ export const ipasService = {
 
 function requireSignoffSection(section) {
   if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, "Sections 1, 3 and 7 are signed off.");
+    throw new IpasError(IPAS_ERROR.INVALID, `Sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(7)} are signed off.`);
   }
 }
 
 /** Sections 1, 3 and 7 are returned. */
 function requireSendBackSection(section) {
   if (!IPAS_SEND_BACK_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1, 3 and 7 can be returned.");
+    throw new IpasError(IPAS_ERROR.INVALID, `Only sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(7)} can be returned.`);
   }
 }
 
@@ -1376,25 +1377,25 @@ function stageNotification(stage, { label, section, role }) {
       return {
         type: IPAS_NOTIFICATION.SECTION_7_READY,
         title: "IPAS ready to receive",
-        message: `${label}: sections 1 and 3 are approved. Section 7 is ready for Received.`,
+        message: `${label}: sections ${ipasSectionNo(1)} and ${ipasSectionNo(3)} are approved. Section ${ipasSectionNo(7)} is ready for Received.`,
       };
     case IPAS_SIGNOFF_STAGE.NOTED_CHECKED_READY:
       return {
         type: IPAS_NOTIFICATION.SECTION_7_READY,
         title: "IPAS ready to note and check",
-        message: `${label}: received. Section 7 is ready for Noted and Checked.`,
+        message: `${label}: received. Section ${ipasSectionNo(7)} is ready for Noted and Checked.`,
       };
     case IPAS_SIGNOFF_STAGE.APPROVE_READY:
       return {
         type: IPAS_NOTIFICATION.SECTION_7_READY,
         title: "IPAS ready to approve and file",
-        message: `${label}: noted and checked. Approved in section 7 files the IPAS.`,
+        message: `${label}: noted and checked. Approved in section ${ipasSectionNo(7)} files the IPAS.`,
       };
     default:
       return {
         type: IPAS_NOTIFICATION.SIGNOFF_READY,
         title: "IPAS ready for approval",
-        message: `${label}: section ${section} (${ipasSectionName(section)}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
+        message: `${label}: section ${ipasSectionNo(section)} (${ipasSectionName(section)}) is ${IPAS_SIGNOFF_ROLE_LABELS[role].toLowerCase()} and waits for your approval.`,
       };
   }
 }
