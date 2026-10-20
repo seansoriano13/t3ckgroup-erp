@@ -46,6 +46,16 @@ describe("purchasing", () => {
     expect(await within(row).findByRole("button", { name: "Canvass Printer paper" })).toBeInTheDocument()
   })
 
+  it("offers no Canvass on a cancelled item", async () => {
+    seedItem({ status: "cancelled" })
+    seedItem({ name: "Toner" })
+    renderWithProviders(<RequestedItems request={request} />)
+    const toner = await rowNamed("Toner")
+    expect(await within(toner).findByRole("button", { name: "Canvass Toner" })).toBeInTheDocument()
+    const row = await rowNamed("Printer paper")
+    expect(within(row).queryByRole("button", { name: /Canvass/ })).not.toBeInTheDocument()
+  })
+
   it("shows the number and signed state of an item's Canvass", async () => {
     const item = seedItem()
     db.seed("sor_canvasses", { requested_item_id: item.id, number: "CNV_0001", signed_off_at: "2026-10-19T08:00:00Z" })

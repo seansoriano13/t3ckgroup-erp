@@ -139,7 +139,6 @@ export function movesFor(t, rights, { forms, odooRef, on }) {
           icon: CircleX,
           label: `Decline my signature on ${title}`,
           verb: "Decline",
-          confirm: false,
           hint: "Tells the person who signed for you that it is not yours.",
           run: (from) => on.confirmStage(row.id, false, from),
         }),
