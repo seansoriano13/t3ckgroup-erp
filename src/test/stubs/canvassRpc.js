@@ -173,6 +173,10 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"] } = {}) {
     const canvass = rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)
     if (!canvass) throw pgrstError("P0002", "canvass_clear_winner: not found", { status: 404 })
     const winners = rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === canvass.id && o.is_winner)
+    if (winners.length > 0) {
+      insertRow("sor_canvass_signoff_events", { canvass_id: canvass.id, kind: "cleared", actor_id: null, reason: "The winner was un-picked", offer_count: 0 })
+      if (canvass.signed_off_at) updateRow("sor_canvasses", canvass, { signed_off_at: null, signed_off_by: null })
+    }
     for (const offer of winners) updateRow("sor_canvass_offers", offer, { is_winner: false })
     return { canvass_id: canvass.id, cleared: winners.length > 0 }
   })
@@ -340,6 +344,7 @@ export function stubCanvassListRpcs({ actorId = null } = {}) {
       updateRow("sor_canvasses", canvass, { requested_item_id: item.id })
       return { canvass_id: canvass.id, item_id: item.id }
     })
-    return { request_id: request.id, items }
+    const unsigned = picked.filter(({ canvass }) => !canvass.signed_off_at).map(({ canvass }) => canvass.id)
+    return { request_id: request.id, items, unsigned_canvass_ids: unsigned }
   })
 }

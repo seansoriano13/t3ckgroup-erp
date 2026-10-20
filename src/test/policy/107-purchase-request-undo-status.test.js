@@ -93,7 +93,7 @@ describe("undo of the last status change", () => {
     it("is refused after the window", async () => {
         const id = await seedItem()
         const moved = await setStatus("stageParticipant", id, "to_order")
-        const old = new Date(Date.now() - 5 * 60_000).toISOString()
+        const old = new Date(Date.now() - 20_000).toISOString()
         await svc().from("purchase_request_items").update({ status_changed_at: old }).eq("id", id)
         const late = await undo("stageParticipant", id, old)
         expect(late.error).not.toBeNull()

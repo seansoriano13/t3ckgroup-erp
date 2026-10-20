@@ -2,6 +2,14 @@ import { CANVASS_KIND } from "../constants/canvass";
 
 /** The Canvasses page filters (ADR 0034, #566); "all" on a select means no filter. */
 export const ANY = "all";
+export const SIGNED_FILTER = { SIGNED: "signed", UNSIGNED: "unsigned" };
+export const WINNER_FILTER = { YES: "yes", NO: "no" };
+export const LINKED_FILTER = { LINKED: "linked", FREE: "free" };
+
+/** The Canvasses page address: ?canvass=<id>, or ?item= / ?component= for one found by its subject. */
+export function canvassAddressParams(params) {
+  return { canvass: params.get("canvass"), item: params.get("item"), component: params.get("component") };
+}
 
 /** What the row says it is for: "S07983 · 1.2 Stretcher", "Gloves (PR-12)", or the product alone. */
 export function canvassSubjectLabel(row) {
@@ -19,9 +27,9 @@ export function filterCanvasses(rows, { search = "", canvasserId = ANY, signed =
   const needle = search.trim().toLowerCase();
   return rows.filter((row) => {
     if (canvasserId !== ANY && row.canvasserId !== canvasserId) return false;
-    if (signed !== ANY && Boolean(row.signedOffAt) !== (signed === "signed")) return false;
-    if (winner !== ANY && Boolean(row.winner) !== (winner === "yes")) return false;
-    if (linked !== ANY && (row.kind !== CANVASS_KIND.NONE) !== (linked === "linked")) return false;
+    if (signed !== ANY && Boolean(row.signedOffAt) !== (signed === SIGNED_FILTER.SIGNED)) return false;
+    if (winner !== ANY && Boolean(row.winner) !== (winner === WINNER_FILTER.YES)) return false;
+    if (linked !== ANY && (row.kind !== CANVASS_KIND.NONE) !== (linked === LINKED_FILTER.LINKED)) return false;
     if (!needle) return true;
     const haystack = [row.number, canvassSubjectLabel(row), row.canvasserName, row.winner?.supplierName, row.winner?.brand, row.projectTitle]
       .filter(Boolean)
