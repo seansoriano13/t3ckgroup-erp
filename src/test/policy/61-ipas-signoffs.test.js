@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql, rlsStatus } from "./support/stack.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 import { tryInsert, tryUpdate, tryDelete } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -53,7 +53,7 @@ const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 /** Raises an IPAS as the purchaser. */
 async function raise(supplierId = nextSupplier()) {
     const po = nextPo()
-    const { data, error } = await rpc("outsider", "ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",

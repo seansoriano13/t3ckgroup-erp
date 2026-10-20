@@ -141,7 +141,10 @@ export const externalHandlers = [
       )
     }
     const body = await request.json().catch(() => ({}))
-    const result = await stub(body)
+    // A server-side action (the IPAS raise, #550) asks the stubbed upstream
+    // itself, then does what the real function does with the answer.
+    const serverSide = body?.action === "raise" ? stubs.edgeRaise.get(params.name) : null
+    const result = serverSide ? await serverSide(body, await stub({ poNumber: body.poNumber })) : await stub(body)
     // Some functions answer with bytes rather than JSON — odoo-quotation-file
     // streams PDFs. A stub returning a Response passes straight through so it
     // can set its own status and Content-Type.

@@ -14,7 +14,7 @@ import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeCostingForSors } from "./support/costing.js"
-import { purgeIpas } from "./support/ipas.js"
+import { purgeIpas, raiseAsPurchaser } from "./support/ipas.js"
 
 const svc = () => serviceClient()
 
@@ -186,7 +186,7 @@ describe("what moves the SOR between groups", () => {
 })
 
 async function raiseIpas(po) {
-    const { data, error } = await (await clientFor("outsider")).rpc("ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
         p_priority: "high",
         p_source: "local",

@@ -5,6 +5,12 @@
 // What the IPAS stores is this answer, so the shape below is the stored copy's
 // shape (`ipas.odoo_copy`): { po, supplier, lines, receipts, bills }.
 //
+// A second mode, `{ action: "raise", poNumber, priority, source, purpose, sorIds,
+// remarks }`, raises the IPAS (#550): this function asks Odoo itself and calls
+// the service-role-only `ipas_raise_from_odoo` for the caller named by their JWT,
+// with its own verdict (found / not_found / unavailable). The browser never
+// sends a copy.
+//
 // Odoo credentials live only in function secrets (see ../_shared/odoo.ts) — the
 // browser never talks to Odoo directly. Deploy with the default JWT
 // verification ON (i.e. do NOT pass --no-verify-jwt) so only a signed-in
@@ -26,6 +32,12 @@ import {
   isConfigured,
   jsonResponse,
 } from "../_shared/odoo.ts";
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Odoo numbers a confirmed purchase.order P0####. Kept permissive on width.
 const PO_NUMBER_PATTERN = /^P\d+$/;
@@ -214,34 +226,25 @@ async function fetchBills(uid: number, order: Row) {
   };
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+type Answer =
+  | { verdict: "found"; copy: Row }
+  | { verdict: "not_found"; message: string }
+  | { verdict: "unavailable"; message: string };
 
+/** Asks Odoo for one PO. Never throws: every outcome is a verdict. */
+async function readPo(poNumber: unknown): Promise<Answer> {
   if (!isConfigured()) {
     // Not an outage — the integration was never wired up. "Could not check",
     // never "not found".
-    return jsonResponse({
-      success: false,
-      message: "Odoo integration is not configured on the server.",
-    });
-  }
-
-  let poNumber: unknown;
-  try {
-    ({ poNumber } = await req.json());
-  } catch {
-    return jsonResponse({ success: false, message: "Invalid request body." });
+    return { verdict: "unavailable", message: "Odoo integration is not configured on the server." };
   }
 
   const ref = normalizePoNumber(poNumber);
   if (!ref) {
-    return jsonResponse({
-      success: true,
-      found: false,
+    return {
+      verdict: "not_found",
       message: 'Enter a valid PO Number — "P" followed by digits, e.g. P01234.',
-    });
+    };
   }
 
   try {
@@ -249,11 +252,7 @@ Deno.serve(async (req) => {
     const order = await findPurchaseOrder(uid, ref);
 
     if (!order) {
-      return jsonResponse({
-        success: true,
-        found: false,
-        message: `Odoo has no purchase order named "${ref}".`,
-      });
+      return { verdict: "not_found", message: `Odoo has no purchase order named "${ref}".` };
     }
 
     const [lines, receipts, bills, supplier] = await Promise.all([
@@ -263,35 +262,94 @@ Deno.serve(async (req) => {
       fetchCustomer(uid, order),
     ]);
 
-    return jsonResponse({
-      success: true,
-      found: true,
-      po: {
-        id: order.id,
-        name: order.name,
-        state: order.state,
-        company: pairName(order.company_id),
-        company_id: pairId(order.company_id),
-        currency: pairName(order.currency_id),
-        origin: text(order.origin) || null,
-        partner_ref: text(order.partner_ref) || null,
+    return {
+      verdict: "found",
+      copy: {
+        po: {
+          id: order.id,
+          name: order.name,
+          state: order.state,
+          company: pairName(order.company_id),
+          company_id: pairId(order.company_id),
+          currency: pairName(order.currency_id),
+          origin: text(order.origin) || null,
+          partner_ref: text(order.partner_ref) || null,
+        },
+        supplier: {
+          id: supplier.company_id,
+          name: supplier.company || pairName(order.partner_id),
+          contact: supplier.contact || null,
+        },
+        lines,
+        receipts,
+        bills,
       },
-      supplier: {
-        id: supplier.company_id,
-        name: supplier.company || pairName(order.partner_id),
-        contact: supplier.contact || null,
-      },
-      lines,
-      receipts,
-      bills,
-    });
+    };
   } catch (err) {
     console.error("odoo-po-ipas error:", err);
-    // success:false means "could not check". It must never collapse into
-    // found:false: the IPAS shows the two differently.
+    // "Could not check" must never collapse into "not found": the IPAS shows
+    // the two differently.
+    return { verdict: "unavailable", message: err instanceof Error ? err.message : "Odoo lookup failed." };
+  }
+}
+
+/**
+ * Raises an IPAS. The server asks Odoo itself and hands the database its own
+ * verdict and copy; nothing the browser sends is stored. The caller is resolved
+ * from their own JWT, and the database checks they are Purchasing.
+ */
+async function raiseIpas(req: Request, body: Row) {
+  const authHeader = req.headers.get("Authorization") || "";
+  const callerClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: actorId } = await callerClient.rpc("get_employee_id");
+  if (!actorId) return jsonResponse({ success: false, message: "Not signed in." }, 401);
+
+  const answer = await readPo(body.poNumber);
+
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { data, error } = await admin.rpc("ipas_raise_from_odoo", {
+    p_actor: actorId,
+    p_po_number: String(body.poNumber ?? ""),
+    p_priority: body.priority ?? null,
+    p_source: body.source ?? null,
+    p_purpose: body.purpose ?? null,
+    p_sor_ids: Array.isArray(body.sorIds) ? body.sorIds : [],
+    p_remarks: typeof body.remarks === "string" ? body.remarks : null,
+    p_verdict: answer.verdict,
+    p_odoo_copy: answer.verdict === "found" ? answer.copy : null,
+  });
+  if (error) {
+    // The database's refusal, with its code, so the screen can word it.
     return jsonResponse({
       success: false,
-      message: err instanceof Error ? err.message : "Odoo lookup failed.",
+      refused: true,
+      code: error.code,
+      hint: error.hint ?? null,
+      message: error.message,
     });
   }
+  return jsonResponse({ success: true, ipas: data });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  let body: Row;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonResponse({ success: false, message: "Invalid request body." });
+  }
+
+  if (body?.action === "raise") return await raiseIpas(req, body);
+
+  // Read one PO (refresh-on-open, and the raise dialog's preview).
+  const answer = await readPo(body?.poNumber);
+  if (answer.verdict === "found") return jsonResponse({ success: true, found: true, ...answer.copy });
+  if (answer.verdict === "not_found") return jsonResponse({ success: true, found: false, message: answer.message });
+  return jsonResponse({ success: false, message: answer.message });
 });

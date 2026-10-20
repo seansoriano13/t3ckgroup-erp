@@ -10,7 +10,8 @@
  *
  * Children go first and by hand, because the cascade is off too.
  */
-import { sql } from "./stack.js"
+import { serviceClient, sql } from "./stack.js"
+import { ids as castIds } from "./cast.js"
 
 const CHILDREN = [
     ["ipas_events", "ipas_id"],
@@ -79,3 +80,23 @@ async function withoutTriggers(work) {
         client.release()
     }
 }
+
+/**
+ * Raises an IPAS the way the app now does (#550): the server asks Odoo itself and
+ * calls `ipas_raise_from_odoo` for the caller with its own verdict and copy. Odoo
+ * is faked here by passing the answer: `p_odoo_copy` is what Odoo "said", and
+ * `p_verdict` is 'found' (default), 'not_found' or 'unavailable'. Same argument
+ * names as the old `ipas_create`; the result is `{ data, error }`.
+ */
+export function raiseIpas(actorId, args) {
+    const { p_odoo_copy = null, p_verdict = "found", ...rest } = args
+    return serviceClient().rpc("ipas_raise_from_odoo", {
+        p_actor: actorId,
+        ...rest,
+        p_verdict,
+        p_odoo_copy,
+    })
+}
+
+/** Raises as the purchaser (the cast's `outsider`, who holds Purchasing in these files). */
+export const raiseAsPurchaser = (args) => raiseIpas(castIds.outsider, args)
