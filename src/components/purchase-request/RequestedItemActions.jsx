@@ -76,7 +76,10 @@ function MenuItem({ children, onClick, tone }) {
   );
 }
 
-/** The menu animation lasts 150ms (.popover-enter); the menu takes clicks only once it is over. */
+/**
+ * The menu takes clicks only once its opening animation is over. Keep this a little longer than
+ * the `.popover-enter` animation in src/index.css (0.15s = 150ms): change one, change the other.
+ */
 const MENU_OPEN_MS = 200;
 
 /**

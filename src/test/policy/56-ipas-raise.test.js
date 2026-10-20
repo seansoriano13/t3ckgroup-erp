@@ -283,62 +283,83 @@ describe("a Project needs an SOR; no other Purpose may have one", () => {
         expect(data).toHaveLength(1)
     })
 
-    it("lets Purpose and SORs change together until Filing, with history", async () => {
-        const ipas = await raise({ p_purpose: "project", p_sor_ids: [sorA] })
-
-        const widened = await rpc("outsider", "ipas_set_purpose_and_sors", {
-            p_ipas_id: ipas.id,
-            p_purpose: "project",
-            p_sor_ids: [sorA, sorB],
-        })
-        expect(widened.error).toBeNull()
-        expect((await svc().from("ipas_sors").select("id").eq("ipas_id", ipas.id)).data).toHaveLength(2)
+    it("lets the Purpose change until Filing, with history, and keeps the SOR list", async () => {
+        const ipas = await raise({ p_purpose: "inventory", p_sor_ids: [] })
 
         const supplies = await rpc("outsider", "ipas_set_purpose_and_sors", {
             p_ipas_id: ipas.id,
             p_purpose: "supplies",
-            p_sor_ids: [],
+            p_sor_ids: null,
         })
         expect(supplies.error).toBeNull()
         expect(supplies.data.purpose).toBe("supplies")
-        expect((await svc().from("ipas_sors").select("id").eq("ipas_id", ipas.id)).data).toEqual([])
 
-        const back = await rpc("outsider", "ipas_set_purpose_and_sors", {
+        const events = await rpc("outsider", "ipas_set_purpose_and_sors", {
             p_ipas_id: ipas.id,
-            p_purpose: "project",
-            p_sor_ids: [sorB],
+            p_purpose: "events",
+            p_sor_ids: [],
         })
-        expect(back.error).toBeNull()
+        expect(events.error).toBeNull()
 
-        const { data: events } = await svc()
+        const { data: history } = await svc()
             .from("ipas_events")
             .select("kind")
             .eq("ipas_id", ipas.id)
             .order("created_at")
-        expect(events.map((e) => e.kind)).toEqual([
-            "created",
-            "purpose_sors_changed",
-            "purpose_sors_changed",
-            "purpose_sors_changed",
-        ])
+        expect(history.map((e) => e.kind)).toEqual(["created", "purpose_sors_changed", "purpose_sors_changed"])
     })
 
-    it("refuses a Purpose change that breaks the rule, leaving the IPAS as it was", async () => {
+    it("refuses any change to the SOR list after raising, through ipas_set_purpose_and_sors", async () => {
         const ipas = await raise({ p_purpose: "project", p_sor_ids: [sorA] })
-        const noSor = await rpc("outsider", "ipas_set_purpose_and_sors", {
+        const sorsOf = async () => (await svc().from("ipas_sors").select("opportunity_id").eq("ipas_id", ipas.id)).data
+
+        for (const list of [[sorA, sorB], [sorB], []]) {
+            const changed = await rpc("outsider", "ipas_set_purpose_and_sors", {
+                p_ipas_id: ipas.id,
+                p_purpose: "project",
+                p_sor_ids: list,
+            })
+            expect(changed.error?.code).toBe("22023")
+            expect(changed.error?.message).toMatch(/can't be changed after it is raised/)
+        }
+        expect(await sorsOf()).toEqual([{ opportunity_id: sorA }])
+
+        // Sending the list it already has, or none at all, is not a change.
+        const same = await rpc("outsider", "ipas_set_purpose_and_sors", {
             p_ipas_id: ipas.id,
             p_purpose: "project",
-            p_sor_ids: [],
-        })
-        expect(noSor.error?.code).toBe("22023")
-        const stillSor = await rpc("outsider", "ipas_set_purpose_and_sors", {
-            p_ipas_id: ipas.id,
-            p_purpose: "events",
             p_sor_ids: [sorA],
         })
-        expect(stillSor.error?.code).toBe("22023")
-        expect((await readRow("ipas", ipas.id)).purpose).toBe("project")
-        expect((await svc().from("ipas_sors").select("id").eq("ipas_id", ipas.id)).data).toHaveLength(1)
+        expect(same.error).toBeNull()
+        const none = await rpc("outsider", "ipas_set_purpose_and_sors", {
+            p_ipas_id: ipas.id,
+            p_purpose: "project",
+            p_sor_ids: null,
+        })
+        expect(none.error).toBeNull()
+        const { data: history } = await svc().from("ipas_events").select("id").eq("ipas_id", ipas.id)
+        expect(history).toHaveLength(1)
+    })
+
+    it("refuses a Purpose that doesn't fit the SORs it has, leaving the IPAS as it was", async () => {
+        const project = await raise({ p_purpose: "project", p_sor_ids: [sorA] })
+        const toEvents = await rpc("outsider", "ipas_set_purpose_and_sors", {
+            p_ipas_id: project.id,
+            p_purpose: "events",
+            p_sor_ids: null,
+        })
+        expect(toEvents.error?.code).toBe("22023")
+        expect((await readRow("ipas", project.id)).purpose).toBe("project")
+
+        const stock = await raise({ p_purpose: "inventory", p_sor_ids: [] })
+        const toProject = await rpc("outsider", "ipas_set_purpose_and_sors", {
+            p_ipas_id: stock.id,
+            p_purpose: "project",
+            p_sor_ids: [sorA],
+        })
+        expect(toProject.error?.code).toBe("22023")
+        expect((await readRow("ipas", stock.id)).purpose).toBe("inventory")
+        expect((await svc().from("ipas_sors").select("id").eq("ipas_id", stock.id)).data).toEqual([])
     })
 
     it("writes no event when nothing changed", async () => {

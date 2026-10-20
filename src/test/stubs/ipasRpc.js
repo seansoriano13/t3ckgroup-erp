@@ -285,7 +285,9 @@ export function stubIpasRpcs({
   }
 
   // The edge function: asks Odoo (the test's stub of `odoo-po-ipas`), then raises.
-  stubs.edgeRaise.set("odoo-po-ipas", (request, answer) => {
+  stubs.edgeRaise.set("odoo-po-ipas", async (request, ask) => {
+    if (request.action === "refresh") return refreshFromOdoo(request, ask)
+    const answer = await ask(request.poNumber)
     const verdict = !answer?.success ? "unavailable" : answer.found ? "found" : "not_found"
     try {
       const ipas = raiseFromOdoo({
@@ -315,20 +317,28 @@ export function stubIpasRpcs({
     if (!row) refuse("P0002", `ipas_set_purpose_and_sors: IPAS ${args.p_ipas_id} not found`)
     if (row.state === "filed") refuse("55000", `ipas_set_purpose_and_sors: ${row.number} is filed`)
     if (row.state === "cancelled") refuse("55000", `ipas_set_purpose_and_sors: ${row.number} is cancelled`)
-    const after = cleanSors("ipas_set_purpose_and_sors", args.p_purpose, args.p_sor_ids)
     const before = sorIdsOf(row.id)
-    if (row.purpose === args.p_purpose && JSON.stringify(before) === JSON.stringify(after)) return row
+    if (args.p_sor_ids != null) {
+      const sent = [...new Set(args.p_sor_ids)].sort()
+      if (JSON.stringify(sent) !== JSON.stringify(before)) {
+        refuse("22023", `ipas_set_purpose_and_sors: the SORs of ${row.number} can't be changed after it is raised; cancel it and raise a new one`)
+      }
+    }
+    if (args.p_purpose === "project" && before.length === 0) {
+      refuse("22023", "ipas_set_purpose_and_sors: a Project IPAS needs at least one SOR, and the SORs can't be changed after it is raised")
+    }
+    if (args.p_purpose !== "project" && before.length > 0) {
+      refuse("22023", `ipas_set_purpose_and_sors: ${row.number} names SORs, so it can only be a Project; the SORs can't be changed after it is raised`)
+    }
+    if (row.purpose === args.p_purpose) return row
 
     const from = row.purpose
-    const owned = rowsOf("ipas_sors").filter((s) => s.ipas_id === row.id)
-    for (const s of owned) rowsOf("ipas_sors").splice(rowsOf("ipas_sors").indexOf(s), 1)
     const updated = updateRow("ipas", row, { purpose: args.p_purpose })
-    for (const opportunityId of after) insertRow("ipas_sors", { ipas_id: row.id, opportunity_id: opportunityId })
     event(row.id, "purpose_sors_changed", {
       purpose_from: from,
       purpose_to: args.p_purpose,
       sor_ids_from: before,
-      sor_ids_to: after,
+      sor_ids_to: before,
     })
     return updated
   })
@@ -560,7 +570,9 @@ export function stubIpasRpcs({
     return { sections, preparers }
   }
 
-  stubRpc("ipas_record_odoo_copy", (args) => {
+  // The engine behind refresh-on-open. Not an RPC a signed-in caller can make (#550):
+  // the odoo-po-ipas edge function calls it after it has read Odoo itself.
+  const recordOdooCopy = (args) => {
     if (!reader) refuse("42501", "ipas_record_odoo_copy: you can't read IPAS")
     const copy = args.p_odoo_copy
     if (!copy || typeof copy.po !== "object" || !Array.isArray(copy.lines)) {
@@ -609,7 +621,34 @@ export function stubIpasRpcs({
     const { sections, preparers } = note ? clearApprovals(row.id, "PO changed in Odoo") : { sections: [], preparers: [] }
 
     return { ipas: updated, changed: Boolean(note), filed: false, approvals_cleared: sections, preparer_ids: preparers }
-  })
+  }
+
+  stubRpc("ipas_record_odoo_copy", () => refuse("42501", "permission denied for function ipas_record_odoo_copy"))
+
+  // The edge function's refresh mode: reads the IPAS's PO from the stubbed Odoo, records it.
+  async function refreshFromOdoo(request, ask) {
+    const row = findRow("ipas", request.ipasId)
+    if (!row) return { success: false, refused: true, code: "22023", message: "That IPAS isn't there." }
+    if (row.state === "cancelled") return { success: true, skipped: true }
+    let answer
+    try {
+      answer = await ask(row.po_number)
+    } catch (error) {
+      return { success: false, message: error?.message ?? "Odoo lookup failed." }
+    }
+    if (!answer?.success) return { success: false, message: answer?.message ?? "Odoo lookup failed." }
+    if (!answer.found) return { success: true, found: false, message: answer.message }
+    try {
+      const result = recordOdooCopy({
+        p_ipas_id: row.id,
+        p_odoo_copy: { po: answer.po, supplier: answer.supplier, lines: answer.lines ?? [], receipts: answer.receipts ?? null, bills: answer.bills ?? null },
+      })
+      return { success: true, refreshed: true, result }
+    } catch (error) {
+      const pg = error?.pgrst ?? {}
+      return { success: false, refused: true, code: pg.code, message: pg.message ?? error.message }
+    }
+  }
 
   stubRpc("ipas_override_field", (args) => {
     requirePurchasing("ipas_override_field")
@@ -1309,7 +1348,7 @@ export function stubIpasRpcs({
     ),
   ]
   const requireSection = (fn, section) => {
-    if (![1, 3, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 3 and 7 can be sent back`)
+    if (![1, 3, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 2 and 4 can be sent back`)
   }
 
   stubRpc("ipas_sign", (args) => {
@@ -1341,7 +1380,7 @@ export function stubIpasRpcs({
       const live = liveSignoffs(ipas.id)
       const has = (sec, r) => live.some((s) => s.section === sec && s.role === r)
       if (!has(1, "approved") || !has(3, "approved")) {
-        refuse("55000", "ipas_sign: section 7 opens once sections 1 and 3 are approved")
+        refuse("55000", "ipas_sign: section 4 opens once sections 1 and 2 are approved")
       }
       if (["noted", "checked"].includes(role) && !has(7, "received")) {
         refuse("55000", `ipas_sign: Received comes first; ${role[0].toUpperCase()}${role.slice(1)} can only be given after it`)
@@ -1459,7 +1498,7 @@ export function stubIpasRpcs({
       const everything = liveSignoffs(ipas.id)
       const approved = (sec) => everything.some((s) => s.section === sec && s.role === "approved")
       if (!approved(1) || !approved(3)) {
-        refuse("55000", "ipas_send_back: section 7 isn't open yet; sections 1 and 3 must be approved first")
+        refuse("55000", "ipas_send_back: section 4 isn't open yet; sections 1 and 2 must be approved first")
       }
     }
 
@@ -1498,7 +1537,7 @@ export function stubIpasRpcs({
     if (!reason) refuse("22023", "ipas_undo_approval: give a reason, so the approver knows why")
     const section = args.p_section
     if (![1, 3].includes(section)) {
-      refuse("22023", "ipas_undo_approval: only sections 1 and 3 have an approval to undo")
+      refuse("22023", "ipas_undo_approval: only sections 1 and 2 have an approval to undo")
     }
     const ipas = requireOpenIpas("ipas_undo_approval", args.p_ipas_id)
     if (!onList(SEND_BACK_LIST[section], actorId)) {

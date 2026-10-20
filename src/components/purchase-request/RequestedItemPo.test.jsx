@@ -10,7 +10,7 @@ import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
-import { statusMenuReady } from "./statusMenuReady"
+import { statusMenuReady } from "@/test/support/statusMenuReady"
 import RequestedItems from "./RequestedItems"
 
 let salesperson, buyer, request

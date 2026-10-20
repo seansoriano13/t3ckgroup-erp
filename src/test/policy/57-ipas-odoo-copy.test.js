@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
-import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
 import { tryUpdate, tryDelete } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -55,7 +55,8 @@ const copyFor = (po, over = {}) => ({
     bills: over.bills ?? { count: 0, draft: 0 },
 })
 
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) =>
+    name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
 
 /** Raises an IPAS as the purchaser, failing the test loudly if it can't. */
 async function raise(copyOver = {}) {

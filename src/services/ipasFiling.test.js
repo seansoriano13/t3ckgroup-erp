@@ -142,7 +142,7 @@ describe("ipasService: section 7 and Filing", () => {
       as(receiver)
       await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({
         code: "55000",
-        message: expect.stringMatching(/sections 1 and 3/),
+        message: expect.stringMatching(/sections 1 and 2/),
       })
 
       as(buyer)
@@ -454,7 +454,7 @@ describe("ipasService: section 7 and Filing", () => {
       const [kind] = Object.values(options.charge_kind)
       const [method] = Object.values(options.payment_method)
       const attempts = [
-        () => ipasService.setPurposeAndSors(ipas.id, { purpose: "supplies", sorIds: [] }),
+        () => ipasService.setPurpose(ipas.id, "supplies"),
         () => ipasService.overrideField(ipas.id, "entity", "Other"),
         () => ipasService.setHeader(ipas.id, { piNumber: "PI-9" }),
         () =>
@@ -542,7 +542,7 @@ describe("ipasService: section 7 and Filing", () => {
       await ipasService.reopen(ipas.id, "Fix the Purpose")
 
       as(buyer)
-      await ipasService.setPurposeAndSors(ipas.id, { purpose: "supplies", sorIds: [] })
+      await ipasService.setPurpose(ipas.id, "supplies")
       expect(rowOf(ipas.id).purpose).toBe("supplies")
 
       await receivedNotedChecked(ipas)

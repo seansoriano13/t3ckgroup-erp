@@ -15,6 +15,7 @@ import {
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import Spinner from "@/components/ui/Spinner";
+import { warningToast } from "@/components/ui/CustomToast";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   PO_NUMBER_HINT,
@@ -28,6 +29,16 @@ import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
+
+/**
+ * Tells the buyer how their PO number was checked (#548): a success toast, or,
+ * when Odoo didn't answer, a warning that the PO was saved without being checked.
+ */
+function toastPoVerdict(message, updated) {
+  if (updated?.po_verification === PO_VERIFICATION.PENDING) {
+    warningToast(`${message} Saved without being checked.`);
+  } else toast.success(message);
+}
 
 /**
  * Issue #312 — setting an item Ordered, with its PO number if there is one.
@@ -51,11 +62,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
       const checked = updated?.po_number
         ? ` PO ${updated.po_number}: ${PO_VERIFICATION_LABELS[updated.po_verification] || updated.po_verification}.`
         : "";
-      const message = `${item.name}: Ordered.${checked}`;
-      // Odoo didn't answer (#548): the PO is saved, but not checked.
-      if (updated?.po_verification === PO_VERIFICATION.PENDING) {
-        toast(`${message} Warning: saved without being checked.`, { icon: "⚠️", duration: 8000 });
-      } else toast.success(message);
+      toastPoVerdict(`${item.name}: Ordered.${checked}`, updated);
       close();
     },
     onError: (error) => toast.error(refusal(error)),
@@ -82,7 +89,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
           <FieldBox label="PO number (optional)" bare>
             <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
           </FieldBox>
-          <p className={`pl-1 text-[11px] ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
+          <p className={`pl-1 text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
             {invalid ? PO_NUMBER_HINT : "Without one, the item is Ordered with no PO."}
           </p>
         </form>
@@ -119,10 +126,10 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
   const correctMutation = useMutation({
     mutationFn: () => purchaseRequestService.correctPo(item.id, po),
     onSuccess: (updated) => {
-      const message = `${item.name}: PO ${updated?.po_number}: ${PO_VERIFICATION_LABELS[updated?.po_verification] || updated?.po_verification}.`;
-      if (updated?.po_verification === PO_VERIFICATION.PENDING) {
-        toast(`${message} Warning: saved without being checked.`, { icon: "⚠️", duration: 8000 });
-      } else toast.success(message);
+      toastPoVerdict(
+        `${item.name}: PO ${updated?.po_number}: ${PO_VERIFICATION_LABELS[updated?.po_verification] || updated?.po_verification}.`,
+        updated,
+      );
       close();
     },
     onError: (error) => toast.error(refusal(error)),
@@ -151,7 +158,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
           <FieldBox label="New PO number" bare>
             <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
           </FieldBox>
-          <p className={`pl-1 text-[11px] ${poNumber && invalid ? "text-destructive" : "text-muted-foreground"}`}>
+          <p className={`pl-1 text-xs ${poNumber && invalid ? "text-destructive" : "text-muted-foreground"}`}>
             {PO_NUMBER_HINT}
           </p>
         </form>

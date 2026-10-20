@@ -19,7 +19,8 @@ export const stubs = {
   rpc: new Map(),
   edgeFunctions: new Map(),
   // Fake of what a server-side edge function does after it has asked a stubbed
-  // upstream: (body, upstreamAnswer) => response. Keyed by function name.
+  // upstream: (body, ask) => response, where `await ask(poNumber)` is the
+  // upstream's answer. Keyed by function name.
   edgeRaise: new Map(),
 }
 

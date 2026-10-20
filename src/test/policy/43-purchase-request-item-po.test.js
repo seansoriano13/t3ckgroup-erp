@@ -143,9 +143,10 @@ describe("Ordered takes an optional PO number", () => {
         })
     })
 
-    it("a PO number with no check reads Not checked", async () => {
+    it("refuses a PO number sent straight to the status move; only the server path saves one", async () => {
         const id = await seedItem()
-        expect((await order("stageParticipant", id, { po_number: "P01236" })).data.po_verification).toBe("UNVERIFIED")
+        expect((await order("stageParticipant", id, { po_number: "P01236" })).error?.code).toBe("42501")
+        expect(await item(id)).toMatchObject({ status: "to_order", po_number: null })
     })
 
     it.each([

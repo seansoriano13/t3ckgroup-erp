@@ -24,56 +24,30 @@
 //     the item status move. The browser never sends a verdict.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import { callerEmail } from "../_shared/caller.ts";
 import {
   authenticate,
   corsHeaders,
   executeKw,
+  findPurchaseOrder,
   isConfigured,
   jsonResponse,
+  normalizePoNumber,
 } from "../_shared/odoo.ts";
 
-// Odoo numbers a confirmed purchase.order P0####, mirroring the S0#### it gives
-// a sale.order. Kept permissive on width, matching SALES_REFERENCE_PATTERN.
-const PO_NUMBER_PATTERN = /^P\d+$/;
-
-function normalizePoNumber(value: unknown) {
-  const ref = String(value ?? "").trim().toUpperCase();
-  return PO_NUMBER_PATTERN.test(ref) ? ref : null;
-}
-
-/**
- * Finds a purchase order by number. Falls back to a fuzzy match for the same
- * reason findOrder does: references get typed without their leading zeroes.
- */
-async function findPurchaseOrder(uid: number, ref: string) {
-  const fields = [
-    "id",
-    "name",
-    "state",
-    "partner_id",
-    "date_order",
-    "date_planned",
-    "amount_total",
-  ];
-
-  const exact = await executeKw(
-    uid,
-    "purchase.order",
-    "search_read",
-    [[["name", "=", ref]], fields],
-    { limit: 1 },
-  );
-  if (exact.length) return exact[0];
-
-  const fuzzy = await executeKw(
-    uid,
-    "purchase.order",
-    "search_read",
-    [[["name", "ilike", ref]], fields],
-    { limit: 1 },
-  );
-  return fuzzy[0] || null;
-}
+// A typed number is confirmed with a fuzzy fallback (references get typed
+// without their leading zeroes), and only the fields this function reports.
+const ORDER_FIELDS = [
+  "id",
+  "name",
+  "state",
+  "partner_id",
+  "date_order",
+  "date_planned",
+  "amount_total",
+];
+const findOrderByNumber = (uid: number, ref: string) =>
+  findPurchaseOrder(uid, ref, ORDER_FIELDS, { fuzzy: true });
 
 async function fetchOrderProducts(uid: number, orderId: number) {
   const lines = await executeKw(
@@ -103,7 +77,6 @@ async function fetchOrderProducts(uid: number, orderId: number) {
 }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 /**
@@ -115,7 +88,7 @@ async function askOdoo(ref: string) {
   if (!isConfigured()) return { answer: "unreachable", message: "Odoo integration is not configured on the server." };
   try {
     const uid = await authenticate();
-    const order = await findPurchaseOrder(uid, ref);
+    const order = await findOrderByNumber(uid, ref);
     if (!order) return { answer: "not_found", message: `No Odoo purchase order found matching "${ref}".` };
     return { answer: "found", order, uid };
   } catch (err) {
@@ -133,17 +106,6 @@ const PO_ACTIONS = new Set(["order", "correct"]);
 
 /** The database's refusal, without the function name it leads with. */
 const refusalText = (message: string) => message.replace(/^[a-z_]+: /, "");
-
-/** The signed-in caller's email, from the JWT the request carried; null if it is not a session. */
-async function callerEmail(req: Request) {
-  const authorization = req.headers.get("Authorization") || "";
-  const token = authorization.replace(/^Bearer\s+/i, "");
-  if (!token) return null;
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const { data, error } = await client.auth.getUser(token);
-  if (error || !data?.user?.email) return null;
-  return data.user.email;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -218,7 +180,7 @@ Deno.serve(async (req) => {
 
   try {
     const uid = await authenticate();
-    const order = await findPurchaseOrder(uid, ref);
+    const order = await findOrderByNumber(uid, ref);
 
     if (!order) {
       return jsonResponse({

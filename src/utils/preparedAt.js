@@ -1,5 +1,8 @@
+import { formatDateWith } from "./formatDate";
+
 const MANILA = "Asia/Manila";
 const DAY_ONLY = { timeZone: MANILA, month: "short", day: "numeric", year: "numeric" };
+const TIME_ONLY = { timeZone: MANILA, hour: "numeric", minute: "2-digit", hour12: true };
 
 /**
  * A Transmittal's prepared time as people read it, in Manila time:
@@ -12,8 +15,8 @@ export function formatPreparedAt(value, { dayOnly = false } = {}) {
   const bareDay = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
   const at = new Date(bareDay ? `${value}T00:00:00+08:00` : value);
   if (Number.isNaN(at.getTime())) return String(value);
-  const day = at.toLocaleDateString("en-US", DAY_ONLY);
+  const day = formatDateWith(at, DAY_ONLY);
   if (dayOnly || bareDay) return day;
-  const time = at.toLocaleTimeString("en-US", { timeZone: MANILA, hour: "numeric", minute: "2-digit", hour12: true });
+  const time = formatDateWith(at, TIME_ONLY, { time: true });
   return /^12:00\s?AM$/.test(time) ? day : `${day}, ${time}`;
 }

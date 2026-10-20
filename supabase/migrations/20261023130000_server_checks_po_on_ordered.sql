@@ -5,7 +5,7 @@
 --
 -- 1. The status move's body moves to _purchase_request_set_item_status(..., p_server).
 --    purchase_request_set_item_status (signed-in callers) is a thin wrapper with
---    p_server = false, and now refuses `po_verification` in the details.
+--    p_server = false, and now refuses `po_verification` and `po_number` in the details.
 -- 2. purchase_request_item_apply_po_check is the server-only path (service role
 --    only). The odoo-po-verify edge function asks Odoo, then calls it with what
 --    Odoo said: 'found', 'not_found' or 'unreachable'. It acts as the signed-in
@@ -75,6 +75,12 @@ begin
     raise exception 'purchase_request_set_item_status: % isn''t an Odoo PO number ("P" then digits, e.g. P01234)', v_po
       using errcode = '22023';
   end if;
+  -- A PO number is recorded only by the server path, after it asked Odoo; a signed-in
+  -- caller sending one would store it unchecked and skip the Odoo not-found refusal.
+  if v_po is not null and not p_server then
+    raise exception 'purchase_request_set_item_status: a PO number is saved by the server after Odoo is asked; use the Order / Correct PO action'
+      using errcode = '42501';
+  end if;
   if v_verification is not null and v_po is null then
     raise exception 'purchase_request_set_item_status: a PO check needs a PO number' using errcode = '22023';
   end if;
@@ -128,7 +134,7 @@ end;
 $$;
 
 comment on function public.purchase_request_set_item_status(uuid, text, jsonb) is
-  '#306/#312/#548: moves a Requested Item along its status path. Checks the transition and the caller''s side (purchasing walks the path; the sales side may only cancel), records who and when, and posts the change in the request. Ordered alone takes details: an optional `po_number` (P + digits). A PO check (`po_verification`) is refused from a signed-in caller; only purchase_request_item_apply_po_check (server) records one.';
+  '#306/#312/#548: moves a Requested Item along its status path. Checks the transition and the caller''s side (purchasing walks the path; the sales side may only cancel), records who and when, and posts the change in the request. Ordered alone takes details: an optional `po_number` (P + digits). A PO number or check is refused from a signed-in caller (42501); only purchase_request_item_apply_po_check (server, after asking Odoo) records one.';
 
 revoke all on function public._purchase_request_set_item_status(uuid, text, jsonb, boolean) from public, anon, authenticated;
 

@@ -11,7 +11,7 @@
  * Children go first and by hand, because the cascade is off too.
  */
 import { serviceClient, sql } from "./stack.js"
-import { ids as castIds } from "./cast.js"
+import { ids as castIds, castEmail } from "./cast.js"
 
 const CHILDREN = [
     ["ipas_events", "ipas_id"],
@@ -100,3 +100,16 @@ export function raiseIpas(actorId, args) {
 
 /** Raises as the purchaser (the cast's `outsider`, who holds Purchasing in these files). */
 export const raiseAsPurchaser = (args) => raiseIpas(castIds.outsider, args)
+
+/**
+ * Refresh-on-open as the server does it (#550): the odoo-po-ipas edge function reads
+ * Odoo, then records the copy as the signed-in reader `who`. A signed-in caller can't
+ * call `ipas_record_odoo_copy` itself any more. `args` are that RPC's arguments.
+ */
+export function recordOdooCopyAs(who, args) {
+    return serviceClient().rpc("ipas_refresh_from_odoo", {
+        p_actor_email: castEmail(who),
+        p_ipas_id: args.p_ipas_id,
+        p_odoo_copy: args.p_odoo_copy,
+    })
+}

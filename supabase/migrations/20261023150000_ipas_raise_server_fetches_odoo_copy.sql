@@ -12,7 +12,11 @@
 --   * `ipas_create` keeps its signature, so an older browser gets a clear
 --     refusal instead of "function not found", and always refuses a signed-in
 --     caller. It no longer stores anything.
---   * Refresh-on-open (`ipas_record_odoo_copy`) is untouched.
+--   * Refresh-on-open is server-side too: `ipas_record_odoo_copy` (the engine that
+--     stores a copy) is no longer callable by a signed-in caller. The odoo-po-ipas
+--     edge function (action "refresh") asks Odoo itself and calls
+--     `ipas_refresh_from_odoo`, service role only, as the caller named by their
+--     JWT email, so the reader rule and the audit trail still apply.
 --
 -- Verdicts: found -> raised with Odoo's copy; not_found -> refused naming the PO
 -- (22023); unavailable -> refused, Odoo couldn't be asked (55000).
@@ -156,3 +160,39 @@ comment on function public.ipas_create(text, text, text, text, uuid[], text, jso
 
 revoke all on function public.ipas_create(text, text, text, text, uuid[], text, jsonb) from public, anon;
 grant execute on function public.ipas_create(text, text, text, text, uuid[], text, jsonb) to authenticated;
+
+-- ------------------------------------------------------------------------------
+-- Refresh-on-open: the server asks Odoo, the browser never sends a copy.
+-- ------------------------------------------------------------------------------
+
+create or replace function public.ipas_refresh_from_odoo(
+  p_actor_email text,
+  p_ipas_id uuid,
+  p_odoo_copy jsonb
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'ipas_record_odoo_copy: not signed in' using errcode = '42501';
+  end if;
+
+  -- Act as the caller the edge function authenticated: identity is the JWT email claim.
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+
+  return public.ipas_record_odoo_copy(p_ipas_id, p_odoo_copy);
+end;
+$$;
+
+comment on function public.ipas_refresh_from_odoo(text, uuid, jsonb) is
+  '#550: server-only (service role). Records the Odoo copy the odoo-po-ipas edge function just read, as the signed-in reader it names. Same rules and answer as ipas_record_odoo_copy.';
+
+revoke all on function public.ipas_refresh_from_odoo(text, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.ipas_refresh_from_odoo(text, uuid, jsonb) to service_role;
+
+-- The engine itself: a signed-in caller would store a copy of their own making.
+revoke all on function public.ipas_record_odoo_copy(uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.ipas_record_odoo_copy(uuid, jsonb) to service_role;
