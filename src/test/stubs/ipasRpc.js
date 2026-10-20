@@ -407,6 +407,14 @@ export function stubIpasRpcs({
   // the fake has no identity for, so `sorReader: false` is a caller who can't
   // read the SOR. It returns exactly the columns the real function does and
   // never a money or bank column.
+  // ipas_assert_unchanged (#581): Save all's stale check, over the fake ipas_events rows.
+  stubRpc("ipas_assert_unchanged", (args) => {
+    if (!args.p_since) return null
+    const newer = rowsOf("ipas_events").some((e) => e.ipas_id === args.p_ipas_id && e.created_at > args.p_since)
+    if (newer) refuse("40001", "ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.")
+    return null
+  })
+
   // ipas_landed_cost (#283): the IPAS page's Landed Cost, for whoever may read the IPAS. The real
   // maths is the database's; this answers with the fake's copy (landedCostFake.js).
   stubRpc("ipas_landed_cost", (args) => {
