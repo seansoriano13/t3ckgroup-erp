@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import { Navigate, useSearchParams } from "react-router";
 import { Plus, Scale } from "lucide-react";
 
@@ -10,6 +11,9 @@ import QueryError from "../../../components/ui/QueryError";
 import FilterBar from "../../../components/ui/FilterBar";
 import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
+import { Checkbox } from "../../../components/ui/checkbox";
+import { Input } from "../../../components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import CanvassPanel from "../../../components/CanvassPanel";
 import { useAuth } from "../../../context/AuthContext";
@@ -89,15 +93,43 @@ function CanvassesPage({ userId }) {
   // which makes the starter its Canvasser and gives it a number. Then it is a row like any other.
   const [starting, setStarting] = useState(false);
 
+  // Picking Canvasses for one Purchase Request (ADR 0034): only subject-less ones can be picked.
+  const queryClient = useQueryClient();
+  const [picked, setPicked] = useState([]);
+  const [creating, setCreating] = useState(false);
+  const [requestTitle, setRequestTitle] = useState("");
+  const pickedRows = rows.filter((r) => picked.includes(r.id));
+  const unsignedRows = pickedRows.filter((r) => !r.signedOffAt);
+  const noWinnerRows = pickedRows.filter((r) => !r.winner);
+  const togglePick = (id) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  const createRequest = useMutation({
+    mutationFn: () => canvassService.createPurchaseRequest({ title: requestTitle, items: pickedRows.map((r) => ({ canvassId: r.id })) }),
+    onSuccess: () => {
+      toast.success("Purchase Request created.");
+      setCreating(false);
+      setPicked([]);
+      setRequestTitle("");
+      queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   return (
     <PageShell
       title="Canvasses"
       description="Every Canvass in one place, project ones included. Open one to see its Offers."
       action={
-        <Button type="button" size="sm" onClick={() => setStarting(true)}>
-          <Plus className="size-4" aria-hidden="true" />
-          New Canvass
-        </Button>
+        <div className="flex gap-2">
+          {picked.length > 0 && (
+            <Button type="button" size="sm" variant="outline" onClick={() => setCreating(true)}>
+              Create Purchase Request ({picked.length})
+            </Button>
+          )}
+          <Button type="button" size="sm" onClick={() => setStarting(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            New Canvass
+          </Button>
+        </div>
       }
       toolbar={
         ready ? (
@@ -130,7 +162,7 @@ function CanvassesPage({ userId }) {
           <Table tableId="canvasses" className="md:min-w-[44rem]">
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                {["Number", "Subject", "Canvasser", "Winner", "Sign-off"].map((heading) => (
+                {["", "Number", "Subject", "Canvasser", "Winner", "Sign-off"].map((heading) => (
                   <TableHead key={heading}>{heading}</TableHead>
                 ))}
               </TableRow>
@@ -138,6 +170,15 @@ function CanvassesPage({ userId }) {
             <TableBody>
               {shown.map((row) => (
                 <TableRow key={row.id} data-testid="canvass-row">
+                  <TableCell className="w-8">
+                    {row.kind === CANVASS_KIND.NONE && (
+                      <Checkbox
+                        aria-label={`Pick Canvass ${row.number}`}
+                        checked={picked.includes(row.id)}
+                        onCheckedChange={() => togglePick(row.id)}
+                      />
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Button
                       type="button"
@@ -168,6 +209,34 @@ function CanvassesPage({ userId }) {
           </Table>
         </div>
       )}
+
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Purchase Request</DialogTitle>
+            <DialogDescription>
+              One request with one Requested Item for each of the {pickedRows.length} picked Canvass{pickedRows.length === 1 ? "" : "es"}, filled from its winner.
+            </DialogDescription>
+          </DialogHeader>
+          <Input aria-label="Purchase Request title" placeholder="Title of the request" value={requestTitle} onChange={(e) => setRequestTitle(e.target.value)} />
+          {noWinnerRows.length > 0 && (
+            <p role="alert" className="text-sm text-destructive">
+              No winner yet: {noWinnerRows.map((r) => r.number).join(", ")}. Pick a winner first.
+            </p>
+          )}
+          {unsignedRows.length > 0 && (
+            <p role="status" className="text-sm text-amber-600">
+              Not signed off yet: {unsignedRows.map((r) => r.number).join(", ")}. You can still create the request.
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
+            <Button type="button" disabled={createRequest.isPending || !requestTitle.trim() || noWinnerRows.length > 0} onClick={() => createRequest.mutate()}>
+              Create request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {starting && (
         <CanvassPanel
