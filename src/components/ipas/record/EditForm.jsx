@@ -246,6 +246,7 @@ export default function EditForm({
   onBack,
   onEditPurpose,
   failure,
+  notice,
   onRemoveSaved,
   onRemoveDocument,
   onSuggest,
@@ -398,6 +399,7 @@ export default function EditForm({
             {planError}
           </div>
         )}
+        {notice}
         {failure}
         <ol className="flex gap-1 overflow-x-auto">
           {progress.map((p) => {

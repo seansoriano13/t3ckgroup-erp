@@ -4,6 +4,7 @@
         "title": "Purchasing: a Canvasses page, Canvasses before a request, and easier Requested Items",
         "version": "1.9.55",
         "changes": [
+            "The IPAS edit form now tells you when someone else updates that IPAS while it is open, with a Reload button that never touches what you typed. Save all also refuses if someone else saved first, so two people cannot overwrite each other.",
             "A new Canvasses page lists every Canvass in one place, with search and filters for Canvasser, sign-off, winner and linked or not.",
             "Purchasing can start a Canvass on its own, before any Purchase Request exists. It gets its number when its first Offer is saved.",
             "Purchasing can pick several finished Canvasses on the Canvasses page and create one Purchase Request from them. A Canvass that is not signed off yet only gives a warning.",

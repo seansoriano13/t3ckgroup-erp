@@ -32,6 +32,7 @@ import { buildBlocks } from "../../../components/ipas/record/blocks";
 import { digestIpas, filingSummary, isInPlace } from "../../../components/ipas/record/digest";
 import { CHROME, RecordSectionChrome } from "../../../components/record/sectionChrome";
 import { useEditSection } from "../../../components/ipas/record/useEditSection";
+import { loadedVersion, useIpasChanged } from "../../../components/ipas/record/useIpasChanged";
 import { useOpenSection } from "../../../components/ipas/record/useOpenSection";
 import {
   ipasKey,
@@ -196,6 +197,16 @@ function IpasPage() {
     queryFn: () => ipasService.get(id, { refresh: false }),
     enabled: Boolean(id),
   });
+
+  // Edit-form guard (#581): the newest event the form loaded, checked on Save all; and the
+  // notice when somebody else changes this IPAS while the form is open.
+  const versionRef = useRef(null);
+  versionRef.current = loadedVersion(ipas);
+  const { by: changedBy, dismiss: dismissChanged } = useIpasChanged({ id, userId: user?.id, active: Boolean(editKey && ipas) });
+  const reloadChanged = async () => {
+    await refetch();
+    dismissChanged();
+  };
 
   // Opening an IPAS refreshes it from Odoo. It never fails the page: when Odoo
   // doesn't answer, the outcome says so and the last copy stays.
@@ -594,6 +605,11 @@ function IpasPage() {
         plan.done.add(key);
       };
       try {
+        // Before the first write only: later steps would trip over this save's own events.
+        if (!plan.checked) {
+          await ipasService.assertUnchanged(id, versionRef.current);
+          plan.checked = true;
+        }
         for (const item of plan.overrides) {
           if (item.reset) await ipasService.resetOverride(id, item.field);
           else await ipasService.overrideField(id, item.field, item.value);
@@ -933,6 +949,16 @@ function IpasPage() {
       onSave={(plan) => saveAll.mutateAsync(plan)}
       onBack={backToPreview}
       onEditPurpose={canChange && !ipas.sors?.length ? on.editPurpose : null}
+      notice={
+        changedBy && (
+          <div role="status" className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-a5 bg-amber-3 px-3 py-2 text-sm text-amber-11">
+            <span>{changedBy} updated this IPAS. Reload to see the changes.</span>
+            <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={reloadChanged}>
+              Reload
+            </Button>
+          </div>
+        )
+      }
       failure={
         shownFailure && (
           <InlineError message={shownFailure.message} onRetry={shownFailure.retry} onDismiss={() => setChangeFailure(null)} />
