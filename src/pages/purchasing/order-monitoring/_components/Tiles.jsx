@@ -1,27 +1,35 @@
-import ReportFigure from "../../../../components/ui/ReportFigure";
+import { ORDER_GROUP } from "../../../../constants/orderMonitoring";
 import { formatAmount } from "../../../../utils/ipas";
 
-/** The four totals above the groups, as the repo's stat row. */
-export default function Tiles({ counts }) {
-  if (!counts) return null;
+/**
+ * What needs doing's four totals as stat-row entries, counted from the rows
+ * shown (so they follow the filters): open IPAS needing chasing, waiting on us
+ * and waiting on someone else, plus the value still open per PO currency
+ * (pre-tax, never converted; filed orders leave it out).
+ */
+export function needsDoingStats(rows) {
+  const open = rows.filter((row) => row.group !== ORDER_GROUP.FILED);
+  const byCurrency = new Map();
+  for (const row of open) {
+    const key = row.currency ?? "";
+    const entry = byCurrency.get(key) ?? { currency: row.currency ?? null, total: 0 };
+    entry.total += row.value ?? 0;
+    byCurrency.set(key, entry);
+  }
+  const values = [...byCurrency.values()].sort((a, b) => String(a.currency).localeCompare(String(b.currency)));
   const valueOpen =
-    counts.valueOpen.length === 0
+    values.length === 0
       ? "—"
-      : counts.valueOpen.map((value) => (
+      : values.map((value) => (
           <span key={value.currency ?? "none"} className="block">
             {formatAmount(value.total, value.currency)}
           </span>
         ));
-  return (
-    <section aria-label="Totals" className="pt-4 mb-4">
-      <ReportFigure
-        stats={[
-          { label: "Needs chasing", value: counts.needsChasing, tone: "attention" },
-          { label: "Waiting on us", value: counts.waitingOnUs },
-          { label: "Waiting on someone else", value: counts.waitingOnOthers },
-          { label: "Value open", value: valueOpen },
-        ]}
-      />
-    </section>
-  );
+  const count = (group) => open.filter((row) => row.group === group).length;
+  return [
+    { label: "Needs chasing", value: count(ORDER_GROUP.NEEDS_CHASING), tone: "attention" },
+    { label: "Waiting on us", value: count(ORDER_GROUP.WAITING_ON_US) },
+    { label: "Waiting on someone else", value: count(ORDER_GROUP.WAITING_ON_OTHERS) },
+    { label: "Value open", value: valueOpen },
+  ];
 }

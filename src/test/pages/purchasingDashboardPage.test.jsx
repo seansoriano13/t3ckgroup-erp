@@ -155,7 +155,7 @@ describe("Purchasing Dashboard page", () => {
   it("shows the five groups with counts, and the SOR in all four of its groups", async () => {
     renderPage();
     expect(await screen.findByRole("heading", { level: 1, name: /purchasing\s*dashboard/i })).toBeInTheDocument();
-    const counts = await screen.findByRole("region", { name: "Group counts" });
+    const counts = await screen.findByRole("group", { name: "Group counts" });
     expect(within(counts).getByText("To source")).toBeInTheDocument();
     expect(within(counts).getByText("On order")).toBeInTheDocument();
     expect(within(counts).getAllByText("1 SOR").length).toBeGreaterThan(0);

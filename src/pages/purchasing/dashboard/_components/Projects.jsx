@@ -5,8 +5,6 @@ import { LayoutDashboard } from "lucide-react";
 import EmptyState from "../../../../components/ui/EmptyState";
 import PageLoading from "../../../../components/ui/PageLoading";
 import QueryError from "../../../../components/ui/QueryError";
-import FilterBar from "../../../../components/ui/FilterBar";
-import ReportFigure from "../../../../components/ui/ReportFigure";
 import { FilterSelect } from "../../../../components/ui/FilterDropdown";
 import { Button } from "../../../../components/ui/button";
 import { purchasingDashboardService } from "../../../../services/purchasingDashboardService";
@@ -23,6 +21,7 @@ import {
   sorSummary,
 } from "../../../../utils/purchasingDashboard";
 import { ALL, NO_CANVASS } from "./useProjectsFilters";
+import TabHeader from "./TabHeader";
 
 /**
  * The Purchasing Dashboard's Projects tab (#322): where every project's buying
@@ -31,8 +30,8 @@ import { ALL, NO_CANVASS } from "./useProjectsFilters";
  * group's item count and a line naming all of its groups. Each record is a
  * button; `onOpen(row)` decides where it opens.
  *
- * The filters live in the page (`./useProjectsFilters`) so their bar
- * (`ProjectsToolbar`) can sit in PageShell's toolbar slot.
+ * The filters live in the page (`./useProjectsFilters`) so they survive a tab
+ * switch; the bar and stat row are the shared `TabHeader`.
  */
 
 const AGEING = [
@@ -71,30 +70,25 @@ function personOptions(rows, key, names, allLabel) {
 }
 
 /** The Projects tab's filter bar: Buyer, Canvasser and Ageing inline, the canvass check in Filters. */
-export function ProjectsToolbar({ filters }) {
-  const { rows, names, isLoading, isError } = useDashboardRows();
-  if (isLoading || isError) return null;
-  const f = filters;
-  return (
-    <FilterBar
-      search={{ value: f.sor, onChange: f.setSor, placeholder: "Search SOR" }}
-      chips={
-        <>
-          <FilterSelect options={personOptions(rows, "buyer_id", names, "Any Buyer")} value={f.buyerId} onChange={f.setBuyerId} label="Buyer" className="h-9 w-auto" />
-          <FilterSelect options={personOptions(rows, "canvasser_id", names, "Any Canvasser")} value={f.canvasserId} onChange={f.setCanvasserId} label="Canvasser" className="h-9 w-auto" />
-          <FilterSelect options={AGEING} value={f.age} onChange={f.setAge} label="Ageing" className="h-9 w-auto" />
-        </>
-      }
-      filters={
-        <div className="flex flex-col gap-2 p-2">
-          <FilterSelect options={CANVASS} value={f.canvass} onChange={f.setCanvass} label="Canvass" />
-        </div>
-      }
-      activeCount={f.canvass !== ALL ? 1 : 0}
-      hasActiveFilters={f.active}
-      onClearAll={f.clearAll}
-    />
-  );
+function projectsBar(f, rows, names) {
+  return {
+    search: { value: f.sor, onChange: f.setSor, placeholder: "Search SOR" },
+    chips: (
+      <>
+        <FilterSelect options={personOptions(rows, "buyer_id", names, "Any Buyer")} value={f.buyerId} onChange={f.setBuyerId} label="Buyer" className="h-9 w-auto" />
+        <FilterSelect options={personOptions(rows, "canvasser_id", names, "Any Canvasser")} value={f.canvasserId} onChange={f.setCanvasserId} label="Canvasser" className="h-9 w-auto" />
+        <FilterSelect options={AGEING} value={f.age} onChange={f.setAge} label="Ageing" className="h-9 w-auto" />
+      </>
+    ),
+    filters: (
+      <div className="flex flex-col gap-2 p-2">
+        <FilterSelect options={CANVASS} value={f.canvass} onChange={f.setCanvass} label="Canvass" />
+      </div>
+    ),
+    activeCount: f.canvass !== ALL ? 1 : 0,
+    hasActiveFilters: f.active,
+    onClearAll: f.clearAll,
+  };
 }
 
 function GroupSection({ group, rows, onOpen, today, lateIpasIds, deadlineOf }) {
@@ -159,7 +153,7 @@ function GroupSection({ group, rows, onOpen, today, lateIpasIds, deadlineOf }) {
 }
 
 export default function Projects({ filters, onOpen }) {
-  const { rows, isLoading, isError, refetch } = useDashboardRows();
+  const { rows, names, isLoading, isError, refetch } = useDashboardRows();
 
   // The ageing rules (#262) live in Order Monitoring; its standing marks which
   // IPAS are late, and the dashboard reuses that rather than a second copy.
@@ -215,15 +209,15 @@ export default function Projects({ filters, onOpen }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <section aria-label="Group counts">
-        <ReportFigure
-          stats={view.groups.map((group) => ({
-            label: group.label,
-            value: group.itemCount,
-            sub: `${group.sorCount} ${group.sorCount === 1 ? "SOR" : "SORs"}`,
-          }))}
-        />
-      </section>
+      <TabHeader
+        bar={projectsBar(filters, rows, names)}
+        statsLabel="Group counts"
+        stats={view.groups.map((group) => ({
+          label: group.label,
+          value: group.itemCount,
+          sub: `${group.sorCount} ${group.sorCount === 1 ? "SOR" : "SORs"}`,
+        }))}
+      />
       {view.groups.map((group) => (
         <GroupSection key={group.key} group={group} rows={rows} onOpen={onOpen} today={today} lateIpasIds={lateIpasIds} deadlineOf={deadlineOf} />
       ))}
