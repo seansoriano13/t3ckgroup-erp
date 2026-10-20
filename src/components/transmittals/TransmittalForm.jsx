@@ -195,13 +195,27 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
     }
   };
 
-  const canSubmit =
-    lines.length > 0 &&
-    header.origin !== "" &&
-    header.priority !== "" &&
-    (header.checkWarehouse || header.checkTechnical) &&
-    header.entity.trim() !== "" &&
-    lines.every((l) => Number(l.quantity) > 0 && (l.kind === TRANSMITTAL_LINE_KIND.PO_LINE || (l.description.trim() && l.unit.trim())));
+  const typedLines = lines.filter((l) => l.kind !== TRANSMITTAL_LINE_KIND.PO_LINE);
+  // Why Submit is off, in plain words (null when it is on).
+  const submitBlocker =
+    lines.length === 0
+      ? "Add at least one line to submit."
+      : header.origin === ""
+        ? "Pick an origin to submit."
+        : header.priority === ""
+          ? "Pick a priority to submit."
+          : !(header.checkWarehouse || header.checkTechnical)
+            ? "Tick Warehouse or TCA Technical to submit."
+            : header.entity.trim() === ""
+              ? "Enter the entity to submit."
+              : lines.some((l) => !(Number(l.quantity) > 0))
+                ? "Every line needs a quantity to submit."
+                : typedLines.some((l) => !l.description.trim())
+                  ? "Every typed line needs a description to submit."
+                  : typedLines.some((l) => !l.unit.trim())
+                    ? "Every typed line needs a unit to submit."
+                    : null;
+  const canSubmit = submitBlocker === null;
 
   return (
     <div className="space-y-6">
@@ -398,6 +412,11 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
           Submit
         </Button>
       </div>
+      {submitBlocker && (
+        <p className="-mt-3 text-right text-[12px] text-muted-foreground" data-testid="transmittal-submit-reason">
+          {submitBlocker}
+        </p>
+      )}
 
       <PoLinePicker open={pickerOpen} onOpenChange={setPickerOpen} onPick={addPickedLine} />
     </div>
