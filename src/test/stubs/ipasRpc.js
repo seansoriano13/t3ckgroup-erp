@@ -410,7 +410,13 @@ export function stubIpasRpcs({
   // ipas_assert_unchanged (#581): Save all's stale check, over the fake ipas_events rows.
   stubRpc("ipas_assert_unchanged", (args) => {
     if (!args.p_since) return null
-    const newer = rowsOf("ipas_events").some((e) => e.ipas_id === args.p_ipas_id && e.created_at > args.p_since)
+    const newer = rowsOf("ipas_events").some(
+      (e) =>
+        e.ipas_id === args.p_ipas_id &&
+        e.created_at > args.p_since &&
+        !["odoo_copy_changed", "filled_from_odoo", "odoo_changed_since_filing"].includes(e.kind) &&
+        !(e.kind === "approvals_cleared" && e.detail?.reason === "PO changed in Odoo"),
+    )
     if (newer) refuse("40001", "ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.")
     return null
   })
