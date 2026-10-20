@@ -158,4 +158,25 @@ describe("RequestedItems", () => {
     expect(screen.queryByRole("button", { name: "Add from the SOR" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "New product" })).not.toBeInTheDocument()
   })
+  describe("the price copied from a Canvass winner (#582)", () => {
+    it("shows the price on the row when the database returns it", async () => {
+      const item = await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Rope Access Kit")).id)
+      db.seed("purchase_request_item_prices", { item_id: item.id ?? db.internal.rowsOf("purchase_request_items")[0].id, unit_price: 1250.5, currency: "PHP" })
+
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await screen.findByTestId("requested-item")
+      expect(await within(row).findByTestId("requested-item-price")).toHaveTextContent("PHP 1,250.50 each")
+    })
+
+    it("shows no price when the database returns none, as for a member who may not see prices", async () => {
+      await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Rope Access Kit")).id)
+
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await screen.findByTestId("requested-item")
+      expect(within(row).getByText("Rope Access Kit")).toBeInTheDocument()
+      expect(within(row).queryByTestId("requested-item-price")).not.toBeInTheDocument()
+    })
+  })
 })

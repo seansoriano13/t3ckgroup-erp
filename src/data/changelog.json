@@ -7,6 +7,7 @@
             "A new Canvasses page lists every Canvass in one place, with search and filters for Canvasser, sign-off, winner and linked or not.",
             "Purchasing can start a Canvass on its own, before any Purchase Request exists. It gets its number when its first Offer is saved.",
             "Purchasing can pick several finished Canvasses on the Canvasses page and create one Purchase Request from them. A Canvass that is not signed off yet only gives a warning.",
+            "A Purchase Request made from Canvasses now shows each winner's price on its Requested Item, only to members who may see prices (Purchasing, Finance and Super Admin).",
             "A winner can now be un-picked. This clears the sign-off, is kept in the Canvass history, and leaves the values the winner filled in the Costing Matrix, with a note that no winner stands behind them.",
             "The Canvass can be printed side by side, with the Offers next to each other.",
             "After you change a Requested Item's status, an Undo button shows for about 10 seconds.",
