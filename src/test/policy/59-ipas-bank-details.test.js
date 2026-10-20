@@ -310,9 +310,9 @@ describe("who writes bank details", () => {
         const cancelled = await raise(nextSupplier())
         await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Wrong PO" })
 
-        expect((await setBank("outsider", filed.id)).error?.code).toBe("55000")
-        expect((await setBank("outsider", cancelled.id)).error?.code).toBe("55000")
-        expect((await setBank("outsider", "00000000-0000-0000-0000-000000000000")).error?.code).toBe("P0002")
+        expect((await setBank("outsider", filed.id)).error?.code).toBe("22023")
+        expect((await setBank("outsider", cancelled.id)).error?.code).toBe("22023")
+        expect((await setBank("outsider", "00000000-0000-0000-0000-000000000000")).error?.code).toBe("22023")
         expect(await bankRow(filed.id)).toBeNull()
         expect(await bankRow(cancelled.id)).toBeNull()
     })

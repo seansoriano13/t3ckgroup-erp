@@ -189,7 +189,7 @@ describe("costing_open_matrix", () => {
 
   it("refuses an SOR that does not exist, and is not open to signed-in employees", async () => {
     const missing = await svc().rpc("costing_open_matrix", { p_opportunity_id: NO_ID })
-    expect(missing.error?.code).toBe("P0002")
+    expect(missing.error?.code).toBe("22023")
 
     const denied = await (await clientFor("dealOwner")).rpc("costing_open_matrix", { p_opportunity_id: sorId })
     expect(denied.error).not.toBeNull()
@@ -319,7 +319,7 @@ describe("Tender Lines: who writes", () => {
     expect((await setMoney("dealOwner", lineId, { tender_line_id: NO_ID }))?.code).toBe("22023")
     expect((await setMoney("dealOwner", lineId, { nonsense: 1 }))?.code).toBe("22023")
     expect((await setMoney("dealOwner", lineId, {}))?.code).toBe("22023")
-    expect((await setMoney("dealOwner", NO_ID, { abc_unit: 1 }))?.code).toBe("P0002")
+    expect((await setMoney("dealOwner", NO_ID, { abc_unit: 1 }))?.code).toBe("22023")
     const wrongTable = await (await clientFor("dealOwner")).rpc("costing_set_money", {
       p_table: "costing_tender_lines",
       p_row: lineId,

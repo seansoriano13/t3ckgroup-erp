@@ -23,7 +23,8 @@ const svc = () => serviceClient()
 const RLS_DENIED = "42501"
 const UNIQUE_VIOLATION = "23505"
 const BAD_INPUT = "22023"
-const WRONG_STATE = "55000"
+// #556: refusals from the database functions carry 22023 (invalid value / wrong state), never 55000.
+const WRONG_STATE = "22023"
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId, lineId

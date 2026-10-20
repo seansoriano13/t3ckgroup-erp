@@ -203,11 +203,11 @@ describe("refreshing the copy", () => {
         }
 
         const missing = await record("outsider", "00000000-0000-0000-0000-000000000000", copyFor(nextPo()))
-        expect(missing.error?.code).toBe("P0002")
+        expect(missing.error?.code).toBe("22023")
 
         await rpc("outsider", "ipas_cancel", { p_ipas_id: ipas.id, p_reason: "Dropped" })
         const cancelled = await record("outsider", ipas.id, changed(ipas, { lines: [line(1)] }))
-        expect(cancelled.error?.code).toBe("55000")
+        expect(cancelled.error?.code).toBe("22023")
         expect((await readRow(ipas.id)).odoo_copy.lines).toHaveLength(2)
     })
 
@@ -336,12 +336,12 @@ describe("overrides", () => {
     it("is refused on a filed or cancelled IPAS", async () => {
         const filed = await raise()
         await file(filed.id)
-        expect((await rpc("outsider", "ipas_override_field", { p_ipas_id: filed.id, p_field: "entity", p_value: "TG" })).error?.code).toBe("55000")
-        expect((await rpc("outsider", "ipas_reset_override", { p_ipas_id: filed.id, p_field: "entity" })).error?.code).toBe("55000")
+        expect((await rpc("outsider", "ipas_override_field", { p_ipas_id: filed.id, p_field: "entity", p_value: "TG" })).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_reset_override", { p_ipas_id: filed.id, p_field: "entity" })).error?.code).toBe("22023")
 
         const cancelled = await raise()
         await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Dropped" })
-        expect((await rpc("outsider", "ipas_override_field", { p_ipas_id: cancelled.id, p_field: "entity", p_value: "TG" })).error?.code).toBe("55000")
+        expect((await rpc("outsider", "ipas_override_field", { p_ipas_id: cancelled.id, p_field: "entity", p_value: "TG" })).error?.code).toBe("22023")
     })
 })
 
@@ -409,7 +409,7 @@ describe("contact and P.I # fill while blank", () => {
         }
         await file(ipas.id)
         const filed = await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { pi_number: "Late" } })
-        expect(filed.error?.code).toBe("55000")
+        expect(filed.error?.code).toBe("22023")
         expect((await readRow(ipas.id)).pi_number).toBeNull()
     })
 })

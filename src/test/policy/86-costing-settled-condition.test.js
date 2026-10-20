@@ -332,9 +332,15 @@ describe("bid submitted", () => {
 
 describe("who cannot ask", () => {
     it("refuses people who cannot see the SOR, whatever their matrix standing (Purchasing access, the Final Acquire list)", async () => {
-        for (const who of ["ordinary", "outsider", "ipasSigner"]) {
+        // On neither list: no Costing list, no Purchasing access, not on the SOR (#545 lets the Final Acquire list in).
+        for (const who of ["ordinary", "outsider", "hr"]) {
             const { error } = await inputs(who)
             expect(error?.code, who).toBe("42501")
         }
+    })
+
+    it("lets the Final Acquire list in, since #545", async () => {
+        const { error } = await inputs("ipasSigner")
+        expect(error).toBeNull()
     })
 })

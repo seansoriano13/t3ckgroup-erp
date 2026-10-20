@@ -331,7 +331,7 @@ describe("costing_component_purchases", () => {
 describe("linked rows", () => {
     it("refuses deleting a Component with a Requested Item until it's detached, and keeps the unlink in history", async () => {
         const refused = await svc().from("costing_components").delete().eq("id", c.notOrdered)
-        expect(refused.error?.code).toBe("55000")
+        expect(refused.error?.code).toBe("22023")
 
         const denied = await (await clientFor("dealOwner")).rpc("purchase_request_item_detach_component", { p_item_id: items.notOrdered })
         expect(denied.error?.code).toBe("42501")
@@ -347,8 +347,8 @@ describe("linked rows", () => {
     })
 
     it("refuses a Component and its Tender Line with a typed PO until it's cleared", async () => {
-        expect((await svc().from("costing_components").delete().eq("id", c.typedPo)).error?.code).toBe("55000")
-        expect((await svc().from("costing_tender_lines").delete().eq("id", linkedLine)).error?.code).toBe("55000")
+        expect((await svc().from("costing_components").delete().eq("id", c.typedPo)).error?.code).toBe("22023")
+        expect((await svc().from("costing_tender_lines").delete().eq("id", linkedLine)).error?.code).toBe("22023")
         await asSvc(svc().from("costing_components").update({ po_rfq_no: null }).eq("id", c.typedPo), "clear PO")
         expect((await svc().from("costing_tender_lines").delete().eq("id", linkedLine)).error).toBeNull()
     })
