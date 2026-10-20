@@ -24,23 +24,29 @@ function raise(message) {
 
 /**
  * sor_canvasses (20261019100000_canvass_repoint.sql, #276): the number comes from a sequence in
- * the database (CNV_ and four digits; here, one past the highest held) and a Canvass has exactly one subject. The
- * fake parses simple CHECKs only, so the cross-column one is mirrored here; the policy tier proves
- * the real one (90-canvass-tables.test.js).
+ * the database (CNV_ and four digits; here, one past the highest held). Since
+ * 20261024103000_canvass_before_purchase_request.sql (ADR 0034) a Canvass has at most one subject,
+ * and one with none says what is being bought. The fake parses simple CHECKs only, so the
+ * cross-column ones are mirrored here; the policy tier proves the real ones (90-canvass-tables,
+ * 110-canvass-before-purchase-request).
  */
 function assignCanvassNumber(row, context) {
   const taken = context.rowsOf("sor_canvasses").map((r) => Number(String(r.number ?? "").replace(/\D/g, "")) || 0)
   row.number = `CNV_${String(Math.max(0, ...taken) + 1).padStart(4, "0")}`
 }
 
-function requireOneCanvassSubject(row) {
-  if ((row.component_id ? 1 : 0) + (row.requested_item_id ? 1 : 0) !== 1) {
-    throw pgrstError(
-      "23514",
-      'new row for relation "sor_canvasses" violates check constraint "sor_canvasses_exactly_one_subject_chk"',
-      { status: 400 },
-    )
+function checkCanvassSubject(row) {
+  const violates = (constraint) =>
+    pgrstError("23514", `new row for relation "sor_canvasses" violates check constraint "${constraint}"`, { status: 400 })
+  if ((row.component_id ? 1 : 0) + (row.requested_item_id ? 1 : 0) > 1) throw violates("sor_canvasses_at_most_one_subject_chk")
+  if (!row.component_id && !row.requested_item_id && !String(row.product_name ?? "").trim()) {
+    throw violates("sor_canvasses_says_what_chk")
   }
+}
+
+/** sor_canvasses_default_canvasser() (20261024103000): a subject-less Canvass is its starter's. */
+function defaultCanvasser(row) {
+  if (!row.canvasser_id && !row.component_id && !row.requested_item_id) row.canvasser_id = row.created_by ?? null
 }
 
 /** sor_canvasses_refuse_component_item() (20261019140000_canvass_requested_item_subject.sql, #280). */
@@ -474,8 +480,8 @@ export const TRIGGERS = {
   },
 
   sor_canvasses: {
-    beforeInsert: [assignCanvassNumber, requireOneCanvassSubject, refuseComponentItem],
-    beforeUpdate: [requireOneCanvassSubject, keepCanvassNumber, (row, old, context) => refuseComponentItem(row, context)],
+    beforeInsert: [assignCanvassNumber, defaultCanvasser, checkCanvassSubject, refuseComponentItem],
+    beforeUpdate: [checkCanvassSubject, keepCanvassNumber, (row, old, context) => refuseComponentItem(row, context)],
     afterWrite: [clearOnReasonChange, markItemsCanvassing],
   },
 

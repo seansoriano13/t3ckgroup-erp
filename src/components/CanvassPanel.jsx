@@ -11,6 +11,7 @@ import {
   Printer,
   ShoppingCart,
   Trash2,
+  X,
 } from "lucide-react";
 
 import { ExternalLink } from "@/components/ui/external-link";
@@ -22,7 +23,7 @@ import CanvassSignoffDialog from "./CanvassSignoffDialog";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
 import { SelectField } from "./ui/SelectField";
-import { confirmDeleteToast } from "./ui/CustomToast";
+import { confirmActionToast, confirmDeleteToast } from "./ui/CustomToast";
 import { costingKeys } from "./costing/costingKeys";
 import { pesos } from "./costing/gridFormat";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -31,7 +32,7 @@ import { canvassService } from "../services/canvassService";
 import { openCanvassPrintWindow, printCanvass } from "../lib/pdf/canvassPrinter";
 import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
 import { useAuth } from "../context/AuthContext";
-import { CANVASS_CURRENCIES, DEFAULT_CURRENCY } from "../constants/canvass";
+import { CANVASS_CURRENCIES, CANVASS_LIST_KEY, DEFAULT_CURRENCY } from "../constants/canvass";
 import { offerCurrency } from "../utils/canvassMath";
 import { projectOffer } from "../utils/offerProjection";
 import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
@@ -42,8 +43,12 @@ import { getCurrentLocalDate } from "../utils/formatDate.js";
 
 /**
  * The Canvass (#275, built in #276): the supplier comparison for one Costing Matrix Component,
- * recorded as Offers. `subject` is `{ componentId }` (or `{ requestedItemId }` once #280 mounts it
- * on a Requested Item).
+ * recorded as Offers. `subject` is `{ componentId }`, `{ requestedItemId }`, `{ canvassId }` (one
+ * picked on the Canvasses page), or `{}` for a new Canvass with no subject (ADR 0034).
+ *
+ * Opening the panel writes nothing. A Canvass not started yet shows the first Offer's form; saving
+ * that Offer starts the Canvass and gives it its number (`canvassService.start`). One with no
+ * subject also asks what is being bought, since it has no row to borrow a name from.
  *
  * Money is whatever the service sent. A reader without the money tier gets Offers with no price
  * keys at all, so every price, the comparison rate and the PHP figure simply do not draw. The
@@ -411,7 +416,7 @@ function OfferProjection({ projection }) {
   );
 }
 
-function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, onWin, isPending }) {
+function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, onWin, onClearWin, isPending }) {
   const [isEditing, setIsEditing] = useState(false);
   const title = offer.supplier_name || offer.brand || "this offer";
 
@@ -494,6 +499,21 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
 
       {canEdit && (
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          {offer.is_winner && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={isPending}
+              onClick={onClearWin}
+              aria-label={`Clear ${title} as the winner`}
+              title="Un-pick the winner, leaving none"
+              className="mr-1 h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+            >
+              <X size={12} className="mr-1" aria-hidden="true" />
+              Clear winner
+            </Button>
+          )}
           {!offer.is_winner && (
             <Button
               type="button"
@@ -560,9 +580,12 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
   );
 }
 
-export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel, userId, canEdit, opportunityId }) {
+export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel, userId, canEdit, opportunityId, onStarted }) {
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
+  // A new Canvass with no subject is known by its id once its first Offer has started it.
+  const [startedId, setStartedId] = useState(null);
+  const [productDraft, setProductDraft] = useState(null);
   const [reasonDraft, setReasonDraft] = useState(null);
   const [isSigning, setIsSigning] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -570,16 +593,27 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const isApprover = useCanvassApprover(userId);
   const attachments = useFileAttachments({ max: 3 });
 
-  const subjectId = subject?.componentId || subject?.requestedItemId;
-  const queryKey = ["canvass", subject?.componentId ? "component" : "requestedItem", subjectId];
+  const current = startedId ? { canvassId: startedId } : subject || {};
+  const subjectKind = current.canvassId
+    ? "canvass"
+    : current.componentId
+      ? "component"
+      : current.requestedItemId
+        ? "requestedItem"
+        : "new";
+  const subjectId = current.canvassId || current.componentId || current.requestedItemId || null;
+  const queryKey = ["canvass", subjectKind, subjectId];
 
-  // A purchaser opening the panel opens the Canvass: opening is idempotent, so a second purchaser
-  // lands on the same one. A reader who cannot write only looks, and sees nothing if none exists.
-  const { data: canvass, isLoading } = useQuery({
+  // Opening only reads (ADR 0034): nothing is written until the first Offer is saved.
+  const { data: canvass = null, isLoading } = useQuery({
     queryKey,
-    queryFn: () => (canEdit ? canvassService.open(subject, userId) : canvassService.get(subject)),
+    queryFn: () => canvassService.get(current),
     enabled: open && Boolean(subjectId),
   });
+  // No Component and no Requested Item: the Canvass says itself what it is buying.
+  const isBare = subjectKind === "new" || Boolean(canvass && !canvass.component_id && !canvass.requested_item_id);
+  const productName = productDraft ?? canvass?.product_name ?? "";
+  const title = subjectLabel || canvass?.product_name || (subjectKind === "new" ? "New Canvass" : "");
 
   const { data: history = [] } = useQuery({
     queryKey: [...queryKey, "signoffHistory", canvass?.id],
@@ -612,9 +646,32 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const invalidate = () => {
     // Prefix match: the sign-off history is keyed under the Canvass's own key.
     queryClient.invalidateQueries({ queryKey });
+    queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
     if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.canvasses(opportunityId) });
   };
   const onError = (err) => toast.error(err.message);
+
+  // The first Offer starts the Canvass and gives it its number.
+  const startMutation = useMutation({
+    mutationFn: (input) => canvassService.start(current, { productName }, input, userId),
+    onSuccess: (started) => {
+      if (subjectKind === "new") setStartedId(started.canvassId);
+      setProductDraft(null);
+      invalidate();
+      toast.success(`Canvass ${started.number} started.`);
+      onStarted?.(started);
+    },
+    onError,
+  });
+
+  const productMutation = useMutation({
+    mutationFn: (name) => canvassService.setProductName(canvass.id, name),
+    onSuccess: () => {
+      invalidate();
+      setProductDraft(null);
+    },
+    onError,
+  });
 
   const addMutation = useMutation({
     mutationFn: (input) => canvassService.addOffer(canvass.id, input, userId),
@@ -653,6 +710,30 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     onError,
   });
 
+  // Un-picking leaves no winner and unsigns; the matrix keeps what the old winner filled.
+  const clearWinnerMutation = useMutation({
+    mutationFn: () => canvassService.clearWinner(canvass.id),
+    onSuccess: () => {
+      invalidate();
+      if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.all(opportunityId) });
+      toast.success(
+        hasComponent
+          ? "Winner cleared. The Costing Matrix keeps what it filled until a new winner is picked."
+          : "Winner cleared.",
+      );
+    },
+    onError,
+  });
+
+  const clearWinner = () =>
+    confirmActionToast(
+      "Clear the winner?",
+      `${canvass?.signed_off_at ? "This unsigns the Canvass. " : ""}It leaves no winner until you pick one again.`,
+      "Clear winner",
+      "warning",
+      () => clearWinnerMutation.mutate(),
+    );
+
   const reorderMutation = useMutation({
     mutationFn: (ids) => canvassService.reorderOffers(canvass.id, ids),
     onSuccess: invalidate,
@@ -684,7 +765,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     }
     setPrinting(true);
     try {
-      await printCanvass(subject, { printWindow, subjectLabel, opportunityId, printedBy: user?.name ?? null });
+      await printCanvass({ canvassId: canvass.id }, { printWindow, subjectLabel: title, opportunityId, printedBy: user?.name ?? null });
     } catch (err) {
       toast.error(err?.message || "The Canvass could not be printed.");
     } finally {
@@ -714,7 +795,8 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const lastSigned = isSigned ? [...history].reverse().find((h) => h.kind === "signed") : null;
   const lastCleared = !isSigned ? [...history].reverse().find((h) => h.kind === "cleared") : null;
 
-  const busy = updateMutation.isPending || removeMutation.isPending || reorderMutation.isPending || winnerMutation.isPending;
+  const busy =
+    updateMutation.isPending || removeMutation.isPending || reorderMutation.isPending || winnerMutation.isPending || clearWinnerMutation.isPending;
   const reason = reasonDraft ?? canvass?.reason ?? "";
 
   return (
@@ -724,19 +806,74 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart size={16} />
-            Canvass{canvass?.number ? ` ${canvass.number}` : ""} — {subjectLabel}
+            Canvass{canvass?.number ? ` ${canvass.number}` : ""}{title ? ` — ${title}` : ""}
           </DialogTitle>
         </DialogHeader>
 
         <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
           {isLoading && <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>}
 
-          {!isLoading && !canvass && (
+          {!isLoading && !canvass && !canEdit && (
             <p className="py-6 text-center text-xs text-muted-foreground">Nobody has started a Canvass here yet.</p>
+          )}
+
+          {!isLoading && !canvass && canEdit && (
+            <div className="space-y-2.5" data-testid="canvass-not-started">
+              {isBare && (
+                <Input
+                  label="What is being bought"
+                  value={productName}
+                  onChange={(e) => setProductDraft(e.target.value)}
+                  placeholder="e.g. Laser printer toner, black"
+                  containerClassName="min-w-0"
+                  className={fieldClass}
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                No offers yet. Saving the first offer starts this Canvass and gives it its number.
+              </p>
+              <OfferForm
+                canReadMoney
+                isPending={startMutation.isPending}
+                onCancel={() => onOpenChange(false)}
+                onSubmit={(input) => {
+                  if (isBare && !productName.trim()) {
+                    toast.error("Say what is being bought first.");
+                    return;
+                  }
+                  startMutation.mutate(input);
+                }}
+              />
+            </div>
           )}
 
           {!isLoading && canvass && (
             <>
+              {isBare && canEdit && (
+                <Input
+                  label="What is being bought"
+                  value={productName}
+                  onChange={(e) => setProductDraft(e.target.value)}
+                  onBlur={() => {
+                    if (productDraft === null) return;
+                    if (!productDraft.trim()) {
+                      toast.error("A Canvass with no Requested Item needs to say what is being bought.");
+                      setProductDraft(null);
+                    } else if (productDraft.trim() !== (canvass.product_name || "")) {
+                      productMutation.mutate(productDraft);
+                    } else {
+                      setProductDraft(null);
+                    }
+                  }}
+                  containerClassName="min-w-0"
+                  className={fieldClass}
+                />
+              )}
+              {!winner && offers.length > 0 && hasComponent && (
+                <p className="text-[11px] text-muted-foreground" data-testid="no-winner-note">
+                  No winner picked. Anything an earlier winner filled on the Costing Matrix stays until a new winner replaces it.
+                </p>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
                   {offers.length} offer{offers.length === 1 ? "" : "s"}
@@ -768,6 +905,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     onRemove={(id) => removeMutation.mutate(id)}
                     onMove={move}
                     onWin={(id) => winnerMutation.mutate(id)}
+                    onClearWin={clearWinner}
                   />
                 ))}
               </div>
@@ -924,7 +1062,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
           summary={{
             id: canvass.id,
             number: canvass.number,
-            subjectLabel,
+            subjectLabel: title,
             reason: canvass.reason,
             offerCount: offers.length,
             winnerLabel: winner ? [winner.supplier_name, winner.brand].filter(Boolean).join(" · ") : null,

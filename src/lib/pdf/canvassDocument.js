@@ -2,7 +2,8 @@
  * The printed Canvass as HTML (issue #282, spec #275, ADR 0014): one A4 portrait sheet in the IPAS
  * print's furniture (rail, serif name, hairlines, the signature band), so it reads as part of the
  * same Purchasing paper set. The recommendation leads (variant C of the prototype); every Offer is
- * tabled beneath as evidence; the signatures close the page.
+ * compared beneath as evidence, suppliers side by side as columns and the details as rows (a
+ * Canvass usually has three or more), four suppliers to a table; the signatures close the page.
  *
  * Pure: a view model (canvassViewModel.js) in, a document string out. Everything typed or read
  * from outside goes through `escapeHtml`.
@@ -15,9 +16,15 @@ import { escapeHtml as esc, sigBlock } from './sigBlock';
 const EXTRA_CSS = `
   .head .r .x { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-faint); margin-top: 6px; }
   .cnv-reason { font-family: var(--serif); font-size: 9.6pt; line-height: 1.5; white-space: pre-wrap; margin: 0; }
-  .cnv-offers td .sub { margin-top: 2px; }
-  .cnv-offers td.num .sub { font-size: 6.6pt; color: var(--ink-faint); white-space: normal; }
-  .cnv-offers td.num + td:not(.num), .cnv-offers th.num + th:not(.num) { padding-left: 12px; }
+  .cnv-compare { table-layout: fixed; width: 100%; page-break-inside: avoid; break-inside: avoid; }
+  .cnv-compare + .cnv-group { margin-top: 10px; }
+  .cnv-compare th, .cnv-compare td { vertical-align: top; overflow-wrap: anywhere; }
+  .cnv-compare thead th { text-align: left; }
+  .cnv-compare th.cnv-label { font-family: var(--mono); font-size: 6.8pt; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); text-align: left; }
+  .cnv-compare .chosen { background: rgba(0, 0, 0, .035); }
+  .cnv-compare .sub { margin-top: 2px; }
+  .cnv-compare td.num .sub { font-size: 6.6pt; color: var(--ink-faint); white-space: normal; }
+  .cnv-group { font-family: var(--mono); font-size: 7pt; color: var(--ink-faint); margin: 2px 0 4px; }
   .sigs.n3 { grid-template-columns: repeat(3, 1fr); }
   .cnv-warning { font-size: 8.2pt; font-weight: 600; color: var(--flag); border-top: 1px solid var(--ink); padding-top: 5px; }
 `;
@@ -44,29 +51,54 @@ function reasonHtml(reason) {
   return `<section class="sec"><h3><span>Why this supplier</span></h3><div class="body">${body}</div></section>`;
 }
 
-/** Every Offer, the chosen one ticked. */
-function offersHtml(offers) {
+/**
+ * The details compared, one row each, in the order a purchaser reads a comparison: what it is,
+ * what it costs, how fast, how good, how long the quote holds, then the papers and notes.
+ */
+const COMPARE_ROWS = [
+  { label: 'Offered', cell: (o) => esc(o.offered) },
+  { label: 'Quoted', num: true, cell: (o) => esc(o.quoted) },
+  { label: 'In PHP', num: true, cell: (o) => `${esc(o.php)}${o.foreign ? `<div class="sub">${esc(o.foreign)}</div>` : ''}` },
+  { label: 'Lead time', cell: (o) => esc(o.leadTime) },
+  { label: 'Quality', cell: (o) => esc(o.quality) },
+  { label: 'Valid to', cell: (o) => esc(o.validUntil) },
+  { label: 'Brochure', cell: (o) => (o.brochure ? esc(o.brochure) : '<span class="empty">None</span>') },
+  { label: 'Remarks', cell: (o) => (o.remarks ? esc(o.remarks) : '<span class="empty">—</span>') },
+];
+
+/**
+ * One comparison table: the suppliers as columns (the chosen one marked), the details as rows.
+ * A short last group keeps the full column count, so its columns line up with the table above.
+ */
+function compareTable(group, perTable) {
+  const pad = Math.max(0, perTable - group.offers.length);
+  const blank = '<td class="cnv-pad"></td>'.repeat(pad);
+  const width = `${(82 / perTable).toFixed(2)}%`;
+  const head = group.offers
+    .map(
+      (o) => `<th class="${o.chosen ? 'chosen' : ''}" style="width:${width}"><b>${esc(o.supplier)}</b>${o.chosen ? ' <span class="prov final">Chosen</span>' : ''}${o.brand ? `<div class="sub">${esc(o.brand)}</div>` : ''}</th>`,
+    )
+    .join('');
+  const rows = COMPARE_ROWS.map(
+    (row) =>
+      `<tr><th class="cnv-label" scope="row">${row.label}</th>${group.offers
+        .map((o) => `<td class="${[row.num ? 'num' : '', o.chosen ? 'chosen' : ''].filter(Boolean).join(' ')}">${row.cell(o)}</td>`)
+        .join('')}${blank}</tr>`,
+  ).join('');
+  return `${group.label ? `<div class="cnv-group">${esc(group.label)}</div>` : ''}<table class="cnv-compare"><thead><tr>
+      <th class="cnv-label" style="width:18%"></th>${head}${'<th class="cnv-pad"></th>'.repeat(pad)}
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/** Every Offer side by side, the chosen one marked; past four suppliers the comparison continues below. */
+function offersHtml(offers, groups) {
   const count = `${offers.length} ${offers.length === 1 ? 'offer' : 'offers'}`;
   if (offers.length === 0) {
     return `<section class="sec"><h3><span>Offers</span><b>${count}</b></h3><div class="body"><div class="empty">No offers recorded.</div></div></section>`;
   }
-  const rows = offers
-    .map(
-      (o) => `<tr class="${o.chosen ? 'chosen' : ''}">
-        <td><b>${esc(o.supplier)}</b>${o.chosen ? ' <span class="prov final">Chosen</span>' : ''}${o.brand ? `<div class="sub">${esc(o.brand)}</div>` : ''}</td>
-        <td>${esc(o.offered)}${o.remarks ? `<div class="sub">${esc(o.remarks)}</div>` : ''}</td>
-        <td class="num">${esc(o.quoted)}</td>
-        <td class="num">${esc(o.php)}${o.foreign ? `<div class="sub">${esc(o.foreign)}</div>` : ''}</td>
-        <td>${esc(o.leadTime)}</td>
-        <td>${esc(o.validUntil)}</td>
-        <td>${o.brochure ? esc(o.brochure) : '<span class="empty">None</span>'}</td>
-      </tr>`,
-    )
-    .join('');
+  const perTable = Math.max(...groups.map((g) => g.offers.length), 1);
   return `<section class="sec"><h3><span>Offers</span><b>${count}</b></h3><div class="body">
-    <table class="cnv-offers"><thead><tr>
-      <th style="width:18%">Supplier</th><th>Offered</th><th class="num" style="width:13%">Quoted</th><th class="num" style="width:13%">In PHP</th><th style="width:9%">Lead</th><th style="width:11%">Valid to</th><th style="width:12%">Brochure</th>
-    </tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    ${groups.map((group) => compareTable(group, groups.length > 1 ? perTable : group.offers.length)).join('')}</div></section>`;
 }
 
 /** The three signature plates through `sigBlock`, in the band every Purchasing form closes with. */
@@ -95,12 +127,12 @@ export function buildCanvassSheetHtml(vm) {
       <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Canvass · ${approved ? 'Approved' : 'Not approved'}</div></span></div>
     ${headHtml(vm.decision)}
     <div class="hdr">
-      ${field(h.subjectKind === 'Requested Item' ? 'Requested Item' : 'SOR · Component', h.subject)}
+      ${field(h.subjectKind === 'Component' ? 'SOR · Component' : h.subjectKind, h.subject)}
       ${field('Raised', h.raised)}
       ${field('Offers', String(h.offerCount), { mono: true })}
     </div>
     ${reasonHtml(vm.decision.reason)}
-    ${offersHtml(vm.offers)}
+    ${offersHtml(vm.offers, vm.offerGroups ?? [{ offers: vm.offers, label: null }])}
     ${vm.warning ? `<div class="cnv-warning" data-testid="more-offers-warning">${esc(vm.warning)}</div>` : ''}
     ${bandHtml(vm.signatures)}
     <div class="foot"><span>${esc(vm.number)}</span><span class="mid">${vm.printedOn ? `Printed ${esc(vm.printedOn)}${vm.printedBy ? ` by ${esc(vm.printedBy)}` : ''}` : ''}</span><span class="r">Purchasing</span></div>

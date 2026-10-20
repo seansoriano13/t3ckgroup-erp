@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { canvassService } from "./canvassService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
-import { stubCanvassMoneyRpc, stubCanvassSignoffRpcs, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
+import { seedCanvass, stubCanvassMoneyRpc, stubCanvassSignoffRpcs, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 import { CANVASS_NOTIFICATION } from "@/constants/canvass"
 
 /**
@@ -34,7 +34,7 @@ describe("signing a Canvass off", () => {
     stubCanvassWinnerRpcs({ bands: ["purchasing"] })
     stubCanvassSignoffRpcs({ actorId: approver.id, approverIds: [approver.id] })
 
-    canvass = await canvassService.open({ componentId: component.id }, purchaser.id)
+    canvass = await seedCanvass({ componentId: component.id }, purchaser.id)
     redleaf = await canvassService.addOffer(canvass.id, { supplierName: "Redleaf Inc.", brand: "Redleaf", unitPrice: 78000 }, purchaser.id)
     ferno = await canvassService.addOffer(canvass.id, { supplierName: "Ferno", brand: "Ferno", unitPrice: 82500 }, purchaser.id)
     await canvassService.markWinner(canvass.id, redleaf.id)
@@ -96,7 +96,7 @@ describe("signing a Canvass off", () => {
     it("tells nobody while the reason is missing", async () => {
       const before = told().length
       const count = await canvassService.notifyApprovers(
-        (await canvassService.open({ componentId: db.seed("costing_components", { tender_line_id: db.rows("costing_tender_lines")[0].id, position: 2, name: "Spine board" }).id }, purchaser.id)).id,
+        (await seedCanvass({ componentId: db.seed("costing_components", { tender_line_id: db.rows("costing_tender_lines")[0].id, position: 2, name: "Spine board" }).id }, purchaser.id)).id,
       )
       expect(count).toBe(0)
       expect(told()).toHaveLength(before)

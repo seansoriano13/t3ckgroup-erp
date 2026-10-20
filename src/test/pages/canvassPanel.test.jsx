@@ -4,7 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
-import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
+import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
 import { stubRpc } from "@/test/msw/server";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
@@ -44,7 +44,7 @@ describe("the Canvass on a Component row", () => {
   });
 
   const seedOffers = async () => {
-    const canvass = await canvassService.open({ componentId: component.id }, purchaser.id);
+    const canvass = await seedCanvass({ componentId: component.id }, purchaser.id);
     await canvassService.addOffer(canvass.id, { supplierName: "Redleaf Inc.", brand: "Redleaf", unitPrice: 78000 }, purchaser.id);
     await canvassService.addOffer(
       canvass.id,
@@ -117,7 +117,7 @@ describe("the Canvass on a Component row", () => {
   describe("the Reference Rate on a foreign Offer (#317)", () => {
     const usd = { currency: "USD", rate_date: "2026-09-17", php_per_unit: 58.2, source: "ECB", overridden: false, divergence_pct: 2 };
     const startForeignOffer = async (user) => {
-      await canvassService.open({ componentId: component.id }, purchaser.id);
+      await seedCanvass({ componentId: component.id }, purchaser.id);
       await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
       await user.click(await screen.findByRole("button", { name: /add offer/i }));
       await user.type(screen.getByLabelText("Supplier"), "Hong Kong");
