@@ -13,7 +13,7 @@ import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
 import { Checkbox } from "../../../components/ui/checkbox";
 import { Input } from "../../../components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import ModalShell from "../../../components/ui/ModalShell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import CanvassPanel from "../../../components/CanvassPanel";
 import { useAuth } from "../../../context/AuthContext";
@@ -224,14 +224,19 @@ function CanvassesPage({ userId, canEdit }) {
         </div>
       )}
 
-      <Dialog open={canEdit && creating} onOpenChange={setCreating}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Purchase Request</DialogTitle>
-            <DialogDescription>
-              One request with one Requested Item for each of the {pickedRows.length} picked Canvass{pickedRows.length === 1 ? "" : "es"}, filled from its winner.
-            </DialogDescription>
-          </DialogHeader>
+      <ModalShell
+        open={canEdit && creating}
+        onOpenChange={setCreating}
+        crumbs={["Canvass", "Create Purchase Request"]}
+        actions={
+          <Button type="button" size="lg" disabled={createRequest.isPending || !requestTitle.trim() || noWinnerRows.length > 0} onClick={() => createRequest.mutate()}>
+            Create request
+          </Button>
+        }
+      >
+          <p className="text-sm text-muted-foreground">
+            One request with one Requested Item for each of the {pickedRows.length} picked Canvass{pickedRows.length === 1 ? "" : "es"}, filled from its winner.
+          </p>
           <Input aria-label="Purchase Request title" placeholder="Title of the request" value={requestTitle} onChange={(e) => setRequestTitle(e.target.value)} />
           {noWinnerRows.length > 0 && (
             <p role="alert" className="text-sm text-destructive">
@@ -243,14 +248,7 @@ function CanvassesPage({ userId, canEdit }) {
               Not signed off yet: {unsignedRows.map((r) => r.number).join(", ")}. You can still create the request.
             </p>
           )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
-            <Button type="button" disabled={createRequest.isPending || !requestTitle.trim() || noWinnerRows.length > 0} onClick={() => createRequest.mutate()}>
-              Create request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
       {starting && canEdit && (
         <CanvassPanel

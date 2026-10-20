@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Plus, Save, Send, Trash2 } from "lucide-react";
@@ -114,8 +115,12 @@ function typedLine() {
  * draft, or replaces an existing draft (`existing`). "Save draft" keeps it a
  * draft; "Submit" saves and submits it, which fixes it and opens the first
  * stage. The database refuses anything the screen lets through.
+ *
+ * `actionsSlot`: when the form sits in a modal, the footer node to put Save draft
+ * and Submit in (null while the footer is not mounted yet); left out, they sit
+ * under the form.
  */
-export default function TransmittalForm({ existing = null, defaultOrigin = "", onSaved, onCancel }) {
+export default function TransmittalForm({ existing = null, defaultOrigin = "", onSaved, onCancel, actionsSlot }) {
   const queryClient = useQueryClient();
   const [header, setHeader] = useState(() => headerFrom(existing, defaultOrigin));
   const [productIds, setProductIds] = useState(() => existing?.products.map((p) => p.id) ?? []);
@@ -216,6 +221,24 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
                     ? "Every typed line needs a unit to submit."
                     : null;
   const canSubmit = submitBlocker === null;
+
+  const saveButtons = (
+    <>
+      <Button type="button" variant="outline" onClick={() => save({ submit: false })} disabled={busy} className="gap-1.5">
+        <Save size={14} />
+        Save draft
+      </Button>
+      <Button type="button" onClick={() => save({ submit: true })} disabled={busy || !canSubmit} className="gap-1.5">
+        <Send size={14} />
+        Submit
+      </Button>
+    </>
+  );
+  const blockerNote = submitBlocker && (
+    <p className="-mt-3 text-right text-[12px] text-muted-foreground" data-testid="transmittal-submit-reason">
+      {submitBlocker}
+    </p>
+  );
 
   return (
     <div className="space-y-6">
@@ -397,25 +420,31 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
         ))}
       </section>
 
-      <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
-            Cancel
-          </Button>
-        )}
-        <Button type="button" variant="outline" onClick={() => save({ submit: false })} disabled={busy} className="gap-1.5">
-          <Save size={14} />
-          Save draft
-        </Button>
-        <Button type="button" onClick={() => save({ submit: true })} disabled={busy || !canSubmit} className="gap-1.5">
-          <Send size={14} />
-          Submit
-        </Button>
-      </div>
-      {submitBlocker && (
-        <p className="-mt-3 text-right text-[12px] text-muted-foreground" data-testid="transmittal-submit-reason">
-          {submitBlocker}
-        </p>
+      {actionsSlot === undefined ? (
+        <>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+            {onCancel && (
+              <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
+                Cancel
+              </Button>
+            )}
+            {saveButtons}
+          </div>
+          {blockerNote}
+        </>
+      ) : (
+        actionsSlot &&
+        createPortal(
+          <>
+            {submitBlocker && (
+              <span className="max-w-[18rem] text-right text-[11px] text-muted-foreground" data-testid="transmittal-submit-reason">
+                {submitBlocker}
+              </span>
+            )}
+            {saveButtons}
+          </>,
+          actionsSlot,
+        )
       )}
 
       <PoLinePicker open={pickerOpen} onOpenChange={setPickerOpen} onPick={addPickedLine} />

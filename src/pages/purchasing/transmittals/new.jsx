@@ -1,18 +1,20 @@
-import { Link, useNavigate } from "react-router";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
-import PageShell from "../../../components/ui/PageShell";
+import ModalShell from "../../../components/ui/ModalShell";
 import EmptyState from "../../../components/ui/EmptyState";
 import PageLoading from "../../../components/ui/PageLoading";
-import { Button } from "../../../components/ui/button";
 import TransmittalForm from "../../../components/transmittals/TransmittalForm";
 import { transmittalKeys } from "../../../components/transmittals/transmittalKeys";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { transmittalService } from "../../../services/transmittalService";
 import { TRANSMITTAL_ORIGIN, TRANSMITTAL_STAFF_LIST } from "../../../constants/transmittals";
+import TransmittalsListPage from "./index";
+
+const LIST_PATH = "/purchasing/transmittals";
 
 /** The preparer's side, which Origin defaults to: Purchasing, then the Warehouse, then Logistics. */
 function originFor({ hasPurchasingFlow, lists }) {
@@ -43,20 +45,17 @@ function NewTransmittal() {
     enabled: Boolean(user?.id),
   });
 
-  const back = (
-    <Button variant="outline" size="sm" asChild className="gap-1.5">
-      <Link to="/purchasing/transmittals">
-        <ArrowLeft size={14} />
-        Transmittals
-      </Link>
-    </Button>
-  );
+  const [actionsSlot, setActionsSlot] = useState(null);
+  const close = () => navigate(LIST_PATH);
 
   return (
-    <PageShell
-      title="Raise a Transmittal"
-      description="Tick the slip as on paper, then add the lines. Submit to open its first stage."
-      action={back}
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && close()}
+      size="wide"
+      expandable
+      crumbs={["Transmittal", "Raise a Transmittal"]}
+      actionsRef={setActionsSlot}
     >
       {checking || loadingLists ? (
         <PageLoading label="Transmittal" />
@@ -66,20 +65,29 @@ function NewTransmittal() {
           description="Purchasing, and the Warehouse and Logistics lists, raise TG03 slips."
         />
       ) : (
-        <TransmittalForm
-          defaultOrigin={originFor({ hasPurchasingFlow, lists })}
-          onSaved={(id) => navigate(`/purchasing/transmittals/${id}`)}
-          onCancel={() => navigate("/purchasing/transmittals")}
-        />
+        <>
+          <p className="text-sm text-muted-foreground">
+            Tick the slip as on paper, then add the lines. Submit to open its first stage.
+          </p>
+          <TransmittalForm
+            defaultOrigin={originFor({ hasPurchasingFlow, lists })}
+            onSaved={(id) => navigate(`/purchasing/transmittals/${id}`)}
+            actionsSlot={actionsSlot}
+          />
+        </>
       )}
-    </PageShell>
+    </ModalShell>
   );
 }
 
 export default function NewTransmittalPage() {
+  // A modal over the Transmittals list; the URL keeps working as a deep link.
   return (
-    <ProtectedRoute>
-      <NewTransmittal />
-    </ProtectedRoute>
+    <>
+      <TransmittalsListPage />
+      <ProtectedRoute>
+        <NewTransmittal />
+      </ProtectedRoute>
+    </>
   );
 }

@@ -6,14 +6,7 @@ import { Calculator, ImagePlus, ListPlus, PackagePlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { FileInput } from "@/components/ui/FileInput";
 import { Input } from "@/components/ui/input";
@@ -95,21 +88,33 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
   const pickedIds = lines.filter((l) => picked.has(l.id)).map((l) => l.id);
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-xl`}>
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Add from the SOR&apos;s Product List</DialogTitle>
-          <DialogDescription>
-            Each item keeps the line as it is now. If the SOR changes later, the item says so.
-          </DialogDescription>
-        </DialogHeader>
+    <ModalShell
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      className={OVER_REQUEST_MODAL}
+      expandable
+      crumbs={["Purchase Requests", "Add from the SOR's Product List"]}
+      actions={
+        <Button
+          size="lg"
+          disabled={pickedIds.length === 0 || addMutation.isPending}
+          onClick={() => addMutation.mutate(pickedIds)}
+        >
+          {addMutation.isPending && <Spinner size="sm" />}
+          {pickedIds.length > 1 ? `Request ${pickedIds.length} items` : "Request item"}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        Each item keeps the line as it is now. If the SOR changes later, the item says so.
+      </p>
 
         <p className="text-[11px] text-muted-foreground">
           {stockSnapshot?.fetched_at ? `Stock as of ${formatDate(stockSnapshot.fetched_at)}` : "Stock not yet checked"}
           {isStockStale(stockSnapshot?.fetched_at) && <StaleStockBadge className="ml-2" />}
         </p>
 
-        <div className="max-h-[50vh] overflow-y-auto">
+        <div>
           {linesQuery.isLoading ? (
             <div className="flex justify-center py-10">
               <Spinner />
@@ -149,22 +154,7 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
             </ul>
           )}
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" size="lg" onClick={close}>
-            Cancel
-          </Button>
-          <Button
-            size="lg"
-            disabled={pickedIds.length === 0 || addMutation.isPending}
-            onClick={() => addMutation.mutate(pickedIds)}
-          >
-            {addMutation.isPending && <Spinner size="sm" />}
-            {pickedIds.length > 1 ? `Request ${pickedIds.length} items` : "Request item"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
   );
 }
 
@@ -229,23 +219,23 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
   const busy = addMutation.isPending || attachments.isUploading;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-lg`}>
-        <DialogHeader className="shrink-0 pr-10">
-          {substituteFor ? (
-            <>
-              <DialogTitle>Offer a substitute</DialogTitle>
-              <DialogDescription>
-                For {substituteFor.name}. It moves to Substituted, so sales can re-price.
-              </DialogDescription>
-            </>
-          ) : (
-            <>
-              <DialogTitle>Request a new product</DialogTitle>
-              <DialogDescription>For a product that isn&apos;t in Odoo. Describe it so Purchasing can source it.</DialogDescription>
-            </>
-          )}
-        </DialogHeader>
+    <ModalShell
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      className={OVER_REQUEST_MODAL}
+      crumbs={["Purchase Requests", substituteFor ? "Offer a substitute" : "Request a new product"]}
+      actions={
+        <Button size="lg" disabled={!valid || busy} onClick={() => addMutation.mutate()}>
+          {busy && <Spinner size="sm" />}
+          {substituteFor ? "Offer substitute" : "Request it"}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        {substituteFor
+          ? `For ${substituteFor.name}. It moves to Substituted, so sales can re-price.`
+          : "For a product that isn't in Odoo. Describe it so Purchasing can source it."}
+      </p>
 
         <div
           className="space-y-3"
@@ -301,18 +291,7 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
             <p className="text-[11px] text-muted-foreground">Up to {attachments.max}. You can paste a screenshot.</p>
           </div>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" size="lg" onClick={close}>
-            Cancel
-          </Button>
-          <Button size="lg" disabled={!valid || busy} onClick={() => addMutation.mutate()}>
-            {busy && <Spinner size="sm" />}
-            {substituteFor ? "Offer substitute" : "Request it"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
   );
 }
 

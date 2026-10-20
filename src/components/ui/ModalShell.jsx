@@ -48,6 +48,8 @@ function writeExpanded(value) {
  * Pass `onSubmit` to wrap body and footer in a form, so a `type="submit"`
  * action submits it. `cancelLabel={null}` hides Cancel for a record that only
  * closes. `footerStart` sits on the left of the footer, after the Esc hint.
+ * `actionsRef` (a callback ref) hands back the footer's actions node, so a form
+ * that owns its own buttons can portal them into the footer.
  */
 export default function ModalShell({
   open,
@@ -58,6 +60,7 @@ export default function ModalShell({
   headerActions,
   actions,
   footerStart,
+  actionsRef,
   cancelLabel = "Cancel",
   onSubmit,
   className,
@@ -165,7 +168,7 @@ export default function ModalShell({
               </span>
               {footerStart}
             </div>
-            <div className="flex items-center gap-2.5">
+            <div ref={actionsRef} className="flex items-center gap-2.5">
               {cancelLabel !== null && (
                 <Button
                   type="button"

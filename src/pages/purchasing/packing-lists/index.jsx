@@ -11,7 +11,7 @@ import QueryError from "../../../components/ui/QueryError";
 import PageLoading from "../../../components/ui/PageLoading";
 import TabGroup from "../../../components/ui/TabGroup";
 import { Button } from "../../../components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import ModalShell from "../../../components/ui/ModalShell";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
@@ -59,18 +59,20 @@ function NewPackingListDialog({ open, onOpenChange }) {
   };
 
   return (
-    <Dialog
+    <ModalShell
       open={open}
       onOpenChange={(next) => {
         if (!next) reset();
         onOpenChange(next);
       }}
+      crumbs={["Packing List", "New Packing List"]}
+      actions={
+        <Button size="lg" onClick={create} disabled={saving || sor.length !== 1}>
+          {saving ? "Making…" : "Make Packing List"}
+        </Button>
+      }
     >
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>New Packing List</DialogTitle>
-          <DialogDescription>A Packing List is for one SOR. Its boxes are added on the next page.</DialogDescription>
-        </DialogHeader>
+      <p className="text-sm text-muted-foreground">A Packing List is for one SOR. Its boxes are added on the next page.</p>
         <div className="space-y-4">
           <FieldBox label="SOR" bare>
             <SorPicker selected={sor} onChange={(next) => setSor(next.slice(-1))} />
@@ -79,16 +81,7 @@ function NewPackingListDialog({ open, onOpenChange }) {
             <Input value={deliveryRef} onChange={(e) => setDeliveryRef(e.target.value)} placeholder="e.g. TG En/OUT/03390" />
           </FieldBox>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={create} disabled={saving || sor.length !== 1}>
-            {saving ? "Making…" : "Make Packing List"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
   );
 }
 
