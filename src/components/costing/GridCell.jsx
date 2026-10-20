@@ -95,7 +95,12 @@ export function Cell({
           type={numeric ? "number" : "text"}
           min={numeric ? 0 : undefined}
           step={numeric ? step : undefined}
-          className={`h-8 px-2 text-sm ${align === "right" ? "text-right tabular-nums" : ""}`}
+          className={cn(
+            "h-8 px-2 text-sm",
+            align === "right" && "text-right tabular-nums",
+            // The up/down arrows of a number box eat the room the digits need.
+            numeric && "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+          )}
         />
       )}
       {error && (
