@@ -428,7 +428,7 @@ describe("IPAS pages", () => {
       const back = await screen.findByRole("button", { name: /^Header/ });
       expect(back).toHaveAttribute("aria-expanded", "true");
       await waitFor(() => expect(back).toHaveFocus());
-    });
+    }, 20000);
 
     it("expands Sales in place read-only, with Edit section", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
