@@ -52,8 +52,10 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
         ? ` PO ${updated.po_number}: ${PO_VERIFICATION_LABELS[updated.po_verification] || updated.po_verification}.`
         : "";
       const message = `${item.name}: Ordered.${checked}`;
-      if (updated?.po_verification === PO_VERIFICATION.NOT_FOUND) toast.error(message);
-      else toast.success(message);
+      // Odoo didn't answer (#548): the PO is saved, but not checked.
+      if (updated?.po_verification === PO_VERIFICATION.PENDING) {
+        toast(`${message} Warning: saved without being checked.`, { icon: "⚠️", duration: 8000 });
+      } else toast.success(message);
       close();
     },
     onError: (error) => toast.error(refusal(error)),
