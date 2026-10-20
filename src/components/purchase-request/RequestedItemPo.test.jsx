@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
-import { stubEdgeFunction } from "@/test/msw/server"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import RequestedItems from "./RequestedItems"
@@ -61,7 +60,7 @@ describe("setting Ordered", () => {
   })
 
   it("checks a PO number against Odoo, stores it, and says its line isn't picked", async () => {
-    stubEdgeFunction("odoo-po-verify", { success: true, found: true, order: { name: "P01234" }, products: [] })
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
     seedItem({ status: "to_order" })
     const user = setupUser()
     renderWithProviders(<RequestedItems request={request} />)
@@ -74,6 +73,34 @@ describe("setting Ordered", () => {
     expect(within(row).getByText(/Confirmed in Odoo/)).toBeInTheDocument()
     expect(within(row).getByText("PO line not picked")).toBeInTheDocument()
     expect(db.rows("purchase_request_items")[0]).toMatchObject({ po_number: "P01234", po_verification: "VERIFIED" })
+  })
+
+  it("shows the PO as not checked when Odoo doesn't answer", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "unreachable" })
+    seedItem({ status: "to_order" })
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const { row, dialog } = await openOrderDialog(user)
+    await user.type(within(dialog).getByLabelText("PO number (optional)"), "P01234")
+    await user.click(within(dialog).getByRole("button", { name: "Check PO and mark Ordered" }))
+
+    await waitFor(() => expect(within(row).getByText("PO P01234")).toBeInTheDocument())
+    expect(within(row).getByText(/Not checked/)).toBeInTheDocument()
+    expect(db.rows("purchase_request_items")[0]).toMatchObject({ po_number: "P01234", po_verification: "PENDING_VERIFICATION" })
+  })
+
+  it("saves nothing when Odoo says there is no such PO", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "not_found" })
+    seedItem({ status: "to_order" })
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const { dialog } = await openOrderDialog(user)
+    await user.type(within(dialog).getByLabelText("PO number (optional)"), "P09999")
+    await user.click(within(dialog).getByRole("button", { name: "Check PO and mark Ordered" }))
+
+    await waitFor(() => expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "to_order", po_number: null }))
   })
 
   it("won't save a number that isn't an Odoo PO", async () => {

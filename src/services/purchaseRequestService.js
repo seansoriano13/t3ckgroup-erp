@@ -374,8 +374,8 @@ export const purchaseRequestService = {
   /**
    * Moves an item to `status`. The database refuses a step off the path, or
    * one the caller's side may not take, and posts the change in the request.
-   * `details` carries per-status data: Ordered takes `{ po_number,
-   * po_verification }` (#312; use `orderItem`). Returns the updated item.
+   * `details` carries per-status data: Ordered takes `{ po_number }` (use
+   * `orderItem`, which has the server check it, #548); a `po_verification` is refused. Returns the updated item.
    */
   async setItemStatus(itemId, status, details = {}) {
     const { data, error } = await supabase.rpc("purchase_request_set_item_status", {
@@ -390,40 +390,42 @@ export const purchaseRequestService = {
   // ── PO number and PO lines (#312) ────────────────────────────────────────
 
   /**
-   * Checks a PO number against Odoo (`odoo-po-verify`). Never throws: returns
-   * the `po_verification` value — VERIFIED, NOT_FOUND, or PENDING_VERIFICATION
-   * when Odoo couldn't be asked.
-   */
-  async verifyPo(poNumber) {
-    try {
-      const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
-        body: { poNumber: normalizePoNumber(poNumber) },
-      });
-      if (error) return PO_VERIFICATION.PENDING;
-      if (data?.found) return PO_VERIFICATION.VERIFIED;
-      // Odoo answered and does not have it: a real answer, not an outage.
-      if (data?.success) return PO_VERIFICATION.NOT_FOUND;
-      return PO_VERIFICATION.PENDING;
-    } catch {
-      return PO_VERIFICATION.PENDING;
-    }
-  },
-
-  /**
-   * Sets an item Ordered. With a PO number, checks it against Odoo first and
-   * stores the number with the result; without one, the item is Ordered with
-   * no PO. Throws on a number that isn't an Odoo PO ("P" then digits).
-   * Returns the updated item.
+   * Sets an item Ordered. Without a PO number it is a direct status move. With
+   * one, the `odoo-po-verify` edge function does the work (#548): it asks Odoo,
+   * then moves the item itself with its own verdict. The browser never sends
+   * the check. Verified is saved; a PO Odoo says it doesn't have is refused
+   * (this throws, naming the PO); an Odoo that doesn't answer saves the PO as
+   * "not checked" (PENDING_VERIFICATION) for the screen to warn about. Throws on
+   * a number that isn't an Odoo PO ("P" then digits). Returns the updated item.
    */
   async orderItem(itemId, { poNumber = "" } = {}) {
     const po = normalizePoNumber(poNumber);
     if (!po) return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.ORDERED);
     if (!isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
-    const verification = await purchaseRequestService.verifyPo(po);
-    return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.ORDERED, {
-      po_number: po,
-      po_verification: verification,
+    return purchaseRequestService.applyPoAction("order", itemId, po);
+  },
+
+  /**
+   * Saves a PO on an item through the server (`odoo-po-verify`, save mode).
+   * `action` names what to do with it; "order" today, so "Correct PO" can use
+   * the same path.
+   */
+  async applyPoAction(action, itemId, poNumber) {
+    const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
+      body: { action, itemId, poNumber },
     });
+    if (error) {
+      let message = "Couldn't save the PO number. Try again.";
+      try {
+        const body = await error.context?.json?.();
+        if (body?.message) message = body.message;
+      } catch {
+        // keep the generic message
+      }
+      throw new Error(message);
+    }
+    if (!data?.success) throw new Error(data?.message || "Couldn't save the PO number. Try again.");
+    return data.item;
   },
 
   /**
