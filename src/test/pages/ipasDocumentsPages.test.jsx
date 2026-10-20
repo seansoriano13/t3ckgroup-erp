@@ -137,12 +137,16 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       refused(financeBox);
 
       await user.click(purchasingBox);
+      // Typed in place: nothing is stored until Save all.
+      expect(purchasingBox).toBeChecked();
+      expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).purchasing_has).toBe(false);
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
       await waitFor(() => expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).purchasing_has).toBe(true));
       expect(db.rows("ipas_events").at(-1)).toMatchObject({ kind: "document_ticked", detail: { side: "purchasing", value: true, label: "Waybill" } });
     });
 
-    it("shows a tick the moment it is made, before the server has answered, and keeps it when it does", async () => {
+    it("shows a tick the moment it is made, and keeps it through a slow Save all", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
       let release;
@@ -162,6 +166,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const waybill = await documentRow("Waybill");
       const box = within(waybill).getByRole("checkbox", { name: /Purchasing has it/ });
       await user.click(box);
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
       await waitFor(async () =>
         expect(within(await documentRow("Waybill")).getByRole("checkbox", { name: /Purchasing has it/ })).toBeChecked(),
@@ -173,7 +178,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       expect(within(await documentRow("Waybill")).getByRole("checkbox", { name: /Purchasing has it/ })).toBeChecked();
     });
 
-    it("puts the tick back and says why when the server refuses it", async () => {
+    it("keeps the tick and says why, with Retry, when the server refuses the save", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
       stubRpc("ipas_tick_document", () => {
@@ -186,11 +191,14 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       renderDetail(row.id, "finance", "edit");
       const waybill = await documentRow("Waybill");
       await user.click(within(waybill).getByRole("checkbox", { name: /Purchasing has it/ }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(/only Purchasing ticks/i);
-      await waitFor(async () =>
-        expect(within(await documentRow("Waybill")).getByRole("checkbox", { name: /Purchasing has it/ })).not.toBeChecked(),
-      );
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(/only Purchasing ticks/i);
+      expect(within(alert).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      // What was typed stays; nothing was stored.
+      expect(within(await documentRow("Waybill")).getByRole("checkbox", { name: /Purchasing has it/ })).toBeChecked();
+      expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).purchasing_has).toBe(false);
     });
 
     it("offers Finance only its own tick and no way to change the list", async () => {
@@ -209,6 +217,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       expect(within(waybill).queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
 
       await user.click(financeBox);
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
       await waitFor(() => expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).finance_has).toBe(true));
       expect(db.rows("ipas_events").at(-1)).toMatchObject({ kind: "document_ticked", actor_id: finance.id, detail: { side: "finance", value: true } });
@@ -241,11 +250,14 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
       renderDetail(row.id, "finance", "edit");
       await user.click(await screen.findByRole("button", { name: "Add document" }));
-      const dialog = await screen.findByRole("dialog");
-      await user.click(within(dialog).getByRole("combobox"));
+      // A new row to fill in, right there: no dialog.
+      const fresh = await screen.findByRole("group", { name: "New document 1" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(within(fresh).getByText("Needed")).toBeInTheDocument();
+      await user.click(within(fresh).getByRole("combobox"));
       await user.click(await screen.findByRole("option", { name: /Something else/ }));
-      await user.type(within(dialog).getByLabelText("Name"), "Warranty card");
-      await user.click(within(dialog).getByRole("button", { name: "Add document" }));
+      await user.type(within(fresh).getByRole("textbox", { name: /^Name/ }), "Warranty card");
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
       await waitFor(() => expect(db.rows("ipas_documents").some((d) => d.label === "Warranty card")).toBe(true));
       expect(await documentRow("Warranty card")).toBeTruthy();

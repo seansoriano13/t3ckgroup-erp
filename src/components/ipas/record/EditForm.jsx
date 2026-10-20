@@ -1,21 +1,17 @@
 // The IPAS edit view (#581, prototype E: stepper + summaries): one long form
 // with one Save. A sticky bar holds Back, how many required fields are filled,
 // Next empty and Save all, with a stepper (Header, then 1 to 7) under it. Each
-// section is a card; a finished one folds to one line. The money and sign-off
-// sections keep their own controls inside their card (dialogs and buttons as
-// before); everything else is typed in place and stored together.
+// section is a card; a finished one folds to one line. Everything is typed in
+// place and stored together, the money too (payments, freight, charges,
+// documents, bank details, status and spread). Only the sign-offs stay
+// buttons: signing is an action, not a field.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronDown } from "lucide-react";
 
-import AmountInput from "@/components/ipas/AmountInput";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/FieldBox";
-import { Input } from "@/components/ui/input";
-import { SelectField } from "@/components/ui/SelectField";
-import { Textarea } from "@/components/ui/textarea";
 import { CHROME, RecordSectionChrome } from "@/components/record/sectionChrome";
 import { cn } from "@/lib/utils";
 import {
@@ -28,10 +24,13 @@ import {
 } from "@/constants/ipas";
 import { optionsForPicker } from "@/utils/ipasPayments";
 import { formatDate } from "@/utils/formatDate.js";
+import { Embedded, Field, GroupTitle, PickField, ReadValue, Tick } from "./FormFields";
+import { GRID, focusField, reducedMotion } from "./formHelpers";
+import { BankFields, ChargesFields, CostingFields, DocumentsFields, FreightField, PaymentsFields } from "./MoneyFields";
 import {
   FORM_SECTIONS,
   actualCheckingStampable,
-  changedKeys,
+  changeCount,
   formFromIpas,
   missingFields,
   planIsEmpty,
@@ -39,119 +38,10 @@ import {
   sectionProgress,
 } from "./editFormModel";
 
-const NUMBERED = /^(\d+) · /;
-const NONE = "__none__";
-const blank = (value) => value === "" || value === null || value === undefined || String(value).trim() === "";
-const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
-/** Scroll a control into view and put the cursor in it. */
-function focusField(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
-  el.focus({ preventScroll: true });
-}
-
-// A required box still empty gets a soft amber edge and a quiet "Needed" tag.
-const NEEDED_BOX = "border-amber-7 bg-amber-a1";
-
-function NeededTag() {
-  return (
-    <span className="rounded-full border border-amber-a4 bg-amber-a2 px-1.5 py-px text-[9px] font-semibold tracking-wider text-amber-11 normal-case">
-      Needed
-    </span>
-  );
-}
-
-function OdooTag() {
-  return (
-    <span className="rounded-full border border-border bg-muted px-1.5 py-px text-[10px] font-bold tracking-wider text-muted-foreground normal-case">
-      Odoo
-    </span>
-  );
-}
-
-/** One typed field. `kind`: text | amount | date | textarea. `odoo` is Odoo's value for an override field. */
-function Field({ id, label, kind = "text", value, onChange, required, prefix, odoo, placeholder, disabled }) {
-  const needed = required && blank(value);
-  const box = needed ? NEEDED_BOX : "";
-  const caption = (
-    <>
-      {label}
-      {required && !needed && (
-        <span className="text-muted-foreground/60" aria-hidden="true">
-          *
-        </span>
-      )}
-      {needed && <NeededTag />}
-    </>
-  );
-  let control;
-  if (kind === "amount") {
-    control = (
-      <AmountInput id={id} prefix={prefix} value={value} disabled={disabled} placeholder="0.00" onChange={(e) => onChange(e.target.value)} className={box} />
-    );
-  } else if (kind === "textarea") {
-    control = <Textarea id={id} rows={2} value={value} disabled={disabled} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={box} />;
-  } else {
-    control = (
-      <Input
-        id={id}
-        type={kind === "date" ? "date" : "text"}
-        value={value}
-        disabled={disabled}
-        placeholder={placeholder ?? (odoo ? `Odoo: ${odoo}` : undefined)}
-        onChange={(e) => onChange(e.target.value)}
-        className={box}
-      />
-    );
-  }
-  return (
-    <div className="min-w-0">
-      <FieldBox label={caption} htmlFor={id} bare>
-        {control}
-      </FieldBox>
-      {odoo !== undefined && (
-        <p className="mt-1 pl-1 text-xs text-muted-foreground">{blank(value) ? "Using Odoo's value" : `Odoo says ${odoo ?? "blank"}`}</p>
-      )}
-    </div>
-  );
-}
-
-/** A value from Odoo or worked out: plain text, no box, so nobody tries to type in it. */
-function ReadValue({ label, children, odoo = false }) {
-  return (
-    <div className="min-w-0">
-      <div className="flex items-center gap-1.5 pl-1 text-label font-bold tracking-widest text-muted-foreground uppercase">
-        {label}
-        {odoo && <OdooTag />}
-      </div>
-      <p className="mt-1.5 truncate pl-1 text-sm font-medium text-foreground">{children || "—"}</p>
-    </div>
-  );
-}
-
-function Tick({ label, checked, onChange, disabled }) {
-  return (
-    <FieldBox inline className="h-10 rounded-xl border border-border bg-card px-3">
-      <Checkbox checked={checked} disabled={disabled} onCheckedChange={(next) => onChange(Boolean(next))} />
-      <span className="text-sm font-medium text-foreground">{label}</span>
-    </FieldBox>
-  );
-}
-
-function GroupTitle({ children }) {
-  return <h3 className="text-sm font-semibold text-foreground">{children}</h3>;
-}
-
-const GRID = "grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4";
-
-function Embedded({ children }) {
-  return <RecordSectionChrome.Provider value={CHROME.INLINE}>{children}</RecordSectionChrome.Provider>;
-}
+const NUMBERED = /^(d+) · /;
 
 /** The typed sections' bodies: `form` and `set(key, value)` come from the form. */
-function SectionBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose }) {
+function SectionBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose, money }) {
   const odoo = (key) => ipas.overrides?.[key]?.odoo;
   switch (sectionKey) {
     case "header":
@@ -197,20 +87,53 @@ function SectionBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurp
                 disabled={disabled}
                 onChange={(v) => set("piQtAmount", v)}
               />
+              <FreightField ipas={ipas} form={form} set={set} disabled={disabled} />
             </div>
           </div>
-          <Embedded>
-            <div className="space-y-4">
-              {blocks.payments}
-              {blocks.signoffs1}
-            </div>
-          </Embedded>
+          <PaymentsFields
+            ipas={ipas}
+            form={form}
+            rows={money.rows}
+            fresh={money.fresh}
+            canRecord={money.can.record}
+            onRemoveSaved={money.onRemoveSaved}
+          />
+          <Embedded>{blocks.signoffs1}</Embedded>
         </div>
       );
     case "finance":
+      return (
+        <div className="space-y-6">
+          <ChargesFields
+            ipas={ipas}
+            form={form}
+            rows={money.rows}
+            fresh={money.fresh}
+            canRecord={money.can.record}
+            onRemoveSaved={money.onRemoveSaved}
+          />
+          <DocumentsFields
+            ipas={ipas}
+            form={form}
+            rows={money.rows}
+            fresh={money.fresh}
+            canChange={money.can.change}
+            canTickFinance={money.can.tickFinance}
+            onRemoveSaved={money.onRemoveDocument}
+            onSuggest={money.onSuggest}
+          />
+          <BankFields ipas={ipas} form={form} set={set} canChange={money.can.change} />
+          <Embedded>{blocks.signoffs3}</Embedded>
+        </div>
+      );
     case "costing":
+      return (
+        <Embedded>
+          <CostingFields ipas={ipas} form={form} set={set} canChange={money.can.change} canSetStatus={money.can.setStatus} />
+        </Embedded>
+      );
     case "filing":
-      return <Embedded>{blocks[sectionKey]}</Embedded>;
+      return <Embedded>{blocks.filing}</Embedded>;
     case "sales":
       return (
         <div className={GRID}>
@@ -249,43 +172,23 @@ function SectionBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurp
         </div>
       );
     case "logistics": {
-      const options = [
-        { value: NONE, label: "Not set" },
-        ...optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.ITEM_LOCATION, ipas.item_location_id).map((option) => ({
-          value: option.id,
-          label: option.active ? option.label : `${option.label} (deactivated)`,
-        })),
-      ];
-      const needed = blank(form.location);
+      const options = optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.ITEM_LOCATION, ipas.item_location_id).map((option) => ({
+        value: option.id,
+        label: option.active ? option.label : `${option.label} (deactivated)`,
+      }));
       return (
         <div className={GRID}>
-          <div className="min-w-0">
-            <FieldBox
-              label={
-                <>
-                  Item Location
-                  {needed ? <NeededTag /> : <span className="text-muted-foreground/60" aria-hidden="true">*</span>}
-                </>
-              }
-              htmlFor="f-location"
-              bare
-            >
-              <SelectField
-                id="f-location"
-                size="sm"
-                options={options}
-                value={form.location === "" ? NONE : form.location}
-                disabled={disabled}
-                onChange={(value) => set("location", value === NONE ? "" : value)}
-                className={cn("h-10 w-full", needed && NEEDED_BOX)}
-              />
-            </FieldBox>
-            {needed && ipas.itemLocation?.label && (
-              <p className="mt-1 pl-1 text-xs text-muted-foreground">
-                The Transmittals say {ipas.itemLocation.label}. Pick one to keep it on this IPAS.
-              </p>
-            )}
-          </div>
+          <PickField
+            id="f-location"
+            label="Item Location"
+            required
+            options={options}
+            value={form.location}
+            emptyLabel="Not set"
+            disabled={disabled}
+            onChange={(value) => set("location", value)}
+            hint={ipas.itemLocation?.label ? `The Transmittals say ${ipas.itemLocation.label}. Pick one to keep it on this IPAS.` : undefined}
+          />
         </div>
       );
     }
@@ -321,14 +224,42 @@ function SectionBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurp
   }
 }
 
+const LISTS = ["payments", "charges", "documents"];
+const emptyRows = () => ({ payments: {}, charges: {}, documents: {} });
+const emptyAdded = () => ({ payments: [], charges: [], documents: [] });
+
 /**
- * `blocks` holds the money and sign-off bodies (payments, signoffs1, finance, costing, filing);
- * `onSave(plan)` stores the typed changes and resolves when they are in; `onBack()` leaves.
+ * `blocks` holds the sign-off and filing bodies (signoffs1, signoffs3, filing); the rest is typed here.
+ * `can` is what this person may type: { change, record, tickFinance, setStatus(from, to) }.
+ * `onSave(plan)` stores the typed changes and resolves when they are in (a failure carries
+ * `doneKeys`, the new or changed rows already stored); `onBack()` leaves.
  */
-export default function EditForm({ ipas, blocks, canChange, focusKey, saving, onSave, onBack, onEditPurpose, failure }) {
+export default function EditForm({
+  ipas,
+  blocks,
+  can,
+  canSave,
+  savedCount = 0,
+  focusKey,
+  saving,
+  onSave,
+  onBack,
+  onEditPurpose,
+  failure,
+  onRemoveSaved,
+  onRemoveDocument,
+  onSuggest,
+}) {
+  const canChange = can.change;
   const base = useMemo(() => formFromIpas(ipas), [ipas]);
   const [edits, setEdits] = useState({});
+  // Money rows: saved rows typed over, and new rows not stored yet.
+  const [rowEdits, setRowEdits] = useState(emptyRows);
+  const [added, setAdded] = useState(emptyAdded);
+  const [fresh, setFresh] = useState(null);
+  const [saved, setSaved] = useState(false);
   const form = { ...base, ...edits };
+  for (const list of LISTS) form[list] = [...base[list].map((row) => rowEdits[list][row.key] ?? row), ...added[list]];
   const set = (key, value) =>
     setEdits((current) => {
       const next = { ...current };
@@ -337,14 +268,51 @@ export default function EditForm({ ipas, blocks, canChange, focusKey, saving, on
       return next;
     });
 
+  const rows = {
+    add: (list, draft) => {
+      setAdded((current) => ({ ...current, [list]: [...current[list], draft] }));
+      setFresh(draft.key);
+      setSaved(false);
+    },
+    patch: (list, key, patch) => {
+      if (added[list].some((row) => row.key === key)) {
+        setAdded((current) => ({ ...current, [list]: current[list].map((row) => (row.key === key ? { ...row, ...patch } : row)) }));
+        return;
+      }
+      setRowEdits((current) => {
+        const stored = base[list].find((row) => row.key === key);
+        const row = { ...(current[list][key] ?? stored), ...patch };
+        const next = { ...current[list] };
+        if (JSON.stringify(row) === JSON.stringify(stored)) delete next[key];
+        else next[key] = row;
+        return { ...current, [list]: next };
+      });
+    },
+    drop: (list, key) => setAdded((current) => ({ ...current, [list]: current[list].filter((row) => row.key !== key) })),
+  };
+  // A save finished (even a Retry from the page's notice): what was typed is stored now.
+  const [seenSaves, setSeenSaves] = useState(savedCount);
+  if (seenSaves !== savedCount) {
+    setSeenSaves(savedCount);
+    setEdits({});
+    setRowEdits(emptyRows());
+    setAdded(emptyAdded());
+    setSaved(true);
+  }
+  // The ease-in is for the moment a row is added only.
+  useEffect(() => {
+    if (!fresh) return undefined;
+    const timer = setTimeout(() => setFresh(null), 1200);
+    return () => clearTimeout(timer);
+  }, [fresh]);
+
   const progress = sectionProgress(form);
   const missing = missingFields(form);
-  const changed = changedKeys(form, base);
+  const changed = changeCount(form, base);
   const total = progress.reduce((n, p) => n + p.total, 0);
   const done = progress.reduce((n, p) => n + p.done, 0);
   const cards = useRef({});
   const [opened, setOpened] = useState({});
-  const [saved, setSaved] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [planError, setPlanError] = useState(null);
 
@@ -379,17 +347,27 @@ export default function EditForm({ ipas, blocks, canChange, focusKey, saving, on
     try {
       await onSave(plan);
       setEdits({});
+      setRowEdits(emptyRows());
+      setAdded(emptyAdded());
       setSaved(true);
-    } catch {
-      // The page keeps the failure with Retry; what was typed stays.
+    } catch (error) {
+      // The page keeps the failure with Retry; what was typed stays, except the rows that
+      // did get stored before the failure: they are on the IPAS now, so they leave the form.
+      const stored = new Set(error?.doneKeys ?? []);
+      if (stored.size > 0) {
+        setAdded((current) => Object.fromEntries(LISTS.map((list) => [list, current[list].filter((row) => !stored.has(row.key))])));
+        setRowEdits((current) =>
+          Object.fromEntries(LISTS.map((list) => [list, Object.fromEntries(Object.entries(current[list]).filter(([key]) => !stored.has(key)))])),
+        );
+      }
     }
   };
 
-  const back = () => (changed.length > 0 ? setDiscarding(true) : onBack());
+  const back = () => (changed > 0 ? setDiscarding(true) : onBack());
 
   let status = null;
   if (saving) status = "Saving…";
-  else if (changed.length > 0) status = `${changed.length} unsaved ${changed.length === 1 ? "change" : "changes"}`;
+  else if (changed > 0) status = `${changed} unsaved ${changed === 1 ? "change" : "changes"}`;
   else if (saved) status = "All changes saved";
 
   return (
@@ -403,15 +381,15 @@ export default function EditForm({ ipas, blocks, canChange, focusKey, saving, on
           <span className="text-sm text-muted-foreground tabular-nums">
             {done} of {total} required fields filled
           </span>
-          <span role="status" aria-live="polite" className={cn("text-sm tabular-nums", changed.length > 0 ? "text-amber-11" : "text-green-11")}>
+          <span role="status" aria-live="polite" className={cn("text-sm tabular-nums", changed > 0 ? "text-amber-11" : "text-green-11")}>
             {status}
           </span>
           <div className="ml-auto flex gap-2">
             <Button type="button" variant="outline" size="sm" disabled={!missing.length} onClick={nextEmpty}>
               Next empty
             </Button>
-            <Button type="button" size="sm" disabled={!canChange || saving || changed.length === 0} onClick={save}>
-              Save all{changed.length ? ` (${changed.length})` : ""}
+            <Button type="button" size="sm" disabled={!canSave || saving || changed === 0} onClick={save}>
+              Save all{changed ? ` (${changed})` : ""}
             </Button>
           </div>
         </div>
@@ -505,6 +483,7 @@ export default function EditForm({ ipas, blocks, canChange, focusKey, saving, on
                   blocks={blocks}
                   disabled={!canChange}
                   onEditPurpose={onEditPurpose}
+                  money={{ rows, fresh, can, onRemoveSaved, onRemoveDocument, onSuggest }}
                 />
               </div>
             )}
@@ -516,7 +495,7 @@ export default function EditForm({ ipas, blocks, canChange, focusKey, saving, on
         open={discarding}
         onOpenChange={setDiscarding}
         title="Leave without saving?"
-        description={`You have ${changed.length} unsaved ${changed.length === 1 ? "change" : "changes"}. They will be lost.`}
+        description={`You have ${changed} unsaved ${changed === 1 ? "change" : "changes"}. They will be lost.`}
         confirmLabel="Discard"
         cancelLabel="Keep editing"
         tone="destructive"

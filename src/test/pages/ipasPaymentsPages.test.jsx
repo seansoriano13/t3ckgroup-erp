@@ -52,12 +52,14 @@ function ipas(overrides = {}) {
   });
 }
 
-/** The dialog on top: a payment or charge dialog opens over the section drawer. */
+/** The dialog on top: the "Remove this payment?" question opens over the page. */
 async function topDialog() {
   await waitFor(() => expect(screen.getAllByRole("dialog").length).toBeGreaterThan(0));
   const all = screen.getAllByRole("dialog");
   return all[all.length - 1];
 }
+
+const saveAll = (user) => user.click(screen.getByRole("button", { name: /^Save all/ }));
 
 function renderDetail(id, section, param = "open") {
   return renderWithProviders(
@@ -82,9 +84,9 @@ function renderSettings() {
   );
 }
 
-/** Picks an option of the SelectField labelled `label`. */
+/** Picks an option of the SelectField named `label` (a string or a pattern). */
 const pick = async (user, scope, label, optionName) => {
-  await user.click(within(scope).getByLabelText(label));
+  await user.click(within(scope).getByRole("combobox", { name: label }));
   await user.click(await screen.findByRole("option", { name: optionName }));
 };
 
@@ -110,46 +112,123 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
-      const dialog = await topDialog();
+      // The payment is typed right there, in a new form of its own: no dialog.
+      const payment = await screen.findByRole("group", { name: "Payment 1" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-      await pick(user, dialog, "Kind", "Down payment");
-      await user.type(within(dialog).getByLabelText("Amount (PHP)"), "3000");
-      await pick(user, dialog, "Method", "Dated Check");
-      await user.type(within(dialog).getByPlaceholderText("When paid by check"), "CHK-0042");
-      await user.click(within(dialog).getByRole("button", { name: "Record payment" }));
+      await pick(user, payment, /^Kind/, "Down payment");
+      await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "3000");
+      await pick(user, payment, /^Method/, "Dated Check");
+      await user.type(within(payment).getByPlaceholderText("When paid by check"), "CHK-0042");
+      // Nothing is stored until Save all.
+      expect(db.rows("ipas_payments")).toHaveLength(0);
+      await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
       expect(db.rows("ipas_payments")[0]).toMatchObject({ kind: "down_payment", amount: 3000, check_no: "CHK-0042", created_by: purchaser.id });
 
-      const table = await screen.findByTestId("ipas-payment-row");
-      expect(within(table).getByText("Down payment")).toBeInTheDocument();
-      expect(within(table).getByText("Check No. CHK-0042")).toBeInTheDocument();
+      const saved = await screen.findByTestId("ipas-payment-row");
+      expect(within(saved).getByText("Down payment")).toBeInTheDocument();
+      expect(within(saved).getByDisplayValue("CHK-0042")).toBeInTheDocument();
       // DP is read off the rows; there is no balance anywhere.
-      expect(screen.getByText("DP").closest("div")).toHaveTextContent(/3,000\.00/);
+      await waitFor(() => expect(screen.getByText("DP").parentElement).toHaveTextContent(/3,000\.00/));
       expect(screen.queryByText(/balance/i)).not.toBeInTheDocument();
-      // Four dialog interactions on a full page: close to the 5s default when the
-      // whole suite runs in parallel, so it gets room.
     }, 20_000);
 
-    it("keeps Record payment disabled and explains why while a number is half typed, without breaking", async () => {
+    it("refuses a half-typed amount with a sentence on Save all, keeps what was typed, and never breaks", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
-      const dialog = await topDialog();
-      await pick(user, dialog, "Method", "Dated Check");
+      const payment = await screen.findByRole("group", { name: "Payment 1" });
+      await pick(user, payment, /^Method/, "Dated Check");
 
-      const amount = within(dialog).getByLabelText("Amount (PHP)");
-      const submit = within(dialog).getByRole("button", { name: "Record payment" });
+      const amount = within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ });
       await user.type(amount, "12abc");
+      await saveAll(user);
 
-      expect(submit).toBeDisabled();
-      expect(within(dialog).getByText("Amount must be a number more than zero.")).toBeInTheDocument();
+      expect(await screen.findByText("Payment 1: Amount must be a number more than zero.")).toBeInTheDocument();
+      expect(amount).toHaveValue("12abc");
+      expect(db.rows("ipas_payments")).toHaveLength(0);
 
       await user.clear(amount);
       await user.type(amount, "1,250.50");
-      expect(submit).toBeEnabled();
+      await saveAll(user);
+      await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
+      expect(db.rows("ipas_payments")[0].amount).toBe(1250.5);
+    });
+
+    it("counts a new payment's required boxes, marks them Needed, and counts them as they are filled", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = setupUser();
+
+      renderDetail(row.id, "purchasing", "edit");
+      // Odoo fills the supplier's name; the other three are still needed.
+      expect(await screen.findByText("1 of 4 required fields filled")).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: /Add payment/ }));
+      const payment = await screen.findByRole("group", { name: "Payment 1" });
+
+      // Date starts as today; the amount and the method are still needed.
+      expect(screen.getByText("2 of 7 required fields filled")).toBeInTheDocument();
+      expect(within(payment).getAllByText("Needed")).toHaveLength(2);
+      await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "50");
+      expect(screen.getByText("3 of 7 required fields filled")).toBeInTheDocument();
+    });
+
+    it("keeps what was typed when a later step fails, and Retry doesn't add the payment twice", { timeout: 30000 }, async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      let tries = 0;
+      // The charge is refused the first time and goes in the second.
+      stubRpc("ipas_add_charge", (args) => {
+        tries += 1;
+        if (tries === 1) {
+          const error = new Error("ipas_add_charge: the database is busy");
+          error.code = "40001";
+          throw error;
+        }
+        return db.seed("ipas_charges", { ipas_id: args.p_ipas_id, kind_id: args.p_kind_id, charged_on: args.p_charged_on, amount_php: args.p_amount_php });
+      });
+      const user = setupUser();
+
+      renderDetail(row.id, "purchasing", "edit");
+      await user.click(await screen.findByRole("button", { name: /Add payment/ }));
+      const payment = await screen.findByRole("group", { name: "Payment 1" });
+      await pick(user, payment, /^Method/, "Dated Check");
+      await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "500");
+      await user.click(screen.getByRole("button", { name: /Charges paid in pesos/ }));
+      await user.click(await screen.findByRole("button", { name: /Add charge/ }));
+      const charge = await screen.findByRole("group", { name: "Charge 1" });
+      await pick(user, charge, /^Kind/, "Brokerage Fee");
+      await user.type(within(charge).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "250");
+      await saveAll(user);
+
+      // The payment went in; the charge didn't. The error says so, with Retry, and the charge stays typed.
+      const alert = await screen.findByText(/database is busy/i, { selector: "p" });
+      expect(db.rows("ipas_payments")).toHaveLength(1);
+      expect(db.rows("ipas_charges")).toHaveLength(0);
+      expect(within(charge).getByRole("textbox", { name: /^Amount \(PHP\)/ })).toHaveValue("250");
+      expect(screen.getAllByRole("group", { name: /^Payment \d/ })).toHaveLength(1);
+
+      await user.click(within(alert.closest("[role='alert']")).getByRole("button", { name: "Retry" }));
+      await waitFor(() => expect(db.rows("ipas_charges")).toHaveLength(1));
+      expect(db.rows("ipas_payments")).toHaveLength(1);
+      await waitFor(() => expect(screen.getByText("All changes saved")).toBeInTheDocument());
+      expect(screen.getAllByRole("group", { name: /^Charge \d/ })).toHaveLength(1);
+    });
+
+    it("drops an unsaved payment when it is removed, without asking", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = setupUser();
+
+      renderDetail(row.id, "purchasing", "edit");
+      await user.click(await screen.findByRole("button", { name: /Add payment/ }));
+      const payment = await screen.findByRole("group", { name: "Payment 1" });
+      await user.click(within(payment).getByRole("button", { name: "Remove payment 1" }));
+
+      expect(screen.queryByRole("group", { name: "Payment 1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^Save all/ })).toBeDisabled();
     });
 
     it("asks for the PHP debited on a foreign-currency PO and won't save without it", { timeout: 20000 }, async () => {
@@ -159,27 +238,26 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
-      const dialog = await topDialog();
-      await pick(user, dialog, "Method", "Alipay");
+      const payment = await screen.findByRole("group", { name: "Payment 1" });
+      await pick(user, payment, /^Method/, "Alipay");
 
-      const amount = within(dialog).getByLabelText("Amount (USD)");
-      const phpDebited = within(dialog).getByLabelText("PHP debited");
+      const amount = within(payment).getByRole("textbox", { name: /^Amount \(USD\)/ });
+      const phpDebited = within(payment).getByRole("textbox", { name: /^PHP debited/ });
       await user.type(amount, "640");
-      const submit = within(dialog).getByRole("button", { name: "Record payment" });
-
-      expect(within(dialog).getByText("PHP debited is required on a foreign-currency Odoo PO.")).toBeInTheDocument();
-      expect(submit).toBeDisabled();
+      // PHP debited is a required box here, marked Needed, and Save all won't go without it.
+      expect(within(payment).getAllByText("Needed")).toHaveLength(1);
+      await saveAll(user);
+      expect(await screen.findByText("Payment 1: PHP debited is required on a foreign-currency Odoo PO.")).toBeInTheDocument();
+      expect(db.rows("ipas_payments")).toHaveLength(0);
 
       await user.type(phpDebited, "36160");
-      expect(submit).toBeEnabled();
-      await user.click(submit);
+      await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
       expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 640, php_debited: 36160 });
       // 640 of USD for PHP 36,160 is a rate; Landed Cost is available from it.
-      // The payment dialog closes; the edit view stays. Back to the section's drawer, close it,
-      // then open Costing from its row.
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      // The edit view stays. Back to the section's drawer, close it, then open Costing from its row.
+      await waitFor(() => expect(screen.getByText("All changes saved")).toBeInTheDocument());
       await user.click(screen.getByRole("button", { name: "Back to preview" }));
       await user.click(within(await screen.findByRole("dialog", { name: "1 · Purchasing" })).getByRole("button", { name: "Close" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -200,20 +278,20 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       renderDetail(row.id, "purchasing", "edit");
       await user.click(await screen.findByRole("button", { name: /Add payment/ }));
-      const dialog = await topDialog();
-      await pick(user, dialog, "Method", "Alipay");
-      const date = within(dialog).getByLabelText("Date");
+      const dialog = await screen.findByRole("group", { name: "Payment 1" });
+      await pick(user, dialog, /^Method/, "Alipay");
+      const date = within(dialog).getByLabelText(/^Date/);
       await user.clear(date);
       await user.type(date, "2026-09-12");
 
       // Context only: the PHP debited is never filled in from the Reference Rate.
-      const phpDebited = within(dialog).getByLabelText("PHP debited");
+      const phpDebited = within(dialog).getByRole("textbox", { name: /^PHP debited/ });
       expect(phpDebited).toHaveValue("");
       const line = await within(dialog).findByTestId("payment-reference-rate");
       expect(line).toHaveTextContent(/reference: ₱58\.20 on 12 Sep/);
       expect(asked).toContain("2026-09-12");
 
-      await user.type(within(dialog).getByLabelText("Amount (USD)"), "1000");
+      await user.type(within(dialog).getByRole("textbox", { name: /^Amount \(USD\)/ }), "1000");
       await user.type(phpDebited, "58440");
       expect(line).toHaveTextContent(/you typed ₱58\.44/);
       expect(within(dialog).queryByTestId("payment-rate-divergence")).not.toBeInTheDocument();
@@ -222,9 +300,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.type(phpDebited, "5844");
       expect(within(dialog).getByTestId("payment-rate-divergence")).toBeInTheDocument();
       // It flags; it blocks nothing.
-      const submit = within(dialog).getByRole("button", { name: "Record payment" });
-      expect(submit).toBeEnabled();
-      await user.click(submit);
+      await saveAll(user);
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
       expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 1000, php_debited: 5844 });
     });
@@ -246,12 +322,13 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
-      await user.click(await screen.findByRole("button", { name: /^Edit Payment of Oct 1, 2026/ }));
-      const dialog = await topDialog();
-      const amount = within(dialog).getByLabelText("Amount (PHP)");
+      // The saved payment is a form already: type over it and Save all.
+      const saved = await screen.findByTestId("ipas-payment-row");
+      const amount = within(saved).getByRole("textbox", { name: /^Amount \(PHP\)/ });
+      expect(amount).toHaveValue("8325");
       await user.clear(amount);
       await user.type(amount, "8000");
-      await user.click(within(dialog).getByRole("button", { name: "Save payment" }));
+      await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas_payments")[0].amount).toBe(8000));
 
@@ -292,8 +369,10 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
-      await user.click(await screen.findByRole("combobox", { name: "Freight service" }));
+      await user.click(await screen.findByRole("combobox", { name: /^Freight service/ }));
       await user.click(await screen.findByRole("option", { name: "DHL" }));
+      expect(db.rows("ipas")[0].freight_service_id ?? null).toBeNull();
+      await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas")[0].freight_service_id).toBe(options.freight_service["DHL"].id));
     });
@@ -306,14 +385,15 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       renderDetail(row.id, "finance", "edit");
       await user.click(await screen.findByRole("button", { name: /Add charge/ }));
-      const dialog = await topDialog();
-      await pick(user, dialog, "Kind", "Brokerage Fee");
-      await user.type(within(dialog).getByLabelText("Amount (PHP)"), "4,200");
-      await user.click(within(dialog).getByRole("button", { name: "Record charge" }));
+      const charge = await screen.findByRole("group", { name: "Charge 1" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      await pick(user, charge, /^Kind/, "Brokerage Fee");
+      await user.type(within(charge).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "4,200");
+      await saveAll(user);
 
       const rowEl = await screen.findByTestId("ipas-charge-row");
       expect(within(rowEl).getByText("Brokerage Fee")).toBeInTheDocument();
-      expect(within(rowEl).getByText(/4,200\.00/)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/Total charges saved/)).toHaveTextContent(/4,200\.00/));
       expect(db.rows("ipas_charges")[0]).toMatchObject({ kind_id: options.charge_kind["Brokerage Fee"].id, amount_php: 4200 });
     });
 
@@ -343,8 +423,9 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       // Section by section: each one is its own drawer.
       const payments = renderDetail(row.id, "purchasing", "edit");
       expect(await screen.findByRole("button", { name: /Add payment/ })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Edit P.I/QT Amount" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("combobox", { name: "Freight service" })).not.toBeInTheDocument();
+      // The amount and the freight service are Purchasing's: present, but not typeable by Finance.
+      expect(screen.getByRole("textbox", { name: /^P\.I\/QT Amount/ })).toBeDisabled();
+      expect(screen.getByRole("combobox", { name: /^Freight service/ })).toBeDisabled();
       payments.unmount();
 
       renderDetail(row.id, "finance", "edit");
@@ -374,9 +455,11 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.getByRole("button", { name: "LC Odoo Done" })).toHaveAttribute("aria-pressed", "true");
 
       await user.click(checked);
+      await saveAll(user);
       await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("checked"));
       // And back one step.
       await user.click(await screen.findByRole("button", { name: "LC Odoo Done" }));
+      await saveAll(user);
       await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("lc_odoo_done"));
     });
 
@@ -491,6 +574,9 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.queryByText("Final")).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: "LC Odoo Done" }));
+      // Landed Cost is worked out from what is stored, so it stays provisional until Save all.
+      expect(screen.queryByText("Final")).not.toBeInTheDocument();
+      await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("lc_odoo_done"));
       expect((await screen.findAllByText("Final")).length).toBeGreaterThan(0);
@@ -533,6 +619,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await screen.findAllByTestId("ipas-landed-line");
       await user.click(screen.getByRole("combobox", { name: "Spread charges" }));
       await user.click(await screen.findByRole("option", { name: "By quantity" }));
+      await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas")[0].landed_cost_split).toBe("quantity"));
       // 1,000 over 2 and 8 units: 200 and 800.
