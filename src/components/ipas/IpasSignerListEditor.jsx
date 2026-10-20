@@ -114,7 +114,7 @@ export default function IpasSignerListEditor() {
                 <span className="font-medium text-foreground">{entry.actorName ?? "Someone"}</span>{" "}
                 {entry.action === "added" ? "added" : "removed"}{" "}
                 <span className="font-medium text-foreground">{entry.employeeName ?? "someone"}</span>{" "}
-                {entry.action === "added" ? "to" : "from"} {IPAS_SIGNER_LIST_LABELS[entry.listKey] ?? entry.listKey} ·{" "}
+                {entry.action === "added" ? "to" : "from"} {ALL_LIST_LABELS[entry.listKey] ?? entry.listKey} ·{" "}
                 {formatDate(entry.at)}
               </li>
             ))}

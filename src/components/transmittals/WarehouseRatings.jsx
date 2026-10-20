@@ -122,6 +122,7 @@ export function WarehouseRatings({ transmittal, canRate, onSaved, technical = fa
                   <TableCell>
                     {row.rating === TRANSMITTAL_RATING.NA ? (
                       <Input
+                        className="min-w-64"
                         value={row.remark}
                         disabled={!canRate || busy}
                         aria-label={`Remark for line ${line.position}`}
