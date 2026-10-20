@@ -12,6 +12,7 @@ import {
 } from "@/constants/transmittals";
 import { STATE as GATE_STATE, STATE_WORD } from "@/components/record/statePalette";
 import { formatDate } from "@/utils/formatDate.js";
+import { formatPreparedAt } from "@/utils/preparedAt";
 import { stageRowOf, stagesOf, transmittalStateLabel } from "@/utils/transmittals";
 
 export const STAGE_TITLE = {
@@ -311,7 +312,7 @@ export function summariesOf(t, gates) {
     [SECTION.DETAILS]: [
       t.entity,
       `${t.priority[0].toUpperCase()}${t.priority.slice(1)} priority`,
-      `prepared ${formatDate(t.preparedOn)}${t.preparedBy?.name ? ` by ${t.preparedBy.name}` : ""}`,
+      `prepared ${formatPreparedAt(t.preparedOn)}${t.preparedBy?.name ? ` by ${t.preparedBy.name}` : ""}`,
     ]
       .filter(Boolean)
       .join(" · "),

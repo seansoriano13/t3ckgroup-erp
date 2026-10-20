@@ -161,7 +161,7 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
     const number = `TG03-${nextNumber++}`
     const transmittal = insertRow("transmittals", {
       number,
-      prepared_on: new Date().toISOString().slice(0, 10),
+      prepared_on: new Date().toISOString(),
       origin: p_fields.origin,
       origin_other: p_fields.origin === "other" ? p_fields.origin_other : null,
       check_warehouse: !!p_fields.check_warehouse,
