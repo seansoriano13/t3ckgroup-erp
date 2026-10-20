@@ -359,6 +359,9 @@ describe("IPAS sign-offs", () => {
       expect(await within(one).findByText("Boss Lito")).toBeInTheDocument();
       expect(within(one).getByText("Co Approver")).toBeInTheDocument();
       expect(within(screen.getByTestId("ipas-signer-list-s7_noted")).getByText("Nobody yet.")).toBeInTheDocument();
+      expect(within(one).getByText("Section 1 · Approved")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ipas-signer-list-s3_approved")).getByText("Section 2 · Approved")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ipas-signer-list-s7_noted")).getByText("Section 4 · Noted")).toBeInTheDocument();
 
       await user.click(within(one).getByRole("button", { name: "Remove Co Approver" }));
 
@@ -455,7 +458,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 3` }));
+      await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 2` }));
       const dialog = await screen.findByRole("dialog");
       await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "Wrong supplier");
       await user.click(within(dialog).getByRole("button", { name: "Return" }));

@@ -389,6 +389,13 @@ describe("ipasService: section 7 and Filing", () => {
       expect(bothApproved.notified).toBe(1)
       expect(sent(IPAS_NOTIFICATION.SECTION_7_READY).map((n) => n.recipient_id)).toEqual([receiver.id])
       expect(sent(IPAS_NOTIFICATION.SECTION_7_READY)[0]).toMatchObject({ reference_id: ipas.id, sender_id: approver.id })
+      // The notice names the sections the screen shows (#552): 1 and 2 approved, 4 ready.
+      expect(sent(IPAS_NOTIFICATION.SECTION_7_READY)[0]).toMatchObject({
+        title: "IPAS ready to receive",
+        message: expect.stringContaining("sections 1 and 2 are approved. Section 4 is ready for Received."),
+      })
+      expect(sent("IPAS_SIGNOFF_READY").map((n) => n.message).join(" ")).toMatch(/section 2 \(Purchasing & Finance\)/)
+      expect(sent("IPAS_SIGNOFF_READY").map((n) => n.message).join(" ")).not.toMatch(/section 3/)
 
       // Received: the Noted and Checked lists.
       as(receiver)
