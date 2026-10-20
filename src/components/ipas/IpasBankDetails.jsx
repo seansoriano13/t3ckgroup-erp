@@ -42,7 +42,7 @@ export function IpasBankDetails({ ipas, canChange: granted = false, onEdit }) {
             <p className="font-semibold">Account # changed</p>
             <p className="mt-0.5 text-xs opacity-90">
               It differs from this supplier&apos;s last IPAS. Confirm it with the supplier before anyone approves or
-              pays. Any approvals given on sections {ipasSectionLabel(1)} and {ipasSectionLabel(3)} were cleared.
+              pays. Any approval given on section {ipasSectionLabel(3)} was cleared.
             </p>
           </div>
         </div>

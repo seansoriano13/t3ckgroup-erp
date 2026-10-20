@@ -624,7 +624,7 @@ describe("what undoes an approval, for real", () => {
         expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/prepared"])
     })
 
-    it("a different Account # for the same supplier flags it and clears both approvals with 'Account # flagged'", async () => {
+    it("a different Account # for the same supplier flags it and clears only the section 2 (stored 3) approval with 'Account # flagged'", async () => {
         const supplier = nextSupplier()
         const typeBank = async (ipasId, accountNumber) => {
             const { data, error } = await rpc("outsider", "ipas_set_bank_details", {
@@ -643,9 +643,9 @@ describe("what undoes an approval, for real", () => {
         }
         const out = await typeBank(second.id, "9999")
 
-        expect(out).toMatchObject({ flagged: true, account_changed: true, approvals_cleared: [1, 3] })
+        expect(out).toMatchObject({ flagged: true, account_changed: true, approvals_cleared: [3] })
         expect(out.preparer_ids).toEqual([ids.outsider])
-        expect(await liveKeys(second.id)).toEqual(["1/prepared", "3/prepared"])
+        expect(await liveKeys(second.id)).toEqual(["1/approved", "1/prepared", "3/prepared"])
         const cleared = (await signoffRows(second.id)).filter((r) => r.cleared_at)
         expect(cleared.every((r) => r.cleared_reason === "Account # flagged")).toBe(true)
     })

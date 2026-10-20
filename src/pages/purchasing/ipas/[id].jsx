@@ -637,7 +637,7 @@ function IpasPage({ onClose }) {
           await once("bank", async () => {
             const result = await ipasService.setBankDetails(id, plan.bank);
             if (result.flagged && result.accountChanged) {
-              toast.error("Account # differs from this supplier's last IPAS. It is flagged and its approvals were cleared.", {
+              toast.error("Account # differs from this supplier's last IPAS. It is flagged and its section 2 approval was cleared.", {
                 duration: 8000,
               });
             }

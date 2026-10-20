@@ -560,16 +560,16 @@ export function BankFields({ ipas, form, set, canChange }) {
             <div>
               <p className="font-semibold">Account # changed</p>
               <p className="mt-0.5 text-xs opacity-90">
-                It differs from this supplier&apos;s last IPAS. Confirm it with the supplier before anyone approves or pays. Any approvals given on sections{" "}
-                {ipasSectionLabel(1)} and {ipasSectionLabel(3)} were cleared.
+                It differs from this supplier&apos;s last IPAS. Confirm it with the supplier before anyone approves or pays. Any approval given on section{" "}
+                {ipasSectionLabel(3)} was cleared.
               </p>
             </div>
           </div>
         )}
         {canChange && (
           <p className="text-xs text-muted-foreground">
-            A changed Account # is how payment fraud usually gets in. If it differs from this supplier&apos;s last IPAS it is flagged and the approvals given so
-            far are cleared. Spaces and dashes don&apos;t count as a difference.
+            A changed Account # is how payment fraud usually gets in. If it differs from this supplier&apos;s last IPAS it is flagged and the section {ipasSectionLabel(3)} approval
+            given so far is cleared. Spaces and dashes don&apos;t count as a difference.
           </p>
         )}
         <div className="grid gap-4 sm:grid-cols-3">

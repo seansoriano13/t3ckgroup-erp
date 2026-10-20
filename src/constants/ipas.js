@@ -361,8 +361,8 @@ export const IPAS_WARNING = {
 };
 
 /**
- * Notification types: PO_CHANGED and ACCOUNT_FLAGGED when a change clears the
- * section 1 and 3 approvals (#243, #245); SIGNOFF_READY when a section is
+ * Notification types: PO_CHANGED when a change clears the section 1 and 3
+ * approvals (#243), ACCOUNT_FLAGGED when it clears the section 2 approval (#245, #587); SIGNOFF_READY when a section is
  * Prepared and waits for its approval list, SENT_BACK when a signer returns a
  * section to its preparer (#247). SECTION_7_READY goes to the next section 7
  * list as each step is given (#248). All route to the IPAS (notificationRouter).

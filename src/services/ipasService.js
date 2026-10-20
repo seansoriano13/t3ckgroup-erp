@@ -556,8 +556,8 @@ export const ipasService = {
    * access only; Finance can read but not type them). Blank clears a value.
    * The database compares the Account # (spaces and dashes stripped) with the
    * same supplier's most recent other IPAS: a difference flags the account,
-   * clears the live section 1 and 3 approvals and records an event, and the
-   * preparers of those sections are notified here. The notification names the
+   * clears the live section 2 approval (stored section 3) and records an event,
+   * and the preparers of that section are notified here. The notification names the
    * IPAS and the PO, never an account number.
    *
    * Returns { bankDetails, flagged, accountChanged, approvalsCleared }.
@@ -581,7 +581,7 @@ export const ipasService = {
             recipient_id,
             type: IPAS_NOTIFICATION.ACCOUNT_FLAGGED,
             title: "Account # flagged",
-            message: `${label}: the supplier's account number differs from their last IPAS, so its approvals were cleared.`,
+            message: `${label}: the supplier's account number differs from their last IPAS, so its section 2 approval was cleared.`,
             reference_id: id,
           }),
         ),

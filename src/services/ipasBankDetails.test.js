@@ -226,7 +226,7 @@ describe("ipasService: bank details and the changed-account flag", () => {
   })
 
   describe("when the account is flagged", () => {
-    it("clears the live section 1 and 3 approvals and notifies the preparer", async () => {
+    it("clears the live section 2 (stored 3) approval only and notifies its preparer", async () => {
       const preparer = makeEmployee({ name: "Prepared It" })
       const approver = makeEmployee({ name: "Approved It" })
       const first = await raise("P02201")
@@ -245,14 +245,12 @@ describe("ipasService: bank details and the changed-account flag", () => {
       const result = await ipasService.setBankDetails(second.id, details({ accountNumber: "9999 0000" }))
       await waitForNetworkIdle()
 
-      expect(result).toMatchObject({ flagged: true, approvalsCleared: [1, 3] })
-      expect(signoffs().filter((s) => s.cleared_at).map((s) => [s.section, s.role])).toEqual([
-        [1, "approved"],
-        [3, "approved"],
-      ])
+      expect(result).toMatchObject({ flagged: true, approvalsCleared: [3] })
+      expect(signoffs().filter((s) => s.cleared_at).map((s) => [s.section, s.role])).toEqual([[3, "approved"]])
       expect(signoffs().filter((s) => s.cleared_reason).every((s) => s.cleared_reason === "Account # flagged")).toBe(true)
       expect(signoffs().find((s) => s.section === 7).cleared_at).toBeNull()
-      expect(events("approvals_cleared")[0].detail).toMatchObject({ reason: "Account # flagged", sections: [1, 3] })
+      expect(signoffs().find((s) => s.section === 1 && s.role === "approved").cleared_at).toBeFalsy()
+      expect(events("approvals_cleared")[0].detail).toMatchObject({ reason: "Account # flagged", sections: [3] })
 
       const sent = db.rows("notifications").filter((n) => n.type === IPAS_NOTIFICATION.ACCOUNT_FLAGGED)
       expect(sent).toHaveLength(1)

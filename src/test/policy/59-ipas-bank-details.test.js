@@ -513,7 +513,7 @@ describe("when the account is flagged", () => {
             )
         ).rows
 
-    it("clears the live section 1 and 3 approvals with 'Account # flagged', and names who prepared them", async () => {
+    it("clears the live section 2 (stored 3) approval only with 'Account # flagged', and names who prepared it", async () => {
         const supplier = nextSupplier()
         const first = await raise(supplier)
         await typeBank(first.id, "1111")
@@ -527,15 +527,12 @@ describe("when the account is flagged", () => {
         const out = await typeBank(second.id, "9999")
 
         expect(out.flagged).toBe(true)
-        expect(out.approvals_cleared).toEqual([1, 3])
-        expect([...out.preparer_ids].sort()).toEqual([ids.outsider, ids.finance].sort())
+        expect(out.approvals_cleared).toEqual([3])
+        expect(out.preparer_ids).toEqual([ids.finance])
 
         const rows = await signoffs(second.id)
         const cleared = rows.filter((r) => r.cleared_at)
-        expect(cleared.map((r) => [r.section, r.role])).toEqual([
-            [1, "approved"],
-            [3, "approved"],
-        ])
+        expect(cleared.map((r) => [r.section, r.role])).toEqual([[3, "approved"]])
         expect(cleared.every((r) => r.cleared_reason === "Account # flagged")).toBe(true)
         // Prepared stays, and section 7 isn't undone by an account change.
         expect(rows.filter((r) => r.role === "prepared").every((r) => !r.cleared_at)).toBe(true)
@@ -543,7 +540,7 @@ describe("when the account is flagged", () => {
 
         const cleared_ev = await events(second.id, "approvals_cleared")
         expect(cleared_ev).toHaveLength(1)
-        expect(cleared_ev[0].detail).toMatchObject({ reason: "Account # flagged", sections: [1, 3] })
+        expect(cleared_ev[0].detail).toMatchObject({ reason: "Account # flagged", sections: [3] })
     })
 
     it("clears nothing when the account isn't flagged", async () => {
