@@ -15,7 +15,7 @@ Guide §4. Run last, on a fresh SOR, after the area files pass. It joins the pie
   8. sales-exec: move the SOR from Costing to Bid to Award. Each move passes.
   9. purchaser: set both items to Ordered with PO P02396 and pick the lines.
   10. purchaser: raise the IPAS for P02396, Local, Project, this SOR. Add a payment with proof (finance), a charge, bank details, tick documents.
-  11. Sections 1 and 3: purchaser prepares, admin-head approves.
+  11. Sections 1 and 2: purchaser prepares, admin-head approves.
   12. purchaser: raise and submit a Transmittal with both PO lines. plain checks (all GC), technical inspects, plain records Received in Odoo, ops-head and admin-head sign Check by.
   13. purchaser: set both items to Received. Computation status to LC Odoo Done.
   14. ops-head Received, sales-head Noted, approver Checked, approver Approved.
@@ -34,5 +34,5 @@ Guide §4. Run last, on a fresh SOR, after the area files pass. It joins the pie
   1. plain: open a Direct request with one new product.
   2. purchaser: cancel any live IPAS on P02390 (IPAS-04 leaves one). Take the request, move the item To order → Ordered with PO P02390.
   3. purchaser: raise the IPAS for P02390 as Supplies, no SOR.
-  4. Sign sections 1, 3 and 7 as in E2E-01 (Computation status LC Odoo Done first).
+  4. Sign sections 1, 2 and 4 as in E2E-01 (Computation status LC Odoo Done first).
 - **You should see**: the Dashboard shows the request as "Direct request" until Received. The IPAS files with no SOR.

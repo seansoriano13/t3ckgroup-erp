@@ -18,13 +18,13 @@ Guide §10. Lists: Warehouse = plain, Technical = technical, Logistics = logisti
   2. Submit with no lines.
   3. Add a PO line from IPAS-A and a typed line "STORY TRN-02 extra cable".
   4. Submit.
-- **You should see**: step 2 refused. After step 4 the number looks like `TG03-` plus a number and the state is warehouse checking. The draft never showed on the SOR; the submitted slip now shows on S990001 without remarks or files.
+- **You should see**: step 2 refused. The number (`TG03-` plus a number) was already given when the draft was created, and does not change on submit. After step 4 the state is warehouse checking. The draft never showed on the SOR; the submitted slip now shows on S990001 without remarks or files. Prepared shows the real time, in Manila time (a slip made at 5 PM does not read 08:00 AM).
 
 ### TRN-03 · Different company warning
 - **Guide**: §10 Raising and submitting
 - **Log in as**: purchaser
 - **Steps**:
-  1. On a draft with an IPAS-A line, pick the same company name with different case and double spaces.
+  1. On a draft with an IPAS-A line, pick the Company that matches the IPAS entity. (The Company is a fixed list, so there is no odd-case or extra-spaces case to try.)
   2. Pick a different company.
 - **You should see**: no warning in step 1. A warning in step 2, but it does not block.
 
@@ -38,7 +38,7 @@ Guide §10. Lists: Warehouse = plain, Technical = technical, Logistics = logisti
   3. Try to sign with no picture and no "no pictures" reason → refused.
   4. Add a picture. Sign as first signatory. Pick plain as the second as well.
   5. As purchaser, check notifications. As ops-head, check notifications.
-- **You should see**: the stage closes after both slots are confirmed. Both purchaser (preparer) and the Check by list are told about the NA line.
+- **You should see**: the stage moves on as soon as it is signed. The co-signer's slot only waits for their confirmation (it is not needed for the slip to move on) and the stored signature prints once confirmed. Both purchaser (preparer) and the Check by list are told about the NA line.
 
 ### TRN-05 · Co-signer declines
 - **Guide**: §10 Signing rules
@@ -57,6 +57,22 @@ Guide §10. Lists: Warehouse = plain, Technical = technical, Logistics = logisti
   1. Rate the Technical lines. Record a quantity on a Technical-only slip (raise one if needed).
   2. Sign both slots.
 - **You should see**: the quantity saves. The slip moves on to awaiting Check by.
+
+### TRN-06b · Warehouse releasing: optional alone, required before Technical
+- **Guide**: §10 Stages
+- **Log in as**: purchaser, plain, technical
+- **Steps**:
+  1. As purchaser, raise and submit a slip with a typed line, checks **Warehouse only**.
+  2. As plain, sign Warehouse checking. Look at the slip's stages and at Check by.
+  3. As purchaser, raise and submit a second slip with checks **Warehouse and Technical**.
+  4. As plain, sign Warehouse checking. Then, as technical, try to sign Technical inspection.
+  5. As plain, sign Warehouse releasing as Released by. Name a Technical list member as the other signatory.
+  6. As technical, sign Technical inspection.
+- **You should see**:
+  - Step 2: on the Warehouse-only slip, Warehouse releasing is marked Optional. The slip goes straight to awaiting Check by, and releasing never blocks Check by.
+  - Step 4: on the Warehouse and Technical slip, releasing is required. After Warehouse checking the slip waits on release, and Technical inspection cannot be signed yet (refused: it is not open).
+  - Step 5: the other signatory must be on the Technical list.
+  - Step 6 now works, and the slip moves to awaiting Check by.
 
 ### TRN-07 · Received in Odoo is needed before Check by on a PO slip
 - **Guide**: §10 Stages

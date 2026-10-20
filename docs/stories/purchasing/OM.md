@@ -28,7 +28,7 @@ Guide §12. It shows every open IPAS with its one next thing, owner and wait. Ag
   | A line rated NA, not cleared (TRN-04) | resolve with supplier | Purchasing |
   | Slip still at checking | checking | Warehouse, then Technical |
   | Slip awaiting Check by | Check by | Check by signers |
-  | Status LC Odoo Done, not filed | ready to file | section 7 signers |
+  | Status LC Odoo Done, not filed | ready to file | section 4 signers |
   | Delivered typed, no Transmittal | raise a Transmittal | Purchasing |
   | Same, but a draft Transmittal exists | (not the Transmittal step) | |
   | Import IPAS-B, Import Clearance blank | Import Clearance | Others |
