@@ -3,14 +3,7 @@ import { TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Textarea } from "@/components/ui/textarea";
 import InlineError from "@/components/record/InlineError";
@@ -36,11 +29,7 @@ import { ipasErrorMessage } from "@/utils/ipas";
  * Mounted only while open, so it always starts empty.
  */
 export default function ReturnDialog({ open, onOpenChange, ...body }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body {...body} onClose={() => onOpenChange(false)} />}
-    </Dialog>
-  );
+  return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
 const verbOf = (target) => (target.mode === "undo" ? "Undo approval" : "Return");
@@ -78,15 +67,19 @@ function Body({ targets, initial = null, onSubmit, onClose }) {
   };
 
   return (
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader className="shrink-0 pr-10">
-        <DialogTitle>
-          {single ? titleOf(target) : "Return or undo an approval"}
-        </DialogTitle>
-        <DialogDescription>
-          {single ? target.effect : "Pick the section, then say why. The history keeps what was cleared."}
-        </DialogDescription>
-      </DialogHeader>
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && onClose()}
+      crumbs={["IPAS", single ? titleOf(target) : "Return or undo an approval"]}
+      actions={
+        <Button size="lg" variant="destructive" disabled={!ready || saving} onClick={submit}>
+          {saving ? "Working…" : verbOf(target)}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        {single ? target.effect : "Pick the section, then say why. The history keeps what was cleared."}
+      </p>
 
       {!single && (
         <div role="radiogroup" aria-label="Section" className="flex flex-col gap-2">
@@ -154,15 +147,6 @@ function Body({ targets, initial = null, onSubmit, onClose }) {
       </FieldBox>
 
       {failure && <InlineError message={failure} busy={saving} onRetry={submit} onDismiss={() => setFailure(null)} />}
-
-      <DialogFooter>
-        <Button variant="outline" size="lg" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button size="lg" variant="destructive" disabled={!ready || saving} onClick={submit}>
-          {saving ? "Working…" : verbOf(target)}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+    </ModalShell>
   );
 }

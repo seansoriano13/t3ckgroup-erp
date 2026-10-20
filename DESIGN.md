@@ -269,6 +269,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### DetailParts
 `ui/DetailParts.jsx`. Record detail parts for slide-over bodies: `DetailSection` (`title`, `aside`), `DetailRow` (`label`), `NotePresets` (`presets`, `onPick`), `ApprovalChain` (`chain` of `{ label, who, note, at, state }`), `PersonChip` (`person`, `size`, `detail`).
 
+#### ModalShell
+`ui/ModalShell.jsx`, on Dialog. The one modal for every Purchasing tab (Canvass, IPAS, Transmittal, Packing List, and Purchase Requests): the LogTask layout as a shared shell. Header with a neutral "P" badge and a breadcrumb (`crumbs`: tab, then the action or record reference), `headerActions` (secondary actions such as Print, Edit, More), optional Expand and Close. A scrolling body. A gray footer with "Esc to cancel", Cancel (`cancelLabel`, `null` hides it) and the step's `actions`. Props: `open`, `onOpenChange`, `size` (`compact` 680px for a form or confirm step, `wide` 1100px for a record), `expandable` (Expand grows the panel to the full window in width and height, 16px inset; the choice lasts for the session), `onSubmit` (wraps body and footer in a form), `footerStart`, `className`, `bodyClassName`. Layers: a `wide` record sits at z-70, its section drawer at z-75, a `compact` dialog at z-80. The record modals (IPAS, Transmittal, Packing List) are route-driven: `/purchasing/<tab>/:id` renders the list with the record open on top, and Close returns to the list. No "Create more".
+
 #### RecordModal
 `ui/record-modal.jsx`, on Dialog. The one-size modal for the records that carry a Chat (SOR, Individual Task, Group Task; DESIGN.md "Pages → Container rule"). `RecordModalContent` replaces `DialogContent` (`className`, plus DialogContent props); `RECORD_MODAL_CLASS` is its size. No size switcher.
 

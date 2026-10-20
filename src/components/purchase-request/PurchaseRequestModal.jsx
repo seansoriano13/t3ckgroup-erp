@@ -1,8 +1,4 @@
-import { ChevronRight, PackageSearch, X } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { RecordModalContent } from "@/components/ui/record-modal";
+import ModalShell from "@/components/ui/ModalShell";
 import StatusBadge from "@/components/StatusBadge";
 import OpenSorButton from "./OpenSorButton";
 import PurchaseRequestView from "./PurchaseRequestView";
@@ -16,7 +12,6 @@ import {
   sorClosedLabel,
 } from "@/constants/purchaseRequest";
 import { isRequestClosed } from "@/services/purchaseRequestService";
-import { cn } from "@/lib/utils";
 
 function RequestStateBadge({ row }) {
   if (!row) return null;
@@ -28,7 +23,7 @@ function RequestStateBadge({ row }) {
 
 /**
  * Issue #309 — a Purchase Request opened from anywhere but the queue (an SOR,
- * a notification, or expanding the slide-over) as a RecordModal, the way tasks open.
+ * a notification, or expanding the slide-over) as a ModalShell (the purchasing modal).
  * Redesigned with a dedicated two-column split layout: Left details & items pane,
  * Right full-height collaborative Chat thread.
  *
@@ -48,53 +43,26 @@ export default function PurchaseRequestModal({ requestId, onClose }) {
     : [request?.sales_reference, sorState, countSummary].filter(Boolean).join(" · ");
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <RecordModalContent
-        showCloseButton={false}
-        className={cn(REQUEST_MODAL_LAYER, "flex flex-col bg-card")}
-      >
-        <div className="flex shrink-0 items-start gap-3 border-b border-border bg-muted/20 px-6 py-4">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-foreground">
-            <PackageSearch size={18} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <span className="font-medium text-muted-foreground">Purchase Requests</span>
-              {reference && (
-                <>
-                  <ChevronRight size={11} className="text-muted-foreground/60" />
-                  <span className="font-mono">{reference}</span>
-                </>
-              )}
-            </p>
-            <div className="mt-0.5 flex flex-wrap items-center gap-2">
-              <DialogTitle className="line-clamp-2 text-base font-bold text-foreground sm:text-lg">
-                {title}
-              </DialogTitle>
-              <RequestStateBadge row={request} />
-            </div>
-            {subtitle && (
-              <DialogDescription className="mt-0.5 text-xs text-muted-foreground">
-                {subtitle}
-              </DialogDescription>
-            )}
-          </div>
-          <OpenSorButton request={request} onBeforeOpen={onClose} />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X size={16} />
-          </Button>
-        </div>
+    <ModalShell
+      open
+      onOpenChange={(open) => !open && onClose()}
+      size="wide"
+      expandable
+      className={REQUEST_MODAL_LAYER}
+      bodyClassName="gap-0 overflow-hidden p-0"
+      cancelLabel="Close"
+      crumbs={["Purchase Requests", reference].filter(Boolean)}
+      headerActions={<OpenSorButton request={request} onBeforeOpen={onClose} />}
+    >
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-5 py-3">
+        <h2 className="line-clamp-2 text-base font-bold text-foreground">{title}</h2>
+        <RequestStateBadge row={request} />
+        {subtitle && <p className="w-full text-xs text-muted-foreground">{subtitle}</p>}
+      </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <PurchaseRequestView requestId={requestId} layout="split" className="min-h-0 flex-1" />
-        </div>
-      </RecordModalContent>
-    </Dialog>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <PurchaseRequestView requestId={requestId} layout="split" className="min-h-0 flex-1" />
+      </div>
+    </ModalShell>
   );
 }

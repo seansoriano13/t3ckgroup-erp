@@ -4,14 +4,7 @@ import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import Spinner from "@/components/ui/Spinner";
@@ -78,40 +71,32 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
   const busy = orderMutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-md`}>
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Mark as Ordered</DialogTitle>
-          <DialogDescription>{item.name}. Add the Odoo PO number if you have it; it&apos;s checked against Odoo.</DialogDescription>
-        </DialogHeader>
-
-        <form
-          id={`order-item-${item.id}`}
-          className="space-y-1.5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!invalid && !busy) orderMutation.mutate();
-          }}
-        >
-          <FieldBox label="PO number (optional)" bare>
-            <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
-          </FieldBox>
-          <p className={`pl-1 text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
-            {invalid ? PO_NUMBER_HINT : "Without one, the item is Ordered with no PO."}
-          </p>
-        </form>
-
-        <DialogFooter>
-          <Button variant="outline" size="lg" onClick={close}>
-            Cancel
-          </Button>
-          <Button size="lg" type="submit" form={`order-item-${item.id}`} disabled={invalid || busy}>
-            {busy && <Spinner size="sm" />}
-            {po ? "Check PO and mark Ordered" : "Mark Ordered"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ModalShell
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      className={OVER_REQUEST_MODAL}
+      crumbs={["Purchase Requests", "Mark as Ordered"]}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!invalid && !busy) orderMutation.mutate();
+      }}
+      actions={
+        <Button size="lg" type="submit" disabled={invalid || busy}>
+          {busy && <Spinner size="sm" />}
+          {po ? "Check PO and mark Ordered" : "Mark Ordered"}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">{item.name}. Add the Odoo PO number if you have it; it&apos;s checked against Odoo.</p>
+      <div className="space-y-1.5">
+        <FieldBox label="PO number (optional)" bare>
+          <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
+        </FieldBox>
+        <p className={`pl-1 text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
+          {invalid ? PO_NUMBER_HINT : "Without one, the item is Ordered with no PO."}
+        </p>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -145,42 +130,34 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
   const busy = correctMutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-md`}>
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Correct PO</DialogTitle>
-          <DialogDescription>
-            {item.name}{item.po_number ? `, now on PO ${item.po_number}` : ", with no PO yet"}. The new number is checked against Odoo, and any PO line picked on the old PO is cleared.
-          </DialogDescription>
-        </DialogHeader>
-
-        <form
-          id={`correct-po-${item.id}`}
-          className="space-y-1.5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!invalid && !busy) correctMutation.mutate();
-          }}
-        >
-          <FieldBox label="New PO number" bare>
-            <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
-          </FieldBox>
-          <p className={`pl-1 text-xs ${poNumber && invalid ? "text-destructive" : "text-muted-foreground"}`}>
-            {PO_NUMBER_HINT}
-          </p>
-        </form>
-
-        <DialogFooter>
-          <Button variant="outline" size="lg" onClick={close}>
-            Cancel
-          </Button>
-          <Button size="lg" type="submit" form={`correct-po-${item.id}`} disabled={invalid || busy}>
-            {busy && <Spinner size="sm" />}
-            Check PO and correct
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ModalShell
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      className={OVER_REQUEST_MODAL}
+      crumbs={["Purchase Requests", "Correct PO"]}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!invalid && !busy) correctMutation.mutate();
+      }}
+      actions={
+        <Button size="lg" type="submit" disabled={invalid || busy}>
+          {busy && <Spinner size="sm" />}
+          Check PO and correct
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        {item.name}{item.po_number ? `, now on PO ${item.po_number}` : ", with no PO yet"}. The new number is checked against Odoo, and any PO line picked on the old PO is cleared.
+      </p>
+      <div className="space-y-1.5">
+        <FieldBox label="New PO number" bare>
+          <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
+        </FieldBox>
+        <p className={`pl-1 text-xs ${poNumber && invalid ? "text-destructive" : "text-muted-foreground"}`}>
+          {PO_NUMBER_HINT}
+        </p>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -214,16 +191,26 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
   const pickedIds = lineIds.filter((id) => picked.has(id));
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-md`}>
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Pick the PO line</DialogTitle>
-          <DialogDescription>
-            {item.name}, on PO {item.po_number}. The lines are from the PO&apos;s IPAS copy of Odoo.
-          </DialogDescription>
-        </DialogHeader>
-
-        <ul className="max-h-[50vh] divide-y divide-border overflow-y-auto">
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      className={OVER_REQUEST_MODAL}
+      crumbs={["Purchase Requests", "Pick the PO line"]}
+      actions={
+        <Button
+          size="lg"
+          disabled={pickedIds.length === 0 || pickMutation.isPending}
+          onClick={() => pickMutation.mutate(pickedIds)}
+        >
+          {pickMutation.isPending && <Spinner size="sm" />}
+          {pickedIds.length > 1 ? `Pick ${pickedIds.length} lines` : "Pick line"}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        {item.name}, on PO {item.po_number}. The lines are from the PO&apos;s IPAS copy of Odoo.
+      </p>
+      <ul className="divide-y divide-border">
           {lineIds.map((id) => (
             <li key={id} className="py-2.5">
               <FieldBox inline className="gap-3">
@@ -232,22 +219,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
               </FieldBox>
             </li>
           ))}
-        </ul>
-
-        <DialogFooter>
-          <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            size="lg"
-            disabled={pickedIds.length === 0 || pickMutation.isPending}
-            onClick={() => pickMutation.mutate(pickedIds)}
-          >
-            {pickMutation.isPending && <Spinner size="sm" />}
-            {pickedIds.length > 1 ? `Pick ${pickedIds.length} lines` : "Pick line"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </ul>
+    </ModalShell>
   );
 }

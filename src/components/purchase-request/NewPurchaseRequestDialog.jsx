@@ -4,14 +4,7 @@ import toast from "react-hot-toast";
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,16 +63,22 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
   const busy = openMutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>New Purchase Request</DialogTitle>
-          <DialogDescription>
-            For something to buy outside a project. Purchasing picks it up; you follow it here.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="-mx-1 max-h-[60vh] space-y-4 overflow-y-auto px-1">
+    <ModalShell
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      crumbs={["Purchase Requests", "New Purchase Request"]}
+      expandable
+      actions={
+        <Button size="lg" disabled={!valid || busy} onClick={() => openMutation.mutate()}>
+          {busy && <Spinner size="sm" />}
+          Send to Purchasing
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        For something to buy outside a project. Purchasing picks it up; you follow it here.
+      </p>
+      <div className="space-y-4">
           <Input label="What is it for?"
             value={title}
             maxLength={TITLE_MAX}
@@ -132,18 +131,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
             <Plus size={14} />
             Add another item
           </Button>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" size="lg" onClick={close}>
-            Cancel
-          </Button>
-          <Button size="lg" disabled={!valid || busy} onClick={() => openMutation.mutate()}>
-            {busy && <Spinner size="sm" />}
-            Send to Purchasing
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ModalShell>
   );
 }

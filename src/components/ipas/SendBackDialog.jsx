@@ -1,14 +1,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Textarea } from "@/components/ui/textarea";
 import InlineError from "@/components/record/InlineError";
@@ -26,11 +19,7 @@ import { ipasErrorMessage } from "@/utils/ipas";
  * with Retry (the same reason, submitted again) and Dismiss, alongside the toast.
  */
 export default function SendBackDialog({ open, onOpenChange, ...body }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body {...body} onClose={() => onOpenChange(false)} />}
-    </Dialog>
-  );
+  return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
 function Body({
@@ -63,12 +52,17 @@ function Body({
   };
 
   return (
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader className="shrink-0 pr-10">
-        <DialogTitle>{title}</DialogTitle>
-        {description && <DialogDescription>{description}</DialogDescription>}
-      </DialogHeader>
-
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && onClose()}
+      crumbs={["IPAS", title]}
+      actions={
+        <Button size="lg" variant="destructive" disabled={trimmed === "" || saving} onClick={submit}>
+          {saving ? busyLabel : submitLabel}
+        </Button>
+      }
+    >
+      {description && <p className="text-sm text-muted-foreground">{description}</p>}
       <FieldBox label="Reason" bare>
         <Textarea
           value={reason}
@@ -83,15 +77,6 @@ function Body({
       {failure && (
         <InlineError message={failure} busy={saving} onRetry={submit} onDismiss={() => setFailure(null)} />
       )}
-
-      <DialogFooter>
-        <Button variant="outline" size="lg" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button size="lg" variant="destructive" disabled={trimmed === "" || saving} onClick={submit}>
-          {saving ? busyLabel : submitLabel}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+    </ModalShell>
   );
 }

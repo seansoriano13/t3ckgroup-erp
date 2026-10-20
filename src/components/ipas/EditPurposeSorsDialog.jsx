@@ -3,14 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
 import { ipasService } from "../../services/ipasService";
@@ -31,11 +24,7 @@ const PURPOSE_OPTIONS = IPAS_PURPOSES.filter((value) => value !== IPAS_PURPOSE.P
  * Mounted only while open, so its fields start from the IPAS as it stands.
  */
 export default function EditPurposeSorsDialog({ ipas, open, onOpenChange }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <EditBody ipas={ipas} onClose={() => onOpenChange(false)} />}
-    </Dialog>
-  );
+  return open ? <EditBody ipas={ipas} onClose={() => onOpenChange(false)} /> : null;
 }
 
 function EditBody({ ipas, onClose }) {
@@ -56,28 +45,24 @@ function EditBody({ ipas, onClose }) {
   const ready = purpose !== "" && purpose !== ipas.purpose;
 
   return (
-    <DialogContent className="sm:max-w-lg">
-      <DialogHeader className="shrink-0 pr-10">
-        <DialogTitle>Purpose</DialogTitle>
-        <DialogDescription>
-          {ipas.number} can change its Purpose until it is filed. Its SORs are fixed when it is raised.
-        </DialogDescription>
-      </DialogHeader>
-
-      <div className="-mx-1 max-h-[60vh] space-y-4 overflow-y-auto px-1">
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && onClose()}
+      crumbs={["IPAS", ipas.number, "Purpose"]}
+      actions={
+        <Button size="lg" disabled={!ready || save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? "Saving…" : "Save"}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        {ipas.number} can change its Purpose until it is filed. Its SORs are fixed when it is raised.
+      </p>
+      <div className="space-y-4">
         <FieldBox label="Purpose" bare>
           <SelectField options={PURPOSE_OPTIONS} value={purpose} onChange={setPurpose} placeholder="Pick" />
         </FieldBox>
       </div>
-
-      <DialogFooter>
-        <Button variant="outline" size="lg" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button size="lg" disabled={!ready || save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? "Saving…" : "Save"}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+    </ModalShell>
   );
 }

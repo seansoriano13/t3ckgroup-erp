@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { Input } from "@/components/ui/input";
 import PageLoading from "@/components/ui/PageLoading";
 import QueryError from "@/components/ui/QueryError";
@@ -26,12 +26,13 @@ export default function PoLinePicker({ open, onOpenChange, onPick }) {
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Add a PO line</DialogTitle>
-          <DialogDescription>Lines from the IPAS purchase orders. Search by PO number or item name.</DialogDescription>
-        </DialogHeader>
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      crumbs={["Transmittal", "Add a PO line"]}
+      cancelLabel="Close"
+    >
+      <p className="text-sm text-muted-foreground">Lines from the IPAS purchase orders. Search by PO number or item name.</p>
 
         <form
           className="flex items-end gap-2"
@@ -47,7 +48,7 @@ export default function PoLinePicker({ open, onOpenChange, onPick }) {
           </Button>
         </form>
 
-        <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+        <div className="space-y-2">
           {isLoading && <PageLoading label="PO lines" />}
           {isError && <QueryError title="PO lines could not be loaded." onRetry={refetch} />}
           {!isLoading && !isError && picks.length === 0 && (
@@ -80,8 +81,7 @@ export default function PoLinePicker({ open, onOpenChange, onPick }) {
               </Button>
             </div>
           ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ModalShell>
   );
 }

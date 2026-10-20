@@ -18,7 +18,7 @@ import { ExternalLink } from "@/components/ui/external-link";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import ModalShell from "./ui/ModalShell";
 import CanvassSignoffDialog from "./CanvassSignoffDialog";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
@@ -801,16 +801,34 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShoppingCart size={16} />
-            Canvass{canvass?.number ? ` ${canvass.number}` : ""}{title ? ` — ${title}` : ""}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      size="wide"
+      expandable
+      cancelLabel="Close"
+      crumbs={["Canvass", canvass?.number].filter(Boolean)}
+      headerActions={
+        canvass && canPrintCanvass(canvass) ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={printing}
+            onClick={handlePrint}
+            className="h-auto gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Printer size={14} aria-hidden="true" />
+            Print
+          </Button>
+        ) : null
+      }
+    >
+      <p className="flex items-center gap-2 text-base font-medium">
+        <ShoppingCart size={16} />
+        Canvass{canvass?.number ? ` ${canvass.number}` : ""}{title ? ` — ${title}` : ""}
+      </p>
+        <div className="space-y-3">
           {isLoading && <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>}
 
           {!isLoading && !canvass && !canEdit && (
@@ -1030,30 +1048,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
-          {canvass && canPrintCanvass(canvass) && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={printing}
-              onClick={handlePrint}
-              className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-semibold"
-            >
-              <Printer size={14} aria-hidden="true" />
-              Print
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
-          >
-            Close
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
 
       {isSigning && canvass && (
         <CanvassSignoffDialog

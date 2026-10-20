@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { Eye, FileLock2, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import Spinner from "@/components/ui/Spinner";
 import { buildIpasDocument } from "@/lib/pdf/ipasDocument";
 import { hydrateIpasSignatures } from "@/lib/pdf/ipasPrinter";
@@ -77,41 +77,43 @@ export function PrintPreviewButton({ ctx }) {
         Preview
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[60rem]">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border py-4 pr-14 pl-5">
-            <div className="min-w-0 flex-1">
-              <DialogTitle className="text-base font-bold">Print preview</DialogTitle>
-              <DialogDescription className="mt-1 text-xs">
-                <span className="font-mono">{ipas.number}</span> exactly as it prints: two A4 pages.
-              </DialogDescription>
-            </div>
-            {can.printFiling && (
-              <Button
-                size="sm"
-                variant={filingCopy ? "secondary" : "outline"}
-                aria-pressed={filingCopy}
-                className="gap-1.5"
-                onClick={() => setFilingCopy(!filingCopy)}
-              >
-                <FileLock2 size={14} />
-                Filing copy
-              </Button>
-            )}
-          </div>
-
-          <div className="min-h-0 flex-1 bg-mauve-4">
-            {open && <PreviewFrame key={String(filingCopy)} ctx={ctx} filingCopy={filingCopy} frame={frame} />}
-          </div>
-
-          <div className="flex items-center justify-end gap-2 border-t border-border bg-muted/50 px-5 py-3">
-            <Button className="gap-1.5" onClick={() => frame.current?.contentWindow?.print()}>
-              <Printer size={16} />
-              Print this
+      <ModalShell
+        open={open}
+        onOpenChange={setOpen}
+        size="wide"
+        expandable
+        className="h-[90vh]"
+        bodyClassName="gap-0 p-0"
+        crumbs={["IPAS", ipas.number, "Print preview"]}
+        headerActions={
+          can.printFiling && (
+            <Button
+              size="sm"
+              variant={filingCopy ? "secondary" : "ghost"}
+              aria-pressed={filingCopy}
+              className="h-auto gap-1.5 px-2 py-1.5 text-xs"
+              onClick={() => setFilingCopy(!filingCopy)}
+            >
+              <FileLock2 size={14} />
+              Filing copy
             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          )
+        }
+        cancelLabel="Close"
+        actions={
+          <Button size="lg" className="gap-1.5" onClick={() => frame.current?.contentWindow?.print()}>
+            <Printer size={16} />
+            Print this
+          </Button>
+        }
+      >
+        <p className="border-b border-border px-5 py-2 text-xs text-muted-foreground">
+          <span className="font-mono">{ipas.number}</span> exactly as it prints: two A4 pages.
+        </p>
+        <div className="min-h-0 flex-1 bg-mauve-4">
+          {open && <PreviewFrame key={String(filingCopy)} ctx={ctx} filingCopy={filingCopy} frame={frame} />}
+        </div>
+      </ModalShell>
     </>
   );
 }

@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { AlertTriangle, BadgeCheck } from "lucide-react";
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
+import ModalShell from "./ui/ModalShell";
 import { Button } from "./ui/button";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import { canvassService } from "../services/canvassService";
@@ -31,19 +31,29 @@ export default function CanvassSignoffDialog({ open, onOpenChange, summary, onSi
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <BadgeCheck size={16} aria-hidden="true" />
-            Sign off Canvass {summary?.number}
-          </DialogTitle>
-          <DialogDescription>
-            {summary?.subjectLabel ? `${summary.subjectLabel}. ` : ""}Your signature says you approve the supplier and product chosen below.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3 text-sm">
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      crumbs={["Canvass", summary?.number, "Sign off"].filter(Boolean)}
+      actions={
+        <Button
+          type="button"
+          size="lg"
+          disabled={!reason || signMutation.isPending}
+          onClick={() => signMutation.mutate()}
+        >
+          {signMutation.isPending ? "Signing…" : warning ? "Sign off anyway" : "Sign off"}
+        </Button>
+      }
+    >
+      <p className="flex items-center gap-2 text-base font-medium">
+        <BadgeCheck size={16} aria-hidden="true" />
+        Sign off Canvass {summary?.number}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        {summary?.subjectLabel ? `${summary.subjectLabel}. ` : ""}Your signature says you approve the supplier and product chosen below.
+      </p>
+      <div className="space-y-3 text-sm">
           <div className="space-y-0.5">
             <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Winner</span>
             <p className="font-semibold text-foreground">{summary?.winnerLabel || "—"}</p>
@@ -72,20 +82,6 @@ export default function CanvassSignoffDialog({ open, onOpenChange, summary, onSi
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="h-auto px-3 py-1.5 text-[12px] font-semibold">
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!reason || signMutation.isPending}
-            onClick={() => signMutation.mutate()}
-            className="h-auto rounded-lg px-3.5 py-1.5 text-[12px] font-bold disabled:opacity-40"
-          >
-            {signMutation.isPending ? "Signing…" : warning ? "Sign off anyway" : "Sign off"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
   );
 }

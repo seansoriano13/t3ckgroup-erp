@@ -1,17 +1,16 @@
 import { useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Check, Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Printer, Trash2 } from "lucide-react";
 import { openPackingListPrintWindow, printPackingList } from "../../../lib/pdf/packingListPrinter";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
-import PageShell from "../../../components/ui/PageShell";
+import ModalShell from "../../../components/ui/ModalShell";
 import PageLoading from "../../../components/ui/PageLoading";
 import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
 import { SelectField } from "../../../components/ui/SelectField";
@@ -26,9 +25,12 @@ import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { packingListService, sorLineSnapshot } from "../../../services/packingListService";
 import { ipasErrorMessage } from "../../../utils/ipas";
+import PackingListsPage from "./index";
+
+const LIST_PATH = "/purchasing/packing-lists";
 
 /**
- * One Packing List (#255, spec #251), laid out like the IPAS record page (#538):
+ * One Packing List (#255, spec #251) as a modal over the Packing Lists list, laid out like the IPAS record page (#538):
  * Details, Boxes (marks, seal and weight, and each box's contents, typed or
  * picked from the SOR's Product List) and Packed by. Signing Packed by closes
  * it, from the card or the drawer's bottom bar; a packed list shows read-only.
@@ -64,12 +66,17 @@ function BoxDialog({ open, onOpenChange, box, listId, onSaved }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{box ? `Box ${box.boxNo}` : "Add a box"}</DialogTitle>
-          <DialogDescription>Marks, seal number and gross weight, where known.</DialogDescription>
-        </DialogHeader>
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      crumbs={["Packing List", box ? `Box ${box.boxNo}` : "Add a box"]}
+      actions={
+        <Button size="lg" onClick={save} disabled={saving}>
+          {saving ? "Saving…" : "Save box"}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">Marks, seal number and gross weight, where known.</p>
         <div className="space-y-4">
           <FieldBox label="Marks" bare>
             <Input value={marks} onChange={(e) => setMarks(e.target.value)} />
@@ -81,16 +88,7 @@ function BoxDialog({ open, onOpenChange, box, listId, onSaved }) {
             <Input type="number" min="0" step="0.01" value={weight} onChange={(e) => setWeight(e.target.value)} />
           </FieldBox>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save box"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
   );
 }
 
@@ -158,12 +156,18 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Box {box?.boxNo} contents</DialogTitle>
-          <DialogDescription>Type each content, or pick it from the SOR's Product List (copied as it is now).</DialogDescription>
-        </DialogHeader>
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      expandable
+      crumbs={["Packing List", `Box ${box?.boxNo}`, "Contents"]}
+      actions={
+        <Button size="lg" onClick={save} disabled={saving}>
+          {saving ? "Saving…" : "Save contents"}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">Type each content, or pick it from the SOR's Product List (copied as it is now).</p>
         <div className="space-y-3">
           {rows.map((row, index) => (
             <div key={index} className="grid grid-cols-1 gap-2 md:grid-cols-[2fr_1fr_1fr_auto] md:items-end">
@@ -201,16 +205,7 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
             Add a content
           </Button>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save contents"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
   );
 }
 
@@ -224,7 +219,7 @@ const SECTIONS = [
 const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
 const formatWhen = (value) => (value ? new Date(value).toLocaleString() : "");
 
-function PackingListPage() {
+function PackingListPage({ onClose }) {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -438,21 +433,20 @@ function PackingListPage() {
   const restate = () => (list ? `Signs Packed by on ${list.number}. The boxes and their contents can't be changed after.` : "");
 
   return (
-    <PageShell
-      title={list ? list.number : "Packing List"}
-      description={list ? `${list.sorReference ?? ""}${list.projectTitle ? ` · ${list.projectTitle}` : ""}` : undefined}
-      action={
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild className="gap-1.5">
-            <Link to="/purchasing/packing-lists">
-              <ArrowLeft size={14} />
-              Packing Lists
-            </Link>
-          </Button>
-          {list && <RecordMoreMenu items={[{ key: "print", label: "Print", icon: Printer, onSelect: printList }]} />}
-        </div>
-      }
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && onClose()}
+      size="wide"
+      expandable
+      cancelLabel="Close"
+      crumbs={["Packing List", list?.number].filter(Boolean)}
+      headerActions={list && <RecordMoreMenu items={[{ key: "print", label: "Print", icon: Printer, onSelect: printList }]} />}
     >
+      {list && (
+        <p className="text-sm text-muted-foreground">
+          {`${list.sorReference ?? ""}${list.projectTitle ? ` · ${list.projectTitle}` : ""}`}
+        </p>
+      )}
       {isLoading && <PageLoading label="Packing List" />}
       {isError && <QueryError title="This Packing List could not be loaded." onRetry={refetch} />}
       {!isLoading && !isError && !list && (
@@ -539,14 +533,19 @@ function PackingListPage() {
           )}
         </>
       )}
-    </PageShell>
+    </ModalShell>
   );
 }
 
 export default function PackingListPageRoute() {
+  const navigate = useNavigate();
+  // The record is a modal over its list; the URL keeps working as a deep link.
   return (
-    <ProtectedRoute>
-      <PackingListPage />
-    </ProtectedRoute>
+    <>
+      <PackingListsPage />
+      <ProtectedRoute>
+        <PackingListPage onClose={() => navigate(LIST_PATH)} />
+      </ProtectedRoute>
+    </>
   );
 }

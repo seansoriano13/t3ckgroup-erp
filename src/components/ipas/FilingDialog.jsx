@@ -3,14 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CircleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { ipasService } from "../../services/ipasService";
 import {
   IPAS_DOCUMENT_APPLIES_TO_LABELS,
@@ -31,20 +24,16 @@ import { ipasFilingWarningsKey } from "./ipasKeys";
  * when it resolves. It is mounted only while open.
  */
 export default function FilingDialog({ open, onOpenChange, ipasId, number, onConfirm, summary, signer }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && (
-        <Body
-          ipasId={ipasId}
-          number={number}
-          onConfirm={onConfirm}
-          summary={summary}
-          signer={signer}
-          onClose={() => onOpenChange(false)}
-        />
-      )}
-    </Dialog>
-  );
+  return open ? (
+    <Body
+      ipasId={ipasId}
+      number={number}
+      onConfirm={onConfirm}
+      summary={summary}
+      signer={signer}
+      onClose={() => onOpenChange(false)}
+    />
+  ) : null;
 }
 
 function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
@@ -74,17 +63,26 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
   const unticked = warnings.data ?? [];
 
   return (
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader className="shrink-0 pr-10">
-        <DialogTitle>File {number}?</DialogTitle>
-        <DialogDescription>
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && onClose()}
+      crumbs={["IPAS", number, "File"]}
+      actions={
+        <Button size="lg" disabled={saving || warnings.isLoading} onClick={submit}>
+          {saving ? "Filing…" : unticked.length > 0 ? "File anyway" : "Approve and file"}
+        </Button>
+      }
+    >
+      <div className="space-y-2">
+        <p className="text-base font-medium text-foreground">File {number}?</p>
+        <p className="text-sm text-muted-foreground">
           Approving section {ipasSectionLabel(7)} files this IPAS. It freezes Landed Cost as final and locks its payments, charges,
           documents, bank details, SORs and Purpose. Only a Super Admin can reopen it.
-        </DialogDescription>
+        </p>
         {/* From the record page: what filing adds, and who signs (the Approval Center passes neither). */}
         {summary && <p className="text-sm text-foreground">{summary}</p>}
         {signer && <p className="text-sm font-medium text-foreground">{signer}</p>}
-      </DialogHeader>
+      </div>
 
       {warnings.isLoading ? (
         <p className="text-sm text-muted-foreground" role="status">
@@ -123,15 +121,6 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
           Every required document is ticked.
         </p>
       )}
-
-      <DialogFooter>
-        <Button variant="outline" size="lg" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button size="lg" disabled={saving || warnings.isLoading} onClick={submit}>
-          {saving ? "Filing…" : unticked.length > 0 ? "File anyway" : "Approve and file"}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+    </ModalShell>
   );
 }

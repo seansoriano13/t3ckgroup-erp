@@ -1,14 +1,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import AmountInput from "./AmountInput";
@@ -25,11 +18,7 @@ import AmountInput from "./AmountInput";
  * the field (an amount); `placeholder` shows what an empty field looks like.
  */
 export default function EditValueDialog({ open, onOpenChange, ...body }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body {...body} onClose={() => onOpenChange(false)} />}
-    </Dialog>
-  );
+  return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
 function Body({
@@ -65,12 +54,17 @@ function Body({
   };
 
   return (
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader className="shrink-0 pr-10">
-        <DialogTitle>{title}</DialogTitle>
-        {description && <DialogDescription>{description}</DialogDescription>}
-      </DialogHeader>
-
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && onClose()}
+      crumbs={["IPAS", title]}
+      actions={
+        <Button size="lg" disabled={!ready || saving} onClick={submit}>
+          {saving ? "Saving…" : submitLabel}
+        </Button>
+      }
+    >
+      {description && <p className="text-sm text-muted-foreground">{description}</p>}
       <div className="space-y-3">
         <FieldBox label={label} bare>
           {prefix ? (
@@ -102,15 +96,6 @@ function Body({
           </p>
         )}
       </div>
-
-      <DialogFooter>
-        <Button variant="outline" size="lg" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button size="lg" disabled={!ready || saving} onClick={submit}>
-          {saving ? "Saving…" : submitLabel}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+    </ModalShell>
   );
 }

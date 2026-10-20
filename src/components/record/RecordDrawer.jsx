@@ -84,7 +84,7 @@ export default function RecordDrawer({
 
   return (
     <Drawer open={Boolean(current)} onOpenChange={(next) => !next && close()}>
-      <DrawerContent className="w-[920px]" finalFocus={returnFocus} data-section-drawer="">
+      <DrawerContent className="z-[75] w-[920px]" finalFocus={returnFocus} data-section-drawer="">
         {current && (
           <>
             <div className="flex items-center gap-3 border-b border-border px-7 py-5">

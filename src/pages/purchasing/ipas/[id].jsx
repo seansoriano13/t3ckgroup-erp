@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, ReceiptText } from "lucide-react";
+import { ReceiptText } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
-import PageShell from "../../../components/ui/PageShell";
+import ModalShell from "../../../components/ui/ModalShell";
+import IpasListPage from "./index";
 import PageLoading from "../../../components/ui/PageLoading";
 import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
@@ -137,7 +138,7 @@ function typingInitialValue(field, ipas) {
  * ticked) and the filed state: a banner, every edit control gone, and a Super
  * Admin's Reopen with a reason.
  */
-function IpasPage() {
+function IpasPage({ onClose }) {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -724,35 +725,21 @@ function IpasPage() {
     target.focus({ preventScroll: true });
   };
 
-  const back = (
-    <Link
-      to="/purchasing/ipas"
-      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
-    >
-      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      IPAS
-    </Link>
-  );
-
-  if (isLoading) return <PageLoading />;
-
-  if (isError) {
+  if (isLoading || isError || !ipas) {
     return (
-      <PageShell title="IPAS" action={back}>
-        <QueryError title="This IPAS could not be loaded." onRetry={refetch} />
-      </PageShell>
-    );
-  }
-
-  if (!ipas) {
-    return (
-      <PageShell title="IPAS" action={back}>
-        <EmptyState
-          icon={ReceiptText}
-          title="IPAS not found"
-          description="It doesn't exist, or you don't have access to it."
-        />
-      </PageShell>
+      <ModalShell open onOpenChange={(next) => !next && onClose()} size="wide" cancelLabel="Close" crumbs={["IPAS"]}>
+        {isLoading ? (
+          <PageLoading />
+        ) : isError ? (
+          <QueryError title="This IPAS could not be loaded." onRetry={refetch} />
+        ) : (
+          <EmptyState
+            icon={ReceiptText}
+            title="IPAS not found"
+            description="It doesn't exist, or you don't have access to it."
+          />
+        )}
+      </ModalShell>
     );
   }
 
@@ -909,7 +896,6 @@ function IpasPage() {
       print: print.isPending,
     },
     on,
-    back,
     printedBy: user?.name ?? null,
     viewer: user?.name ?? null,
     failure: failure && { ...failure, dismiss: () => setFailure(null) },
@@ -971,11 +957,16 @@ function IpasPage() {
   // shows inline at the move that started it, with Retry.
   return (
     <>
-      <PageShell
-        title={ipas.number}
-        description={[ipas.po_number, ipas.supplier].filter(Boolean).join(" · ")}
-        action={<HeaderActions ctx={ctx} />}
+      <ModalShell
+        open
+        onOpenChange={(next) => !next && onClose()}
+        size="wide"
+        expandable
+        cancelLabel="Close"
+        crumbs={["IPAS", ipas.number]}
+        headerActions={<HeaderActions ctx={ctx} />}
       >
+        <p className="text-sm text-muted-foreground">{[ipas.po_number, ipas.supplier].filter(Boolean).join(" · ")}</p>
         <div className="space-y-6">
           {/* Keyboard users skip the figures and sections to the card; hidden until focused. */}
           {!editKey && (
@@ -1053,7 +1044,7 @@ function IpasPage() {
             onEdit={openEdit}
           />
         )}
-      </PageShell>
+      </ModalShell>
 
       <EditPurposeSorsDialog ipas={ipas} open={editing} onOpenChange={setEditing} />
 
@@ -1204,9 +1195,14 @@ function IpasPage() {
 // from a clean page: no failure, dialog or sign-off from the last IPAS carries over.
 export default function IpasPageRoute() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  // The record is a modal over the IPAS list; the URL keeps working as a deep link.
   return (
-    <ProtectedRoute>
-      <IpasPage key={id} />
-    </ProtectedRoute>
+    <>
+      <IpasListPage />
+      <ProtectedRoute>
+        <IpasPage key={id} onClose={() => navigate("/purchasing/ipas")} />
+      </ProtectedRoute>
+    </>
   );
 }

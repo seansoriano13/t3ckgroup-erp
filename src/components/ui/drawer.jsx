@@ -26,12 +26,17 @@ function DrawerClose({ ...props }) {
 }
 
 function DrawerContent({ side = "right", className, children, ...props }) {
+  // A drawer opened over a modal (`z-[75]`) lifts its backdrop to the same layer, as Dialog does.
+  const layer = typeof className === "string" ? className.match(/(?:^|\s)(z-\[\d+\])/)?.[1] : undefined;
   return (
     <DialogPrimitive.Portal data-slot="drawer-portal">
       <DialogPrimitive.Backdrop
         data-slot="drawer-overlay"
         forceRender
-        className="fixed inset-0 isolate z-50 bg-black/40 backdrop-blur-sm duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0"
+        className={cn(
+          "fixed inset-0 isolate z-50 bg-black/40 backdrop-blur-sm duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0",
+          layer,
+        )}
       />
       <DialogPrimitive.Popup
         data-slot="drawer-content"

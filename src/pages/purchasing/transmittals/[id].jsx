@@ -1,16 +1,15 @@
 import { useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Pencil, Printer, XCircle } from "lucide-react";
+import { Pencil, Printer, XCircle } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
-import PageShell from "../../../components/ui/PageShell";
+import ModalShell from "../../../components/ui/ModalShell";
 import PageLoading from "../../../components/ui/PageLoading";
 import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Textarea } from "../../../components/ui/textarea";
 import NumbersStrip from "../../../components/record/NumbersStrip";
@@ -54,9 +53,13 @@ import {
   TRANSMITTAL_STATE,
 } from "../../../constants/transmittals";
 import { ipasErrorMessage } from "../../../utils/ipas";
+import TransmittalsListPage from "./index";
+
+const LIST_PATH = "/purchasing/transmittals";
 
 /**
- * One Transmittal, laid out like the IPAS record page: the numbers strip, a
+ * One Transmittal as a modal over the Transmittals list, laid out like the IPAS
+ * record: the numbers strip, a
  * row per section that opens in a drawer, and the "Your move" card. Signing
  * happens only in the card or in the drawer's bottom bar; a section's body
  * shows who signed and when, and holds the data entry (ratings, pictures,
@@ -64,7 +67,7 @@ import { ipasErrorMessage } from "../../../utils/ipas";
  * database's rule (#252 to #254); the screen only offers what it will accept.
  */
 
-function TransmittalPage() {
+function TransmittalPage({ onClose }) {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -118,10 +121,18 @@ function TransmittalPage() {
   const sections = transmittal ? sectionsOf(transmittal) : [];
   const { index, current, open: openSection, step, close } = useOpenSection({ drawerSections: sections });
 
-  if (isLoading) return <PageLoading label="Transmittal" />;
-  if (isError) return <QueryError title="The Transmittal could not be loaded." onRetry={refetch} />;
-  if (!transmittal) {
-    return <EmptyState title="No such Transmittal" description="It may not exist, or you can't read it." />;
+  if (isLoading || isError || !transmittal) {
+    return (
+      <ModalShell open onOpenChange={(next) => !next && onClose()} size="wide" cancelLabel="Close" crumbs={["Transmittal"]}>
+        {isLoading ? (
+          <PageLoading label="Transmittal" />
+        ) : isError ? (
+          <QueryError title="The Transmittal could not be loaded." onRetry={refetch} />
+        ) : (
+          <EmptyState title="No such Transmittal" description="It may not exist, or you can't read it." />
+        )}
+      </ModalShell>
+    );
   }
 
   const t = transmittal;
@@ -326,27 +337,29 @@ function TransmittalPage() {
   };
 
   return (
-    <PageShell
-      title={t.number}
-      description={`${transmittalStateLabel(t.state)} · ${TRANSMITTAL_ORIGIN_LABELS[t.origin] ?? t.origin} · ${TRANSMITTAL_PRIORITY_LABELS[t.priority] ?? t.priority} priority`}
-      action={
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" asChild className="gap-1.5">
-            <Link to="/purchasing/transmittals">
-              <ArrowLeft size={14} />
-              Transmittals
-            </Link>
-          </Button>
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && onClose()}
+      size="wide"
+      expandable
+      cancelLabel="Close"
+      crumbs={["Transmittal", t.number]}
+      headerActions={
+        <>
           {rights.draft && rights.canChange && !editing && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditing(true)}>
+            <Button variant="ghost" size="sm" className="h-auto gap-1.5 px-2 py-1.5 text-xs" onClick={() => setEditing(true)}>
               <Pencil size={14} />
               Edit
             </Button>
           )}
           <RecordMoreMenu items={menuItems} />
-        </div>
+        </>
       }
     >
+      <p className="text-sm text-muted-foreground">
+        {`${transmittalStateLabel(t.state)} · ${TRANSMITTAL_ORIGIN_LABELS[t.origin] ?? t.origin} · ${TRANSMITTAL_PRIORITY_LABELS[t.priority] ?? t.priority} priority`}
+      </p>
+
       {t.state === TRANSMITTAL_STATE.CANCELLED && (
         <div role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-[13px]">
           <p className="font-semibold">Cancelled</p>
@@ -431,56 +444,59 @@ function TransmittalPage() {
         />
       )}
 
-      <Dialog open={undoing !== null} onOpenChange={(open) => !open && setUndoing(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader className="pr-10">
-            <DialogTitle>Undo {undoing?.label}?</DialogTitle>
-            <DialogDescription>
-              The signature is cleared and kept as history, with your name and the reason. Ratings, remarks and
-              pictures stay.
-            </DialogDescription>
-          </DialogHeader>
+      {undoing !== null && (
+        <ModalShell
+          open
+          onOpenChange={(open) => !open && setUndoing(null)}
+          crumbs={["Transmittal", t.number, `Undo ${undoing.label}`]}
+          cancelLabel="Keep it signed"
+          actions={
+            <Button variant="destructive" size="lg" onClick={undo} disabled={busy || undoReason.trim() === ""}>
+              Undo signature
+            </Button>
+          }
+        >
+          <p className="text-sm text-muted-foreground">
+            Undo {undoing.label}? The signature is cleared and kept as history, with your name and the reason. Ratings,
+            remarks and pictures stay.
+          </p>
           <FieldBox label="Reason" bare>
             <Textarea rows={3} value={undoReason} onChange={(e) => setUndoReason(e.target.value)} />
           </FieldBox>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUndoing(null)}>
-              Keep it signed
-            </Button>
-            <Button variant="destructive" onClick={undo} disabled={busy || undoReason.trim() === ""}>
-              Undo signature
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ModalShell>
+      )}
 
-      <Dialog open={cancelling} onOpenChange={setCancelling}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader className="pr-10">
-            <DialogTitle>Cancel {t.number}?</DialogTitle>
-            <DialogDescription>The number is never reused. Give the reason.</DialogDescription>
-          </DialogHeader>
+      {cancelling && (
+        <ModalShell
+          open
+          onOpenChange={(open) => !open && setCancelling(false)}
+          crumbs={["Transmittal", t.number, "Cancel"]}
+          cancelLabel="Keep it"
+          actions={
+            <Button size="lg" onClick={cancel} disabled={busy || reason.trim() === ""}>
+              Cancel Transmittal
+            </Button>
+          }
+        >
+          <p className="text-sm text-muted-foreground">Cancel {t.number}? The number is never reused. Give the reason.</p>
           <FieldBox label="Reason" bare>
             <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
           </FieldBox>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelling(false)} disabled={busy}>
-              Keep it
-            </Button>
-            <Button onClick={cancel} disabled={busy || reason.trim() === ""}>
-              Cancel Transmittal
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </PageShell>
+        </ModalShell>
+      )}
+    </ModalShell>
   );
 }
 
 export default function TransmittalDetailPage() {
+  const navigate = useNavigate();
+  // The record is a modal over its list; the URL keeps working as a deep link.
   return (
-    <ProtectedRoute>
-      <TransmittalPage />
-    </ProtectedRoute>
+    <>
+      <TransmittalsListPage />
+      <ProtectedRoute>
+        <TransmittalPage onClose={() => navigate(LIST_PATH)} />
+      </ProtectedRoute>
+    </>
   );
 }

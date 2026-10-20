@@ -6,13 +6,13 @@ import RecordMoreMenu from "@/components/record/RecordMoreMenu";
 import { PrintPreviewButton } from "./PrintPreview";
 
 /**
- * The page header's actions: the state, Preview (the one visible button), and
+ * The record modal header's actions: the state, Preview (the one visible button), and
  * a More menu with the rest. Print and Print filing copy open the printed
  * IPAS; the Purchasing edits and Cancel IPAS show only while it is open and
  * the viewer may change it, as before.
  */
 export default function HeaderActions({ ctx }) {
-  const { ipas, can, on, busy, back } = ctx;
+  const { ipas, can, on, busy } = ctx;
   const items = [
     { key: "print", label: busy.print ? "Preparing…" : "Print", icon: Printer, disabled: busy.print, onSelect: on.print },
   ];
@@ -35,7 +35,6 @@ export default function HeaderActions({ ctx }) {
         </Button>
       )}
       <RecordMoreMenu items={items} />
-      {back}
     </>
   );
 }

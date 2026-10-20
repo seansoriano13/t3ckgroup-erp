@@ -1,14 +1,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { isIsoDate } from "../../utils/ipasPayments";
@@ -23,11 +16,7 @@ import { isIsoDate } from "../../utils/ipasPayments";
  * Mounted only while open, so the fields start from the values as they stand.
  */
 export default function DatesDialog({ open, onOpenChange, ...body }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Body {...body} onClose={() => onOpenChange(false)} />}
-    </Dialog>
-  );
+  return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
 function Body({ title, description, fields, submitLabel = "Save", onSubmit, onClose }) {
@@ -52,12 +41,17 @@ function Body({ title, description, fields, submitLabel = "Save", onSubmit, onCl
   };
 
   return (
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader className="shrink-0 pr-10">
-        <DialogTitle>{title}</DialogTitle>
-        {description && <DialogDescription>{description}</DialogDescription>}
-      </DialogHeader>
-
+    <ModalShell
+      open
+      onOpenChange={(next) => !next && onClose()}
+      crumbs={["IPAS", title]}
+      actions={
+        <Button size="lg" disabled={!valid || !changed || saving} onClick={submit}>
+          {saving ? "Saving…" : submitLabel}
+        </Button>
+      }
+    >
+      {description && <p className="text-sm text-muted-foreground">{description}</p>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {fields.map((f) => (
           <FieldBox key={f.key} label={f.label} bare>
@@ -71,15 +65,6 @@ function Body({ title, description, fields, submitLabel = "Save", onSubmit, onCl
         ))}
       </div>
       <p className="text-xs text-muted-foreground">Clear a date to take it off.</p>
-
-      <DialogFooter>
-        <Button variant="outline" size="lg" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button size="lg" disabled={!valid || !changed || saving} onClick={submit}>
-          {saving ? "Saving…" : submitLabel}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+    </ModalShell>
   );
 }

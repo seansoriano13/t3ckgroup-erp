@@ -5,14 +5,7 @@ import toast from "react-hot-toast";
 import QueryError from "@/components/ui/QueryError";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import Spinner from "@/components/ui/Spinner";
 import StatusBadge from "../StatusBadge";
@@ -76,17 +69,28 @@ export default function AddFromCostingMatrixDialog({ open, onOpenChange, request
   const pickedIds = components.filter((c) => picked.has(c.id)).map((c) => c.id);
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-xl`}>
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Add from the Costing Matrix</DialogTitle>
-          <DialogDescription>
-            Components marked For Order are ticked. Each item keeps the Component as it is now. If the Component changes
-            later, the item does not.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="max-h-[50vh] overflow-y-auto">
+    <ModalShell
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      className={OVER_REQUEST_MODAL}
+      crumbs={["Purchase Requests", "Add from the Costing Matrix"]}
+      expandable
+      actions={
+        <Button
+          size="lg"
+          disabled={pickedIds.length === 0 || addMutation.isPending}
+          onClick={() => addMutation.mutate(pickedIds)}
+        >
+          {addMutation.isPending && <Spinner size="sm" />}
+          {pickedIds.length > 1 ? `Request ${pickedIds.length} items` : "Request item"}
+        </Button>
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        Components marked For Order are ticked. Each item keeps the Component as it is now. If the Component changes
+        later, the item does not.
+      </p>
+      <div>
           {matrixQuery.isLoading ? (
             <div className="flex justify-center py-10">
               <Spinner />
@@ -126,22 +130,7 @@ export default function AddFromCostingMatrixDialog({ open, onOpenChange, request
               ))}
             </ul>
           )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" size="lg" onClick={close}>
-            Cancel
-          </Button>
-          <Button
-            size="lg"
-            disabled={pickedIds.length === 0 || addMutation.isPending}
-            onClick={() => addMutation.mutate(pickedIds)}
-          >
-            {addMutation.isPending && <Spinner size="sm" />}
-            {pickedIds.length > 1 ? `Request ${pickedIds.length} items` : "Request item"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ModalShell>
   );
 }
