@@ -255,6 +255,18 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
         return { success: false, refused: true, message: `Odoo has no purchase order ${po}; check the number and try again` }
       }
       const verification = odoo === "found" ? "VERIFIED" : "PENDING_VERIFICATION"
+      if (body.action === "correct") {
+        if (sideOf(item.request_id) !== "purchasing") return { success: false, refused: true, message: "purchase_request_correct_po: only Purchasing corrects an item's PO".replace(/^[a-z_]+: /, "") }
+        if (item.status !== "ordered") return { success: false, refused: true, message: `${item.name} is ${item.status}, not Ordered; a PO can only be corrected while the item is Ordered` }
+        const corrected = updateRow("purchase_request_items", item, { po_number: po, po_verification: verification, odoo_po_line_ids: [] })
+        insertRow("purchase_request_messages", {
+          request_id: item.request_id,
+          author_id: actorId,
+          content: `${item.name}: PO ${item.po_number || "none"} → ${po}.`,
+          metadata: { event: "item_po_corrected", item_id: item.id, from_po: item.po_number, to_po: po },
+        })
+        return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: corrected }
+      }
       const updated = setStatus(item, "ordered", { po_number: po, po_verification: verification }, true)
       return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: updated }
     })

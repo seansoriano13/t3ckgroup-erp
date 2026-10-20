@@ -406,6 +406,17 @@ export const purchaseRequestService = {
   },
 
   /**
+   * Corrects the PO on an Ordered item (#549). The new number is checked against
+   * Odoo like the first one; picked PO lines on the old PO are cleared. Throws on
+   * a number that isn't an Odoo PO. Returns the updated item.
+   */
+  async correctPo(itemId, poNumber) {
+    const po = normalizePoNumber(poNumber);
+    if (!po || !isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
+    return purchaseRequestService.applyPoAction("correct", itemId, po);
+  },
+
+  /**
    * Saves a PO on an item through the server (`odoo-po-verify`, save mode).
    * `action` names what to do with it; "order" today, so "Correct PO" can use
    * the same path.

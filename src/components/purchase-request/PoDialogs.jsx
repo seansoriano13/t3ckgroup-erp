@@ -102,6 +102,75 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
 }
 
 /**
+ * Issue #549 — correcting the PO number on an Ordered item. The new number is
+ * checked against Odoo like the first; PO lines picked on the old PO are cleared.
+ */
+export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
+  const refresh = useRefreshRequest(requestId);
+  const [poNumber, setPoNumber] = useState("");
+  const po = normalizePoNumber(poNumber);
+  const invalid = !po || !isValidPoNumber(po);
+
+  const close = () => {
+    setPoNumber("");
+    onOpenChange(false);
+  };
+
+  const correctMutation = useMutation({
+    mutationFn: () => purchaseRequestService.correctPo(item.id, po),
+    onSuccess: (updated) => {
+      const message = `${item.name}: PO ${updated?.po_number}: ${PO_VERIFICATION_LABELS[updated?.po_verification] || updated?.po_verification}.`;
+      if (updated?.po_verification === PO_VERIFICATION.PENDING) {
+        toast(`${message} Warning: saved without being checked.`, { icon: "⚠️", duration: 8000 });
+      } else toast.success(message);
+      close();
+    },
+    onError: (error) => toast.error(refusal(error)),
+    onSettled: refresh,
+  });
+  const busy = correctMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+      <DialogContent className={`${OVER_REQUEST_MODAL} sm:max-w-md`}>
+        <DialogHeader className="shrink-0 pr-10">
+          <DialogTitle>Correct PO</DialogTitle>
+          <DialogDescription>
+            {item.name}{item.po_number ? `, now on PO ${item.po_number}` : ", with no PO yet"}. The new number is checked against Odoo, and any PO line picked on the old PO is cleared.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          id={`correct-po-${item.id}`}
+          className="space-y-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!invalid && !busy) correctMutation.mutate();
+          }}
+        >
+          <FieldBox label="New PO number" bare>
+            <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
+          </FieldBox>
+          <p className={`pl-1 text-[11px] ${poNumber && invalid ? "text-destructive" : "text-muted-foreground"}`}>
+            {PO_NUMBER_HINT}
+          </p>
+        </form>
+
+        <DialogFooter>
+          <Button variant="outline" size="lg" onClick={close}>
+            Cancel
+          </Button>
+          <Button size="lg" type="submit" form={`correct-po-${item.id}`} disabled={invalid || busy}>
+            {busy && <Spinner size="sm" />}
+            Check PO and correct
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
  * Issue #312 — picking the Odoo PO line(s) an Ordered item is bought on, from
  * the lines its PO has on the IPAS stored Odoo copy (`lineIds`). The caller
  * only offers this when there are lines; the database refuses any other.
