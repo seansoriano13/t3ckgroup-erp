@@ -118,6 +118,24 @@ describe("the Canvasses page", () => {
     await user.keyboard("{Escape}");
     expect(await screen.findByRole("button", { name: `Open Canvass ${started.number}` })).toBeInTheDocument();
   });
+
+  it("creates one Purchase Request from picked Canvasses and warns when one is not signed", async () => {
+    const user = setupUser();
+    renderPage();
+    await screen.findAllByTestId("canvass-row");
+
+    expect(screen.queryByLabelText("Pick Canvass CNV_0001")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("Pick Canvass CNV_0002"));
+    await user.click(screen.getByRole("button", { name: /create purchase request \(1\)/i }));
+    expect(await screen.findByRole("status")).toHaveTextContent("CNV_0002");
+    await user.type(screen.getByLabelText("Purchase Request title"), "Office buy");
+    await user.click(screen.getByRole("button", { name: /create request/i }));
+
+    await waitFor(() => expect(db.rows("purchase_requests").some((r) => r.title === "Office buy")).toBe(true));
+    const toner = db.rows("sor_canvasses").find((c) => c.number === "CNV_0002");
+    expect(toner.requested_item_id).toBeTruthy();
+    expect(db.rows("purchase_request_items")).toHaveLength(1);
+  });
 });
 
 describe("the Canvasses page opened from a Requested Item", () => {
@@ -139,6 +157,8 @@ describe("the Canvasses page opened from a Requested Item", () => {
     renderAt("/purchasing/canvasses");
     expect(await screen.findByRole("heading", { name: "Canvasses" })).toBeInTheDocument();
     expect(screen.queryByText("Home")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create purchase request/i })).not.toBeInTheDocument();
   });
 
   it("opens a draft for an item that has no Canvass yet, creating nothing", async () => {
