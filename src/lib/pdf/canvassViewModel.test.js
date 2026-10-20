@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCanvassViewModel, canPrintCanvass, signatureBlock, subjectLine } from './canvassViewModel';
+import { buildCanvassViewModel, canPrintCanvass, offerGroups, signatureBlock, subjectLine } from './canvassViewModel';
 import { buildCanvassDocument } from './canvassDocument';
 
 // The CNV_0142 sample from the prototype: three Offers against one Component, one of them in USD.
@@ -202,5 +202,67 @@ describe('document', () => {
     const html = buildCanvassDocument(build(c));
     expect(html).toContain('&lt;b&gt;cheap&lt;/b&gt; &amp; fast');
     expect(html).toContain('A4 portrait');
+  });
+});
+
+describe('side-by-side comparison (purchasing feedback 2026-10-20)', () => {
+  const many = (n) =>
+    Array.from({ length: n }, (_, i) => ({
+      ...offers()[1],
+      id: `m${i + 1}`,
+      supplier_name: `Supplier ${i + 1}`,
+      quality_note: i === 0 ? 'ISO 13485' : null,
+      is_winner: i === 1,
+    }));
+
+  it('puts the suppliers in columns and the details in rows, the chosen column marked', () => {
+    const html = buildCanvassDocument(build());
+    const head = html.slice(html.indexOf('<table class="cnv-compare">'), html.indexOf('</thead>'));
+    expect(head.indexOf('Redleaf Medical Supplies')).toBeLessThan(head.indexOf('MedSupply PH'));
+    expect(head.indexOf('MedSupply PH')).toBeLessThan(head.indexOf('Dragon Safety HK'));
+    expect(head).toContain('Chosen');
+    for (const label of ['Offered', 'Quoted', 'In PHP', 'Lead time', 'Quality', 'Valid to', 'Brochure', 'Remarks']) {
+      expect(html).toContain(`scope="row">${label}</th>`);
+    }
+    expect((html.match(/<table class="cnv-compare">/g) ?? [])).toHaveLength(1);
+  });
+
+  it('prints the quality note, and a dash where there is none', () => {
+    const vm = build(canvass({ offers: many(2) }));
+    expect(vm.offers.map((o) => o.quality)).toEqual(['ISO 13485', '—']);
+  });
+
+  it('keeps up to four suppliers in one table', () => {
+    const vm = build(canvass({ offers: many(4) }));
+    expect(vm.offerGroups).toHaveLength(1);
+    expect(vm.offerGroups[0].label).toBeNull();
+  });
+
+  it('continues past four suppliers in a second table under the same rows, columns kept in line', () => {
+    const vm = build(canvass({ offers: many(7) }));
+    expect(vm.offerGroups.map((g) => g.offers.map((o) => o.supplier))).toEqual([
+      ['Supplier 1', 'Supplier 2', 'Supplier 3', 'Supplier 4'],
+      ['Supplier 5', 'Supplier 6', 'Supplier 7'],
+    ]);
+    expect(vm.offerGroups.map((g) => g.label)).toEqual(['Offers 1–4 of 7', 'Offers 5–7 of 7']);
+
+    const html = buildCanvassDocument(vm);
+    expect((html.match(/<table class="cnv-compare">/g) ?? [])).toHaveLength(2);
+    expect(html).toContain('Offers 5–7 of 7');
+    // The short second table is padded to four columns so it lines up with the first.
+    const second = html.slice(html.lastIndexOf('<table class="cnv-compare">'));
+    expect((second.slice(0, second.indexOf('</thead>')).match(/cnv-pad/g) ?? [])).toHaveLength(1);
+  });
+
+  it('labels a lone fifth supplier as one Offer', () => {
+    expect(offerGroups(many(5).map((o) => ({ supplier: o.supplier_name })), 4)[1].label).toBe('Offers 5 of 5');
+  });
+});
+
+describe('a Canvass with no subject yet (ADR 0034)', () => {
+  it('prints the product as the subject', () => {
+    const vm = buildCanvassViewModel({ canvass: canvass(), subject: { product: { name: 'Laser printer toner' } }, people: { creator } });
+    expect(vm.header).toMatchObject({ subjectKind: 'Product', subject: 'Laser printer toner' });
+    expect(buildCanvassDocument(vm)).toContain('Laser printer toner');
   });
 });

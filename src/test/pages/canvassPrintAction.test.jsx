@@ -4,7 +4,7 @@ import { screen, within } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
-import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
+import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
 import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
@@ -39,7 +39,7 @@ describe("the Canvass print action", () => {
     const matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
     const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1 });
     component = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "Ambulance Folding Stretcher" });
-    const canvass = await canvassService.open({ componentId: component.id }, purchaser.id);
+    const canvass = await seedCanvass({ componentId: component.id }, purchaser.id);
     await canvassService.addOffer(canvass.id, { supplierName: "Redleaf Inc.", brand: "Redleaf", unitPrice: 78000 }, purchaser.id);
   });
 

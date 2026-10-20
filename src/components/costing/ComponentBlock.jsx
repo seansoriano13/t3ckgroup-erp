@@ -203,6 +203,11 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                           readOnly={!can("name")}
                           onSave={(value) => saveComponent(component, { name: value })}
                         />
+                        {component.canvassNoWinner && (
+                          <p className="mt-1 text-xs text-muted-foreground" data-testid="canvass-no-winner-note">
+                            These values came from Canvass {component.canvass?.number}, which has no winner picked now.
+                          </p>
+                        )}
                         <div className="mt-1 grid gap-2 sm:grid-cols-2" data-testid="specifications">
                           <div className="space-y-1">
                             <p className="text-label text-muted-foreground">Tender Specification</p>

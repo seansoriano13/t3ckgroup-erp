@@ -5,6 +5,7 @@
  * Purchasing access's alone. That the database refuses anyone else is the policy tier's
  * (83-costing-purchase-request-items.test.js).
  */
+import { openRow } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
@@ -13,6 +14,7 @@ import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { costingMatrixService } from "@/services/costingMatrixService"
+import { MemoryRouter } from "react-router"
 import RequestedItems from "./RequestedItems"
 
 vi.mock("browser-image-compression", () => ({ default: async (file) => file }))
@@ -40,7 +42,7 @@ describe("Add from the Costing Matrix", () => {
   it("starts with the For Order Components ticked", async () => {
     stubPurchaseRequestItemRpcs({ actorId: purchaser.id, purchasing: true })
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     await user.click(await screen.findByRole("button", { name: "Add from the Costing Matrix" }))
 
@@ -53,7 +55,7 @@ describe("Add from the Costing Matrix", () => {
   it("adds the ticked Components, each item naming its Component", async () => {
     stubPurchaseRequestItemRpcs({ actorId: purchaser.id, purchasing: true })
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     await user.click(await screen.findByRole("button", { name: "Add from the Costing Matrix" }))
     await user.click(await screen.findByRole("checkbox", { name: "1.2 Nozzle" }))
@@ -61,7 +63,7 @@ describe("Add from the Costing Matrix", () => {
     await user.click(screen.getByRole("button", { name: "Request 2 items" }))
 
     await waitFor(() => expect(rows()).toHaveLength(2))
-    const [first, second] = rows()
+    const [first, second] = await Promise.all(rows().map((r) => openRow(r)))
     expect(within(first).getByText("Hose reel")).toBeInTheDocument()
     expect(within(first).getByText("4 pc")).toBeInTheDocument()
     expect(within(first).getByText("From the Costing Matrix", { exact: false })).toBeInTheDocument()
@@ -73,7 +75,7 @@ describe("Add from the Costing Matrix", () => {
   it("says how often a Component is already requested, and still lets it be requested again", async () => {
     stubPurchaseRequestItemRpcs({ actorId: purchaser.id, purchasing: true })
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     await user.click(await screen.findByRole("button", { name: "Add from the Costing Matrix" }))
     await user.click(await screen.findByRole("button", { name: "Request 2 items" }))
@@ -92,7 +94,7 @@ describe("Add from the Costing Matrix", () => {
     stubPurchaseRequestItemRpcs({ actorId: purchaser.id, purchasing: true })
     db.internal.rowsOf("costing_matrices").splice(0)
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     await user.click(await screen.findByRole("button", { name: "Add from the Costing Matrix" }))
     expect(await screen.findByText("This SOR has no Costing Matrix yet.")).toBeInTheDocument()
@@ -100,7 +102,7 @@ describe("Add from the Costing Matrix", () => {
 
   it("does not offer it to someone without Purchasing access", async () => {
     stubPurchaseRequestItemRpcs({ actorId: purchaser.id, purchasing: false })
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     expect(await screen.findByRole("button", { name: "Add from the SOR" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Add from the Costing Matrix" })).not.toBeInTheDocument()

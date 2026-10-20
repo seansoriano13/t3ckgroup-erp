@@ -1,5 +1,28 @@
 [
     {
+        "date": "2026-10-24",
+        "title": "Purchasing: a Canvasses page, Canvasses before a request, and easier Requested Items",
+        "version": "1.9.55",
+        "changes": [
+            "A new Canvasses page lists every Canvass in one place, with search and filters for Canvasser, sign-off, winner and linked or not.",
+            "Purchasing can start a Canvass on its own, before any Purchase Request exists. It gets its number when its first Offer is saved.",
+            "Purchasing can pick several finished Canvasses on the Canvasses page and create one Purchase Request from them. A Canvass that is not signed off yet only gives a warning.",
+            "A Purchase Request made from Canvasses now shows each winner's price on its Requested Item, only to members who may see prices (Purchasing, Finance and Super Admin).",
+            "A winner can now be un-picked. This clears the sign-off, is kept in the Canvass history, and leaves the values the winner filled in the Costing Matrix, with a note that no winner stands behind them.",
+            "The Canvass can be printed side by side, with the Offers next to each other.",
+            "Requested Items are now a queue of To do, In progress and Closed groups. Each item is a soft card with its name, quantity, status and PO number. Open it to read stock, who requested it, Canvass, PO and notes in clear, full-length lines. Items glide to their new group when the status changes.",
+            "After you change a Requested Item's status, an Undo button shows for about 10 seconds.",
+            "Important fields on the Canvass are now bold, and long product names no longer push the layout around.",
+            "The Purchase Request list now shows a badge for Direct requests.",
+            "A Purchase Request opens full screen on desktop, from the list and the Purchasing Dashboard, and in a side drawer on mobile.",
+            "The Purchasing dashboard is tidier and has tabs.",
+            "Every Purchasing Dashboard tab now opens with the same top: a row of totals and a filter bar with search and a Filters button. What needs doing and the Register got new filters (group, entity, source, supplier and late), and the totals follow the filters.",
+            "IPAS sections now open and edit in place.",
+            "On an IPAS, the sign-off step Prepare is now called Submit, and its status Prepared is now Submitted.",
+            "Editing an IPAS is now one long form with one Save. A bar at the top shows how many required fields are filled, jumps to the next empty one, and a stepper takes you to each section; finished sections fold to one line."
+        ]
+    },
+    {
         "date": "2026-10-22",
         "title": "Packing lists, goods checked and orders filed in the Flow Canvas",
         "version": "1.9.54",

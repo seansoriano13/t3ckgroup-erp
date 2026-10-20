@@ -9,8 +9,9 @@
  *               or the Requested Item
  *   Decision    the chosen supplier, brand, lead time, validity, the unit price large in the quoted
  *               currency (the PHP figure and rate beneath where foreign), and the reason as written
- *   Offers      every Offer: supplier, what was offered, quoted, PHP figure, lead time, validity,
- *               brochure, with the chosen row marked
+ *   Offers      side by side: one column per supplier, one row per detail (what was offered,
+ *               quoted, PHP figure, lead time, quality, validity, brochure, remarks), the chosen
+ *               column marked; more than four suppliers continue in a second table below
  *   Warning     "Two offers only — below the three-offer minimum", above the signatures; it still prints
  *   Signatures  Canvassed by, Checked by, Approved by
  *
@@ -44,8 +45,12 @@ export const canPrintCanvass = (canvass) => Boolean(canvass?.canReadMoney);
 const rateText = (rate) =>
   new Intl.NumberFormat('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 6, useGrouping: false }).format(Number(rate));
 
-/** "S07983 · 1.2 Ambulance Folding Stretcher", or "S07983 · Requested Item · Gloves" for an item. */
+/**
+ * "S07983 · 1.2 Ambulance Folding Stretcher", "S07983 · Requested Item · Gloves" for an item, or
+ * just the product ("Laser printer toner") for a Canvass with no subject yet (ADR 0034).
+ */
 export function subjectLine(subject = {}) {
+  if (subject.product) return text(subject.product.name) ?? BLANK;
   const sor = text(subject.sor);
   if (subject.requestedItem) {
     return [sor, 'Requested Item', text(subject.requestedItem.name)].filter(Boolean).join(' · ');
@@ -79,6 +84,7 @@ function offerRow(offer) {
     php: php === null ? BLANK : printAmount(php, 'PHP'),
     foreign: foreignLine(offer),
     leadTime: text(offer.lead_time) ?? BLANK,
+    quality: text(offer.quality_note) ?? BLANK,
     validUntil: printDate(offer.valid_until) ?? BLANK,
     brochure: brochure.length > 0 ? brochure.map((file) => text(file?.name) ?? 'Brochure').join(', ') : null,
   };
@@ -101,6 +107,27 @@ function decisionBlock(canvass, winner) {
     foreign: foreignLine(winner),
     reason: text(canvass.reason),
   };
+}
+
+/** How many suppliers sit side by side in one comparison table on portrait A4. */
+export const OFFERS_PER_TABLE = 4;
+
+/**
+ * The Offers cut into comparison tables of at most OFFERS_PER_TABLE suppliers each, in their own
+ * order, so a fifth supplier starts a second table under the same row labels rather than squeezing
+ * the columns. Each group says which Offers it holds ("Offers 5–7 of 7") when there is more than one.
+ */
+export function offerGroups(rows, perTable = OFFERS_PER_TABLE) {
+  const groups = [];
+  for (let start = 0; start < rows.length; start += perTable) {
+    const offers = rows.slice(start, start + perTable);
+    const end = start + offers.length;
+    groups.push({
+      offers,
+      label: rows.length > perTable ? `Offers ${start + 1}${end > start + 1 ? `–${end}` : ''} of ${rows.length}` : null,
+    });
+  }
+  return groups;
 }
 
 /**
@@ -127,25 +154,32 @@ export function signatureBlock(role, title, { who = null, at = null, signaturePa
  * The Canvass as the paper prints it.
  *
  *   canvass   `canvassService.get`'s result (Offers carry their price keys only for a money reader)
- *   subject   `{ sor, component: { number, name } }` or `{ sor, requestedItem: { name } }`
- *   people    `{ creator, approver, checker }`, each `{ name, signaturePath?, at? }` or absent
+ *   subject   `{ sor, component: { number, name } }`, `{ sor, requestedItem: { name } }`, or
+ *             `{ product: { name } }` for a Canvass with no subject yet
+ *   people    `{ creator, approver, checker }`, each `{ name, signaturePath?, at? }` or absent;
+ *             `creator` prints as "Canvassed by" (the printer hands the Canvasser over)
+ *
+ * The Offers come twice: `offers`, one row per Offer, and `offerGroups`, the same rows cut into the
+ * side-by-side comparison tables the sheet draws (suppliers as columns, details as rows).
  */
 export function buildCanvassViewModel({ canvass, subject = {}, people = {} }, { printedAt = null, printedBy = null } = {}) {
   const offers = Array.isArray(canvass.offers) ? canvass.offers : [];
   const winner = offers.find((offer) => offer.is_winner) ?? null;
   const approved = Boolean(canvass.signed_off_at);
+  const rows = offers.map(offerRow);
 
   return {
     number: canvass.number ?? BLANK,
     header: {
-      subjectKind: subject.requestedItem ? 'Requested Item' : 'Component',
+      subjectKind: subject.product ? 'Product' : subject.requestedItem ? 'Requested Item' : 'Component',
       subject: subjectLine(subject),
       sor: text(subject.sor),
       raised: printDate(canvass.created_at),
       offerCount: offers.length,
     },
     decision: decisionBlock(canvass, winner),
-    offers: offers.map(offerRow),
+    offers: rows,
+    offerGroups: offerGroups(rows),
     warning: moreOffersWarning(offers),
     signatures: [
       signatureBlock('Canvassed by', 'Purchasing', {

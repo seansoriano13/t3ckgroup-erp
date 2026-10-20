@@ -107,20 +107,20 @@ describe("IPAS sign-offs", () => {
       // The drawer's footer carries the move; the body only reads.
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
-      expect(within(one).getByText("Not prepared")).toBeInTheDocument();
+      expect(within(one).getByText("Not submitted")).toBeInTheDocument();
       expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
 
-      await user.click(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" }));
-      await confirmMove(user, "Prepare section 1 · Purchasing", "Prepare");
+      await user.click(within(drawer).getByRole("button", { name: "Submit section 1 · Purchasing" }));
+      await confirmMove(user, "Submit section 1 · Purchasing", "Submit");
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Awaiting approval")).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-prepared")).getByText("Buyer")).toBeInTheDocument();
-      expect(within(drawer).queryByRole("button", { name: "Prepare section 1 · Purchasing" })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: "Submit section 1 · Purchasing" })).not.toBeInTheDocument();
       await waitForNetworkIdle();
       expect(db.rows("notifications").map((n) => n.recipient_id).sort()).toEqual([approver.id, other.id].sort());
     });
 
-    it("offers Approve to a list member after Prepared, and shows who approved", async () => {
+    it("offers Approve to a list member after Submitted, and shows who approved", async () => {
       onList("s1_approved", approver);
       const row = ipas();
       signoff(row.id, 1, "prepared", purchaser);
@@ -130,7 +130,7 @@ describe("IPAS sign-offs", () => {
       renderDetail(row.id, "purchasing");
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
-      expect(within(one).queryByRole("button", { name: /Prepare section/ })).not.toBeInTheDocument();
+      expect(within(one).queryByRole("button", { name: /Submit section/ })).not.toBeInTheDocument();
       await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
       await confirmMove(user, "Approve section 1 · Purchasing", "Approve");
 
@@ -149,7 +149,7 @@ describe("IPAS sign-offs", () => {
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(drawer).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
-      expect(within(one).getByText(/You prepared this section, so someone else approves it/)).toBeInTheDocument();
+      expect(within(one).getByText(/You submitted this section, so someone else approves it/)).toBeInTheDocument();
       // They are on the list, so they may still return it: from the footer.
       expect(within(drawer).getByRole("button", { name: "Return section 1 · Purchasing" })).toBeInTheDocument();
     });
@@ -181,12 +181,12 @@ describe("IPAS sign-offs", () => {
       const dialog = await screen.findByRole("dialog", { name: "Return section 2 · Purchasing & Finance?" });
       const send = within(dialog).getByRole("button", { name: "Return" });
       expect(send).toBeDisabled();
-      await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "  Freight is missing ");
+      await user.type(within(dialog).getByPlaceholderText(/What does the submitter need to fix/), "  Freight is missing ");
       expect(send).toBeEnabled();
       await user.click(send);
 
-      // UI first: the section reads Not prepared at once.
-      await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-3")).getByText("Not prepared")).toBeInTheDocument());
+      // UI first: the section reads Not submitted at once.
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-3")).getByText("Not submitted")).toBeInTheDocument());
       const history = screen.getByTestId("ipas-signoff-history-3");
       expect(within(history).getAllByText(/Returned: Freight is missing/)).toHaveLength(1);
       await waitForNetworkIdle();
@@ -195,7 +195,7 @@ describe("IPAS sign-offs", () => {
       expect(notice.title).toBe("IPAS returned");
     });
 
-    it("undoes an approval with a reason, leaving Prepared so it waits for an approver again", async () => {
+    it("undoes an approval with a reason, leaving Submitted so it waits for an approver again", async () => {
       onList("s3_approved", approver);
       const row = ipas();
       signoff(row.id, 3, "prepared", purchaser);
@@ -253,7 +253,7 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id, "history");
 
-      expect(await screen.findByText("Section 1 · Purchasing prepared")).toBeInTheDocument();
+      expect(await screen.findByText("Section 1 · Purchasing submitted")).toBeInTheDocument();
       expect(screen.getByText("Section 1 · Purchasing approved · without a signature")).toBeInTheDocument();
       expect(screen.getByText("Section 2 · Purchasing & Finance · “Freight is missing”")).toBeInTheDocument();
       expect(screen.getByText("PO changed in Odoo · 1 · Purchasing and 2 · Purchasing & Finance back to awaiting approval")).toBeInTheDocument();
@@ -460,7 +460,7 @@ describe("IPAS sign-offs", () => {
       renderQueue();
       await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 2` }));
       const dialog = await screen.findByRole("dialog");
-      await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "Wrong supplier");
+      await user.type(within(dialog).getByPlaceholderText(/What does the submitter need to fix/), "Wrong supplier");
       await user.click(within(dialog).getByRole("button", { name: "Return" }));
 
       await waitFor(() => expect(screen.getByText("Nothing waiting on you right now")).toBeInTheDocument());
@@ -481,7 +481,7 @@ describe("IPAS sign-offs", () => {
       await user.click(await screen.findByText("Scorpe Technologies"));
 
       const sheet = await screen.findByRole("dialog");
-      expect(within(sheet).getByText("Prepared it")).toBeInTheDocument();
+      expect(within(sheet).getByText("Submitted it")).toBeInTheDocument();
       expect(within(sheet).getByText(row.po_number)).toBeInTheDocument();
       expect(within(sheet).getByRole("link", { name: "Open the IPAS" })).toHaveAttribute("href", `/purchasing/ipas/${row.id}`);
       expect(within(sheet).getByRole("button", { name: "Approve" })).toBeInTheDocument();

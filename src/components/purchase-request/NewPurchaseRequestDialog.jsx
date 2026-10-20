@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
 import { Textarea } from "@/components/ui/textarea";
@@ -81,14 +80,12 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
         </DialogHeader>
 
         <div className="-mx-1 max-h-[60vh] space-y-4 overflow-y-auto px-1">
-          <FieldBox label="What is it for?" bare>
-            <Input
-              value={title}
-              maxLength={TITLE_MAX}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Printer toner for the 3rd floor"
-            />
-          </FieldBox>
+          <Input label="What is it for?"
+            value={title}
+            maxLength={TITLE_MAX}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Printer toner for the 3rd floor"
+          />
 
           {items.map((item, index) => (
             <fieldset key={item.key} className="space-y-3 rounded-lg border border-border p-3">
@@ -106,36 +103,28 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
                   </Button>
                 )}
               </div>
-              <FieldBox label="Product" bare>
-                <Input
-                  value={item.name}
-                  onChange={(e) => setItem(item.key, "name")(e.target.value)}
-                  placeholder="What do you need?"
-                />
-              </FieldBox>
+              <Input label="Product"
+                value={item.name}
+                onChange={(e) => setItem(item.key, "name")(e.target.value)}
+                placeholder="What do you need?"
+              />
               <div className="grid grid-cols-2 gap-3">
-                <FieldBox label="Quantity" bare>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    inputMode="decimal"
-                    value={item.quantity}
-                    onChange={(e) => setItem(item.key, "quantity")(e.target.value)}
-                  />
-                </FieldBox>
-                <FieldBox label="Unit" bare>
-                  <SelectField options={UNIT_OPTIONS} value={item.unit} onChange={setItem(item.key, "unit")} />
-                </FieldBox>
-              </div>
-              <FieldBox label="Details" bare>
-                <Textarea
-                  value={item.description}
-                  onChange={(e) => setItem(item.key, "description")(e.target.value)}
-                  rows={2}
-                  placeholder="Brand, specs, a link"
+                <Input label="Quantity"
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  value={item.quantity}
+                  onChange={(e) => setItem(item.key, "quantity")(e.target.value)}
                 />
-              </FieldBox>
+                <SelectField label="Unit" options={UNIT_OPTIONS} value={item.unit} onChange={setItem(item.key, "unit")} />
+              </div>
+              <Textarea label="Details"
+                value={item.description}
+                onChange={(e) => setItem(item.key, "description")(e.target.value)}
+                rows={2}
+                placeholder="Brand, specs, a link"
+              />
             </fieldset>
           ))}
 

@@ -25,6 +25,7 @@ import {
   normalizePoNumber,
 } from "../../constants/procurement";
 import { useRefreshRequest } from "./requestHooks";
+import { useItemStatusUndo } from "./useItemStatusUndo";
 import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
@@ -47,6 +48,7 @@ function toastPoVerdict(message, updated) {
  */
 export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
   const refresh = useRefreshRequest(requestId);
+  const announce = useItemStatusUndo(requestId);
   const [poNumber, setPoNumber] = useState("");
   const po = normalizePoNumber(poNumber);
   const invalid = !!po && !isValidPoNumber(po);
@@ -58,11 +60,16 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
 
   const orderMutation = useMutation({
     mutationFn: () => purchaseRequestService.orderItem(item.id, { poNumber: po }),
-    onSuccess: (updated) => {
+    // The item as it was, for Undo to say what it goes back to.
+    onMutate: () => ({ before: item }),
+    onSuccess: (updated, _, { before }) => {
       const checked = updated?.po_number
         ? ` PO ${updated.po_number}: ${PO_VERIFICATION_LABELS[updated.po_verification] || updated.po_verification}.`
         : "";
-      toastPoVerdict(`${item.name}: Ordered.${checked}`, updated);
+      const pending = updated?.po_verification === PO_VERIFICATION.PENDING;
+      announce(before, updated, `${item.name}: Ordered.${checked}${pending ? " Saved without being checked." : ""}`, {
+        variant: pending ? "warning" : "success",
+      });
       close();
     },
     onError: (error) => toast.error(refusal(error)),
