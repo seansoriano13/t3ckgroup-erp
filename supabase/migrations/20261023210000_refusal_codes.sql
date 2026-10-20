@@ -11,6 +11,19 @@
 -- 23514 themselves; only refusals raised by these functions moved.
 -- Re-runnable: create or replace.
 
+-- A stored sign-off section (1, 3, 7) as people read it in the IPAS (1, 2, 4);
+-- mirrors ipasSectionNo in src/constants/ipas.js. Used in refusal text.
+create or replace function public._ipas_section_no(p_section integer)
+returns integer
+language sql
+immutable
+set search_path = public
+as $$
+  select case p_section when 3 then 2 when 7 then 4 else p_section end;
+$$;
+
+revoke all on function public._ipas_section_no(integer) from public, anon, authenticated;
+
 -- ipas_enforce_sor_rule (latest: 20261013100100_ipas.sql)
 create or replace function public.ipas_enforce_sor_rule()
 returns trigger
@@ -88,7 +101,7 @@ begin
 end;
 $$;
 
--- ipas_set_purpose_and_sors (latest: 20261013100100_ipas.sql)
+-- ipas_set_purpose_and_sors (latest: 20261013100100_ipas.sql; #551: the SOR list can no longer change)
 create or replace function public.ipas_set_purpose_and_sors(
   p_ipas_id uuid,
   p_purpose text,
@@ -127,31 +140,51 @@ begin
     raise exception 'ipas_set_purpose_and_sors: % is cancelled', v_row.number using errcode = '22023';
   end if;
 
-  v_after := public._ipas_clean_sor_ids('ipas_set_purpose_and_sors', p_purpose, p_sor_ids);
   select coalesce(array_agg(s.opportunity_id order by s.opportunity_id), '{}'::uuid[]) into v_before
     from public.ipas_sors s where s.ipas_id = v_row.id;
-  select coalesce(array_agg(x order by x), '{}'::uuid[]) into v_after from unnest(v_after) x;
 
-  if v_row.purpose = p_purpose and v_before = v_after then
+  -- #551: the SOR list is fixed when the IPAS is raised. A list may be sent (older
+  -- callers do) only if it is the list already there; null means "leave it".
+  if p_sor_ids is not null then
+    if array_position(p_sor_ids, null) is not null then
+      raise exception 'ipas_set_purpose_and_sors: an SOR id is missing' using errcode = '22023';
+    end if;
+    select coalesce(array_agg(distinct x order by x), '{}'::uuid[]) into v_after from unnest(p_sor_ids) x;
+    if v_after is distinct from v_before then
+      raise exception 'ipas_set_purpose_and_sors: the SORs of % can''t be changed after it is raised; cancel it and raise a new one', v_row.number
+        using errcode = '22023';
+    end if;
+  end if;
+
+  -- The Purpose still has to fit the SORs it already has.
+  if p_purpose = 'project' and cardinality(v_before) = 0 then
+    raise exception 'ipas_set_purpose_and_sors: a Project IPAS needs at least one SOR, and the SORs can''t be changed after it is raised' using errcode = '22023';
+  end if;
+  if p_purpose <> 'project' and cardinality(v_before) > 0 then
+    raise exception 'ipas_set_purpose_and_sors: % names SORs, so it can only be a Project; the SORs can''t be changed after it is raised', v_row.number
+      using errcode = '22023';
+  end if;
+
+  if v_row.purpose = p_purpose then
     return v_row;
   end if;
 
   v_from := v_row.purpose;
-  delete from public.ipas_sors where ipas_id = v_row.id;
   update public.ipas set purpose = p_purpose where id = v_row.id returning * into v_row;
-  insert into public.ipas_sors (ipas_id, opportunity_id)
-  select v_row.id, s from unnest(v_after) s;
 
   perform public._ipas_write_event(v_row.id, v_actor, 'purpose_sors_changed', jsonb_build_object(
     'purpose_from', v_from,
     'purpose_to', v_row.purpose,
     'sor_ids_from', to_jsonb(v_before),
-    'sor_ids_to', to_jsonb(v_after)
+    'sor_ids_to', to_jsonb(v_before)
   ));
 
   return v_row;
 end;
 $$;
+
+comment on function public.ipas_set_purpose_and_sors(uuid, text, uuid[]) is
+  '#242/#551: Purchasing changes an open IPAS''s Purpose. The SOR list is fixed when the IPAS is raised: a different list is refused (22023), null leaves it, and the new Purpose must fit the SORs it already has (a Project has SORs, any other Purpose none). Refuses a filed or cancelled IPAS. Writes a "purpose_sors_changed" event when the Purpose changed.';
 
 -- ipas_cancel (latest: 20261013100100_ipas.sql)
 create or replace function public.ipas_cancel(p_ipas_id uuid, p_reason text)
@@ -1238,7 +1271,7 @@ begin
     raise exception 'ipas_sign: not signed in' using errcode = '42501';
   end if;
   if p_section is null or p_role is null or not public._ipas_signoff_pair_ok(p_section, p_role) then
-    raise exception 'ipas_sign: section % has no % sign-off', coalesce(p_section::text, 'null'), coalesce(p_role, 'null')
+    raise exception 'ipas_sign: section % has no % sign-off', coalesce(public._ipas_section_no(p_section)::text, 'null'), coalesce(p_role, 'null')
       using errcode = '22023';
   end if;
 
@@ -1259,7 +1292,7 @@ begin
     select 1 from public.ipas_signoffs s
      where s.ipas_id = v_ipas.id and s.section = p_section and s.role = p_role and s.cleared_at is null
   ) then
-    raise exception 'ipas_sign: section % is already % on %', p_section, p_role, v_ipas.number using errcode = '22023';
+    raise exception 'ipas_sign: section % is already % on %', public._ipas_section_no(p_section), p_role, v_ipas.number using errcode = '22023';
   end if;
 
   if p_role = 'approved' and p_section in (1, 3) then
@@ -1267,10 +1300,10 @@ begin
       from public.ipas_signoffs s
      where s.ipas_id = v_ipas.id and s.section = p_section and s.role = 'prepared' and s.cleared_at is null;
     if v_prepared.id is null then
-      raise exception 'ipas_sign: section % hasn''t been prepared yet', p_section using errcode = '22023';
+      raise exception 'ipas_sign: section % hasn''t been prepared yet', public._ipas_section_no(p_section) using errcode = '22023';
     end if;
     if v_prepared.signed_by = v_actor then
-      raise exception 'ipas_sign: you prepared section %, so someone else approves it', p_section using errcode = '42501';
+      raise exception 'ipas_sign: you prepared section %, so someone else approves it', public._ipas_section_no(p_section) using errcode = '42501';
     end if;
   end if;
 
@@ -1284,7 +1317,7 @@ begin
       select 1 from public.ipas_signoffs s
        where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
     ) then
-      raise exception 'ipas_sign: section 7 opens once sections 1 and 3 are approved' using errcode = '22023';
+      raise exception 'ipas_sign: section 4 opens once sections 1 and 2 are approved' using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.
@@ -1418,7 +1451,7 @@ begin
     raise exception 'ipas_send_back: the reason is 500 characters at most' using errcode = '22023';
   end if;
   if p_section is null or p_section not in (1, 3, 7) then
-    raise exception 'ipas_send_back: only sections 1, 3 and 7 can be returned' using errcode = '22023';
+    raise exception 'ipas_send_back: only sections 1, 2 and 4 can be returned' using errcode = '22023';
   end if;
 
   -- Refuses a filed or cancelled IPAS (55000): a filed one is reopened, not returned.
@@ -1427,7 +1460,7 @@ begin
   if p_section = 7 then
     -- Anyone on a section 7 list, whichever sign-off they give.
     if not public._ipas_can_sign_section(7, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section 7 returns it' using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section 4 returns it' using errcode = '42501';
     end if;
 
     -- Section 7 is open once sections 1 and 3 are approved.
@@ -1438,7 +1471,7 @@ begin
       select 1 from public.ipas_signoffs s
        where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
     ) then
-      raise exception 'ipas_send_back: section 7 isn''t open yet; sections 1 and 3 must be approved first' using errcode = '22023';
+      raise exception 'ipas_send_back: section 4 isn''t open yet; sections 1 and 2 must be approved first' using errcode = '22023';
     end if;
 
     with cleared as (
@@ -1458,7 +1491,7 @@ begin
     v_preparers := '{}'::uuid[];
   else
     if not public._ipas_can_sign_section(p_section, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section % returns it', p_section using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section % returns it', public._ipas_section_no(p_section) using errcode = '42501';
     end if;
 
     with cleared as (
@@ -1498,7 +1531,7 @@ begin
   end if;
 
   if cardinality(v_roles) = 0 then
-    raise exception 'ipas_send_back: section % has nothing to return', p_section using errcode = '22023';
+    raise exception 'ipas_send_back: section % has nothing to return', public._ipas_section_no(p_section) using errcode = '22023';
   end if;
 
   perform public._ipas_write_event(v_ipas.id, v_actor, 'sent_back', jsonb_build_object(
@@ -1777,13 +1810,13 @@ begin
     raise exception 'ipas_undo_approval: the reason is 500 characters at most' using errcode = '22023';
   end if;
   if p_section is null or p_section not in (1, 3) then
-    raise exception 'ipas_undo_approval: only sections 1 and 3 have an approval to undo' using errcode = '22023';
+    raise exception 'ipas_undo_approval: only sections 1 and 2 have an approval to undo' using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_undo_approval', p_ipas_id);
 
   if not public._ipas_can_sign_section(p_section, v_actor) then
-    raise exception 'ipas_undo_approval: only a signer of section % undoes its approval', p_section using errcode = '42501';
+    raise exception 'ipas_undo_approval: only a signer of section % undoes its approval', public._ipas_section_no(p_section) using errcode = '42501';
   end if;
 
   update public.ipas_signoffs s
@@ -1792,7 +1825,7 @@ begin
   returning s.signed_by into v_approver;
 
   if not found then
-    raise exception 'ipas_undo_approval: section % has no approval to undo', p_section using errcode = '22023';
+    raise exception 'ipas_undo_approval: section % has no approval to undo', public._ipas_section_no(p_section) using errcode = '22023';
   end if;
 
   -- Section 4 stood on both approvals: its open sign-offs go too.

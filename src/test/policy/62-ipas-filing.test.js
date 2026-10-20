@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
-import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
 import { makeSor } from "./support/rows.js"
 
 const svc = () => serviceClient()
@@ -48,7 +48,8 @@ const copyFor = (po, supplierId = 553, lines = [line(1)]) => ({
     bills: { count: 0, draft: 0 },
 })
 
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) =>
+    name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
 
 let sorId
 let methodId
@@ -185,7 +186,7 @@ describe("section 7: the order", () => {
         }
         const none = await sign("finance", ipas.id, 7, "received")
         expect(none.error?.code).toBe("22023")
-        expect(none.error?.message).toMatch(/sections 1 and 3/)
+        expect(none.error?.message).toMatch(/sections 1 and 2/)
 
         await approvedThrough(ipas, [1])
         const onlyOne = await sign("finance", ipas.id, 7, "received")
@@ -243,7 +244,7 @@ describe("section 7: the order", () => {
 
         const noted = await sign("ordinary", ipas.id, 7, "noted")
         expect(noted.error?.code).toBe("22023")
-        expect(noted.error?.message).toMatch(/sections 1 and 3/)
+        expect(noted.error?.message).toMatch(/sections 1 and 2/)
     })
 
     it("belongs to each step's list: a purchaser, a Super Admin off the list and a stranger are refused", async () => {
@@ -552,8 +553,9 @@ describe("reopening", () => {
             p_php_debited: null, p_charge_fee_php: 0, p_method_id: methodId, p_check_no: null, p_proof_url: null,
         })
         expect(payment.error).toBeNull()
+        // A Project keeps its SORs even when reopened (#551).
         const purpose = await rpc("outsider", "ipas_set_purpose_and_sors", { p_ipas_id: ipas.id, p_purpose: "inventory", p_sor_ids: [] })
-        expect(purpose.error).toBeNull()
+        expect(purpose.error?.code).toBe("22023")
 
         // Section 7 starts again from Received.
         expect((await sign("ordinary", ipas.id, 7, "noted")).error?.code).toBe("22023")

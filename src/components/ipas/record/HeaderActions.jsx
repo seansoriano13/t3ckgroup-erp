@@ -19,7 +19,8 @@ export default function HeaderActions({ ctx }) {
     items.push({ key: "filing", label: "Print filing copy", icon: FileLock2, disabled: busy.print, onSelect: on.printFiling });
   }
   if (can.change) {
-    items.push({ key: "purpose", label: "Purpose and SORs", icon: Pencil, onSelect: on.editPurpose });
+    // A Project's SORs are fixed when it is raised, so its Purpose has nowhere to go (#551).
+    if (!ipas.sors?.length) items.push({ key: "purpose", label: "Purpose", icon: Pencil, onSelect: on.editPurpose });
     items.push({ key: "cancel", label: "Cancel IPAS", icon: Ban, destructive: true, onSelect: on.cancel });
   }
   return (

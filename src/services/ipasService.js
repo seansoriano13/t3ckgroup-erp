@@ -50,6 +50,7 @@ import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
+import { REFUSAL } from "../constants/refusal";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
 import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
@@ -354,8 +355,9 @@ export const ipasService = {
   // ── The Odoo copy ────────────────────────────────────────────────────────
 
   /**
-   * Refreshes an IPAS's stored copy from Odoo: reads the PO (`odoo-po-ipas`) and
-   * hands it to `ipas_record_odoo_copy`, which stores it with its fetch time
+   * Refreshes an IPAS's stored copy from Odoo: asks `odoo-po-ipas` (refresh
+   * mode), which reads the PO and records it through the server-only
+   * `ipas_refresh_from_odoo`, which stores it with its fetch time
    * and a change note, fills a blank contact and P.I #, and, when lines or the
    * total changed, clears the live section 1 and 3 approvals. The preparers of
    * those sections are notified here.
@@ -382,22 +384,40 @@ export const ipasService = {
       return { ok: true, skipped: true, changed: false, fetchedAt: row.odoo_fetched_at };
     }
 
-    let copy;
+    // The server reads the PO from Odoo and records it itself (#550): the browser
+    // names the IPAS and never sends a copy to be stored.
+    let answer;
     try {
-      copy = await ipasService.readPurchaseOrder(row.po_number);
-    } catch (failure) {
+      const { data: reply, error: invokeError } = await supabase.functions.invoke("odoo-po-ipas", {
+        body: { action: "refresh", ipasId: id },
+      });
+      if (invokeError) throw invokeError;
+      answer = reply;
+    } catch {
+      const failure = unavailable(row.po_number);
+      return failedRefresh(failure.code, failure.message, row.odoo_fetched_at);
+    }
+
+    if (answer?.skipped) return { ok: true, skipped: true, changed: false, fetchedAt: row.odoo_fetched_at };
+    if (answer?.found === false) {
       return failedRefresh(
-        failure?.code ?? IPAS_ERROR.ODOO_UNAVAILABLE,
-        failure?.message || "Odoo didn't answer.",
+        IPAS_ERROR.PO_NOT_FOUND,
+        answer.message || `Odoo has no purchase order named ${row.po_number}.`,
         row.odoo_fetched_at,
       );
     }
-
-    const { data, error: rpcError } = await supabase.rpc("ipas_record_odoo_copy", {
-      p_ipas_id: id,
-      p_odoo_copy: copy,
-    });
-    if (rpcError) return failedRefresh(IPAS_ERROR.REFRESH_FAILED, rpcError.message, row.odoo_fetched_at);
+    if (answer?.refused) {
+      return failedRefresh(
+        IPAS_ERROR.REFRESH_FAILED,
+        String(answer.message ?? "").replace(/^[a-z_]+:\s*/, ""),
+        row.odoo_fetched_at,
+      );
+    }
+    if (!answer?.success || !answer.refreshed) {
+      const failure = unavailable(row.po_number);
+      return failedRefresh(failure.code, failure.message, row.odoo_fetched_at);
+    }
+    const data = answer.result;
 
     const preparerIds = data?.preparer_ids ?? [];
     if (preparerIds.length > 0) {
@@ -825,7 +845,7 @@ export const ipasService = {
         .single();
       // An option a filed IPAS uses keeps its name and marks: the database
       // refuses (22023, "ipas_options: ...") for everyone. Say so in a sentence the page can show.
-      if (error?.code === "22023" && /^ipas_options:/.test(error.message ?? "")) {
+      if (error?.code === REFUSAL.INVALID && /^ipas_options:/.test(error.message ?? "")) {
         throw new IpasError(
           IPAS_ERROR.OPTION_ON_FILED,
           `"${name}" is used on a filed IPAS and can't be changed. Deactivate it and add a new one instead.`,
@@ -1335,17 +1355,16 @@ export const ipasService = {
   // ── Changes ──────────────────────────────────────────────────────────────
 
   /**
-   * Changes an open IPAS's Purpose and SORs together. A Project needs one or
-   * more SORs; any other Purpose takes none. The database refuses a filed or
-   * cancelled IPAS. Returns the row.
+   * Changes an open IPAS's Purpose (#242). Its SORs are fixed when it is raised
+   * (#551): the database refuses a different SOR list, and a Purpose that doesn't
+   * fit the SORs it has (a Project has SORs, any other Purpose none). Returns the row.
    */
-  async setPurposeAndSors(id, { purpose, sorIds = [] }) {
+  async setPurpose(id, purpose) {
     requireOneOf(purpose, IPAS_PURPOSES, "Pick a Purpose.");
-    requireSorsFitPurpose(purpose, sorIds);
     const { data, error } = await supabase.rpc("ipas_set_purpose_and_sors", {
       p_ipas_id: id,
       p_purpose: purpose,
-      p_sor_ids: sorIds,
+      p_sor_ids: null,
     });
     if (error) throw error;
     return data;

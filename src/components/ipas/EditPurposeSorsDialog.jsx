@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -13,24 +13,21 @@ import {
 } from "@/components/ui/dialog";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
-import SorPicker from "./SorPicker";
 import { ipasService } from "../../services/ipasService";
 import { IPAS_PURPOSE, IPAS_PURPOSES, IPAS_PURPOSE_LABELS } from "../../constants/ipas";
 import { ipasErrorMessage } from "../../utils/ipas";
 import { ipasKey, ipasListKey } from "./ipasKeys";
 
-const PURPOSE_OPTIONS = IPAS_PURPOSES.map((value) => ({ value, label: IPAS_PURPOSE_LABELS[value] }));
-
-const toPicked = (sor) => ({
-  id: sor.id,
-  sales_reference: sor.salesReference,
-  project_title: sor.projectTitle,
-  current_stage_name: sor.stageName,
-});
+// An IPAS with no SORs can be any Purpose but Project; the SOR list is fixed when it is raised (#551).
+const PURPOSE_OPTIONS = IPAS_PURPOSES.filter((value) => value !== IPAS_PURPOSE.PROJECT).map((value) => ({
+  value,
+  label: IPAS_PURPOSE_LABELS[value],
+}));
 
 /**
- * Changes an open IPAS's Purpose and SORs together (#242): a Project names one
- * or more SORs, any other Purpose none, and the database holds it to that.
+ * Changes an open IPAS's Purpose (#242). The SORs are fixed when the IPAS is
+ * raised (#551), so only an IPAS with no SORs gets here, and it can't become a
+ * Project; the database holds it to that.
  * Mounted only while open, so its fields start from the IPAS as it stands.
  */
 export default function EditPurposeSorsDialog({ ipas, open, onOpenChange }) {
@@ -44,20 +41,11 @@ export default function EditPurposeSorsDialog({ ipas, open, onOpenChange }) {
 function EditBody({ ipas, onClose }) {
   const queryClient = useQueryClient();
   const [purpose, setPurpose] = useState(ipas.purpose);
-  const [sors, setSors] = useState(() => ipas.sors.map(toPicked));
 
-  const { data: suggestions = [] } = useQuery({
-    queryKey: ["ipas", "suggestions", ipas.id],
-    queryFn: () => ipasService.suggestSors(ipas.odoo_copy),
-    staleTime: 60_000,
-  });
-
-  const isProject = purpose === IPAS_PURPOSE.PROJECT;
   const save = useMutation({
-    mutationFn: () =>
-      ipasService.setPurposeAndSors(ipas.id, { purpose, sorIds: isProject ? sors.map((s) => s.id) : [] }),
+    mutationFn: () => ipasService.setPurpose(ipas.id, purpose),
     onSuccess: () => {
-      toast.success("Purpose and SORs updated.");
+      toast.success("Purpose updated.");
       queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) });
       queryClient.invalidateQueries({ queryKey: ipasListKey });
       onClose();
@@ -65,15 +53,14 @@ function EditBody({ ipas, onClose }) {
     onError: (error) => toast.error(ipasErrorMessage(error)),
   });
 
-  const ready = purpose !== "" && (!isProject || sors.length > 0);
+  const ready = purpose !== "" && purpose !== ipas.purpose;
 
   return (
     <DialogContent className="sm:max-w-lg">
       <DialogHeader className="shrink-0 pr-10">
-        <DialogTitle>Purpose and SORs</DialogTitle>
+        <DialogTitle>Purpose</DialogTitle>
         <DialogDescription>
-          {ipas.number} can change these until it is filed. A Project names one or more SORs; Inventory, Supplies and
-          Events name none.
+          {ipas.number} can change its Purpose until it is filed. Its SORs are fixed when it is raised.
         </DialogDescription>
       </DialogHeader>
 
@@ -81,7 +68,6 @@ function EditBody({ ipas, onClose }) {
         <FieldBox label="Purpose" bare>
           <SelectField options={PURPOSE_OPTIONS} value={purpose} onChange={setPurpose} placeholder="Pick" />
         </FieldBox>
-        {isProject && <SorPicker selected={sors} onChange={setSors} suggestions={suggestions} />}
       </div>
 
       <DialogFooter>

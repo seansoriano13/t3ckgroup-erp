@@ -2,6 +2,7 @@
  * Pure helpers for the IPAS (spec #241). No network, no React.
  */
 
+import { REFUSAL } from "../constants/refusal";
 import { finiteNumber, isPhpCurrency } from "./landedCost";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { deriveTransmittalTrack } from "./ipasTransmittals";
@@ -288,9 +289,9 @@ export const IPAS_OFFLINE_MESSAGE = "Can't reach the server. Check your connecti
  * Transmittal and Costing functions raise carries one of these three codes (#556).
  */
 export const REFUSAL_MESSAGES = {
-  42501: "You are not allowed to do that.",
-  22023: "That can't be done right now.",
-  23505: "That already exists.",
+  [REFUSAL.NOT_ALLOWED]: "You are not allowed to do that.",
+  [REFUSAL.INVALID]: "That can't be done right now.",
+  [REFUSAL.DUPLICATE]: "That already exists.",
 };
 
 /** A database error's message without the RPC's own name in front of it; a dropped connection in plain words. */
