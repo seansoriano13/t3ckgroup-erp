@@ -170,27 +170,24 @@ describe("Procurement Queue", () => {
     expect(project.querySelector("td")).not.toHaveClass("border-l-2")
   })
 
-  it("Open full switches to full screen, with a way back, and the next request opens the same way (#571)", async () => {
-    localStorage.clear()
-    const user = setupUser()
-    const first = renderAt(`/purchasing?request=${unassigned.id}`)
+  it("opens full screen on desktop widths, with no drawer toggles, and clears the old stored choice (#571)", async () => {
+    localStorage.setItem("purchase_request_open_as:u1", "full")
+    const mm = window.matchMedia
+    window.matchMedia = (q) => ({ ...mm(q), matches: true })
+    try {
+      renderAt(`/purchasing?request=${unassigned.id}`)
+      expect(await screen.findByRole("button", { name: "Close" })).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Open full" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Show in side panel" })).not.toBeInTheDocument()
+      expect(localStorage.getItem("purchase_request_open_as:u1")).toBeNull()
+    } finally {
+      window.matchMedia = mm
+    }
+  })
 
-    await user.click(await screen.findByRole("button", { name: "Open full" }))
-    expect(await screen.findByRole("button", { name: "Show in side panel" })).toBeInTheDocument()
-    first.unmount()
-
-    renderAt(`/purchasing?request=${taken.id}`)
-    const back = await screen.findByRole("button", { name: "Show in side panel" })
-    await user.click(back)
-    expect(await screen.findByRole("button", { name: "Open full" })).toBeInTheDocument()
-  }, 20_000)
-
-  it("opens in the slide-over when browser storage throws (#571)", async () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("blocked")
-    })
+  it("opens in the slide-over on mobile widths, with no Open full button (#571)", async () => {
     renderAt(`/purchasing?request=${unassigned.id}`)
-    expect(await screen.findByRole("button", { name: "Open full" })).toBeInTheDocument()
-    vi.restoreAllMocks()
+    expect(await screen.findByRole("dialog")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open full" })).not.toBeInTheDocument()
   })
 })

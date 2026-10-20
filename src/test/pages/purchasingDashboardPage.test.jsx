@@ -183,30 +183,17 @@ describe("Purchasing Dashboard page", () => {
     expect(screen.getByTestId("url")).toHaveTextContent("request=pr-1");
   });
 
-  it("opens the request full screen from the slide-over, and the next one opens full too", async () => {
-    const user = setupUser();
-    const first = renderPage();
-    await user.click(await screen.findByRole("button", { name: /Ambulance kit/ }));
-    await user.click(await screen.findByRole("button", { name: "Open full" }));
-    expect(await screen.findByRole("button", { name: "Show in side panel" })).toBeInTheDocument();
-    first.unmount();
-
-    renderPage("/purchasing/dashboard?tab=projects&request=pr-1");
-    const back = await screen.findByRole("button", { name: "Show in side panel" });
-    await user.click(back);
-    expect(await screen.findByRole("button", { name: "Open full" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Show in side panel" })).not.toBeInTheDocument();
-  }, 20_000);
-
-  it("still opens the slide-over when browser storage throws", async () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("storage blocked");
-    });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("storage blocked");
-    });
-    renderPage("/purchasing/dashboard?tab=projects&request=pr-1");
-    expect(await screen.findByRole("button", { name: "Open full" })).toBeInTheDocument();
+  it("opens the request full screen on desktop widths, with no drawer toggles", async () => {
+    const mm = window.matchMedia;
+    window.matchMedia = (q) => ({ ...mm(q), matches: true });
+    try {
+      renderPage("/purchasing/dashboard?tab=projects&request=pr-1");
+      expect(await screen.findByRole("button", { name: "Close" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Open full" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Show in side panel" })).not.toBeInTheDocument();
+    } finally {
+      window.matchMedia = mm;
+    }
   });
 
   it("narrows to items ordered with no canvass, a choice in the Filters popover", async () => {

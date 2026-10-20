@@ -13,7 +13,7 @@
             "After you change a Requested Item's status, an Undo button shows for about 10 seconds.",
             "Important fields on the Canvass are now bold, and long product names no longer push the layout around.",
             "The Purchase Request list now shows a badge for Direct requests.",
-            "A Purchase Request opens in a side drawer from the list, with an Open full button to see the whole page.",
+            "A Purchase Request opens full screen on desktop, from the list and the Purchasing Dashboard, and in a side drawer on mobile.",
             "The Purchasing dashboard is tidier and has tabs.",
             "Each Purchasing Dashboard tab now has its own row of totals at the top, including a new one on the Register (orders shown, open, filed and late).",
             "IPAS sections now open and edit in place."
