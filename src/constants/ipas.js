@@ -120,6 +120,7 @@ export const IPAS_HEADER_FIELD = {
   COMPUTATION_STATUS: "computation_status",
   GOOGLE_SHEET: "google_sheet",
   GANTT_CHART: "gantt_chart",
+  REMARKS: "remarks",
 };
 
 /** Payment kinds (ipas_payments.kind). */
