@@ -6,7 +6,7 @@
  * The cast, on one SOR (dealOwner and support are its Deal Team):
  *   outsider          Purchasing access                        -> cost tier, writes
  *   superAdmin                                                 -> closed_book tier, writes
- *   dealOwner         Deal Team                                -> price tier (money), no write
+ *   dealOwner         Deal Team                                -> price tier: Offers, no prices (#546), no write
  *   stageParticipant  open Stage Participant window            -> participant tier: Offers, no prices
  *   head              is_head and nothing else                 -> no tier, no write
  *   ordinary          nobody                                   -> reads nothing
@@ -293,8 +293,8 @@ describe("who reads", () => {
         offer = await makeOffer(canvass.id, { currency: "USD", supplier_name: "Hong Kong" }, { unit_price: 1280, comparison_rate: 56.5625 })
     })
 
-    it("shows Purchasing, a Super Admin and the Deal Team the Canvass, its Offers and the prices", async () => {
-        for (const who of ["outsider", "superAdmin", "dealOwner", "support"]) {
+    it("shows Purchasing and a Super Admin the Canvass, its Offers and the prices", async () => {
+        for (const who of ["outsider", "superAdmin"]) {
             const client = await clientFor(who)
             expect(await canRead(client, "sor_canvasses", canvass.id), `${who} reads the Canvass`).toBe(true)
             expect(await canRead(client, "sor_canvass_offers", offer.id), `${who} reads the Offer`).toBe(true)
@@ -302,6 +302,19 @@ describe("who reads", () => {
             expect(data, `${who} reads the price`).toEqual([expect.objectContaining({ unit_price: 1280, comparison_rate: 56.5625 })])
             const money = await client.rpc("canvass_subject_can_read_money", { p_component_id: compRead, p_requested_item_id: null })
             expect(money.data, `${who} money`).toBe(true)
+        }
+    })
+
+    it("shows the Deal Team the Canvass and its Offers and not the prices (#546: Offer prices are cost)", async () => {
+        for (const who of ["dealOwner", "support"]) {
+            const client = await clientFor(who)
+            expect(await canRead(client, "sor_canvasses", canvass.id), `${who} reads the Canvass`).toBe(true)
+            expect(await canRead(client, "sor_canvass_offers", offer.id), `${who} reads the Offer`).toBe(true)
+            const { data, error } = await client.from("sor_canvass_offer_prices").select("*").eq("offer_id", offer.id)
+            expect(error).toBeNull()
+            expect(data, `${who} price`).toEqual([])
+            const money = await client.rpc("canvass_subject_can_read_money", { p_component_id: compRead, p_requested_item_id: null })
+            expect(money.data, `${who} money`).toBe(false)
         }
     })
 
