@@ -15,16 +15,16 @@ Guide §7. A matrix exists only after the "Open Costing Matrix" Stage Action has
 
 ### CM-02 · Build lines, Components, a bundle, Inclusions and a cost-only row
 - **Guide**: §7 Shape, Who writes which column
-- **Log in as**: purchaser
+- **Log in as**: sales-exec, then purchaser
 - **Needs**: CM-01
 - **Steps**:
-  1. Add Tender Line "STORY CM-02 Pump set", quantity 4.
-  2. Under it add Component "Pump 1HP" with Acquire `10,000.00`.
+  1. As sales-exec, add Tender Line "STORY CM-02 Pump set", quantity 4. Then, as purchaser, try to add a Tender Line "STORY CM-02 refused" (expect it refused or no control).
+  2. As purchaser, under the Sales-made line add Component "Pump 1HP" with Acquire `10,000.00`.
   3. Add Component "Install kit" as a bundle. Under it add Inclusions "Hoses" and "Clamps".
   4. Try to add an Inclusion under "Pump 1HP" (not a bundle).
   5. Try to turn "Install kit" back into a non-bundle.
   6. Add a cost-only row "Delivery Charge" with Acquire `2,500.00`.
-- **You should see**: steps 4 and 5 are refused. Everything else saves.
+- **You should see**: only Sales adds Tender Lines, so the purchaser's attempt in step 1 is refused. Purchasing adds the Components and the cost-only row. Steps 4 and 5 are refused. Everything else saves.
 
 ### CM-03 · Column bands refuse writes outside your band
 - **Guide**: §7 Who writes which column
@@ -91,6 +91,7 @@ Guide §7. A matrix exists only after the "Open Costing Matrix" Stage Action has
 ### CM-09 · Technical through an Evaluation task
 - **Guide**: §7 Compliance
 - **Log in as**: super-admin, then technical
+- **Needs**: a fresh FLOW-00 SOR with a Costing Matrix. Nobody is added to the Evaluation list or mentioned as a workaround.
 - **Steps**:
   1. As super-admin, set the Evaluation template in Costing Matrix settings (if not set).
   2. Make a group task from that template on S990002 with technical as a member.
@@ -99,22 +100,25 @@ Guide §7. A matrix exists only after the "Open Costing Matrix" Stage Action has
 - **You should see**: step 3 saves. Step 4 is refused.
 
 ### CM-10 · Evaluation approval, and what clears it
-- **Guide**: §7 Compliance
+- **Guide**: §2 Costing tiers, §7 Compliance
 - **Log in as**: ops-head (Evaluation list), then purchaser
-- **Needs**: every Component has a verdict
+- **Needs**: every Component has a verdict. ops-head is on the Evaluation list only: not Purchasing, not Deal Team, not mentioned.
 - **Steps**:
+  0. As ops-head, open the SOR from the Evaluation queue. It opens, and the PMS tab shows each Tender Line's ask, the Components' Offer Specification and Compliance, with no money columns.
   1. As ops-head, approve the Evaluation.
   2. As purchaser, change "Pump 1HP"'s Offer Specification.
   3. As ops-head, look at the Evaluation. Approve again.
   4. As purchaser, add a new Component.
-- **You should see**: the approval is cleared after step 2 and after step 4. The cleared rows stay as history.
+- **You should see**: step 0 opens the SOR with no money anywhere (no Acquire, no Landed Cost, no Offer prices). The approval is cleared after step 2 and after step 4. The cleared rows stay as history.
 
 ### CM-11 · Evaluation needs a verdict on every Component
 - **Guide**: §7 Compliance
 - **Log in as**: ops-head
+- **Needs**: ops-head is on the Evaluation list only (no mention, no Purchasing, no Deal Team).
 - **Steps**:
-  1. Leave one Component with no verdict. Try to approve.
-- **You should see**: refused.
+  1. Open the SOR. Leave one Component with no verdict. Try to approve.
+  2. Open an SOR that has no Costing Matrix (a seed SOR such as S990003) by address.
+- **You should see**: step 1 opens the SOR and the approval is refused. Step 2 does not open: the Evaluation list opens only SORs that have a matrix.
 
 ### CM-12 · Four sign-offs and what clears each
 - **Guide**: §7 Four sign-offs
@@ -148,15 +152,16 @@ Guide §7. A matrix exists only after the "Open Costing Matrix" Stage Action has
 - **You should see**: the print shows the first signature. The declined one prints no image.
 
 ### CM-15 · Bid Decision: Go, No-go, Revise
-- **Guide**: §7 Bid Decision
+- **Guide**: §2 Costing tiers, §7 Bid Decision
 - **Log in as**: approver, then sales-exec
-- **Needs**: a Final Offer on every Tender Line
+- **Needs**: a Final Offer on every Tender Line. approver is on the Final Acquire list only: not on the Deal Team, not mentioned in the Notes.
 - **Steps**:
-  1. As approver, open `/approvals/bid-decisions`. The matrix is listed. Take Revise with no reason.
+  1. As approver, open `/approvals/bid-decisions`. The matrix is listed. Open its row: the SOR opens straight away, with no "You're not on this SOR". Take Revise with no reason.
   2. Take Revise with reason "STORY CM-15".
   3. As sales-exec, check notifications and open the matrix.
   4. As approver, take Go.
 - **You should see**:
+  - The SOR opens from the queue row, and keeps opening after the SOR's stage moves.
   - Step 1 is refused.
   - sales-exec is told about Revise, sees the verdict and reason, and no totals.
   - The SOR's stage does not change at any step.

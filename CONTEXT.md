@@ -379,7 +379,7 @@ _Avoid_: Goods received, Delivery checked
 
 **Orders filed**:
 A Stage Condition, met when every IPAS naming the SOR that is not cancelled
-has been filed — section 7 approved, so its Landed Cost is final. It exists
+has been filed — section 4 approved, so its Landed Cost is final. It exists
 because an IPAS is per Odoo PO and cannot mount on a Stage. An SOR no IPAS
 names meets it; an IPAS naming several SORs counts for each. Built with the
 IPAS block but not placed on Government yet: Finance does not file in the ERP
@@ -530,7 +530,7 @@ The Module carrying purchasing's own work — buying against Purchase Requests, 
 _Avoid_: Procurement, PMS (when meaning the Module)
 
 **Purchase Request**:
-Every request for Purchasing to buy something — whether it comes from a project or not. Holds Requested Items, its own members, and its own Chat, so each request's buying talk stays apart from every other's. A Buyer from Purchasing takes it and buys; nobody approves it first.
+Every request for Purchasing to buy something — whether it comes from a project or not. Holds Requested Items, its own members, and its own Chat, so each request's buying talk stays apart from every other's. A Buyer from Purchasing takes it and buys; nobody approves it first. Every Purchase Request, Project ones included, makes every Purchasing holder a member.
 _Avoid_: Procurement Request, Requisition, PR Batch, Non-SOR Purchase Request
 
 **Project** (a Purchase Request's kind):
@@ -553,7 +553,10 @@ One product a Purchase Request asks for — copied from an SOR line or a Costing
 Matrix Component at the moment it was picked, or described as a new product.
 Later edits to the source never rewrite it. It keeps the link to the Component it
 buys for, and once Ordered it records the Odoo purchase order line as well as its
-number, which is how Landed Cost finds its way back. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
+number, which is how Landed Cost finds its way back. The server checks the PO
+number against Odoo itself: a PO Odoo doesn't know is refused, and when Odoo
+doesn't answer the PO is saved as "Not checked". Purchasing can Correct PO while
+the item is Ordered, which is checked again. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
 _Avoid_: Line Item, Procurement Request
 
 **Requested Item Status**:
@@ -706,16 +709,16 @@ Its fields are defined by the company's own IPAS sheet, not by this glossary.
 _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 
 **Filing**:
-The last sign-off on an IPAS — section 7's Approved, given once Finance has
+The last sign-off on an IPAS — section 4's Approved, given once Finance has
 received the IPAS and it has been noted and checked, and only after sections 1
-and 3 are approved and the Computation status is LC Odoo Done, since filing
+and 2 are approved and the Computation status is LC Odoo Done, since filing
 freezes a Landed Cost that would otherwise still be provisional. A filed IPAS is frozen: its copy of the Odoo purchase order,
 its payments and charges, its Purpose and its SORs no longer change. Earlier
 approvals block nothing; filing is the one point that locks. Required documents
 that nobody has ticked only warn. A Super Admin can reopen a filed IPAS with a
-reason, which clears section 7 and leaves sections 1 and 3 approved; a filed IPAS
+reason, which clears section 4 and leaves sections 1 and 2 approved; a filed IPAS
 can't be cancelled until it is reopened.
-_Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 3)
+_Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 2)
 
 **Return** (an IPAS section):
 A signer on the section's approval list sends the section back to its preparer
@@ -736,9 +739,9 @@ _Avoid_: Unapprove, Revert
 **Computation status**:
 Where an IPAS's cost work stands, in order: Encoding, Encoded, LC GS Done, LC
 Odoo Done, Checked by. Purchasing moves it up to LC Odoo Done (Landed Cost goes
-final there, which is what Filing waits on); Finance, Purchasing or a Super
-Admin gives Checked by. Shown on the record, the IPAS list (with a filter) and
-the printed IPAS.
+final there, which is what Filing waits on) and never gives Checked by; Finance,
+or a Super Admin who is not in Purchasing, gives and takes back Checked by. Shown
+on the record, the IPAS list (with a filter) and the printed IPAS.
 _Avoid_: Costs complete (the old name for LC Odoo Done), Costing status
 
 **Finance access**:
@@ -762,7 +765,8 @@ The numbered slip goods travel on after they are bought — the company's
 Transmittal Form, numbered TG03-525, TG03-526 and on — from where they came
 (Purchasing, Logistics, the Warehouse) through the checks they need. Its Checking
 boxes decide those: Warehouse checking, Warehouse releasing when the goods leave
-for Technical, and Technical inspection. At each check the in-charge rates every
+for Technical (optional on a Warehouse-only slip, required when Technical
+follows), and Technical inspection. At each check the in-charge rates every
 line GC or NA, and the stage is signed by two people with its remarks and
 pictures. Received in Odoo by and two Check by signatures close it. It stands on its own, each line
 naming the purchase order line and the SOR (Project Name) it is for, because one
@@ -809,7 +813,7 @@ _Avoid_: Overdue, Late list
 
 **Owner (of an order's next thing)**:
 Who has to act next on an open IPAS: Purchasing, Finance, the Warehouse,
-Technical, the Check by signers, the section 7 signers, or someone else (the
+Technical, the Check by signers, the section 4 signers, or someone else (the
 supplier, forwarder or port). Only someone else puts an order in Waiting on
 someone else; every other owner is "us". Where one order has Transmittals waiting
 on different checks the owner is the Warehouse, the earlier check, and the line
@@ -905,8 +909,12 @@ that produced it. Neither side can derive the margin alone, which is the whole
 point, and the database serves each side its own column list rather than the
 browser hiding what it was sent. Whoever a Sales Flow names as Always sees reads
 what the Deal Team reads — the price side — since they already read the SOR's
-quoted prices. Landed Cost is cost, not price: it reaches the Closed Book and
-Purchasing, never the price side. Distinct from the write bands, which say who may *change* a
+quoted prices. Landed Cost and a supplier's Offer prices are cost, not price:
+they reach the Closed Book and Purchasing, never the price side, and the database
+refuses the price side, not just the screen. The ABC is in the public tender
+papers, so Purchasing and the price side read it. The Final Acquire list and the
+Evaluation list can each open any SOR that has a Costing Matrix, at any stage;
+the Evaluation list reads it with no money at all. Distinct from the write bands, which say who may *change* a
 column and grant no reading.
 _Avoid_: Margin Tier, Confidential, Management View, Band (which is the write rule)
 

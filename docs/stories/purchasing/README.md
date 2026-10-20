@@ -11,6 +11,7 @@ Run them locally only. The AI types test passwords, and it may only do that on `
 3. Load the three test SORs and sample records: `node scripts/seed-mock-purchasing.mjs`. It stops by itself if they are already there.
 4. Start the Odoo functions with the secrets file: `npx supabase functions serve --env-file supabase/functions/.env`. Leave it running.
 5. Start the app: `pnpm dev`. Open `http://localhost:5173` (or the port it prints).
+6. A local database needs a **published Sales Flow** (the seed does not publish one), and the **`currency-rates-fetch` function run once** so Reference Rates exist (SET-06 and the foreign-currency stories need them). Without a published Flow, FLOW-00 cannot register an SOR.
 
 Check before starting: log in as `purchaser@mock.t3ck.test`, open IPAS list, start a new IPAS with PO `P02401`. If it shows the supplier "Dee Hwa Liong", Odoo works. Close the form without saving.
 
@@ -26,17 +27,21 @@ Password for all: `MockStaging#2026`. Email is `<key>@mock.t3ck.test`.
 | finance | Finance access. |
 | sales-exec | Deal Owner and Deal Team on the test SORs. |
 | sales-exec-2 | Sales, not on the Deal Team. |
-| admin-head | IPAS section 1 and 3 Approved. Transmittal Check by. |
-| ops-head | IPAS section 7 Received. Transmittal Check by. Costing Evaluation list. |
-| sales-head | IPAS section 7 Noted. |
-| approver | IPAS section 7 Checked and Approved. Costing Final Acquire list. |
+| admin-head | IPAS section 1 and 2 Approved. Transmittal Check by. |
+| ops-head | IPAS section 4 Received. Transmittal Check by. Costing Evaluation list. |
+| sales-head | IPAS section 4 Noted. |
+| approver | IPAS section 4 Checked and Approved. Costing Final Acquire list. |
+
+IPAS sections are numbered as the screen shows them: 1, 2 and 4 (section 3 on the screen is Computation status and has no sign-off).
 | plain | Transmittal Warehouse list. No flags. |
 | technical | Transmittal Technical list. |
 | logistics | Transmittal Logistics list. |
 
 ## 3. Test data
 
-**SORs** (from the mock seed): `S990001` Alpha laptops, `S990002` Beta water pumps, `S990003` Gamma solar lamps. If a story needs a fresh SOR, register one as `sales-exec` with client "Mock Client Story <story id>".
+**Start from a fresh SOR.** Run FLOW-00 first: `sales-exec` registers a new SOR through the published Sales Flow, so it is owned by the Deal Owner and gets a Costing Matrix and Purchase Request from the Stage Actions. Use that SOR wherever a story says "the SOR" or names S990001 and S990002. Do not run the stories on the seed SORs: they are owned by the Super Admin and have no Costing Matrix, so the Final Acquire list and the Evaluation list cannot open them and the matrix stories block.
+
+The mock seed still makes `S990001` Alpha laptops, `S990002` Beta water pumps and `S990003` Gamma solar lamps. They are fine for reading lists and for stories that only need a bare SOR. If a story needs another fresh SOR, register one as `sales-exec` with client "Mock Client Story <story id>".
 
 **Real Odoo POs** (read only, picked 2026-10-19). Nobody writes to Odoo. Use each PO for at most one live IPAS at a time; cancel the IPAS at the end of a story that raises one, unless the story says to keep it.
 

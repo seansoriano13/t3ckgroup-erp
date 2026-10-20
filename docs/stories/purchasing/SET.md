@@ -71,10 +71,12 @@ Guide §14. Run these first: later stories rely on SET-05 (ageing rules).
 - **Steps**:
   1. As purchaser, open Reference rates.
   2. As super-admin, override USD with `58.00` for today.
+  3. As super-admin, override AUD with `38.00` for today.
 - **You should see**:
-  - Only USD and EUR are listed. No AUD.
+  - Before step 3, only USD and EUR are listed (they are fetched by default). A fetch must have run first (README step 6).
   - Each rate shows its date. Nothing says "live".
   - purchaser cannot override. super-admin can, and the override is marked as an override.
+  - Step 3 is allowed: a Super Admin can override any currency. AUD then appears in the list, and a new AUD Offer pre-fills its comparison rate from it.
 
 ### SET-07 · Sign-off lists are Super Admin only, and logged
 - **Guide**: §9 Sign-offs, §14
@@ -85,7 +87,8 @@ Guide §14. Run these first: later stories rely on SET-05 (ageing rules).
   3. Open "Who changed the lists".
   4. As purchaser, look for Sign-off lists.
 - **You should see**:
-  - The history shows both changes, newest first, with super-admin as the one who made them.
+  - The list is named as the screen numbers it: "Section 1 Approved".
+  - The history shows both changes, newest first, with super-admin as the one who made them, and shows each list's name (not a stored key such as `transmittal_check_by`).
   - purchaser has no Sign-off lists screen.
 
 ### SET-08 · First Transmittal number is set once, before any Transmittal

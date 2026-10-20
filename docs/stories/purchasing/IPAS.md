@@ -1,6 +1,6 @@
 # IPAS
 
-Guide §9. Raise only with the real POs in the README. Sign-off lists: section 1 and 3 Approved = admin-head; section 7 Received = ops-head, Noted = sales-head, Checked and Approved = approver.
+Guide §9. Raise only with the real POs in the README. Sections are numbered as the screen shows them: 1 and 2 are prepared and approved, 3 is Computation status (no sign-off), 4 is Filing. Sign-off lists: section 1 and 2 Approved = admin-head; section 4 Received = ops-head, Noted = sales-head, Checked and Approved = approver.
 
 Keep these IPAS records alive, later stories use them:
 - **IPAS-A**: P02401, Local, Project, S990001 (from IPAS-01).
@@ -23,7 +23,7 @@ Keep these IPAS records alive, later stories use them:
 - **Guide**: §9 Raising one
 - **Log in as**: purchaser, then finance
 - **Steps**:
-  1. PO `P9999999` → expect "not found".
+  1. PO `P9999999` → expect "not found" (the server asked Odoo itself; the refusal names the PO). If Odoo cannot be reached the IPAS is refused with a message that Odoo was unavailable, not "not found". Unlike an item set to Ordered, raising an IPAS is never saved as "not checked".
   2. PO `X123` → expect refused shape.
   3. PO `P02401` again (IPAS-A is live) → expect refused, one live IPAS per PO.
   4. PO `P02396`, Purpose Project, no SOR → expect refused.
@@ -61,10 +61,11 @@ Keep these IPAS records alive, later stories use them:
 
 ### IPAS-06 · One IPAS on two SORs
 - **Guide**: §9 Raising one, §5 What the SOR shows back
-- **Log in as**: purchaser, then sales-exec
+- **Log in as**: purchaser, then sales-exec (or super-admin)
+- **Needs**: two fresh SORs made through FLOW-00 by sales-exec (use those in place of S990001 and S990002). The seed SORs are owned by the Super Admin, so sales-exec cannot open them; if you must use them, open them as super-admin.
 - **Steps**:
-  1. Raise P02396, Local, Project, SORs S990001 and S990002.
-  2. As sales-exec, open both SORs' PMS tab.
+  1. Raise P02396, Local, Project, naming both SORs.
+  2. As sales-exec, open both SORs' PMS tab (or as super-admin if the seed SORs were used).
 - **You should see**: the IPAS appears on both SORs.
 
 ### IPAS-07 · Overrides and what cannot be changed
@@ -127,14 +128,14 @@ Keep these IPAS records alive, later stories use them:
 - **Log in as**: purchaser, then admin-head
 - **Steps**:
   1. Raise P02395 (Chase), Local, Inventory. Type Account # `111 222 333`. Note: no flag (first for this supplier).
-  2. Raise P02369 (Chase), Local, Inventory. Prepare section 1 and 3. As admin-head, approve both.
+  2. Raise P02369 (Chase), Local, Inventory. Prepare section 1 and 2. As admin-head, approve both.
   3. As purchaser, type Account # `111-222-333` on P02369.
   4. Change it to `999 888 777`.
   5. Change it back to `111222333`.
   6. Open history.
 - **You should see**:
   - Step 3: no flag (spaces and dashes ignored).
-  - Step 4: flagged, sections 1 and 3 approvals cleared, preparers told.
+  - Step 4: flagged, sections 1 and 2 approvals cleared, preparers told.
   - Step 5: flag cleared.
   - History never shows the account numbers.
 
@@ -163,18 +164,18 @@ Keep these IPAS records alive, later stories use them:
   1. Read part 7 on IPAS-A.
 - **You should see**: Purchase Order ticked (confirmed in Odoo). With P.O.P ticked (a payment has proof). Received in Odoo and Create Bill follow Odoo. Delivered and Actual Checking are open until a Transmittal or a typed date.
 
-### IPAS-16 · Section 1 and 3 sign-offs, no self-approval
+### IPAS-16 · Section 1 and 2 sign-offs, no self-approval
 - **Guide**: §9 Sign-offs
 - **Log in as**: purchaser, admin-head, super-admin
 - **Steps**:
   1. As purchaser, Prepare section 1 on IPAS-A.
   2. As super-admin, try to Approve section 1.
   3. As admin-head, open `/approvals/ipas`. Approve section 1 from there.
-  4. Before section 3 is approved, as ops-head, try to give section 7 Received.
-  5. As purchaser, Prepare section 3. As admin-head, Approve it.
-- **You should see**: step 2 refused. Step 3 works and the IPAS is in the queue. Step 4 refused (section 7 opens only after 1 and 3). After step 5 ops-head is told section 7 is open.
+  4. Before section 2 is approved, as ops-head, try to give section 4 Received.
+  5. As purchaser, Prepare section 2. As admin-head, Approve it.
+- **You should see**: step 2 refused. Step 3 works and the IPAS is in the queue. Step 4 refused (section 4 opens only after 1 and 2). After step 5 ops-head is told section 4 is open.
 
-### IPAS-17 · Section 7 order
+### IPAS-17 · Section 4 order
 - **Guide**: §9 Sign-offs
 - **Log in as**: ops-head, sales-head, approver
 - **Needs**: IPAS-16
@@ -185,50 +186,52 @@ Keep these IPAS records alive, later stories use them:
   4. As approver, try Approved while computation status is Encoding.
 - **You should see**: step 1 refused. Step 4 refused (needs LC Odoo Done or Checked by). Each step tells the next list.
 
-### IPAS-18 · Return on section 1 clears section 7
+### IPAS-18 · Return on section 1 clears section 4
 - **Guide**: §9 Sign-offs
 - **Log in as**: admin-head
 - **Needs**: IPAS-17 step 3 (Received, Noted, Checked live)
 - **Steps**:
   1. Return section 1 with no reason → refused. Return with "STORY IPAS-18".
   2. Read sections 1 and 7.
-- **You should see**: section 1 Prepared and Approved are cleared and kept as history. Section 7 Received, Noted and Checked are cleared, and those signers are told. The data is untouched.
+- **You should see**: section 1 Prepared and Approved are cleared and kept as history. Section 4 Received, Noted and Checked are cleared, and those signers are told. The data is untouched.
 
 ### IPAS-19 · Undo approval
 - **Guide**: §9 Sign-offs
 - **Log in as**: admin-head
 - **Steps**:
-  1. Re-sign section 1 (purchaser prepares, admin-head approves). Give section 7 Received again.
+  1. Re-sign section 1 (purchaser prepares, admin-head approves). Give section 4 Received again.
   2. Undo section 1 Approved with reason "STORY IPAS-19".
-- **You should see**: only Approved is taken back. Prepared stays. Section 7 Received is cleared.
+- **You should see**: only Approved is taken back. Prepared stays. Section 4 Received is cleared.
 
-### IPAS-20 · Section 7 send back
+### IPAS-20 · Section 4 send back
 - **Guide**: §9 Sign-offs
 - **Log in as**: sales-head
 - **Steps**:
-  1. With nothing live on section 7, send it back → refused.
+  1. With nothing live on section 4, send it back → refused.
   2. Get Received live, then send back.
 - **You should see**: step 2 clears Received, Noted and Checked.
 
 ### IPAS-21 · Computation status and Checked by
 - **Guide**: §9 Computation status
-- **Log in as**: purchaser, then finance
+- **Log in as**: purchaser, then finance, then super-admin
 - **Steps**:
   1. As purchaser, move Encoding → Encoded → LC GS Done → LC Odoo Done.
-  2. As purchaser, try Checked by.
+  2. As purchaser, try Checked by. Try to move the status away from Checked by once finance has given it (step 3).
   3. As finance, give Checked by. Take it back. Give it again.
-- **You should see**: step 2 refused. finance can give and take back Checked by. Landed Cost turns final at LC Odoo Done.
+  4. As super-admin (not in Purchasing), take Checked by back and give it again.
+- **You should see**: step 2 refused (the Checked by step is hidden or locked for purchaser, and a direct attempt is refused). finance can give and take back Checked by, and so can a Super Admin who is not in Purchasing. The current status looks selected. Landed Cost turns final at LC Odoo Done.
 
 ### IPAS-22 · Filing freezes the IPAS
 - **Guide**: §9 Filing
 - **Log in as**: approver, then purchaser, then finance
-- **Needs**: sections 1 and 3 approved, Received, Noted, Checked live, status LC Odoo Done or Checked by. Leave one required document unticked.
+- **Needs**: sections 1 and 2 approved, Received, Noted, Checked live, status LC Odoo Done or Checked by. Leave one required document unticked.
 - **Steps**:
-  1. As approver, give section 7 Approved.
-  2. As purchaser, try to change remarks, add a payment, tick a document, change bank details, change the SORs.
-  3. As finance, try to add a charge.
-  4. As purchaser, try to cancel it.
-- **You should see**: step 1 warns about the unticked document but files anyway. State is filed with a date. Every change in steps 2 to 4 is refused. **This is the filed IPAS SET-11 uses.**
+  1. Before filing, as purchaser, edit the IPAS's Remarks to "STORY IPAS-22 edited". Try to change the SOR list.
+  2. As approver, give section 4 Approved.
+  3. As purchaser, try to change remarks again, add a payment, tick a document, change bank details.
+  4. As finance, try to add a charge.
+  5. As purchaser, try to cancel it.
+- **You should see**: step 1 saves the Remarks (and writes a history line). The SOR list cannot be changed after raising (to change it, cancel and raise again). Step 2 warns about the unticked document but files anyway. State is filed with a date. Every change in steps 3 to 5 is refused, Remarks included. **This is the filed IPAS SET-11 uses.**
 
 ### IPAS-23 · Reopen
 - **Guide**: §9 Filing
@@ -236,15 +239,16 @@ Keep these IPAS records alive, later stories use them:
 - **Steps**:
   1. As purchaser, look for Reopen.
   2. As super-admin, reopen with no reason → refused. Reopen with "STORY IPAS-23".
-- **You should see**: purchaser has no Reopen. After step 2, section 7 sign-offs are cleared (kept as history), sections 1 and 3 stay approved, and the IPAS can be edited and cancelled again.
+- **You should see**: purchaser has no Reopen. After step 2, section 4 sign-offs are cleared (kept as history), sections 1 and 2 stay approved, and the IPAS can be edited and cancelled again.
 
 ### IPAS-24 · Actual Checking stamp
 - **Guide**: §9 The buyer track
 - **Log in as**: purchaser
 - **Steps**:
   1. On an IPAS with no Transmittal, stamp Actual Checking. Clear it.
-  2. Submit a Transmittal carrying one of this IPAS's PO lines (TRN-02). Try to stamp again. Try to clear.
-- **You should see**: step 1 works. In step 2 the stamp is refused, clearing is still allowed.
+  2. Submit a Transmittal carrying one of this IPAS's PO lines (TRN-02). Try to stamp again. Try to clear the Transmittal's stamp on the IPAS.
+  3. Undo or cancel the slip (TRN stories). Look at Actual Checking on the IPAS again.
+- **You should see**: step 1 works. In step 2 the stamp is refused, and the Transmittal's stamp cannot be cleared on the IPAS. In step 3, undoing the slip's signature or cancelling the slip is what clears it.
 
 ### IPAS-25 · Print
 - **Guide**: §9 Printing
@@ -258,5 +262,5 @@ Keep these IPAS records alive, later stories use them:
 - **Log in as**: purchaser
 - **Needs**: a human changes a test PO's lines in Odoo. The AI never writes to Odoo. If nobody did, mark BLOCKED with "manual setup".
 - **Steps**:
-  1. Open the IPAS for that PO with sections 1 and 3 approved.
+  1. Open the IPAS for that PO with sections 1 and 2 approved.
 - **You should see**: both approvals are cleared with "PO changed in Odoo", a change note says what changed, and the preparers are told. On a filed IPAS instead, nothing is stored and only the "Odoo changed since filing" mark shows.
