@@ -72,6 +72,26 @@ describe("FlowCanvas", () => {
     expect(await screen.findByText("No Sale Types yet")).toBeInTheDocument()
   })
 
+  it("reopens the Sale Type the person last picked, and ignores one that no longer exists", async () => {
+    seedFlow()
+    const secondType = makeSaleType({ name: "Private Sale" })
+    const secondFlow = makeSalesFlow({ sale_type_id: secondType.id })
+    makeFlowStage({ flow_id: secondFlow.id, name: "Inquiry", sort_order: 0 })
+    const key = `flow_canvas_sale_type:${mockUser.current.id}`
+
+    localStorage.setItem(key, secondType.id)
+    const { unmount } = renderWithProviders(<FlowCanvas />)
+    expect(await screen.findByText("Inquiry")).toBeInTheDocument()
+    unmount()
+
+    localStorage.setItem(key, "gone")
+    renderWithProviders(<FlowCanvas />)
+    // Falls back to the first Sale Type instead of showing nothing.
+    expect((await screen.findAllByText(/^(Lead|Inquiry)$/)).length).toBeGreaterThan(0)
+    expect(screen.queryByText("No Sale Types yet")).not.toBeInTheDocument()
+    localStorage.removeItem(key)
+  })
+
   it("renders a flow's Stages, marking where deals enter and where they are won", async () => {
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
