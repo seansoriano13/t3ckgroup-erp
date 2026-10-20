@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate, useSearchParams } from "react-router";
-import { Scale } from "lucide-react";
+import { Plus, Scale } from "lucide-react";
 
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -85,11 +85,20 @@ function CanvassesPage({ userId }) {
     return rows.find((r) => (id && r.id === id) || (item && r.requestedItemId === item) || (component && r.componentId === component)) ?? null;
   }, [params, rows]);
   const ready = !isLoading && !isError;
+  // A new Canvass with no subject: nothing is written until its first Offer is saved (canvass_start),
+  // which makes the starter its Canvasser and gives it a number. Then it is a row like any other.
+  const [starting, setStarting] = useState(false);
 
   return (
     <PageShell
       title="Canvasses"
       description="Every Canvass in one place, project ones included. Open one to see its Offers."
+      action={
+        <Button type="button" size="sm" onClick={() => setStarting(true)}>
+          <Plus className="size-4" aria-hidden="true" />
+          New Canvass
+        </Button>
+      }
       toolbar={
         ready ? (
           <FilterBar
@@ -112,7 +121,7 @@ function CanvassesPage({ userId }) {
       {isError && <QueryError title="The Canvasses could not be loaded." onRetry={refetch} />}
 
       {ready && rows.length === 0 && (
-        <EmptyState icon={Scale} title="No Canvasses yet" description="A Canvass starts when its first Offer is saved." />
+        <EmptyState icon={Scale} title="No Canvasses yet" description="A Canvass starts when its first Offer is saved. Use New Canvass to research a product before anyone files a request." />
       )}
       {ready && rows.length > 0 && shown.length === 0 && <EmptyState icon={Scale} title="No Canvass matches" description="Try clearing a filter." />}
 
@@ -158,6 +167,17 @@ function CanvassesPage({ userId }) {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {starting && (
+        <CanvassPanel
+          open
+          onOpenChange={(next) => !next && setStarting(false)}
+          subject={{}}
+          subjectLabel="New Canvass"
+          userId={userId}
+          canEdit
+        />
       )}
 
       {openRow && (

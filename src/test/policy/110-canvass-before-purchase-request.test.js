@@ -73,6 +73,28 @@ describe("the first Offer starts the Canvass", () => {
     })
 })
 
+describe("the relaxed subject rule", () => {
+    it("takes a Canvass with no Component and no Requested Item when it says what is being bought", async () => {
+        const { data, error } = await svc().from("sor_canvasses").insert({ product_name: `${MARKER} gloves` }).select("*").single()
+        expect(error).toBeNull()
+        created.push(data.id)
+        expect(data.number).toMatch(/^CNV_\d{4}$/)
+    })
+
+    it("still refuses a Canvass with neither a subject nor a name", async () => {
+        const { error } = await svc().from("sor_canvasses").insert({})
+        expect(error?.code).toBe("23514")
+    })
+
+    it("still refuses both a Component and a Requested Item", async () => {
+        const { error } = await start("outsider", {
+            p_component_id: "00000000-0000-0000-0000-000000000001",
+            p_requested_item_id: "00000000-0000-0000-0000-000000000002",
+        })
+        expect(error?.code).toBe(BAD_INPUT)
+    })
+})
+
 describe("un-picking the winner", () => {
     let canvassId, offerId
 
