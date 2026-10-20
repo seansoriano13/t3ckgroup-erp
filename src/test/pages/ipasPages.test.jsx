@@ -331,14 +331,15 @@ describe("IPAS pages", () => {
       const user = setupUser();
 
       renderDetail(row.id, "sales", "edit");
-      expect(await screen.findByRole("checkbox", { name: "Googlesheet" })).not.toBeChecked();
-      await user.click(screen.getByRole("checkbox", { name: "Googlesheet" }));
-      await waitFor(() => expect(db.rows("ipas")[0].google_sheet).toBe(true));
-      expect(await screen.findByRole("checkbox", { name: "Googlesheet" })).toBeChecked();
-
-      await user.click(screen.getByRole("checkbox", { name: "Gantt Chart" }));
+      expect(await screen.findByRole("checkbox", { name: /Googlesheet/ })).not.toBeChecked();
+      // Ticking only marks the form; the one Save stores both.
+      await user.click(screen.getByRole("checkbox", { name: /Googlesheet/ }));
+      await user.click(screen.getByRole("checkbox", { name: /Gantt Chart/ }));
+      expect(db.rows("ipas")[0].google_sheet).toBeFalsy();
+      await user.click(screen.getByRole("button", { name: /^Save all \(2\)/ }));
       await waitFor(() => expect(db.rows("ipas")[0].gantt_chart).toBe(true));
       expect(db.rows("ipas")[0].google_sheet).toBe(true);
+      expect(await screen.findByText("All changes saved")).toBeInTheDocument();
     });
 
     it("shows each section row with its full summary and the state word beside its dot", async () => {
@@ -422,7 +423,7 @@ describe("IPAS pages", () => {
       expect(screen.queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Edit" }));
       expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "Header" })).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Header" })).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: "Back to preview" }));
       const back = await screen.findByRole("button", { name: /^Header/ });
@@ -542,23 +543,34 @@ describe("IPAS pages", () => {
       const user = setupUser();
 
       renderDetail(row.id, "header", "edit");
-      await user.click(await screen.findByRole("button", { name: "Override Entity" }));
-      const dialog = await screen.findByRole("dialog");
-      expect(within(dialog).getByText("T3ck Trading")).toBeInTheDocument();
-      const field = within(dialog).getByRole("textbox");
-      await user.clear(field);
+      // Blank uses Odoo's value, which shows beside the box.
+      const field = await screen.findByRole("textbox", { name: /^Entity/ });
+      expect(field).toHaveAttribute("placeholder", "Odoo: T3ck Trading");
+      expect(screen.getByText("Using Odoo's value")).toBeInTheDocument();
       await user.type(field, "TG Enterprise");
-      await user.click(within(dialog).getByRole("button", { name: "Override" }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
-      expect(await screen.findByText("Odoo: T3ck Trading")).toBeInTheDocument();
-      expect(screen.getByText("Overridden")).toBeInTheDocument();
+      expect(await screen.findByText("Odoo says T3ck Trading")).toBeInTheDocument();
       expect(db.rows("ipas")[0].entity_override).toBe("TG Enterprise");
 
-      await user.click(screen.getByRole("button", { name: "Reset Entity to Odoo" }));
+      // Clearing the box and saving goes back to Odoo's value.
+      await user.clear(screen.getByRole("textbox", { name: /^Entity/ }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
-      await waitFor(() => expect(screen.queryByText("Overridden")).not.toBeInTheDocument());
-      expect(db.rows("ipas")[0].entity_override).toBeNull();
-      expect(screen.queryByText("Odoo: T3ck Trading")).not.toBeInTheDocument();
+      await waitFor(() => expect(db.rows("ipas")[0].entity_override).toBeNull());
+      expect(await screen.findByText("Using Odoo's value")).toBeInTheDocument();
+    });
+
+    it("marks an empty required box Needed, counts it in the bar and jumps to it", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id, item_location_id: null });
+      const user = setupUser();
+
+      renderDetail(row.id, "logistics", "edit");
+      const box = await screen.findByRole("combobox", { name: /^Item Location/ });
+      expect(box).toHaveAccessibleName(/Needed/);
+      expect(screen.getByText(/required fields filled/)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Next empty" }));
+      await waitFor(() => expect(document.activeElement?.id).toMatch(/^f-/));
     });
 
     it("types the contact, which Odoo then leaves alone", async () => {
@@ -567,15 +579,13 @@ describe("IPAS pages", () => {
       const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
-      await user.click(await screen.findByRole("button", { name: "Edit Supplier's name" }));
-      const dialog = await screen.findByRole("dialog");
-      const field = within(dialog).getByRole("textbox");
+      const field = await screen.findByRole("textbox", { name: /^Supplier's name/ });
       await user.clear(field);
       await user.type(field, "Mr. R. Cruz");
-      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
-      expect(await screen.findByText("Mr. R. Cruz")).toBeInTheDocument();
-      expect(db.rows("ipas")[0].supplier_contact).toBe("Mr. R. Cruz");
+      await waitFor(() => expect(db.rows("ipas")[0].supplier_contact).toBe("Mr. R. Cruz"));
+      expect(await screen.findByText("All changes saved")).toBeInTheDocument();
     });
 
     it("edits Remarks on an open IPAS and records it in history", async () => {
@@ -584,14 +594,12 @@ describe("IPAS pages", () => {
       const user = setupUser();
 
       renderDetail(row.id, "header", "edit");
-      await user.click(await screen.findByRole("button", { name: "Edit Remarks" }));
-      const dialog = await screen.findByRole("dialog");
-      const field = within(dialog).getByRole("textbox");
+      const field = await screen.findByRole("textbox", { name: /^Remarks/ });
       await user.clear(field);
       await user.type(field, "Rush: client needs it Friday");
-      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
-      expect(await screen.findByText("Rush: client needs it Friday")).toBeInTheDocument();
+      await waitFor(() => expect(db.rows("ipas")[0].remarks).toBe("Rush: client needs it Friday"));
       expect(db.rows("ipas")[0].remarks).toBe("Rush: client needs it Friday");
       const event = db.rows("ipas_events").find((e) => e.kind === "header_changed");
       expect(event.detail.fields.remarks).toEqual({ from: "For the Capas deal", to: "Rush: client needs it Friday" });
@@ -603,8 +611,10 @@ describe("IPAS pages", () => {
 
       renderDetail(row.id, "header", "edit");
 
-      expect(await screen.findByText("Frozen note")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Edit Remarks" })).not.toBeInTheDocument();
+      const field = await screen.findByRole("textbox", { name: /^Remarks/ });
+      expect(field).toHaveValue("Frozen note");
+      expect(field).toBeDisabled();
+      expect(screen.getByRole("button", { name: /^Save all/ })).toBeDisabled();
     });
 
     it("says Odoo PO cancelled and leaves the IPAS open to cancel by hand", async () => {

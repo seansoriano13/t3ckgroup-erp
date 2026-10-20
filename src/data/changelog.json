@@ -17,7 +17,8 @@
             "The Purchasing dashboard is tidier and has tabs.",
             "Every Purchasing Dashboard tab now opens with the same top: a row of totals and a filter bar with search and a Filters button. What needs doing and the Register got new filters (group, entity, source, supplier and late), and the totals follow the filters.",
             "IPAS sections now open and edit in place.",
-            "On an IPAS, the sign-off step Prepare is now called Submit, and its status Prepared is now Submitted."
+            "On an IPAS, the sign-off step Prepare is now called Submit, and its status Prepared is now Submitted.",
+            "Editing an IPAS is now one long form with one Save. A bar at the top shows how many required fields are filled, jumps to the next empty one, and a stepper takes you to each section; finished sections fold to one line."
         ]
     },
     {

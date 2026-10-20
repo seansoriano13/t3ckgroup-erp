@@ -269,28 +269,22 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
-      await user.click(await screen.findByRole("button", { name: "Edit P.I/QT Amount" }));
-      let dialog = await topDialog();
-      const field = within(dialog).getByRole("textbox");
+      const field = await screen.findByRole("textbox", { name: /^P\.I\/QT Amount/ });
       // The currency is fixed in front, so what is typed reads as a real amount.
-      expect(within(dialog).getByText("PHP")).toBeInTheDocument();
       expect(field).toHaveAttribute("placeholder", "0.00");
       await user.type(field, "12k");
-      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
-      // Refused with a sentence (toasted): the dialog stays, nothing was saved.
-      await waitFor(() => expect(within(dialog).getByRole("button", { name: "Save" })).toBeEnabled());
-      expect((await topDialog())).toBeInTheDocument();
+      // Refused with a sentence, in the bar: nothing was saved and what was typed stays.
+      expect(await screen.findByText("P.I/QT Amount must be a number.")).toBeInTheDocument();
       expect(db.rows("ipas")[0].pi_qt_amount ?? null).toBeNull();
+      expect(field).toHaveValue("12k");
 
       await user.clear(field);
       await user.type(field, "8,400");
-      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
 
       await waitFor(() => expect(db.rows("ipas")[0].pi_qt_amount).toBe(8400));
-      // The edit dialog closes; the edit view stays.
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-      dialog = null;
     });
 
     it("picks the one freight service", async () => {
@@ -354,8 +348,10 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       payments.unmount();
 
       renderDetail(row.id, "finance", "edit");
-      expect(await screen.findByRole("button", { name: /Add charge/ })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Add payment/ })).not.toBeInTheDocument();
+      // Each card holds its own controls: payments in the Purchasing card, charges in Finance's.
+      const financeCard = within(await screen.findByRole("region", { name: /Finance/ }));
+      expect(await financeCard.findByRole("button", { name: /Add charge/ })).toBeInTheDocument();
+      expect(financeCard.queryByRole("button", { name: /Add payment/ })).not.toBeInTheDocument();
       cleanup();
 
       renderDetail(row.id, "costing", "edit");
