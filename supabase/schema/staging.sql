@@ -10500,6 +10500,26 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_assert_unchanged(p_ipas_id uuid, p_since timestamp with time zone)
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+begin
+  if auth.uid() is null then
+    raise exception 'ipas_assert_unchanged: not signed in' using errcode = '42501';
+  end if;
+  if p_since is null then
+    return;
+  end if;
+  if exists (select 1 from public.ipas_events where ipas_id = p_ipas_id and created_at > p_since) then
+    raise exception 'ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.'
+      using errcode = '40001';
+  end if;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_can_read()
  RETURNS boolean
  LANGUAGE sql
