@@ -180,6 +180,25 @@ export default function FlowCanvas() {
   return <FlowDataProvider>{content}</FlowDataProvider>;
 }
 
+// The last Sale Type a person opened, remembered per person in this browser.
+const rememberedSaleTypeKey = (userId) => `flow_canvas_sale_type:${userId}`;
+function readRememberedSaleType(userId) {
+  if (!userId) return "";
+  try {
+    return localStorage.getItem(rememberedSaleTypeKey(userId)) || "";
+  } catch {
+    return "";
+  }
+}
+function writeRememberedSaleType(userId, saleTypeId) {
+  if (!userId) return;
+  try {
+    localStorage.setItem(rememberedSaleTypeKey(userId), saleTypeId);
+  } catch {
+    /* ignore */
+  }
+}
+
 function FlowCanvasInner() {
   const { user } = useAuth();
   const {
@@ -191,6 +210,7 @@ function FlowCanvasInner() {
   } = useFlowData();
   const queryClient = useQueryClient();
   const [selectedSaleTypeId, setSelectedSaleTypeId] = useState("");
+  const [rememberedSaleTypeId] = useState(() => readRememberedSaleType(user?.id));
   const [newSaleTypeName, setNewSaleTypeName] = useState("");
   // { nodeId, stageId, tab } — one selection covers the Stage and its satellites,
   // because clicking a condition should open the Stage that owns it.
@@ -227,10 +247,20 @@ function FlowCanvasInner() {
     queryFn: () => salesFlowService.getSaleTypes({ includeArchived: true }),
   });
 
-  const effectiveSaleTypeId = selectedSaleTypeId || saleTypes?.[0]?.id || "";
-
   const activeSaleTypes = useMemo(() => saleTypes?.filter((t) => !t.archived_at) ?? [], [saleTypes]);
   const archivedSaleTypes = useMemo(() => saleTypes?.filter((t) => t.archived_at) ?? [], [saleTypes]);
+
+  // A remembered Sale Type that has since been archived or deleted is ignored.
+  const rememberedActiveId = activeSaleTypes.find((t) => t.id === rememberedSaleTypeId)?.id;
+  const effectiveSaleTypeId = selectedSaleTypeId || rememberedActiveId || saleTypes?.[0]?.id || "";
+
+  const pickSaleType = useCallback(
+    (id) => {
+      setSelectedSaleTypeId(id);
+      writeRememberedSaleType(user?.id, id);
+    },
+    [user?.id]
+  );
 
   const { data: canvas, isLoading: loadingCanvas } = useQuery({
     queryKey: ["salesFlow", effectiveSaleTypeId],
@@ -1279,7 +1309,7 @@ function FlowCanvasInner() {
                           type="button"
                           variant="ghost"
                           onClick={() => {
-                            setSelectedSaleTypeId(saleType.id);
+                            pickSaleType(saleType.id);
                             setSelection(null);
                             setViewingSnapshot(null);
                             close();
@@ -1315,7 +1345,7 @@ function FlowCanvasInner() {
                                 type="button"
                                 variant="ghost"
                                 onClick={() => {
-                                  setSelectedSaleTypeId(saleType.id);
+                                  pickSaleType(saleType.id);
                                   setSelection(null);
                                   setViewingSnapshot(null);
                                   close();
