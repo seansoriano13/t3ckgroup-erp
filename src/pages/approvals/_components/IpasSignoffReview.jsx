@@ -38,7 +38,7 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
   return (
     <>
       <SlideOverBody>
-        <PersonChip person={item.person} size="lg" detail={isFiling ? "Gave the sign-off before yours" : "Prepared it"} />
+        <PersonChip person={item.person} size="lg" detail={isFiling ? "Gave the sign-off before yours" : "Submitted it"} />
 
         <DetailSection title="IPAS">
           <dl className="divide-y divide-border/70">

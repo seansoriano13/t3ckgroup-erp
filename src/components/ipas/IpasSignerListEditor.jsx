@@ -19,8 +19,8 @@ import { ipasPendingPrefix, ipasSignerListLogKey, ipasSignerListsKey } from "./i
 const LOG_LIMIT = 20;
 
 const WHO = {
-  [IPAS_SIGNER_LIST.S1_APPROVED]: `Approves section ${ipasSectionNo(1)}: buying from and paying the supplier. Never the person who prepared it.`,
-  [IPAS_SIGNER_LIST.S3_APPROVED]: `Approves section ${ipasSectionNo(3)}: the importation charges and documents. Never the person who prepared it.`,
+  [IPAS_SIGNER_LIST.S1_APPROVED]: `Approves section ${ipasSectionNo(1)}: buying from and paying the supplier. Never the person who submitted it.`,
+  [IPAS_SIGNER_LIST.S3_APPROVED]: `Approves section ${ipasSectionNo(3)}: the importation charges and documents. Never the person who submitted it.`,
   [IPAS_SIGNER_LIST.S7_RECEIVED]: "Receives the IPAS first when it is filed.",
   [IPAS_SIGNER_LIST.S7_NOTED]: "Notes the IPAS at filing, after it is received.",
   [IPAS_SIGNER_LIST.S7_CHECKED]: "Checks the IPAS at filing, after it is received.",
@@ -76,7 +76,7 @@ export default function IpasSignerListEditor() {
   return (
     <div className="space-y-4" data-testid="ipas-signer-lists">
       <p className="rounded-xl bg-muted/60 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
-        Anyone with Purchasing access prepares a section. Everything after that is signed by the people on its list,
+        Anyone with Purchasing access submits a section. Everything after that is signed by the people on its list,
         and a Super Admin signs only when they are on one: add yourself if you need to. Being on an IPAS list lets
         someone read every IPAS; the Transmittal lists read Transmittals only. Changing a list never changes what has
         already been signed.

@@ -16,7 +16,8 @@
             "A Purchase Request opens full screen on desktop, from the list and the Purchasing Dashboard, and in a side drawer on mobile.",
             "The Purchasing dashboard is tidier and has tabs.",
             "Every Purchasing Dashboard tab now opens with the same top: a row of totals and a filter bar with search and a Filters button. What needs doing and the Register got new filters (group, entity, source, supplier and late), and the totals follow the filters.",
-            "IPAS sections now open and edit in place."
+            "IPAS sections now open and edit in place.",
+            "On an IPAS, the sign-off step Prepare is now called Submit, and its status Prepared is now Submitted."
         ]
     },
     {

@@ -128,7 +128,7 @@ function IpasSignoffsQueue() {
       toast.success(
         item.source.section === 7
           ? `${item.ref} section ${ipasSectionNo(7)} returned. The people who had signed it were told.`
-          : `${item.ref} section ${ipasSectionNo(item.source.section)} returned to its preparer.`,
+          : `${item.ref} section ${ipasSectionNo(item.source.section)} returned to its submitter.`,
       );
       advance(item);
       settled(item);
@@ -222,7 +222,7 @@ function IpasSignoffsQueue() {
           empty={{
             title: "Nothing waiting on you right now",
             description:
-              `IPAS sign-offs that are ready for you show up here: prepared sections for approval, and section ${ipasSectionNo(7)}'s steps as each one before it is given.`,
+              `IPAS sign-offs that are ready for you show up here: submitted sections for approval, and section ${ipasSectionNo(7)}'s steps as each one before it is given.`,
           }}
         />
       </ApprovalCenterLayout>

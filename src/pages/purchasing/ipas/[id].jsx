@@ -128,8 +128,8 @@ function typingInitialValue(field, ipas) {
  * Supplier Origin (Import only) and the buyer track with the source of each
  * status.
  *
- * #247 adds the sign-offs of sections 1 and 3 at the foot of each: Prepared
- * (Purchasing access), Approved (the section's list, never the preparer) and
+ * #247 adds the sign-offs of sections 1 and 3 at the foot of each: Submitted
+ * (Purchasing access), Approved (the section's list, never the submitter) and
  * Return with a reason (the section's list). Each person is offered only
  * what the database will let them do; it refuses the rest.
  *
@@ -281,8 +281,8 @@ function IpasPage() {
       if (role === IPAS_SIGNOFF_ROLE.PREPARED) {
         toast.success(
           notified > 0
-            ? `Section ${ipasSectionLabel(section)} prepared. The approvers were told.`
-            : `Section ${ipasSectionLabel(section)} prepared. Nobody is on its approval list yet.`,
+            ? `Section ${ipasSectionLabel(section)} submitted. The approvers were told.`
+            : `Section ${ipasSectionLabel(section)} submitted. Nobody is on its approval list yet.`,
         );
       } else {
         toast.success(`Section ${ipasSectionLabel(section)} approved.`);
@@ -384,7 +384,7 @@ function IpasPage() {
           `Section ${ipasSectionLabel(7)} returned. Received, Noted and Checked were cleared and the people who gave them were told.`,
         );
       } else {
-        toast.success(`Section ${ipasSectionLabel(section)} returned to its preparer.`);
+        toast.success(`Section ${ipasSectionLabel(section)} returned to its submitter.`);
       }
       signoffChanged();
     },
@@ -833,8 +833,8 @@ function IpasPage() {
         mode: undo ? "undo" : "return",
         label: ipasSectionLabel(section),
         effect: undo
-          ? "Takes back the approval only. Prepared stays, so it waits for an approver again."
-          : "Clears Prepared and Approved and tells whoever prepared it.",
+          ? "Takes back the approval only. Submitted stays, so it waits for an approver again."
+          : "Clears Submitted and Approved and tells whoever submitted it.",
         clears: filingGiven.map((line) => `${ipasSectionLabel(7)}: ${line}`),
       };
     });

@@ -24,7 +24,7 @@ import { STATE } from "@/components/record/statePalette";
 
 /** A section's detail beside its state word, from its sign-offs. */
 const SIGNOFF_DETAIL = {
-  [SIGNOFF_STATUS.NOT_PREPARED]: "Not prepared",
+  [SIGNOFF_STATUS.NOT_PREPARED]: "Not submitted",
   [SIGNOFF_STATUS.AWAITING_APPROVAL]: "Awaiting approval",
   [SIGNOFF_STATUS.APPROVED]: "Approved",
 };

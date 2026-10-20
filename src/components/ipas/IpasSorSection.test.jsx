@@ -45,7 +45,7 @@ describe("IpasSorSection (#249)", () => {
     expect(screen.getByTitle("Purchase Order: done")).toBeInTheDocument()
     expect(screen.getByTitle("Received in Odoo: partly done")).toBeInTheDocument()
     expect(screen.getByText("Encoded")).toBeInTheDocument()
-    expect(screen.getByText("Prepared, Approved")).toBeInTheDocument()
+    expect(screen.getByText("Submitted, Approved")).toBeInTheDocument()
     expect(screen.getAllByText("Not started")).toHaveLength(1)
   })
 

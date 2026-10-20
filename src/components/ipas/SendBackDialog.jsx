@@ -16,7 +16,7 @@ import { ipasErrorMessage } from "@/utils/ipas";
 
 /**
  * Sending a section back (#247) or reopening a filed IPAS (#248): the reason is
- * required, because it is what the preparer (or whoever reads the history)
+ * required, because it is what the submitter (or whoever reads the history)
  * reads to know why. `onSubmit(reason)` returns a promise; the dialog closes
  * when it resolves, and the caller words a failure (a toast). It is mounted
  * only while open, so it always starts empty. The wording defaults to sending
@@ -38,7 +38,7 @@ function Body({
   description,
   onSubmit,
   onClose,
-  placeholder = "What does the preparer need to fix?",
+  placeholder = "What does the submitter need to fix?",
   submitLabel = "Return",
   busyLabel = "Returning…",
   inlineError = false,

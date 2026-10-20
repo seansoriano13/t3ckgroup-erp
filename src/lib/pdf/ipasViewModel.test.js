@@ -201,7 +201,7 @@ describe("sign-off boxes", () => {
     const [prepared, approved] = boxes().s1
 
     expect(prepared).toMatchObject({
-      role: "Prepared by",
+      role: "Submitted by",
       who: "J. Bautista",
       title: "Purchasing",
       state: "signed",
