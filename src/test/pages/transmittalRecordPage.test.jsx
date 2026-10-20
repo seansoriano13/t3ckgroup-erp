@@ -150,6 +150,44 @@ describe("Transmittal record page", () => {
     await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("t1", 1));
   });
 
+  it("offers the slip's preparer no Check by sign buttons", async () => {
+    mockUser.current = { id: PREPARER, name: "Pat Prep", employee_type: "staff" };
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Your move" });
+    expect(screen.queryByRole("button", { name: /^Sign Check by/ })).not.toBeInTheDocument();
+  });
+
+  it("asks before declining my signature, with the same dialog as Sign", async () => {
+    const user = setupUser();
+    service.get.mockResolvedValue(
+      shapeTransmittal(
+        raw({
+          stages: [
+            {
+              id: "s1",
+              stage: "warehouse_checking",
+              completed_at: "2026-10-02T01:00:00Z",
+              first_signer: { name: "Ann" },
+              first_signer_id: PREPARER,
+              second_signer: { name: "Maria Check" },
+              second_signer_id: ME.id,
+              second_confirmed: false,
+            },
+          ],
+        }),
+      ),
+    );
+    service.confirmSignature = vi.fn().mockResolvedValue({});
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Decline my signature on Warehouse checking" }));
+    expect(service.confirmSignature).not.toHaveBeenCalled();
+    await confirmMove(user, "Decline my signature on Warehouse checking", "Decline");
+
+    await waitFor(() => expect(service.confirmSignature).toHaveBeenCalledWith("s1", false));
+  });
+
   it("undoes a Check by with a reason, asked in a dialog", async () => {
     const user = setupUser();
     service.get.mockResolvedValue(

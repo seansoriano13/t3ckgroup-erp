@@ -11,6 +11,7 @@ import { db } from "@/test/db/store"
 import { stubEdgeFunction } from "@/test/msw/server"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
+import { statusMenuReady } from "./statusMenuReady"
 import RequestedItems from "./RequestedItems"
 
 let salesperson, buyer, request
@@ -31,6 +32,7 @@ const seedItem = (fields = {}) =>
 async function openOrderDialog(user) {
   const row = await rowNamed("Full Body Harness")
   await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+  await statusMenuReady()
   await user.click(screen.getByRole("button", { name: "Ordered" }))
   return { row, dialog: await screen.findByRole("dialog") }
 }
@@ -98,6 +100,7 @@ describe("picking the PO line", () => {
     const row = await rowNamed("Full Body Harness")
     expect(within(row).getByText("PO line not picked")).toBeInTheDocument()
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
     expect(screen.getByRole("button", { name: "Received" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Pick PO line/ })).not.toBeInTheDocument()
   })
@@ -110,6 +113,7 @@ describe("picking the PO line", () => {
 
     const row = await rowNamed("Full Body Harness")
     await user.click(await within(row).findByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
     await user.click(screen.getByRole("button", { name: /Pick PO line/ }))
     const dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("checkbox", { name: "PO line 502" }))

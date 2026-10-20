@@ -9,6 +9,7 @@ import { ExternalLink, Trash2, Upload } from "lucide-react";
 
 import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { FileInput } from "@/components/ui/FileInput";
 import { Input } from "@/components/ui/input";
@@ -386,6 +387,8 @@ export function OdooBody({ t, rights, odooRef, setOdooRef }) {
  */
 export function CheckByBody({ t, rights, userId, onChanged }) {
   const [busy, setBusy] = useState(false);
+  // Declining asks first, like Sign, Confirm and Undo; applying again does not.
+  const [decliningNumber, setDecliningNumber] = useState(null);
   const setDeclined = async (number, decline) => {
     setBusy(true);
     try {
@@ -406,7 +409,12 @@ export function CheckByBody({ t, rights, userId, onChanged }) {
         {slot?.signatureDeclined && <span className="ml-1 text-muted-foreground">(signature not applied)</span>}
       </p>
       {slot && userId && slot.id === userId && (
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => setDeclined(number, !slot.signatureDeclined)}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => (slot.signatureDeclined ? setDeclined(number, false) : setDecliningNumber(number))}
+        >
           {slot.signatureDeclined ? "Apply my signature" : "Decline my signature"}
         </Button>
       )}
@@ -424,6 +432,15 @@ export function CheckByBody({ t, rights, userId, onChanged }) {
         </p>
       )}
       <ClearedList entries={t.cleared.filter((c) => c.kind === "check_by")} />
+      <ConfirmDialog
+        open={decliningNumber !== null}
+        onOpenChange={(open) => !open && setDecliningNumber(null)}
+        title={`Decline my signature on Check by (${decliningNumber ?? ""})?`}
+        confirmLabel="Decline"
+        onConfirm={() => setDeclined(decliningNumber, true)}
+      >
+        <p className="text-sm text-muted-foreground">The slip will print your name only, without your signature.</p>
+      </ConfirmDialog>
     </div>
   );
 }

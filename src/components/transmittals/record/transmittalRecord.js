@@ -81,8 +81,10 @@ export function rightsOf(t, { userId = null, lists = [], hasPurchasingFlow = fal
   const awaiting = t.state === STATE.AWAITING_CHECK;
   // A slip carrying a PO line is checked only once Received in Odoo is signed.
   const needsReceipt = !t.odooReceivedAt && hasPoLine(t);
-  const mayTakeFirst = onCheckBy && awaiting && !first && second?.id !== userId;
-  const mayTakeSecond = onCheckBy && awaiting && !second && first?.id !== userId;
+  // The preparer never signs Check by on their own slip.
+  const notPreparer = t.preparedById !== userId;
+  const mayTakeFirst = onCheckBy && notPreparer && awaiting && !first && second?.id !== userId;
+  const mayTakeSecond = onCheckBy && notPreparer && awaiting && !second && first?.id !== userId;
 
   // The co-signer holds the slot still waiting: the second, or the first when the completer signed second.
   const awaitingConfirm = (stage) => {

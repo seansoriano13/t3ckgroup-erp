@@ -9,6 +9,7 @@ import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
+import { statusMenuReady } from "./statusMenuReady"
 import RequestedItems from "./RequestedItems"
 
 let salesperson, buyer, request
@@ -49,6 +50,7 @@ describe("purchasing", () => {
 
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
     expect(screen.getByRole("button", { name: "From stock" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Ordered" })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "To order" }))
@@ -69,6 +71,7 @@ describe("purchasing", () => {
 
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
     await user.click(screen.getByRole("button", { name: "Cannot source" }))
     const dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("button", { name: "Cannot source" }))
@@ -84,6 +87,7 @@ describe("purchasing", () => {
 
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
     await user.click(screen.getByRole("button", { name: /Offer a substitute/ }))
     const dialog = await screen.findByRole("dialog")
     expect(within(dialog).getByLabelText("Quantity")).toHaveValue(10)
@@ -109,6 +113,7 @@ describe("the sales side", () => {
 
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
     expect(screen.queryByRole("button", { name: "Received" })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Cancel item" }))
     const dialog = await screen.findByRole("dialog")

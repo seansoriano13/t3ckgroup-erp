@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ChevronDown, ListChecks, Replace } from "lucide-react";
@@ -73,6 +73,46 @@ function MenuItem({ children, onClick, tone }) {
     >
       {children}
     </Button>
+  );
+}
+
+/** The menu animation lasts 150ms (.popover-enter); the menu takes clicks only once it is over. */
+const MENU_OPEN_MS = 200;
+
+/**
+ * The status menu's body. A click that lands while the menu is still opening picks nothing, so a
+ * quick click cannot choose whatever slid under the pointer.
+ */
+function StatusMenu({ close, children }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), MENU_OPEN_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  // Escape closes the menu and goes no further: the request panel (a dialog) must stay open.
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      close();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [close]);
+  return (
+    <div
+      role="menu"
+      aria-busy={!ready}
+      className={cn("flex min-w-[180px] flex-col p-1", !ready && "pointer-events-none")}
+      onClickCapture={(e) => {
+        if (!ready) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -196,7 +236,7 @@ export default function RequestedItemActions({ item, request, actor }) {
         }
       >
         {({ close }) => (
-          <div className="flex min-w-[180px] flex-col p-1">
+          <StatusMenu close={close}>
             {onPath.map((status) => (
               <MenuItem
                 key={status}
@@ -245,7 +285,7 @@ export default function RequestedItemActions({ item, request, actor }) {
                 {status === ITEM_STATUS.CANCELLED ? "Cancel item" : ITEM_STATUS_LABELS[status]}
               </MenuItem>
             ))}
-          </div>
+          </StatusMenu>
         )}
       </Dropdown>
       {dialogs}
