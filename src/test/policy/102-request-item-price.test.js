@@ -48,6 +48,8 @@ beforeAll(async () => {
     unpricedItem = byCanvass[withoutPrice]
 
     await asSvc(svc().from("purchase_request_members").upsert({ request_id: requestId, employee_id: ids.dealOwner, side: "sales" }, { onConflict: "request_id,employee_id" }), "member")
+    // Finance reads the price only as a reader of the request, so it joins the request too.
+    await asSvc(svc().from("purchase_request_members").upsert({ request_id: requestId, employee_id: ids.finance, side: "sales" }, { onConflict: "request_id,employee_id" }), "finance member")
 })
 
 afterAll(async () => {
