@@ -183,6 +183,18 @@ describe("Order Monitoring on the Purchasing Dashboard: the Register tab", () =>
     expect(within(register).getAllByText("No Transmittal").length).toBeGreaterThan(0);
   });
 
+  it("shows a row of totals above the register", async () => {
+    seedOrder({ poState: "draft" });
+    seedOrder({ state: "filed", filed: true });
+
+    renderPage("/purchasing/dashboard?tab=register");
+
+    const totals = await screen.findByRole("group", { name: "Register totals" });
+    for (const label of ["Orders shown", "Open", "Filed", "Late"]) {
+      expect(within(totals).getByText(label)).toBeInTheDocument();
+    }
+  });
+
   it("draws the seven-step track and the hand-off in the register", async () => {
     const ipas = seedOrder({ source: "import", arrivedInPh: dateAgo(6) });
     seedProofPayment(ipas);
