@@ -3,6 +3,7 @@
  * database with the item RPCs re-implemented on its store. What each side
  * sees and does; who may is the policy tier's (40-purchase-request-item-status).
  */
+import { currentRow, openRowNamed } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it } from "vitest"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import { Toaster } from "react-hot-toast"
@@ -16,7 +17,7 @@ import RequestedItems from "./RequestedItems"
 
 let salesperson, buyer, request
 
-const rowNamed = async (name) => (await screen.findByText(name)).closest("[data-testid='requested-item']")
+const rowNamed = openRowNamed
 
 const seedItem = (fields = {}) =>
   db.seed("purchase_request_items", {
@@ -57,7 +58,7 @@ describe("purchasing", () => {
     expect(screen.queryByRole("button", { name: "Ordered" })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "To order" }))
 
-    await waitFor(() => expect(within(row).getByText("To order")).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("To order")).toBeInTheDocument())
     expect(db.rows("purchase_request_messages")).toEqual([
       expect.objectContaining({
         author_id: buyer.id,
@@ -76,10 +77,10 @@ describe("purchasing", () => {
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
     await user.click(screen.getByRole("button", { name: "To order" }))
-    await waitFor(() => expect(within(row).getByText("To order")).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("To order")).toBeInTheDocument())
 
     await user.click(await screen.findByRole("button", { name: "Undo" }))
-    await waitFor(() => expect(within(row).getByText("Requested")).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Requested")).toBeInTheDocument())
     expect(db.rows("purchase_request_items")[0].status).toBe("requested")
   })
 
@@ -90,6 +91,23 @@ describe("purchasing", () => {
 
     const title = await screen.findByText(name)
     expect(title).toHaveClass("line-clamp-2")
+  })
+
+  it("moves the row to the Closed group when the item is closed", async () => {
+    seedItem({ status: "canvassing" })
+    const user = setupUser()
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
+
+    const row = await rowNamed("Full Body Harness")
+    expect(within(screen.getByRole("region", { name: "In progress" })).getByText("Full Body Harness")).toBeInTheDocument()
+    await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
+    await user.click(screen.getByRole("button", { name: "Cannot source" }))
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Cannot source" }))
+
+    const closed = await screen.findByRole("region", { name: "Closed" })
+    expect(within(closed).getByText("Full Body Harness")).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "In progress" })).not.toBeInTheDocument()
   })
 
   it("asks before a way out", async () => {
@@ -104,7 +122,7 @@ describe("purchasing", () => {
     const dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("button", { name: "Cannot source" }))
 
-    await waitFor(() => expect(within(row).getByText("Cannot source")).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cannot source")).toBeInTheDocument())
     expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
   })
 
@@ -125,9 +143,9 @@ describe("purchasing", () => {
     const substitute = await rowNamed("Harness, other brand")
     expect(within(substitute).getByText("Substitute for Full Body Harness")).toBeInTheDocument()
     expect(within(substitute).getByText("Requested")).toBeInTheDocument()
-    const original = await rowNamed("Full Body Harness")
-    await waitFor(() => expect(within(original).getByText("Substituted")).toBeInTheDocument())
-    expect(within(original).getByText("Replaced by Harness, other brand")).toBeInTheDocument()
+    await rowNamed("Full Body Harness")
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Substituted")).toBeInTheDocument())
+    expect(within(currentRow("Full Body Harness")).getByText("Replaced by Harness, other brand")).toBeInTheDocument()
   })
 })
 
@@ -147,7 +165,7 @@ describe("the sales side", () => {
     const dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("button", { name: "Cancel item" }))
 
-    await waitFor(() => expect(within(row).getByText("Cancelled")).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cancelled")).toBeInTheDocument())
     expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
     expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "cancelled", status_changed_by: salesperson.id })
   })
@@ -160,6 +178,6 @@ describe("anyone else", () => {
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
-    expect(within(row).queryAllByRole("button")).toEqual([])
+    expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
   })
 })

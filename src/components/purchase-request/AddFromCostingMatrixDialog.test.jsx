@@ -5,6 +5,7 @@
  * Purchasing access's alone. That the database refuses anyone else is the policy tier's
  * (83-costing-purchase-request-items.test.js).
  */
+import { openRow } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
@@ -62,7 +63,7 @@ describe("Add from the Costing Matrix", () => {
     await user.click(screen.getByRole("button", { name: "Request 2 items" }))
 
     await waitFor(() => expect(rows()).toHaveLength(2))
-    const [first, second] = rows()
+    const [first, second] = await Promise.all(rows().map((r) => openRow(r)))
     expect(within(first).getByText("Hose reel")).toBeInTheDocument()
     expect(within(first).getByText("4 pc")).toBeInTheDocument()
     expect(within(first).getByText("From the Costing Matrix", { exact: false })).toBeInTheDocument()

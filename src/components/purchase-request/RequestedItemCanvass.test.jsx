@@ -4,8 +4,9 @@
  * sees the number and signed state where one exists, and an item that names a Component shows
  * that Component's Canvass. The panel's own contents are covered by the CanvassPanel tests.
  */
+import { openRowNamed } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it } from "vitest"
-import { screen, within } from "@testing-library/react"
+import { within } from "@testing-library/react"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -15,7 +16,7 @@ import RequestedItems from "./RequestedItems"
 
 let salesperson, buyer, request
 
-const rowNamed = async (name) => (await screen.findByText(name)).closest("[data-testid='requested-item']")
+const rowNamed = openRowNamed
 
 const seedComponent = () => {
   const matrix = db.seed("costing_matrices", { opportunity_id: request.opportunity_id })
