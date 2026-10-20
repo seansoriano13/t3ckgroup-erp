@@ -7,6 +7,7 @@ export type Path =
   | `/`
   | `/approvals`
   | `/approvals/bid-decisions`
+  | `/approvals/canvass-signoffs`
   | `/approvals/hr-verification`
   | `/approvals/ipas`
   | `/approvals/leaves`
@@ -30,8 +31,8 @@ export type Path =
   | `/opportunities/commission-formula`
   | `/profile`
   | `/purchasing`
-  | `/purchasing/ipas`
   | `/purchasing/dashboard`
+  | `/purchasing/ipas`
   | `/purchasing/ipas/:id`
   | `/purchasing/ipas/settings`
   | `/purchasing/order-monitoring`

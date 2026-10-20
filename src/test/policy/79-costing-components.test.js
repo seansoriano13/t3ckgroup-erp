@@ -37,6 +37,8 @@ import {
 const svc = () => serviceClient()
 const NO_ID = "00000000-0000-0000-0000-000000000000"
 const CHECK_VIOLATION = "23514"
+// #556: a refusal raised by a database function or trigger carries 22023; CHECK_VIOLATION is only for a table CHECK constraint.
+const RULE_REFUSED = "22023"
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId, otherSorId, otherMatrixId
@@ -307,7 +309,7 @@ describe("Component costs: who writes", () => {
     it("refuses what is not a cost column, a Component that is not there, and a negative cost", async () => {
         expect((await setCost("outsider", plainId, { component_id: NO_ID }))?.code).toBe("22023")
         expect((await setCost("outsider", plainId, { nonsense: 1 }))?.code).toBe("22023")
-        expect((await setCost("outsider", NO_ID, { acquire_unit: 1 }))?.code).toBe("P0002")
+        expect((await setCost("outsider", NO_ID, { acquire_unit: 1 }))?.code).toBe("22023")
         expect((await setCost("outsider", plainId, { acquire_unit: -1 }))?.code).toBe(CHECK_VIOLATION)
         expect((await setCost("ipasSigner", plainId, { markup_factor: 0 }))?.code).toBe(CHECK_VIOLATION)
     })
@@ -316,10 +318,10 @@ describe("Component costs: who writes", () => {
 describe("bundles and Inclusions", () => {
   it("refuses an Inclusion under a Component that is not a bundle", async () => {
     const insert = await tryInsert(await clientFor("dealOwner"), "costing_inclusions", inclusionRow({ component_id: plainId }))
-    expect(insert).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+    expect(insert).toMatchObject({ ok: false, code: RULE_REFUSED })
     expect(insert.message).toMatch(/only sit under a bundle/)
     const asService = await svc().from("costing_inclusions").insert(inclusionRow({ component_id: plainId }))
-    expect(asService.error?.code).toBe(CHECK_VIOLATION)
+    expect(asService.error?.code).toBe(RULE_REFUSED)
   })
 
   it("lets Sales and Purchasing add and edit Inclusions under a bundle, with a heading", async () => {
@@ -362,7 +364,7 @@ describe("bundles and Inclusions", () => {
     const second = await addComponent("outsider", { position: 3, name: "Second bundle", is_bundle: true })
     const [{ id }] = await asSvc(svc().from("costing_inclusions").select("id").eq("component_id", bundleId).order("position").limit(1), "Inclusion")
 
-    expect((await moveInclusion("dealOwner", id, plainId))?.code).toBe(CHECK_VIOLATION)
+    expect((await moveInclusion("dealOwner", id, plainId))?.code).toBe(RULE_REFUSED)
     expect((await moveInclusion("dealOwner", id, plainId))?.message).toMatch(/only sit under a bundle/)
     expect(await moveInclusion("dealOwner", id, second)).toBeNull()
     const moved = await asSvc(svc().from("costing_inclusions").select("component_id, position").eq("id", id).single(), "moved")
@@ -390,13 +392,13 @@ describe("bundles and Inclusions", () => {
     expect((await moveInclusion("stageParticipant", id, spare))?.message).toBe("costing_band:costing_inclusions.component_id:sales,purchasing")
     expect((await moveInclusion("ordinary", id, spare))?.code).toBe(RLS_VIOLATION)
     expect((await moveInclusion("dealOwner", id, foreignBundle))?.code).toBe("22023")
-    expect((await moveInclusion("dealOwner", id, NO_ID))?.code).toBe("P0002")
-    expect((await moveInclusion("dealOwner", NO_ID, spare))?.code).toBe("P0002")
+    expect((await moveInclusion("dealOwner", id, NO_ID))?.code).toBe("22023")
+    expect((await moveInclusion("dealOwner", NO_ID, spare))?.code).toBe("22023")
   })
 
   it("keeps a bundle a bundle while it lists Inclusions", async () => {
     const refused = await tryUpdate(await clientFor("dealOwner"), "costing_components", bundleId, { is_bundle: false })
-    expect(refused).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+    expect(refused).toMatchObject({ ok: false, code: RULE_REFUSED })
     expect(refused.message).toMatch(/before it stops being a bundle/)
     // A Component with no Inclusions may stop being one.
     expect(await tryUpdate(await clientFor("dealOwner"), "costing_components", plainId, { is_bundle: true })).toEqual({ ok: true, affected: 1 })
@@ -454,10 +456,10 @@ describe("cost-only rows", () => {
   })
 
   it("refuses an unknown matrix or row, and a quantity of zero", async () => {
-    expect((await addCostRow("dealOwner", NO_ID)).error?.code).toBe("P0002")
+    expect((await addCostRow("dealOwner", NO_ID)).error?.code).toBe("22023")
     expect((await addCostRow("dealOwner", matrixId, "Zero", 0)).error?.code).toBe(CHECK_VIOLATION)
-    expect((await setRowMoney("dealOwner", NO_ID, { description: "x" }))?.code).toBe("P0002")
-    expect((await (await clientFor("dealOwner")).rpc("costing_remove_cost_row", { p_row_id: NO_ID })).error?.code).toBe("P0002")
+    expect((await setRowMoney("dealOwner", NO_ID, { description: "x" }))?.code).toBe("22023")
+    expect((await (await clientFor("dealOwner")).rpc("costing_remove_cost_row", { p_row_id: NO_ID })).error?.code).toBe("22023")
   })
 
   it("removes one for Sales or Purchasing, and keeps it in the history", async () => {
@@ -490,16 +492,16 @@ describe("Incharge", () => {
 
   it("refuses a Sales incharge off the Deal Team, and a Purchasing incharge without Purchasing access", async () => {
     const offTeam = await tryUpdate(await clientFor("dealOwner"), "costing_matrices", matrixId, { sales_incharge_id: ids.ordinary })
-    expect(offTeam).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+    expect(offTeam).toMatchObject({ ok: false, code: RULE_REFUSED })
     expect(offTeam.message).toMatch(/Sales incharge must be on the SOR's Deal Team/)
 
     const noAccess = await tryUpdate(await clientFor("outsider"), "costing_matrices", matrixId, { purchasing_incharge_id: ids.finance })
-    expect(noAccess).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+    expect(noAccess).toMatchObject({ ok: false, code: RULE_REFUSED })
     expect(noAccess.message).toMatch(/Purchasing incharge must have Purchasing access/)
 
     // Not even the service role gets around it.
     const direct = await svc().from("costing_matrices").update({ sales_incharge_id: ids.ordinary }).eq("id", matrixId)
-    expect(direct.error?.code).toBe(CHECK_VIOLATION)
+    expect(direct.error?.code).toBe(RULE_REFUSED)
     const row = await asSvc(svc().from("costing_matrices").select("sales_incharge_id, purchasing_incharge_id").eq("id", matrixId).single(), "matrix")
     expect(row).toEqual({ sales_incharge_id: ids.support, purchasing_incharge_id: ids.outsider })
   })
@@ -523,9 +525,9 @@ describe("Incharge", () => {
     expect(await tryUpdate(await clientFor("dealOwner"), "costing_components", plainId, { sales_incharge_id: ids.dealOwner })).toEqual({ ok: true, affected: 1 })
     expect(await tryUpdate(await clientFor("outsider"), "costing_components", plainId, { purchasing_incharge_id: ids.outsider })).toEqual({ ok: true, affected: 1 })
     const offTeam = await tryUpdate(await clientFor("dealOwner"), "costing_components", plainId, { sales_incharge_id: ids.ordinary })
-    expect(offTeam).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+    expect(offTeam).toMatchObject({ ok: false, code: RULE_REFUSED })
     const noAccess = await tryUpdate(await clientFor("outsider"), "costing_components", plainId, { purchasing_incharge_id: ids.finance })
-    expect(noAccess).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+    expect(noAccess).toMatchObject({ ok: false, code: RULE_REFUSED })
     const wrongBand = await tryUpdate(await clientFor("outsider"), "costing_components", plainId, { sales_incharge_id: ids.support })
     expect(wrongBand.message).toBe("costing_band:costing_components.sales_incharge_id:sales")
     // Back to the matrix default.

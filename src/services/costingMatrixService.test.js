@@ -61,9 +61,8 @@ describe("costingMatrixService", () => {
       created_by: salesperson.id,
       totals: { abcTotal: 240000, finalOfferTotal: 199001, overAbc: false },
     })
-    // The second line has no prices yet: nothing is zero.
+    // The second line has no prices yet: nothing is zero. The price tier reads no cost, so no `landedCost` key (#546).
     expect(read.tenderLines[1].totals).toEqual({
-      landedCost: null,
       abcTotal: null,
       finalOfferTotal: null,
       overAbc: false,
