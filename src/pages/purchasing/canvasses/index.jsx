@@ -46,7 +46,7 @@ const KIND_LABEL = {
   [CANVASS_KIND.NONE]: "No subject",
 };
 
-function CanvassesPage({ userId }) {
+function CanvassesPage({ userId, canEdit }) {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [canvasserId, setCanvasserId] = useState(ANY);
@@ -84,6 +84,15 @@ function CanvassesPage({ userId }) {
     const component = params.get("component");
     return rows.find((r) => (id && r.id === id) || (item && r.requestedItemId === item) || (component && r.componentId === component)) ?? null;
   }, [params, rows]);
+  // ?item= / ?component= with no Canvass yet opens a draft; nothing is created until its first Offer is saved.
+  const draftSubject = useMemo(() => {
+    if (openRow) return null;
+    const item = params.get("item");
+    const component = params.get("component");
+    if (component) return { componentId: component };
+    if (item) return { requestedItemId: item };
+    return null;
+  }, [openRow, params]);
   const ready = !isLoading && !isError;
   // A new Canvass with no subject: nothing is written until its first Offer is saved (canvass_start),
   // which makes the starter its Canvasser and gives it a number. Then it is a row like any other.
@@ -94,10 +103,12 @@ function CanvassesPage({ userId }) {
       title="Canvasses"
       description="Every Canvass in one place, project ones included. Open one to see its Offers."
       action={
-        <Button type="button" size="sm" onClick={() => setStarting(true)}>
-          <Plus className="size-4" aria-hidden="true" />
-          New Canvass
-        </Button>
+        canEdit ? (
+          <Button type="button" size="sm" onClick={() => setStarting(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            New Canvass
+          </Button>
+        ) : null
       }
       toolbar={
         ready ? (
@@ -169,7 +180,7 @@ function CanvassesPage({ userId }) {
         </div>
       )}
 
-      {starting && (
+      {starting && canEdit && (
         <CanvassPanel
           open
           onOpenChange={(next) => !next && setStarting(false)}
@@ -187,19 +198,29 @@ function CanvassesPage({ userId }) {
           subject={{ canvassId: openRow.id }}
           subjectLabel={canvassSubjectLabel(openRow) || openRow.number}
           userId={userId}
-          canEdit
+          canEdit={canEdit}
           opportunityId={openRow.opportunityId ?? undefined}
+        />
+      )}
+      {ready && draftSubject && (
+        <CanvassPanel
+          open
+          onOpenChange={(next) => !next && setParams({})}
+          subject={draftSubject}
+          subjectLabel="New Canvass"
+          userId={userId}
+          canEdit={canEdit}
         />
       )}
     </PageShell>
   );
 }
 
-/** Everyone with Purchasing access, and Super Admins; everyone else is sent home. */
+/** Any signed-in employee may open a Canvass behind a Requested Item; only Purchasing and Super Admins edit. */
 export default function CanvassesRoute() {
   const { user, isAuthLoading } = useAuth();
   if (isAuthLoading) return <PageLoading label="Canvasses" />;
   const ctx = getPermissionContext(user);
-  if (!user || !(ctx.isSuperAdmin || ctx.hasPurchasingFlow)) return <Navigate to="/" replace />;
-  return <CanvassesPage userId={user.id} />;
+  if (!user) return <Navigate to="/" replace />;
+  return <CanvassesPage userId={user.id} canEdit={Boolean(ctx.isSuperAdmin || ctx.hasPurchasingFlow)} />;
 }

@@ -11,6 +11,7 @@ import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { statusMenuReady } from "@/test/support/statusMenuReady"
+import { MemoryRouter } from "react-router"
 import RequestedItems from "./RequestedItems"
 
 let salesperson, buyer, request
@@ -47,7 +48,7 @@ describe("purchasing", () => {
   it("moves an item along the path, and the move posts in the request", async () => {
     seedItem()
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
@@ -68,7 +69,7 @@ describe("purchasing", () => {
   it("offers Undo after a change, and Undo puts the item back", async () => {
     seedItem()
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
     render(<Toaster />)
 
     const row = await rowNamed("Full Body Harness")
@@ -85,7 +86,7 @@ describe("purchasing", () => {
   it("holds a long item name to two lines and keeps the full name", async () => {
     const name = "Safety Harness Full Body With Double Lanyard And Shock Absorber, Large, Orange, Odoo 4421"
     seedItem({ name })
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const title = await screen.findByText(name)
     expect(title).toHaveClass("line-clamp-2")
@@ -94,7 +95,7 @@ describe("purchasing", () => {
   it("asks before a way out", async () => {
     seedItem({ status: "canvassing" })
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
@@ -110,7 +111,7 @@ describe("purchasing", () => {
   it("the Buyer offers a substitute, linked to the item it replaces", async () => {
     seedItem({ status: "canvassing" })
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
@@ -136,7 +137,7 @@ describe("the sales side", () => {
   it("can only cancel, after confirming", async () => {
     seedItem({ status: "ordered" })
     const user = setupUser()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
@@ -156,7 +157,7 @@ describe("anyone else", () => {
   it("sees no controls", async () => {
     stubPurchaseRequestItemRpcs({ actorId: salesperson.id, side: "other" })
     seedItem()
-    renderWithProviders(<RequestedItems request={request} />)
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
     expect(within(row).queryAllByRole("button")).toEqual([])
