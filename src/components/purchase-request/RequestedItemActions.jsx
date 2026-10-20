@@ -22,6 +22,7 @@ import {
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
 import { useRefreshRequest } from "./requestHooks";
+import { useItemStatusUndo } from "./useItemStatusUndo";
 import { OVER_REQUEST_MODAL } from "./stacking";
 
 /** The database's refusal, without the function name it leads with. */
@@ -134,6 +135,7 @@ function StatusMenu({ close, children }) {
  */
 export default function RequestedItemActions({ item, request, actor }) {
   const refresh = useRefreshRequest(request?.id);
+  const announce = useItemStatusUndo(request?.id);
   const [confirming, setConfirming] = useState(null);
   const [substituting, setSubstituting] = useState(false);
   const [ordering, setOrdering] = useState(false);
@@ -154,7 +156,10 @@ export default function RequestedItemActions({ item, request, actor }) {
 
   const moveMutation = useMutation({
     mutationFn: (status) => purchaseRequestService.setItemStatus(item.id, status),
-    onSuccess: (_, status) => toast.success(`${item.name}: ${ITEM_STATUS_LABELS[status]}.`),
+    // The item as it was, for Undo to say what it goes back to.
+    onMutate: () => ({ before: item }),
+    onSuccess: (updated, status, { before }) =>
+      announce(before, updated, `${item.name}: ${ITEM_STATUS_LABELS[status]}.`),
     onError: (error) => toast.error(refusal(error)),
     onSettled: refresh,
   });

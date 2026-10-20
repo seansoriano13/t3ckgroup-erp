@@ -13,7 +13,7 @@ const base = {
 }
 
 describe("IPAS sign-offs as Approval Center items", () => {
-  it("reads a section 1 or 3 row as Prepared, then waiting on the approver", () => {
+  it("reads a section 1 or 3 row as Submitted, then waiting on the approver", () => {
     const pending = {
       ...base,
       id: "i1:3",
@@ -33,7 +33,7 @@ describe("IPAS sign-offs as Approval Center items", () => {
       isStale: true,
     })
     expect(item.chain.map((s) => [s.label, s.state])).toEqual([
-      ["Prepared", "done"],
+      ["Submitted", "done"],
       ["Approved", "current"],
     ])
   })
@@ -70,7 +70,7 @@ describe("IPAS sign-offs as Approval Center items", () => {
       ["Approved", "next", "Section 4 · Filing list"],
     ])
     expect(ipasChain({ section: 7, role: "noted" })).toEqual([
-      { label: "Prepared", who: "Purchasing", state: "done", at: null },
+      { label: "Submitted", who: "Purchasing", state: "done", at: null },
       { label: "Approved", who: "You", state: "current", at: null },
     ])
   })

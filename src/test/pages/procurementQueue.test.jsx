@@ -157,4 +157,37 @@ describe("Procurement Queue", () => {
     expect(await within(buyer).findByText("Pia Buyer")).toBeInTheDocument()
     expect(within(sheet).queryByRole("button", { name: /^take$/i })).not.toBeInTheDocument()
   })
+
+  it("marks a Direct row with the word and a left border, and a project row with neither (#572)", async () => {
+    db.seed("purchase_requests", { opportunity_id: null, title: "Odoo cable", created_by: salesperson.id, buyer_id: null })
+    renderAt()
+
+    const direct = await rowFor("Direct")
+    expect(direct.querySelector("td")).toHaveClass("border-l-2")
+
+    const project = await rowFor("S01001")
+    expect(within(project).queryByText("Direct")).not.toBeInTheDocument()
+    expect(project.querySelector("td")).not.toHaveClass("border-l-2")
+  })
+
+  it("opens full screen on desktop widths, with no drawer toggles, and clears the old stored choice (#571)", async () => {
+    localStorage.setItem("purchase_request_open_as:u1", "full")
+    const mm = window.matchMedia
+    window.matchMedia = (q) => ({ ...mm(q), matches: true })
+    try {
+      renderAt(`/purchasing?request=${unassigned.id}`)
+      expect(await screen.findByRole("button", { name: "Close" })).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Open full" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Show in side panel" })).not.toBeInTheDocument()
+      expect(localStorage.getItem("purchase_request_open_as:u1")).toBeNull()
+    } finally {
+      window.matchMedia = mm
+    }
+  })
+
+  it("opens in the slide-over on mobile widths, with no Open full button (#571)", async () => {
+    renderAt(`/purchasing?request=${unassigned.id}`)
+    expect(await screen.findByRole("dialog")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open full" })).not.toBeInTheDocument()
+  })
 })

@@ -12,6 +12,7 @@ import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc
 import { Dialog } from "@/components/ui/dialog"
 import { RecordModalContent } from "@/components/ui/record-modal"
 import { statusMenuReady } from "@/test/support/statusMenuReady"
+import { MemoryRouter } from "react-router"
 import RequestedItems from "./RequestedItems"
 
 let buyer, request
@@ -37,11 +38,11 @@ beforeEach(() => {
 
 const renderPanel = (onClose) =>
   renderWithProviders(
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <MemoryRouter><Dialog open onOpenChange={(open) => !open && onClose()}>
       <RecordModalContent>
         <RequestedItems request={request} />
       </RecordModalContent>
-    </Dialog>,
+    </Dialog></MemoryRouter>,
   )
 
 const openMenu = async (user) => {

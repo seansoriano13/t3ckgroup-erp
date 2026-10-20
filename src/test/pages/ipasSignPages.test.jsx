@@ -134,11 +134,11 @@ describe("IPAS signing with the evidence in view", () => {
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       const body = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(body).queryByRole("button")).not.toBeInTheDocument();
-      expect(within(body).getByText("Not prepared")).toBeInTheDocument();
+      expect(within(body).getByText("Not submitted")).toBeInTheDocument();
 
       // The footer holds the move, with its consequence, and nothing for other sections.
-      expect(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" })).toBeInTheDocument();
-      expect(within(drawer).getByText(/Marks section 1 · Purchasing ready to approve/)).toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Submit section 1 · Purchasing" })).toBeInTheDocument();
+      expect(within(drawer).getByText(/Submits section 1 · Purchasing for approval/)).toBeInTheDocument();
       expect(within(drawer).queryByRole("button", { name: /section 2/ })).not.toBeInTheDocument();
     });
 
@@ -158,12 +158,15 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(drawer).getByRole("button", { name: "Receive section 4 · Filing" })).toBeInTheDocument();
     });
 
-    it("has no footer for a section with no sign-off", async () => {
+    it("gives History no moves and no Edit section: it expands under its row", async () => {
       const row = ipas();
       renderDetail(row.id, "history");
 
-      const drawer = await screen.findByRole("dialog", { name: "History" });
-      expect(within(drawer).queryByRole("button", { name: /^Prepare|^Approve|^Return|^Undo|^Edit section/ })).not.toBeInTheDocument();
+      const trigger = await screen.findByRole("button", { name: /^History/ });
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      const section = trigger.closest("li");
+      expect(within(section).queryByRole("button", { name: /^Submit|^Approve|^Return|^Undo|^Edit section/ })).not.toBeInTheDocument();
     });
 
     // #533: money reads in the drawer; editing is in the edit view.
@@ -232,6 +235,7 @@ describe("IPAS signing with the evidence in view", () => {
 
       await act(() => router.navigate(`/purchasing/ipas/${row.id}?edit=costing`));
       await user.click(await screen.findByRole("button", { name: "Encoded" }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
       const alert = await screen.findByRole("alert");
       expect(within(alert).getByRole("button", { name: "Retry" })).toBeInTheDocument();
       expect(rowOf(row.id).computation_status).toBe("encoding");
@@ -261,12 +265,12 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
-      await user.click(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" }));
+      await user.click(within(drawer).getByRole("button", { name: "Submit section 1 · Purchasing" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Prepare section 1 · Purchasing?" });
+      const dialog = await screen.findByRole("dialog", { name: "Submit section 1 · Purchasing?" });
       expect(within(dialog).getByText(/^You sign/)).toBeInTheDocument();
       expect(db.rows("ipas_signoffs").filter((s) => s.role === "prepared")).toHaveLength(0);
-      await user.click(within(dialog).getByRole("button", { name: "Prepare" }));
+      await user.click(within(dialog).getByRole("button", { name: "Submit" }));
 
       await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.role === "prepared")).toHaveLength(1));
     });
@@ -357,7 +361,7 @@ describe("IPAS signing with the evidence in view", () => {
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Review section 1 · Purchasing" }));
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
-      expect(within(drawer).getByRole("button", { name: "Prepare section 1 · Purchasing" })).toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Submit section 1 · Purchasing" })).toBeInTheDocument();
     });
 
     it("marks the next LC step with no question, toasts with Undo, and Undo restores the status", async () => {
@@ -447,7 +451,7 @@ describe("IPAS signing with the evidence in view", () => {
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Return…" }));
       const dialog = await screen.findByRole("dialog", { name: "Return section 1 · Purchasing?" });
-      await user.type(within(dialog).getByPlaceholderText(/What does the preparer need to fix/), "Wrong supplier");
+      await user.type(within(dialog).getByPlaceholderText(/What does the submitter need to fix/), "Wrong supplier");
       await user.click(within(dialog).getByRole("button", { name: "Return" }));
 
       // UI first: the dialog is gone, the failure is kept on the page with Retry.

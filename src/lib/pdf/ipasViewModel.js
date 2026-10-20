@@ -114,7 +114,7 @@ export function maskAccountNumber(raw) {
 // ── Sign-offs ────────────────────────────────────────────────────────────────
 
 const SIGN_LABELS = {
-  [IPAS_SIGNOFF_ROLE.PREPARED]: 'Prepared by',
+  [IPAS_SIGNOFF_ROLE.PREPARED]: 'Submitted by',
   [IPAS_SIGNOFF_ROLE.APPROVED]: 'Approved by',
   [IPAS_SIGNOFF_ROLE.RECEIVED]: 'Received by',
   [IPAS_SIGNOFF_ROLE.NOTED]: 'Noted by',

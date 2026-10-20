@@ -42,8 +42,8 @@ function gateDefs(digest) {
     line: state.approved
       ? `Approved by ${name(state.approved)}`
       : state.prepared
-        ? `Prepared by ${name(state.prepared)}, waiting for an approver`
-        : "Waiting for Purchasing to prepare it",
+        ? `Submitted by ${name(state.prepared)}, waiting for an approver`
+        : "Waiting for Purchasing to submit it",
     at: state.approved?.signedAt ?? null,
     moveKeys,
   });

@@ -31,6 +31,7 @@ export type Path =
   | `/opportunities/commission-formula`
   | `/profile`
   | `/purchasing`
+  | `/purchasing/canvasses`
   | `/purchasing/dashboard`
   | `/purchasing/ipas`
   | `/purchasing/ipas/:id`

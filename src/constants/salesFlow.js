@@ -88,6 +88,23 @@ export function flowStageTone(stage, flow, stagesOfFlow = []) {
 }
 
 /**
+ * Each Stage name's tone, for a row that carries only the Stage's name (the
+ * Purchase Requests list). Names repeat across flows; when Stages sharing a
+ * name disagree on tone, that name gets none (null) rather than a guess.
+ * Takes `getAllStagesIndex`'s `{ flowsById, stagesByFlow }`.
+ */
+export function flowStageTonesByName({ flowsById = {}, stagesByFlow = {} } = {}) {
+  const tones = new Map()
+  for (const [flowId, stages] of Object.entries(stagesByFlow)) {
+    for (const stage of stages) {
+      const tone = flowStageTone(stage, flowsById[flowId], stages)
+      tones.set(stage.name, tones.has(stage.name) && tones.get(stage.name) !== tone ? null : tone)
+    }
+  }
+  return tones
+}
+
+/**
  * Every Stage reachable from the entry by following edges, entry included.
  *
  * Breadth-first over the edges she actually drew, so a Stage reachable only by

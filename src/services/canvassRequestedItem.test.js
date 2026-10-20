@@ -5,7 +5,7 @@ import { costingMatrixService } from "./costingMatrixService"
 import { purchaseRequestService } from "./purchaseRequestService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
-import { stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
+import { seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { COSTING_TIER } from "@/constants/costing"
@@ -42,16 +42,18 @@ describe("Canvass on a Requested Item", () => {
     componentItem = db.seed("purchase_request_items", { request_id: request.id, name: "Ambulance Folding Stretcher", quantity: 1, source: "component", component_id: componentId, requested_by: purchaser.id })
   })
 
-  it("opens one Canvass on an item that names no Component, once", async () => {
-    const first = await canvassService.open({ requestedItemId: plainItem.id }, purchaser.id)
-    const second = await canvassService.open({ requestedItemId: plainItem.id }, purchaser.id)
-    expect(second.id).toBe(first.id)
+  it("starts one Canvass on an item that names no Component, once", async () => {
+    const first = await canvassService.start({ requestedItemId: plainItem.id }, {}, { supplierName: "Paper Co" }, purchaser.id)
+    const second = await canvassService.start({ requestedItemId: plainItem.id }, {}, { supplierName: "Office Hub" }, purchaser.id)
+    expect(second.canvassId).toBe(first.canvassId)
     expect(first.number).toBe("CNV_0001")
-    expect((await canvassService.getForRequestedItem(plainItem.id)).id).toBe(first.id)
+    expect((await canvassService.getForRequestedItem(plainItem.id)).id).toBe(first.canvassId)
   })
 
-  it("refuses to open one on an item that names a Component", async () => {
-    await expect(canvassService.open({ requestedItemId: componentItem.id }, purchaser.id)).rejects.toMatchObject({ code: "23514" })
+  it("refuses to start one on an item that names a Component", async () => {
+    await expect(
+      canvassService.start({ requestedItemId: componentItem.id }, {}, { supplierName: "Ferno" }, purchaser.id),
+    ).rejects.toMatchObject({ code: "23514" })
     expect(db.rows("sor_canvasses")).toHaveLength(0)
   })
 
@@ -60,21 +62,21 @@ describe("Canvass on a Requested Item", () => {
 
     it("moves a To order item to Canvassing when its Canvass opens", async () => {
       const item = db.seed("purchase_request_items", { request_id: request.id, name: "Toner", quantity: 2, source: "new", requested_by: purchaser.id, status: "to_order" })
-      await canvassService.open({ requestedItemId: item.id }, purchaser.id)
+      await seedCanvass({ requestedItemId: item.id }, purchaser.id)
       expect(statusOf(item.id)).toBe("canvassing")
     })
 
     it("moves the To order items that name a Component when the Component's Canvass opens", async () => {
       db.internal.rowsOf("purchase_request_items").find((i) => i.id === componentItem.id).status = "to_order"
       const ordered = db.seed("purchase_request_items", { request_id: request.id, name: "Ambulance Folding Stretcher", quantity: 1, source: "component", component_id: componentId, requested_by: purchaser.id, status: "ordered" })
-      await canvassService.open({ componentId }, purchaser.id)
+      await seedCanvass({ componentId }, purchaser.id)
       expect(statusOf(componentItem.id)).toBe("canvassing")
       expect(statusOf(ordered.id)).toBe("ordered")
     })
 
     it("leaves an item at any other status alone", async () => {
       expect(statusOf(plainItem.id)).toBe("requested")
-      await canvassService.open({ requestedItemId: plainItem.id }, purchaser.id)
+      await seedCanvass({ requestedItemId: plainItem.id }, purchaser.id)
       expect(statusOf(plainItem.id)).toBe("requested")
     })
   })
@@ -85,7 +87,7 @@ describe("Canvass on a Requested Item", () => {
   })
 
   it("writes nothing to the Costing Matrix when a winner is marked on an item's Canvass", async () => {
-    const canvass = await canvassService.open({ requestedItemId: plainItem.id }, purchaser.id)
+    const canvass = await seedCanvass({ requestedItemId: plainItem.id }, purchaser.id)
     const offer = await canvassService.addOffer(canvass.id, { supplierName: "Paper Co", description: "A4 ream", unitPrice: 250 }, purchaser.id)
 
     const result = await canvassService.markWinner(canvass.id, offer.id)
@@ -98,7 +100,7 @@ describe("Canvass on a Requested Item", () => {
     const itemFor = async (id) => (await purchaseRequestService.listItems(request.id)).find((i) => i.id === id)
 
     it("shows its own Canvass number and signed state", async () => {
-      const canvass = await canvassService.open({ requestedItemId: plainItem.id }, purchaser.id)
+      const canvass = await seedCanvass({ requestedItemId: plainItem.id }, purchaser.id)
       expect((await itemFor(plainItem.id)).canvass).toEqual({ id: canvass.id, number: "CNV_0001", signed: false, viaComponent: false })
 
       db.internal.rowsOf("sor_canvasses").find((c) => c.id === canvass.id).signed_off_at = "2026-10-19T08:00:00Z"
@@ -106,7 +108,7 @@ describe("Canvass on a Requested Item", () => {
     })
 
     it("shows its Component's Canvass number when it names a Component", async () => {
-      const canvass = await canvassService.open({ componentId }, purchaser.id)
+      const canvass = await seedCanvass({ componentId }, purchaser.id)
       expect((await itemFor(componentItem.id)).canvass).toEqual({ id: canvass.id, number: canvass.number, signed: false, viaComponent: true })
     })
 

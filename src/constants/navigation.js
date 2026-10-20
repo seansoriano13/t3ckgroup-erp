@@ -1,7 +1,6 @@
 import {
   LayoutList,
   ListCheck,
-  ListChecks,
   ListTodo,
   Clock,
   UsersRound,
@@ -161,14 +160,25 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       // The Purchasing Dashboard (#322): every SOR's buying grouped by what is
-      // outstanding. Same readers as Order Monitoring; the database limits
-      // the rows and the page sends anyone else home.
+      // outstanding, with Order Monitoring (#263) as two of its tabs since
+      // 2026-10-20. Purchasing access, Finance access and Super Admins; the
+      // database limits the rows and the page sends anyone else home.
       {
         key: "purchasing.dashboard",
         label: "Purchasing Dashboard",
         link: "/purchasing/dashboard",
         icon: LayoutDashboard,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow,
+        exactMatch: true,
+      },
+      // Canvasses (#566, ADR 0034): every Canvass, project ones included. For
+      // everyone with Purchasing access; the page sends anyone else home.
+      {
+        key: "purchasing.canvasses",
+        label: "Canvasses",
+        link: "/purchasing/canvasses",
+        icon: Scale,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow,
         exactMatch: true,
       },
       // The IPAS (#241): one per purchase order that needs one. Read by
@@ -183,17 +193,6 @@ export const NAV_MODULES = {
         icon: ReceiptText,
         isPermitted: (ctx) =>
           ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow || ctx.isIpasSigner,
-      },
-      // Order Monitoring (#263): every open IPAS across every SOR, grouped by
-      // what needs doing. Purchasing access, Finance access and Super Admins
-      // only; the page sends anyone else home and the database limits the rows.
-      {
-        key: "purchasing.order_monitoring",
-        label: "Order Monitoring",
-        link: "/purchasing/order-monitoring",
-        icon: ListChecks,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow,
-        exactMatch: true,
       },
       // Transmittals (#252): the TG03 slips. Read by the IPAS readers and the
       // four Transmittal staff lists; the database refuses everyone else.

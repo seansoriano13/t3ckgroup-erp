@@ -29,8 +29,8 @@ import { ipasErrorMessage } from "@/utils/ipas";
  *   onSubmit({ section, mode, reason })  returns a promise; the dialog closes
  *             when it resolves
  *
- * A Return sends a prepared section back to its preparer; Undo approval takes
- * back an approval and leaves Prepared. Both need a reason. When the choice
+ * A Return sends a submitted section back to its submitter; Undo approval takes
+ * back an approval and leaves Submitted. Both need a reason. When the choice
  * would clear section 4's sign-offs the dialog names who gave them and asks
  * for a second, deliberate click, because they may be hard to get again.
  * Mounted only while open, so it always starts empty.
@@ -147,7 +147,7 @@ function Body({ targets, initial = null, onSubmit, onClose }) {
           maxLength={500}
           placeholder={
             target.placeholder ??
-            (target.mode === "undo" ? "Why is this approval being taken back?" : "What does the preparer need to fix?")
+            (target.mode === "undo" ? "Why is this approval being taken back?" : "What does the submitter need to fix?")
           }
           autoFocus
         />

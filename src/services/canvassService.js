@@ -5,8 +5,12 @@ import { isExpired, moreOffersWarning, needsMoreOffers, phpFigure } from "../uti
 
 /**
  * Canvass persistence (#275, built in #276): one Canvass per subject, its Offers, and the
- * original working sheet. A subject is exactly one Costing Matrix Component or exactly one
- * Requested Item (`{ componentId }` or `{ requestedItemId }`), never an Inclusion.
+ * original working sheet. A subject is at most one Costing Matrix Component or one Requested Item
+ * (`{ componentId }` or `{ requestedItemId }`), never an Inclusion. Buying outside a project is
+ * canvassed first against nothing (ADR 0034): such a Canvass is reached by its id
+ * (`{ canvassId }`), says what is being bought in `product_name`, and a Purchase Request is later
+ * created from it. A Canvass is written only when its first Offer is saved (`start`), which is
+ * when it gets its number; reading one never creates it.
  *
  * Money is split the way the Costing Matrix splits it. An Offer's `unit_price` and
  * `comparison_rate` live in `sor_canvass_offer_prices`, a table the database only shows to a
@@ -34,14 +38,13 @@ const stripMoney = (offer) => {
 };
 
 /**
- * Resolves the exactly-one-subject columns from a caller's `{ componentId }` or
- * `{ requestedItemId }`. Throws rather than letting a caller write a Canvass that satisfies
- * neither or both; the database CHECK backs this up, but that surfaces as an opaque error string.
+ * Resolves a caller's subject columns: `{ componentId }`, `{ requestedItemId }`, or `{}` for a
+ * Canvass with no subject. Throws for both; the database CHECK backs this up, but that surfaces
+ * as an opaque error string.
  */
 function subjectColumns({ componentId, requestedItemId } = {}) {
-  const provided = [componentId, requestedItemId].filter(Boolean);
-  if (provided.length !== 1) {
-    throw new Error("A Canvass belongs to exactly one Component or one Requested Item.");
+  if (componentId && requestedItemId) {
+    throw new Error("A Canvass belongs to one Component or one Requested Item, never both.");
   }
   return { component_id: componentId || null, requested_item_id: requestedItemId || null };
 }
@@ -108,6 +111,23 @@ function withFigures(offer, canReadMoney) {
   return shaped;
 }
 
+/** A new Offer's columns and prices, checked: it says something, and a PHP Offer takes no rate. */
+function offerPayload(input) {
+  const row = cleanOfferInput(input);
+  const price = cleanPriceInput(input);
+  if (!row.supplier_name && !row.brand && !row.description) {
+    throw new Error("An offer needs at least a supplier, a brand or a description.");
+  }
+  const currency = row.currency || DEFAULT_CURRENCY;
+  if (currency === DEFAULT_CURRENCY && price.comparison_rate != null) {
+    throw new Error("A PHP offer takes no comparison rate.");
+  }
+  return {
+    p_offer: { brochure: [], ...row, currency },
+    p_price: { unit_price: null, comparison_rate: null, ...price },
+  };
+}
+
 const SUPPLIER_MIN_QUERY = 2;
 
 export const canvassService = {
@@ -130,25 +150,30 @@ export const canvassService = {
   },
 
   /**
-   * The Canvass for a subject, with its Offers, or null when nobody has opened one. Offers come in
-   * the order they were arranged. For a reader who may not see money, the Offers carry no
-   * `unit_price`, `comparison_rate` or `php_figure` keys at all.
+   * The Canvass for a subject, with its Offers, or null when none has been started (no Offer saved
+   * yet). `{ canvassId }` reads one by id; `{}` (a new Canvass with no subject) is always null.
+   * Offers come in the order they were arranged. For a reader who may not see money, the Offers
+   * carry no `unit_price`, `comparison_rate` or `php_figure` keys at all.
    */
-  async get(subject) {
-    const columns = subjectColumns(subject);
-    const filterKey = columns.component_id ? "component_id" : "requested_item_id";
+  async get(subject = {}) {
+    let query = supabase.from("sor_canvasses").select(CANVASS_SELECT);
+    if (subject.canvassId) {
+      query = query.eq("id", subject.canvassId);
+    } else {
+      const columns = subjectColumns(subject);
+      if (!columns.component_id && !columns.requested_item_id) return null;
+      const filterKey = columns.component_id ? "component_id" : "requested_item_id";
+      query = query.eq(filterKey, columns[filterKey]);
+    }
 
-    const { data, error } = await supabase
-      .from("sor_canvasses")
-      .select(CANVASS_SELECT)
-      .eq(filterKey, columns[filterKey])
-      .maybeSingle();
+    const { data, error } = await query.maybeSingle();
     if (error) throw error;
     if (!data) return null;
 
+    // Asked of the Canvass's own subject, so one read by id is judged like any other.
     const { data: canReadMoney, error: moneyError } = await supabase.rpc("canvass_subject_can_read_money", {
-      p_component_id: columns.component_id,
-      p_requested_item_id: columns.requested_item_id,
+      p_component_id: data.component_id ?? null,
+      p_requested_item_id: data.requested_item_id ?? null,
     });
     if (moneyError) throw moneyError;
 
@@ -205,7 +230,7 @@ export const canvassService = {
   /**
    * The Canvass of one Requested Item, or null (#280). Only an item that names no Component has
    * one of its own: an item that names a Component is canvassed through the Component, and
-   * `open` refuses it. Prices come only to members with Purchasing access, Finance access or
+   * `start` refuses it. Prices come only to members with Purchasing access, Finance access or
    * Super Admin; for any other member of the request the Offers carry no price keys.
    */
   getForRequestedItem(itemId) {
@@ -239,43 +264,118 @@ export const canvassService = {
   },
 
   /**
-   * Opens the Canvass for a subject, once. A second call (or a second purchaser) gets the same
-   * Canvass back with the same number: one Canvass per subject.
+   * Every Canvass the caller may read, newest first, for the Canvasses page (ADR 0034): project
+   * ones on a Component, ones on a Requested Item, and ones with no subject yet. Names only, no
+   * money. `kind` is "component", "requested_item" or "none".
    */
-  async open(subject, actorId) {
-    const columns = subjectColumns(subject);
-    const existing = await this.get(subject);
-    if (existing) return existing;
-
-    const { error } = await supabase.from("sor_canvasses").insert({ ...columns, created_by: actorId || null });
-    // Someone opened it between the read and the write: theirs is the one.
-    if (error && error.code !== "23505") throw error;
-
-    return this.get(subject);
+  async list() {
+    const { data, error } = await supabase.rpc("canvass_list");
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      number: row.number,
+      kind: row.kind,
+      productName: row.product_name ?? null,
+      subjectName: row.subject_name ?? null,
+      componentId: row.component_id ?? null,
+      componentNumber: row.component_number ?? null,
+      requestedItemId: row.requested_item_id ?? null,
+      requestId: row.request_id ?? null,
+      requestLabel: row.request_label ?? null,
+      opportunityId: row.opportunity_id ?? null,
+      salesReference: row.sales_reference ?? null,
+      projectTitle: row.project_title ?? null,
+      canvasserId: row.canvasser_id ?? null,
+      canvasserName: row.canvasser_name ?? null,
+      offerCount: Number(row.offer_count) || 0,
+      winner: row.winner_offer_id
+        ? { id: row.winner_offer_id, supplierName: row.winner_supplier ?? null, brand: row.winner_brand ?? null }
+        : null,
+      signedOffAt: row.signed_off_at ?? null,
+      signerName: row.signer_name ?? null,
+      createdBy: row.created_by ?? null,
+      createdAt: row.created_at,
+    }));
   },
 
   /**
-   * Adds one Offer, appended after the current ones. Its prices row is always written (blank if
-   * the caller gave none), so a reader who may see money always has a row to read.
+   * Saves the first Offer of a Canvass not started yet, which starts it and gives it its number
+   * (`canvass_start`). Opening a panel writes nothing; this does. On a subject that already has a
+   * Canvass (another purchaser got there first) the Offer joins that one: one Canvass per subject.
+   * A Canvass with no subject needs `productName`, what is being bought. Returns
+   * `{ canvassId, number, offer }`.
+   */
+  async start(subject = {}, { productName = null } = {}, input = {}, actorId) {
+    const columns = subjectColumns(subject);
+    const name = text(productName);
+    if (!columns.component_id && !columns.requested_item_id && !name) {
+      throw new Error("Say what is being bought before saving the first offer.");
+    }
+    const { p_offer, p_price } = offerPayload(input);
+
+    const { data, error } = await supabase.rpc("canvass_start", {
+      p_component_id: columns.component_id,
+      p_requested_item_id: columns.requested_item_id,
+      p_product_name: name,
+      p_offer: { ...p_offer, created_by: actorId || null },
+      p_price,
+    });
+    if (error) throw error;
+    return { canvassId: data.canvass_id, number: data.number, offer: stripMoney(data.offer ?? {}) };
+  },
+
+  /** What a Canvass with no subject is buying. Blank is refused there: it has nothing else to go by. */
+  async setProductName(canvassId, productName) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    if (!text(productName)) throw new Error("Say what this Canvass is buying.");
+    const { data, error } = await supabase
+      .from("sor_canvasses")
+      .update({ product_name: text(productName) })
+      .eq("id", canvassId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Creates one Direct Purchase Request from Canvasses with no subject yet
+   * (`canvass_create_purchase_request`): one Requested Item per Canvass, named from the Canvass and
+   * described from its winner, and each Canvass then points at its item. Every Canvass needs a
+   * winner; one not signed off is allowed (the screen warns first). `items` is
+   * `[{ canvassId, quantity, unit }]`. Returns `{ requestId, items: [{ canvassId, itemId }], unsignedCanvassIds }`.
+   */
+  async createPurchaseRequest({ title, items = [] } = {}) {
+    const name = text(title);
+    if (!name) throw new Error("Give the Purchase Request a title.");
+    if (items.length === 0) throw new Error("Pick at least one Canvass.");
+    const payload = items.map(({ canvassId, quantity, unit }) => {
+      const qty = toNumber(quantity, "The quantity");
+      if (qty !== null && qty <= 0) throw new Error("The quantity has to be more than zero.");
+      return { canvass_id: canvassId, quantity: qty, unit: text(unit) };
+    });
+    const { data, error } = await supabase.rpc("canvass_create_purchase_request", { p_title: name, p_items: payload });
+    if (error) throw error;
+    return {
+      requestId: data.request_id,
+      items: (data.items ?? []).map((i) => ({ canvassId: i.canvass_id, itemId: i.item_id })),
+      unsignedCanvassIds: data.unsigned_canvass_ids ?? [],
+    };
+  },
+
+  /**
+   * Adds one Offer to a started Canvass, appended after the current ones. Its prices row is always
+   * written (blank if the caller gave none), so a reader who may see money always has a row to read.
    */
   async addOffer(canvassId, input = {}, actorId) {
     if (!canvassId) throw new Error("A Canvass id is required.");
-
-    const row = cleanOfferInput(input);
-    const price = cleanPriceInput(input);
-    if (!row.supplier_name && !row.brand && !row.description) {
-      throw new Error("An offer needs at least a supplier, a brand or a description.");
-    }
-    const currency = row.currency || DEFAULT_CURRENCY;
-    if (currency === DEFAULT_CURRENCY && price.comparison_rate != null) {
-      throw new Error("A PHP offer takes no comparison rate.");
-    }
+    const { p_offer, p_price } = offerPayload(input);
 
     // One call writes the Offer and its prices row together, so a failure leaves neither.
     const { data: offer, error } = await supabase.rpc("canvass_add_offer", {
       p_canvass_id: canvassId,
-      p_offer: { brochure: [], ...row, currency, created_by: actorId || null },
-      p_price: { unit_price: null, comparison_rate: null, ...price },
+      p_offer: { ...p_offer, created_by: actorId || null },
+      p_price,
     });
     if (error) throw error;
 
@@ -379,6 +479,18 @@ export const canvassService = {
     const { data, error } = await supabase.rpc("canvass_apply_winner", { p_canvass_id: canvassId, p_offer_id: offerId });
     if (error) throw error;
     await this.notifyApprovers(canvassId);
+    return data;
+  },
+
+  /**
+   * Un-picks the winner, leaving none (`canvass_clear_winner`), which unsigns the Canvass. What the
+   * winner filled on a Component (Acquire, Offer Specification, documents) stays, still marked as
+   * from the Canvass, until a new winner replaces it; the matrix row says there is no winner now.
+   */
+  async clearWinner(canvassId) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    const { data, error } = await supabase.rpc("canvass_clear_winner", { p_canvass_id: canvassId });
+    if (error) throw error;
     return data;
   },
 

@@ -5,7 +5,9 @@
 //           no title; the pinned footer holds the sign-off moves, so the body's
 //           own sign-off buttons are hidden; the money is read-only, so edit
 //           controls and ticks show as read-only text (#533). Read-only
-//           content (who signed, when) stays in every chrome.
+//           content (who signed, when) stays in every chrome. A section
+//           expanded in place that edits in the edit view (the IPAS's Header
+//           and Sales) uses this read-only chrome under its row too.
 //   INLINE  a short section expanded in place under its row: no frame and no
 //           title (the row names it), and its controls stay live (#533).
 
