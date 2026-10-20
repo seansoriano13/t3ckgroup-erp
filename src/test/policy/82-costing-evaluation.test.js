@@ -395,11 +395,18 @@ describe("Evaluation approved", () => {
         }
     })
 
-    it("is refused to a list member who has no tier on the SOR", async () => {
+    it("is no longer refused to a list member with no other tier on the SOR (#545: the list opens a matrix SOR)", async () => {
+        // Before #545 a list member with no tier was refused with a permission error. The Evaluation list now
+        // reads the matrix at the participant tier, so this member passes the permission check and meets the
+        // state rule instead: the Evaluation is already approved.
         await asSvc(svc().from("costing_signer_lists").insert({ list_key: "evaluation", employee_id: ids.ordinary }), "list")
-        const { error } = await sign("ordinary")
-        expect(error?.code).toBe(RLS_VIOLATION)
-        await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ordinary).eq("list_key", "evaluation")
+        try {
+            const { error } = await sign("ordinary")
+            expect(error?.code).toBe(WRONG_STATE)
+            expect(error?.message).toMatch(/already approved/)
+        } finally {
+            await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ordinary).eq("list_key", "evaluation")
+        }
     })
 })
 

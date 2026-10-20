@@ -296,7 +296,10 @@ describe("filing", () => {
         const ipas = await raise()
         await approvedThrough(ipas)
         await receivedNotedChecked(ipas)
-        await setStatus(ipas.id, "checked")
+        // #547: Checked by is Finance's step. Purchasing takes the status to LC Odoo Done, Finance gives Checked by.
+        expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
+        expect((await rpc("finance", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { computation_status: "checked" } })).error).toBeNull()
+        expect((await rowOf(ipas.id)).computation_status).toBe("checked")
         expect((await sign("ipasSigner", ipas.id, 7, "approved")).error).toBeNull()
         expect((await rowOf(ipas.id)).state).toBe("filed")
     })
