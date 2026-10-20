@@ -352,7 +352,8 @@ export function stageIsOpen(t, stage) {
 
 /**
  * The one line under "Your move": what the viewer can do, or who the slip
- * waits on. `offered` are the moves the viewer has.
+ * waits on. `offered` are the moves the viewer has; each carries the
+ * `section` it belongs to, which is the gate key.
  */
 export function statusLine(t, gates, offered) {
   if (t.state === STATE.CANCELLED) return "Cancelled. Nothing to do.";
@@ -361,8 +362,11 @@ export function statusLine(t, gates, offered) {
     return offered.length > 0 ? "A draft. Submit it when the lines are right." : "A draft. Waiting for its preparer to submit it.";
   }
   const now = gates.find((gate) => gate.now);
-  if (offered.length > 0) return `Waiting for you${now ? `: ${now.label}` : ""}`;
-  return now
-    ? `Nothing needs you right now. Waiting on ${now.waitsOn} for ${now.label}.`
-    : `Nothing needs you right now. ${transmittalStateLabel(t.state)}.`;
+  if (!now) {
+    return offered.length > 0 ? "Waiting for you" : `Nothing needs you right now. ${transmittalStateLabel(t.state)}.`;
+  }
+
+  // Only a move on the next step counts: a move on an earlier step doesn't make it the viewer's turn.
+  if (offered.some((item) => item.section === now.key)) return `Waiting for you: ${now.label}`;
+  return `Next: ${now.label}, waiting on ${now.waitsOn}`;
 }

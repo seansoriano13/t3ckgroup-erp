@@ -125,7 +125,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(
       within(region).getByText("Marks section 1 · Purchasing ready to approve. Nothing locks. Next: the approvers of 1 · Purchasing, told now."),
     ).toBeInTheDocument();
-    expect(within(region).getByText("Next: Waiting for you")).toBeInTheDocument();
+    expect(within(region).getByText("Waiting for you: 1 · Purchasing")).toBeInTheDocument();
   });
 
   it("keeps the next LC step in its own group below the sign-offs, with a divider", async () => {
@@ -184,7 +184,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText("Nothing needs you right now. Waiting on 4 · Filing.")).toBeInTheDocument();
+    expect(within(region).getByText("Next: 4 · Filing, Received, waiting on the Received list")).toBeInTheDocument();
     // The LC steps are not offered until the computation status is Encoded: the costs gate is not Now.
     expect(within(region).queryByRole("button", { name: /^Mark LC/ })).not.toBeInTheDocument();
   });
@@ -210,8 +210,19 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText("Nothing needs you right now. Waiting on 1 · Purchasing and 2 · Purchasing & Finance.")).toBeInTheDocument();
+    expect(within(region).getByText("Next: 1 · Purchasing, waiting on Purchasing")).toBeInTheDocument();
     expect(within(region).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("tells a purchaser who prepared both sections that the approvers hold the next step", async () => {
+    const row = ipas();
+    signoff(row.id, 1, "prepared", purchaser);
+    signoff(row.id, 3, "prepared", purchaser);
+    renderDetail(row.id);
+
+    const region = await screen.findByRole("region", { name: "Your move" });
+    expect(within(region).getByText("Next: 1 · Purchasing, waiting on the approvers of 1 · Purchasing")).toBeInTheDocument();
+    expect(within(region).queryByText(/^Waiting for you/)).not.toBeInTheDocument();
   });
 
   it("names Purchasing's encoding as the wait when sections 1 and 2 and the filing steps are given but costs are not encoded", async () => {
