@@ -10,6 +10,7 @@
             "A Purchase Request made from Canvasses now shows each winner's price on its Requested Item, only to members who may see prices (Purchasing, Finance and Super Admin).",
             "A winner can now be un-picked. This clears the sign-off, is kept in the Canvass history, and leaves the values the winner filled in the Costing Matrix, with a note that no winner stands behind them.",
             "The Canvass can be printed side by side, with the Offers next to each other.",
+            "Requested Items are now a queue of To do, In progress and Closed groups. Each item is a soft card with its name, quantity, status and PO number. Open it to read stock, who requested it, Canvass, PO and notes in clear, full-length lines. Items glide to their new group when the status changes.",
             "After you change a Requested Item's status, an Undo button shows for about 10 seconds.",
             "Important fields on the Canvass are now bold, and long product names no longer push the layout around.",
             "The Purchase Request list now shows a badge for Direct requests.",
