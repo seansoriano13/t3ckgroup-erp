@@ -5,6 +5,7 @@ import { Check, Pencil } from "lucide-react";
 import EmptyState from "../../../../components/ui/EmptyState";
 import FilterBar from "../../../../components/ui/FilterBar";
 import { FilterSelect } from "../../../../components/ui/FilterDropdown";
+import ReportFigure from "../../../../components/ui/ReportFigure";
 import PageLoading from "../../../../components/ui/PageLoading";
 import QueryError from "../../../../components/ui/QueryError";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../../components/ui/table";
@@ -155,6 +156,19 @@ export default function OrderRegister({ onOpen, query }) {
       {isError && <QueryError title="The order register could not be loaded." onRetry={refetch} />}
       {!isError && !isLoading && rows.length === 0 && (
         <EmptyState title="No orders match" description="Change the search or the filters." />
+      )}
+
+      {!isError && rows.length > 0 && (
+        <div role="group" aria-label="Register totals">
+          <ReportFigure
+            stats={[
+              { label: "Orders shown", value: rows.length },
+              { label: "Open", value: rows.filter((row) => row.state === IPAS_STATE.OPEN).length },
+              { label: "Filed", value: rows.filter((row) => row.state === IPAS_STATE.FILED).length },
+              { label: "Late", value: rows.filter((row) => row.late).length, tone: "attention" },
+            ]}
+          />
+        </div>
       )}
 
       {!isError && rows.length > 0 && (

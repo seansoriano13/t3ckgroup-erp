@@ -15,6 +15,7 @@
             "The Purchase Request list now shows a badge for Direct requests.",
             "A Purchase Request opens in a side drawer from the list, with an Open full button to see the whole page.",
             "The Purchasing dashboard is tidier and has tabs.",
+            "Each Purchasing Dashboard tab now has its own row of totals at the top, including a new one on the Register (orders shown, open, filed and late).",
             "IPAS sections now open and edit in place."
         ]
     },
