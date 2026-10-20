@@ -156,10 +156,10 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                 <TableHead className="w-10">No.</TableHead>
                 <TableHead className="min-w-[16rem]">Tender Specification</TableHead>
                 <TableHead className="w-24">Unit</TableHead>
-                <TableHead className="w-24 text-right">Qty</TableHead>
-                {showAbc && <TableHead className="w-36 text-right">ABC / unit</TableHead>}
+                <TableHead className="w-28 min-w-28 text-right">Qty</TableHead>
+                {showAbc && <TableHead className="w-44 min-w-44 text-right">ABC / unit</TableHead>}
                 {showAbc && <TableHead className="w-36 text-right">ABC total</TableHead>}
-                {showOffer && <TableHead className="w-40 text-right">Final Offer / unit</TableHead>}
+                {showOffer && <TableHead className="w-44 min-w-44 text-right">Final Offer / unit</TableHead>}
                 {showOffer && <TableHead className="w-36 text-right">Final Offer total</TableHead>}
                 {showMarkupPrice && <TableHead className="w-40 text-right">Markup Price total</TableHead>}
                 {showAchieved && <TableHead className="w-44 text-right">Achieved / target</TableHead>}
@@ -290,7 +290,10 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                 </TableRow>
                 <TableRow data-testid="tender-line-components" className="bg-muted/20 hover:bg-muted/20">
                   <TableCell colSpan={columnCount} className="p-0">
-                    <ComponentBlock line={line} matrix={matrix} bundles={bundles} stockData={stockSnapshot?.data} incharge={incharge} writes={writes} requests={requests} canvasses={canvasses} opportunityId={opportunityId} actorId={actorId} />
+                    {/* w-0 min-w-full: the Component grid is far wider than this table. Without it the grid's width widens the whole table (and the SOR window), so focusing a cell scrolls everything sideways. Now the grid scrolls inside its own box. */}
+                    <div className="w-0 min-w-full">
+                      <ComponentBlock line={line} matrix={matrix} bundles={bundles} stockData={stockSnapshot?.data} incharge={incharge} writes={writes} requests={requests} canvasses={canvasses} opportunityId={opportunityId} actorId={actorId} />
+                    </div>
                   </TableCell>
                 </TableRow>
                 </Fragment>
