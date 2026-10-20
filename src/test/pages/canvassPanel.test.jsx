@@ -54,13 +54,32 @@ describe("the Canvass on a Component row", () => {
     return canvass;
   };
 
-  it("opens the panel from a Component row and starts the Canvass", async () => {
+  it("shows a draft on opening and leaves nothing behind when closed without an Offer (ADR 0034)", async () => {
     const user = mount();
-    await user.click(await screen.findByRole("button", { name: /^Canvass Component 1\.1$/ }));
+    await user.click(await screen.findByRole("button", { name: /^Canvass Component 1.1$/ }));
+
+    expect(await screen.findByTestId("canvass-not-started")).toBeInTheDocument();
+    expect(screen.getByText(/Saving the first offer starts this Canvass/)).toBeInTheDocument();
+    expect(db.rows("sor_canvasses")).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    await waitFor(() => expect(screen.queryByTestId("canvass-not-started")).not.toBeInTheDocument());
+    expect(db.rows("sor_canvasses")).toHaveLength(0);
+  });
+
+  it("starts the Canvass, with its number, when the first Offer is saved", async () => {
+    const user = mount();
+    await user.click(await screen.findByRole("button", { name: /^Canvass Component 1.1$/ }));
+    await screen.findByTestId("canvass-not-started");
+
+    await user.type(screen.getByLabelText("Supplier"), "Redleaf Inc.");
+    await user.type(screen.getByLabelText("Unit price in PHP"), "78000");
+    await user.click(screen.getByRole("button", { name: /save offer/i }));
 
     expect(await screen.findByText(/Canvass CNV_0001/)).toBeInTheDocument();
     expect(db.rows("sor_canvasses")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /add offer/i })).toBeInTheDocument();
+    expect(db.rows("sor_canvass_offers")).toHaveLength(1);
+    expect(await screen.findAllByTestId("offer")).toHaveLength(1);
   });
 
   it("shows the Canvass number on the row once one exists", async () => {
