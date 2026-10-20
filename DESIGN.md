@@ -294,6 +294,8 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/FileInput.jsx`. Replaces raw `<input type="file">`; owns the hidden input and its trigger. Props: `accept`, `multiple`, `disabled`, `onFiles(files[])`, `onCancel`, `variant`/`size`/`className` and any other props for the trigger Button. With `children` it renders a Button trigger; without, only the hidden input, opened via `ref.current.open()` from a trigger elsewhere.
 
 #### Select (base-ui building blocks)
+`ui/labeledCard.jsx`. The labelled-field card shared by Input, Textarea and SelectField: bold caption above the control in a rounded card. Props: `label`, `labelId`, `htmlFor`, `error`, `disabled`, `className`, `labelClassName`, `children`. Use the field Primitives; reach for it only to wrap a custom control the same way.
+
 `ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`, `SelectScrollUpButton`, `SelectScrollDownButton`. Building blocks for `SelectField`; use those directly only for custom triggers/items. Look matches the Category/Priority Dropdowns and `FilterTrigger`/`FilterOptionList`: bordered card trigger (`h-[46px]`, `size="sm"` is `h-9`) with rotating chevron and mauve ring when open; `bg-muted` rounded-xl popover; semibold items, selected item `bg-muted/80` bold with a muted check.
 
 #### SelectField

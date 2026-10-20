@@ -92,6 +92,8 @@ export const SEED_TABLES = [
   "purchase_requests",
   "purchase_request_members",
   "purchase_request_items",
+  // #582: the winning Offer price per item, after the items it points at.
+  "purchase_request_item_prices",
   "purchase_request_messages",
   // IPAS (#242). After sales_opportunities and employees, which they point at;
   // ipas_sors and ipas_events point at ipas. ipas_options (#244) comes first:
