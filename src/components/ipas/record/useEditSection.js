@@ -10,8 +10,8 @@ const PARAM = "edit";
  * overview with ?edit=] and Back lands on the overview; entering it any other
  * way pushes an entry. Leaving (its link, or Back) replaces the entry. Entering
  * it drops `?open=`: the drawer closes as the view opens. Leaving (its link, or
- * Back) replaces the entry and lands on that section's drawer (`?open=`), where
- * the person was before editing.
+ * Back) replaces the entry and lands on that section's `?open=` (its drawer, or
+ * expanded under its row), where the person was before editing.
  */
 export function useEditSection() {
   const [params, setParams] = useSearchParams();

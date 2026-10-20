@@ -10,16 +10,13 @@ import Spinner from "../../components/ui/Spinner";
 import TabGroup from "../../components/ui/TabGroup";
 import FilterBar from "../../components/ui/FilterBar";
 import { FilterSelect } from "../../components/ui/FilterDropdown";
-import SlideOver, { SlideOverBody, SlideOverFooter } from "../../components/ui/SlideOver";
 import { Button } from "../../components/ui/button";
 import { SortHead, Table, TableBody, TableCell, TableHeader, TableRow } from "../../components/ui/table";
 import { useTableSort } from "../../hooks/useTableSort";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
-import OpenSorButton from "../../components/purchase-request/OpenSorButton";
-import PurchaseRequestView from "../../components/purchase-request/PurchaseRequestView";
+import PurchaseRequestSlideOver, { RequestState } from "../../components/purchase-request/PurchaseRequestSlideOver";
 import NewPurchaseRequestDialog from "../../components/purchase-request/NewPurchaseRequestDialog";
-import RequestBuyer from "../../components/purchase-request/RequestBuyer";
 import { useTakeRequest } from "../../components/purchase-request/requestHooks";
 import { procurementQueueKey } from "../../components/purchase-request/queryKeys";
 import {
@@ -27,9 +24,9 @@ import {
   QUEUE_KIND,
   QUEUE_STATE,
   filterQueue,
-  isRequestClosed,
   purchaseRequestService,
 } from "../../services/purchaseRequestService";
+import { salesFlowService } from "../../services/salesFlowService";
 import { useAuth } from "../../context/AuthContext";
 import { useRecordParam } from "../../hooks/useRecordParam";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
@@ -41,8 +38,8 @@ import {
   requestIdentity,
   requestKind,
   requestStageLabel,
-  sorClosedLabel,
 } from "../../constants/purchaseRequest";
+import { flowStageTonesByName } from "../../constants/salesFlow";
 
 /**
  * Purchase Requests (issue #308, spec #209; #179), a Queue page: every
@@ -55,7 +52,8 @@ import {
  * an unassigned row offers Take right in the table. The filter bar narrows by
  * open or closed and by kind (Project / Direct), and searches. The slide-over
  * holds the whole request (`PurchaseRequestView`: members, Requested Items,
- * chat) with the Buyer pinned in its footer.
+ * chat) with the Buyer pinned in its footer; on desktop it opens full
+ * screen instead (`PurchaseRequestSlideOver`).
  */
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
@@ -79,16 +77,15 @@ const matches = (row, term) =>
     field?.toLowerCase().includes(term),
   );
 
-function RequestState({ row }) {
-  if (isRequestClosed(row)) return <StatusBadge theme="green" label="Closed" />;
-  const sorClosed = sorClosedLabel(row.sor_closed);
-  if (sorClosed) return <StatusBadge theme="red" label={sorClosed} />;
-  return <StatusBadge theme="amber" label="Open" />;
-}
-
-function itemsSummary(row) {
-  if (!row.item_count) return "No items yet";
-  return `${row.open_count} open of ${row.item_count}`;
+/**
+ * The SOR's Stage as the SOR list shows it: a flow Stage in its tone (looked up
+ * by name, the only part of it the row carries), a legacy status by its code.
+ */
+function StageCell({ row, tones }) {
+  const label = requestStageLabel(row);
+  if (!label) return <span className="text-xs text-muted-foreground">—</span>;
+  if (row.stage_name) return <StatusBadge label={label} theme={tones.get(row.stage_name) || "mauve"} title={label} />;
+  return <StatusBadge label={label} status={row.sor_status} title={label} />;
 }
 
 // Stage, Progress, Last activity and Age hide below md so Request, Buyer and Status stay in view; the row sheet has the rest.
@@ -157,8 +154,9 @@ function TakeButton({ requestId }) {
   );
 }
 
-function QueueRow({ row, selected, onOpen, canTake }) {
+function QueueRow({ row, selected, onOpen, canTake, stageTones }) {
   const { reference, title } = requestIdentity(row);
+  const direct = requestKind(row) === REQUEST_KIND.DIRECT;
   return (
     <TableRow
       tabIndex={0}
@@ -173,16 +171,20 @@ function QueueRow({ row, selected, onOpen, canTake }) {
       }}
       className="group cursor-pointer outline-none focus-visible:bg-muted aria-selected:bg-muted/60"
     >
-      <TableCell>
-        {requestKind(row) === REQUEST_KIND.DIRECT ? (
-          <StatusBadge theme="blue" label={reference} />
+      {/* A Direct request is marked quietly: a hairline on the left and the word, never colour alone. */}
+      <TableCell className={direct ? "border-l-2 border-l-mauve-7" : undefined}>
+        {direct ? (
+          <span className="block text-[11px] font-medium text-muted-foreground">{reference}</span>
         ) : (
           <span className="block font-mono text-xs font-semibold text-foreground">{reference}</span>
         )}
-        <span className="mt-0.5 block max-w-[22rem] truncate text-sm text-foreground">{title}</span>
+        {/* A Direct title is often a long Odoo product name: two lines, the rest on hover. */}
+        <span title={title} className="mt-0.5 line-clamp-2 max-w-[22rem] break-words text-sm text-foreground">
+          {title}
+        </span>
       </TableCell>
       <TableCell className="hidden md:table-cell">
-        <span className="text-xs text-muted-foreground">{requestStageLabel(row) || "—"}</span>
+        <StageCell row={row} tones={stageTones} />
       </TableCell>
       <TableCell className="hidden md:table-cell">
         <ProgressCell row={row} />
@@ -212,13 +214,6 @@ function QueueRow({ row, selected, onOpen, canTake }) {
   );
 }
 
-const sheetIdentity = (row) => ({
-  ref: requestIdentity(row).reference,
-  title: requestIdentity(row).title,
-  badge: <RequestState row={row} />,
-  subtitle: [requestStageLabel(row), itemsSummary(row)].filter(Boolean).join(" · "),
-});
-
 function PurchaseRequests() {
   const { user } = useAuth();
   const { isSuperAdmin, hasPurchasingFlow } = getPermissionContext(user);
@@ -244,6 +239,12 @@ function PurchaseRequests() {
     queryKey: procurementQueueKey,
     queryFn: () => purchaseRequestService.listQueue(),
   });
+  // Every flow's Stages, shared with the SOR list's cache, to colour the Stage column.
+  const { data: flowStagesIndex } = useQuery({
+    queryKey: ["allFlowStagesIndex"],
+    queryFn: () => salesFlowService.getAllStagesIndex(),
+  });
+  const stageTones = useMemo(() => flowStageTonesByName(flowStagesIndex), [flowStagesIndex]);
 
   // Search, open/closed and kind narrow first; the pills count within that.
   const scoped = useMemo(() => {
@@ -385,6 +386,7 @@ function PurchaseRequests() {
                       selected={String(row.id) === recordId}
                       onOpen={open}
                       canTake={purchaser}
+                      stageTones={stageTones}
                     />
                   ))}
                 </TableBody>
@@ -397,11 +399,9 @@ function PurchaseRequests() {
         )}
       </PageShell>
 
-      <SlideOver
-        record={openRow}
-        icon={PackageSearch}
+      <PurchaseRequestSlideOver
+        request={openRow}
         crumb="Purchase Requests"
-        identity={sheetIdentity}
         index={stepping ? index : 0}
         total={stepping ? visible.length : 1}
         onStep={(d) => {
@@ -409,27 +409,7 @@ function PurchaseRequests() {
           if (to) step(to.id);
         }}
         onClose={close}
-        onOpenFull={(row) => {
-          window.dispatchEvent(
-            new CustomEvent("OPEN_ENTITY_DETAILS", {
-              detail: { id: row.id, type: "PURCHASE_REQUEST" },
-            }),
-          );
-        }}
-        openFullLabel="Open full screen"
-        headerActions={(row) => <OpenSorButton request={row} compact />}
-      >
-        {(row) => (
-          <>
-            <SlideOverBody>
-              <PurchaseRequestView requestId={row.id} hideBuyer />
-            </SlideOverBody>
-            <SlideOverFooter>
-              <RequestBuyer request={row} />
-            </SlideOverFooter>
-          </>
-        )}
-      </SlideOver>
+      />
 
       <NewPurchaseRequestDialog open={creating} onOpenChange={setCreating} onOpened={open} />
     </>

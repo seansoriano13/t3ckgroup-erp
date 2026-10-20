@@ -220,6 +220,20 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
   stubRpc("purchase_request_actor_side", (args) => sideOf(args.p_request_id))
   stubRpc("purchase_request_can_add_substitute", () => canSubstitute)
 
+  // 20261024103700_undo_item_status.sql, reduced to its rule: only the last
+  // change, by its status_changed_at, and back along the one event. The window
+  // and the notification clean-up are proven in 106-purchase-request-undo-status.
+  stubRpc("purchase_request_undo_item_status", (args) => {
+    const item = findRow("purchase_request_items", args.p_item_id)
+    if (!item || item.status_changed_at !== args.p_changed_at) {
+      refuse("purchase_request_undo_item_status: that item has changed since, so there is nothing to undo", "22023")
+    }
+    const event = rowsOf("purchase_request_messages").find(
+      (m) => m.metadata?.event === "item_status_changed" && m.metadata.item_id === item.id && m.metadata.changed_at === args.p_changed_at,
+    )
+    return updateRow("purchase_request_items", item, { status: event.metadata.from, status_changed_by: null, status_changed_at: null })
+  })
+
   stubRpc("purchase_request_set_item_status", (args) => {
     const item = findRow("purchase_request_items", args.p_item_id)
     if (!item) refuse(`purchase_request_set_item_status: item ${args.p_item_id} not found`, "P0002")

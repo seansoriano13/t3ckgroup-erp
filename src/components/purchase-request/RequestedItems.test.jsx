@@ -4,6 +4,7 @@
  * purchaser read and do — names, amounts, stock, "SOR line now says N" —
  * through accessible names, not structure.
  */
+import { openRow } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
@@ -14,6 +15,7 @@ import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc
 import { opportunityService } from "@/services/opportunityService"
 import { purchaseRequestService } from "@/services/purchaseRequestService"
 import RequestedItems from "./RequestedItems"
+import { groupItems } from "./requestedItemGroups"
 
 vi.mock("browser-image-compression", () => ({ default: async (file) => file }))
 
@@ -49,14 +51,40 @@ beforeEach(async () => {
   stubPurchaseRequestItemRpcs({ actorId: salesperson.id })
 })
 
+describe("groupItems", () => {
+  const at = (status) => ({ id: status, status })
+
+  it("splits items into To do, In progress and Closed, in that order, leaving out empty groups", () => {
+    const groups = groupItems(["cancelled", "ordered", "requested", "to_order", "received"].map(at))
+    expect(groups.map((g) => [g.label, g.list.map((i) => i.status)])).toEqual([
+      ["To do", ["requested", "to_order"]],
+      ["In progress", ["ordered"]],
+      ["Closed", ["cancelled", "received"]],
+    ])
+    expect(groupItems([at("requested")]).map((g) => g.label)).toEqual(["To do"])
+  })
+})
+
 describe("RequestedItems", () => {
+  it("lists items under their group with a count, and opens a row only when asked", async () => {
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const group = await screen.findByRole("region", { name: "To do" })
+    expect(within(group).getByText("1")).toBeInTheDocument()
+    const row = within(group).getByTestId("requested-item")
+    expect(within(row).queryByText("Requested by")).not.toBeInTheDocument()
+    await openRow(row)
+    expect(within(row).getByText("Requested by")).toBeInTheDocument()
+  })
+
   it("shows a picked item's stock with its read time, and what its SOR line says now", async () => {
     await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
     await opportunityService.replaceItems(opportunity.id, [{ ...PRODUCT_LIST[0], quantity: 12 }, PRODUCT_LIST[1]])
 
     renderWithProviders(<RequestedItems request={request} />)
 
-    const row = await screen.findByTestId("requested-item")
+    const row = await openRow(await screen.findByTestId("requested-item"))
     expect(within(row).getByText("Full Body Harness")).toBeInTheDocument()
     expect(within(row).getByText("10 pc")).toBeInTheDocument()
     expect(within(row).getByText("Requested")).toBeInTheDocument()
@@ -76,7 +104,7 @@ describe("RequestedItems", () => {
 
     renderWithProviders(<RequestedItems request={request} />)
 
-    const row = await screen.findByTestId("requested-item")
+    const row = await openRow(await screen.findByTestId("requested-item"))
     expect(await within(row).findByText("Available")).toBeInTheDocument()
     expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
   })
@@ -87,7 +115,7 @@ describe("RequestedItems", () => {
 
     renderWithProviders(<RequestedItems request={request} />)
 
-    const row = await screen.findByTestId("requested-item")
+    const row = await openRow(await screen.findByTestId("requested-item"))
     expect(await within(row).findByText("Partial · 4 of 10")).toBeInTheDocument()
     expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
     expect(within(row).getByText("Stale")).toBeInTheDocument()
@@ -102,7 +130,7 @@ describe("RequestedItems", () => {
     await user.click(screen.getByRole("button", { name: "Request item" }))
 
     await waitFor(() => expect(rows()).toHaveLength(1))
-    const [row] = rows()
+    const row = await openRow(rows()[0])
     expect(within(row).getByText("Rope Access Kit")).toBeInTheDocument()
     expect(within(row).getByText("2 set")).toBeInTheDocument()
     expect(within(row).getByText("Available")).toBeInTheDocument()
@@ -139,9 +167,9 @@ describe("RequestedItems", () => {
     await user.click(screen.getByRole("button", { name: "Request it" }))
 
     await waitFor(() => expect(rows()).toHaveLength(1))
-    const [row] = rows()
+    const row = await openRow(rows()[0])
     expect(within(row).getByText("Custom mounting bracket")).toBeInTheDocument()
-    expect(within(row).getByText(/New product/)).toBeInTheDocument()
+    expect(within(row).getByText("New product", { selector: "dd" })).toBeInTheDocument()
     expect(within(row).getByText("Stainless, per the client's drawing")).toBeInTheDocument()
     expect(within(row).queryByText(/Stock as of/)).not.toBeInTheDocument()
     expect(within(row).queryByText(/Not checked|Not linked to Odoo|Available|Out of stock/)).not.toBeInTheDocument()
@@ -157,5 +185,26 @@ describe("RequestedItems", () => {
     expect(await screen.findByText("Nothing requested yet")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Add from the SOR" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "New product" })).not.toBeInTheDocument()
+  })
+  describe("the price copied from a Canvass winner (#582)", () => {
+    it("shows the price on the row when the database returns it", async () => {
+      const item = await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Rope Access Kit")).id)
+      db.seed("purchase_request_item_prices", { item_id: item.id ?? db.internal.rowsOf("purchase_request_items")[0].id, unit_price: 1250.5, currency: "PHP" })
+
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await openRow(await screen.findByTestId("requested-item"))
+      expect(await within(row).findByTestId("requested-item-price")).toHaveTextContent("PHP 1,250.50 each")
+    })
+
+    it("shows no price when the database returns none, as for a member who may not see prices", async () => {
+      await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Rope Access Kit")).id)
+
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await openRow(await screen.findByTestId("requested-item"))
+      expect(within(row).getByText("Rope Access Kit")).toBeInTheDocument()
+      expect(within(row).queryByTestId("requested-item-price")).not.toBeInTheDocument()
+    })
   })
 })

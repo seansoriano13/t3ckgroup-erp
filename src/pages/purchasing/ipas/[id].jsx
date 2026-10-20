@@ -15,10 +15,6 @@ import { Textarea } from "../../../components/ui/textarea";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import EditPurposeSorsDialog from "../../../components/ipas/EditPurposeSorsDialog";
 import EditValueDialog from "../../../components/ipas/EditValueDialog";
-import PaymentDialog from "../../../components/ipas/PaymentDialog";
-import ChargeDialog from "../../../components/ipas/ChargeDialog";
-import BankDetailsDialog from "../../../components/ipas/BankDetailsDialog";
-import DocumentDialog from "../../../components/ipas/DocumentDialog";
 import DatesDialog from "../../../components/ipas/DatesDialog";
 import SendBackDialog from "../../../components/ipas/SendBackDialog";
 import ReturnDialog from "../../../components/ipas/ReturnDialog";
@@ -27,6 +23,7 @@ import { IpasFiledNotice } from "../../../components/ipas/IpasFiling";
 import { IpasWarnings } from "../../../components/ipas/IpasSections";
 import DecisionCard from "../../../components/ipas/record/DecisionCard";
 import InlineError from "../../../components/record/InlineError";
+import EditForm from "../../../components/ipas/record/EditForm";
 import Figures from "../../../components/ipas/record/Figures";
 import HeaderActions from "../../../components/ipas/record/HeaderActions";
 import SectionDrawer from "../../../components/ipas/record/SectionDrawer";
@@ -35,6 +32,7 @@ import { buildBlocks } from "../../../components/ipas/record/blocks";
 import { digestIpas, filingSummary, isInPlace } from "../../../components/ipas/record/digest";
 import { CHROME, RecordSectionChrome } from "../../../components/record/sectionChrome";
 import { useEditSection } from "../../../components/ipas/record/useEditSection";
+import { loadedVersion, useIpasChanged } from "../../../components/ipas/record/useIpasChanged";
 import { useOpenSection } from "../../../components/ipas/record/useOpenSection";
 import {
   ipasKey,
@@ -68,6 +66,7 @@ import {
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_STATE,
+  IPAS_TICK_SIDE,
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TYPED_STATUS,
   IPAS_TYPED_STATUS_LABELS,
@@ -128,8 +127,8 @@ function typingInitialValue(field, ipas) {
  * Supplier Origin (Import only) and the buyer track with the source of each
  * status.
  *
- * #247 adds the sign-offs of sections 1 and 3 at the foot of each: Prepared
- * (Purchasing access), Approved (the section's list, never the preparer) and
+ * #247 adds the sign-offs of sections 1 and 3 at the foot of each: Submitted
+ * (Purchasing access), Approved (the section's list, never the submitter) and
  * Return with a reason (the section's list). Each person is offered only
  * what the database will let them do; it refuses the rest.
  *
@@ -172,15 +171,13 @@ function IpasPage() {
   const [changeFailure, setChangeFailure] = useState(null);
 
   const [editing, setEditing] = useState(false);
-  const [paymentDialog, setPaymentDialog] = useState(null); // { payment | null }
-  const [chargeDialog, setChargeDialog] = useState(null); // { charge | null }
-  const [bankDialog, setBankDialog] = useState(false);
+  // Counts the long form's successful saves, so it can clear what it holds when a Retry finishes the job.
+  const [savedCount, setSavedCount] = useState(0);
   const [removing, setRemoving] = useState(null); // { type: "payment" | "charge", row }
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
   const [overriding, setOverriding] = useState(null);
   const [typing, setTyping] = useState(null);
-  const [documentDialog, setDocumentDialog] = useState(false);
   const [removingDocument, setRemovingDocument] = useState(null);
   // The typed dates being edited: "origin" (Supplier Origin) or a typed status key.
   const [dates, setDates] = useState(null);
@@ -200,6 +197,16 @@ function IpasPage() {
     queryFn: () => ipasService.get(id, { refresh: false }),
     enabled: Boolean(id),
   });
+
+  // Edit-form guard (#581): the newest event the form loaded, checked on Save all; and the
+  // notice when somebody else changes this IPAS while the form is open.
+  const versionRef = useRef(null);
+  versionRef.current = loadedVersion(ipas);
+  const { by: changedBy, dismiss: dismissChanged } = useIpasChanged({ id, userId: user?.id, active: Boolean(editKey && ipas) });
+  const reloadChanged = async () => {
+    await refetch();
+    dismissChanged();
+  };
 
   // Opening an IPAS refreshes it from Odoo. It never fails the page: when Odoo
   // doesn't answer, the outcome says so and the last copy stays.
@@ -221,7 +228,8 @@ function IpasPage() {
     enabled: Boolean(id),
   });
 
-  // Leaving the edit view (its link, or Back) returns to the overview with that section's row focused.
+  // Leaving the edit view (its link, or Back) returns to the overview with that section's row
+  // focused: under the row when it expands in place, unless the drawer came back and holds focus.
   useEffect(() => {
     if (editKey) {
       editedKey.current = editKey;
@@ -230,8 +238,8 @@ function IpasPage() {
     const from = editedKey.current;
     if (!from) return;
     editedKey.current = null;
-    if (!current && !inPlace) rowEls.current[from]?.focus();
-  }, [editKey, current, inPlace]);
+    if (!current) rowEls.current[from]?.focus();
+  }, [editKey, current]);
 
   useEffect(() => {
     if (!refresh.dataUpdatedAt) return;
@@ -280,8 +288,8 @@ function IpasPage() {
       if (role === IPAS_SIGNOFF_ROLE.PREPARED) {
         toast.success(
           notified > 0
-            ? `Section ${ipasSectionLabel(section)} prepared. The approvers were told.`
-            : `Section ${ipasSectionLabel(section)} prepared. Nobody is on its approval list yet.`,
+            ? `Section ${ipasSectionLabel(section)} submitted. The approvers were told.`
+            : `Section ${ipasSectionLabel(section)} submitted. Nobody is on its approval list yet.`,
         );
       } else {
         toast.success(`Section ${ipasSectionLabel(section)} approved.`);
@@ -383,7 +391,7 @@ function IpasPage() {
           `Section ${ipasSectionLabel(7)} returned. Received, Noted and Checked were cleared and the people who gave them were told.`,
         );
       } else {
-        toast.success(`Section ${ipasSectionLabel(section)} returned to its preparer.`);
+        toast.success(`Section ${ipasSectionLabel(section)} returned to its submitter.`);
       }
       signoffChanged();
     },
@@ -556,85 +564,6 @@ function IpasPage() {
     },
   });
 
-  // The payment, charge, bank and document forms close the moment they are saved: the
-  // row (or the new figures) shows now, and a failure puts the page back with Retry.
-  const savePayment = useMutation({
-    mutationFn: ({ payment, values, isPhpPo }) =>
-      payment ? ipasService.updatePayment(payment.id, values, { isPhpPo }) : ipasService.addPayment(id, values, { isPhpPo }),
-    onMutate: ({ payment, values, isPhpPo }) => ({
-      rollback: patchCache(
-        optimistic.savePayment({ paymentId: payment?.id ?? null, values, isPhpPo, ipasId: id, by }),
-      ),
-    }),
-    onSuccess: (_, { payment }) => {
-      toast.success(payment ? "Payment updated." : "Payment recorded.");
-      changed();
-    },
-    onError: (error, vars, context) => {
-      context?.rollback?.();
-      failChange(error, () => savePayment.mutate(vars));
-    },
-  });
-
-  const saveCharge = useMutation({
-    mutationFn: ({ charge, values }) =>
-      charge ? ipasService.updateCharge(charge.id, values) : ipasService.addCharge(id, values),
-    onMutate: ({ charge, values }) => ({
-      rollback: patchCache(optimistic.saveCharge({ chargeId: charge?.id ?? null, values, ipasId: id, by })),
-    }),
-    onSuccess: (_, { charge }) => {
-      toast.success(charge ? "Charge updated." : "Charge recorded.");
-      changed();
-    },
-    onError: (error, vars, context) => {
-      context?.rollback?.();
-      failChange(error, () => saveCharge.mutate(vars));
-    },
-  });
-
-  const saveBank = useMutation({
-    mutationFn: (values) => ipasService.setBankDetails(id, values),
-    onMutate: (values) => {
-      const key = ipasKey(id);
-      queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData(key);
-      if (previous) queryClient.setQueryData(key, optimistic.withBankDetails(previous, values));
-      return {
-        rollback: () => {
-          if (previous) queryClient.setQueryData(key, previous);
-          queryClient.invalidateQueries({ queryKey: key });
-        },
-      };
-    },
-    onSuccess: (result) => {
-      if (result.flagged && result.accountChanged) {
-        toast.error("Account # differs from this supplier's last IPAS. It is flagged and its approvals were cleared.", {
-          duration: 8000,
-        });
-      } else {
-        toast.success("Bank details saved.");
-      }
-      signoffChanged();
-    },
-    onError: (error, vars, context) => {
-      context?.rollback?.();
-      failChange(error, () => saveBank.mutate(vars));
-    },
-  });
-
-  const addDocument = useMutation({
-    mutationFn: (choice) => ipasService.addDocument(id, choice),
-    onMutate: (choice) => ({ rollback: patchCache(optimistic.addDocument({ ...choice, ipasId: id })) }),
-    onSuccess: () => {
-      toast.success("Document added.");
-      changed();
-    },
-    onError: (error, vars, context) => {
-      context?.rollback?.();
-      failChange(error, () => addDocument.mutate(vars));
-    },
-  });
-
   // Supplier Origin, the typed statuses, Actual Checking and Item Location.
   // `kind` is "origin" or a typed status key; it travels with the values, so Retry
   // still knows what it was saving after the dialog has closed.
@@ -661,6 +590,77 @@ function IpasPage() {
       context?.rollback?.();
       failChange(error, () => saveDates.mutate(vars));
     },
+  });
+
+  // The long edit form's one Save (#581): every typed change goes in together, in order (the
+  // header and statuses, then payments, charges, documents, bank details and, last, the
+  // computation status), and the page re-reads once at the end. The first failure stops the
+  // rest and is kept with Retry; what was typed stays in the form. Rows already stored are
+  // remembered on the plan (`plan.done`), so a Retry never adds a payment twice.
+  const saveAll = useMutation({
+    mutationFn: async (plan) => {
+      const once = async (key, run) => {
+        if (plan.done.has(key)) return;
+        await run();
+        plan.done.add(key);
+      };
+      try {
+        // Before the first write only: later steps would trip over this save's own events.
+        if (!plan.checked) {
+          await ipasService.assertUnchanged(id, versionRef.current);
+          plan.checked = true;
+        }
+        for (const item of plan.overrides) {
+          if (item.reset) await ipasService.resetOverride(id, item.field);
+          else await ipasService.overrideField(id, item.field, item.value);
+        }
+        if (Object.keys(plan.header).length > 0) await ipasService.setHeader(id, plan.header);
+        if (plan.location !== undefined) await ipasService.setItemLocation(id, plan.location);
+        if (Object.keys(plan.origin).length > 0) await ipasService.setSupplierOrigin(id, plan.origin);
+        for (const item of plan.typed) await ipasService.setTypedStatus(id, item.kind, item.date);
+        if (plan.stamp !== undefined) await ipasService.stampActualChecking(id, { stamped: plan.stamp });
+        const { isPhpPo } = plan.payments;
+        for (const item of plan.payments.add) await once(item.key, () => ipasService.addPayment(id, item.values, { isPhpPo }));
+        for (const item of plan.payments.update) await once(item.key, () => ipasService.updatePayment(item.id, item.values, { isPhpPo }));
+        for (const item of plan.charges.add) await once(item.key, () => ipasService.addCharge(id, item.values));
+        for (const item of plan.charges.update) await once(item.key, () => ipasService.updateCharge(item.id, item.values));
+        for (const item of plan.documents.add) await once(item.key, () => ipasService.addDocument(id, item.choice));
+        for (const item of plan.documents.update) {
+          await once(item.key, async () => {
+            if (item.attachmentUrl !== undefined) await ipasService.setDocument(item.id, { attachmentUrl: item.attachmentUrl });
+            if (item.purchasing !== undefined) await ipasService.tickDocument(item.id, IPAS_TICK_SIDE.PURCHASING, item.purchasing);
+            if (item.finance !== undefined) await ipasService.tickDocument(item.id, IPAS_TICK_SIDE.FINANCE, item.finance);
+          });
+        }
+        if (plan.bank) {
+          await once("bank", async () => {
+            const result = await ipasService.setBankDetails(id, plan.bank);
+            if (result.flagged && result.accountChanged) {
+              toast.error("Account # differs from this supplier's last IPAS. It is flagged and its approvals were cleared.", {
+                duration: 8000,
+              });
+            }
+          });
+        }
+        if (plan.status !== undefined) await ipasService.setHeader(id, { computationStatus: plan.status });
+      } catch (error) {
+        // Tells the form which rows are stored already, so they leave it.
+        if (error && typeof error === "object") error.doneKeys = [...plan.done];
+        throw error;
+      } finally {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ipasKey(id) }),
+          queryClient.invalidateQueries({ queryKey: ipasListKey }),
+          plan.done.has("bank") ? queryClient.invalidateQueries({ queryKey: ipasPendingPrefix }) : null,
+        ]);
+      }
+    },
+    onSuccess: () => {
+      setChangeFailure(null);
+      setSavedCount((count) => count + 1);
+      toast.success("Saved.");
+    },
+    onError: (error, plan) => failChange(error, () => saveAll.mutate(plan)),
   });
 
   const stamp = useMutation({
@@ -832,8 +832,8 @@ function IpasPage() {
         mode: undo ? "undo" : "return",
         label: ipasSectionLabel(section),
         effect: undo
-          ? "Takes back the approval only. Prepared stays, so it waits for an approver again."
-          : "Clears Prepared and Approved and tells whoever prepared it.",
+          ? "Takes back the approval only. Submitted stays, so it waits for an approver again."
+          : "Clears Submitted and Approved and tells whoever submitted it.",
         clears: filingGiven.map((line) => `${ipasSectionLabel(7)}: ${line}`),
       };
     });
@@ -854,6 +854,8 @@ function IpasPage() {
   const on = {
     print: () => startPrint(false),
     printFiling: () => startPrint(true),
+    // The one page-level Edit: opens the long edit form at its first section (#581).
+    edit: () => openEdit("header"),
     editPurpose: () => setEditing(true),
     cancel: () => setCancelling(true),
     reopen: () => setReopening(true),
@@ -862,21 +864,15 @@ function IpasPage() {
     editHeader: setTyping,
     editAmount: () => setTyping(IPAS_HEADER_FIELD.PI_QT_AMOUNT),
     pickFreight: (optionId) => pick.mutate({ freightServiceId: optionId }),
-    addPayment: () => setPaymentDialog({ payment: null }),
-    editPayment: (payment) => setPaymentDialog({ payment }),
     removePayment: (payment) => setRemoving({ type: "payment", row: payment }),
     tickSheet: (field, value) => tickSheet.mutate({ field, value }),
-    addCharge: () => setChargeDialog({ charge: null }),
-    editCharge: (charge) => setChargeDialog({ charge }),
     removeCharge: (charge) => setRemoving({ type: "charge", row: charge }),
     tickDocument: (document, side, value) => tick.mutate({ document, side, value }),
     // attach's onError has already toasted the reason; the catch keeps the rejection from escaping.
     attach: (document, url) => attach.mutateAsync({ document, url }).catch(() => {}),
     removeAttachment: (document) => attach.mutate({ document, url: "" }),
-    addDocument: () => setDocumentDialog(true),
     suggestDocuments: () => suggest.mutate(),
     removeDocument: setRemovingDocument,
-    editBank: () => setBankDialog(true),
     pickLocation: (optionId) => locate.mutate(optionId),
     editOrigin: () => setDates("origin"),
     editStatus: setDates,
@@ -921,27 +917,54 @@ function IpasPage() {
   const blocks = buildBlocks(ctx);
   // A row opens its section in the drawer; a short section toggles in place under its row.
   const openRow = (key) => (isInPlace(key) && inPlace === key ? closeSection() : openSection(key));
-  const inPlaceBodies = {
-    logistics: <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks.logistics}</RecordSectionChrome.Provider>,
-    status: <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks.status}</RecordSectionChrome.Provider>,
-  };
-  const editView = editKey ? (
-    <div className="space-y-6">
-      <div>
-        <Button variant="ghost" size="sm" className="gap-1.5" onClick={backToPreview}>
-          <ArrowLeft size={14} aria-hidden="true" />
-          Back to preview
-        </Button>
-        {shownFailure && (
-          <InlineError
-            message={shownFailure.message}
-            onRetry={shownFailure.retry}
-            onDismiss={() => setChangeFailure(null)}
-          />
-        )}
-      </div>
-      <RecordSectionChrome.Provider value={CHROME.CARD}>{blocks[editKey]}</RecordSectionChrome.Provider>
+  // Logistics and Status are edited right there, under their row. Header and Sales show
+  // read-only, as the drawer did, and edit in the edit view: their Edit section goes there.
+  const inline = (key) => <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks[key]}</RecordSectionChrome.Provider>;
+  const preview = (key) => (
+    <div className="space-y-4">
+      <RecordSectionChrome.Provider value={CHROME.DRAWER}>{blocks[key]}</RecordSectionChrome.Provider>
     </div>
+  );
+  const inPlaceBodies = {
+    header: preview("header"),
+    sales: preview("sales"),
+    logistics: inline("logistics"),
+    status: inline("status"),
+    history: inline("history"),
+  };
+  // The long edit form (#581). The money is typed in its cards; only the sign-offs and the
+  // filing checklist reuse the section bodies.
+  const editView = editKey ? (
+    <EditForm
+      ipas={ipas}
+      blocks={blocks}
+      can={ctx.can}
+      canSave={canChange || canRecord || canTickFinance || ctx.can.check}
+      savedCount={savedCount}
+      onRemoveSaved={(type, row) => setRemoving({ type, row })}
+      onRemoveDocument={setRemovingDocument}
+      onSuggest={() => suggest.mutate()}
+      focusKey={editKey}
+      saving={saveAll.isPending}
+      onSave={(plan) => saveAll.mutateAsync(plan)}
+      onBack={backToPreview}
+      onEditPurpose={canChange && !ipas.sors?.length ? on.editPurpose : null}
+      notice={
+        changedBy && (
+          <div role="status" className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-a5 bg-amber-3 px-3 py-2 text-sm text-amber-11">
+            <span>{changedBy} updated this IPAS. Reload to see the changes.</span>
+            <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={reloadChanged}>
+              Reload
+            </Button>
+          </div>
+        )
+      }
+      failure={
+        shownFailure && (
+          <InlineError message={shownFailure.message} onRetry={shownFailure.retry} onDismiss={() => setChangeFailure(null)} />
+        )
+      }
+    />
   ) : null;
 
   // The dialog closes on a failure too (its onConfirm catches): the failure then
@@ -1034,29 +1057,6 @@ function IpasPage() {
 
       <EditPurposeSorsDialog ipas={ipas} open={editing} onOpenChange={setEditing} />
 
-      <PaymentDialog
-        open={paymentDialog !== null}
-        onOpenChange={(next) => !next && setPaymentDialog(null)}
-        ipas={ipas}
-        payment={paymentDialog?.payment ?? null}
-        onSave={(values, isPhpPo) => savePayment.mutate({ payment: paymentDialog?.payment ?? null, values, isPhpPo })}
-      />
-
-      <ChargeDialog
-        open={chargeDialog !== null}
-        onOpenChange={(next) => !next && setChargeDialog(null)}
-        ipas={ipas}
-        charge={chargeDialog?.charge ?? null}
-        onSave={(values) => saveCharge.mutate({ charge: chargeDialog?.charge ?? null, values })}
-      />
-
-      <BankDetailsDialog
-        open={bankDialog}
-        onOpenChange={setBankDialog}
-        ipas={ipas}
-        onSave={(values) => saveBank.mutate(values)}
-      />
-
       <ReturnDialog
         open={returning !== null && shownReturnTargets.length > 0}
         onOpenChange={(next) => !next && setReturning(null)}
@@ -1093,13 +1093,6 @@ function IpasPage() {
         busyLabel="Reopening…"
         inlineError
         onSubmit={(reason) => reopen.mutateAsync(reason)}
-      />
-
-      <DocumentDialog
-        open={documentDialog}
-        onOpenChange={setDocumentDialog}
-        ipas={ipas}
-        onSave={(choice) => addDocument.mutate(choice)}
       />
 
       <DatesDialog

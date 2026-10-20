@@ -4,7 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
-import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
+import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
 import { stubRpc } from "@/test/msw/server";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
@@ -44,7 +44,7 @@ describe("the Canvass on a Component row", () => {
   });
 
   const seedOffers = async () => {
-    const canvass = await canvassService.open({ componentId: component.id }, purchaser.id);
+    const canvass = await seedCanvass({ componentId: component.id }, purchaser.id);
     await canvassService.addOffer(canvass.id, { supplierName: "Redleaf Inc.", brand: "Redleaf", unitPrice: 78000 }, purchaser.id);
     await canvassService.addOffer(
       canvass.id,
@@ -54,13 +54,32 @@ describe("the Canvass on a Component row", () => {
     return canvass;
   };
 
-  it("opens the panel from a Component row and starts the Canvass", async () => {
+  it("shows a draft on opening and leaves nothing behind when closed without an Offer (ADR 0034)", async () => {
     const user = mount();
-    await user.click(await screen.findByRole("button", { name: /^Canvass Component 1\.1$/ }));
+    await user.click(await screen.findByRole("button", { name: /^Canvass Component 1.1$/ }));
+
+    expect(await screen.findByTestId("canvass-not-started")).toBeInTheDocument();
+    expect(screen.getByText(/Saving the first offer starts this Canvass/)).toBeInTheDocument();
+    expect(db.rows("sor_canvasses")).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    await waitFor(() => expect(screen.queryByTestId("canvass-not-started")).not.toBeInTheDocument());
+    expect(db.rows("sor_canvasses")).toHaveLength(0);
+  });
+
+  it("starts the Canvass, with its number, when the first Offer is saved", async () => {
+    const user = mount();
+    await user.click(await screen.findByRole("button", { name: /^Canvass Component 1.1$/ }));
+    await screen.findByTestId("canvass-not-started");
+
+    await user.type(screen.getByLabelText("Supplier"), "Redleaf Inc.");
+    await user.type(screen.getByLabelText("Unit price in PHP"), "78000");
+    await user.click(screen.getByRole("button", { name: /save offer/i }));
 
     expect(await screen.findByText(/Canvass CNV_0001/)).toBeInTheDocument();
     expect(db.rows("sor_canvasses")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /add offer/i })).toBeInTheDocument();
+    expect(db.rows("sor_canvass_offers")).toHaveLength(1);
+    expect(await screen.findAllByTestId("offer")).toHaveLength(1);
   });
 
   it("shows the Canvass number on the row once one exists", async () => {
@@ -117,7 +136,7 @@ describe("the Canvass on a Component row", () => {
   describe("the Reference Rate on a foreign Offer (#317)", () => {
     const usd = { currency: "USD", rate_date: "2026-09-17", php_per_unit: 58.2, source: "ECB", overridden: false, divergence_pct: 2 };
     const startForeignOffer = async (user) => {
-      await canvassService.open({ componentId: component.id }, purchaser.id);
+      await seedCanvass({ componentId: component.id }, purchaser.id);
       await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
       await user.click(await screen.findByRole("button", { name: /add offer/i }));
       await user.type(screen.getByLabelText("Supplier"), "Hong Kong");

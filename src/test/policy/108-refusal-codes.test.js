@@ -24,6 +24,9 @@ import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 const svc = () => serviceClient()
 const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 const THE_THREE = ["42501", "22023", "23505"]
+// ipas_assert_unchanged (#581) refuses a stale save with 40001 (serialization
+// failure) on purpose: the screen keys its "someone else saved" notice on it.
+const STALE_SAVE = { ipas_assert_unchanged: "40001" }
 const NOBODY = "00000000-0000-0000-0000-000000000000"
 
 // ── the sweep ─────────────────────────────────────────────────────────────
@@ -65,7 +68,7 @@ describe("the IPAS, Transmittal and Costing functions", () => {
         for (const { proname, prosrc } of rows) {
             for (const r of refusalsIn(prosrc)) {
                 seen += 1
-                if (!THE_THREE.includes(r.code)) strays.push(`${proname}: ${r.code ?? "no code"} | ${r.text}`)
+                if (!THE_THREE.includes(r.code) && STALE_SAVE[proname] !== r.code) strays.push(`${proname}: ${r.code ?? "no code"} | ${r.text}`)
             }
         }
         expect(seen).toBeGreaterThan(200)

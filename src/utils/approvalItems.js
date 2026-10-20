@@ -82,7 +82,7 @@ export function ipasChain(pending) {
         });
     }
     return [
-        { label: "Prepared", who: pending?.preparedBy?.name || "Purchasing", state: "done", at: pending?.preparedAt || null },
+        { label: "Submitted", who: pending?.preparedBy?.name || "Purchasing", state: "done", at: pending?.preparedAt || null },
         { label: "Approved", who: "You", state: "current", at: null },
     ];
 }

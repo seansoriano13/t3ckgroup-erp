@@ -4,7 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
-import { stubCanvassMoneyRpc, stubCanvassSignoffRpcs, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
+import { seedCanvass, stubCanvassMoneyRpc, stubCanvassSignoffRpcs, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
 import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
@@ -48,7 +48,7 @@ describe("the sign-off on the Canvass panel", () => {
     stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"], actorId: purchaser.id });
     stubCanvassWinnerRpcs({ bands: ["purchasing"] });
     stubCanvassSignoffRpcs({ actorId: purchaser.id, approverIds: [] });
-    canvass = await canvassService.open({ componentId: component.id }, purchaser.id);
+    canvass = await seedCanvass({ componentId: component.id }, purchaser.id);
     const redleaf = await canvassService.addOffer(canvass.id, { supplierName: "Redleaf Inc.", brand: "Redleaf", unitPrice: 78000 }, purchaser.id);
     await canvassService.addOffer(canvass.id, { supplierName: "Ferno", brand: "Ferno", unitPrice: 82500 }, purchaser.id);
     await canvassService.markWinner(canvass.id, redleaf.id);

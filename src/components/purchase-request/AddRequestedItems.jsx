@@ -256,40 +256,32 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
             addImages(files);
           }}
         >
-          <FieldBox label="Product name" bare>
-            <Input
-              value={product.name}
-              onChange={(e) => set("name")(e.target.value)}
-              placeholder="What does the client need?"
-            />
-          </FieldBox>
+          <Input label="Product name"
+            value={product.name}
+            onChange={(e) => set("name")(e.target.value)}
+            placeholder="What does the client need?"
+          />
           <div className="grid grid-cols-2 gap-3">
-            <FieldBox label="Quantity" bare>
-              <Input
-                type="number"
-                min="0"
-                step="any"
-                inputMode="decimal"
-                value={product.quantity}
-                onChange={(e) => set("quantity")(e.target.value)}
-              />
-            </FieldBox>
-            <FieldBox label="Unit" bare>
-              <SelectField
-                options={REQUEST_UNITS.map((u) => ({ value: u, label: u }))}
-                value={product.unit}
-                onChange={set("unit")}
-              />
-            </FieldBox>
-          </div>
-          <FieldBox label="Description" bare>
-            <Textarea
-              value={product.description}
-              onChange={(e) => set("description")(e.target.value)}
-              rows={3}
-              placeholder="Specs, brand, the wording the client used"
+            <Input label="Quantity"
+              type="number"
+              min="0"
+              step="any"
+              inputMode="decimal"
+              value={product.quantity}
+              onChange={(e) => set("quantity")(e.target.value)}
             />
-          </FieldBox>
+            <SelectField label="Unit"
+              options={REQUEST_UNITS.map((u) => ({ value: u, label: u }))}
+              value={product.unit}
+              onChange={set("unit")}
+            />
+          </div>
+          <Textarea label="Description"
+            value={product.description}
+            onChange={(e) => set("description")(e.target.value)}
+            rows={3}
+            placeholder="Specs, brand, the wording the client used"
+          />
 
           <div className="space-y-2">
             {attachments.files.length > 0 && (

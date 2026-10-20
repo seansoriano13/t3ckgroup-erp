@@ -8,13 +8,13 @@ import { formatDate } from "../../utils/formatDate.js";
 import { useInDrawer } from "@/components/record/sectionChrome";
 
 const STATUS_BADGE = {
-  [SIGNOFF_STATUS.NOT_PREPARED]: { label: "Not prepared" },
+  [SIGNOFF_STATUS.NOT_PREPARED]: { label: "Not submitted" },
   [SIGNOFF_STATUS.AWAITING_APPROVAL]: { label: "Awaiting approval" },
   [SIGNOFF_STATUS.APPROVED]: { label: "Approved" },
 };
 
 const WHY_NOT = {
-  preparer: "You prepared this section, so someone else approves it.",
+  preparer: "You submitted this section, so someone else approves it.",
 };
 
 /** One box of the sign-off pair: who gave it and when, or that it is waiting. */
@@ -74,13 +74,13 @@ export function IpasSignoffs({ section, state, rights }) {
           section={section}
           role={IPAS_SIGNOFF_ROLE.PREPARED}
           signoff={state.prepared}
-          waiting="Purchasing marks it prepared when it is ready for approval."
+          waiting="Purchasing submits it when it is ready for approval."
         />
         <SignoffBox
           section={section}
           role={IPAS_SIGNOFF_ROLE.APPROVED}
           signoff={state.approved}
-          waiting={state.prepared ? "Waiting for an approver on the list." : "After it is prepared."}
+          waiting={state.prepared ? "Waiting for an approver on the list." : "After it is submitted."}
         />
       </div>
 

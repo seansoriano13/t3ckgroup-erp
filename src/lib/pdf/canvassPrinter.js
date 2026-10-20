@@ -71,28 +71,34 @@ async function readSorReference(opportunityId) {
 
 /**
  * The Canvass as a view model with its signatures, ready to compose. `subject` is the service's
- * `{ componentId }` or `{ requestedItemId }`; `subjectLabel` is the panel's name for it (a
- * Component's number and name, or the Requested Item's name). Refuses for a reader without the
- * money tier: the sheet is prices.
+ * `{ canvassId }`, `{ componentId }` or `{ requestedItemId }`; `subjectLabel` is the panel's name
+ * for it (a Component's number and name, the Requested Item's name, or the product). What kind of
+ * subject it prints as is read from the Canvass itself. "Canvassed by" is the Canvasser where one
+ * is set (a Canvass started with no subject), else whoever started it. Refuses for a reader
+ * without the money tier: the sheet is prices.
  */
 export async function prepareCanvassForPrint(subject, { subjectLabel = '', opportunityId = null, printedBy = null, now = new Date() } = {}) {
   const canvass = await canvassService.get(subject);
   if (!canvass) throw new Error("This subject has no Canvass yet, or you don't have access to it.");
   if (!canPrintCanvass(canvass)) throw new Error("Printing a Canvass shows prices, and you don't have access to them.");
 
+  const canvasserId = canvass.canvasser_id ?? canvass.created_by;
   const [sor, people] = await Promise.all([
     readSorReference(opportunityId),
-    readPeople([canvass.created_by, canvass.signed_off_by]),
+    readPeople([canvasserId, canvass.signed_off_by]),
   ]);
-  const label = String(subjectLabel ?? '').trim();
+  const label = String(subjectLabel ?? '').trim() || String(canvass.product_name ?? '').trim();
+  const printedSubject = canvass.component_id
+    ? { sor, component: { name: label } }
+    : canvass.requested_item_id
+      ? { sor, requestedItem: { name: label } }
+      : { product: { name: label } };
   const vm = buildCanvassViewModel(
     {
       canvass,
-      subject: subject.requestedItemId
-        ? { sor, requestedItem: { name: label } }
-        : { sor, component: { name: label } },
+      subject: printedSubject,
       people: {
-        creator: people.get(canvass.created_by),
+        creator: people.get(canvasserId),
         approver: people.get(canvass.signed_off_by),
       },
     },

@@ -4,7 +4,7 @@ import { canvassService } from "./canvassService"
 import { costingMatrixService } from "./costingMatrixService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
-import { stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
+import { seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
 import { COSTING_TIER } from "@/constants/costing"
 
@@ -44,7 +44,7 @@ describe("a winning Offer fills the Component", () => {
     const componentId = await costingMatrixService.addComponent(lineId, { name: "Ambulance Folding Stretcher", brand: "Generic" })
     component = stored(componentId)
 
-    canvass = await canvassService.open({ componentId }, purchaser.id)
+    canvass = await seedCanvass({ componentId }, purchaser.id)
     redleaf = await canvassService.addOffer(
       canvass.id,
       { supplierName: "Redleaf Inc.", brand: "Redleaf", description: "Folding stretcher, 227 kg, aluminium", unitPrice: 78000, brochure: brochure("redleaf") },
@@ -154,7 +154,7 @@ describe("a winning Offer fills the Component", () => {
   it("fills nothing from a Canvass on a Requested Item", async () => {
     const request = db.seed("purchase_requests", { opportunity_id: opportunity.id, created_by: purchaser.id })
     const item = db.seed("purchase_request_items", { request_id: request.id, name: "Printer paper", quantity: 5, source: "new", requested_by: purchaser.id })
-    const itemCanvass = await canvassService.open({ requestedItemId: item.id }, purchaser.id)
+    const itemCanvass = await seedCanvass({ requestedItemId: item.id }, purchaser.id)
     const offer = await canvassService.addOffer(itemCanvass.id, { supplierName: "Paper Co", description: "A4 ream", unitPrice: 250 }, purchaser.id)
 
     const result = await canvassService.markWinner(itemCanvass.id, offer.id)

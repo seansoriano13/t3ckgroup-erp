@@ -1,10 +1,9 @@
-import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Check, Pencil } from "lucide-react";
 
 import EmptyState from "../../../../components/ui/EmptyState";
-import FilterBar from "../../../../components/ui/FilterBar";
 import { FilterSelect } from "../../../../components/ui/FilterDropdown";
+import TabHeader from "../../dashboard/_components/TabHeader";
 import PageLoading from "../../../../components/ui/PageLoading";
 import QueryError from "../../../../components/ui/QueryError";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../../components/ui/table";
@@ -85,64 +84,64 @@ const optionsOf = (values, allLabel) => [
  * The register's filter bar. `options` are rows of the unfiltered list, only
  * used to fill the entity, SOR and supplier choices.
  */
-export function OrderRegisterToolbar({ register, options }) {
+function registerBar(register, options) {
   const { search, setSearch, filters, set, clearAll, hasActiveFilters } = register;
-  const choices = useMemo(() => {
-    const sors = new Map();
-    for (const row of options) for (const sor of row.sors) sors.set(sor.id, sor.salesReference);
-    return {
-      entity: optionsOf(options.map((row) => row.entity), "All entities"),
-      supplier: optionsOf(options.map((row) => row.supplier), "All suppliers"),
-      sor: [
-        { value: ALL, label: "All SORs" },
-        ...[...sors].sort((a, b) => String(a[1]).localeCompare(String(b[1]))).map(([value, label]) => ({ value, label })),
-      ],
-    };
-  }, [options]);
-
-  return (
-    <FilterBar
-      search={{ value: search, onChange: setSearch, placeholder: "Search IPAS, PO or S number" }}
-      chips={
-        <>
-          <FilterSelect options={choices.entity} value={filters.entity} onChange={set("entity")} label="Entity" className="h-9 w-auto" />
-          <FilterSelect
-            options={[
-              { value: ALL, label: "Import and Local" },
-              ...Object.entries(IPAS_SOURCE_LABELS).map(([value, label]) => ({ value, label })),
-            ]}
-            value={filters.source}
-            onChange={set("source")}
-            label="Source"
-            className="h-9 w-auto"
-          />
-          <FilterSelect
-            options={[
-              { value: ALL, label: "Open and filed" },
-              ...["open", "filed"].map((value) => ({ value, label: IPAS_STATE_LABELS[value] })),
-            ]}
-            value={filters.state}
-            onChange={set("state")}
-            label="State"
-            className="h-9 w-auto"
-          />
-        </>
-      }
-      filters={
-        <div className="flex flex-col gap-2 p-2">
-          <FilterSelect options={choices.sor} value={filters.sorId} onChange={set("sorId")} label="SOR" />
-          <FilterSelect options={choices.supplier} value={filters.supplier} onChange={set("supplier")} label="Supplier" />
-        </div>
-      }
-      activeCount={[filters.sorId, filters.supplier].filter((value) => value !== ALL).length}
-      hasActiveFilters={hasActiveFilters}
-      onClearAll={clearAll}
-    />
-  );
+  const sors = new Map();
+  for (const row of options) for (const sor of row.sors) sors.set(sor.id, sor.salesReference);
+  const choices = {
+    entity: optionsOf(options.map((row) => row.entity), "All entities"),
+    supplier: optionsOf(options.map((row) => row.supplier), "All suppliers"),
+    sor: [
+      { value: ALL, label: "All SORs" },
+      ...[...sors].sort((a, b) => String(a[1]).localeCompare(String(b[1]))).map(([value, label]) => ({ value, label })),
+    ],
+  };
+  return {
+    search: { value: search, onChange: setSearch, placeholder: "Search IPAS, PO or S number" },
+    chips: (
+      <>
+        <FilterSelect options={choices.entity} value={filters.entity} onChange={set("entity")} label="Entity" className="h-9 w-auto" />
+        <FilterSelect
+          options={[
+            { value: ALL, label: "Import and Local" },
+            ...Object.entries(IPAS_SOURCE_LABELS).map(([value, label]) => ({ value, label })),
+          ]}
+          value={filters.source}
+          onChange={set("source")}
+          label="Source"
+          className="h-9 w-auto"
+        />
+        <FilterSelect
+          options={[
+            { value: ALL, label: "Open and filed" },
+            ...["open", "filed"].map((value) => ({ value, label: IPAS_STATE_LABELS[value] })),
+          ]}
+          value={filters.state}
+          onChange={set("state")}
+          label="State"
+          className="h-9 w-auto"
+        />
+      </>
+    ),
+    filters: (
+      <div className="flex flex-col gap-2 p-2">
+        <FilterSelect options={choices.sor} value={filters.sorId} onChange={set("sorId")} label="SOR" />
+        <FilterSelect options={choices.supplier} value={filters.supplier} onChange={set("supplier")} label="Supplier" />
+      </div>
+    ),
+    activeCount: [filters.sorId, filters.supplier].filter((value) => value !== ALL).length,
+    hasActiveFilters,
+    onClearAll: clearAll,
+  };
 }
 
-/** The register table. `query` comes from `useOrderRegisterFilters`; the filter bar is `OrderRegisterToolbar`. */
-export default function OrderRegister({ onOpen, query }) {
+/** The register tab. `register` is `useOrderRegisterFilters()`; its choices come from the open-order list What needs doing also reads. */
+export default function OrderRegister({ onOpen, register }) {
+  const { query } = register;
+  const { data: options = [] } = useQuery({
+    queryKey: ["order-monitoring", "list"],
+    queryFn: () => orderMonitoringService.list(),
+  });
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["order-monitoring", "register", query],
     queryFn: () => orderMonitoringService.list(query),
@@ -150,7 +149,21 @@ export default function OrderRegister({ onOpen, query }) {
   });
 
   return (
-    <section aria-label="Order register" className="flex flex-col gap-3">
+    <section aria-label="Order register" className="flex flex-col gap-4">
+      <TabHeader
+        bar={registerBar(register, options)}
+        statsLabel="Register totals"
+        stats={
+          isError
+            ? null
+            : [
+                { label: "Orders shown", value: rows.length },
+                { label: "Open", value: rows.filter((row) => row.state === IPAS_STATE.OPEN).length },
+                { label: "Filed", value: rows.filter((row) => row.state === IPAS_STATE.FILED).length },
+                { label: "Late", value: rows.filter((row) => row.late).length, tone: "attention" },
+              ]
+        }
+      />
       {isLoading && <PageLoading label="Order register" />}
       {isError && <QueryError title="The order register could not be loaded." onRetry={refetch} />}
       {!isError && !isLoading && rows.length === 0 && (
@@ -184,7 +197,8 @@ export default function OrderRegister({ onOpen, query }) {
                     </TableCell>
                     <TableCell>
                       {row.supplier ?? "—"}
-                      <div className="text-xs text-muted-foreground">
+                      {/* Odoo item names run long: two lines, the whole name on hover. */}
+                      <div title={row.item?.name} className="line-clamp-2 max-w-[18rem] break-words text-xs text-muted-foreground">
                         {row.item?.name ?? "—"}
                         {row.item?.more > 0 && ` +${row.item.more} more`}
                       </div>

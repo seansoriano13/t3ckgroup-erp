@@ -17,17 +17,17 @@ const FILING_CASCADE = (d) =>
   filingStarted(d) ? ` Also clears ${ipasSectionLabel("filing")}'s Received, Noted and Checked.` : "";
 
 const RETURN_HINT = (d) =>
-  `Clears Prepared and Approved and tells the preparer. Needs a reason. Next: Purchasing prepares it again.${FILING_CASCADE(d)}`;
+  `Clears Submitted and Approved and tells the submitter. Needs a reason. Next: Purchasing submits it again.${FILING_CASCADE(d)}`;
 const UNDO_HINT = (d) =>
-  `Takes back the approval only. Prepared stays, so it waits for an approver again. Needs a reason.${FILING_CASCADE(d)}`;
+  `Takes back the approval only. Submitted stays, so it waits for an approver again. Needs a reason.${FILING_CASCADE(d)}`;
 
 const MOVE_HINT = {
   "approve-1": (d) =>
     `Confirms ${sectionOf("purchasing")}. Nothing locks until filing. Next: ${d.s3.approved ? "Finance receives it for filing." : `${approversOf("finance")}.`}`,
   "approve-3": (d) =>
     `Confirms ${sectionOf("finance")}. Nothing locks until filing. Next: ${d.s1.approved ? "Finance receives it for filing." : `${approversOf("purchasing")}.`}`,
-  "prepare-1": () => `Marks ${sectionOf("purchasing")} ready to approve. Nothing locks. Next: ${approversOf("purchasing")}, told now.`,
-  "prepare-3": () => `Marks ${sectionOf("finance")} ready to approve. Nothing locks. Next: ${approversOf("finance")}, told now.`,
+  "prepare-1": () => `Submits ${sectionOf("purchasing")} for approval. Nothing locks. Next: ${approversOf("purchasing")}, told now.`,
+  "prepare-3": () => `Submits ${sectionOf("finance")} for approval. Nothing locks. Next: ${approversOf("finance")}, told now.`,
   costs: (d) =>
     d.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED
       ? "Records that Landed Cost is worked out in the GS sheet. Undo is offered. Next: LC Odoo Done."
