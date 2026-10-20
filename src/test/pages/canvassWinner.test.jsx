@@ -17,6 +17,12 @@ import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
  * rules themselves are the policy tier's (91-canvass-winner.test.js).
  */
 
+// The confirm toast needs a Toaster the page tests do not mount; confirming is what these tests need.
+vi.mock("@/components/ui/CustomToast", async (importOriginal) => ({
+  ...(await importOriginal()),
+  confirmActionToast: (_title, _description, _confirmText, _type, onConfirm) => onConfirm(),
+}));
+
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
 
@@ -62,6 +68,29 @@ describe("a winner on the Costing Matrix page", () => {
     expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
     // Purchasing does not get the Accept: Brand is Sales' column.
     expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
+  });
+
+  it("un-picks the winner: no winner, sign-off cleared, values kept, and a note on the row", async () => {
+    const user = mount({ tier: "cost", bands: ["purchasing"] });
+    await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
+    await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc. the winner/ }));
+    await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
+    expect(screen.queryByTestId("canvass-no-winner-note")).not.toBeInTheDocument();
+    db.internal.rowsOf("sor_canvasses")[0].signed_off_at = "2026-10-20T01:00:00Z";
+
+    await user.click(await screen.findByRole("button", { name: /Clear Redleaf Inc. as the winner/ }));
+
+    await waitFor(() => expect(db.rows("sor_canvass_offers").some((o) => o.is_winner)).toBe(false));
+    expect(db.rows("sor_canvasses")[0].signed_off_at).toBeNull();
+    // What the winner filled stays, still marked.
+    expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
+    expect(await screen.findByTestId("no-winner-note")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("canvass-no-winner-note")).toHaveTextContent("CNV_0001"));
+    expect(screen.getAllByTestId("from-canvass")).toHaveLength(2);
+
+    // A new winner takes the note away.
+    await user.click(await screen.findByRole("button", { name: /Mark Ferno the winner/ }));
+    await waitFor(() => expect(screen.queryByTestId("canvass-no-winner-note")).not.toBeInTheDocument());
   });
 
   it("offers the winning brand with an Accept to the Deal Team", async () => {
