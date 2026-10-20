@@ -235,6 +235,7 @@ describe("IPAS signing with the evidence in view", () => {
 
       await act(() => router.navigate(`/purchasing/ipas/${row.id}?edit=costing`));
       await user.click(await screen.findByRole("button", { name: "Encoded" }));
+      await user.click(screen.getByRole("button", { name: /^Save all/ }));
       const alert = await screen.findByRole("alert");
       expect(within(alert).getByRole("button", { name: "Retry" })).toBeInTheDocument();
       expect(rowOf(row.id).computation_status).toBe("encoding");

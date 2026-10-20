@@ -79,22 +79,20 @@ describe("IPAS page: bank details", () => {
     const user = setupUser();
 
     renderDetail(row.id, "finance", "edit");
-    expect(await screen.findByText("No bank details typed yet.")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Add bank details" }));
-    const dialog = await screen.findByRole("dialog");
-
-    const save = within(dialog).getByRole("button", { name: "Save bank details" });
+    // Typed in place, with the rest: no dialog, and Save all stays off until something is typed.
+    const block = await screen.findByTestId("ipas-bank-details");
+    const save = screen.getByRole("button", { name: /^Save all/ });
     expect(save).toBeDisabled();
-    await user.type(within(dialog).getByLabelText("Bank Name"), "BDO");
-    await user.type(within(dialog).getByLabelText("Account Name"), "Scorpe Technologies Inc.");
-    await user.type(within(dialog).getByLabelText("Account #"), "0012 3456 7890");
+    await user.type(within(block).getByRole("textbox", { name: /^Bank Name/ }), "BDO");
+    await user.type(within(block).getByRole("textbox", { name: /^Account Name/ }), "Scorpe Technologies Inc.");
+    await user.type(within(block).getByRole("textbox", { name: /^Account #/ }), "0012 3456 7890");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(save);
 
     await waitFor(() => expect(db.rows("ipas_bank_details")).toHaveLength(1));
     expect(db.rows("ipas_bank_details")[0]).toMatchObject({ bank_name: "BDO", account_number: "0012 3456 7890" });
-
-    const block = await screen.findByTestId("ipas-bank-details");
-    await waitFor(() => expect(within(block).getByText("0012 3456 7890")).toBeInTheDocument());
+    await waitFor(() => expect(within(block).getByRole("textbox", { name: /^Account #/ })).toHaveValue("0012 3456 7890"));
+    await waitFor(() => expect(screen.getByText("All changes saved")).toBeInTheDocument());
     expect(within(block).queryByRole("alert")).not.toBeInTheDocument();
     expect(within(block).queryByText("Changed account")).not.toBeInTheDocument();
   }, 20000); // typing a bank record takes most of 5s on a loaded machine
@@ -112,7 +110,7 @@ describe("IPAS page: bank details", () => {
     expect(alert).toHaveTextContent("Account # changed");
     expect(alert).toHaveTextContent(/differs from this supplier's last IPAS/);
     expect(within(block).getByText("Changed account")).toBeInTheDocument();
-    expect(within(block).getByText("2222")).toBeInTheDocument();
+    expect(within(block).getByRole("textbox", { name: /^Account #/ })).toHaveValue("2222");
   });
 
   it("shows Finance the details but offers no way to type them", async () => {
@@ -124,7 +122,7 @@ describe("IPAS page: bank details", () => {
     renderDetail(row.id, "finance", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
-    expect(await within(block).findByText("0012")).toBeInTheDocument();
+    expect(await within(block).findByDisplayValue("0012")).toBeDisabled();
     expect(within(block).queryByRole("button", { name: /bank details/i })).not.toBeInTheDocument();
   });
 
