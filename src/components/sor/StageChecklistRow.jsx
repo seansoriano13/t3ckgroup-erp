@@ -1,5 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
-import { Calculator, Tags, CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare, UserPlus, FolderOpen } from "lucide-react";
+import { Calculator, ClipboardCheck, FileCheck, Tags, CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare, UserPlus, FolderOpen } from "lucide-react";
 import Avatar from "../Avatar";
 import { CONDITION_KINDS, CONDITION_STATUS } from "../../constants/stageGate";
 import { formatDate } from "../../utils/formatDate";
@@ -20,6 +20,8 @@ const KIND_LABELS = {
   [CONDITION_KINDS.ASSIGNMENT]: "Assignment",
   [CONDITION_KINDS.COSTING_SETTLED]: "Costing settled",
   [CONDITION_KINDS.COSTING_PRICED]: "Costing priced",
+  [CONDITION_KINDS.GOODS_CHECKED]: "Goods checked",
+  [CONDITION_KINDS.ORDERS_FILED]: "Orders filed",
 };
 
 const KIND_ICONS = {
@@ -29,6 +31,8 @@ const KIND_ICONS = {
   [CONDITION_KINDS.ASSIGNMENT]: UserCheck,
   [CONDITION_KINDS.COSTING_SETTLED]: Calculator,
   [CONDITION_KINDS.COSTING_PRICED]: Tags,
+  [CONDITION_KINDS.GOODS_CHECKED]: ClipboardCheck,
+  [CONDITION_KINDS.ORDERS_FILED]: FileCheck,
 };
 
 /**

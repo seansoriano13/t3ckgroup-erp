@@ -97,6 +97,61 @@ function openCostingMatrixOnFake(run, action) {
 }
 
 /**
+ * Issue #464 — `sor_request_packing_list`
+ * (supabase/migrations/20261022100000_request_packing_list.sql) re-implemented on the fake database.
+ * Creates one draft Packing List for the SOR unless it already has an open (draft) one, tells the
+ * action's `notify` people (or the Warehouse staff list, `ipas_signer_lists` key `transmittal_warehouse`),
+ * and marks the run created. Returns the new list's id, or null when it created nothing.
+ */
+function requestPackingListOnFake(run, action, actorId = null) {
+  const config = action?.config ?? {};
+  const opportunity = findRow("sales_opportunities", run.opportunity_id);
+  const live = rowsOf("sor_action_runs").find((r) => r.id === run.id);
+  const open = rowsOf("packing_lists").some((p) => p.opportunity_id === run.opportunity_id && p.state === "draft");
+  if (open) {
+    updateRow("sor_action_runs", live, { outcome: "created" });
+    return null;
+  }
+  const employees = rowsOf("employees");
+  const number = `PKL_${String(rowsOf("packing_lists").length + 1).padStart(3, "0")}`;
+  const list = insertRow("packing_lists", {
+    number,
+    opportunity_id: run.opportunity_id,
+    state: "draft",
+    // The real function stamps the caller; the stub does not know who called, so the Deal Owner stands in.
+    created_by: actorId ?? opportunity?.deal_owner_id ?? null,
+  });
+
+  let recipients;
+  if (Array.isArray(config.notify) && config.notify.length > 0) {
+    const groupMembersById = {};
+    for (const member of rowsOf("employee_group_members")) {
+      (groupMembersById[member.group_id] ??= { employeeIds: [] }).employeeIds.push(member.employee_id);
+    }
+    recipients = resolvePeople(config.notify, { employees, groupMembersById, opportunity });
+  } else {
+    recipients = rowsOf("ipas_signer_lists")
+      .filter((l) => l.list_key === "transmittal_warehouse")
+      .map((l) => l.employee_id);
+  }
+  for (const recipientId of new Set(recipients)) {
+    if (recipientId === actorId) continue;
+    if (!employees.some((e) => e.id === recipientId && !e.is_deleted)) continue;
+    insertRow("notifications", {
+      recipient_id: recipientId,
+      sender_id: actorId,
+      type: "PACKING_LIST_REQUESTED",
+      title: "Packing List requested",
+      message: `Please pack "${opportunity?.project_title ?? "this deal"}": draft Packing List ${number} is ready.`,
+      reference_id: list.id,
+    });
+  }
+
+  updateRow("sor_action_runs", live, { outcome: "created", packing_list_id: list.id });
+  return list.id;
+}
+
+/**
  * Issue #204 Part 2 — `sor_action_runs` and its three RPCs live in Postgres
  * (see supabase/migrations/20260916000000_stage_action_runs.sql), which the
  * fake database does not execute. This re-implements their logic in JS
@@ -186,6 +241,19 @@ export function stubActionRunRpcs() {
     const action = findRow("flow_stage_actions", run.action_id);
     if (action?.kind !== "open_costing_matrix") throw new Error("sor_open_costing_matrix: not an Open Costing Matrix action");
     return openCostingMatrixOnFake(run, action);
+  });
+
+  // Issue #464 — the Decider's Create on an Optional Request Packing List.
+  stubRpc("sor_request_packing_list", (args) => {
+    const run = findRow("sor_action_runs", args.p_run_id);
+    if (!run) throw new Error("sor_request_packing_list: run not found");
+    if (run.packing_list_id) throw new Error("sor_request_packing_list: run already created its Packing List");
+    if (!(run.outcome === "pending" || (run.outcome === "created" && run.decided_by))) {
+      throw new Error("sor_request_packing_list: run is not pending");
+    }
+    const action = findRow("flow_stage_actions", run.action_id);
+    if (action?.kind !== "request_packing_list") throw new Error("sor_request_packing_list: not a Request Packing List action");
+    return requestPackingListOnFake(run, action, run.decided_by ?? null);
   });
 
   // Issue #404 — sor_create_stage_action_task
@@ -387,6 +455,9 @@ export function stubActionRunRpcs() {
         } else if (action.kind === "open_costing_matrix") {
           const matrixId = openCostingMatrixOnFake(run, findRow("flow_stage_actions", action.action_id));
           created.push({ action_id: action.action_id, kind: "open_costing_matrix", matrix_id: matrixId });
+        } else if (action.kind === "request_packing_list") {
+          const packingListId = requestPackingListOnFake(run, findRow("flow_stage_actions", action.action_id));
+          created.push({ action_id: action.action_id, kind: "request_packing_list", packing_list_id: packingListId });
         } else {
           throw new Error(`sor_run_stage_actions: no builder for kind ${action.kind}`)
         }

@@ -17,6 +17,7 @@ import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import StageActionDetail from "./StageActionDetail";
 import PurchaseRequestActionModal from "./PurchaseRequestActionModal";
 import OpenCostingMatrixActionModal from "./OpenCostingMatrixActionModal";
+import RequestPackingListActionModal from "./RequestPackingListActionModal";
 import { useAuth } from "../../context/AuthContext";
 
 import CreateGroupTaskModal from "../../pages/group-tasks/_components/CreateGroupTaskModal";
@@ -326,6 +327,25 @@ export default function StageActionManager({ stageId, disabled = false }) {
           onClose={() => setAddingKind(null)}
           onSubmit={(config) => handleAdd("open_costing_matrix", config)}
           isSubmitting={addMutation.isPending}
+        />
+      )}
+
+      {addingKind === "request_packing_list" && (
+        <RequestPackingListActionModal
+          isOpen={true}
+          onClose={() => setAddingKind(null)}
+          onSubmit={(config) => handleAdd("request_packing_list", config)}
+          isSubmitting={addMutation.isPending}
+        />
+      )}
+
+      {editingAction?.kind === "request_packing_list" && (
+        <RequestPackingListActionModal
+          isOpen={true}
+          onClose={() => setEditingAction(null)}
+          initialData={editingAction.config}
+          onSubmit={handleUpdate}
+          isSubmitting={updateMutation.isPending}
         />
       )}
 

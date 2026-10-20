@@ -18,7 +18,10 @@ import {
   ShoppingCart,
   PackageCheck,
   Calculator,
+  Boxes,
   Tags,
+  ClipboardCheck,
+  FileCheck,
   Database,
   Type,
   Hash,
@@ -28,6 +31,7 @@ import {
 import { CONDITION_KINDS } from "../../constants/stageGate"
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields"
 import { acceptsLabel } from "../../utils/attachments"
+import { packingListNotifySummary } from "../../utils/packingListAction"
 
 /**
  * "Purchasing (group)" / "Ana Reyes" for an assignment condition's `who`
@@ -91,6 +95,16 @@ export const CONDITION_KIND_META = {
     icon: Tags,
     hint: "Purchasing has costed the matrix: at least one Component, an Acquire unit cost on every Component and cost-only row, and a Purchasing Incharge named. Unmet when there is no matrix.",
   },
+  [CONDITION_KINDS.GOODS_CHECKED]: {
+    label: "Goods checked",
+    icon: ClipboardCheck,
+    hint: "Every submitted Transmittal with a line naming this SOR is Closed or Cancelled. Drafts don't count, and an SOR with no Transmittal meets it.",
+  },
+  [CONDITION_KINDS.ORDERS_FILED]: {
+    label: "Orders filed",
+    icon: FileCheck,
+    hint: "Every IPAS naming this SOR that isn't cancelled has been filed (section 7 approved). An SOR no IPAS names meets it.",
+  },
 }
 
 export const ACTION_KIND_META = {
@@ -115,6 +129,13 @@ export const ACTION_KIND_META = {
     label: "Open Costing Matrix",
     icon: Calculator,
     hint: "Opens the SOR's Costing Matrix. One per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
+  },
+  request_packing_list: {
+    label: "Request Packing List",
+    icon: Boxes,
+    hint: "Starts a draft Packing List and tells the Warehouse to pack.",
     // Saves no title of its own, so it is named by its label.
     titled: false,
   },
@@ -210,6 +231,11 @@ export function actionSummary(action, { employees = [] } = {}) {
       ? employees.find((e) => e.id === config.purchasingIncharge.id)?.name ?? "someone no longer listed"
       : null
     summary = buyer ? `${label} · Purchasing: ${buyer}` : `${label} · no Purchasing Incharge named`
+  } else if (action?.kind === "request_packing_list") {
+    summary = `${label} · ${packingListNotifySummary(
+      config,
+      (id) => employees.find((e) => e.id === id)?.name ?? "someone no longer listed",
+    )}`
   } else if (config.priority) {
     summary = `${label} · ${String(config.priority).toLowerCase()} priority`
   }

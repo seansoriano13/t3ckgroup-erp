@@ -5,6 +5,7 @@ import IpasOptionListEditor from "../ipas/IpasOptionListEditor";
 import IpasSignerListEditor from "../ipas/IpasSignerListEditor";
 import TransmittalFirstNumber from "../transmittals/TransmittalFirstNumber";
 import OrderAgeingRules from "./OrderAgeingRules";
+import DeliveryDeadlineSetting from "./DeliveryDeadlineSetting";
 import ReferenceRates from "./ReferenceRates";
 import { IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../constants/ipas";
 import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
@@ -59,7 +60,10 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
       {showRates ? (
         <ReferenceRates isSuperAdmin={isSuperAdmin} />
       ) : showAgeing ? (
-        <OrderAgeingRules />
+        <>
+          <OrderAgeingRules />
+          <DeliveryDeadlineSetting />
+        </>
       ) : showSigners ? (
         <>
           {isSuperAdmin && <TransmittalFirstNumber />}

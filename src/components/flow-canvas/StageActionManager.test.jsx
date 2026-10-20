@@ -78,6 +78,33 @@ describe("StageActionManager", () => {
 
     expect(screen.getByTestId("stage-action-detail")).toBeInTheDocument();
   });
+  describe("Request Packing List", () => {
+    it("is offered in the Add Action menu and saves with an empty notify list and the default window", async () => {
+      const user = setupUser();
+      const stage = makeFlowStage();
+
+      renderWithProviders(
+        <FlowDataProvider>
+          <StageActionManager stageId={stage.id} />
+        </FlowDataProvider>,
+      );
+
+      await screen.findByText(/Nothing runs here/i);
+      await user.click(screen.getByRole("button", { name: /Add Action/i }));
+      await user.click(await screen.findByRole("button", { name: /Request Packing List/i }));
+      await user.click(await screen.findByRole("button", { name: "Save" }));
+
+      const saved = await vi.waitFor(() => {
+        const rows = db.internal.rowsOf("flow_stage_actions").filter((a) => a.stage_id === stage.id);
+        expect(rows).toHaveLength(1);
+        return rows[0];
+      });
+      expect(saved.kind).toBe("request_packing_list");
+      expect(saved.config.access).toBeTruthy();
+      expect(saved.config.notify).toEqual([]);
+    });
+  });
+
   describe("Open Costing Matrix", () => {
     it("is offered in the Add Action menu and saves its config with the default window", async () => {
       const user = setupUser();

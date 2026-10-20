@@ -357,13 +357,35 @@ _Avoid_: Manual Action, Conditional Action
 Something that must be true before an SOR may *leave* a Stage. Verifiable kinds
 — attachment, tickbox, assignment, deadline, purchasing settled (every
 Requested Item closed), and costing settled (every Tender Line priced, no blank
-cost, the evaluation approved, and the offer within ABC) — plus Note Conditions. Something a
+cost, the evaluation approved, and the offer within ABC), goods checked (every
+submitted Transmittal naming the SOR closed), orders filed (every uncancelled
+IPAS naming the SOR filed) — plus Note Conditions. Something a
 deal must fill in is a Stage Field, never a condition. An attachment condition
 is met only by a file given through that condition, not by any matching file on
 the SOR. A deadline never blocks; it warns on approach and marks the deal
 overdue on breach. Conditions guard moving on, never going back: a Revert or a
 Return is not blocked by them, nor by a required Stage Field.
 _Avoid_: Gate, Requirement, Rule
+
+**Goods checked**:
+A Stage Condition, met when every submitted Transmittal with a line naming the
+SOR is Closed (both Check by signatures) or Cancelled. It exists because a
+Transmittal is per slip and cannot mount on a Stage. A Draft is ignored, as it
+has not entered a check; an SOR no Transmittal names meets it; a slip carrying
+lines for two SORs counts for both. A line rated NA does not hold it open: the
+check happened, and the replacement rides a new slip that must itself close.
+Placed by Operations, on Government at the exit of Project Delivery.
+_Avoid_: Goods received, Delivery checked
+
+**Orders filed**:
+A Stage Condition, met when every IPAS naming the SOR that is not cancelled
+has been filed — section 7 approved, so its Landed Cost is final. It exists
+because an IPAS is per Odoo PO and cannot mount on a Stage. An SOR no IPAS
+names meets it; an IPAS naming several SORs counts for each. Built with the
+IPAS block but not placed on Government yet: Finance does not file in the ERP
+yet, and a gate on closing would stall deals and commission. Operations can
+place it later.
+_Avoid_: Orders closed, Orders settled
 
 **Note Condition**:
 A condition written in plain words because the system cannot express it, kept
@@ -804,6 +826,18 @@ writes nothing to Odoo; a delivery reference can be typed on it. Not the
 "Packing List / Picking List" ticked on a Transmittal's Reference Checklist,
 which is the paper that came with the goods.
 _Avoid_: Packing Slip, Box List, Delivery Note
+
+**Request Packing List**:
+A **Stage Action** that asks the Warehouse to pack. When it runs it creates a
+draft **Packing List** for the SOR, but only if the SOR has no open (unsigned,
+still draft) Packing List; otherwise it creates nothing and tells nobody. When
+it creates one it notifies the Warehouse staff list, or the people and groups
+its config names instead. The draft is exactly a hand-made one: whoever signs
+is "Packed by", signing closes it, there is no approver, and nothing is written
+to Odoo. A Packing List can still be made by hand without the action. Replaces
+the "Prepare the packing list each boxes" checklist line in the NTP "PMS" group
+task.
+_Avoid_: Packing task, Pack request
 
 **Landed Cost**:
 An item's true unit cost once everything is apportioned onto it —

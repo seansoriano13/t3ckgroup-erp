@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-10-22",
+        "title": "Packing lists, goods checked and orders filed in the Flow Canvas",
+        "version": "1.9.54",
+        "changes": [
+            "A stage can now request a Packing List. It opens a draft Packing List for the SOR, unless one is already open, and tells the Warehouse people. Warehouse can pack a list that someone else created.",
+            "A new stage condition, Goods checked, is met when every submitted Transmittal that names the SOR is Closed. Drafts and cancelled slips are ignored, and an SOR no Transmittal names meets it.",
+            "A new stage condition, Orders filed, is met when every IPAS that names the SOR is filed. An SOR no IPAS names meets it. It is not used on Government.",
+            "Order Monitoring now shows the client's delivery deadline.",
+            "The Costing Matrix now opens by itself on SORs that are already past its stage."
+        ]
+    },
+    {
         "date": "2026-10-19",
         "title": "My SORs: your own SORs too, and filters that follow the latest activity",
         "version": "1.9.53",

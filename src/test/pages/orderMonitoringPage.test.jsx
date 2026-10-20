@@ -246,4 +246,72 @@ describe("Order Monitoring page: the register switch", () => {
     await waitFor(() => expect(within(register).queryByText(other.number)).not.toBeInTheDocument());
     expect(within(register).getByText(wanted.number)).toBeInTheDocument();
   });
+  describe("client delivery deadline (#467)", () => {
+    const headerFor = (ipas, opportunityId, ref = "S07983") => ({
+      ipas_id: ipas.id,
+      opportunity_id: opportunityId,
+      sales_reference: ref,
+      project_title: "Ambulance",
+      current_stage_name: "Project Delivery",
+    });
+    const inDays = (days) => new Date(Date.now() + days * DAY).toISOString();
+
+    it("shows the due date beside an unreceived order and marks it near", async () => {
+      const ipas = seedOrder({ poState: "draft" });
+      stubRpc("ipas_sor_headers", () => [headerFor(ipas, "sor-1")]);
+      stubRpc("sor_delivery_deadlines", () => [{ opportunity_id: "sor-1", due_at: inDays(3), days: 15 }]);
+
+      renderPage();
+
+      const line = await screen.findByText(/Client deadline/);
+      expect(line).toHaveAttribute("data-deadline", "near");
+      expect(line).toHaveTextContent("near");
+    });
+
+    it("honours the saved N: the same date reads fine under a smaller N", async () => {
+      const ipas = seedOrder({ poState: "draft" });
+      db.seed("order_deadline_setting", { id: true, near_days: 2 });
+      stubRpc("ipas_sor_headers", () => [headerFor(ipas, "sor-1")]);
+      stubRpc("sor_delivery_deadlines", () => [{ opportunity_id: "sor-1", due_at: inDays(3), days: 15 }]);
+
+      renderPage();
+
+      expect(await screen.findByText(/Client deadline/)).toHaveAttribute("data-deadline", "ok");
+    });
+
+    it("marks an unreceived order late once past the date", async () => {
+      const ipas = seedOrder({ poState: "draft" });
+      stubRpc("ipas_sor_headers", () => [headerFor(ipas, "sor-1")]);
+      stubRpc("sor_delivery_deadlines", () => [{ opportunity_id: "sor-1", due_at: inDays(-2), days: 15 }]);
+
+      renderPage();
+
+      const line = await screen.findByText(/Client deadline/);
+      expect(line).toHaveAttribute("data-deadline", "late");
+      expect(line).toHaveTextContent("late");
+    });
+
+    it("shows no deadline for an SOR without one", async () => {
+      const ipas = seedOrder({ poState: "draft" });
+      stubRpc("ipas_sor_headers", () => [headerFor(ipas, "sor-1")]);
+      stubRpc("sor_delivery_deadlines", () => []);
+
+      renderPage();
+
+      expect(await screen.findByText(ipas.number)).toBeInTheDocument();
+      expect(screen.queryByText(/Client deadline/)).not.toBeInTheDocument();
+    });
+
+    it("shows it in the register too", async () => {
+      const ipas = seedOrder({ poState: "draft" });
+      stubRpc("ipas_sor_headers", () => [headerFor(ipas, "sor-1")]);
+      stubRpc("sor_delivery_deadlines", () => [{ opportunity_id: "sor-1", due_at: inDays(-1), days: 15 }]);
+
+      renderPage();
+      await setupUser().click(await screen.findByRole("tab", { name: "Register" }));
+
+      const register = await screen.findByRole("region", { name: "Order register" });
+      expect(await within(register).findByText(/Client deadline/)).toHaveAttribute("data-deadline", "late");
+    });
+  });
 });

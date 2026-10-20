@@ -5,6 +5,7 @@ import SettingsPage from "@/pages/settings/index";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { orderAgeingRulesService } from "@/services/orderAgeingRulesService";
+import { deliveryDeadlineService } from "@/services/deliveryDeadlineService";
 
 /**
  * The Ageing rules section of Settings > Purchasing (#262, spec #261): one row
@@ -98,5 +99,28 @@ describe("Settings > Purchasing: Ageing rules", () => {
 
     expect(await screen.findByText("Days must be a whole number above zero, or blank for no rule.")).toBeInTheDocument();
     expect((await rulesOf()).with_pop).toBeNull();
+  });
+
+  it("shows the delivery deadline setting beside the rules, defaulting to 5 (#467)", async () => {
+    await openAgeingRules();
+
+    const field = await screen.findByLabelText("Days before the delivery deadline");
+    expect(field).toHaveValue(5);
+    expect(await deliveryDeadlineService.getNearDays()).toBe(5);
+  });
+
+  it("saves a new N for the delivery deadline, and refuses zero (#467)", async () => {
+    const user = await openAgeingRules();
+
+    const field = await screen.findByLabelText("Days before the delivery deadline");
+    await user.clear(field);
+    await user.type(field, "0");
+    await user.click(screen.getByRole("button", { name: "Save deadline setting" }));
+    expect(await screen.findByText("Days must be a whole number above zero.")).toBeInTheDocument();
+
+    await user.clear(field);
+    await user.type(field, "8");
+    await user.click(screen.getByRole("button", { name: "Save deadline setting" }));
+    await waitFor(async () => expect(await deliveryDeadlineService.getNearDays()).toBe(8));
   });
 });
