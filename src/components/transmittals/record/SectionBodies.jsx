@@ -24,6 +24,7 @@ import {
 import { transmittalService } from "@/services/transmittalService";
 import { ipasErrorMessage } from "@/utils/ipas";
 import { evidenceOf, stageRowOf, transmittalStateLabel } from "@/utils/transmittals";
+import { formatPreparedAt } from "@/utils/preparedAt";
 import { WarehouseRatings } from "../WarehouseRatings";
 import { choosesSlot, picksOtherSigner, stageBlocker } from "./transmittalMoves";
 import { STAGE_SIGNERS, STAGE_TITLE } from "./transmittalRecord";
@@ -80,7 +81,7 @@ export function DetailsBody({ t }) {
   return (
     <section className="grid grid-cols-1 gap-4 text-[13px] sm:grid-cols-2">
       <Fact label="TG03" value={<span className="font-mono font-semibold">{t.number}</span>} />
-      <Fact label="Prepared" value={`${t.preparedOn}${t.preparedBy ? ` · ${t.preparedBy.name}` : ""}`} />
+      <Fact label="Prepared" value={`${formatPreparedAt(t.preparedOn)}${t.preparedBy ? ` · ${t.preparedBy.name}` : ""}`} />
       <Fact label="State" value={<StatusBadge theme="blue" label={transmittalStateLabel(t.state)} />} />
       <Fact
         label="Origin"
