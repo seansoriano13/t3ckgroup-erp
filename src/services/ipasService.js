@@ -824,8 +824,8 @@ export const ipasService = {
         .select()
         .single();
       // An option a filed IPAS uses keeps its name and marks: the database
-      // refuses (55000) for everyone. Say so in a sentence the page can show.
-      if (error?.code === "55000") {
+      // refuses (22023, "ipas_options: ...") for everyone. Say so in a sentence the page can show.
+      if (error?.code === "22023" && /^ipas_options:/.test(error.message ?? "")) {
         throw new IpasError(
           IPAS_ERROR.OPTION_ON_FILED,
           `"${name}" is used on a filed IPAS and can't be changed. Deactivate it and add a new one instead.`,

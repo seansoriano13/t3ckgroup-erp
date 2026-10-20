@@ -307,7 +307,7 @@ describe("sending back section 7", () => {
 
     it("refuses when nothing is live to clear, with a reason missing, or before section 7 is open", async () => {
         const ipas = await opened()
-        expect((await sendBack("finance", ipas.id, 7, "Nothing signed")).error?.code).toBe("55000")
+        expect((await sendBack("finance", ipas.id, 7, "Nothing signed")).error?.code).toBe("22023")
 
         await signOk("ipasSigner", ipas.id, 7, "received")
         expect((await sendBack("finance", ipas.id, 7, "   ")).error?.code).toBe("22023")
@@ -317,7 +317,7 @@ describe("sending back section 7", () => {
         const early = await raise()
         await signOk("outsider", early.id, 1, "prepared")
         const refused = await sendBack("finance", early.id, 7, "Too early")
-        expect(refused.error?.code).toBe("55000")
+        expect(refused.error?.code).toBe("22023")
         expect(refused.error?.message).toMatch(/isn't open yet/)
     })
 
@@ -326,12 +326,12 @@ describe("sending back section 7", () => {
         await receivedNotedChecked(ipas)
         await file(ipas.id)
         const filedBack = await sendBack("finance", ipas.id, 7, "Too late")
-        expect(filedBack.error?.code).toBe("55000")
+        expect(filedBack.error?.code).toBe("22023")
         expect(await liveKeys(ipas.id)).toEqual(expect.arrayContaining(["7/checked", "7/noted", "7/received"]))
 
         const cancelled = await raise()
         expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Duplicate" })).error).toBeNull()
-        expect((await sendBack("finance", cancelled.id, 7, "Gone")).error?.code).toBe("55000")
+        expect((await sendBack("finance", cancelled.id, 7, "Gone")).error?.code).toBe("22023")
     })
 
     it("leaves sections 1 and 3 as they were", async () => {
@@ -433,7 +433,7 @@ describe("undoing an approval", () => {
     it("is refused with no approval, no reason, a long reason, a section that has none, or a stranger", async () => {
         const fresh = await raise()
         await signOk("outsider", fresh.id, 1, "prepared")
-        expect((await undo("ipasSigner", fresh.id, 1, "Nothing approved")).error?.code).toBe("55000")
+        expect((await undo("ipasSigner", fresh.id, 1, "Nothing approved")).error?.code).toBe("22023")
 
         const ipas = await opened()
         expect((await undo("ipasSigner", ipas.id, 1, "   ")).error?.code).toBe("22023")
@@ -450,11 +450,11 @@ describe("undoing an approval", () => {
         await receivedNotedChecked(ipas)
         await sql().query(`update public.ipas set computation_status = 'lc_odoo_done' where id = $1`, [ipas.id])
         await file(ipas.id)
-        expect((await undo("ipasSigner", ipas.id, 1, "Too late")).error?.code).toBe("55000")
+        expect((await undo("ipasSigner", ipas.id, 1, "Too late")).error?.code).toBe("22023")
 
         const cancelled = await raise()
         expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Duplicate" })).error).toBeNull()
-        expect((await undo("ipasSigner", cancelled.id, 1, "Gone")).error?.code).toBe("55000")
+        expect((await undo("ipasSigner", cancelled.id, 1, "Gone")).error?.code).toBe("22023")
     })
 })
 
@@ -569,8 +569,8 @@ describe("the signer-list log", () => {
             expect((await setList(who, "s7_noted", [ids.ordinary])).error?.code, who).toBe("42501")
         }
         expect((await setList("superAdmin", "s2_approved", [ids.ordinary])).error?.code).toBe("22023")
-        expect((await setList("superAdmin", "s7_noted", [crypto.randomUUID()])).error?.code).toBe("P0002")
-        expect((await setList("superAdmin", "s7_noted", [ids.deleted])).error?.code).toBe("P0002")
+        expect((await setList("superAdmin", "s7_noted", [crypto.randomUUID()])).error?.code).toBe("22023")
+        expect((await setList("superAdmin", "s7_noted", [ids.deleted])).error?.code).toBe("22023")
         expect((await svc().from("ipas_signer_lists").select("id").eq("list_key", "s7_noted")).data).toHaveLength(0)
         expect(await logOf("s7_noted")).toHaveLength(0)
     })
@@ -579,7 +579,7 @@ describe("the signer-list log", () => {
         await clearLists()
         expect((await setList("superAdmin", "s7_noted", [ids.ordinary])).error).toBeNull()
         const refused = await setList("superAdmin", "s7_noted", [ids.support, ids.deleted])
-        expect(refused.error?.code).toBe("P0002")
+        expect(refused.error?.code).toBe("22023")
         const members = (await svc().from("ipas_signer_lists").select("employee_id").eq("list_key", "s7_noted")).data
         expect(members.map((m) => m.employee_id)).toEqual([ids.ordinary])
         expect(await logOf("s7_noted")).toHaveLength(1)

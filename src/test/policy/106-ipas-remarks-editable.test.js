@@ -2,7 +2,7 @@
  * IPAS Remarks (#551, spec #544): Purchasing edits Remarks until the IPAS is filed or cancelled.
  *
  *   - a purchaser edits and clears Remarks; each change is one "header_changed" event in the history
- *   - a filed or cancelled IPAS refuses it (55000, like every other header field)
+ *   - a filed or cancelled IPAS refuses it (22023, like every other header field)
  *   - Finance and a Super Admin who isn't in Purchasing can't touch Remarks (42501)
  *   - a non-text Remarks is refused with a sentence (22023)
  *
@@ -102,14 +102,14 @@ describe("Remarks once the IPAS is filed or cancelled", () => {
         const ipas = await raise()
         await setRemarks("outsider", ipas.id, "Before filing")
         await sql().query(`update public.ipas set state = 'filed', filed_at = now() where id = $1`, [ipas.id])
-        expect((await setRemarks("outsider", ipas.id, "After filing")).error?.code).toBe("55000")
+        expect((await setRemarks("outsider", ipas.id, "After filing")).error?.code).toBe("22023")
         expect(await remarksOf(ipas.id)).toBe("Before filing")
     })
 
     it("are refused on a cancelled IPAS", async () => {
         const ipas = await raise()
         expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: ipas.id, p_reason: "Raised in error" })).error).toBeNull()
-        expect((await setRemarks("outsider", ipas.id, "Too late")).error?.code).toBe("55000")
+        expect((await setRemarks("outsider", ipas.id, "Too late")).error?.code).toBe("22023")
         expect(await remarksOf(ipas.id)).toBeNull()
     })
 })

@@ -28,8 +28,9 @@ import { COMPONENT_BANDS, INCLUSION_BANDS } from "../../constants/costing.js"
 
 const svc = () => serviceClient()
 const CHECK_VIOLATION = "23514"
-const WRONG_STATE = "55000"
+const WRONG_STATE = "22023"
 const MIGRATION = readFileSync("supabase/migrations/20261018140000_costing_matrix_evaluation.sql", "utf8")
+const REFUSAL_MIGRATION = readFileSync("supabase/migrations/20261023210000_refusal_codes.sql", "utf8")
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId
@@ -609,6 +610,8 @@ describe("the registries and settings", () => {
             await svc().from("group_task_templates").delete().eq("id", named.id)
             await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ipasSigner).eq("list_key", "evaluation")
             await svc().from("employees").update({ call_sign: null }).eq("id", ids.ipasSigner)
+            // The replays above put this migration's older costing_sign back; put the latest one back (#556).
+            await sql().query(REFUSAL_MIGRATION)
         }
         expect(await canRead(await clientFor("outsider"), "costing_components", compA)).toBe(true)
     })

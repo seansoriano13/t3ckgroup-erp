@@ -20,7 +20,7 @@ import { purgeCostingForSors } from "./support/costing.js"
 
 const svc = () => serviceClient()
 const RLS_VIOLATION = "42501"
-const WRONG_STATE = "55000"
+const WRONG_STATE = "22023"
 const SIGNATURE = `${MARKER}/signature-v1.png`
 
 let saleTypeId, flowId, stageId
@@ -61,6 +61,8 @@ beforeAll(async () => {
     // Test 82 replays #271's migration to prove it is re-runnable, which puts back that migration's
     // costing_sign. Replaying this one first restores ours (and proves it re-runs without harm).
     await sql().query(readFileSync("supabase/migrations/20261018200000_costing_print_signoffs.sql", "utf8"))
+    // ...and #556 carries costing_sign forward with its refusal codes, so put that on top.
+    await sql().query(readFileSync("supabase/migrations/20261023210000_refusal_codes.sql", "utf8"))
     await ensureCastLoaded()
     await asSvc(svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider), "purchasing flag")
     previousSignature = (await asSvc(svc().from("employees").select("signature_path").eq("id", ids.dealOwner).single(), "signature")).signature_path
