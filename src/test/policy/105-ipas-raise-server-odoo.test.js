@@ -121,7 +121,7 @@ describe("Odoo does not answer", () => {
         const po = nextPo()
         const { error } = await serverRaise(po, "unavailable", null)
 
-        expect(error?.code).toBe("55000")
+        expect(error?.code).toBe("22023")
         expect(error?.hint).toBe("odoo_unavailable")
         expect(error?.hint).not.toBe("odoo_not_found")
         expect(await rowsFor(po)).toEqual([])

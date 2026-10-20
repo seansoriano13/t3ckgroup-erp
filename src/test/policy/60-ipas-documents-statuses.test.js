@@ -418,7 +418,7 @@ describe("who ticks", () => {
 
         expect((await tick("outsider", waybill.id, "warehouse", true)).error?.code).toBe("22023")
         expect((await tick("outsider", waybill.id, "purchasing", null)).error?.code).toBe("22023")
-        expect((await tick("outsider", "00000000-0000-0000-0000-000000000000", "purchasing", true)).error?.code).toBe("P0002")
+        expect((await tick("outsider", "00000000-0000-0000-0000-000000000000", "purchasing", true)).error?.code).toBe("22023")
     })
 
     it("writes nothing when the tick doesn't change", async () => {
@@ -484,7 +484,7 @@ describe("attachments and removal", () => {
         await tick("finance", ticked.id, "finance", true)
 
         const refused = await rpc("outsider", "ipas_remove_document", { p_document_id: ticked.id })
-        expect(refused.error?.code).toBe("55000")
+        expect(refused.error?.code).toBe("22023")
         expect(refused.error?.message).toMatch(/Finance has ticked/)
         expect(await docByLabel(ipas.id, "Cover letter")).toBeTruthy()
 
@@ -502,7 +502,7 @@ describe("attachments and removal", () => {
         const waybill = await docByLabel(ipas.id, "Waybill")
 
         const refused = await rpc("outsider", "ipas_remove_document", { p_document_id: waybill.id })
-        expect(refused.error?.code).toBe("55000")
+        expect(refused.error?.code).toBe("22023")
         expect(refused.error?.message).toMatch(/only a document added by hand/)
         expect(await docByLabel(ipas.id, "Waybill")).toBeTruthy()
         expect(await events(ipas.id, "document_removed")).toHaveLength(0)
@@ -510,7 +510,7 @@ describe("attachments and removal", () => {
         // A row picked from the list (it has a kind) is the same.
         const kindId = (await svc().from("ipas_options").select("id").eq("list", "document_kind").eq("label", "Quotation (Local)").single()).data.id
         const picked = (await addDocument("outsider", ipas.id, { p_kind_id: kindId })).data
-        expect((await rpc("outsider", "ipas_remove_document", { p_document_id: picked.id })).error?.code).toBe("55000")
+        expect((await rpc("outsider", "ipas_remove_document", { p_document_id: picked.id })).error?.code).toBe("22023")
     })
 })
 
@@ -520,11 +520,11 @@ describe("a filed or cancelled IPAS", () => {
         const waybill = await docByLabel(ipas.id, "Waybill")
         await setState(ipas.id, "filed")
 
-        expect((await tick("finance", waybill.id, "finance", true)).error?.code).toBe("55000")
-        expect((await tick("outsider", waybill.id, "purchasing", true)).error?.code).toBe("55000")
-        expect((await addDocument("outsider", ipas.id, { p_label: "Late" })).error?.code).toBe("55000")
-        expect((await rpc("outsider", "ipas_remove_document", { p_document_id: waybill.id })).error?.code).toBe("55000")
-        expect((await rpc("outsider", "ipas_suggest_documents", { p_ipas_id: ipas.id })).error?.code).toBe("55000")
+        expect((await tick("finance", waybill.id, "finance", true)).error?.code).toBe("22023")
+        expect((await tick("outsider", waybill.id, "purchasing", true)).error?.code).toBe("22023")
+        expect((await addDocument("outsider", ipas.id, { p_label: "Late" })).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_remove_document", { p_document_id: waybill.id })).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_suggest_documents", { p_ipas_id: ipas.id })).error?.code).toBe("22023")
         expect(await docByLabel(ipas.id, "Waybill")).toMatchObject({ purchasing_has: false, finance_has: false })
     })
 
@@ -532,11 +532,11 @@ describe("a filed or cancelled IPAS", () => {
         const ipas = await raise("import")
         await setState(ipas.id, "filed")
 
-        expect((await setOrigin("outsider", ipas.id, { shipped_out_on: "2026-10-01" })).error?.code).toBe("55000")
-        expect((await setTyped("outsider", ipas.id, "delivered", "2026-10-02")).error?.code).toBe("55000")
-        expect((await rpc("outsider", "ipas_stamp_actual_checking", { p_ipas_id: ipas.id })).error?.code).toBe("55000")
+        expect((await setOrigin("outsider", ipas.id, { shipped_out_on: "2026-10-01" })).error?.code).toBe("22023")
+        expect((await setTyped("outsider", ipas.id, "delivered", "2026-10-02")).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_stamp_actual_checking", { p_ipas_id: ipas.id })).error?.code).toBe("22023")
         const place = await optionByLabel("item_location", "BM Office")
-        expect((await rpc("outsider", "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: place.id })).error?.code).toBe("55000")
+        expect((await rpc("outsider", "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: place.id })).error?.code).toBe("22023")
     })
 
     it("refuses a cancelled IPAS", async () => {
@@ -544,8 +544,8 @@ describe("a filed or cancelled IPAS", () => {
         const waybill = await docByLabel(ipas.id, "Waybill")
         await setState(ipas.id, "cancelled")
 
-        expect((await tick("outsider", waybill.id, "purchasing", true)).error?.code).toBe("55000")
-        expect((await setTyped("outsider", ipas.id, "delivered", "2026-10-02")).error?.code).toBe("55000")
+        expect((await tick("outsider", waybill.id, "purchasing", true)).error?.code).toBe("22023")
+        expect((await setTyped("outsider", ipas.id, "delivered", "2026-10-02")).error?.code).toBe("22023")
     })
 })
 

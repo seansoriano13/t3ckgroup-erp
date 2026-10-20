@@ -134,6 +134,13 @@ describe("ipasErrorMessage", () => {
     expect(ipasErrorMessage({})).toBe("Something went wrong.")
   })
 
+  it("words a refusal that came with no sentence by its code", () => {
+    expect(ipasErrorMessage({ code: "42501" })).toBe("You are not allowed to do that.")
+    expect(ipasErrorMessage({ code: "22023" })).toBe("That can't be done right now.")
+    expect(ipasErrorMessage({ code: "23505" })).toBe("That already exists.")
+    expect(ipasErrorMessage({ code: "XX000" })).toBe("Something went wrong.")
+  })
+
   it("drops any function name, not only an IPAS one, and starts with a capital", () => {
     expect(ipasErrorMessage({ message: "transmittal_check: the preparer can't check their own slip" })).toBe(
       "The preparer can't check their own slip",
