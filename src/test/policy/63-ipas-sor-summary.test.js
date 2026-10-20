@@ -270,7 +270,9 @@ describe("who gets rows: the SOR read rule", () => {
     it("gives a full IPAS reader who is also on the deal the same summary the table can open", async () => {
         const dealOwnerRows = await summaries("dealOwner", sorA)
         const superRows = await summaries("superAdmin", sorA)
-        expect(superRows).toEqual(dealOwnerRows)
+        // Landed Cost is cost (#546): the Super Admin (closed_book) may get it, the Deal Team never.
+        const withoutLandedCost = (rows) => rows.map(({ landed_cost_total_php, landed_cost_mark, ...rest }) => rest)
+        expect(withoutLandedCost(superRows)).toEqual(withoutLandedCost(dealOwnerRows))
         const { data } = await (await clientFor("superAdmin")).from("ipas").select("id").eq("id", both.id)
         expect(data).toHaveLength(1)
     })
