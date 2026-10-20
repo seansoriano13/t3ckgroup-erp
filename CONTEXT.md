@@ -905,7 +905,8 @@ that produced it. Neither side can derive the margin alone, which is the whole
 point, and the database serves each side its own column list rather than the
 browser hiding what it was sent. Whoever a Sales Flow names as Always sees reads
 what the Deal Team reads — the price side — since they already read the SOR's
-quoted prices. Distinct from the write bands, which say who may *change* a
+quoted prices. Landed Cost is cost, not price: it reaches the Closed Book and
+Purchasing, never the price side. Distinct from the write bands, which say who may *change* a
 column and grant no reading.
 _Avoid_: Margin Tier, Confidential, Management View, Band (which is the write rule)
 
