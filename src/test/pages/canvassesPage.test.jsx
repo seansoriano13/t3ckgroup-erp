@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import CanvassesPage from "@/pages/purchasing/canvasses/index";
@@ -94,6 +94,29 @@ describe("the Canvasses page", () => {
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0002" }));
     expect(await screen.findByRole("heading", { name: /Canvass CNV_0002/ })).toBeInTheDocument();
     expect(await screen.findAllByTestId("offer")).toHaveLength(1);
+  });
+
+  it("starts a Canvass with no Purchase Request: the starter becomes its Canvasser and it gets a number", async () => {
+    const user = setupUser();
+    renderPage();
+    await screen.findAllByTestId("canvass-row");
+
+    await user.click(screen.getByRole("button", { name: /new canvass/i }));
+    await user.type(await screen.findByLabelText("What is being bought"), "Whiteboard markers");
+    await user.type(screen.getByLabelText("Supplier"), "National Book Store");
+    await user.type(screen.getByLabelText("Unit price in PHP"), "45");
+    await user.click(screen.getByRole("button", { name: /save offer/i }));
+
+    // The database defaults the Canvasser to whoever started it (policy test 110); the fake keeps who.
+    await waitFor(() => expect(db.rows("sor_canvasses").some((c) => c.product_name === "Whiteboard markers")).toBe(true));
+    const started = db.rows("sor_canvasses").find((c) => c.product_name === "Whiteboard markers");
+    expect(started.number).toMatch(/^CNV_\d{4}$/);
+    expect(started.created_by).toBe(marco.id);
+    expect(started.component_id ?? null).toBeNull();
+    expect(started.requested_item_id ?? null).toBeNull();
+    // Closed, it stays on the page as a row to reopen later.
+    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("button", { name: `Open Canvass ${started.number}` })).toBeInTheDocument();
   });
 
   it("sends someone without Purchasing access home", async () => {
