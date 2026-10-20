@@ -563,10 +563,10 @@ export function stubIpasRpcs({
       })
   })
 
-  /** The helper both resets share: clears the live section 1 and 3 approvals, returns { sections, preparers }. */
-  const clearApprovals = (ipasId, reason) => {
+  /** The helper both resets share: clears the live approvals of the given stored sections (1 and 3 unless told otherwise; an Account # flag passes only 3), returns { sections, preparers }. */
+  const clearApprovals = (ipasId, reason, only = [1, 3]) => {
     const live = liveSignoffs(ipasId)
-    const approved = live.filter((s) => [1, 3].includes(s.section) && s.role === "approved")
+    const approved = live.filter((s) => only.includes(s.section) && s.role === "approved")
     const sections = [...new Set(approved.map((s) => s.section))].sort()
     for (const s of approved) {
       updateRow("ipas_signoffs", s, { cleared_at: new Date().toISOString(), cleared_by: actorId, cleared_reason: reason })
@@ -924,7 +924,7 @@ export function stubIpasRpcs({
     let cleared = { sections: [], preparers: [] }
     if (flagged && accountChanged) {
       event(ipas.id, "account_flagged", { previous_ipas_id: previous.ipas.id, previous_number: previous.ipas.number })
-      cleared = clearApprovals(ipas.id, "Account # flagged")
+      cleared = clearApprovals(ipas.id, "Account # flagged", [3])
     }
     const { sections, preparers } = cleared
 
