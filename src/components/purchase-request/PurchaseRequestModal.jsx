@@ -1,4 +1,4 @@
-import { ChevronRight, PackageSearch, X } from "lucide-react";
+import { ChevronRight, PackageSearch, PanelRight, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -34,8 +34,11 @@ function RequestStateBadge({ row }) {
  *
  * It sits on REQUEST_MODAL_LAYER, over the SOR modal; every dialog the view
  * opens (add items, PO, confirmations) uses OVER_REQUEST_MODAL to show above it.
+ *
+ * `onShowSidePanel`, given where the request was picked from a list, draws a
+ * button that puts it back in that list's slide-over.
  */
-export default function PurchaseRequestModal({ requestId, onClose }) {
+export default function PurchaseRequestModal({ requestId, onClose, onShowSidePanel }) {
   const { data: request } = usePurchaseRequest(requestId);
   const { reference, title } = requestIdentity(request);
   const direct = request && requestKind(request) === REQUEST_KIND.DIRECT;
@@ -80,6 +83,18 @@ export default function PurchaseRequestModal({ requestId, onClose }) {
             )}
           </div>
           <OpenSorButton request={request} onBeforeOpen={onClose} />
+          {onShowSidePanel && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onShowSidePanel}
+              aria-label="Show in side panel"
+              title="Show in side panel"
+              className="shrink-0 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <PanelRight size={16} />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"

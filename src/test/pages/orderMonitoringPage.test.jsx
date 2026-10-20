@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import OrderMonitoringPage from "@/pages/purchasing/order-monitoring/index";
+import OrderMonitoringRedirect from "@/pages/purchasing/order-monitoring/index";
+import PurchasingDashboardPage from "@/pages/purchasing/dashboard/index";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
@@ -10,10 +11,12 @@ import { NAV_MODULES } from "@/constants/navigation";
 import { getPermissionContext } from "@/utils/permissions";
 
 /**
- * Order Monitoring (#263, spec #261): the page opens on What needs doing, with
- * the four tiles, the three open groups and Filed collapsed. Purchasing access,
- * Finance access and Super Admins see it; a plain employee is sent home and
- * has no nav entry. The list's rules are the service's (orderMonitoringService).
+ * Order Monitoring (#263, spec #261), two tabs of the Purchasing Dashboard
+ * since 2026-10-20. The old /purchasing/order-monitoring opens the dashboard on
+ * What needs doing, with the four tiles, the three open groups and Filed
+ * collapsed. Purchasing access, Finance access and Super Admins see it; a plain
+ * employee is sent home. The list's rules are the service's
+ * (orderMonitoringService).
  */
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -64,24 +67,31 @@ function seedProofPayment(ipas) {
   });
 }
 
-const renderPage = () =>
+function Where() {
+  const location = useLocation();
+  return <output data-testid="where">{location.pathname}{location.search}</output>;
+}
+
+const renderPage = (entry = "/purchasing/order-monitoring") =>
   renderWithProviders(
-    <MemoryRouter initialEntries={["/purchasing/order-monitoring"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
-        <Route path="/purchasing/order-monitoring" element={<OrderMonitoringPage />} />
+        <Route path="/purchasing/order-monitoring" element={<OrderMonitoringRedirect />} />
+        <Route path="/purchasing/dashboard" element={<PurchasingDashboardPage />} />
         <Route path="/" element={<p>Home page</p>} />
       </Routes>
+      <Where />
     </MemoryRouter>,
   );
 
-describe("Order Monitoring page", () => {
+describe("Order Monitoring on the Purchasing Dashboard", () => {
   beforeEach(() => {
     seq = 0;
     mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
     stubRpc("ipas_sor_headers", () => []);
   });
 
-  it("opens on what needs doing: the tiles, then the groups, with Filed collapsed", async () => {
+  it("the old URL opens the dashboard on what needs doing: the tiles, then the groups, with Filed collapsed", async () => {
     const late = seedOrder({ source: "import", arrivedInPh: dateAgo(6) });
     seedProofPayment(late);
     const waiting = seedOrder({ poState: "draft" });
@@ -90,7 +100,9 @@ describe("Order Monitoring page", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { level: 1, name: /order\s*monitoring/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: /purchasing\s*dashboard/i })).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent("/purchasing/dashboard?tab=needs");
+    expect(screen.getByRole("tab", { name: "What needs doing" })).toHaveAttribute("aria-selected", "true");
 
     const totals = await screen.findByRole("region", { name: "Totals" });
     expect(within(totals).getByText("Needs chasing")).toBeInTheDocument();
@@ -128,11 +140,12 @@ describe("Order Monitoring page", () => {
     renderPage();
 
     expect(await screen.findByText("Home page")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 1, name: /order\s*monitoring/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: /purchasing\s*dashboard/i })).not.toBeInTheDocument();
   });
 
-  it("shows the nav entry to Purchasing, Finance and Super Admins, and not to a plain employee", () => {
-    const entry = NAV_MODULES.purchasing.links.find((link) => link.key === "purchasing.order_monitoring");
+  it("has no nav entry of its own: the Purchasing Dashboard's is shown to Purchasing, Finance and Super Admins", () => {
+    expect(NAV_MODULES.purchasing.links.find((link) => link.link === "/purchasing/order-monitoring")).toBeUndefined();
+    const entry = NAV_MODULES.purchasing.links.find((link) => link.key === "purchasing.dashboard");
     const visible = (user) => entry.isPermitted(getPermissionContext(user));
 
     expect(visible(makeEmployee({ name: "Plain" }))).toBe(false);
@@ -143,17 +156,14 @@ describe("Order Monitoring page", () => {
 });
 
 /**
- * The order register (#264): a switch between What needs doing and the Register,
- * remembered per person in the browser. Storage can be missing or throw, and
- * the page must still open on What needs doing.
+ * The order register (#264): a dashboard tab beside What needs doing. The
+ * dashboard always opens on What needs doing; the tab is kept in the URL.
  */
-describe("Order Monitoring page: the register switch", () => {
+describe("Order Monitoring on the Purchasing Dashboard: the Register tab", () => {
   beforeEach(() => {
     seq = 0;
     mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
     stubRpc("ipas_sor_headers", () => []);
-    vi.restoreAllMocks();
-    localStorage.clear();
   });
 
   it("opens on What needs doing and switches to the Register, which lists filed orders too", async () => {
@@ -187,48 +197,26 @@ describe("Order Monitoring page: the register switch", () => {
     expect(within(track).getByRole("listitem", { name: /Delivered, pending/ })).toBeInTheDocument();
   });
 
-  it("remembers the chosen view for this person across a reload", async () => {
+  it("keeps the tab in the URL, so a reload or a shared link reopens the Register", async () => {
     seedOrder({ poState: "draft" });
 
     const first = renderPage();
     await setupUser().click(await screen.findByRole("tab", { name: "Register" }));
     await screen.findByRole("region", { name: "Order register" });
+    expect(screen.getByTestId("where")).toHaveTextContent("tab=register");
     first.unmount();
 
-    renderPage();
-
+    renderPage("/purchasing/dashboard?tab=register");
     expect(await screen.findByRole("tab", { name: "Register" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("region", { name: "Order register" })).toBeInTheDocument();
   });
 
-  it("keeps each person's choice to themselves", async () => {
+  it("opens on What needs doing when no tab is named", async () => {
     seedOrder({ poState: "draft" });
 
-    const first = renderPage();
-    await setupUser().click(await screen.findByRole("tab", { name: "Register" }));
-    await screen.findByRole("region", { name: "Order register" });
-    first.unmount();
-
-    mockUser.current = makeEmployee({ name: "Other Buyer", has_purchasing_flow: true });
-    renderPage();
+    renderPage("/purchasing/dashboard");
 
     expect(await screen.findByRole("tab", { name: "What needs doing" })).toHaveAttribute("aria-selected", "true");
-  });
-
-  it("still renders, on What needs doing, when browser storage throws", async () => {
-    seedOrder({ poState: "draft" });
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("storage blocked");
-    });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("storage blocked");
-    });
-
-    renderPage();
-
-    expect(await screen.findByRole("tab", { name: "What needs doing" })).toHaveAttribute("aria-selected", "true");
-    await setupUser().click(screen.getByRole("tab", { name: "Register" }));
-    expect(await screen.findByRole("region", { name: "Order register" })).toBeInTheDocument();
   });
 
   it("narrows the register by search", async () => {

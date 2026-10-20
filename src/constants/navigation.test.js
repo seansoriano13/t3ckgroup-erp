@@ -271,7 +271,6 @@ describe("navigation registry", () => {
         "Purchase Requests",
         "Purchasing Dashboard",
         "IPAS",
-        "Order Monitoring",
         "Transmittals",
         "Packing Lists",
       ]);
@@ -280,12 +279,13 @@ describe("navigation registry", () => {
     // IPAS (#242): reached by Purchasing access, Finance access, Super Admins
     // and the sign-off lists. Nobody else sees the entry (the database refuses
     // them anyway); the group still shows Purchase Requests to everyone.
-    // Order Monitoring (#263) is for Purchasing access, Finance access and Super
-    // Admins only, so a sign-off list reaches IPAS without it.
+    // The Purchasing Dashboard (Order Monitoring's home since 2026-10-20) is for
+    // Purchasing access, Finance access and Super Admins only, so a sign-off
+    // list reaches IPAS without it.
     it.each([
-      ["Finance access", { has_finance_flow: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
+      ["Finance access", { has_finance_flow: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Transmittals", "Packing Lists"]],
       ["a sign-off list", { isIpasSigner: true }, ["Purchase Requests", "IPAS", "Transmittals", "Packing Lists"]],
-      ["a Super Admin", { isSuperAdmin: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Order Monitoring", "Transmittals", "Packing Lists"]],
+      ["a Super Admin", { isSuperAdmin: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Transmittals", "Packing Lists"]],
     ])("offers IPAS to someone with %s", (_, flags, labels) => {
       const groups = getFilteredNavigationGroups({ id: "reader", ...flags });
       const purchasing = groups.find((g) => g.key === "purchasing");
