@@ -3,7 +3,7 @@
 
 import RecordCard from "@/components/record/RecordCard";
 import { ipasSectionLabel } from "@/constants/ipas";
-import { nowGate, waitingSections } from "./gates";
+import { nowGate } from "./gates";
 import { COSTS_WAITING } from "./moveCopy";
 import { movesFor } from "./moves";
 
@@ -14,12 +14,10 @@ function statusLine(digest, gates, offered) {
   // No gate is Now only while LC Odoo Done waits for Purchasing's encoding (gates.js).
   const now = nowGate(gates);
   if (!now) return offered.length === 0 ? `Nothing needs you right now. ${COSTS_WAITING}` : COSTS_WAITING;
-  if (offered.length === 0) {
-    const waiting = waitingSections(gates);
-    return waiting ? `Nothing needs you right now. Waiting on ${waiting}.` : "Nothing needs you right now.";
-  }
   const mine = now.moveKeys.some((key) => offered.some((move) => move.key === key));
-  return `Next: ${mine ? "Waiting for you" : `Waiting for ${now.waitsOn}`}`;
+  // Filing has three steps under one section number, so it names the step too.
+  const step = now.part === "filing" ? `${now.label}, ${now.role}` : now.label;
+  return mine ? `Waiting for you: ${step}` : `Next: ${step}, waiting on ${now.waitsOn}`;
 }
 
 export default function DecisionCard({ ctx, digest, onReview, next }) {

@@ -110,6 +110,15 @@ describe("Transmittal record page", () => {
     service.checkBy.mockResolvedValue({ number: "TG03_0007" });
   });
 
+  it("tells a viewer who is not on the Check by list who the slip waits on", async () => {
+    service.myStaffLists.mockResolvedValue([]);
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Your move" })).toBeInTheDocument();
+    expect(await screen.findByText("Next: Check by, waiting on the Check by list")).toBeInTheDocument();
+    expect(screen.queryByText(/^Waiting for you/)).not.toBeInTheDocument();
+  });
+
   it("shows the numbers, a row per section and who it waits on", async () => {
     renderPage();
 

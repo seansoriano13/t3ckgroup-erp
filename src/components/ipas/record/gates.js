@@ -71,11 +71,11 @@ function gateDefs(digest) {
       role: IPAS_SIGNOFF_ROLE_LABELS[IPAS_SIGNOFF_ROLE.RECEIVED],
       done: Boolean(s7.received),
       prereqMet: sectionsApproved,
-      waitsOn: "Finance",
+      waitsOn: "the Received list",
       line: s7.received
         ? `Received by ${name(s7.received)}`
         : sectionsApproved
-          ? "Waiting for Finance to receive it"
+          ? "Waiting for the Received list to receive it"
           : `Opens once ${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")} are approved`,
       at: s7.received?.signedAt ?? null,
       moveKeys: ["receive"],
