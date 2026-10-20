@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { makeSor } from "./support/rows.js"
-import { purgeFixtureIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 import { purgeFixtureTransmittals } from "./support/transmittals.js"
 
 const svc = () => serviceClient()
@@ -42,7 +42,7 @@ beforeAll(async () => {
     const flag = await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider)
     if (flag.error) throw flag.error
     sor = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
-    const { data, error } = await (await clientFor("outsider")).rpc("ipas_create", {
+    const { data, error } = await raiseAsPurchaser({
         p_po_number: PO,
         p_priority: "high",
         p_source: "local",

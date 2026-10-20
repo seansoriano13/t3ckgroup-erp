@@ -1,4 +1,5 @@
 import { stubRpc } from "@/test/msw/server"
+import { stubs } from "@/test/msw/postgrest"
 import { db, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { computeLandedCost } from "@/test/stubs/landedCostFake"
@@ -231,10 +232,20 @@ export function stubIpasRpcs({
       .map((s) => s.opportunity_id)
       .sort()
 
-  stubRpc("ipas_create", (args) => {
+  // #550: a signed-in caller can no longer hand over a copy; the old RPC refuses.
+  stubRpc("ipas_create", () => refuse("42501", "ipas_create: an IPAS is raised through the server, which reads the PO from Odoo itself"))
+
+  // What ipas_raise_from_odoo does with the verdict the server heard from Odoo.
+  const raiseFromOdoo = (args) => {
     requirePurchasing("ipas_create")
     const po = String(args.p_po_number || "").trim().toUpperCase()
     if (!/^P[0-9]+$/.test(po)) refuse("22023", `ipas_create: ${args.p_po_number} isn't an Odoo PO number`)
+    if (args.p_verdict === "not_found") {
+      throw pgrstError("22023", `ipas_create: Odoo has no purchase order named ${po}`, { hint: "odoo_not_found" })
+    }
+    if (args.p_verdict !== "found") {
+      throw pgrstError("55000", `ipas_create: Odoo couldn't be asked about ${po}; try again shortly`, { hint: "odoo_unavailable" })
+    }
     const copy = args.p_odoo_copy
     if (!copy || typeof copy.po !== "object" || !Array.isArray(copy.lines)) {
       refuse("22023", "ipas_create: the Odoo copy is missing")
@@ -271,6 +282,31 @@ export function stubIpasRpcs({
       sor_ids: sors,
     })
     return row
+  }
+
+  // The edge function: asks Odoo (the test's stub of `odoo-po-ipas`), then raises.
+  stubs.edgeRaise.set("odoo-po-ipas", (request, answer) => {
+    const verdict = !answer?.success ? "unavailable" : answer.found ? "found" : "not_found"
+    try {
+      const ipas = raiseFromOdoo({
+        p_actor: actorId,
+        p_po_number: request.poNumber,
+        p_priority: request.priority,
+        p_source: request.source,
+        p_purpose: request.purpose,
+        p_sor_ids: request.sorIds ?? [],
+        p_remarks: request.remarks ?? null,
+        p_verdict: verdict,
+        p_odoo_copy:
+          verdict === "found"
+            ? { po: answer.po, supplier: answer.supplier, lines: answer.lines ?? [], receipts: answer.receipts ?? null, bills: answer.bills ?? null }
+            : null,
+      })
+      return { success: true, ipas }
+    } catch (error) {
+      const pg = error?.pgrst ?? {}
+      return { success: false, refused: true, code: pg.code, hint: pg.hint ?? null, message: pg.message ?? error.message }
+    }
   })
 
   stubRpc("ipas_set_purpose_and_sors", (args) => {

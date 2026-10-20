@@ -18,11 +18,15 @@ const BASE_URL = import.meta.env.VITE_SUPABASE_URL
 export const stubs = {
   rpc: new Map(),
   edgeFunctions: new Map(),
+  // Fake of what a server-side edge function does after it has asked a stubbed
+  // upstream: (body, upstreamAnswer) => response. Keyed by function name.
+  edgeRaise: new Map(),
 }
 
 export function resetStubs() {
   stubs.rpc.clear()
   stubs.edgeFunctions.clear()
+  stubs.edgeRaise.clear()
 }
 
 function preferences(request) {

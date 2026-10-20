@@ -189,9 +189,9 @@ export const ipasService = {
   // ── Raise, list, read ────────────────────────────────────────────────────
 
   /**
-   * Raises an IPAS against an Odoo PO. Reads the PO first and refuses when
-   * Odoo doesn't have it (PO_NOT_FOUND) or couldn't be asked
-   * (ODOO_UNAVAILABLE); an RFQ is accepted. The database refuses a second live
+   * Raises an IPAS against an Odoo PO. The server reads the PO from Odoo
+   * itself (#550) and refuses when Odoo doesn't have it (PO_NOT_FOUND) or
+   * couldn't be asked (ODOO_UNAVAILABLE); an RFQ is accepted. The database refuses a second live
    * IPAS for the PO (23505) and a Project with no SOR (22023). Returns the
    * new row, with its TGIPAS_ number.
    */
@@ -203,19 +203,26 @@ export const ipasService = {
     requireOneOf(purpose, IPAS_PURPOSES, "Pick a Purpose.");
     requireSorsFitPurpose(purpose, sorIds);
 
-    const copy = await ipasService.readPurchaseOrder(po);
+    // The server asks Odoo itself and stores its own copy (#550); nothing the
+    // browser holds about the PO is sent.
+    let answer;
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-po-ipas", {
+        body: { action: "raise", poNumber: po, priority, source, purpose, sorIds, remarks: remarks || null },
+      });
+      if (error) throw error;
+      answer = data;
+    } catch {
+      throw unavailable(po);
+    }
 
-    const { data, error } = await supabase.rpc("ipas_create", {
-      p_po_number: po,
-      p_priority: priority,
-      p_source: source,
-      p_purpose: purpose,
-      p_sor_ids: sorIds,
-      p_remarks: remarks || null,
-      p_odoo_copy: copy,
-    });
-    if (error) throw error;
-    return data;
+    if (answer?.success && answer.ipas) return answer.ipas;
+    if (answer?.hint === "odoo_not_found") {
+      throw new IpasError(IPAS_ERROR.PO_NOT_FOUND, `Odoo has no purchase order named ${po}.`);
+    }
+    if (answer?.hint === "odoo_unavailable" || !answer?.refused) throw unavailable(po);
+    // Any other refusal reads as the database's own, with its code.
+    throw Object.assign(new Error(String(answer.message ?? "").replace(/^ipas_create:\s*/, "")), { code: answer.code });
   },
 
   /**
