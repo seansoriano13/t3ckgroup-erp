@@ -11,7 +11,6 @@ import { serviceClient } from "./support/stack.js"
 import { purgeIpas, raiseAsPurchaser } from "./support/ipas.js"
 
 const svc = () => serviceClient()
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
 
 const RUN = Date.now() % 100000
 const odooCopy = (po) => ({
