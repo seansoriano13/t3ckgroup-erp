@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 
 import PageShell from "../../../components/ui/PageShell";
@@ -8,14 +7,14 @@ import PurchaseRequestSlideOver from "../../../components/purchase-request/Purch
 import { usePurchaseRequest } from "../../../components/purchase-request/requestHooks";
 import { useAuth } from "../../../context/AuthContext";
 import { useRecordParam } from "../../../hooks/useRecordParam";
-import { orderMonitoringService } from "../../../services/orderMonitoringService";
 import { getPermissionContext } from "../../../utils/permissions";
 import { linkFor } from "../../../utils/purchasingDashboard";
-import Projects, { ProjectsToolbar } from "./_components/Projects";
+import Projects from "./_components/Projects";
 import { useProjectsFilters } from "./_components/useProjectsFilters";
 import NeedsDoing from "../order-monitoring/_components/NeedsDoing";
-import OrderRegister, { OrderRegisterToolbar } from "../order-monitoring/_components/OrderRegister";
+import OrderRegister from "../order-monitoring/_components/OrderRegister";
 import { useOrderRegisterFilters } from "../order-monitoring/_components/useOrderRegisterFilters";
+import { useNeedsDoingFilters } from "../order-monitoring/_components/useNeedsDoingFilters";
 
 /**
  * The Purchasing Dashboard (#322, ADR 0034's feedback session): one page, three
@@ -37,16 +36,6 @@ const TABS = [
   { value: DASHBOARD_TAB.REGISTER, label: "Register" },
 ];
 
-/** The register's filter choices come from the open-order list What needs doing also reads. */
-function RegisterToolbar({ register }) {
-  const { data: rows = [], isLoading, isError } = useQuery({
-    queryKey: ["order-monitoring", "list"],
-    queryFn: () => orderMonitoringService.list(),
-  });
-  if (isLoading || isError) return null;
-  return <OrderRegisterToolbar register={register} options={rows} />;
-}
-
 function PurchasingDashboard({ userId }) {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -62,6 +51,7 @@ function PurchasingDashboard({ userId }) {
     );
 
   const projects = useProjectsFilters();
+  const needs = useNeedsDoingFilters();
   const register = useOrderRegisterFilters();
   const { recordId, open, close } = useRecordParam("request");
   const { data: request = null } = usePurchaseRequest(recordId);
@@ -76,23 +66,16 @@ function PurchasingDashboard({ userId }) {
   };
   const openIpas = (id) => navigate(`/purchasing/ipas/${id}`);
 
-  const toolbar = {
-    [DASHBOARD_TAB.PROJECTS]: <ProjectsToolbar filters={projects} />,
-    [DASHBOARD_TAB.NEEDS]: null,
-    [DASHBOARD_TAB.REGISTER]: <RegisterToolbar register={register} />,
-  }[tab];
-
   return (
     <>
       <PageShell
         title="Purchasing Dashboard"
         description="Where every project's buying stands, and what needs doing today."
         tabs={<TabGroup variant="underline" tabs={TABS} activeTab={tab} onChange={changeTab} />}
-        toolbar={toolbar}
       >
         {tab === DASHBOARD_TAB.PROJECTS && <Projects filters={projects} onOpen={openProjectRow} />}
-        {tab === DASHBOARD_TAB.NEEDS && <NeedsDoing onOpen={openIpas} />}
-        {tab === DASHBOARD_TAB.REGISTER && <OrderRegister onOpen={openIpas} query={register.query} />}
+        {tab === DASHBOARD_TAB.NEEDS && <NeedsDoing onOpen={openIpas} filters={needs} />}
+        {tab === DASHBOARD_TAB.REGISTER && <OrderRegister onOpen={openIpas} register={register} />}
       </PageShell>
 
       <PurchaseRequestSlideOver

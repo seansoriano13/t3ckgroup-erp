@@ -104,7 +104,7 @@ describe("Order Monitoring on the Purchasing Dashboard", () => {
     expect(screen.getByTestId("where")).toHaveTextContent("/purchasing/dashboard?tab=needs");
     expect(screen.getByRole("tab", { name: "What needs doing" })).toHaveAttribute("aria-selected", "true");
 
-    const totals = await screen.findByRole("region", { name: "Totals" });
+    const totals = await screen.findByRole("group", { name: "Totals" });
     expect(within(totals).getByText("Needs chasing")).toBeInTheDocument();
     expect(within(totals).getByText("Waiting on us")).toBeInTheDocument();
     expect(within(totals).getByText("Waiting on someone else")).toBeInTheDocument();
@@ -115,6 +115,35 @@ describe("Order Monitoring on the Purchasing Dashboard", () => {
     expect(screen.getByText(`TGIPAS_${800 + 1}`)).toBeInTheDocument();
     expect(screen.getByText("Purchase Order — no PO confirmed yet")).toBeInTheDocument();
     expect(screen.getByText(`PO ${waiting.po_number}`)).toBeInTheDocument();
+  });
+
+  it("narrows What needs doing by search, and the totals follow (#574)", async () => {
+    const first = seedOrder({ poState: "draft" });
+    const second = seedOrder({ poState: "draft" });
+
+    renderPage();
+
+    expect(await screen.findByText(first.number)).toBeInTheDocument();
+    expect(screen.getByText(second.number)).toBeInTheDocument();
+
+    await setupUser().type(screen.getByRole("textbox", { name: "Search IPAS, PO or S number" }), first.number);
+
+    await waitFor(() => expect(screen.queryByText(second.number)).not.toBeInTheDocument());
+    expect(screen.getByText(first.number)).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Totals" })).getByText("Waiting on us").nextElementSibling).toHaveTextContent("1");
+  });
+
+  it("opens What needs doing and the Register with the same top: a search box, the Filters button and a stat row (#574)", async () => {
+    seedOrder({ poState: "draft" });
+    const user = setupUser();
+
+    renderPage("/purchasing/dashboard?tab=needs");
+    expect(await screen.findByRole("group", { name: "Totals" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Filters/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Register" }));
+    expect(await screen.findByRole("group", { name: "Register totals" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Filters/ })).toBeInTheDocument();
   });
 
   it("keeps the Filed group collapsed until it is opened", async () => {
