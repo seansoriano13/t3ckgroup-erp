@@ -231,11 +231,13 @@ export function isLandedCostFinal(status) {
 
 /**
  * Whether the signed-in person may move the computation status from `from` to
- * `to` (one step either way): Purchasing moves any step; Finance, or a Super
- * Admin who isn't Purchasing, only gives or takes back Checked by.
+ * `to` (one step either way): Purchasing (a Super Admin in Purchasing included)
+ * moves the steps up to LC Odoo Done, never to or from Checked by; Finance, or a
+ * Super Admin who isn't Purchasing, only gives or takes back Checked by.
  */
 export function canSetComputationStatus({ from, to, hasPurchasingFlow = false, hasFinanceFlow = false, isSuperAdmin = false }) {
-  if (hasPurchasingFlow) return true;
+  const { CHECKED: CHECKED_STEP } = IPAS_COMPUTATION_STATUS;
+  if (hasPurchasingFlow) return from !== CHECKED_STEP && to !== CHECKED_STEP;
   if (!hasFinanceFlow && !isSuperAdmin) return false;
   const { LC_ODOO_DONE, CHECKED } = IPAS_COMPUTATION_STATUS;
   return (from === LC_ODOO_DONE && to === CHECKED) || (from === CHECKED && to === LC_ODOO_DONE);

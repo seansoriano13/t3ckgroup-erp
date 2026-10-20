@@ -717,6 +717,12 @@ export function stubIpasRpcs({
           refuse("42501", "ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by")
         }
       }
+      if (purchasing) {
+        const from = row.computation_status ?? "encoding"
+        if (to !== from && (to === "checked" || from === "checked")) {
+          refuse("42501", "ipas_set_header: Checked by is Finance's step; Purchasing can't give it or take it back")
+        }
+      }
       if (to !== (row.computation_status ?? "encoding")) {
         next.computation_status = to
         note("computation_status", row.computation_status ?? "encoding", to)

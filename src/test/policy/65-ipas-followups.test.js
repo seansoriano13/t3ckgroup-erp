@@ -466,9 +466,9 @@ describe("Checked by", () => {
         return data.computation_status
     }
 
-    it("knows the five steps, and refuses the old Costs complete", async () => {
+    it("knows the five steps (Purchasing moves up to LC Odoo Done), and refuses the old Costs complete", async () => {
         const ipas = await raise()
-        for (const status of ["encoded", "lc_gs_done", "lc_odoo_done", "checked"]) {
+        for (const status of ["encoded", "lc_gs_done", "lc_odoo_done"]) {
             expect((await setStatus("outsider", ipas.id, status)).error, status).toBeNull()
         }
         expect((await setStatus("outsider", ipas.id, "costs_complete")).error?.code).toBe("22023")
