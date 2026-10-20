@@ -12,6 +12,7 @@ import {
   flowLockBlockers,
   flowPublishWarnings,
   flowStageTone,
+  flowStageTonesByName,
   isAtEntryStage,
   isFlowLockable,
   isLegalMove,
@@ -173,6 +174,23 @@ describe("what color a Stage renders with", () => {
 
   it("is mauve for a missing Stage rather than throwing", () => {
     expect(flowStageTone(null, flow, STAGES)).toBe("mauve")
+  })
+})
+
+describe("a Stage's color looked up by its name alone", () => {
+  const flowsById = { "flow-1": { id: "flow-1", won_stage_id: "s-won" }, "flow-2": { id: "flow-2", won_stage_id: null } }
+
+  it("gives each name its Stage's tone", () => {
+    const tones = flowStageTonesByName({ flowsById, stagesByFlow: { "flow-1": STAGES } })
+    expect(tones.get("Lead")).toBe("blue")
+    expect(tones.get("Awarded")).toBe("green")
+  })
+
+  it("gives a name shared by Stages that disagree no tone", () => {
+    const other = [{ id: "x-1", flow_id: "flow-2", name: "Awarded", sort_order: 5, color: "violet" }]
+    const tones = flowStageTonesByName({ flowsById, stagesByFlow: { "flow-1": STAGES, "flow-2": other } })
+    expect(tones.get("Awarded")).toBeNull()
+    expect(tones.get("Lead")).toBe("blue")
   })
 })
 

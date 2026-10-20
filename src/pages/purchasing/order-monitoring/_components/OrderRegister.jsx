@@ -184,7 +184,8 @@ export default function OrderRegister({ onOpen, query }) {
                     </TableCell>
                     <TableCell>
                       {row.supplier ?? "—"}
-                      <div className="text-xs text-muted-foreground">
+                      {/* Odoo item names run long: two lines, the whole name on hover. */}
+                      <div title={row.item?.name} className="line-clamp-2 max-w-[18rem] break-words text-xs text-muted-foreground">
                         {row.item?.name ?? "—"}
                         {row.item?.more > 0 && ` +${row.item.more} more`}
                       </div>

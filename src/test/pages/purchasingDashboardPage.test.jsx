@@ -9,16 +9,28 @@ import { NAV_MODULES } from "@/constants/navigation";
 import { getPermissionContext } from "@/utils/permissions";
 
 /**
- * The Purchasing Dashboard (#322): the five groups with counts, one SOR shown
- * in every group it has work in, each record opening the place that owns it.
- * The grouping rules are the database's and purchasingDashboard.js's.
+ * The Purchasing Dashboard (#322): three tabs, opening on What needs doing.
+ * Its Projects tab shows the five groups with counts, one SOR in every group it
+ * has work in; a Purchase Request opens in the slide-over here, every other
+ * record in the place that owns it. The grouping rules are the database's and
+ * purchasingDashboard.js's; What needs doing and Register are covered in
+ * orderMonitoringPage.test.jsx.
  */
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
 vi.mock("@/services/orderMonitoringService", () => ({
-  orderMonitoringService: { list: async () => [{ id: "ip-late", late: true }, { id: "ip-fine", late: false }] },
+  orderMonitoringService: {
+    list: async () => [{ id: "ip-late", late: true }, { id: "ip-fine", late: false }],
+    counts: async () => null,
+  },
 }));
+
+// The request's own body has its tests (PurchaseRequestView, RequestBuyer); here it only has to open.
+vi.mock("@/components/purchase-request/PurchaseRequestView", () => ({
+  default: ({ requestId }) => <p>Request body {requestId}</p>,
+}));
+vi.mock("@/components/purchase-request/RequestBuyer", () => ({ default: () => null }));
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mockUser.current, isAuthLoading: false, logout: vi.fn() }),
@@ -49,20 +61,53 @@ function Where() {
   return <p>At {location.pathname}{location.search}</p>;
 }
 
-const renderPage = () =>
+function DashboardAt() {
+  const location = useLocation();
+  return (
+    <>
+      <PurchasingDashboardPage />
+      <output data-testid="url">{location.search}</output>
+    </>
+  );
+}
+
+const renderPage = (entry = "/purchasing/dashboard?tab=projects") =>
   renderWithProviders(
-    <MemoryRouter initialEntries={["/purchasing/dashboard"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
-        <Route path="/purchasing/dashboard" element={<PurchasingDashboardPage />} />
+        <Route path="/purchasing/dashboard" element={<DashboardAt />} />
         <Route path="*" element={<Where />} />
       </Routes>
     </MemoryRouter>,
   );
 
+const QUEUE_ROW = {
+  id: "pr-1",
+  opportunity_id: "sor-1",
+  sales_reference: "S07983",
+  project_title: "Ambulance",
+  stage_name: null,
+  sor_closed: null,
+  buyer_id: null,
+  item_count: 6,
+  open_count: 6,
+  title: null,
+};
+
 describe("Purchasing Dashboard page", () => {
   beforeEach(() => {
     mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
     stubRpc("purchasing_dashboard_rows", () => ROWS);
+    stubRpc("purchase_request_queue", () => [QUEUE_ROW]);
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("opens on What needs doing, with Projects and Register beside it", async () => {
+    renderPage("/purchasing/dashboard");
+    expect(await screen.findByRole("tab", { name: "What needs doing" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: "Register" })).toBeInTheDocument();
   });
 
   it("opens an order on its IPAS and narrows to IPAS late by the ageing rules", async () => {
@@ -109,7 +154,11 @@ describe("Purchasing Dashboard page", () => {
 
   it("shows the five groups with counts, and the SOR in all four of its groups", async () => {
     renderPage();
-    expect(await screen.findByRole("heading", { level: 1, name: /purchasings*dashboard/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: /purchasing\s*dashboard/i })).toBeInTheDocument();
+    const counts = await screen.findByRole("region", { name: "Group counts" });
+    expect(within(counts).getByText("To source")).toBeInTheDocument();
+    expect(within(counts).getByText("On order")).toBeInTheDocument();
+    expect(within(counts).getAllByText("1 SOR").length).toBeGreaterThan(0);
     expect(await screen.findByRole("heading", { name: /To source \(4 items, 1 SOR\)/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /To order \(0 items, 0 SORs\)/ })).toBeInTheDocument();
     for (const grp of ["to_source", "to_price", "on_order", "to_check"]) {
@@ -125,9 +174,47 @@ describe("Purchasing Dashboard page", () => {
     expect(await screen.findByText("At /purchasing/transmittals/tr-1")).toBeInTheDocument();
   });
 
-  it("narrows to items ordered with no canvass", async () => {
+  it("opens a Purchase Request in the slide-over on the dashboard, in the URL", async () => {
     renderPage();
-    await setupUser().click(await screen.findByRole("button", { name: "Ordered with no canvass" }));
+    await setupUser().click(await screen.findByRole("button", { name: /Ambulance kit/ }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByText("Ambulance")).toBeInTheDocument();
+    expect(await within(sheet).findByText("Request body pr-1")).toBeInTheDocument();
+    expect(screen.getByTestId("url")).toHaveTextContent("request=pr-1");
+  });
+
+  it("opens the request full screen from the slide-over, and the next one opens full too", async () => {
+    const user = setupUser();
+    const first = renderPage();
+    await user.click(await screen.findByRole("button", { name: /Ambulance kit/ }));
+    await user.click(await screen.findByRole("button", { name: "Open full" }));
+    expect(await screen.findByRole("button", { name: "Show in side panel" })).toBeInTheDocument();
+    first.unmount();
+
+    renderPage("/purchasing/dashboard?tab=projects&request=pr-1");
+    const back = await screen.findByRole("button", { name: "Show in side panel" });
+    await user.click(back);
+    expect(await screen.findByRole("button", { name: "Open full" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show in side panel" })).not.toBeInTheDocument();
+  }, 20_000);
+
+  it("still opens the slide-over when browser storage throws", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+    renderPage("/purchasing/dashboard?tab=projects&request=pr-1");
+    expect(await screen.findByRole("button", { name: "Open full" })).toBeInTheDocument();
+  });
+
+  it("narrows to items ordered with no canvass, a choice in the Filters popover", async () => {
+    renderPage();
+    const user = setupUser();
+    await user.click(await screen.findByRole("button", { name: /Filters/ }));
+    await user.click(await screen.findByRole("button", { name: /With or without a canvass/ }));
+    await user.click(await screen.findByRole("button", { name: "Ordered with no canvass" }));
     expect(await screen.findByRole("heading", { name: /On order \(1 item, 1 SOR\)/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /To source \(0 items, 0 SORs\)/ })).toBeInTheDocument();
   });
