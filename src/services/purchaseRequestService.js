@@ -313,12 +313,34 @@ export const purchaseRequestService = {
     // Each item's Canvass (#280): its own, or its Component's. Number and signed state only.
     const canvassByItem = await this.canvassesForItems(items.data || []);
 
+    // The price copied from a Canvass winner (#582). The table's row policy returns rows only to
+    // a member with Purchasing, Finance or Super Admin access, so anyone else gets no entry.
+    const priceByItem = await this.pricesForItems(items.data || []);
+
     return (items.data || []).map((item) => ({
       ...item,
+      ...(priceByItem.has(item.id) ? { price: priceByItem.get(item.id) } : {}),
       ...(lineByItem.has(item.id) ? { sorLine: lineByItem.get(item.id) } : {}),
       ...(componentByItem.has(item.id) ? { component: componentByItem.get(item.id) } : {}),
       ...(canvassByItem.has(item.id) ? { canvass: canvassByItem.get(item.id) } : {}),
     }));
+  },
+
+  /**
+   * The price of each item made from a Canvass (#582), as a Map of item id to
+   * `{ unitPrice, currency }`. The database shows a row only to a member of the request with
+   * Purchasing access, Finance access or Super Admin, so for anyone else the Map is empty.
+   */
+  async pricesForItems(items = []) {
+    const byItem = new Map();
+    if (items.length === 0) return byItem;
+    const { data, error } = await supabase
+      .from("purchase_request_item_prices")
+      .select("item_id, unit_price, currency")
+      .in("item_id", items.map((i) => i.id));
+    if (error) throw error;
+    for (const p of data || []) byItem.set(p.item_id, { unitPrice: Number(p.unit_price), currency: p.currency });
+    return byItem;
   },
 
   /**

@@ -66,6 +66,10 @@ function ItemName({ name }) {
   );
 }
 
+/** "PHP 250.50" — the price a Canvass winner gave the item (#582). */
+const formatPrice = ({ unitPrice, currency }) =>
+  `${currency || "PHP"} ${unitPrice.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 /**
  * One Requested Item (#305) as it was picked or described: its amount and
  * status; for an item from an SOR line, its product's stock with the time it
@@ -96,6 +100,12 @@ export default function RequestedItemRow({ item, stockSnapshot, actions = null, 
             {" · "}
             {ITEM_SOURCE_LABEL[item.source] || "From the SOR"}
             {item.requester?.name && ` · ${item.requester.name}`}
+            {item.price && (
+              <span data-testid="requested-item-price">
+                {" · "}
+                <span className="font-semibold text-foreground">{formatPrice(item.price)}</span> each
+              </span>
+            )}
           </p>
         </div>
         <div className="shrink-0 pt-0.5">
