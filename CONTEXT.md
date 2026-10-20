@@ -572,9 +572,11 @@ Where every project's buying is seen at once, grouped by what is outstanding
 rather than by which record holds it — **To source**, **To price**, **To order**,
 **On order**, **To check**. The groups are derived and never stored, and one SOR
 sits in as many as apply, because purchasing is not a line: components are
-canvassed while others are already ordered and others are on a truck. Sits above
-the Purchase Requests list and Order Monitoring rather than replacing either — they
-answer what to do today, this answers where everything is.
+canvassed while others are already ordered and others are on a truck. One page
+with three tabs: **Projects** (those groups), then Order Monitoring's **What needs
+doing** and **Register**; it opens on What needs doing. The tabs stay separate views
+— Projects answers where everything is, Order Monitoring what to do today — and
+the Purchase Requests list stays its own page.
 _Avoid_: Purchasing Stages, Sourcing (the Inclusion field of that name), Pipeline
 
 **Inclusion**:
@@ -594,11 +596,15 @@ Odoo's count of a product that is on hand and not reserved, per warehouse, as of
 _Avoid_: Inventory (unqualified), Live Stock
 
 **Canvass**:
-The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase has no Costing Matrix row yet — never both, never neither. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its Costing Matrix row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
+The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase has no Costing Matrix row yet — never both. Buying outside a project is canvassed first, on the Canvasses page, against nothing yet; a Purchase Request is then created from that Canvass, and the Canvass points at the Requested Item it became. Gets its number when its first Offer is saved, not when it is opened. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its Costing Matrix row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 
+**Canvasses** (the page):
+The Purchasing page listing every Canvass, project ones included, and where a Canvass for buying outside a project is started. Buying outside a project runs either way round: Purchasing canvasses first and creates the Purchase Request from it, or an employee opens a Direct request first and canvassing one of its Requested Items opens that item's Canvass here. Several Canvasses can be picked to create one Purchase Request, one Requested Item each. Creating one needs each Canvass to have a winner; a Canvass not yet signed off only warns.
+_Avoid_: Canvass tool, Sourcing page
+
 **Offer**:
-One supplier's answer within a Canvass — the supplier, brand, description, source link, brochure, remarks, unit price in the currency quoted — with the rate used to compare it, which is never the rate actually paid — how long the quote holds, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before. Winning fills its Component's Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
+One supplier's answer within a Canvass — the supplier, brand, description, source link, brochure, remarks, unit price in the currency quoted — with the rate used to compare it, which is never the rate actually paid — how long the quote holds, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before. The winner can also be un-picked, leaving none: that clears the Canvass's sign-off and leaves what the winner filled in place until a new winner replaces it. Winning fills its Component's Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
 _Avoid_: Quote, Bid, Supplier Response
 
 **Reference Rate**:
@@ -788,7 +794,7 @@ someone has to act, and a later GC on a replacement settles it.
 _Avoid_: Pass / Fail, Received / Short / Damaged, Condition (unqualified)
 
 **Order Monitoring**:
-The Purchasing page that shows every open IPAS across every SOR with the one next
+The two Purchasing Dashboard tabs that show every open IPAS across every SOR with the one next
 thing it is waiting on, who owes it and how long it has waited, and the SOR's
 own IPAS section shows the same line. Opens on What needs doing; the Register
 behind it lists every order, filed ones included. Order Monitoring reads the
