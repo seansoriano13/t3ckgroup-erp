@@ -11,7 +11,7 @@ import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { Dialog } from "@/components/ui/dialog"
 import { RecordModalContent } from "@/components/ui/record-modal"
-import { statusMenuReady } from "./statusMenuReady"
+import { statusMenuReady } from "@/test/support/statusMenuReady"
 import RequestedItems from "./RequestedItems"
 
 let buyer, request

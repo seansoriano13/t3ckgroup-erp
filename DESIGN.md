@@ -357,7 +357,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/Spinner.jsx`. Props: `size`, `text`, `fullScreen`, `className`.
 
 #### CustomToast
-`ui/CustomToast.jsx`. Toast body for react-hot-toast. `CustomToast` props: `t`, `title`, `description`, `variant` (`default` | `success` | `error` | `loading` | `info` | `confirm`), `onConfirm`, `onCancel`, `confirmText`, `cancelText`; renders `t.action` (`{ label, onClick }`) when set. Helpers: `confirmDeleteToast(title, description, onConfirm)`, `confirmActionToast(title, description, confirmText, actionType, onConfirm)`, `undoableSuccessToast(message, label, onUndo, duration)`.
+`ui/CustomToast.jsx`. Toast body for react-hot-toast. `CustomToast` props: `t`, `title`, `description`, `variant` (`default` | `success` | `error` | `warning` | `loading` | `info` | `confirm`), `onConfirm`, `onCancel`, `confirmText`, `cancelText`; renders `t.action` (`{ label, onClick }`) when set. Helpers: `warningToast(message, duration)` (done, but look again: amber), `confirmDeleteToast(title, description, onConfirm)`, `confirmActionToast(title, description, confirmText, actionType, onConfirm)`, `undoableSuccessToast(message, label, onUndo, duration)`.
 
 #### EmojiPicker
 `ui/EmojiPicker.jsx`. Emoji button plus popup grid with recents. Props: `onSelect(emoji)`, `className`, `align`, `disabled`.

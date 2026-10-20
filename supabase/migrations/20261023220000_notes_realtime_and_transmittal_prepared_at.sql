@@ -42,3 +42,7 @@ begin
     alter table public.transmittals alter column prepared_on set default now();
   end if;
 end $$;
+
+-- The name says "on" but the value is a timestamp now (kept so no query or screen breaks).
+comment on column public.transmittals.prepared_on is
+  'When the slip was prepared: a timestamp (timestamptz), shown in Asia/Manila. Named prepared_on from when it was a date; the name is kept.';
