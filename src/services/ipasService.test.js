@@ -705,7 +705,7 @@ describe("ipasService", () => {
           detail: { fields: { pi_number: { from: null, to: "PI-1" } } },
         })
 
-        const direct = await supabase.rpc("ipas_set_header", { p_ipas_id: row.id, p_fields: { remarks: "x" } })
+        const direct = await supabase.rpc("ipas_set_header", { p_ipas_id: row.id, p_fields: { purpose: "x" } })
         expect(direct.error?.code).toBe("22023")
         await expect(ipasService.setHeader(row.id, {})).rejects.toMatchObject({ code: IPAS_ERROR.INVALID })
       })

@@ -465,9 +465,10 @@ export const ipasService = {
    */
   async setHeader(
     id,
-    { supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus, googleSheet, ganttChart } = {},
+    { supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus, googleSheet, ganttChart, remarks } = {},
   ) {
     const fields = {};
+    if (remarks !== undefined) fields.remarks = remarks ?? "";
     if (supplierContact !== undefined) fields.supplier_contact = supplierContact ?? "";
     if (piNumber !== undefined) fields.pi_number = piNumber ?? "";
     if (piQtAmount !== undefined) {

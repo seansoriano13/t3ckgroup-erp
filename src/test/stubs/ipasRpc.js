@@ -648,6 +648,7 @@ export function stubIpasRpcs({
     "computation_status",
     "google_sheet",
     "gantt_chart",
+    "remarks",
   ]
   const SPLITS = ["value", "quantity", "equal"]
   const STATUSES = ["encoding", "encoded", "lc_gs_done", "lc_odoo_done", "checked"]
@@ -688,6 +689,16 @@ export function stubIpasRpcs({
     const changes = {}
     const note = (key, from, to, extra = {}) => {
       changes[key] = { from: from ?? null, to: to ?? null, ...extra }
+    }
+
+    if ("remarks" in fields) {
+      const raw = fields.remarks
+      if (raw !== null && typeof raw !== "string") refuse("22023", "ipas_set_header: Remarks must be text")
+      const to = clean(raw)
+      if (to !== (clean(row.remarks) ?? null)) {
+        next.remarks = to
+        note("remarks", row.remarks, to)
+      }
     }
 
     for (const key of ["supplier_contact", "pi_number"]) {

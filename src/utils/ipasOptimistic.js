@@ -52,8 +52,9 @@ const nowIso = () => new Date().toISOString();
 export const setRow = (fields) => (raw) => ({ ...raw, row: { ...raw.row, ...fields } });
 
 /** The row columns `ipasService.setHeader`'s camelCase values write. */
-export function headerColumns({ supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus, googleSheet, ganttChart }) {
+export function headerColumns({ supplierContact, piNumber, piQtAmount, freightServiceId, landedCostSplit, computationStatus, googleSheet, ganttChart, remarks }) {
   const fields = {};
+  if (remarks !== undefined) fields.remarks = (remarks ?? "").trim() || null;
   if (supplierContact !== undefined) fields.supplier_contact = (supplierContact ?? "").trim() || null;
   if (piNumber !== undefined) fields.pi_number = (piNumber ?? "").trim() || null;
   if (piQtAmount !== undefined) {

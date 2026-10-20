@@ -526,6 +526,35 @@ describe("IPAS pages", () => {
       expect(db.rows("ipas")[0].supplier_contact).toBe("Mr. R. Cruz");
     });
 
+    it("edits Remarks on an open IPAS and records it in history", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id, remarks: "For the Capas deal" });
+      stubEdgeFunction("odoo-po-ipas", answer("P02552"));
+      const user = setupUser();
+
+      renderDetail(row.id, "header", "edit");
+      await user.click(await screen.findByRole("button", { name: "Edit Remarks" }));
+      const dialog = await screen.findByRole("dialog");
+      const field = within(dialog).getByRole("textbox");
+      await user.clear(field);
+      await user.type(field, "Rush: client needs it Friday");
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+      expect(await screen.findByText("Rush: client needs it Friday")).toBeInTheDocument();
+      expect(db.rows("ipas")[0].remarks).toBe("Rush: client needs it Friday");
+      const event = db.rows("ipas_events").find((e) => e.kind === "header_changed");
+      expect(event.detail.fields.remarks).toEqual({ from: "For the Capas deal", to: "Rush: client needs it Friday" });
+    });
+
+    it("fixes Remarks once the IPAS is filed", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id, remarks: "Frozen note", state: "filed" });
+      stubEdgeFunction("odoo-po-ipas", answer("P02552"));
+
+      renderDetail(row.id, "header", "edit");
+
+      expect(await screen.findByText("Frozen note")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Edit Remarks" })).not.toBeInTheDocument();
+    });
+
     it("says Odoo PO cancelled and leaves the IPAS open to cancel by hand", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", answer("P02552", { po: { id: 1, name: "P02552", state: "cancel", company: "T3ck Trading", currency: "Php", origin: null, partner_ref: null } }));
