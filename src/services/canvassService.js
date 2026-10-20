@@ -327,6 +327,7 @@ export const canvassService = {
   /** What a Canvass with no subject is buying. Blank is refused there: it has nothing else to go by. */
   async setProductName(canvassId, productName) {
     if (!canvassId) throw new Error("A Canvass id is required.");
+    if (!text(productName)) throw new Error("Say what this Canvass is buying.");
     const { data, error } = await supabase
       .from("sor_canvasses")
       .update({ product_name: text(productName) })
@@ -342,7 +343,7 @@ export const canvassService = {
    * (`canvass_create_purchase_request`): one Requested Item per Canvass, named from the Canvass and
    * described from its winner, and each Canvass then points at its item. Every Canvass needs a
    * winner; one not signed off is allowed (the screen warns first). `items` is
-   * `[{ canvassId, quantity, unit }]`. Returns `{ requestId, items: [{ canvassId, itemId }] }`.
+   * `[{ canvassId, quantity, unit }]`. Returns `{ requestId, items: [{ canvassId, itemId }], unsignedCanvassIds }`.
    */
   async createPurchaseRequest({ title, items = [] } = {}) {
     const name = text(title);
@@ -358,6 +359,7 @@ export const canvassService = {
     return {
       requestId: data.request_id,
       items: (data.items ?? []).map((i) => ({ canvassId: i.canvass_id, itemId: i.item_id })),
+      unsignedCanvassIds: data.unsigned_canvass_ids ?? [],
     };
   },
 

@@ -15,6 +15,8 @@ const RLS_DENIED = "42501"
 const BAD_INPUT = "22023"
 
 const created = []
+const addedToList = []
+const LIST = "transmittal_check_by"
 const asSvc = async (query, what) => {
     const { data, error } = await query
     if (error) throw new Error(`${what}: ${error.message}`)
@@ -38,6 +40,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     if (created.length) await svc().from("sor_canvasses").delete().in("id", created)
+    for (const id of addedToList) await svc().from("ipas_signer_lists").delete().eq("list_key", LIST).eq("employee_id", id)
 })
 
 describe("the first Offer starts the Canvass", () => {
@@ -95,6 +98,25 @@ describe("the relaxed subject rule", () => {
     })
 })
 
+describe("un-picking the winner of an unsigned Canvass", () => {
+    it("still writes a history row", async () => {
+        const { data, error } = await start("outsider", { p_product_name: `${MARKER} unpick unsigned` })
+        if (error) throw new Error(error.message)
+        created.push(data.canvass_id)
+        await asSvc(svc().from("sor_canvass_offers").update({ is_winner: true }).eq("id", data.offer.id), "winner")
+        const res = await (await clientFor("outsider")).rpc("canvass_clear_winner", { p_canvass_id: data.canvass_id })
+        expect(res.error).toBeNull()
+        const rows = await asSvc(svc().from("sor_canvass_signoff_events").select("kind, reason").eq("canvass_id", data.canvass_id), "history")
+        expect(rows).toEqual([{ kind: "cleared", reason: "The winner was un-picked" }])
+    })
+
+    it("lets a purchaser read the money on a Canvass with no subject", async () => {
+        const { data, error } = await (await clientFor("outsider")).rpc("canvass_subject_can_read_money", { p_component_id: null, p_requested_item_id: null })
+        expect(error).toBeNull()
+        expect(data).toBe(true)
+    })
+});
+
 describe("un-picking the winner", () => {
     let canvassId, offerId
 
@@ -105,7 +127,14 @@ describe("un-picking the winner", () => {
         offerId = data.offer.id
         created.push(canvassId)
         await asSvc(svc().from("sor_canvass_offers").update({ is_winner: true }).eq("id", offerId), "winner")
-        await asSvc(svc().from("sor_canvasses").update({ signed_off_at: new Date().toISOString(), signed_off_by: ids.superAdmin }).eq("id", canvassId), "sign-off")
+        await asSvc(svc().from("sor_canvasses").update({ reason: "Cheapest that meets the need." }).eq("id", canvassId), "reason")
+        const present = await asSvc(svc().from("ipas_signer_lists").select("employee_id").eq("list_key", LIST).eq("employee_id", ids.checkByTwo), "list")
+        if (present.length === 0) {
+            await asSvc(svc().from("ipas_signer_lists").insert({ list_key: LIST, employee_id: ids.checkByTwo }), "list member")
+            addedToList.push(ids.checkByTwo)
+        }
+        const signed = await (await clientFor("checkByTwo")).rpc("canvass_sign", { p_canvass_id: canvassId })
+        if (signed.error) throw new Error(`sign-off: ${signed.error.message}`)
     })
 
     it("refuses someone without Purchasing access", async () => {
@@ -122,6 +151,11 @@ describe("un-picking the winner", () => {
         expect(offers.some((o) => o.is_winner)).toBe(false)
         const canvass = await asSvc(svc().from("sor_canvasses").select("signed_off_at").eq("id", canvassId).single(), "Canvass")
         expect(canvass.signed_off_at).toBeNull()
+    })
+
+    it("writes its own history row for the un-pick", async () => {
+        const rows = await asSvc(svc().from("sor_canvass_signoff_events").select("kind, reason").eq("canvass_id", canvassId), "history")
+        expect(rows.filter((r) => r.kind === "cleared" && r.reason === "The winner was un-picked")).toHaveLength(1)
     })
 
     it("is quiet when there is no winner to clear", async () => {

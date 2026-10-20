@@ -161,6 +161,18 @@ describe("the Canvasses page opened from a Requested Item", () => {
     expect(screen.queryByRole("button", { name: /create purchase request/i })).not.toBeInTheDocument();
   });
 
+  it("shows a reader no row checkboxes even when subject-less Canvasses exist", async () => {
+    mockUser.current = makeEmployee({ name: "Ana Reyes", has_purchasing_flow: false });
+    stubCanvassMoneyRpc({ money: false });
+    stubCanvassWinnerRpcs({ bands: [] });
+    stubCanvassListRpcs({ actorId: mockUser.current.id });
+    const free = db.seed("sor_canvasses", { number: "CNV_0009", product_name: "Gloves", canvasser_id: mockUser.current.id, created_by: mockUser.current.id });
+    db.seed("sor_canvass_offers", { canvass_id: free.id, supplier_name: "Glove Co", brand: "Ansell", is_winner: true });
+    renderAt("/purchasing/canvasses");
+    expect(await screen.findAllByTestId("canvass-row")).not.toHaveLength(0);
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
   it("opens a draft for an item that has no Canvass yet, creating nothing", async () => {
     mockUser.current = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true });
     stubCanvassMoneyRpc({ money: true });

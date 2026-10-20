@@ -19,7 +19,7 @@ import CanvassPanel from "../../../components/CanvassPanel";
 import { useAuth } from "../../../context/AuthContext";
 import { canvassService } from "../../../services/canvassService";
 import { CANVASS_KIND, CANVASS_LIST_KEY } from "../../../constants/canvass";
-import { ANY, canvassSubjectLabel, filterCanvasses } from "../../../utils/canvassList";
+import { ANY, LINKED_FILTER, SIGNED_FILTER, WINNER_FILTER, canvassSubjectLabel, canvassAddressParams, filterCanvasses } from "../../../utils/canvassList";
 import { getPermissionContext } from "../../../utils/permissions";
 
 /**
@@ -30,18 +30,18 @@ import { getPermissionContext } from "../../../utils/permissions";
 
 const SIGNED = [
   { value: ANY, label: "Any sign-off" },
-  { value: "signed", label: "Signed off" },
-  { value: "unsigned", label: "Not signed" },
+  { value: SIGNED_FILTER.SIGNED, label: "Signed off" },
+  { value: SIGNED_FILTER.UNSIGNED, label: "Not signed" },
 ];
 const WINNER = [
   { value: ANY, label: "Winner or not" },
-  { value: "yes", label: "Has a winner" },
-  { value: "no", label: "No winner" },
+  { value: WINNER_FILTER.YES, label: "Has a winner" },
+  { value: WINNER_FILTER.NO, label: "No winner" },
 ];
 const LINKED = [
   { value: ANY, label: "Linked or not" },
-  { value: "linked", label: "On a Component or item" },
-  { value: "free", label: "Not linked" },
+  { value: LINKED_FILTER.LINKED, label: "On a Component or item" },
+  { value: LINKED_FILTER.FREE, label: "Not linked" },
 ];
 
 const KIND_LABEL = {
@@ -82,21 +82,22 @@ function CanvassesPage({ userId, canEdit }) {
   };
 
   // The open Canvass is in the address: ?canvass=<id>, or ?item= / ?component= for one found by its subject.
-  const openRow = useMemo(() => {
-    const id = params.get("canvass");
-    const item = params.get("item");
-    const component = params.get("component");
-    return rows.find((r) => (id && r.id === id) || (item && r.requestedItemId === item) || (component && r.componentId === component)) ?? null;
-  }, [params, rows]);
+  const { canvass: canvassParam, item: itemParam, component: componentParam } = canvassAddressParams(params);
+  // An exact ?canvass= match wins over a Canvass found by its subject.
+  const openRow = useMemo(
+    () =>
+      (canvassParam && rows.find((r) => r.id === canvassParam)) ||
+      rows.find((r) => (itemParam && r.requestedItemId === itemParam) || (componentParam && r.componentId === componentParam)) ||
+      null,
+    [canvassParam, itemParam, componentParam, rows],
+  );
   // ?item= / ?component= with no Canvass yet opens a draft; nothing is created until its first Offer is saved.
   const draftSubject = useMemo(() => {
     if (openRow) return null;
-    const item = params.get("item");
-    const component = params.get("component");
-    if (component) return { componentId: component };
-    if (item) return { requestedItemId: item };
+    if (componentParam) return { componentId: componentParam };
+    if (itemParam) return { requestedItemId: itemParam };
     return null;
-  }, [openRow, params]);
+  }, [openRow, itemParam, componentParam]);
   const ready = !isLoading && !isError;
   // A new Canvass with no subject: nothing is written until its first Offer is saved (canvass_start),
   // which makes the starter its Canvasser and gives it a number. Then it is a row like any other.
@@ -113,8 +114,10 @@ function CanvassesPage({ userId, canEdit }) {
   const togglePick = (id) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   const createRequest = useMutation({
     mutationFn: () => canvassService.createPurchaseRequest({ title: requestTitle, items: pickedRows.map((r) => ({ canvassId: r.id })) }),
-    onSuccess: () => {
+    onSuccess: (made) => {
       toast.success("Purchase Request created.");
+      const numbers = rows.filter((r) => made.unsignedCanvassIds.includes(r.id)).map((r) => r.number);
+      if (numbers.length > 0) toast.warning(`Not signed off yet: ${numbers.join(", ")}.`);
       setCreating(false);
       setPicked([]);
       setRequestTitle("");
