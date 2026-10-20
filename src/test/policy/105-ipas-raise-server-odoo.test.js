@@ -11,9 +11,9 @@
  * `ordinary` do not.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
+import { FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded, castEmail } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
-import { purgeFixtureIpas, raiseIpas } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseIpas, recordOdooCopyAs } from "./support/ipas.js"
 
 const svc = () => serviceClient()
 
@@ -182,12 +182,36 @@ describe("a signed-in caller cannot send a copy", () => {
         expect(await rowsFor(po)).toEqual([])
     })
 
-    it("keeps refresh-on-open working for the purchaser", async () => {
+    it("keeps refresh-on-open working for the purchaser, through the server", async () => {
         const po = nextPo()
         const { data: ipas } = await serverRaise(po, "found", odooAnswer(po))
         const next = { ...ipas.odoo_copy, receipts: { status: "partial", done: 1, total: 2 } }
-        const { data, error } = await (await clientFor("outsider")).rpc("ipas_record_odoo_copy", { p_ipas_id: ipas.id, p_odoo_copy: next })
+        const { data, error } = await recordOdooCopyAs("outsider", { p_ipas_id: ipas.id, p_odoo_copy: next })
         expect(error).toBeNull()
         expect(data.ipas.odoo_copy.receipts.done).toBe(1)
+    })
+
+    it("refuses a signed-in caller storing an Odoo copy, directly or through the server function", async () => {
+        const po = nextPo()
+        const { data: ipas } = await serverRaise(po, "found", odooAnswer(po))
+        const forged = { ...ipas.odoo_copy, receipts: { status: "full", done: 9, total: 9 } }
+        const client = await clientFor("outsider")
+
+        const direct = await client.rpc("ipas_record_odoo_copy", { p_ipas_id: ipas.id, p_odoo_copy: forged })
+        expect(direct.error?.code).toBe("42501")
+        const viaServer = await client.rpc("ipas_refresh_from_odoo", {
+            p_actor_email: castEmail("outsider"),
+            p_ipas_id: ipas.id,
+            p_odoo_copy: forged,
+        })
+        expect(viaServer.error?.code).toBe("42501")
+        expect((await rowsFor(po))[0].odoo_copy.receipts.done).not.toBe(9)
+    })
+
+    it("still holds the server path to the reader rule", async () => {
+        const po = nextPo()
+        const { data: ipas } = await serverRaise(po, "found", odooAnswer(po))
+        const refused = await recordOdooCopyAs("ordinary", { p_ipas_id: ipas.id, p_odoo_copy: ipas.odoo_copy })
+        expect(refused.error?.code).toBe("42501")
     })
 })

@@ -27,15 +27,9 @@ import {
   executeKw,
   isConfigured,
   jsonResponse,
+  normalizePoNumber,
   normalizeReference,
 } from "../_shared/odoo.ts";
-
-const PO_NUMBER_PATTERN = /^P\d+$/;
-
-function normalizePoNumber(value: unknown) {
-  const ref = String(value ?? "").trim().toUpperCase();
-  return PO_NUMBER_PATTERN.test(ref) ? ref : null;
-}
 
 const FIELDS = [
   "id",
