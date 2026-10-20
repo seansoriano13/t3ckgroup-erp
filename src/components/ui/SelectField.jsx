@@ -1,3 +1,6 @@
+import { useId } from "react";
+import { cn } from "@/lib/utils";
+import { LabeledCard } from "./labeledCard";
 import { useDropdownNestedPopoverRef } from "./dropdownNesting";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
@@ -16,20 +19,29 @@ export function SelectField({
   size,
   className,
   contentClassName,
+  label,
+  error,
+  containerClassName,
   ...props
 }) {
+  const labelId = useId();
   const popupRef = useDropdownNestedPopoverRef();
   const selected = options.find((o) => o.value === value);
   // "" with no "" option means nothing chosen, so the placeholder shows.
   const unset = value == null || (value === "" && !selected);
-  return (
+  const select = (
     <Select
       value={unset ? null : value}
       onValueChange={(next) => onChange?.(next)}
       disabled={disabled}
       items={options}
     >
-      <SelectTrigger size={size} className={className} {...props}>
+      <SelectTrigger
+        size={size}
+        className={label ? cn("h-auto border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent", className) : className}
+        aria-labelledby={label ? labelId : undefined}
+        {...props}
+      >
         <SelectValue placeholder={placeholder}>{selected?.label}</SelectValue>
       </SelectTrigger>
       <SelectContent ref={popupRef} className={contentClassName} alignItemWithTrigger={false}>
@@ -40,5 +52,11 @@ export function SelectField({
         ))}
       </SelectContent>
     </Select>
+  );
+  if (!label) return select;
+  return (
+    <LabeledCard label={label} labelId={labelId} error={error} disabled={disabled} className={containerClassName}>
+      {select}
+    </LabeledCard>
   );
 }

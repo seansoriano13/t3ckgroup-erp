@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { LabeledCard } from "./labeledCard";
 
 const Input = React.forwardRef(function Input(
   {
@@ -14,26 +15,19 @@ const Input = React.forwardRef(function Input(
   },
   ref,
 ) {
+  const generatedId = React.useId();
   // If a label is provided, render the standardized labeled card container
   if (label) {
+    const inputId = props.id ?? generatedId;
     return (
-      <div
-        className={cn(
-          "bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all w-full",
-          error && "border-destructive focus-within:border-destructive ring-destructive/20",
-          props.disabled && "opacity-50 pointer-events-none",
-          containerClassName,
-        )}
+      <LabeledCard
+        label={label}
+        htmlFor={inputId}
+        error={error}
+        disabled={props.disabled}
+        className={containerClassName}
+        labelClassName={labelClassName}
       >
-        <label
-          className={cn(
-            "text-label font-bold text-muted-foreground uppercase tracking-widest mb-1 block",
-            error && "text-destructive",
-            labelClassName,
-          )}
-        >
-          {label}
-        </label>
         <div className="flex items-center gap-2">
           {Icon && <Icon size={16} className="text-muted-foreground shrink-0" />}
           <input
@@ -44,12 +38,10 @@ const Input = React.forwardRef(function Input(
               className,
             )}
             {...props}
+            id={inputId}
           />
         </div>
-        {error && (
-          <span className="text-[10px] font-bold text-destructive mt-1">{error}</span>
-        )}
-      </div>
+      </LabeledCard>
     );
   }
 
