@@ -28,7 +28,7 @@ export function formHTML(d) {
     + '<div class="rem"><div class="k">' + d.remK + '</div><p>' + d.rem + '</p></div>'
     + '</div>'
     + '<div class="cR">'
-    + '<div class="blk"><div class="k">Outcome</div><div class="v"><span class="dot"></span>' + d.outcome + '</div></div>'
+    + (d.outcome ? '<div class="blk"><div class="k">Outcome</div><div class="v"><span class="dot"></span>' + d.outcome + '</div></div>' : '')
     + '<div class="blk"><div class="k">HRD validation</div><div class="rows">'
     + d.hrd.map(function (h) { return '<div class="row"><span class="a">' + h[0] + '</span><span class="b2 m">' + h[1] + '</span></div>'; }).join('')
     + '</div></div>'

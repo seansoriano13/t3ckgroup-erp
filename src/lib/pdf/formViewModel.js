@@ -5,7 +5,7 @@
  * form never shows a fact the record can't back up.
  */
 
-import { resolveLeaveCategory, getInclusiveDates, getDayCount, isLateFiling, isLegacySignature, getOvertimeOutcome, getOvertimeHoursDisplay } from './layout';
+import { getInclusiveDates, getDayCount, isLateFiling, isLegacySignature, getOvertimeHoursDisplay } from './layout';
 
 /** One record number prefix per record type — the single source the registry (formTypeRegistry.js) draws its label from. */
 const RECORD_PREFIXES = { OVERTIME: 'OT', UNDERTIME: 'UT', SIL: 'LV', OFFSET: 'LV' };
@@ -21,7 +21,7 @@ export function getRecordNumber(record) {
 
 /** Which balance a leave/Offset application draws from. */
 export function getTreatedAs(record) {
-  if (record.type === 'SIL') return 'Service Incentive Leave';
+  if (record.type === 'SIL') return 'Leave With Pay (LWP)';
   if (record.type === 'OFFSET') return 'Offset';
   return 'Unknown';
 }
@@ -188,8 +188,6 @@ function undertimeValidationRows(record) {
 export function buildTG11ViewModel(record) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
-    { k: 'Employment status', v: record.employee?.employment_status || '—' },
-    { k: 'Category', v: resolveLeaveCategory(record) },
     { k: 'Inclusive dates', v: getInclusiveDates(record), x: `${getDayCount(record)} day${getDayCount(record) > 1 ? 's' : ''}` },
     { k: 'Treated as', v: getTreatedAs(record) },
   ];
@@ -197,7 +195,7 @@ export function buildTG11ViewModel(record) {
   return {
     recordNo: getRecordNumber(record),
     formLabel: 'TG-11',
-    kind: 'Application for Leave',
+    kind: 'Application for Leave / Offset Form',
     name: record.employee?.name || 'Unknown',
     meta: [record.employee?.role, record.employee?.department, record.employee?.sub_department].filter(Boolean).join(' · '),
     company: record.company?.name || null,
@@ -220,7 +218,6 @@ export function buildTG12ViewModel(record) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
     { k: 'Date of overtime', v: record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
-    { k: 'Employment status', v: record.employee?.employment_status || '—' },
     { k: 'Time window', v: (record.start_time && record.end_time) ? `${record.start_time} – ${record.end_time}` : '—' },
   ];
 
@@ -229,7 +226,7 @@ export function buildTG12ViewModel(record) {
   return {
     recordNo: getRecordNumber(record),
     formLabel: 'TG-12',
-    kind: 'Overtime Authorization',
+    kind: 'Overtime Authorization Form',
     name: record.employee?.name || 'Unknown',
     meta: [record.employee?.role, record.employee?.department, record.employee?.sub_department].filter(Boolean).join(' · '),
     company: record.company?.name || null,
@@ -238,7 +235,6 @@ export function buildTG12ViewModel(record) {
     bigU: 'hrs',
     requestedHours: isDifferent ? trimNumber(requested) : null,
     fields,
-    outcome: getOvertimeOutcome(record.status),
     remK: 'Notice of overtime',
     rem: [record.reason, record.hr_notes ? `HR Note: ${record.hr_notes}` : null].filter(Boolean).join('\n\n') || '',
     hrd: hrdValidationRows(record, 'Offset balance'),
@@ -260,7 +256,6 @@ export function buildTG13ViewModel(record) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
     { k: 'Date of undertime', v: record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
-    { k: 'Employment status', v: record.employee?.employment_status || '—' },
     { k: 'Original work schedule', v: (record.original_start_time && record.original_end_time) ? `${record.original_start_time} – ${record.original_end_time}` : '—' },
     { k: 'Actual work schedule', v: (record.actual_start_time && record.actual_end_time) ? `${record.actual_start_time} – ${record.actual_end_time}` : '—' },
   ];
@@ -270,7 +265,7 @@ export function buildTG13ViewModel(record) {
   return {
     recordNo: getRecordNumber(record),
     formLabel: 'TG-13',
-    kind: 'Undertime',
+    kind: 'Undertime Request Form',
     name: record.employee?.name || 'Unknown',
     meta: [record.employee?.role, record.employee?.department, record.employee?.sub_department].filter(Boolean).join(' · '),
     company: record.company?.name || null,
