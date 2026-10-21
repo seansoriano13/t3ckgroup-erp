@@ -28,6 +28,18 @@ _Avoid_: Approvals Tab, Verification Page
 One registered commercial deal — the record tracking a potential sale, its client requirements, quotations, and special procurement requests. Named by Policy CCPR-2026-001, Annex C. Earlier drafts of this glossary expanded it as "Sales Opportunity Record", which the policy does not say.
 _Avoid_: Opportunity, Lead, Deal, Sales Opportunity Record
 
+**SOR number**:
+The ERP's own number for an SOR (SOR-198), given when it is registered. Every
+SOR has one.
+_Avoid_: SO number, Sales Reference
+
+**SO number**:
+The Odoo sales order number of an SOR (S04081), kept as its Sales Reference. An
+SOR may not have one yet. Purchasing writes it before the project name ("S04081
+BFP Command Bus"), so an SOR is found by its SO number, its SOR number or its
+project name.
+_Avoid_: SOR number, Order ID
+
 **SOR Register**:
 The centralized index and management table of all registered SORs.
 _Avoid_: Opportunities Page, Opportunity Registration
@@ -126,7 +138,7 @@ The workforce register and profile repository for company personnel.
 _Avoid_: HR Management, User List
 
 **Call Sign**:
-The short number each person goes by inside the company — 101 for Boss Lito, 1001 for Ma'am Raquel, 102 for Ma'am Grace — kept on their employee record. Paper forms name signers by it ("Check by … 1001"), so printed forms print it under a signature, and signer lists are seeded by it. An identifier people say aloud, not a login or payroll number.
+The short number each person goes by inside the company — 101 for Boss Lito, 1001 for Ma'am Raquel, 102 for Ma'am Grace — kept on their employee record. Paper forms name signers by it ("Check by … 1001"), so printed forms print it under a signature, and signer lists are seeded by it. The IPAS sheet's "Created By" column is the raiser's call sign. An identifier people say aloud, not a login or payroll number. The full list is in docs/call-signs.md.
 _Avoid_: Employee code, Employee ID
 
 ### Commission
@@ -613,8 +625,10 @@ day from one source and always shown with the day it is for. It pre-fills an
 Offer's comparison rate, and nowhere else does it fill anything: on an IPAS
 payment it is shown beside the typed rate as context and flags a wide
 divergence, so a fat-fingered rate is caught without an estimate ever being
-saved as the fact. The rate that reaches Landed Cost is always the one actually
-paid. Never presented as live — a bid that revalued itself overnight could not
+saved as the fact. The rate that reaches a final Landed Cost is always the one
+actually paid; until a foreign-currency payment's pesos are recorded, its Landed
+Cost may be shown at the Reference Rate, marked as an estimate and never stored.
+Never presented as live — a bid that revalued itself overnight could not
 be signed — so it is a fact with a date on it, the way Stock Availability is,
 and a failed fetch keeps the last good rate under its own stale date rather than
 showing nothing.
@@ -714,6 +728,13 @@ IPAS opens only for its own readers.
 Its fields are defined by the company's own IPAS sheet, not by this glossary.
 _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 
+**P.I (Proforma Invoice)**:
+The supplier's advance bill for an order, sent before the goods ship and often
+what a down payment is paid against. An IPAS keeps its number (P.I #) and the
+amount on it or on the supplier's quotation (P.I/QT Amount), typed from the
+supplier's document.
+_Avoid_: Pro-forma, Invoice (unqualified, which is the supplier's final bill)
+
 **Filing**:
 The last sign-off on an IPAS — section 4's Approved, given once Finance has
 received the IPAS and it has been noted and checked, and only after sections 1
@@ -741,6 +762,19 @@ with a reason. Only the Approved sign-off is cleared; the Prepared stays, so the
 section waits for an approver again and the preparer redoes nothing. Same
 section 4 consequence and confirmation as a Return.
 _Avoid_: Unapprove, Revert
+
+**IPAS Status**:
+Where an IPAS stands, the six-step status Purchasing kept on the IPAS sheet, now
+worked out from the IPAS itself: Pending (raised, nothing done yet), Requested
+(section 1 sent for approval, nothing paid), Ongoing (a payment recorded, or the
+IPAS worked on since it was raised), Paid (a full payment recorded), and Done
+(filed). On-Hold (stopped on purpose — a supplier issue, waiting on the client) is
+the one a person sets, at any point, and clearing it returns the IPAS to the status
+it has earned. A cancelled IPAS has none. Paid and Done settle the IPAS's
+Remaining balance, since tax withheld from a payment would otherwise leave it
+owing forever. An On-Hold order does not go late. Separate from the IPAS's state
+(open, filed, cancelled) and from its Computation status.
+_Avoid_: Payment status, Progress
 
 **Computation status**:
 Where an IPAS's cost work stands, in order: Encoding, Encoded, LC GS Done, LC
@@ -875,10 +909,21 @@ and what it costs, the markup, and the Final Offer — closing on a summary of
 tax, retention, collected amount and revenue. The company's "PMS sheet". Every
 column belongs to one side — Sales meaning the Deal Team, Purchasing,
 Management, or Technical for the compliance verdict — and only that side writes
-it. Its costs, offer and summary are
-seen by whoever sees the whole SOR, and by Purchasing, Finance and Management on
-every SOR; anyone else called into the SOR sees the matrix without money.
+it. Each side reads only its own money: Purchasing the costs, the Deal Team the
+prices, and only the Closed Book the summary and the spread between the two;
+anyone else called into the SOR sees the matrix without money. Besides its place
+on each SOR, the Closed Book has a Costing Matrix page listing every SOR's
+matrix with its Planned and Actual Revenue.
 _Avoid_: PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
+
+**Planned Revenue / Actual Revenue**:
+The Costing Matrix summary's Revenue worked two ways, side by side. Planned
+Revenue takes each item's cost as its Final Acquire, what Purchasing expected to
+pay; Actual Revenue takes its Landed Cost, what was really paid. Actual is an
+estimate while any of the SOR's IPAS has not reached LC Odoo Done, and an item
+nobody has bought yet counts at its Final Acquire, marked not bought yet. The
+gap between the two is what buying cost or saved against the plan.
+_Avoid_: Margin, Profit, Projected Revenue (the Offer's projected margin is a Canvass figure)
 
 **Tender Line**:
 One thing the client asked for in the Costing Matrix — its specification,

@@ -30,6 +30,7 @@
         "db:check-drift:staging": "node scripts/db-snapshot.mjs staging --check",
         "db:ledger:check": "node scripts/db-ledger-check.mjs",
         "db:policy-diff": "node scripts/policy-diff.mjs",
+        "local:start": "supabase start",
         "db:reset": "supabase db reset && pnpm db:seed:restore",
         "db:refresh": "supabase db reset && pnpm db:seed:fresh",
         "db:seed:dump": "node scripts/seed-dump.mjs",
@@ -37,6 +38,7 @@
         "db:seed:fresh": "node scripts/seed-dump.mjs && node scripts/seed-restore.mjs && node scripts/create-magic-user.mjs",
         "local:realtime": "node scripts/local-realtime.mjs",
         "db:seed:snapshot": "node scripts/seed-snapshot.mjs",
+        "seed:mock:local": "node scripts/seed-mock-employees.mjs --local",
         "clean:branches": "node scripts/cleanup-branches.mjs",
         "prepare": "node scripts/install-hooks.mjs"
     },

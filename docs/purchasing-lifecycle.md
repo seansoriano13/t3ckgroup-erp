@@ -1,6 +1,6 @@
 # Purchasing: the whole life cycle
 
-Written 2026-10-19 from the code, the migrations and the glossary (CONTEXT.md), and updated 2026-10-20 for the run fixes (spec #544). It is a reading guide, not a spec. It says what the code does today. Where I could not confirm something, it says so in the last section.
+Written 2026-10-19 from the code, the migrations and the glossary (CONTEXT.md), and updated 2026-10-20 twice: for the run fixes (spec #544), then for Purchasing's feedback (spec #561, ADR 0034) and the move of every Purchasing window onto one modal layout. It is a reading guide, not a spec. It says what the code does today. Where I could not confirm something, it says so in the last section.
 
 Key words: **SOR** is a sales opportunity record, one deal. **PO** is T3CK's purchase order to a supplier, raised in Odoo. **IPAS** is the company's record of one PO. **PMS** is the SOR's purchasing tab.
 
@@ -15,7 +15,7 @@ Purchasing is not a pipeline with stages. It is a set of records. Each record is
 | Purchase Request | one at most (Project kind) | A Stage Action, or a person (Direct kind has no SOR) |
 | Requested Item | many | Sales, the Buyer, or Purchasing |
 | Costing Matrix | one | A Stage Action |
-| Canvass (and its Offers) | one per Component, or per Requested Item that names no Component | Purchasing |
+| Canvass (and its Offers) | one per Component, or per Requested Item that names no Component. A Canvass for buying outside a project can also start against nothing | Purchasing |
 | IPAS | many (one per PO). One IPAS can also name several SORs | Purchasing |
 | Transmittal (TG03 slip) | many | Purchasing, Warehouse or Logistics |
 | Packing List | many | Purchasing or Warehouse |
@@ -30,6 +30,8 @@ How they connect:
    COSTING MATRIX ◄──── Component ◄──────────────────────┘
         │  Component ◄── CANVASS + OFFERS (winner fills Acquire, spec, brochure)
         │
+   CANVASSES PAGE: free-standing CANVASS ──► "Create Purchase Request" ──► Direct REQUEST
+        (buying outside a project; each Canvass becomes one Requested Item)
    Requested Item "Ordered" + PO number + PO lines ──► IPAS (one per Odoo PO)
                                                           │ payments, charges, bank, documents
                                                           │ sign-offs 1 and 2, then 4 = Filing
@@ -37,8 +39,10 @@ How they connect:
         │
         └─ Landed Cost flows back to the Component on the Costing Matrix (read only)
 
-   ORDER MONITORING = every open IPAS, "what is it waiting on and who owes it"
-   PURCHASING DASHBOARD = every SOR's buying, grouped by what is outstanding
+   PURCHASING DASHBOARD, three tabs:
+     Projects          = every SOR's buying, grouped by what is outstanding
+     What needs doing  = every open IPAS, "what is it waiting on and who owes it" (Order Monitoring)
+     Register          = every order, filed ones included (Order Monitoring)
    Stage Conditions on the Sales Flow read it all: Purchasing settled, Costing priced, Costing settled
 ```
 
@@ -94,17 +98,18 @@ Two lists open SORs. The **Final Acquire list** and the **Evaluation list** can 
 
 | Page | Route | Who | What it does |
 |---|---|---|---|
-| Purchase Requests | `/purchasing` | Everyone | The list. Purchasing sees all, everyone else sees their own. Filters by kind and by unassigned, mine, open, closed. Take a request. Open the request view. New Direct request. |
-| Purchasing Dashboard | `/purchasing/dashboard` | Purchasing, Finance, Super Admin | Five groups: To source, To price, To order, On order, To check. Filters by Buyer and Canvasser, with ageing applied from Order Monitoring's rules. |
+| Purchase Requests | `/purchasing` | Everyone | The list. Purchasing sees all, everyone else sees their own. Filters by kind and by unassigned, mine, open, closed. Take a request. New Direct request. A request opens in a side drawer with an **Open full** button, and each person's last choice (drawer or full screen) is remembered in their browser. On a phone it is always the drawer. A Direct row has a thin left border and a small grey "Direct" word. Stage uses the same badge as the SOR list. |
+| Canvasses | `/purchasing/canvasses` | Any signed-in employee (the database decides which rows each person gets) | Every Canvass, project ones included. Filters by Canvasser, signed or not, winner or not, linked or not. Purchasing and Super Admins start a free-standing Canvass here and create a Purchase Request from one or more of them (section 8). Names only, never prices. |
+| Purchasing Dashboard | `/purchasing/dashboard?tab=` | Purchasing, Finance, Super Admin | One page, three tabs, opening on **What needs doing**. **Projects** (`tab=projects`): five groups (To source, To price, To order, On order, To check), filters by Buyer and Canvasser, ageing from the Ageing rules, "Ordered with no canvass" inside the Filters pop-up. A Purchase Request picked here opens in its drawer on the same page; other records open where they live. **What needs doing** (`tab=needs`) and **Register** (`tab=register`) are Order Monitoring (section 12). Every tab has the same stat row and filter bar. |
 | IPAS list | `/purchasing/ipas` | IPAS readers | Filter by state. Raise a new IPAS (PO number, priority, source, purpose, SORs, remarks). |
-| IPAS | `/purchasing/ipas/:id` | IPAS readers | The full record, in seven parts (see section 9). Prints. |
+| IPAS | `/purchasing/ipas/:id` | IPAS readers | The full record, in seven parts (see section 9), shown as a modal over the IPAS list. The link still opens it directly. Prints. |
 | IPAS settings | `/purchasing/ipas/settings` | Purchasing, Super Admin | Redirects to Settings, Purchasing tab. Everyone else goes home. |
-| Order Monitoring | `/purchasing/order-monitoring` | Purchasing, Finance, Super Admin | Every open IPAS in four groups: Needs chasing, Waiting on us, Waiting on someone else, Filed (collapsed). |
+| Order Monitoring | `/purchasing/order-monitoring` | (old link) | No longer a page of its own. The old link sends you to the Dashboard's What needs doing tab, so bookmarks keep working. |
 | Transmittals | `/purchasing/transmittals` | IPAS readers and the four staff lists | The list of TG03 slips. |
-| New Transmittal | `/purchasing/transmittals/new` | Preparers | Raise a draft slip. |
-| Transmittal | `/purchasing/transmittals/:id` | Slip readers | Lines, stages, ratings, pictures, signatures, Check by. |
+| New Transmittal | `/purchasing/transmittals/new` | Preparers | Raise a draft slip, in a modal. Save draft and Submit sit in the modal's footer. |
+| Transmittal | `/purchasing/transmittals/:id` | Slip readers | Lines, stages, ratings, pictures, signatures, Check by. A modal over the list; the link still opens it. |
 | Packing Lists | `/purchasing/packing-lists` | IPAS readers and the Warehouse list | The list. |
-| Packing List | `/purchasing/packing-lists/:id` | Readers | Boxes and contents. Pack. |
+| Packing List | `/purchasing/packing-lists/:id` | Readers | Boxes and contents. Pack. A modal over the list; the link still opens it. New Packing List is a modal too. |
 | Settings, Purchasing tab | `/settings?tab=purchasing` | Purchasing, Super Admin | Option lists, Transmittal lists, Ageing rules, Reference rates, Sign-off lists. |
 | Costing Matrix settings | inside the matrix settings | Finance, Super Admin | Rates, markup presets, signer lists, the Evaluation template. |
 | Approval Center: IPAS | `/approvals/ipas` | Sign-off list members | Sign-offs waiting for them. |
@@ -116,6 +121,8 @@ Two lists open SORs. The **Final Acquire list** and the **Evaluation list** can 
 
 The old "Procurement Queue", the SOR Purchasing panel and `sor_procurement_requests` are retired. The old table is read-only history.
 
+**One modal layout.** Every Purchasing window now uses the same modal frame (`ModalShell`): the IPAS, Transmittal and Packing List records, New Transmittal, New Packing List, Create Purchase Request from Canvasses and Add Requested Items. Expand makes it wider and taller. The X in the corner is "Close window". A confirm box (Submit, Sign) opens on top of the record, not behind it.
+
 ---
 
 ## 4. One purchase, start to finish
@@ -125,7 +132,7 @@ This is the usual path for a government project. Many steps can overlap, and non
 1. **The SOR enters a stage that has "Open Costing Matrix".** The Costing Matrix is created. The Sales incharge defaults to the Deal Owner. A Purchasing incharge may be named. If none is, the people in "assigners" are told.
 2. **Sales or the Deal Team opens a Purchase Request** (stage action or optional action). They add Requested Items by picking SOR lines, or by describing a new product. A Buyer from Purchasing takes the request, or the action names one.
 3. **Sales adds the Tender Lines. Purchasing builds the rest of the Matrix.** Purchasing adds Components and cost-only rows, and an Acquire cost on each Component. Optionally it adds Requested Items from Components.
-4. **Canvass.** Purchasing opens a Canvass on a Component, collects Offers, marks a winner and writes the reason. The winner fills the Component's Acquire, spec and brochure. A purchasing approver signs the Canvass.
+4. **Canvass.** Purchasing opens a Canvass on a Component, collects Offers (the Canvass is only created, and numbered, when the first Offer is saved), marks a winner and writes the reason. The winner fills the Component's Acquire, spec and brochure. A purchasing approver signs the Canvass.
 5. **Costing sign-offs.** Prepared (Sales incharge), Costed (Purchasing incharge), Evaluation approved (evaluation list), Final approved (Final Acquire list). The Final Acquire list sets Final Acquire and markup. Then it takes the Bid Decision: Go, No-go or Revise.
 6. **Stage Conditions** "Costing priced" and "Costing settled" can now pass, so the SOR can leave those stages.
 7. **Ordering in Odoo.** The Requested Item is set to Ordered. A PO number is optional, but without one nothing downstream can link. A PO number is checked against Odoo by the server, and one Odoo does not know is refused.
@@ -135,6 +142,8 @@ This is the usual path for a government project. Many steps can overlap, and non
 11. **Items become Received**, so "Purchasing settled" can pass when every item is closed.
 12. **Landed Cost** appears beside Acquire on the Component. It is provisional until the IPAS reaches "LC Odoo Done", then final.
 13. **Packing List** if goods go out to the client in boxes.
+
+**Buying outside a project** can go either way round. Purchasing canvasses first on the Canvasses page, then picks one or more finished Canvasses and creates one Direct Purchase Request from them. Or an employee opens a Direct request first, and the Canvass button on one of its items opens that item's Canvass on the Canvasses page. From step 7 on it is the same as above.
 
 ---
 
@@ -204,6 +213,7 @@ Edge cases:
 - **New product:** typed in. Direct requests allow only this kind.
 - **From a Component:** copies name, quantity, unit and Odoo product. It keeps its own copy, so editing the Component later does not rewrite what was asked. A Component from another SOR is refused. It is all or nothing.
 - **Substitute:** the Buyer adds a replacement item linked to the one it replaces. The original moves to Substituted.
+- **From Canvasses:** Purchasing picks one or more free-standing Canvasses on the Canvasses page and creates one Direct request, one item per Canvass, filled from each winner (section 8). The winner's price, currency and comparison rate are copied too, into a separate price row (`purchase_request_item_prices`) that only readers with Purchasing, Finance or Super Admin access can see. Nobody types into that row; only this step writes it.
 - **Stock badge:** read from the SOR's stock snapshot, always shown with the time it was fetched. "Not checked" if never read. Never live.
 
 ### The item status path
@@ -222,7 +232,8 @@ Ways out from any open status (all closed): Substituted, Cannot source, Cancelle
 | Any other member, or a non-member | Nothing |
 
 Edge cases:
-- A closed status goes nowhere. There is no undo.
+- A closed status goes nowhere, apart from the short Undo below.
+- **Undo a status change.** After a status change the success message has an **Undo** button for about 10 seconds (the server allows 15, to cover a slow click). Only the person who made the change can undo it, only if nothing else changed on the item since, and only if they could still make that change. It puts back the old status and the old "who and when". Undoing Ordered also clears the PO number, its Odoo check and the picked PO lines. It is refused when an item would leave Canvassing while its Canvass is open. The history gets an "undone" line, unread notices about the change are taken back, and readers are told it was undone. Outside that window the path stays forward-only.
 - **Ordered** takes an optional PO number. It is trimmed and upper-cased, and must look like "P" then digits. **The server checks it against Odoo itself** (the `odoo-po-verify` function), and the browser never sends a "verified" mark: the database refuses one from a signed-in caller. There are three verdicts:
   - Odoo has the PO: saved as **Confirmed in Odoo**.
   - Odoo answered "no such order": **refused**, naming the PO. Nothing is saved.
@@ -232,6 +243,12 @@ Edge cases:
 - **Correct PO** (Purchasing only, **only while the item is Ordered**): changes the PO number, or adds a first PO to an Ordered item that has none. It gets the same three verdicts as the first entry. The old and new numbers go in the request's history. Any PO lines picked on the old PO are cleared, so pick them again on the new PO. Once the item is Received the PO is fixed.
 - With a PO number, Ordered can record the Odoo PO line or lines the item is bought on. The lines are picked from that PO's IPAS copy, and a line not on that copy is refused. An Ordered item with a PO but no picked line reads **"PO line not picked"**. Landed Cost cannot find its way back until the line is picked.
 - Opening a Canvass moves the item from To order to Canvassing, if it was at To order. An item at any other status is left alone.
+
+### How the request looks
+- **Requested Items are a queue** of three groups of cards: To do, In progress and Closed. Each card shows name, quantity, status and PO number. Opening an item shows the rest (stock, who asked, Canvass link, notes, PO details).
+- Long Odoo product names are cut to one or two lines, with the full name on hover and inside the item.
+- The New Purchase Request form and "Request a new product" use bold labelled fields.
+- The item's **Canvass** button goes to the Canvasses page, not a panel inside the request.
 
 ### Who is notified (one trigger on every message)
 
@@ -310,22 +327,24 @@ Each needs a read tier on the SOR. A signature image is snapshotted at signing, 
 - Old SOR Inclusions were moved under an "Unplaced inclusions" line once. The old table is read-only.
 - The matrix history (`costing_events`) is written by triggers and is append-only. Only Closed Book reads it directly.
 - The Component's grid can show what is being bought for it (item status and request id only) at every tier.
+- When a Canvass winner was un-picked, the Component row keeps the values that winner filled and shows a note that **no winner is behind them now**.
 - The grid shows a "PO supplier differs from the winning Offer" note when they differ. It compares the Component's PO supplier (from the IPAS copy) with the winning Offer's supplier.
 
 ---
 
 ## 8. Canvass and Offers
 
-- **Subject:** exactly one Component, or exactly one Requested Item. Never both, never neither, never an Inclusion. A Requested Item that names a Component is canvassed **through the Component**, and a database trigger refuses otherwise.
-- **Number:** `CNV_0001` and up, assigned by trigger, never reused.
+- **Subject:** at most one: a Component or a Requested Item. Never both, never an Inclusion. **It may have none** (ADR 0034): a Canvass for buying outside a project starts against nothing, on the Canvasses page, and then needs a typed **product name** saying what is being bought. A Requested Item that names a Component is canvassed **through the Component**, and a database trigger refuses otherwise.
+- **Number:** `CNV_0001` and up, never reused. **It is given when the first Offer is saved**, not when the panel opens. Opening a Canvass writes nothing, so an empty Canvass uses up no number.
 - **Re-point:** a Canvass started on a bare Requested Item can later move to the Component that appears. It keeps its number, Offers and reason. The move is refused if that Component already has a Canvass.
-- **Canvasser** defaults to the Component's Purchasing incharge, else the matrix's, else the request's Buyer. Purchasing can change it. Ownership, not access.
+- **Canvasser** defaults to the Component's Purchasing incharge, else the matrix's, else the request's Buyer. On a free-standing Canvass it is whoever started it. Purchasing can change it. Ownership, not access.
+- **Who reads a free-standing Canvass:** Purchasing and Super Admins, prices included.
 - **Offer:** supplier (Odoo supplier suggestions, or typed), brand, description, source link, brochure, remarks, unit price in the currency quoted, a **comparison rate**, quote valid until, lead time and a quality note.
 - **Currencies:** PHP, USD, EUR, AUD. The Reference Rate is fetched for USD and EUR by default, so an AUD Offer gets no pre-filled rate until a Super Admin overrides AUD (see section 14). Overriding any currency adds it to the list that is fetched from then on.
 - **Comparison rate** is never the rate actually paid. It pre-fills from the Reference Rate, and the typed value is what is stored. A foreign Offer with no rate has **no PHP figure** at all.
 - **Prices are cost.** Only the Closed Book and cost tiers (Super Admin, Final Acquire list, Purchasing) receive them. A Stage Participant, the Deal Team and anyone "always sees" never do, and the database refuses them, not only the screen. On a Requested Item, prices need Purchasing, Finance or Super Admin on top of reading the request.
 - **Expired quote:** on and after its valid-until date. No date means it never expires.
-- **Winner:** at most one. Marking a new one clears the old.
+- **Winner:** at most one. Marking a new one clears the old. **A winner can be un-picked**, leaving none. That clears the sign-off. What the winner filled on the Costing Matrix stays (still marked "from Canvass") until a new winner replaces it, and the matrix row says no winner is behind it.
   - On a **Component** the winner fills Acquire (price × comparison rate for foreign, to the centavo), Offer Specification and a brochure citation.
   - A field whose "from Canvass" mark was cleared because someone typed over it is left alone, unless it has no value yet.
   - If a new winner has no price or no description, the old "from Canvass" mark is dropped and the value is kept.
@@ -333,6 +352,8 @@ Each needs a read tier on the SOR. A signature image is snapshotted at signing, 
   - The winner's **brand is only proposed.** Sales accepts it into Brand.
 - **Offer Projection:** for each Offer, the Acquire it would fill and the Markup Price that follows. Served to Closed Book and Purchasing only. Purchasing sees the peso price but never the factor.
 - **Sign-off:** the signer must be on the Check by list (the same list that approves Transmittals). They cannot sign a Canvass they opened. It needs a winner and a non-blank reason. A Super Admin who is off the list is refused. Fewer than three Offers is a **warning**, never a block. Editing a signed Canvass **clears the sign-off**: any Offer or price change, a winner change, or a reason change. Nothing locks.
+- **Create Purchase Request from Canvasses** (Purchasing, on the Canvasses page): pick one or more free-standing Canvasses, give a title, and one Direct request is made with one Requested Item per Canvass, filled from each winner, price included (section 6). Each Canvass then points at its new item and keeps its number, Offers and reason. A Canvass with no winner, one that already has a subject, or one the caller cannot act on is refused, and it is all or nothing. A Canvass not yet signed off only **warns**: buying does not wait for the signature, and the missing sign-off still shows on the item and the printout.
+- **Printout:** suppliers side by side as columns, with price, rate, lead time, quote validity, quality and remarks as rows. When there are more Offers than fit one page, the columns carry on with the row labels repeated.
 - **Canvasser cannot be the signer** is the rule that is easy to trip on. The creator is kept in the trail even if the Canvasser changes.
 
 ---
@@ -347,6 +368,14 @@ Each needs a read tier on the SOR. A signature image is snapshotted at signing, 
 - **Project needs at least one SOR.** The other three Purposes must name none (their note goes in Remarks). Deleted SORs are refused. An IPAS can name several SORs.
 - **Number:** `TGIPAS_` plus the sequence, three digits minimum, one series across all four entities. It starts at 49 because the sheet ended at 048. It never goes back, and a cancelled number is never reused. (The padding bug at 1000 was fixed.)
 - A document row is created for every active document kind that matches the Source.
+
+### Editing an IPAS
+- **One Edit button** for the whole page, and **one long edit form** with **one Save** ("Save all"). A step list on the side shows each part and jumps to it. Each part is a card that folds. Empty required fields are marked, and "Next empty" takes you to the next one.
+- **Money is typed in place**: payments, freight, charges, documents, bank details, computation status and the Landed Cost spread are fields in their cards. The old small pop-ups for payment, charge, bank and document are gone. Save all stores them in order with one reload. If something fails, Retry never stores a row twice.
+- **Sign-offs stay buttons**, not form fields.
+- **Two people at once:** if someone else changes the IPAS while your form is open, a notice says so. Save all checks first, and if someone saved in between, it refuses with a sentence instead of overwriting their work.
+- On the record page, every section under **"Everything else"** (Header, Sales, Logistics, Status, History) opens in place under its row. The **Money and sign-offs** sections still open in the side drawer.
+- The screen now says **Submit / Submitted** where it used to say Prepare / Prepared. The database still calls it "prepared".
 
 ### The seven parts (screen numbering)
 Sign-off sections are numbered as the screen numbers them: **1, 2 and 4**, the number of the part each one sits in. Part 3 (Computation status) has no sign-off. Settings → Sign-off lists, notices, history lines and the IPAS screen all use these numbers. Underneath, the database still stores 1, 3 and 7 and the list keys never changed, but nobody sees those. If a note or old row says "section 3" or "section 7", it means section 2 or section 4.
@@ -407,7 +436,7 @@ Encoding → Encoded → LC GS Done → LC Odoo Done → Checked by.
 | Actual Checking | Stamped by Purchasing, **or** derived from a closed Transmittal check. **Once a submitted, uncancelled Transmittal carries one of this IPAS's PO lines, a hand stamp is refused** (clearing is still allowed). |
 
 ### Sign-offs
-| Section (screen number) | Prepared | Approved |
+| Section (screen number) | Submitted (stored as Prepared) | Approved |
 |---|---|---|
 | 1 Purchasing | Purchasing access | Section 1 list |
 | 2 Finance | Purchasing access | Section 2 list |
@@ -499,6 +528,8 @@ On a Transmittal or an IPAS the helper takes the viewer into account. It says **
 
 ## 12. Order Monitoring
 
+Order Monitoring is now two tabs of the Purchasing Dashboard: **What needs doing** (the page opens here) and **Register** (every order, filed ones included, with its own totals row). The old `/purchasing/order-monitoring` link redirects to What needs doing. The rules below did not change.
+
 It reads **every open IPAS** and answers: what is the one next thing, who owes it, and how long has it waited? It is a view and stores nothing.
 
 The decision order is fixed. The first match wins:
@@ -520,7 +551,7 @@ The hand-off column on the register shows one of: open, na, na_replaced, gc, or 
 
 ## 13. Purchasing Dashboard
 
-Five groups, **derived and never stored**. One SOR can sit in several. Only SORs that are not deleted and not scratch are counted.
+This is the **Projects** tab of the Purchasing Dashboard (section 3). Five groups, **derived and never stored**. One SOR can sit in several. Only SORs that are not deleted and not scratch are counted.
 
 | Group | What is in it |
 |---|---|
@@ -587,11 +618,11 @@ All are read only. The browser never talks to Odoo, and credentials live in func
 - A flagged Account # clears sections 1 and 2.
 - A Final Offer or Final Acquire change clears the Bid Decision.
 - Spec or verdict changes clear the Evaluation approval.
-- Editing a signed Canvass unsigns it.
+- Editing a signed Canvass unsigns it, and so does un-picking its winner.
 - Returning IPAS section 1 or 2 also clears section 4's Received, Noted and Checked.
 
 **Things that can never be undone or are blocked**
-- A closed Requested Item goes nowhere.
+- A closed Requested Item goes nowhere. A status change can only be undone within about 10 seconds, by the person who made it.
 - A filed IPAS cannot be cancelled until a Super Admin reopens it.
 - A packed Packing List, a signed Transmittal stage and a closed slip are frozen.
 - An IPAS's PO number, a Transmittal number and a cancelled IPAS number never change or return.
@@ -602,6 +633,7 @@ All are read only. The browser never talks to Odoo, and credentials live in func
 
 **Things that warn but do not block**
 - Fewer than three Offers on a Canvass.
+- Creating a Purchase Request from a Canvass that is not signed off yet.
 - Required documents not ticked at Filing.
 - An open Purchase Request at a stage gate (the old rule; the new gate is "Purchasing settled").
 - No Canvass on an ordered item (it says so on the matrix row and the printed sheet).
@@ -627,6 +659,7 @@ All are read only. The browser never talks to Odoo, and credentials live in func
 - Whether a **lost or deleted SOR blocks writes** to its Purchase Request. I only found the label ("SOR lost", "SOR deleted"). The old design noted that a lost SOR never auto-closes purchasing work.
 - The exact set of Transmittal stage paths for each combination of Warehouse and Technical checks. I read the states and rules but not every branch.
 - How **Packing Lists are cancelled**, if at all. I found no cancel rule.
+- Whether the IPAS **Money and sign-offs** sections will also open in place. The spec left that to the IPAS editing pick; today they still open in the drawer.
 - Whether the live staging and production data match this. In particular, the **ledger on prod is known to drift**, so check the live schema before trusting a migration name. The Purchasing Dashboard database change was, per the last session note, not yet on staging or live.
 
 **Known gaps still stated in the code**

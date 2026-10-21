@@ -19,7 +19,11 @@ import { DEFAULT_LOCAL_DB_URL, loadDotEnvLocal } from "./lib/seedShared.mjs"
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 export const MOCK_PASSWORD = "MockStaging#2026"
+// Local stack only: a short password that is easy to type. Staging keeps MOCK_PASSWORD.
+export const LOCAL_MOCK_PASSWORD = "password"
 export const MOCK_DOMAIN = "mock.t3ck.test"
+// Local stack only: a short domain, so emails read purchaser@local.
+export const LOCAL_MOCK_DOMAIN = "local"
 
 export const MOCK = {
   "super-admin": { name: "Mock Super Admin", department: "SUPER ADMIN", role: "SYSTEM ADMINISTRATOR", is_super_admin: true },
@@ -73,19 +77,21 @@ async function main() {
     ? process.env.LOCAL_DB_URL || env.LOCAL_DB_URL || DEFAULT_LOCAL_DB_URL
     : env.STAGING_DB_URL ?? process.env.STAGING_DB_URL
   if (!url) throw new Error("STAGING_DB_URL is not set (.env.local or the environment).")
+  const password = local ? LOCAL_MOCK_PASSWORD : MOCK_PASSWORD
+  const domain = local ? LOCAL_MOCK_DOMAIN : MOCK_DOMAIN
   console.log(local ? "Target: LOCAL stack" : "Target: STAGING")
   const c = new pg.Client({ connectionString: url })
   await c.connect()
   try {
     for (const [key, spec] of Object.entries(MOCK)) {
-      const email = `${key}@${MOCK_DOMAIN}`
+      const email = `${key}@${domain}`
       await c.query("begin")
       const existing = await c.query("select id from auth.users where email = $1", [email])
       let id = existing.rows[0]?.id
       if (id) {
         await c.query(
           "update auth.users set encrypted_password = crypt($2, gen_salt('bf')), email_confirmed_at = coalesce(email_confirmed_at, now()), updated_at = now() where id = $1",
-          [id, MOCK_PASSWORD],
+          [id, password],
         )
       } else {
         id = (
@@ -96,7 +102,7 @@ async function main() {
              values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', $1, crypt($2, gen_salt('bf')), now(), now(), now(),
                '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated')
              returning id`,
-            [email, MOCK_PASSWORD],
+            [email, password],
           )
         ).rows[0].id
         await c.query(
@@ -119,14 +125,14 @@ async function main() {
     }
     if (local) {
       for (const [key, sign] of Object.entries(LOCAL_CALL_SIGNS)) {
-        await c.query("update public.employees set call_sign = $2 where email = $1", [`${key}@${MOCK_DOMAIN}`, sign])
+        await c.query("update public.employees set call_sign = $2 where email = $1", [`${key}@${domain}`, sign])
       }
       for (const [list, keys] of Object.entries(LOCAL_LISTS)) {
         for (const key of keys) {
           await c.query(
             `insert into public.ipas_signer_lists (list_key, employee_id)
              select $1, id from public.employees where email = $2 on conflict (list_key, employee_id) do nothing`,
-            [list, `${key}@${MOCK_DOMAIN}`],
+            [list, `${key}@${domain}`],
           )
         }
         console.log(`ok  ${list}: ${keys.join(", ")}`)
@@ -136,7 +142,7 @@ async function main() {
           await c.query(
             `insert into public.costing_signer_lists (list_key, employee_id)
              select $1, id from public.employees where email = $2 on conflict (list_key, employee_id) do nothing`,
-            [list, `${key}@${MOCK_DOMAIN}`],
+            [list, `${key}@${domain}`],
           )
         }
         console.log(`ok  ${list}: ${keys.join(", ")}`)

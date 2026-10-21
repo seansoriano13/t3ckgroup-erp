@@ -1,9 +1,19 @@
-# Mock employees (STAGING only)
+# Mock employees (staging and local)
 
-Test accounts for manual and AI-driven testing on the staging app. They do not exist in production.
+Test accounts for manual and AI-driven testing. They do not exist in production.
 Sign in with **email + password** on the login page (not Google).
 
-**Password (all):** `MockStaging#2026`
+## Staging
+
+- Email: the table below, for example `purchaser@mock.t3ck.test`.
+- Password: `MockStaging#2026`
+- Seed: `node scripts/seed-mock-employees.mjs` (needs `STAGING_DB_URL` in `.env.local`).
+
+## Local stack
+
+- Email: the same key as the table, with `@local` instead, for example `purchaser@local`, `super-admin@local`, `hr@local`.
+- Password: `password`
+- Seed: `pnpm seed:mock:local` (same as `node scripts/seed-mock-employees.mjs --local`).
 
 | Email | Name | Dept / Sub | Role | Flags |
 |---|---|---|---|---|
@@ -25,7 +35,7 @@ Sign in with **email + password** on the login page (not Google).
 | purchaser-2@mock.t3ck.test | Mock Purchaser Two | OPERATIONS / PURCHASING | PURCHASER | has_purchasing_flow, has_task_flow |
 | approver@mock.t3ck.test | Mock Approver | ADMIN / ADMIN | GENERAL MANAGER | is_head, has_task_flow |
 
-Re-create or reset (passwords, flags) any time: `node scripts/seed-mock-employees.mjs` (needs `STAGING_DB_URL` in `.env.local`). Local stack: add `--local`.
+Re-create or reset (passwords, flags) any time with the seed commands above. The seed is safe to run again.
 To add a role, add it to `MOCK` in that script and to this table.
 
 **Local stack only (`--local`):** also puts the cast on the Transmittal staff lists (#251) — Warehouse: plain, Technical: technical, Logistics: logistics, Check by: ops-head (call sign 1001) + admin-head (call sign 102). It also fills the IPAS sign-off lists (1 and 3 Approved: admin-head; 7 Received: ops-head, Noted: sales-head, Checked and Approved: approver) and the Costing lists (Final Acquire: approver, Evaluation: ops-head). Super Admin is on no list, on purpose. Staging's lists are left alone. The purchasing browser stories (`docs/stories/purchasing/`) rely on this cast.

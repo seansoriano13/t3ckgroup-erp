@@ -30,6 +30,13 @@ export function isConfigured() {
   return !!(ODOO_URL && ODOO_DB && ODOO_USERNAME && ODOO_API_KEY);
 }
 
+// True only on the local Supabase stack, where the functions see SUPABASE_URL as
+// http://kong:8000 (or 127.0.0.1). Production and staging use https://*.supabase.co,
+// so this is never true there.
+export function isLocalStack() {
+  return /\/\/(kong|127\.0\.0\.1|localhost)(:|\/|$)/.test(Deno.env.get("SUPABASE_URL") ?? "");
+}
+
 export function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,

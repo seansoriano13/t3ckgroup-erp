@@ -95,11 +95,11 @@ port = 54324
 [analytics]
 enabled = false
 
-# The edge runtime is disabled locally: the seven odoo-* functions below need
-# live Odoo credentials to do anything meaningful, so a local copy would test
-# nothing (see AGENTS.md and docs/adr/0011). They stay declared so "Deploy to
-# production" keeps auto-shipping function changes — that's their only job
-# in this file.
+# The edge runtime runs locally (`pnpm local:start` starts it with the rest of
+# the stack). Without Odoo credentials, odoo-sor-lookup returns sample data on
+# this stack only (see _shared/odoo.ts isLocalStack). The other odoo-* functions
+# still need live Odoo credentials (see AGENTS.md and docs/adr/0011). They stay
+# declared so "Deploy to production" keeps auto-shipping function changes.
 [edge_runtime]
 enabled = true
 

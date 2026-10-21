@@ -17,9 +17,28 @@ import {
   fetchProductStock,
   findOrder,
   isConfigured,
+  isLocalStack,
   jsonResponse,
   normalizeReference,
 } from "../_shared/odoo.ts";
+
+// Local stack only, when Odoo is not configured: a made-up quotation so the
+// Sales Reference fetch can be tried without live Odoo. Never reached in
+// production or staging, which always have Odoo configured.
+function localSampleLookup(ref) {
+  return {
+    success: true,
+    found: true,
+    order: { id: 0, name: ref, state: "sale" },
+    customer: { company: "Local Sample Customer", company_id: null, contact: "" },
+    items: [
+      { odoo_product_id: null, product_name: "Sample Product A", description: "Local sample line", unit: "Unit", quantity: 2, unit_price: 1500 },
+      { odoo_product_id: null, product_name: "Sample Product B", description: "Local sample line", unit: "Unit", quantity: 1, unit_price: 4200 },
+    ],
+    stock: null,
+    message: "Local sample data: Odoo is not configured on this machine.",
+  };
+}
 
 async function fetchOrderItems(uid, orderId) {
   const lines = await executeKw(
@@ -57,7 +76,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  if (!isConfigured()) {
+  if (!isConfigured() && !isLocalStack()) {
     return jsonResponse({
       success: false,
       message: "Odoo integration is not configured on the server.",
@@ -78,6 +97,8 @@ Deno.serve(async (req) => {
       message: 'Enter a valid Sales Reference first — "S" followed by digits, e.g. S01237.',
     });
   }
+
+  if (!isConfigured()) return jsonResponse(localSampleLookup(ref));
 
   try {
     const uid = await authenticate();
