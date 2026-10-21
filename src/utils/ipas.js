@@ -314,15 +314,18 @@ export function ipasErrorMessage(error, fallback = "Something went wrong.") {
 
 /**
  * The IPAS list's slices over shaped rows. `state` is a lifecycle state or
- * "all"; `entity`, `purpose` and `computationStatus` are exact; `search` matches the number, PO,
+ * "all"; `entity`, `purpose`, `computationStatus` and `status` (the IPAS Status, from the row's
+ * `figures`) are exact; `search` matches the number, PO,
  * supplier, SO number, SOR number and project name, case-insensitively.
  */
-export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, search = "" } = {}) {
+export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, status = null, search = "" } = {}) {
   const term = search.trim().toLowerCase();
   return rows.filter((row) => {
     if (state !== "all" && row.state !== state) return false;
     if (entity && row.entity !== entity) return false;
     if (purpose && row.purpose !== purpose) return false;
+    // The IPAS Status is worked out by the IPAS figures (utils/ipasFigures.js), which the list puts on each row.
+    if (status && row.figures?.status !== status) return false;
     if (computationStatus === IPAS_SECTION_3_APPROVED_FILTER) {
       if (!row.section3Approved) return false;
     } else if (computationStatus && (row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING) !== computationStatus) {

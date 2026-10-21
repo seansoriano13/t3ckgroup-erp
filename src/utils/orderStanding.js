@@ -25,6 +25,8 @@
  *   ('YYYY-MM-DD' or null), latestSupplierOrigin ({ label, on } or null), and
  *   slips (the raw submitted Transmittal rows that name this IPAS, with stages and
  *   lines) and hasDraftTransmittal (a draft names it: raised, not yet submitted).
+ *   onHold (#597): the IPAS is On-Hold; it is checked before any step, so the order waits on
+ *   someone else and never counts late.
  *
  * `rules` is the list `orderAgeingRulesService.getRules()` returns; a step with
  * days null has no rule and never goes late.
@@ -45,6 +47,9 @@ import {
 import { isLandedCostFinal } from "./ipasSignoffs";
 import { checkingStageOf, stageRowOf } from "./transmittals";
 import { inDateOrder } from "./ipasTransmittals";
+
+/** The step an On-Hold order reports. It has no ageing rule, so it can never be late. */
+export const ON_HOLD_STEP = "on_hold";
 
 const MANILA = "Asia/Manila";
 const DAY_MS = 86_400_000;
@@ -344,6 +349,21 @@ export function orderStanding(order, rules, today) {
       next: { label: "Filed", owner: null, step: null, detail: null, slip: null, list: null },
       waitingSince: null,
       daysWaiting: null,
+      ruleDays: null,
+      late: false,
+      daysPastRule: null,
+    };
+  }
+
+  // On-Hold (#597): stopped on purpose, so it is Waiting on someone else and never late, whatever
+  // step it was at. It still shows how long it has been held (the IPAS's last change is the hold).
+  if (order.onHold === true) {
+    const since = instantOf(order.updatedAt ?? order.createdAt);
+    return {
+      group: ORDER_GROUP.WAITING_ON_OTHERS,
+      next: { label: "On-Hold", owner: ORDER_OWNER.OTHERS, step: ON_HOLD_STEP, detail: null, slip: null, list: null },
+      waitingSince: new Date(since).toISOString(),
+      daysWaiting: daysBetweenManila(since, today),
       ruleDays: null,
       late: false,
       daysPastRule: null,

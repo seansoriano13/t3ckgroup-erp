@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { Building2, Calculator, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
+import { Building2, Calculator, CircleDot, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import PageShell from "../../../components/ui/PageShell";
@@ -33,6 +33,8 @@ import {
   IPAS_SECTION_3_APPROVED_FILTER,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
+  IPAS_STATUSES,
+  IPAS_STATUS_LABELS,
   ipasSectionNo,
 } from "../../../constants/ipas";
 
@@ -71,8 +73,14 @@ const IPAS_SORT = {
   dp: (r) => r.figures.downPayment,
   fp: (r) => r.figures.fullPayment,
   "remaining-balance": (r) => r.figures.remainingBalance,
+  status: (r) => (r.figures.status ? IPAS_STATUSES.indexOf(r.figures.status) : IPAS_STATUSES.length),
   state: (r) => r.state,
 };
+
+const STATUS_OPTIONS = [
+  { value: ALL, label: "Any IPAS Status" },
+  ...IPAS_STATUSES.map((value) => ({ value, label: IPAS_STATUS_LABELS[value] })),
+];
 
 const COSTING_OPTIONS = [
   { value: ALL, label: "Any costing status" },
@@ -90,14 +98,17 @@ const slug = (heading) => heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 function IpasList() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { hasPurchasingFlow, isSuperAdmin } = getPermissionContext(user);
+  const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
   // The option lists: Purchasing access and Super Admins.
   const canEditSettings = hasPurchasingFlow || isSuperAdmin;
+  // The status pill puts an open IPAS On-Hold (#597): Purchasing access or Finance access; the pill is read-only for everyone else.
+  const canSetHold = hasPurchasingFlow || hasFinanceFlow;
 
   const [state, setState] = useState(IPAS_STATE.OPEN);
   const [entity, setEntity] = useState(null);
   const [purpose, setPurpose] = useState(null);
   const [costing, setCosting] = useState(null);
+  const [status, setStatus] = useState(null);
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -117,13 +128,16 @@ function IpasList() {
   );
 
   // Search, entity and Purpose narrow first; the state pills count within that.
-  const scoped = useMemo(() => filterIpas(rows, { entity, purpose, computationStatus: costing, search }), [rows, entity, purpose, costing, search]);
+  const scoped = useMemo(
+    () => filterIpas(rows, { entity, purpose, computationStatus: costing, status, search }),
+    [rows, entity, purpose, costing, status, search],
+  );
   const filtered = useMemo(() => filterIpas(scoped, { state }), [scoped, state]);
   const { sorted: visible, sort, toggle } = useTableSort(filtered, IPAS_SORT);
   const paging = usePaging(visible);
 
   const count = (s) => filterIpas(scoped, { state: s }).length;
-  const hasActiveFilters = search !== "" || entity !== null || purpose !== null || costing !== null;
+  const hasActiveFilters = search !== "" || entity !== null || purpose !== null || costing !== null || status !== null;
 
   const toolbar = (
     <>
@@ -173,6 +187,16 @@ function IpasList() {
               className={CHIP}
               wrapperClassName={CHIP_WRAPPER}
             />
+            <FilterSelect
+              icon={CircleDot}
+              label="IPAS Status"
+              options={STATUS_OPTIONS}
+              value={status ?? ALL}
+              onChange={(v) => setStatus(v === ALL ? null : v)}
+              allValue={ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
           </>
         }
         hasActiveFilters={hasActiveFilters}
@@ -181,6 +205,7 @@ function IpasList() {
           setEntity(null);
           setPurpose(null);
           setCosting(null);
+          setStatus(null);
         }}
       />
     </>
@@ -236,7 +261,7 @@ function IpasList() {
               <Table tableId="ipas" className="md:min-w-[72rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "Costing", "Project / SO", "Raised", "Raised by", ...MONEY_HEADINGS, "State"].map((heading) => (
+                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "Costing", "Project / SO", "Raised", "Raised by", ...MONEY_HEADINGS, "Status", "State"].map((heading) => (
                       <SortHead
                         key={heading}
                         id={slug(heading)}
@@ -252,7 +277,13 @@ function IpasList() {
                 </TableHeader>
                 <TableBody>
                   {paging.rows.map((row) => (
-                    <IpasRow key={row.id} row={row} search={search} onOpen={(id) => navigate(`/purchasing/ipas/${id}`)} />
+                    <IpasRow
+                      key={row.id}
+                      row={row}
+                      search={search}
+                      canSetHold={canSetHold}
+                      onOpen={(id) => navigate(`/purchasing/ipas/${id}`)}
+                    />
                   ))}
                 </TableBody>
               </Table>

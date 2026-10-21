@@ -567,8 +567,44 @@ export function stubIpasRpcs({
           actual_checking_stamped: Boolean(row.actual_checking_by),
           actual_checking_at: row.actual_checking_at ?? null,
           slips,
+          on_hold: row.on_hold === true,
         }
       })
+  })
+
+  // #597: Purchasing or Finance sets and clears On-Hold on an open IPAS, with a history event per change.
+  stubRpc("ipas_set_on_hold", (args) => {
+    if (!canWriteMoney) refuse("42501", "ipas_set_on_hold: only Purchasing or Finance puts an IPAS On-Hold")
+    const row = findRow("ipas", args.p_ipas_id)
+    if (!row) refuse("22023", `ipas_set_on_hold: IPAS ${args.p_ipas_id} not found`)
+    if (row.state === "filed") refuse("22023", `ipas_set_on_hold: ${row.number} is filed; a Super Admin reopens it first`)
+    if (row.state === "cancelled") refuse("22023", `ipas_set_on_hold: ${row.number} is cancelled`)
+    const onHold = args.p_on_hold === true
+    const note = onHold ? String(args.p_note ?? "").trim() || null : null
+    if (Boolean(row.on_hold) === onHold && (row.on_hold_note ?? null) === note) return row
+    // updateRow edits the stored row in place, so read what it was first.
+    const wasOnHold = Boolean(row.on_hold)
+    const previousNote = row.on_hold_note ?? null
+    const updated = updateRow("ipas", row, { on_hold: onHold, on_hold_note: note })
+    event(row.id, !onHold ? "on_hold_cleared" : wasOnHold ? "on_hold_changed" : "on_hold_set", {
+      note,
+      previous_note: previousNote,
+    })
+    return updated
+  })
+
+  // #597: which of these IPAS have history beyond the system's own entries.
+  stubRpc("ipas_worked_on", (args) => {
+    const system = ["created", "odoo_copy_changed", "filled_from_odoo", "odoo_changed_since_filing", "on_hold_set", "on_hold_changed", "on_hold_cleared"]
+    const wanted = new Set(args.p_ipas_ids ?? [])
+    return [
+      ...new Set(
+        rowsOf("ipas_events")
+          .filter((e) => wanted.has(e.ipas_id) && !system.includes(e.kind))
+          .filter((e) => !(e.kind === "approvals_cleared" && e.detail?.reason === "PO changed in Odoo"))
+          .map((e) => e.ipas_id),
+      ),
+    ]
   })
 
   /** The helper both resets share: clears the live approvals of the given stored sections (1 and 3 unless told otherwise; an Account # flag passes only 3), returns { sections, preparers }. */
@@ -1413,6 +1449,11 @@ export function stubIpasRpcs({
     let filedIpas = ipas
     if (section === 7 && role === "approved") {
       filedIpas = updateRow("ipas", ipas, { state: "filed", filed_at: new Date().toISOString() })
+      // Filing clears On-Hold (#597), as the database trigger does.
+      if (ipas.on_hold) {
+        filedIpas = updateRow("ipas", filedIpas, { on_hold: false, on_hold_note: null })
+        event(ipas.id, "on_hold_cleared", { note: null, previous_note: ipas.on_hold_note ?? null, reason: "filed" })
+      }
       event(ipas.id, "filed", { computation_status: ipas.computation_status, signoff_id: signoff.id })
       stage = "filed"
     } else if (role === "prepared") {

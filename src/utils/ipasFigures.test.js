@@ -217,3 +217,114 @@ describe("ipasFigures: currencies", () => {
     expect(ipasFigures({ odoo_copy: { po: { currency: "EUR", amount_total: 10 } }, payments: [] }).currency).toBe("EUR")
   })
 })
+
+describe("ipasFigures: IPAS Status (#597)", () => {
+  const sec1 = { prepared: { id: "s" }, approved: null }
+  const full = pay("full_payment", 11200, "Bank TT")
+  const down = pay("down_payment", 3000, "Bank TT")
+  const statusOf = (over) => ipasFigures(ipas(over)).status
+
+  // Highest precedence first: cancelled, filed, On-Hold, a full payment, any payment, section 1, worked on, else Pending.
+  it.each([
+    ["Pending: nothing has happened", {}, "pending"],
+    ["Requested: section 1 prepared, nothing paid", { section1Started: true }, "requested"],
+    ["Requested: section 1 started, read from the record's shaped sign-offs", { signoffSections: { 1: sec1 } }, "requested"],
+    ["Requested: section 1 approved", { signoffSections: { 1: { prepared: null, approved: { id: "a" } } } }, "requested"],
+    ["Pending: section 1 shaped but nobody signed", { signoffSections: { 1: { prepared: null, approved: null } } }, "pending"],
+    ["Ongoing: worked on since it was raised", { workedOn: true }, "ongoing"],
+    ["Ongoing: a down payment is recorded", { payments: [down] }, "ongoing"],
+    ["Ongoing: any payment kind counts", { payments: [pay("shipping_fee", 100, "Cash")] }, "ongoing"],
+    ["Paid: a full payment is recorded", { payments: [down, full] }, "paid"],
+    ["Paid: a full payment alone", { payments: [full] }, "paid"],
+    ["Done: filed", { state: "filed" }, "done"],
+    ["On-Hold: the flag is set", { on_hold: true }, "on_hold"],
+    ["none: cancelled", { state: "cancelled" }, null],
+  ])("%s", (_name, over, expected) => {
+    expect(statusOf(over)).toBe(expected)
+  })
+
+  it("Requested wins over worked on, and a payment wins over Requested", () => {
+    expect(statusOf({ section1Started: true, workedOn: true })).toBe("requested")
+    expect(statusOf({ section1Started: true, workedOn: true, payments: [down] })).toBe("ongoing")
+    expect(statusOf({ section1Started: true, payments: [down, full] })).toBe("paid")
+  })
+
+  it("an explicit section1Started beats the shaped sign-offs", () => {
+    expect(statusOf({ section1Started: false, signoffSections: { 1: sec1 } })).toBe("pending")
+  })
+
+  describe("ties", () => {
+    it("On-Hold beats a full payment and any payment, section 1 and worked on", () => {
+      expect(statusOf({ on_hold: true, payments: [down, full] })).toBe("on_hold")
+      expect(statusOf({ on_hold: true, payments: [down] })).toBe("on_hold")
+      expect(statusOf({ on_hold: true, section1Started: true, workedOn: true })).toBe("on_hold")
+    })
+
+    it("filed beats On-Hold (filing clears it, and a stale flag never hides Done)", () => {
+      expect(statusOf({ state: "filed", on_hold: true })).toBe("done")
+      expect(statusOf({ state: "filed", on_hold: true, payments: [down, full] })).toBe("done")
+    })
+
+    it("cancelled beats everything: no status with payments, On-Hold or work done", () => {
+      expect(statusOf({ state: "cancelled", payments: [down, full] })).toBeNull()
+      expect(statusOf({ state: "cancelled", on_hold: true })).toBeNull()
+      expect(statusOf({ state: "cancelled", section1Started: true, workedOn: true })).toBeNull()
+    })
+
+    it("filed beats a full payment: Done, not Paid", () => {
+      expect(statusOf({ state: "filed", payments: [down, full] })).toBe("done")
+    })
+  })
+
+  it("clearing On-Hold returns the IPAS to the status it has earned", () => {
+    const earned = { payments: [down], section1Started: true }
+    expect(statusOf({ ...earned, on_hold: true })).toBe("on_hold")
+    expect(statusOf({ ...earned, on_hold: false })).toBe("ongoing")
+    expect(statusOf({ payments: [down, full], on_hold: false })).toBe("paid")
+  })
+
+  it("reads the flag and its note; the note only shows while on hold", () => {
+    const held = ipasFigures(ipas({ on_hold: true, on_hold_note: "Supplier issue" }))
+    expect(held.onHold).toBe(true)
+    expect(held.onHoldNote).toBe("Supplier issue")
+    const free = ipasFigures(ipas({ on_hold: false, on_hold_note: "stale" }))
+    expect(free.onHold).toBe(false)
+    expect(free.onHoldNote).toBeNull()
+  })
+
+  it("has no status for no IPAS at all", () => {
+    expect(ipasFigures(null).status).toBeNull()
+  })
+
+  describe("the Remaining balance reads the status (ADR 0035)", () => {
+    const owing = { pi_qt_amount: 10000 }
+
+    it("is 0 when the status is Paid", () => {
+      const payments = [pay("down_payment", 5000, "Cash"), pay("full_payment", 4550, "Cash")]
+      expect(ipasFigures(ipas({ ...owing, payments })).remainingBalance).toBe(0)
+    })
+
+    it("is 0 when the status is Done, with or without payments", () => {
+      expect(ipasFigures(ipas({ ...owing, state: "filed" })).remainingBalance).toBe(0)
+      expect(ipasFigures(ipas({ ...owing, state: "filed", payments: [down] })).remainingBalance).toBe(0)
+    })
+
+    it("is what is really left while On-Hold, even with a full payment recorded", () => {
+      const payments = [pay("down_payment", 5000, "Cash"), pay("full_payment", 4550, "Cash")]
+      const figures = ipasFigures(ipas({ ...owing, on_hold: true, payments }))
+      expect(figures.status).toBe("on_hold")
+      expect(figures.remainingBalance).toBe(450)
+    })
+
+    it("is not zeroed by Ongoing, Requested or Pending", () => {
+      expect(ipasFigures(ipas({ ...owing, payments: [down] })).remainingBalance).toBe(7000)
+      expect(ipasFigures(ipas({ ...owing, section1Started: true })).remainingBalance).toBe(10000)
+      expect(ipasFigures(ipas(owing)).remainingBalance).toBe(10000)
+    })
+
+    it("a cancelled IPAS counts down even with a full payment (it has no status to settle it)", () => {
+      const payments = [pay("full_payment", 4000, "Cash")]
+      expect(ipasFigures(ipas({ ...owing, state: "cancelled", payments })).remainingBalance).toBe(6000)
+    })
+  })
+})

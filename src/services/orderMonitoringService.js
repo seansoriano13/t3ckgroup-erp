@@ -143,6 +143,7 @@ async function loadOrders(today) {
         arrivedInPhOn: row.arrived_in_ph_on,
         origins: row,
         slips: named,
+        onHold: row.on_hold === true,
       }),
       rules,
       today,
