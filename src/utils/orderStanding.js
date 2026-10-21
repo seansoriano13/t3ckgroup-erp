@@ -20,7 +20,7 @@
  * `order` is the IPAS as the service shapes it (see orderMonitoringService):
  *   id, state, source, createdAt, updatedAt, computationStatus,
  *   costsCompletedAt (when costs went complete, or null),
- *   section3Approved (section 3, stored 6, has a live Approved), buyerTrack (the
+ *   section3Submitted and section3Approved (section 3, stored 6, has a live Submitted / Approved), buyerTrack (the
  *   shaped items with key, ticked, on, at), proofPaidOn and arrivedInPhOn
  *   ('YYYY-MM-DD' or null), latestSupplierOrigin ({ label, on } or null), and
  *   slips (the raw submitted Transmittal rows that name this IPAS, with stages and
@@ -34,7 +34,7 @@ import {
   ORDER_GROUP,
   ORDER_OWNER,
 } from "../constants/orderMonitoring";
-import { IPAS_STATE } from "../constants/ipas";
+import { IPAS_COSTING_SECTION, IPAS_STATE, ipasSectionNo } from "../constants/ipas";
 import {
   TRANSMITTAL_RATING,
   TRANSMITTAL_STAFF_LIST,
@@ -274,11 +274,13 @@ function nextThing(order, slips, track) {
     // The wait starts at the Costs complete event. An order whose history has no such event
     // (set outside the app) falls back to its last update, then its creation.
     const since = instantOf(order.costsCompletedAt) ?? instantOf(order.updatedAt) ?? instantOf(order.createdAt);
-    // Filing waits for section 3 (#590): until the section 3 list approves, that list owes the next thing.
+    // Filing waits for section 3 (#590). Until Purchasing submits it, Purchasing owes it; once
+    // submitted, the section 3 list owes the approval.
     if (order.section3Approved !== true) {
+      const submitted = order.section3Submitted === true;
       return {
-        label: "Section 3 waiting for approval",
-        owner: ORDER_OWNER.SECTION_3_APPROVERS,
+        label: `Section ${ipasSectionNo(IPAS_COSTING_SECTION)} waiting for ${submitted ? "approval" : "submit"}`,
+        owner: submitted ? ORDER_OWNER.SECTION_3_APPROVERS : ORDER_OWNER.PURCHASING,
         step: "section_3_approval",
         since,
       };

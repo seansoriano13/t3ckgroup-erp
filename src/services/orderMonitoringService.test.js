@@ -427,7 +427,7 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.group).toBe("waiting_on_us")
     })
 
-    it("says costs complete but section 3 not approved is waiting on the section 3 list (#590)", async () => {
+    it("says costs complete but section 3 not submitted is owed by Purchasing (#590)", async () => {
       const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
       db.seed("ipas_events", {
         ipas_id: ipas.id,
@@ -435,6 +435,23 @@ describe("orderMonitoringService: what needs doing", () => {
         detail: { fields: { computation_status: { from: "lc_gs_done", to: "lc_odoo_done" } } },
         created_at: at(5),
       })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Section 3 waiting for submit")
+      expect(row.next.owner).toBe("purchasing")
+      expect(row.next.step).toBe("section_3_approval")
+    })
+
+    it("says costs complete and section 3 submitted but not approved is waiting on the section 3 list (#590)", async () => {
+      const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
+      db.seed("ipas_events", {
+        ipas_id: ipas.id,
+        kind: "header_changed",
+        detail: { fields: { computation_status: { from: "lc_gs_done", to: "lc_odoo_done" } } },
+        created_at: at(5),
+      })
+      db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "prepared", signed_by: makeEmployee({ name: "S3 Submitter" }).id })
       // A cleared approval does not count.
       db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "approved", signed_by: makeEmployee({ name: "S3 Approver" }).id, cleared_at: at(6) })
 

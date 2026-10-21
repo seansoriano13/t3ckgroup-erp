@@ -3,10 +3,10 @@
 // spec's copy notes; the "next" part reads the digest, so it stays true as the
 // sign-offs move on. Section names come from the constants, never typed here.
 
-import { IPAS_COMPUTATION_STATUS, ipasSectionLabel } from "@/constants/ipas";
+import { IPAS_COMPUTATION_STATUS, IPAS_PART_NAMES, ipasPartWord, ipasSectionLabel } from "@/constants/ipas";
 
 const approversOf = (part) => `the approvers of ${ipasSectionLabel(part)}`;
-const sectionOf = (part) => `section ${ipasSectionLabel(part)}`;
+const sectionOf = (part) => `${ipasPartWord(part)} · ${IPAS_PART_NAMES[part]}`;
 
 /** The card's line while no gate is Now: LC Odoo Done is Purchasing's, and it waits for the encoding. */
 export const COSTS_WAITING = "Waiting for Purchasing to finish encoding costs.";
@@ -43,7 +43,7 @@ const MOVE_HINT = {
   costs: (d) =>
     d.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED
       ? "Records that Landed Cost is worked out in the GS sheet. Undo is offered. Next: LC Odoo Done."
-      : `Makes Landed Cost final. Undo is offered, and it clears section 3's Submitted and Approved if it was given. Next: Purchasing submits ${sectionOf("costing")} for approval.`,
+      : `Makes Landed Cost final. Undo is offered, and it clears ${ipasPartWord("costing")}'s Submitted and Approved if it was given. Next: Purchasing submits ${sectionOf("costing")} for approval.`,
   receive: () => `Starts ${sectionOf("filing")}. Next: Noted and Checked, in either order.`,
   note: (d) => `Records Noted on ${sectionOf("filing")}. Next: ${d.s7.checked ? "the filing approvers" : "whoever checks it"}.`,
   check: (d) => `Records Checked on ${sectionOf("filing")}. Next: ${d.s7.noted ? "the filing approvers" : "whoever notes it"}.`,

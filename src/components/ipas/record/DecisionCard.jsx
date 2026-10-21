@@ -2,7 +2,8 @@
 // rights, and who the IPAS waits on. The card itself is the shared RecordCard.
 
 import RecordCard from "@/components/record/RecordCard";
-import { IPAS_PART_NO, ipasSectionLabel } from "@/constants/ipas";
+import { Button } from "@/components/ui/button";
+import { ipasPartWord, ipasSectionLabel } from "@/constants/ipas";
 import { nowGate } from "./gates";
 import { COSTS_WAITING } from "./moveCopy";
 import { cardMovesFor } from "./moves";
@@ -46,13 +47,14 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
             {also.map((part, index) => (
               <span key={part}>
                 {index > 0 && ", "}
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => onReview(part)}
-                  className="font-semibold text-foreground underline underline-offset-4"
+                  className="h-auto p-0 text-sm font-semibold text-foreground underline"
                 >
-                  {`section ${IPAS_PART_NO[part]}`}
-                </button>
+                  {ipasPartWord(part)}
+                </Button>
               </span>
             ))}
           </p>

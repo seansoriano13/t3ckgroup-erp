@@ -12,7 +12,7 @@
  * edit waits the page keeps the last figure it read, and the refetch brings the new one.
  */
 
-import { IPAS_SIGNOFF_ROLE } from "../constants/ipas";
+import { IPAS_SIGNOFF_ROLE, ipasSectionNo } from "../constants/ipas";
 import { shapeIpas } from "./ipas";
 import { parseAmountInput } from "./ipasPayments";
 
@@ -239,7 +239,7 @@ export function returnSection({ section, undo = false, by, reason }) {
       next = clearSignoffs({
         match: (s) => s.section === 7 && SECTION_7_OPEN.has(s.role),
         by,
-        reason: `Section ${section} ${undo ? "approval undone" : "returned"}: ${reason}`,
+        reason: `Section ${ipasSectionNo(section)} ${undo ? "approval undone" : "returned"}: ${reason}`,
       })(next);
     }
     return next;

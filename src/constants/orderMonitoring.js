@@ -1,4 +1,4 @@
-import { IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS, ipasSectionNo } from "./ipas";
+import { IPAS_COSTING_SECTION, IPAS_FILING_SECTION, IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS, ipasSectionNo } from "./ipas";
 
 /**
  * Order Monitoring (spec #261): the steps an ageing rule can be set on, in the
@@ -17,7 +17,7 @@ export const ORDER_AGEING_STEPS = [
   { key: "actual_checking", label: "Actual Checking" },
   { key: "no_transmittal", label: "Delivered, no Transmittal raised" },
   { key: "check_open", label: "Transmittal check open" },
-  { key: "section_3_approval", label: "Section 3 waiting for approval" },
+  { key: "section_3_approval", label: `Section ${ipasSectionNo(IPAS_COSTING_SECTION)} waiting to be submitted or approved` },
   { key: "ready_to_file", label: "Costs complete, ready to file" },
 ];
 
@@ -77,6 +77,6 @@ export const ORDER_OWNER_LABELS = {
   [ORDER_OWNER.TECHNICAL]: "Technical",
   [ORDER_OWNER.CHECK_BY]: "Check by signers",
   [ORDER_OWNER.SECTION_3_APPROVERS]: IPAS_SIGNER_LIST_LABELS[IPAS_SIGNER_LIST.S6_APPROVED],
-  [ORDER_OWNER.SIGNERS]: `Section ${ipasSectionNo(7)} signers`,
+  [ORDER_OWNER.SIGNERS]: `Section ${ipasSectionNo(IPAS_FILING_SECTION)} signers`,
   [ORDER_OWNER.OTHERS]: "Supplier, forwarder or port",
 };

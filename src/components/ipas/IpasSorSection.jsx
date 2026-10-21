@@ -7,7 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { getPermissionContext, canReadIpas, transmittalListsOf } from "../../utils/permissions";
 import { standingLabel } from "../../utils/orderStanding";
 import { pluralize } from "../../utils/plural";
-import { IPAS_PURPOSE_LABELS } from "../../constants/ipas";
+import { IPAS_PURPOSE_LABELS, ipasSectionNo } from "../../constants/ipas";
 import { ORDER_OWNER_LABELS } from "../../constants/orderMonitoring";
 import IpasStateBadge from "./IpasStateBadge";
 import { LandedCostMark } from "../costing/LandedCost";
@@ -16,6 +16,9 @@ import { useIpasSorSummaries } from "./useIpasSorSummaries";
 
 /** Opens the full IPAS in its own tab, so the SOR stays where it is. */
 const openIpas = (id) => window.open(`/purchasing/ipas/${id}`, "_blank", "noopener");
+
+/** A row that names a Transmittal opens that slip, as the Dashboard does (#588). */
+const openSlip = (id) => window.open(`/purchasing/transmittals/${id}`, "_blank", "noopener");
 
 function TrackChip({ item }) {
   const Icon = item.ticked ? Check : item.partial ? CircleDot : Circle;
@@ -58,9 +61,20 @@ function SummaryRow({ summary, canOpen }) {
 
       {summary.nextThing && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid="ipas-next-thing">
-          <span className="font-medium text-foreground">
-            {standingLabel({ label: summary.nextThing, list: summary.nextList }, lists)}
-          </span>
+          {summary.nextSlip?.id ? (
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => openSlip(summary.nextSlip.id)}
+              className="h-auto p-0 text-xs font-medium text-foreground underline"
+            >
+              {standingLabel({ label: summary.nextThing, list: summary.nextList }, lists)}
+            </Button>
+          ) : (
+            <span className="font-medium text-foreground">
+              {standingLabel({ label: summary.nextThing, list: summary.nextList }, lists)}
+            </span>
+          )}
           {summary.owner && (
             <span className="text-muted-foreground">· {ORDER_OWNER_LABELS[summary.owner] ?? summary.owner}</span>
           )}
@@ -69,7 +83,7 @@ function SummaryRow({ summary, canOpen }) {
               · {pluralize(summary.daysWaiting, "day")} waiting
             </span>
           )}
-          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
+          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
         </p>
       )}
 
@@ -107,7 +121,7 @@ function SummaryRow({ summary, canOpen }) {
         {summary.signoffs.map((section) => (
           <div key={section.section} className="flex items-baseline gap-2">
             <dt className="text-muted-foreground">
-              Section {section.section} · {section.name}
+              Section {ipasSectionNo(section.section)} · {section.name}
             </dt>
             <dd className="font-medium text-foreground">
               {section.steps

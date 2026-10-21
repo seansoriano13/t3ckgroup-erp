@@ -100,14 +100,23 @@ describe("Filing waits for section 3 (#590)", () => {
   });
   const RULES = [{ step: "section_3_approval", days: 3 }];
 
-  it("is waiting on the section 3 list when costs are complete and section 3 is not approved", () => {
-    const standing = orderStanding(costsDone({ section3Approved: false }), [], TODAY);
+  it("is waiting on the section 3 list once section 3 is submitted but not approved", () => {
+    const standing = orderStanding(costsDone({ section3Submitted: true, section3Approved: false }), [], TODAY);
     expect(standing.next).toMatchObject({
       label: "Section 3 waiting for approval",
       owner: "section_3_approvers",
       step: "section_3_approval",
     });
     expect(ORDER_OWNER_LABELS[standing.next.owner]).toBe("Section 3 · Approved");
+  });
+
+  it("is owed by Purchasing until section 3 is submitted", () => {
+    const standing = orderStanding(costsDone({ section3Submitted: false, section3Approved: false }), [], TODAY);
+    expect(standing.next).toMatchObject({
+      label: "Section 3 waiting for submit",
+      owner: "purchasing",
+      step: "section_3_approval",
+    });
   });
 
   it("is ready to file once section 3 is approved", () => {

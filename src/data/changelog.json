@@ -1,5 +1,19 @@
 [
     {
+        "date": "2026-10-25",
+        "title": "IPAS: Computation status & Landed Cost is now signed off, and Filing waits for it",
+        "version": "1.9.56",
+        "changes": [
+            "The third part of an IPAS (Computation status & Landed Cost) now has its own Submitted and Approved, like the first two parts. Purchasing submits it once the Computation status reaches LC Odoo Done, and someone else on its approvers list approves it. Its signatures show on the printed form.",
+            "The old Checked by step is gone. Computation status now ends at LC Odoo Done, and an IPAS that was at Checked by keeps its approval as the new sign-off.",
+            "Filing (section 4) now opens only after sections 1, 2 and 3 are all approved. A Return or an Undo on section 3 is offered like on the other sections.",
+            "Changing the Landed Cost of an open IPAS clears the section 3 sign-off, and the people who signed are told. Order Monitoring shows who owes section 3: Purchasing before it is submitted, its approvers after.",
+            "A new Super Admin setting lists who approves section 3. Finance people are on it to start with.",
+            "The IPAS \"Your move\" card now shows only the earliest section waiting for you, with short button names, and a flagged Account # clears only section 2.",
+            "Transmittal rows on an SOR's IPAS section now open the slip, and the section numbers there match the IPAS screens."
+        ]
+    },
+    {
         "date": "2026-10-24",
         "title": "Purchasing: a Canvasses page, Canvasses before a request, and easier Requested Items",
         "version": "1.9.55",

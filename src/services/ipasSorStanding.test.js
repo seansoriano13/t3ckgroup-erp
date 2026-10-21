@@ -31,7 +31,7 @@ const odooPo = (name) => ({
   bills: { count: 0, draft: 0 },
 })
 
-const NEW_FIELDS = ["daysWaiting", "late", "nextList", "nextThing", "owner"]
+const NEW_FIELDS = ["daysWaiting", "late", "nextList", "nextSlip", "nextThing", "owner"]
 const SHAPED_KEYS = [
   "buyerTrack", "computationLabel", "computationStatus", "id", "isCancelled", "isFiled", "landedCost", "number",
   "poNumber", "purpose", "signoffs", "state", "supplier", "trackDone", "trackTotal",

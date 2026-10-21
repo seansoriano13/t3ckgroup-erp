@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { transmittalService } from "./transmittalService";
+import { readSection3Signoffs } from "./ipasSection3Signoffs";
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUSES,
@@ -15,6 +16,7 @@ import {
   IPAS_OPTION_LIST_NOUNS,
   IPAS_OVERRIDE_FIELDS,
   IPAS_PAYMENT_KINDS,
+  IPAS_PRE_FILING_SECTIONS,
   IPAS_PRIORITIES,
   IPAS_PURPOSE,
   IPAS_PURPOSES,
@@ -24,6 +26,7 @@ import {
   IPAS_SECTION_7_ROLES,
   ipasSectionLabel,
   ipasSectionNo,
+  ipasSectionWord,
   ipasSectionName,
   IPAS_SIGNER_LISTS,
   IPAS_SIGNOFF_ROLE,
@@ -242,7 +245,7 @@ export const ipasService = {
     // The SOR headers are asked for by id: the database gives none for a null list.
     const sorsByIpas = await readSorHeaders((rows || []).map((row) => row.id));
     // The list filter "Section 3 approved" (#586): one read of the live section 3 approvals.
-    const section3Approved = await readSection3Approved();
+    const { approved: section3Approved } = await readSection3Signoffs();
 
     return (rows || [])
       .filter((row) => !entity || ipasEntity(row) === entity)
@@ -583,7 +586,7 @@ export const ipasService = {
             recipient_id,
             type: IPAS_NOTIFICATION.ACCOUNT_FLAGGED,
             title: "Account # flagged",
-            message: `${label}: the supplier's account number differs from their last IPAS, so its section 2 approval was cleared.`,
+            message: `${label}: the supplier's account number differs from their last IPAS, so its ${ipasSectionWord(3)} approval was cleared.`,
             reference_id: id,
           }),
         ),
@@ -1169,12 +1172,12 @@ export const ipasService = {
     if (listError) throw listError;
 
     const keys = new Set((memberships || []).map((m) => m.list_key));
-    const firstSections = [1, 3, 6].filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
+    const firstSections = IPAS_PRE_FILING_SECTIONS.filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
     const sevenRoles = IPAS_SECTION_7_ROLES.filter((role) => keys.has(IPAS_SECTION_7_LIST[role]));
     if (firstSections.length === 0 && sevenRoles.length === 0) return [];
 
     // Section 7 reads sections 1, 3 and 6 too: it opens on their approvals.
-    const sections = sevenRoles.length > 0 ? [...new Set([1, 3, 6, 7, ...firstSections])] : firstSections;
+    const sections = sevenRoles.length > 0 ? [...new Set([...IPAS_SIGNOFF_SECTIONS, ...firstSections])] : firstSections;
     const { data: rows, error } = await supabase
       .from("ipas_signoffs")
       .select(SIGNOFF_SELECT)
@@ -1394,18 +1397,6 @@ export const ipasService = {
     return data;
   },
 };
-
-/** The ids of the IPAS whose section 3 (stored 6) is approved right now. */
-async function readSection3Approved() {
-  const { data, error } = await supabase
-    .from("ipas_signoffs")
-    .select("ipas_id")
-    .eq("section", 6)
-    .eq("role", IPAS_SIGNOFF_ROLE.APPROVED)
-    .is("cleared_at", null);
-  if (error) throw error;
-  return new Set((data || []).map((row) => row.ipas_id));
-}
 
 function requireSignoffSection(section) {
   if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {

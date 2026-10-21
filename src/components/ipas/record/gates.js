@@ -9,6 +9,7 @@ import {
   IPAS_PART_NO,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
+  ipasPartWord,
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { formatDate } from "@/utils/formatDate.js";
@@ -114,7 +115,7 @@ function gateDefs(digest) {
       waitsOn: "the filing approvers",
       line: s7.approved
         ? `Approved by ${name(s7.approved)}`
-        : "Files the IPAS, after Noted, Checked, LC Odoo Done and section 3 approved",
+        : `Files the IPAS, after Noted, Checked, LC Odoo Done and ${ipasPartWord("costing")} approved`,
       at: s7.approved?.signedAt ?? null,
       moveKeys: ["file"],
     },
