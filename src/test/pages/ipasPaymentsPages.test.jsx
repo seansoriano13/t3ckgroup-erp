@@ -131,9 +131,10 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const saved = await screen.findByTestId("ipas-payment-row");
       expect(within(saved).getByText("Down payment")).toBeInTheDocument();
       expect(within(saved).getByDisplayValue("CHK-0042")).toBeInTheDocument();
-      // DP is read off the rows; there is no balance anywhere.
-      await waitFor(() => expect(screen.getByText("DP").parentElement).toHaveTextContent(/3,000\.00/));
-      expect(screen.queryByText(/balance/i)).not.toBeInTheDocument();
+      // DP is read off the rows. The record shows no balance yet (the list behind it does, #596).
+      const record = document.querySelector('[data-modal-shell="wide"]');
+      await waitFor(() => expect(within(record).getByText("DP").parentElement).toHaveTextContent(/3,000\.00/));
+      expect(within(record).queryByText(/balance/i)).not.toBeInTheDocument();
     }, 20_000);
 
     it("refuses a half-typed amount with a sentence on Save all, keeps what was typed, and never breaks", async () => {
@@ -647,7 +648,7 @@ describe("IPAS settings", () => {
 
     const rows = await screen.findAllByTestId("ipas-option-row");
     expect(within(rows[0]).getByText("Alipay")).toBeInTheDocument();
-    expect(within(rows.at(-1)).getByText("Other")).toBeInTheDocument();
+    expect(within(rows.at(-1)).getByText("Others")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Charge kinds" }));
     await waitFor(() => expect(screen.getAllByTestId("ipas-option-row")).toHaveLength(7));

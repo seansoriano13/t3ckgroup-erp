@@ -598,7 +598,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
         "Western Union",
         "Alibaba",
         "Paypal",
-        "Other",
+        "Others",
       ])
       expect(active.map((o) => o.label)).not.toContain("Credit Card")
       expect((await ipasService.listOptions(IPAS_OPTION_LIST.CHARGE_KIND))).toHaveLength(7)
