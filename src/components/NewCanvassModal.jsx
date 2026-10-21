@@ -12,6 +12,8 @@ import { SelectField } from "./ui/SelectField";
 import CanvassSupplierField, { canvassFieldClass } from "./CanvassSupplierField";
 import { canvassService } from "../services/canvassService";
 import { CANVASS_CURRENCIES, CANVASS_LIST_KEY, DEFAULT_CURRENCY, MIN_CANVASS_OFFERS } from "../constants/canvass";
+import { warningToast } from "./ui/CustomToast";
+import { procurementQueueKey } from "./purchase-request/queryKeys";
 import { moreOffersWarning } from "../utils/canvassMath";
 import { useReferenceRate } from "../hooks/useReferenceRate";
 import { getCurrentLocalDate } from "../utils/formatDate.js";
@@ -232,7 +234,8 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
       if (withRequest) {
         const made = await canvassService.createPurchaseRequest({ title: requestTitle, items: savedIds.map((canvassId) => ({ canvassId })) });
         toast.success("Purchase Request created.");
-        if (made.unsignedCanvassIds.length > 0) toast.warning("The Canvasses are not signed off yet.");
+        if (made.unsignedCanvassIds.length > 0) warningToast("The Canvasses are not signed off yet.");
+        queryClient.invalidateQueries({ queryKey: procurementQueueKey });
       } else {
         toast.success(`${savedIds.length} Canvass${savedIds.length === 1 ? "" : "es"} saved.`);
       }

@@ -5,6 +5,8 @@ import toast from "react-hot-toast";
 import ModalShell from "./ui/ModalShell";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { warningToast } from "./ui/CustomToast";
+import { procurementQueueKey } from "./purchase-request/queryKeys";
 import { canvassService } from "../services/canvassService";
 import { CANVASS_LIST_KEY } from "../constants/canvass";
 
@@ -25,9 +27,10 @@ export default function CreatePurchaseRequestModal({ open, onOpenChange, canvass
     onSuccess: (made) => {
       toast.success("Purchase Request created.");
       const numbers = canvasses.filter((c) => made.unsignedCanvassIds.includes(c.id)).map((c) => c.number);
-      if (numbers.length > 0) toast.warning(`Not signed off yet: ${numbers.join(", ")}.`);
+      if (numbers.length > 0) warningToast(`Not signed off yet: ${numbers.join(", ")}.`);
       setTitle("");
       queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
+      queryClient.invalidateQueries({ queryKey: procurementQueueKey });
       queryClient.invalidateQueries({ queryKey: ["canvass"] });
       onCreated?.(made);
     },
