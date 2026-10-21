@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasListPage from "@/pages/purchasing/ipas/index";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
@@ -379,8 +379,7 @@ describe("IPAS pages", () => {
 
       renderDetail(row.id, "purchasing");
 
-      // The drawer is modal, so the page behind it is hidden from role queries.
-      expect(await findOtherDialog()).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: /^1 · / })).toHaveAttribute("aria-expanded", "true");
       // The item shows in section 1 and again in Landed Cost (#244).
       expect((await screen.findAllByText("Greenspirit 2 Cutter")).length).toBeGreaterThan(0);
       expect(screen.getByText("SCORPE")).toBeInTheDocument();
@@ -503,51 +502,75 @@ describe("IPAS pages", () => {
       expect(screen.getByRole("heading", { name: "Everything else" })).toBeInTheDocument();
     });
 
-    it("opens a section from ?open=, and Escape returns focus to its row", async () => {
+    // The record is a full page again: no list behind it, nothing is a dialog.
+    it("renders as a page at its own address: header, then the card, the money's place, then the sections", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = setupUser();
+      renderDetail(row.id);
 
-      renderDetail(row.id, "finance");
-      expect(await screen.findByRole("dialog", { name: /^2 · / })).toBeInTheDocument();
-
-      await user.keyboard("{Escape}");
-
-      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
-      expect(screen.getByRole("button", { name: /^2 · / })).toHaveFocus();
-    });
-
-    // #533: a short section expands under its row, with no drawer.
-    it("expands Logistics in place from ?open=, with no drawer", async () => {
-      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      renderDetail(row.id, "logistics");
-
-      const trigger = await screen.findByRole("button", { name: /^6 · Logistics/ });
-      expect(trigger).toHaveAttribute("aria-expanded", "true");
-      expect(screen.getByText("Item Location")).toBeInTheDocument();
+      const title = await screen.findByRole("heading", { level: 1, name: row.number });
+      const card = await screen.findByRole("region", { name: "Your move" });
+      const slot = screen.getByTestId("ipas-money-summary-slot");
+      const sections = screen.getByRole("heading", { name: "Sections" });
+      const before = (a, b) => expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      before(title, card);
+      before(card, slot);
+      before(slot, sections);
+      expect(screen.getByRole("link", { name: "IPAS" })).toHaveAttribute("href", "/purchasing/ipas");
       expect(queryOtherDialog()).not.toBeInTheDocument();
     });
 
-    it("toggles a section of Everything else in place from its row, and J stays in Money and sign-offs", async () => {
+    it("toggles sections in place, several open at once, with Open all and Close all", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = setupUser();
       renderDetail(row.id);
 
-      const trigger = await screen.findByRole("button", { name: /^6 · Logistics/ });
-      expect(trigger).toHaveAttribute("aria-expanded", "false");
-      await user.click(trigger);
-      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      const logistics = await screen.findByRole("button", { name: /^6 · Logistics/ });
+      const history = screen.getByRole("button", { name: /^History/ });
+      expect(logistics).toHaveAttribute("aria-expanded", "false");
+      await user.click(logistics);
+      await user.click(history);
+      expect(logistics).toHaveAttribute("aria-expanded", "true");
+      expect(history).toHaveAttribute("aria-expanded", "true");
+      expect(await screen.findByText("Item Location")).toBeInTheDocument();
       expect(queryOtherDialog()).not.toBeInTheDocument();
-      await user.click(trigger);
-      expect(trigger).toHaveAttribute("aria-expanded", "false");
 
-      // From section 4, J goes nowhere: Everything else is not in the drawer's order.
-      await user.click(screen.getByRole("button", { name: /^3 · / }));
-      await screen.findByRole("dialog", { name: /^3 · / });
-      fireEvent.keyDown(window, { key: "j" });
-      expect(await screen.findByRole("dialog", { name: /^4 · / })).toBeInTheDocument();
-      fireEvent.keyDown(window, { key: "j" });
-      expect(screen.getByRole("dialog", { name: /^4 · / })).toBeInTheDocument();
-      expect(screen.queryByRole("dialog", { name: "Header" })).not.toBeInTheDocument();
+      await user.click(logistics);
+      expect(logistics).toHaveAttribute("aria-expanded", "false");
+      expect(history).toHaveAttribute("aria-expanded", "true");
+
+      await user.click(screen.getByRole("button", { name: "Open all" }));
+      expect(logistics).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("button", { name: "Open all" })).toBeDisabled();
+
+      await user.click(screen.getByRole("button", { name: "Close all" }));
+      expect(logistics).toHaveAttribute("aria-expanded", "false");
+      expect(history).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByRole("button", { name: "Close all" })).toBeDisabled();
+    });
+
+    it("opens the section ?open= names and scrolls to it, leaving the others shut", async () => {
+      const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      renderDetail(row.id, "finance");
+
+      const finance = await screen.findByRole("button", { name: /^2 · / });
+      expect(finance).toHaveAttribute("aria-expanded", "true");
+      expect(await screen.findByRole("region", { name: /^2 · / })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^1 · / })).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByRole("button", { name: /^6 · Logistics/ })).toHaveAttribute("aria-expanded", "false");
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(finance.closest("li"));
+      expect(queryOtherDialog()).not.toBeInTheDocument();
+      scrollIntoView.mockRestore();
+    });
+
+    it("opens the section that needs the viewer on arrival", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      renderDetail(row.id);
+
+      // A purchaser with nothing submitted yet owes section 1.
+      await waitFor(() => expect(screen.getByRole("button", { name: /^1 · / })).toHaveAttribute("aria-expanded", "true"));
+      expect(screen.getByRole("button", { name: /^6 · Logistics/ })).toHaveAttribute("aria-expanded", "false");
     });
 
     // Every section of Everything else is a dropdown; Header and Sales read there and edit in the edit view.
@@ -563,7 +586,7 @@ describe("IPAS pages", () => {
       // Read-only under the row: Remarks is edited in the edit view.
       expect(screen.queryByRole("button", { name: /^Edit Remarks/ })).not.toBeInTheDocument();
 
-      expect(screen.queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
+      expect(within(trigger.closest("li")).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Edit" }));
       expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
       expect(screen.getByRole("region", { name: "Header" })).toBeInTheDocument();

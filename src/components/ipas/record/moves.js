@@ -216,8 +216,18 @@ export function canEditSection(key, { can }) {
   }
 }
 
-/** The moves a section's drawer footer offers: the same moves as the card, for that section. */
+/** The moves a section's foot offers: the same moves as the card, for that section. */
 export function footerMovesFor(ctx, digest, sectionKey) {
   const { moves, costs, bySection } = movesFor(ctx, digest);
   return [...moves, ...costs, ...bySection].filter((item) => item.section === sectionKey);
+}
+
+/**
+ * The section that needs this viewer's action, which opens on arrival: the one
+ * the card's sign-off moves are for (the earliest, see `cardMovesFor`), else
+ * the Landed Cost step's. Null when nothing waits on the viewer.
+ */
+export function actionSectionFor(ctx, digest) {
+  const { moves, costs } = cardMovesFor(ctx, digest);
+  return moves[0]?.section ?? costs[0]?.section ?? null;
 }
