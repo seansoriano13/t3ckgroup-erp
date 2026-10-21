@@ -139,8 +139,8 @@ export const ipasService = {
   /**
    * The SORs whose Sales Reference the copy mentions — in the PO's Source
    * Document or in a line's analytic account name — as
-   * `{ id, sales_reference, project_title, current_stage_name, found_in }` (found_in:
-   * "origin" and/or "analytic"). Only references that name an SOR come back.
+   * `{ id, sor_code, sales_reference, project_title, current_stage_name, found_in }`
+   * (found_in: "origin" and/or "analytic"). Only references that name an SOR come back.
    */
   async suggestSors(odooCopy) {
     const mentioned = salesReferencesIn(odooCopy);
@@ -150,26 +150,29 @@ export const ipasService = {
     const { data, error } = await supabase.rpc("ipas_find_sors", { p_refs: references, p_search: null });
     if (error) throw error;
     return (data || []).map((sor) => ({
-      id: sor.opportunity_id,
-      sales_reference: sor.sales_reference,
-      project_title: sor.project_title,
-      current_stage_name: sor.current_stage_name,
+      ...sorSummaryOf(sor),
       found_in: mentioned[sor.sales_reference] ?? [],
     }));
   },
 
-  /** SORs to attach to a Project IPAS, by Sales Reference or project. */
+  /**
+   * SORs to attach to a Project IPAS, by SOR number, SO number (Sales
+   * Reference) or project, in any case. An SOR with no SO number yet is found
+   * too (its `sales_reference` is null).
+   */
   async searchSors(term) {
     const search = (term || "").trim();
     if (search.length < 2) return [];
     const { data, error } = await supabase.rpc("ipas_find_sors", { p_refs: null, p_search: search });
     if (error) throw error;
-    return (data || []).map((sor) => ({
-      id: sor.opportunity_id,
-      sales_reference: sor.sales_reference,
-      project_title: sor.project_title,
-      current_stage_name: sor.current_stage_name,
-    }));
+    return (data || []).map(sorSummaryOf);
+  },
+
+  /** Up to 5 SORs most recently named on IPAS the caller raised, newest first. */
+  async recentSors() {
+    const { data, error } = await supabase.rpc("ipas_recent_sors");
+    if (error) throw error;
+    return (data || []).map(sorSummaryOf);
   },
 
   /**
@@ -1536,6 +1539,21 @@ async function readIpasLabel(id, row) {
     ipas = data;
   }
   return ipas?.number ? `${ipas.number} (${ipas.po_number})` : "An IPAS";
+}
+
+/**
+ * A row of `ipas_find_sors` / `ipas_recent_sors` (the locked SOR summary,
+ * never the customer): the SOR number (`sor_code`, SOR-198), the SO number
+ * (`sales_reference`, null until Odoo has a sales order), project and Stage.
+ */
+function sorSummaryOf(sor) {
+  return {
+    id: sor.opportunity_id,
+    sor_code: sor.sor_code ?? null,
+    sales_reference: sor.sales_reference ?? null,
+    project_title: sor.project_title,
+    current_stage_name: sor.current_stage_name,
+  };
 }
 
 function unavailable(po) {

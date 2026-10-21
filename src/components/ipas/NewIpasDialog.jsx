@@ -235,6 +235,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
                   selected={sors}
                   onChange={setSors}
                   suggestions={checked.suggestions}
+                  showRecent
                 />
               </div>
             )}
