@@ -419,6 +419,16 @@ describe("ApplyLeaveModal", () => {
 
     const openForHr = () => open({ showEmployeeSelector: true })
 
+    it("offers 'Record as absent' only for HR filing on someone's behalf with Without pay chosen", async () => {
+      openForHr()
+      const user = setupUser()
+      await user.click(screen.getByRole("tab", { name: /^leave$/i }))
+      expect(screen.queryByText("Record as absent (already approved)")).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole("tab", { name: /without pay/i }))
+      expect(screen.getByText("Record as absent (already approved)")).toBeInTheDocument()
+    })
+
     it("files an overtime request for the selected employee", async () => {
       openForHr()
       const user = setupUser()

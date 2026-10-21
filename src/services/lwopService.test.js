@@ -124,6 +124,42 @@ describe("lwopService", () => {
     })
   })
 
+  describe("recording as approved (#620)", () => {
+    it("approves the group, notifies the employee, audits it and leaves balances alone", async () => {
+      const leave = makeLwopLeave({ employee_id: employee.id })
+
+      const rows = await lwopService.recordLwopLeaveAsApproved({ groupId: leave.leave_group_id, hrId: hr.id })
+      await waitForNetworkIdle()
+
+      expect(rows[0]).toMatchObject({ status: "APPROVED", head_status: "APPROVED", recorded_by_hr: true, hr_processed_by: hr.id })
+      expect(rows[0].hr_processed_at).toBeTruthy()
+      expect(balances(employee.id)).toEqual({ sil: 0, offset: 0 })
+      expect(pushed.some((n) => n.type === "LWOP_LEAVE_DECISION" && n.recipient_id === employee.id)).toBe(true)
+      expect(db.rows("system_audit_logs").some((e) => e.entity_type === "LWOP_LEAVE" && e.metadata?.event === "LWOP_LEAVE_RECORDED_BY_HR")).toBe(true)
+    })
+
+    it("undo on a recorded group returns it to pending", async () => {
+      const leave = makeLwopLeave({ employee_id: employee.id })
+      await lwopService.recordLwopLeaveAsApproved({ groupId: leave.leave_group_id, hrId: hr.id })
+
+      const rows = await lwopService.undoLwopLeaveDecision({ groupId: leave.leave_group_id, hrId: hr.id })
+      expect(rows[0]).toMatchObject({ status: "PENDING", hr_processed_by: null })
+    })
+  })
+
+  describe("LWOP this month", () => {
+    it("totals approved hours in the current Manila month only", async () => {
+      const today = manilaToday()
+      makeLwopLeave({ employee_id: employee.id, status: "APPROVED", date: today, hours: 8 })
+      makeLwopLeave({ employee_id: employee.id, status: "APPROVED", date: today, hours: 4 })
+      makeLwopLeave({ employee_id: employee.id, status: "PENDING", date: today, hours: 8 })
+      makeLwopLeave({ employee_id: employee.id, status: "APPROVED", date: "2020-01-06", hours: 8 })
+
+      const totals = await lwopService.getMonthlyLwopTotals()
+      expect(totals[employee.id]).toBe(12)
+    })
+  })
+
   describe("deciding", () => {
     it("approves a group, stamps HR, notifies the employee and leaves balances alone", async () => {
       const leave = makeLwopLeave({ employee_id: employee.id })
