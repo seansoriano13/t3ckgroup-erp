@@ -4635,6 +4635,42 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_clear_section_approvals(p_ipas_id uuid, p_actor uuid, p_reason text, p_sections integer[], OUT sections integer[], OUT preparer_ids uuid[])
+ RETURNS record
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = p_actor, cleared_reason = p_reason
+     where s.ipas_id = p_ipas_id
+       and s.section = any (p_sections)
+       and s.role = 'approved'
+       and s.cleared_at is null
+    returning s.section
+  )
+  select coalesce(array_agg(distinct section::integer), '{}'::integer[]) into sections from cleared;
+
+  preparer_ids := '{}'::uuid[];
+  if cardinality(sections) > 0 then
+    select coalesce(array_agg(distinct s.signed_by), '{}'::uuid[])
+      into preparer_ids
+      from public.ipas_signoffs s
+     where s.ipas_id = p_ipas_id
+       and s.section = any (sections)
+       and s.role = 'prepared'
+       and s.cleared_at is null;
+
+    perform public._ipas_write_event(p_ipas_id, p_actor, 'approvals_cleared', jsonb_build_object(
+      'reason', p_reason,
+      'sections', to_jsonb(sections)
+    ));
+  end if;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_convert_checked_by()
  RETURNS integer
  LANGUAGE plpgsql
@@ -10604,7 +10640,13 @@ begin
   if p_since is null then
     return;
   end if;
-  if exists (select 1 from public.ipas_events where ipas_id = p_ipas_id and created_at > p_since) then
+  if exists (
+    select 1 from public.ipas_events e
+     where e.ipas_id = p_ipas_id
+       and e.created_at > p_since
+       and e.kind not in ('odoo_copy_changed', 'filled_from_odoo', 'odoo_changed_since_filing')
+       and not (e.kind = 'approvals_cleared' and e.detail ->> 'reason' = 'PO changed in Odoo')
+  ) then
     raise exception 'ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.'
       using errcode = '40001';
   end if;
@@ -11813,10 +11855,11 @@ begin
       'previous_number', v_prev_number
     ));
 
-    -- The live section 1 and 3 approvals no longer approve this account.
+    -- The bank details belong to screen section 2 (stored 3): only its live
+    -- approval no longer approves this account. Section 1 is left alone.
     select c.sections, c.preparer_ids
       into v_sections, v_preparers
-      from public._ipas_clear_approvals(v_ipas.id, v_actor, 'Account # flagged') c;
+      from public._ipas_clear_section_approvals(v_ipas.id, v_actor, 'Account # flagged', array[3]) c;
   end if;
 
   return jsonb_build_object(
