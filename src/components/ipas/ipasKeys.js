@@ -16,3 +16,5 @@ export const ipasPendingKey = (employeeId) => [...ipasPendingPrefix, employeeId]
 export const ipasFilingWarningsKey = (id) => ["ipas", "filing-warnings", id];
 /** An SOR's IPAS summaries (#249). */
 export const ipasSorSummariesKey = (opportunityId) => ["ipas", "sor-summaries", opportunityId];
+/** The number the next IPAS will take (#600). */
+export const ipasNextNumberKey = ["ipas", "next-number"];
