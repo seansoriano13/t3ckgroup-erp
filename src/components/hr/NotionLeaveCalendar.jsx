@@ -328,7 +328,7 @@ export default function NotionLeaveCalendar({
                         </span>
                       )}
                     </DetailRow>
-                    <DetailRow label="Type">{leave.type} Leave</DetailRow>
+                    <DetailRow label="Type">{leave.type === "OFFSET" ? "OFFSET" : `${leave.type} Leave`}</DetailRow>
                   </dl>
                 </DetailSection>
 

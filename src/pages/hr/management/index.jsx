@@ -596,7 +596,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
             }
             if (approvedFutureOffset.length) {
               const hrs = approvedFutureOffset.reduce((s, l) => s + (parseFloat(l.hours) || 0), 0);
-              parts.push(`${approvedFutureOffset.length} approved offset leave${approvedFutureOffset.length > 1 ? "s" : ""} (${hrs} hrs)`);
+              parts.push(`${approvedFutureOffset.length} approved Offset${approvedFutureOffset.length > 1 ? "s" : ""} (${hrs} hrs)`);
             }
 
             confirmActionToast(

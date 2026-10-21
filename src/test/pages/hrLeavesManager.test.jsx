@@ -413,7 +413,7 @@ describe('HrLeavesManagerPage', () => {
       const sheet = await screen.findByRole('dialog');
       await user.click(await within(sheet).findByRole('button', { name: /^Approve/i }));
 
-      expect(await screen.findByText('Approve Offset Leave')).toBeInTheDocument();
+      expect(await screen.findByText('Approve Offset')).toBeInTheDocument();
     });
 
     it('steps to the next request in the list with the arrows', async () => {

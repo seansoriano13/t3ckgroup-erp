@@ -123,7 +123,7 @@ export function ApprovalCenterSample() {
       </div>
       <ApprovalSheet
         item={item}
-        queueLabel="Leave Approvals"
+        queueLabel="Time Off & Overtime"
         queueIcon={CalendarDays}
         index={index}
         total={APPROVAL_ITEMS.length}

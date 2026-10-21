@@ -119,7 +119,7 @@ describe("navigation registry", () => {
       const approvalsGroup = groups.find((g) => g.key === "approvals");
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
         "Task Approvals",
-        "Leave Approvals",
+        "Time Off & Overtime",
       ]);
     });
 
@@ -138,7 +138,7 @@ describe("navigation registry", () => {
       const hrGroup = groups.find((g) => g.key === "human_resources");
       expect(hrGroup.links.map((l) => l.label)).toEqual([
         "Employee Directory",
-        "Leaves Manager",
+        "Time Off & Overtime",
         "Activity Log",
       ]);
 
@@ -154,7 +154,7 @@ describe("navigation registry", () => {
       expect(adminGroup.links.map((l) => l.label)).not.toContain("Activity Log");
     });
 
-    it("opens Leaves Manager for a leave-management capability holder without full HR access", () => {
+    it("opens Time Off & Overtime for a leave-management capability holder without full HR access", () => {
       const leaveManager = {
         id: "lm-1",
         canManageLeaves: true,
@@ -166,10 +166,10 @@ describe("navigation registry", () => {
       // Employee Directory and Activity Log stay hidden — the capability is
       // scoped to leave management, not the broader HR flag's access to the
       // directory or the org-wide activity trail (#105).
-      expect(hrGroup.links.map((l) => l.label)).toEqual(["Leaves Manager"]);
+      expect(hrGroup.links.map((l) => l.label)).toEqual(["Time Off & Overtime"]);
     });
 
-    it("hides Leaves Manager from an employee without the capability", () => {
+    it("hides Time Off & Overtime from an employee without the capability", () => {
       const standardUser = { id: "std-1" };
 
       const groups = getFilteredNavigationGroups(standardUser);
@@ -468,7 +468,7 @@ describe("navigation registry", () => {
       expect(actions).toHaveLength(2);
       expect(actions[0].category).toBe("Personal");
       expect(actions[0].items.map((i) => i.label)).toEqual([
-        "Apply Leave / Overtime",
+        "File Time Off / Overtime",
       ]);
       expect(actions[1].category).toBe("Operations");
       expect(actions[1].items.map((i) => i.label)).toEqual(["New Purchase Request"]);

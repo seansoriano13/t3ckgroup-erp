@@ -198,12 +198,12 @@ export const SECTIONS = [
   {
     key: "approvals",
     label: "Approvals & Leaves",
-    intro: "Filing leave, overtime and undertime, who approves it, and the forms HR prints. Then Task Approvals, HR Verifications and the Leaves Manager.",
+    intro: "Filing leave, overtime and undertime, who approves it, and the forms HR prints. Then Task Approvals, HR Verifications and the Time Off & Overtime page.",
     items: [
       {
         id: "leave-form",
         title: "One form for leave, overtime and undertime",
-        body: "Apply Leave / OT on My Requests opens one form with four tabs: Overtime, Offset, SIL and the new Undertime. Leave can cover several days at once, with the hours for each day. The form shows the hours you can still use after what is already waiting for approval, and takes off the 1-hour lunch break on days of 5 hours or more. HR can file for an employee from the Leaves Manager.",
+        body: "Apply Leave / OT on My Requests opens one form with four tabs: Overtime, Offset, SIL and the new Undertime. Leave can cover several days at once, with the hours for each day. The form shows the hours you can still use after what is already waiting for approval, and takes off the 1-hour lunch break on days of 5 hours or more. HR can file for an employee from the Time Off & Overtime page.",
         who: ["Everyone"],
         sample: "leave-form",
       },
@@ -231,13 +231,13 @@ export const SECTIONS = [
       {
         id: "approval-center",
         title: "Approvals: one table, decide at the side",
-        body: "Task Approvals, HR Verifications and Leave Approvals are one table each. Click a row to review it in a panel from the right and decide there, then step to the next one. Long queues come in pages, and every request has a link of its own you can share.",
+        body: "Task Approvals, HR Verifications and Time Off & Overtime approvals are one table each. Click a row to review it in a panel from the right and decide there, then step to the next one. Long queues come in pages, and every request has a link of its own you can share.",
         who: ["Approvers", "HR"],
         sample: "approval-center",
       },
       {
         id: "leaves-manager",
-        title: "Leaves Manager: tabs and Who's out",
+        title: "Time Off & Overtime: tabs and Who's out",
         body: "Its views are tabs across the top: Pending, Calendar, Request History, Document Center and Employee Balances. Who is out today and tomorrow is one button in the header. Click a request, or a person under Employee Balances, to open it in a side panel.",
         who: ["HR"],
         sample: "leaves-manager",
@@ -245,7 +245,7 @@ export const SECTIONS = [
       {
         id: "offset-hours",
         title: "Approve fewer offset hours than requested",
-        body: "When approving offset leave, HR can grant fewer hours than were asked for. It can never be more.",
+        body: "When approving an Offset, HR can grant fewer hours than were asked for. It can never be more.",
         who: ["HR"],
         sample: "offset-hours",
       },

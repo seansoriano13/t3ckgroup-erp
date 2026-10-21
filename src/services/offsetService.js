@@ -170,7 +170,7 @@ export const offsetService = {
   },
 
   /**
-   * Apply for Offset Leave (Employee)
+   * Apply for Offset (Employee)
    */
   async applyOffsetLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
     const parsedHours = deriveLeaveHours(startTime, endTime);
@@ -179,7 +179,7 @@ export const offsetService = {
     }
 
     if (!reason || reason.trim() === '') {
-      throw new Error('Please provide a reason for the offset leave.');
+      throw new Error('Please provide a reason for the Offset.');
     }
 
     await checkOverlap(employeeId, date, startTime, endTime);
@@ -237,15 +237,15 @@ export const offsetService = {
     notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
       sender_id: employeeId,
       type: 'OFFSET_LEAVE_REQUEST',
-      title: 'New Offset Leave Request',
-      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs offset leave (${formatWindow(startTime, endTime)}) on ${date}.`,
+      title: 'New Offset Request',
+      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs Offset (${formatWindow(startTime, endTime)}) on ${date}.`,
       reference_id: data.id,
     });
 
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
       data.id,
-      `${employeeName || 'An employee'} applied for ${parsedHours} hrs offset leave (${formatWindow(startTime, endTime)}) on ${date}.`,
+      `${employeeName || 'An employee'} applied for ${parsedHours} hrs Offset (${formatWindow(startTime, endTime)}) on ${date}.`,
       { event: 'OFFSET_LEAVE_APPLIED', employeeId },
       employeeId,
     ).catch(console.error);
@@ -254,7 +254,7 @@ export const offsetService = {
   },
 
   /**
-   * Apply for Offset Leave across a date range (Employee).
+   * Apply for Offset across a date range (Employee).
    *
    * Writes one row per day under a shared `leave_group_id` rather than a
    * single row with an end date, so the calendar and month-boundary date
@@ -268,7 +268,7 @@ export const offsetService = {
       throw new Error('Please select at least one day.');
     }
     if (!reason || reason.trim() === '') {
-      throw new Error('Please provide a reason for the offset leave.');
+      throw new Error('Please provide a reason for the Offset.');
     }
 
     const seenDates = new Set();
@@ -344,15 +344,15 @@ export const offsetService = {
     notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
       sender_id: employeeId,
       type: 'OFFSET_LEAVE_REQUEST',
-      title: 'New Offset Leave Request',
-      message: `${employeeName || 'An employee'} applied for ${totalHours} hrs offset leave (${rangeLabel}).`,
+      title: 'New Offset Request',
+      message: `${employeeName || 'An employee'} applied for ${totalHours} hrs Offset (${rangeLabel}).`,
       reference_id: leaveGroupId,
     });
 
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
       leaveGroupId,
-      `${employeeName || 'An employee'} applied for ${totalHours} hrs offset leave (${rangeLabel}).`,
+      `${employeeName || 'An employee'} applied for ${totalHours} hrs Offset (${rangeLabel}).`,
       { event: 'OFFSET_LEAVE_APPLIED', employeeId, leaveGroupId },
       employeeId,
     ).catch(console.error);
@@ -704,7 +704,7 @@ export const offsetService = {
 
       if (gateErr) throw new Error(gateErr.message);
       if (!gateRow) throw new Error('Leave application not found.');
-      assertHeadCleared(gateRow, { action: 'approve this offset leave' });
+      assertHeadCleared(gateRow, { action: 'approve this Offset' });
     }
 
     const { data: result, error } = await supabase.rpc('decide_offset_leave_decision', {
@@ -725,7 +725,7 @@ export const offsetService = {
       recipient_id: employeeId,
       sender_id: hrId,
       type: 'OFFSET_LEAVE_DECISION',
-      title: 'Offset Leave Application Status',
+      title: 'Offset Application Status',
       message: `Your offset leave application for ${decidedHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
       reference_id: groupId,
     });
@@ -766,15 +766,15 @@ export const offsetService = {
       recipient_id: employeeId,
       sender_id: hrId,
       type: 'OFFSET_LEAVE_DECISION',
-      title: 'Offset Leave Reverted',
-      message: `HR has reverted the decision on your offset leave application for ${dateLabel}. It is now PENDING again.`,
+      title: 'Offset Reverted',
+      message: `HR has reverted the decision on your Offset application for ${dateLabel}. It is now PENDING again.`,
       reference_id: groupId,
     });
 
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
       groupId,
-      `Offset leave decision for ${dateLabel} was reverted to PENDING (was ${previousStatus}).`,
+      `Offset decision for ${dateLabel} was reverted to PENDING (was ${previousStatus}).`,
       { event: 'OFFSET_LEAVE_DECISION_UNDONE', previousStatus, employeeId, leaveGroupId: groupId },
       hrId,
     ).catch(console.error);
@@ -856,7 +856,7 @@ export const offsetService = {
         sender_id: employeeId,
         type: 'OFFSET_LEAVE_DECISION',
         title: 'Approved Leave Withdrawn',
-        message: `An employee withdrew their approved offset leave for ${totalHours} hrs (${dateLabel}).`,
+        message: `An employee withdrew their approved Offset for ${totalHours} hrs (${dateLabel}).`,
         reference_id: groupId,
       });
     }
@@ -864,7 +864,7 @@ export const offsetService = {
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
       groupId,
-      `Offset leave for ${dateLabel} was withdrawn by the employee.`,
+      `Offset for ${dateLabel} was withdrawn by the employee.`,
       { event: 'OFFSET_LEAVE_WITHDRAWN', employeeId, leaveGroupId: groupId },
       employeeId,
     ).catch(console.error);

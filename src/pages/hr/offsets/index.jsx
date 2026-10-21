@@ -530,7 +530,7 @@ export default function HrLeavesManagerPage() {
     <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
       {overlays}
       <PageShell
-        title="Leaves Manager"
+        title="Time Off & Overtime"
         description="Review leave applications, approve overtime, and manage employee balances."
         action={action}
         tabs={
