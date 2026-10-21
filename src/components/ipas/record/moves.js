@@ -1,7 +1,7 @@
 import { Check, CornerUpLeft, FileCheck2, PenLine, Undo2 } from "lucide-react";
 
 import {
-  IPAS_COMPUTATION_STATUS,
+  IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_FILING_SECTION,
   IPAS_PART_NO,
@@ -105,13 +105,11 @@ export function movesFor(ctx, digest) {
   const costs = [];
   // Offered only on the costs gate's own turn (gates.js), so the card's status
   // line, which says what it waits on until then, and this move never disagree.
-  // One step at a time: LC GS Done after Encoded, LC Odoo Done after that.
+  // The card offers the next step; section 3's steps jump to any (feedback on #595).
   const costsGate = digest.gates.find((gate) => gate.key === "costs");
   if (can.change && !digest.costsComplete && costsGate?.prereqMet) {
-    const next =
-      digest.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED
-        ? IPAS_COMPUTATION_STATUS.LC_GS_DONE
-        : IPAS_COMPUTATION_STATUS.LC_ODOO_DONE;
+    const at = IPAS_COMPUTATION_STATUSES.indexOf(digest.computationStatus);
+    const next = IPAS_COMPUTATION_STATUSES[Math.min(Math.max(at, 0) + 1, IPAS_COMPUTATION_STATUSES.length - 1)];
     const nextLabel = IPAS_COMPUTATION_STATUS_LABELS[next];
     costs.push(
       move("costs", "costing", {

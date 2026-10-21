@@ -145,60 +145,34 @@ describe("a foreign-currency payment saves with the pesos blank", () => {
     })
 })
 
-describe("LC Odoo Done waits for the pesos", () => {
-    it("is refused while a foreign-currency payment is blank, and says which", async () => {
+describe("LC Odoo Done does not wait for the pesos (feedback on #595)", () => {
+    it("is accepted while a foreign-currency payment is blank", async () => {
         const ipas = await raise()
         await addPayment(ipas.id, { p_kind: "down_payment", p_paid_on: "2026-10-01", p_amount: 1000 })
-        const filled = (await addPayment(ipas.id, { p_kind: "full_payment", p_paid_on: "2026-10-05", p_amount: 2500, p_php_debited: 150000 })).data
-        expect(filled.php_debited).toBe(150000)
         await addPayment(ipas.id, { p_kind: "shipping_fee", p_paid_on: "2026-10-05", p_amount: 25.5 })
 
-        const { error } = await setStatus(ipas.id, "lc_odoo_done")
-        expect(error.code).toBe("22023")
-        expect(error.message).toMatch(/LC Odoo Done needs the pesos taken from the bank/)
-        expect(error.message).toContain("Down payment of ZZZ 1,000.00 on Oct 1, 2026")
-        expect(error.message).toContain("Shipping fee of ZZZ 25.50 on Oct 5, 2026")
-        expect(error.message).not.toContain("Full payment")
+        expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
 
         const row = (await svc().from("ipas").select("computation_status").eq("id", ipas.id).single()).data
-        expect(row.computation_status).not.toBe("lc_odoo_done")
+        expect(row.computation_status).toBe("lc_odoo_done")
     })
 
-    it("lets the earlier steps through while the pesos are blank", async () => {
+    it("jumps straight from Encoding to any step", async () => {
         const ipas = await raise()
         await addPayment(ipas.id)
-        for (const status of ["encoded", "lc_gs_done"]) {
-            expect((await setStatus(ipas.id, status)).error).toBeNull()
-        }
-    })
-
-    it("is accepted once every payment has its pesos", async () => {
-        const ipas = await raise()
-        const { data } = await addPayment(ipas.id)
-        expect((await setStatus(ipas.id, "lc_odoo_done")).error).not.toBeNull()
-        expect((await updatePayment(data.id, { p_php_debited: 51000 })).error).toBeNull()
         expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
+        expect((await setStatus(ipas.id, "encoding")).error).toBeNull()
+        expect((await setStatus(ipas.id, "lc_gs_done")).error).toBeNull()
     })
 
-    it("a peso PO and an IPAS with no payments are not held back", async () => {
-        const peso = await raise("Php")
-        await addPayment(peso.id)
-        expect((await setStatus(peso.id, "lc_odoo_done")).error).toBeNull()
-        const none = await raise()
-        expect((await setStatus(none.id, "lc_odoo_done")).error).toBeNull()
-    })
-
-    it("a payment can't be added or blanked once the IPAS is at LC Odoo Done", async () => {
+    it("a payment can still be added or blanked at LC Odoo Done", async () => {
         const ipas = await raise()
         const { data } = await addPayment(ipas.id, { p_php_debited: 51000 })
         expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
 
-        const add = await addPayment(ipas.id, { p_kind: "payment" })
-        expect(add.error?.message).toMatch(/LC Odoo Done, so Landed Cost is final/)
-        const blank = await updatePayment(data.id, { p_php_debited: null })
-        expect(blank.error?.message).toMatch(/LC Odoo Done, so Landed Cost is final/)
-        expect((await updatePayment(data.id, { p_php_debited: 52000 })).error).toBeNull()
-        expect((await addPayment(ipas.id, { p_kind: "payment", p_php_debited: 100 })).error).toBeNull()
+        expect((await addPayment(ipas.id, { p_kind: "payment" })).error).toBeNull()
+        expect((await updatePayment(data.id, { p_php_debited: null })).error).toBeNull()
+        expect(await stored(data.id)).toBeNull()
     })
 })
 

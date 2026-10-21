@@ -240,7 +240,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText("Next: 1 · Purchasing, waiting on the approvers of 1 · Purchasing")).toBeInTheDocument();
+    expect(within(region).getByText("Next: 1 · Purchasing, waiting on the approvers")).toBeInTheDocument();
     expect(within(region).queryByText(/^Waiting for you/)).not.toBeInTheDocument();
   });
 

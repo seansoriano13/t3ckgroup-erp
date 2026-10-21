@@ -184,7 +184,8 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
 
       renderList();
       await screen.findAllByTestId("ipas-row");
-      await user.click(screen.getByRole("button", { name: /All IPAS/ }));
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /All IPAS/ }));
       await user.click(await screen.findByRole("button", { name: "Unpaid" }));
 
       await waitFor(() => expect(shownPos()).toEqual(["P02001", "P02002"]));
@@ -200,11 +201,14 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
 
       renderList();
       await screen.findAllByTestId("ipas-row");
-      await user.click(screen.getByRole("button", { name: /All IPAS/ }));
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /All IPAS/ }));
       await user.click(await screen.findByRole("button", { name: "On-Hold" }));
       await waitFor(() => expect(shownPos()).toEqual(["P02002"]));
 
-      await user.click(within(screen.getByTestId("page-toolbar")).getByRole("button", { name: /On-Hold/ }));
+      // The view sits behind Filters; open it again if picking closed it.
+      if (!screen.queryByRole("button", { name: /^On-Hold$/ })) await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /^On-Hold$/ }));
       await user.click(await screen.findByRole("button", { name: "Ongoing" }));
       await waitFor(() => expect(shownPos()).toEqual(["P02003"]));
     });
@@ -217,7 +221,8 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
 
       renderList();
       await screen.findAllByTestId("ipas-row");
-      await user.click(screen.getByRole("button", { name: /All IPAS/ }));
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /All IPAS/ }));
       await user.click(await screen.findByRole("button", { name: "Raised by me" }));
 
       await waitFor(() => expect(shownPos()).toEqual(["P02001"]));
