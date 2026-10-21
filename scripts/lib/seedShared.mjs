@@ -39,6 +39,7 @@ export const SEED_TABLES = [
   "undertime_requests",
   "offset_leaves",
   "sil_leaves",
+  "lwop_leaves",
   "system_audit_logs",
   "sale_types",
   "sales_flows",

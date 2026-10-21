@@ -3,6 +3,7 @@ import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
+import { lwopService } from '../../../services/lwopService';
 import { employeeService } from '../../../services/employeeService';
 import { companyService, matchesCompanyFilter } from '../../../services/companyService';
 import { useAuth } from '../../../context/AuthContext';
@@ -63,7 +64,7 @@ export default function HrLeavesManagerPage() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
+  const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL', 'LWOP'
   const [pendingPeriodFilter, setPendingPeriodFilter] = useState('ALL'); // 'ALL', 'THIS_MONTH', 'NEXT_MONTH', 'OVERDUE'
   const [companyFilter, setCompanyFilter] = useState('ALL'); // company id, 'ALL', or 'NONE'
   const [pendingAsc, setPendingAsc] = useState(true); // Pending sorts soonest-first
@@ -96,19 +97,23 @@ export default function HrLeavesManagerPage() {
         allOt,
         allOffset,
         allSil,
+        allLwop,
         allUndertime,
         pendingOt,
         pendingOffset,
         pendingSil,
+        pendingLwop,
         pendingUndertime
       ] = await Promise.all([
         offsetService.getAllOvertimeRequests(dateRange.startDate, dateRange.endDate),
         offsetService.getAllOffsetLeaves(dateRange.startDate, dateRange.endDate),
         silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate),
+        lwopService.getAllLwopLeaves(dateRange.startDate, dateRange.endDate),
         offsetService.getAllUndertimeRequests(dateRange.startDate, dateRange.endDate),
         offsetService.getAllPendingOvertimeRequests(),
         offsetService.getAllPendingOffsetLeaves(),
         silService.getAllPendingSilLeaves(),
+        lwopService.getAllPendingLwopLeaves(),
         offsetService.getAllPendingUndertimeRequests()
       ]);
 
@@ -116,18 +121,20 @@ export default function HrLeavesManagerPage() {
       const taggedOt = allOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedOffset = allOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedSil = allSil.map(l => ({ ...l, type: 'SIL' }));
+      const taggedLwop = allLwop.map(l => ({ ...l, type: 'LWOP' }));
       const taggedUndertime = allUndertime.map(l => ({ ...l, type: 'UNDERTIME' }));
-      const combined = [...taggedOt, ...taggedOffset, ...taggedSil, ...taggedUndertime];
+      const combined = [...taggedOt, ...taggedOffset, ...taggedSil, ...taggedLwop, ...taggedUndertime];
 
       // Tag types for dateless pending requests
       const taggedPendingOt = pendingOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedPendingOffset = pendingOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedPendingSil = pendingSil.map(l => ({ ...l, type: 'SIL' }));
+      const taggedPendingLwop = pendingLwop.map(l => ({ ...l, type: 'LWOP' }));
       const taggedPendingUndertime = pendingUndertime.map(l => ({ ...l, type: 'UNDERTIME' }));
       // A range writes one row per day (see ticket #63), so rows sharing a
       // leave_group_id are collapsed into one entry before the queue is built —
       // otherwise a 3-day leave would show as three separate pending requests.
-      const pendingCombined = groupLeaveRows([...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil, ...taggedPendingUndertime])
+      const pendingCombined = groupLeaveRows([...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil, ...taggedPendingLwop, ...taggedPendingUndertime])
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
       // Processed (from period-scoped) — grouped the same way as pending.
@@ -160,6 +167,7 @@ export default function HrLeavesManagerPage() {
     const isOT = request.type === 'OVERTIME';
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
+    const isLWOP = request.type === 'LWOP';
     const isUndertime = request.type === 'UNDERTIME';
 
     // Approving overtime lets HR edit the hours actually rendered before
@@ -200,6 +208,9 @@ export default function HrLeavesManagerPage() {
         } else if (isSIL) {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
           await silService.handleSilLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
+        } else if (isLWOP) {
+          const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
+          await lwopService.handleLwopLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         }
         toast.success(`Request ${pastTense} successfully.`);
         queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
@@ -213,11 +224,12 @@ export default function HrLeavesManagerPage() {
     const isOT = request.type === 'OVERTIME';
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
+    const isLWOP = request.type === 'LWOP';
     const isUndertime = request.type === 'UNDERTIME';
 
     confirmActionToast(
       'Undo Decision',
-      `Are you sure you want to undo this decision? The request will return to PENDING status${isUndertime ? '' : ' and balances will be restored'}.`,
+      `Are you sure you want to undo this decision? The request will return to PENDING status${isUndertime || isLWOP ? '' : ' and balances will be restored'}.`,
       'Undo Decision',
       'destructive',
       async () => {
@@ -228,6 +240,8 @@ export default function HrLeavesManagerPage() {
             await offsetService.undoOffsetLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           } else if (isSIL) {
             await silService.undoSilLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
+          } else if (isLWOP) {
+            await lwopService.undoLwopLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           } else if (isUndertime) {
             await offsetService.undoUndertimeDecision({ requestId: request.id, hrId: user?.id });
           }
@@ -295,7 +309,9 @@ export default function HrLeavesManagerPage() {
   // The Document Center's picker is scoped to approved records only — same
   // restriction Request History enforced when it still had a print action.
   const approvedForDocuments = useMemo(
-    () => filteredProcessed.filter(r => r.status.startsWith('APPROVED')),
+    // LWOP stays out of the Document Center until printing lands (#621): the form registry
+    // throws on a type it does not know.
+    () => filteredProcessed.filter(r => r.status.startsWith('APPROVED') && r.type !== 'LWOP'),
     [filteredProcessed]
   );
 

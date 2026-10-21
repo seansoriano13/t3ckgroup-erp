@@ -14,8 +14,8 @@ import { IPAS_PRIORITY, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../co
 import { TRANSMITTAL_ORIGIN_LABELS, TRANSMITTAL_PRIORITY } from "../constants/transmittals.js";
 import { checklistProgressLabel, isChecklistDescription, isStaleSince } from "./approvalQueue.js";
 
-export const LEAVE_LABEL = { SIL: "SIL Leave", OFFSET: "Offset", OVERTIME: "Overtime", UNDERTIME: "Undertime" };
-const LEAVE_REF = { SIL: "SIL", OFFSET: "OFS", OVERTIME: "OT", UNDERTIME: "UT" };
+export const LEAVE_LABEL = { SIL: "SIL Leave", LWOP: "LWOP", OFFSET: "Offset", OVERTIME: "Overtime", UNDERTIME: "Undertime" };
+const LEAVE_REF = { SIL: "SIL", LWOP: "LWOP", OFFSET: "OFS", OVERTIME: "OT", UNDERTIME: "UT" };
 
 /** A short, stable, human-readable handle for a record: `TSK-3F2A1`. */
 export function shortRef(prefix, id) {

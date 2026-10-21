@@ -294,6 +294,7 @@ export async function teardownCast() {
         ["overtime_requests", "employee_id"],
         ["offset_leaves", "employee_id"],
         ["sil_leaves", "employee_id"],
+        ["lwop_leaves", "employee_id"],
         // Notes go with their report.
         ["bug_report_notes", "author_id"],
         ["bug_reports", "reporter_id"],

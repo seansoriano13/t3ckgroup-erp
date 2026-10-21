@@ -236,7 +236,7 @@ describe("ApplyLeaveModal", () => {
   describe("taking SIL", () => {
     const goToSil = async () => {
       const user = setupUser()
-      await user.click(screen.getByRole("tab", { name: "SIL" }))
+      await user.click(screen.getByRole("tab", { name: "Leave" }))
       return user
     }
 
@@ -341,6 +341,54 @@ describe("ApplyLeaveModal", () => {
 
       await waitFor(() => expect(timeFields[0]).toHaveValue("07:30"))
       expect(timeFields[1]).toHaveValue("18:00")
+    })
+  })
+
+  describe("taking LWOP (Leave tab, Without pay)", () => {
+    const goToLwop = async () => {
+      const user = setupUser()
+      await user.click(screen.getByRole("tab", { name: "Leave" }))
+      await user.click(screen.getByRole("tab", { name: "Without pay (LWOP)" }))
+      return user
+    }
+
+    it("hides the available-balance line for LWOP and shows it for SIL", async () => {
+      open()
+      const user = setupUser()
+      await user.click(screen.getByRole("tab", { name: "Leave" }))
+      await waitFor(() => expect(screen.getByText(/Available:/)).toBeInTheDocument())
+
+      await user.click(screen.getByRole("tab", { name: "Without pay (LWOP)" }))
+      expect(screen.queryByText(/Available:/)).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole("tab", { name: "With pay (SIL)" }))
+      expect(screen.getByText(/Available:/)).toBeInTheDocument()
+    })
+
+    it("files to lwop_leaves, not sil_leaves, and touches no balance", async () => {
+      open()
+      await goToLwop()
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "Family matter" })
+
+      await submit(user)
+      await waitFor(() => expect(db.rows("lwop_leaves")).toHaveLength(1))
+      await waitForNetworkIdle()
+
+      expect(db.rows("lwop_leaves")[0]).toMatchObject({ hours: 7, reason: "Family matter", status: "PENDING" })
+      expect(db.rows("sil_leaves")).toHaveLength(0)
+      expect(db.rows("employees").find((e) => e.id === employee.id).sil_hours_balance).toBe(40)
+    })
+
+    it("can be filed with an empty SIL balance", async () => {
+      const broke = makeEmployee({ name: "Ben Cruz", sil_hours_balance: 0, department: employee.department })
+      mockUser.current = { id: broke.id, name: broke.name, department: broke.department }
+
+      open()
+      await goToLwop()
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "No leave left" })
+
+      await submit(user)
+      await waitFor(() => expect(db.rows("lwop_leaves")).toHaveLength(1))
     })
   })
 

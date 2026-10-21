@@ -3,6 +3,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
+import { lwopService } from '../../services/lwopService';
 import { hrSettingsService } from '../../services/hrSettingsService';
 import { employeeService } from '../../services/employeeService';
 import { useQuery } from '@tanstack/react-query';
@@ -130,6 +131,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const offsetFiles = useFileAttachments();
 
   // SIL Leave State
+  const [leavePay, setLeavePay] = useState('sil'); // 'sil' (with pay) | 'lwop' (without pay) — the Leave tab files either
   const [silApplyMode, setSilApplyMode] = useState('single'); // 'single' | 'range'
   const [silDate, setSilDate] = useState('');
   const [silCategoryId, setSilCategoryId] = useState('');
@@ -367,6 +369,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       return;
     }
 
+    const isLwop = leavePay === 'lwop';
+    const leaveLabel = isLwop ? 'LWOP' : 'SIL leave';
+    const applyLeaveRange = isLwop ? lwopService.applyLwopLeaveRange : silService.applySilLeaveRange;
+    const applyLeave = isLwop ? lwopService.applyLwopLeave : silService.applySilLeave;
+
     if (silApplyMode === 'range') {
       const days = enumerateDateRange(silRangeStart, silRangeEnd);
       if (days.length === 0 || !silReason || !silCategoryId) {
@@ -377,7 +384,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       setSilSubmitting(true);
       try {
         const attachments = await silFiles.upload();
-        await silService.applySilLeaveRange({
+        await applyLeaveRange({
           employeeId,
           days: days.map((date) => ({ date, hours: parseFloat(silDayHours[date] ?? DEFAULT_DAY_HOURS) })),
           reason: silReason,
@@ -386,7 +393,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           attachments,
           headId: silHeadId,
         });
-        toast.success(`SIL leave application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
+        toast.success(`${leaveLabel} application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
         setSilRangeStart('');
         setSilRangeEnd('');
         setSilDayHours({});
@@ -397,7 +404,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         onSuccess?.();
         onClose();
       } catch (err) {
-        toast.error(err.message || 'Failed to submit SIL leave.');
+        toast.error(err.message || `Failed to submit ${leaveLabel}.`);
       } finally {
         setSilSubmitting(false);
       }
@@ -412,7 +419,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     setSilSubmitting(true);
     try {
       const attachments = await silFiles.upload();
-      await silService.applySilLeave({
+      await applyLeave({
         employeeId,
         date: silDate,
         startTime: silStartTime,
@@ -423,7 +430,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         attachments,
         headId: silHeadId,
       });
-      toast.success('SIL leave application submitted!');
+      toast.success(`${leaveLabel} application submitted!`);
       setSilDate('');
       setSilCategoryId('');
       setSilStartTime('');
@@ -434,7 +441,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       onSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(err.message || 'Failed to submit SIL leave.');
+      toast.error(err.message || `Failed to submit ${leaveLabel}.`);
     } finally {
       setSilSubmitting(false);
     }
@@ -517,7 +524,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
             tabs={[
               { value: 'overtime', label: 'Overtime' },
               { value: 'offset', label: 'Offset' },
-              { value: 'sil', label: 'SIL' },
+              { value: 'sil', label: 'Leave' },
               { value: 'undertime', label: 'Undertime' },
             ]}
             activeTab={activeTab}
@@ -732,7 +739,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <div className="flex items-center space-x-2">
                   <Calendar size={16} className="text-green-11" />
                   <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                    Request Service Incentive Leave
+                    {leavePay === 'lwop' ? 'Request Leave Without Pay' : 'Request Service Incentive Leave'}
                   </h3>
                 </div>
                 <TabGroup
@@ -746,7 +753,20 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   size="sm"
                 />
               </div>
-              {employeeId && (
+              <div>
+                <FieldBox label="Pay" className="block mb-1.5" />
+                <TabGroup
+                  variant="pill"
+                  tabs={[
+                    { value: 'sil', label: 'With pay (SIL)' },
+                    { value: 'lwop', label: 'Without pay (LWOP)' },
+                  ]}
+                  activeTab={leavePay}
+                  onChange={setLeavePay}
+                  size="sm"
+                />
+              </div>
+              {employeeId && leavePay === 'sil' && (
                 <div className="text-xs font-semibold text-muted-foreground px-1">
                   Available: <span className="text-green-11 font-black">{availableSilHours} hrs</span>
                   {pendingSilHours > 0 && ` (${pendingSilHours} hrs already committed to pending applications)`}

@@ -154,7 +154,7 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
             </Button>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Undo returns the request to Pending{request.type === 'UNDERTIME' ? '' : ' and restores the balance'}.
+            Undo returns the request to Pending{request.type === 'UNDERTIME' || request.type === 'LWOP' ? '' : ' and restores the balance'}.
           </p>
         </SlideOverFooter>
       )}

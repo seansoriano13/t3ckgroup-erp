@@ -4,6 +4,7 @@ import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
+import { lwopService } from '../../services/lwopService';
 import { silService } from '../../services/silService';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -29,6 +30,7 @@ import { CAPTION_BASE } from "@/lib/captionStyle";
 const REQUEST_WITHDRAW = {
   OFFSET: (req, employeeId) => offsetService.withdrawOffsetLeave({ leaveId: req.id, employeeId }),
   SIL: (req, employeeId) => silService.cancelMySilLeave({ leaveId: req.id, employeeId }),
+  LWOP: (req, employeeId) => lwopService.cancelMyLwopLeave({ leaveId: req.id, employeeId }),
   OVERTIME: (req, employeeId) => offsetService.withdrawOvertimeRequest({ requestId: req.id, employeeId }),
   UNDERTIME: (req, employeeId) => offsetService.withdrawUndertimeRequest({ requestId: req.id, employeeId }),
 };
@@ -37,6 +39,7 @@ const TYPE_FILTER_OPTIONS = [
   { value: 'ALL', label: 'All types' },
   { value: 'OFFSET', label: 'Offset' },
   { value: 'SIL', label: 'SIL' },
+  { value: 'LWOP', label: 'LWOP' },
   { value: 'OVERTIME', label: 'Overtime' },
   { value: 'UNDERTIME', label: 'Undertime' },
 ];
@@ -71,6 +74,8 @@ export default function EmployeeLeavesPage() {
         pendingOtData,
         pendingOffsetData,
         pendingSilData,
+        lwopLvData,
+        pendingLwopData,
         utData,
         pendingUtData,
         empDataRes
@@ -83,6 +88,8 @@ export default function EmployeeLeavesPage() {
         offsetService.getMyPendingOvertimeRequests(user.id),
         offsetService.getMyPendingOffsetLeaves(user.id),
         silService.getMyPendingSilLeaves(user.id),
+        lwopService.getMyLwopLeaves(user.id, dateRange.startDate, dateRange.endDate),
+        lwopService.getMyPendingLwopLeaves(user.id),
         offsetService.getMyUndertimeRequests(user.id, dateRange.startDate, dateRange.endDate),
         offsetService.getMyPendingUndertimeRequests(user.id),
         supabase.from('employees').select('offset_hours_balance, sil_hours_balance').eq('id', user.id).single()
@@ -93,6 +100,7 @@ export default function EmployeeLeavesPage() {
       const requests = mergeRequestRows({
         OFFSET: [...offsetLvData, ...pendingOffsetData],
         SIL: [...silLvData, ...pendingSilData],
+        LWOP: [...lwopLvData, ...pendingLwopData],
         OVERTIME: [...otData, ...pendingOtData],
         UNDERTIME: [...utData, ...pendingUtData],
       });
