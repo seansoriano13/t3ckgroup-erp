@@ -12,6 +12,7 @@ import {
 } from "../../../constants/ipas";
 import { formatAmount } from "../../../utils/ipas";
 import { canSendBackItem } from "../../../utils/ipasSignoffs";
+import { billCheckView } from "../../../utils/ipasBillCheck";
 import { relativeAge } from "../../../utils/approvalItems.js";
 import { whyYouSeeThis } from "./approvalUi";
 import { APPROVE_CLASS } from "@/components/ui/approveClass";
@@ -35,6 +36,9 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
       ? "Approve and file"
       : IPAS_SIGNOFF_ROLE_ACTIONS[pending.role];
 
+  // Section 1 vouches for the payment, so its approver sees a bill mismatch or a blank P.I here. It warns and never blocks (#603).
+  const bill = pending.section === 1 && pending.figures ? billCheckView(pending.figures) : null;
+
   return (
     <>
       <SlideOverBody>
@@ -48,6 +52,13 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
             <DetailRow label="Purpose">{IPAS_PURPOSE_LABELS[pending.purpose] ?? pending.purpose}</DetailRow>
             <DetailRow label="Priority">{IPAS_PRIORITY_LABELS[pending.priority] ?? pending.priority}</DetailRow>
             <DetailRow label="Odoo PO total">{formatAmount(pending.total, pending.currency)}</DetailRow>
+            {bill && (
+              <DetailRow label="Supplier bill check">
+                <span data-testid="review-bill-check">
+                  Odoo PO {bill.poText} · P.I {bill.piText}. {bill.verdict}
+                </span>
+              </DetailRow>
+            )}
             <DetailRow label="Section">
               {ipasSectionLabel(pending.section)}
             </DetailRow>
@@ -72,6 +83,15 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
       </SlideOverBody>
 
       <SlideOverFooter>
+        {bill?.warning && (
+          <p
+            role="status"
+            data-testid="review-bill-warning"
+            className="rounded-lg bg-amber-a3 px-2.5 py-2 text-xs leading-relaxed font-semibold text-amber-11"
+          >
+            {bill.warning}
+          </p>
+        )}
         <div className="flex gap-2">
           {canSendBackItem(pending) && (
             <Button variant="outline" className="flex-1" disabled={isSubmitting} onClick={() => onSendBack(item)}>

@@ -18,12 +18,13 @@ import { hintFor } from "./moveCopy";
  * belongs to (the drawer's footer and "Review section" use it), how it looks,
  * its label, its consequence hint, and what it does.
  *   kind     "approve" (green) | "prepare" or "neutral" (outline) | "return" (pale red)
+ *   warning  a sentence shown beside the button (never blocks it): section 1's bill check (#603)
  *   confirm  the card and the drawer footer ask first, with the restatement
  *   run(from)  `from` is { key, origin } where the move was started; the page
  *            passes it to the mutation so a failure shows at its origin
  */
-function move(key, section, { kind, icon, label, verb, confirm = true, run }, digest) {
-  return { key, section, kind, icon, label, verb, confirm, run, hint: hintFor(key, digest) };
+function move(key, section, { kind, icon, label, verb, confirm = true, run, warning = null }, digest) {
+  return { key, section, kind, icon, label, verb, confirm, run, warning, hint: hintFor(key, digest) };
 }
 
 const FILING = ipasSectionNo(IPAS_FILING_SECTION);
@@ -61,6 +62,8 @@ export function movesFor(ctx, digest) {
           label: `Approve section ${label}`,
           verb: "Approve",
           run: (from) => on.approve(section, from),
+          // Section 1 vouches for the payment: say a supplier bill mismatch or blank P.I here. It warns, never blocks.
+          warning: section === 1 ? (digest.bill?.warning ?? null) : null,
         }, digest),
       );
     }

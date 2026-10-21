@@ -24,7 +24,7 @@ import { IpasWarnings } from "../../../components/ipas/IpasSections";
 import DecisionCard from "../../../components/ipas/record/DecisionCard";
 import InlineError from "../../../components/record/InlineError";
 import EditForm from "../../../components/ipas/record/EditForm";
-import Figures from "../../../components/ipas/record/Figures";
+import MoneySummary from "../../../components/ipas/record/MoneySummary";
 import HeaderActions from "../../../components/ipas/record/HeaderActions";
 import SectionsPanel from "../../../components/ipas/record/SectionsPanel";
 import { buildBlocks } from "../../../components/ipas/record/blocks";
@@ -1012,9 +1012,9 @@ function IpasPage() {
           {editView ?? (
             <div className="min-w-0 space-y-8">
               <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
-              {/* The money summary's place (#603): its Supplier bill check, Paid, Remaining balance and Landed Cost replace the headline figures here. */}
+              {/* The money summary (#603): Supplier bill check, Paid, Remaining balance, Landed Cost. */}
               <div data-testid="ipas-money-summary-slot">
-                <Figures digest={digest} onOpen={sections.show} />
+                <MoneySummary digest={digest} onOpen={sections.show} />
               </div>
               <SectionsPanel
                 ctx={ctx}

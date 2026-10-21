@@ -56,6 +56,7 @@ import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
 import { REFUSAL } from "../constants/refusal";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
+import { ipasFigures } from "../utils/ipasFigures";
 import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
@@ -1291,7 +1292,7 @@ export const ipasService = {
 
     const { data: ipasRows, error: ipasError } = await supabase
       .from("ipas")
-      .select("id, number, po_number, purpose, priority, state, odoo_copy")
+      .select("id, number, po_number, purpose, priority, state, odoo_copy, pi_qt_amount")
       .in("id", [...new Set(waiting.map((entry) => entry.ipasId))])
       .eq("state", IPAS_STATE.OPEN);
     if (ipasError) throw ipasError;
@@ -1312,6 +1313,8 @@ export const ipasService = {
           priority: ipas.priority,
           total: (ipas.odoo_copy?.lines ?? []).reduce((sum, line) => sum + (Number(line?.price_subtotal) || 0), 0),
           currency: ipasCurrency(ipas),
+          // The Supplier bill check's figures (#603): the review warns beside section 1's Approve.
+          figures: ipasFigures(ipas),
           section: entry.section,
           role: entry.role,
           preparedBy: madeReady.signedBy,

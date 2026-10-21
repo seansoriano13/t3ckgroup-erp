@@ -797,7 +797,7 @@ describe("IPAS pages", () => {
       await user.click(within(banner).getByRole("button", { name: "Dismiss" }));
 
       expect(screen.queryByText("Odoo didn't answer")).not.toBeInTheDocument();
-      expect(screen.getByText("Odoo PO, before tax")).toBeInTheDocument();
+      expect(screen.getByText("Supplier bill check: Odoo PO vs P.I")).toBeInTheDocument();
     });
 
     it("overrides Entity with Odoo's value beside it, and resets in one action", async () => {
