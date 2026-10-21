@@ -8,9 +8,64 @@ import {
   IPAS_SOURCE_LABELS,
   IPAS_STATE,
 } from "../../constants/ipas";
-import { raisedByParts, sorLineParts } from "../../utils/ipas";
+import { formatAmount, raisedByParts, sorLineParts } from "../../utils/ipas";
+import { IPAS_AMOUNT_SOURCE } from "../../utils/ipasFigures";
 import HighlightText from "../HighlightText";
 import IpasStateBadge from "./IpasStateBadge";
+
+const AMOUNT_SOURCE_NOTE = {
+  [IPAS_AMOUNT_SOURCE.PI_QT]: "P.I/QT",
+  [IPAS_AMOUNT_SOURCE.ODOO_PO]: "Odoo PO",
+};
+
+/** A down or full payment total: blank when none was recorded. */
+const paymentTotal = (value, currency) => (value > 0 ? formatAmount(value, currency) : "—");
+
+/**
+ * The sheet's money columns (#596): Amount (and which figure it is), Payment
+ * scheme, DP, FP and Remaining balance, each in the PO's currency. Read from
+ * the IPAS figures; nothing is worked out here.
+ */
+function IpasMoneyCells({ figures }) {
+  const { currency, amount, amountSource, amountBeforeTax, paymentScheme, downPayment, fullPayment, remainingBalance } =
+    figures;
+  const money = "text-right text-xs tabular-nums text-foreground";
+  return (
+    <>
+      <TableCell className="text-right">
+        <span className={`block ${money}`} data-testid="ipas-row-amount">
+          {amount === null ? "—" : formatAmount(amount, currency)}
+        </span>
+        {amountSource && (
+          <span className="mt-0.5 block text-[11px] text-muted-foreground" data-testid="ipas-row-amount-source">
+            {AMOUNT_SOURCE_NOTE[amountSource]}
+            {amountBeforeTax ? " · before tax" : ""}
+          </span>
+        )}
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <span className="block max-w-[12rem] truncate text-xs text-foreground" data-testid="ipas-row-scheme">
+          {paymentScheme || "—"}
+        </span>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <span className={`block ${money}`} data-testid="ipas-row-dp">
+          {paymentTotal(downPayment, currency)}
+        </span>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <span className={`block ${money}`} data-testid="ipas-row-fp">
+          {paymentTotal(fullPayment, currency)}
+        </span>
+      </TableCell>
+      <TableCell className="text-right">
+        <span className={`block ${money}`} data-testid="ipas-row-remaining">
+          {remainingBalance === null ? "—" : formatAmount(remainingBalance, currency)}
+        </span>
+      </TableCell>
+    </>
+  );
+}
 
 /**
  * One row of the IPAS list. The whole row opens the IPAS (click, or Enter on
@@ -106,6 +161,7 @@ export default function IpasRow({ row, onOpen, search = "" }) {
           <span className="text-xs text-muted-foreground">—</span>
         )}
       </TableCell>
+      <IpasMoneyCells figures={row.figures} />
       <TableCell className="text-right">
         <IpasStateBadge state={row.state} />
       </TableCell>

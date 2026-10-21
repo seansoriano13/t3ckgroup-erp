@@ -7,7 +7,7 @@ import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee, makeFlowStage, makeOpportunity, makeSuperAdmin } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
-import { stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -119,6 +119,45 @@ describe("IPAS pages", () => {
 
       await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
       expect(within(screen.getByTestId("ipas-row")).getByText("P02553")).toBeInTheDocument();
+    });
+
+    it("shows each IPAS's Amount, Payment scheme, DP, FP and Remaining balance in its PO's currency (#596)", async () => {
+      const methods = seedIpasOptions((table, row) => db.seed(table, row)).payment_method;
+      const usdCopy = copy("P02600");
+      usdCopy.po = { ...usdCopy.po, currency: "USD", amount_total: 2000 };
+      // One typed P.I with a down payment and a cash top-up, one that falls back to the Odoo total with a full payment (withholding: paid less than the Amount),
+      // and one old copy without totals.
+      const typed = ipas({ po_number: "P02552", pi_qt_amount: 10000 });
+      const settled = ipas({ po_number: "P02600", odoo_copy: usdCopy });
+      const old = ipas({ po_number: "P02700" });
+      const pay = (row, kind, amount, method, paidOn) =>
+        db.seed("ipas_payments", { ipas_id: row.id, kind, amount, method_id: methods[method].id, paid_on: paidOn, charge_fee_php: 0 });
+      pay(typed, "down_payment", 3000, "Bank TT", "2026-10-01");
+      pay(typed, "payment", 1000, "Cash", "2026-10-02");
+      pay(typed, "payment", 500, "Bank TT", "2026-10-03");
+      pay(settled, "full_payment", 1800, "Cash", "2026-10-02");
+
+      renderList();
+
+      const rowOf = async (po) => (await screen.findAllByTestId("ipas-row")).find((r) => within(r).queryByText(po));
+      const typedRow = await rowOf("P02552");
+      expect(within(typedRow).getByTestId("ipas-row-amount")).toHaveTextContent("₱10,000.00");
+      expect(within(typedRow).getByTestId("ipas-row-amount-source")).toHaveTextContent("P.I/QT");
+      expect(within(typedRow).getByTestId("ipas-row-scheme")).toHaveTextContent("Bank TT + Cash");
+      expect(within(typedRow).getByTestId("ipas-row-dp")).toHaveTextContent("₱3,000.00");
+      expect(within(typedRow).getByTestId("ipas-row-fp")).toHaveTextContent("—");
+      expect(within(typedRow).getByTestId("ipas-row-remaining")).toHaveTextContent("₱5,500.00");
+
+      const settledRow = await rowOf("P02600");
+      expect(within(settledRow).getByTestId("ipas-row-amount")).toHaveTextContent("$2,000.00");
+      expect(within(settledRow).getByTestId("ipas-row-amount-source")).toHaveTextContent("Odoo PO");
+      expect(within(settledRow).getByTestId("ipas-row-fp")).toHaveTextContent("$1,800.00");
+      expect(within(settledRow).getByTestId("ipas-row-remaining")).toHaveTextContent("$0.00");
+
+      const oldRow = await rowOf(old.po_number);
+      expect(within(oldRow).getByTestId("ipas-row-amount")).toHaveTextContent("₱7,500.00");
+      expect(within(oldRow).getByTestId("ipas-row-amount-source")).toHaveTextContent("Odoo PO · before tax");
+      expect(within(oldRow).getByTestId("ipas-row-scheme")).toHaveTextContent("—");
     });
 
     it("shows a Project IPAS's SORs", async () => {

@@ -23,6 +23,7 @@ import { ipasListKey } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
 import { getPermissionContext } from "../../../utils/permissions";
 import { filterIpas } from "../../../utils/ipas";
+import { ipasFigures } from "../../../utils/ipasFigures";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -48,8 +49,12 @@ const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 const ALL = "__all__";
 
-// Supplier, Entity, Project / SO, Raised and Raised by hide below md so the number, Purpose, Costing and State stay in view.
-const NARROW_HIDDEN = new Set(["Supplier", "Entity", "Project / SO", "Raised", "Raised by"]);
+// Supplier, Entity, Project / SO, Raised, Raised by and the payment columns hide below md so the number,
+// Purpose, Costing, Amount, Remaining balance and State stay in view.
+const NARROW_HIDDEN = new Set(["Supplier", "Entity", "Project / SO", "Raised", "Raised by", "Payment scheme", "DP", "FP"]);
+// The sheet's money columns (#596): worked out by the IPAS figures, in each PO's currency.
+const MONEY_HEADINGS = ["Amount", "Payment scheme", "DP", "FP", "Remaining balance"];
+const MONEY_RIGHT = new Set(["Amount", "DP", "FP", "Remaining balance"]);
 
 const IPAS_SORT = {
   ipas: (r) => r.number,
@@ -61,6 +66,11 @@ const IPAS_SORT = {
   "project-so": (r) => r.sors[0]?.salesReference ?? r.sors[0]?.sorCode,
   raised: (r) => new Date(r.created_at).getTime(),
   "raised-by": (r) => r.creator?.name,
+  amount: (r) => r.figures.amount,
+  "payment-scheme": (r) => r.figures.paymentScheme,
+  dp: (r) => r.figures.downPayment,
+  fp: (r) => r.figures.fullPayment,
+  "remaining-balance": (r) => r.figures.remainingBalance,
   state: (r) => r.state,
 };
 
@@ -91,10 +101,12 @@ function IpasList() {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+  const { data: listed = [], isLoading, isError, refetch } = useQuery({
     queryKey: ipasListKey,
     queryFn: () => ipasService.list(),
   });
+  // Every money figure comes from the IPAS figures, never worked out in the row.
+  const rows = useMemo(() => listed.map((row) => ({ ...row, figures: ipasFigures(row) })), [listed]);
 
   const entityOptions = useMemo(
     () => [
@@ -221,17 +233,17 @@ function IpasList() {
         {!isLoading && !isError && visible.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="overflow-x-auto">
-              <Table tableId="ipas" className="md:min-w-[52rem]">
+              <Table tableId="ipas" className="md:min-w-[72rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "Costing", "Project / SO", "Raised", "Raised by", "State"].map((heading) => (
+                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "Costing", "Project / SO", "Raised", "Raised by", ...MONEY_HEADINGS, "State"].map((heading) => (
                       <SortHead
                         key={heading}
                         id={slug(heading)}
                         sortKey={slug(heading)}
                         sort={sort}
                         onSort={toggle}
-                        className={`${HEAD} ${heading === "State" ? "text-right" : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
+                        className={`${HEAD} ${heading === "State" || MONEY_RIGHT.has(heading) ? "text-right" : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
                       >
                         {heading}
                       </SortHead>
