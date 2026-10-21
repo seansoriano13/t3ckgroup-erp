@@ -135,10 +135,8 @@ describe("edit", () => {
         const rb = await row(b)
         expect((await edit("ordinary", b, { p_purpose: "Same time" })).error).toBeNull()
         expect((await row(b)).reminder_sent_at).toBeTruthy()
-        const ra = await row(a)
-        const later = new Date(new Date(ra.starts_at).getTime() + 3 * 3600_000).toISOString()
-        const laterEnd = new Date(new Date(ra.ends_at).getTime() + 3 * 3600_000).toISOString()
-        expect((await edit("ordinary", a, { p_starts_at: later, p_ends_at: laterEnd })).error).toBeNull()
+        // A slot no seed() ever takes, so the move can't land on a later test's request.
+        expect((await edit("ordinary", a, { p_starts_at: iso(5000), p_ends_at: iso(5001) })).error).toBeNull()
         expect((await row(a)).reminder_sent_at).toBeNull()
         expect(rb.id).toBe(b)
     })
