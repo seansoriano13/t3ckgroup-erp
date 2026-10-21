@@ -311,7 +311,7 @@ describe("IPAS sign-offs", () => {
 
       const text = document.body.textContent ?? "";
       expect(text).toContain("Return section 2?");
-      expect(text).toContain("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved");
+      expect(text).toContain("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved");
       // Apart from the short move names (#593), a section is named with its number and its name, or not by number at all.
       const prose = text.replace(/(?:Return section|Undo approval of section) \d/g, "");
       expect(prose).not.toMatch(/\b(?:sections?|send|waiting for|and|for)\s+\d+\b(?!\s*·)/i);

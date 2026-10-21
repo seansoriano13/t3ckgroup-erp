@@ -162,6 +162,8 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     signoff(row.id, 1, "approved", approver);
     signoff(row.id, 3, "prepared", purchaser);
     signoff(row.id, 3, "approved", approver);
+    signoff(row.id, 6, "prepared", purchaser);
+    signoff(row.id, 6, "approved", approver);
     renderDetail(row.id);
 
     await screen.findByRole("region", { name: "Your move" });
@@ -195,6 +197,8 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     signoff(row.id, 1, "approved", approver);
     signoff(row.id, 3, "prepared", purchaser);
     signoff(row.id, 3, "approved", approver);
+    signoff(row.id, 6, "prepared", purchaser);
+    signoff(row.id, 6, "approved", approver);
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
