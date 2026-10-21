@@ -705,6 +705,11 @@ function IpasPage({ onClose }) {
     mutationFn: ({ filingCopy, printWindow }) =>
       printIpas(id, { printWindow, filingCopy, printedBy: user?.name ?? null }),
     onError: (error) => toast.error(error?.message || "The IPAS couldn't be printed."),
+    // Printing refreshes from Odoo and may write events; reload so the form's version is current (#585).
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ipasKey(id) });
+      queryClient.invalidateQueries({ queryKey: ipasListKey });
+    },
   });
   const startPrint = (filingCopy) => {
     const printWindow = openPrintWindow();
