@@ -18,7 +18,9 @@ function statusLine(digest, gates, offered) {
   const mine = now.moveKeys.some((key) => offered.some((move) => move.key === key));
   // Filing has three steps under one section number, so it names the step too.
   const step = now.part === "filing" ? `${now.label}, ${now.role}` : now.label;
-  return mine ? `Waiting for you: ${step}` : `Next: ${step}, waiting on ${now.waitsOn}`;
+  // "the approvers of 1 · Purchasing" already named the section once: say it once.
+  const who = now.waitsOn.replace(` of ${now.label}`, "");
+  return mine ? `Waiting for you: ${step}` : `Next: ${step}, waiting on ${who}`;
 }
 
 export default function DecisionCard({ ctx, digest, onReview, next }) {
@@ -29,7 +31,7 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
 
   return (
     <RecordCard
-      split
+      rail
       status={statusLine(digest, digest.gates, offered)}
       next={next && { to: `/purchasing/ipas/${next.ipasId}`, label: `Next IPAS waiting for me: ${next.number}` }}
       groups={[

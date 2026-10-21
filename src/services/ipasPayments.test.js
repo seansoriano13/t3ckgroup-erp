@@ -397,14 +397,12 @@ describe("ipasService: payments, charges and Landed Cost", () => {
         expect(landedCost.totals.landedPhp).toBe(11800)
       })
 
-      it("refuses LC Odoo Done and names the payments", async () => {
+      it("still lets the status reach LC Odoo Done (feedback on #595)", async () => {
         rate("2026-09-28", 56)
         const { ipas } = await withBlank()
 
-        await expect(ipasService.setComputationStatus(ipas.id, "lc_odoo_done")).rejects.toMatchObject({
-          message: expect.stringContaining("Full payment of USD 200.00 on Oct 1, 2026"),
-        })
-        expect((await read(ipas.id)).computationStatus).toBe("encoding")
+        await ipasService.setComputationStatus(ipas.id, "lc_odoo_done")
+        expect((await read(ipas.id)).computationStatus).toBe("lc_odoo_done")
       })
     })
 

@@ -148,11 +148,9 @@ function writeHiddenColumns(userId, hidden) {
 function IpasList() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
+  const { hasPurchasingFlow, isSuperAdmin } = getPermissionContext(user);
   // The option lists: Purchasing access and Super Admins.
   const canEditSettings = hasPurchasingFlow || isSuperAdmin;
-  // The status pill puts an open IPAS On-Hold (#597): Purchasing access or Finance access; the pill is read-only for everyone else.
-  const canSetHold = hasPurchasingFlow || hasFinanceFlow;
 
   const [state, setState] = useState(IPAS_STATE.OPEN);
   const [entity, setEntity] = useState(null);
@@ -233,7 +231,20 @@ function IpasList() {
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: "Search IPAS, PO, supplier, SO, SOR or project" }}
         chips={
-          <>
+          <FilterSelect
+            icon={CircleDot}
+            label="IPAS Status"
+            options={STATUS_OPTIONS}
+            value={status ?? ALL}
+            onChange={(v) => setStatus(v === ALL ? null : v)}
+            allValue={ALL}
+            className={CHIP}
+            wrapperClassName={CHIP_WRAPPER}
+          />
+        }
+        // The rest sit behind one Filters button, so the bar stays on one line.
+        filters={
+          <div className="grid gap-2 sm:grid-cols-2">
             <FilterSelect
               icon={Eye}
               label="View"
@@ -241,8 +252,6 @@ function IpasList() {
               value={view ?? ALL}
               onChange={(v) => pickView(v === ALL ? null : v)}
               allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
             />
             <FilterSelect
               icon={Building2}
@@ -251,8 +260,6 @@ function IpasList() {
               value={entity ?? ALL}
               onChange={(v) => setEntity(v === ALL ? null : v)}
               allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
             />
             <FilterSelect
               icon={Layers}
@@ -261,8 +268,6 @@ function IpasList() {
               value={purpose ?? ALL}
               onChange={(v) => setPurpose(v === ALL ? null : v)}
               allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
             />
             <FilterSelect
               icon={Calculator}
@@ -271,21 +276,10 @@ function IpasList() {
               value={costing ?? ALL}
               onChange={(v) => setCosting(v === ALL ? null : v)}
               allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
             />
-            <FilterSelect
-              icon={CircleDot}
-              label="IPAS Status"
-              options={STATUS_OPTIONS}
-              value={status ?? ALL}
-              onChange={(v) => setStatus(v === ALL ? null : v)}
-              allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
-            />
-          </>
+          </div>
         }
+        activeCount={[view, entity, purpose, costing].filter((value) => value !== null).length}
         actions={
           <>
             <Dropdown
@@ -300,6 +294,8 @@ function IpasList() {
                   className={CHIP}
                   icon={Columns3}
                   label="Columns"
+                  // Icon and count only, so the bar stays on one line; the label stays its name.
+                  labelClassName="hidden"
                   count={hiddenColumns.length}
                   isActive={hiddenColumns.length > 0}
                   isOpen={isOpen}
@@ -307,7 +303,7 @@ function IpasList() {
               )}
             >
               {() => (
-                <div className="flex w-56 flex-col gap-1 p-2" role="group" aria-label="Columns shown">
+                <div className="flex max-h-[min(60vh,24rem)] w-56 flex-col gap-1 overflow-y-auto overscroll-contain p-2" role="group" aria-label="Columns shown">
                   {LIST_HEADINGS.map((heading) => (
                     <FieldBox inline key={heading} className="rounded-md px-1.5 py-1 text-[13px] hover:bg-muted">
                       <Checkbox
@@ -322,9 +318,17 @@ function IpasList() {
                 </div>
               )}
             </Dropdown>
-            <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={exportToExcel} disabled={visible.length === 0}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5"
+              onClick={exportToExcel}
+              disabled={visible.length === 0}
+              aria-label="Export to Excel"
+              title="Export to Excel"
+            >
               <Download size={14} />
-              Export to Excel
+              Export
             </Button>
           </>
         }
@@ -386,9 +390,10 @@ function IpasList() {
         )}
 
         {!isLoading && !isError && visible.length > 0 && (
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <div className="overflow-x-auto">
-              <Table tableId="ipas" className="md:min-w-[72rem]">
+          // No overflow-hidden here: the table's "Reset columns" sits just above this card.
+          <div className="rounded-xl border border-border bg-card [&_thead_tr]:rounded-t-xl [&_th:first-child]:rounded-tl-xl [&_th:last-child]:rounded-tr-xl">
+            <div>
+              <Table tableId="ipas" resetAbove className="md:min-w-[72rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     {LIST_HEADINGS.filter((heading) => heading === LOCKED_HEADING || show(slug(heading))).map((heading) => (
@@ -411,7 +416,6 @@ function IpasList() {
                       key={row.id}
                       row={row}
                       search={search}
-                      canSetHold={canSetHold}
                       show={show}
                       onOpen={(id) => navigate(`/purchasing/ipas/${id}`)}
                     />

@@ -164,6 +164,7 @@ function IpasPage() {
   // The Approve and file dialog, and where it was started ({ from }), or null when shut.
   const [filing, setFiling] = useState(null);
   const [reopening, setReopening] = useState(false);
+  const [holding, setHolding] = useState(false);
   // A failed move, shown at the place it was started (card or drawer footer), with Retry.
   const [failure, setFailure] = useState(null);
   // The IPAS this viewer just signed, so the card can point at the next one waiting for them.
@@ -758,6 +759,7 @@ function IpasPage() {
   const canChange = hasPurchasingFlow && open;
   // Payments and charges: Purchasing or Finance, until Filing.
   const canRecord = (hasPurchasingFlow || hasFinanceFlow) && open;
+  const canHold = (hasPurchasingFlow || hasFinanceFlow) && open;
   // Finance has it: Finance access alone ticks it, until Filing.
   const canTickFinance = hasFinanceFlow && open;
   const digest = digestIpas(ipas);
@@ -856,6 +858,7 @@ function IpasPage() {
     // The one page-level Edit: opens the long edit form at its first section (#581).
     edit: () => openEdit("header"),
     editPurpose: () => setEditing(true),
+    hold: () => setHolding(true),
     cancel: () => setCancelling(true),
     reopen: () => setReopening(true),
     editOverride: setOverriding,
@@ -898,7 +901,10 @@ function IpasPage() {
       setStatus: (from, to) => open && canSetComputationStatus({ from, to, hasPurchasingFlow }),
       reopen: isSuperAdmin && filed,
       printFiling: filed && ipas.canReadBankDetails,
+      // On-Hold (#597), from the More menu: Purchasing access or Finance access, on an open IPAS.
+      hold: canHold,
     },
+    onHold: Boolean(digest.figures?.onHold),
     rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, sendBack7: canReturnSection7 },
     busy: {
       signoff: signoff.isPending || returnSection.isPending,
@@ -958,7 +964,7 @@ function IpasPage() {
           <>
             {/* The IPAS Status (#597): the list's pill, read from the same IPAS figures so the two never disagree. */}
             <div className="flex flex-wrap items-center gap-2 empty:hidden" data-testid="ipas-record-status">
-              <IpasStatusControl ipas={ipas} figures={digest.figures} canSet={hasPurchasingFlow || hasFinanceFlow} />
+              <IpasStatusControl ipas={ipas} figures={digest.figures} canSet={canHold} asking={holding} onAskingChange={setHolding} />
               {digest.figures.onHoldNote && (
                 <span className="text-xs text-muted-foreground" data-testid="ipas-record-on-hold-note">
                   {digest.figures.onHoldNote}
@@ -1006,24 +1012,29 @@ function IpasPage() {
             />
           </div>
 
-          {/* Top to bottom: the decision card, the money, then every section as a block that opens in place. */}
+          {/* Top to bottom: the money, the decision card, then every section as a block that opens in place. */}
           {editView ?? (
-            <div className="min-w-0 space-y-8">
-              <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
-              {/* The money summary (#603): Supplier bill check, Paid, Remaining balance, Landed Cost. */}
-              <div data-testid="ipas-money-summary-slot">
+            // From the wide breakpoint the decision card is a sticky rail on the right, beside the money and
+            // the sections; below it, it sits between them. The money comes first either way (#603).
+            <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_17rem] xl:gap-y-8">
+              <div data-testid="ipas-money-summary-slot" className="min-w-0 xl:col-start-1 xl:row-start-1">
                 <MoneySummary digest={digest} onOpen={sections.show} />
               </div>
-              <SectionsPanel
-                ctx={ctx}
-                blocks={blocks}
-                digest={digest}
-                open={sections}
-                headRef={(key) => (node) => {
-                  rowEls.current[key] = node;
-                }}
-                onEdit={openEdit}
-              />
+              <aside className="min-w-0 xl:sticky xl:top-4 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
+                <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
+              </aside>
+              <div className="min-w-0 xl:col-start-1 xl:row-start-2">
+                <SectionsPanel
+                  ctx={ctx}
+                  blocks={blocks}
+                  digest={digest}
+                  open={sections}
+                  headRef={(key) => (node) => {
+                    rowEls.current[key] = node;
+                  }}
+                  onEdit={openEdit}
+                />
+              </div>
             </div>
           )}
         </div>

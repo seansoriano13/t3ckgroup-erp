@@ -4764,12 +4764,6 @@ begin
       raise exception '%: the pesos taken from the bank must be more than zero, or left blank until the bank statement arrives', p_fn
         using errcode = '22023';
     end if;
-    -- Once Landed Cost is final (LC Odoo Done, or any status after it), it can't go back to an estimate.
-    if v_php is null and p_ipas.computation_status in ('lc_odoo_done', 'costs_complete', 'checked') then
-      raise exception '%: % is % LC Odoo Done, so Landed Cost is final; give the pesos taken from the bank', p_fn, p_ipas.number,
-        case when p_ipas.computation_status = 'lc_odoo_done' then 'at' else 'past' end
-        using errcode = '22023';
-    end if;
   end if;
 
   v_label := public._ipas_check_option(p_fn, p_method_id, 'payment_method', p_current_method, 'payment method');
@@ -14268,7 +14262,6 @@ declare
   v_gantt boolean;
   v_label text;
   v_remarks text;
-  v_missing text;
   v_changes jsonb := '{}'::jsonb;
 begin
   if v_actor is null then
@@ -14371,15 +14364,6 @@ begin
     if v_status is null or v_status not in ('encoding', 'encoded', 'lc_gs_done', 'lc_odoo_done') then
       raise exception 'ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done'
         using errcode = '22023';
-    end if;
-    -- #604: LC Odoo Done makes Landed Cost final, and a final Landed Cost needs the pesos actually
-    -- paid. Refused while a foreign-currency payment has "Pesos taken from the bank" blank.
-    if v_status = 'lc_odoo_done' and v_status is distinct from v_row.computation_status then
-      v_missing := public._ipas_payments_missing_pesos(v_row.id);
-      if v_missing is not null then
-        raise exception 'ipas_set_header: LC Odoo Done needs the pesos taken from the bank on every foreign-currency payment. Still blank: %', v_missing
-          using errcode = '22023';
-      end if;
     end if;
   end if;
 

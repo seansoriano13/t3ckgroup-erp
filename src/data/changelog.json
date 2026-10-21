@@ -19,11 +19,11 @@
         "version": "1.9.57",
         "changes": [
             "The IPAS list now shows the Amount, Payment Scheme, Down Payment, Full Payment, Remaining Balance and the new IPAS Status (Pending, Requested, Ongoing, On-Hold, Paid, Done). Pick which columns to show.",
-            "Purchasing and Finance can put an IPAS On-Hold with a note, and take it off again. An On-Hold order does not go late in Order Monitoring.",
+            "Purchasing and Finance can put an IPAS On-Hold with a note from the record's More menu, and take it off again. An On-Hold order does not go late in Order Monitoring.",
             "New list views: Unpaid, On-Hold, Ongoing and Raised by me. Totals are shown per currency, and the list can be exported to Excel.",
             "Search finds an IPAS by its SO number, SOR number or project name, or by the SO number and project typed together.",
             "The IPAS record is a full page again, with a money summary at the top and a Supplier bill check that compares the Odoo PO total with the P.I/QT Amount. A mismatch is shown beside Approve for section 1 and never blocks it.",
-            "Pesos taken from the bank is now optional on a foreign-currency payment. Until it is filled in, Landed Cost is marked as an estimate, and the status cannot move to LC Odoo Done.",
+            "Pesos taken from the bank is now optional on a foreign-currency payment. Left blank, Landed Cost uses the Reference Rate of the payment date and is marked as an estimate. The Computation status can jump to any step.",
             "The SOR picker when raising an IPAS now finds every SOR by SO number, SOR number or project, and a Super Admin can set the number the next IPAS takes in Settings (it can only move forward).",
             "New Costing Matrix page for the Closed Book: every SOR with its Planned Revenue and Actual Revenue side by side, with search, filters and totals."
         ]

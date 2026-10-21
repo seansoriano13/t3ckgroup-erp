@@ -85,7 +85,7 @@ function IpasMoneyCells({ figures, show }) {
  * below md so the number, Purpose and State stay in view. `search` is the
  * list's search text: where it matches, the text is highlighted.
  */
-export default function IpasRow({ row, onOpen, search = "", canSetHold = false, show = () => true }) {
+export default function IpasRow({ row, onOpen, search = "", show = () => true }) {
   const raisedBy = raisedByParts(row);
 
   return (
@@ -191,7 +191,7 @@ export default function IpasRow({ row, onOpen, search = "", canSetHold = false, 
       <IpasMoneyCells figures={row.figures} show={show} />
       {show("status") && (
       <TableCell>
-        <IpasStatusControl ipas={row} figures={row.figures} canSet={canSetHold} />
+        <IpasStatusControl ipas={row} figures={row.figures} />
       </TableCell>
       )}
       {show("state") && (

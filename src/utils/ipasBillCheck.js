@@ -26,7 +26,7 @@ export const BILL_CHECK_KIND = Object.freeze({
 /**
  * @param {object} figures  `ipasFigures(ipas)`
  * @returns {{ kind: string, verdict: string, poText: string, piText: string, warning: string|null }}
- *   verdict  the line under the two amounts: "= matches", "≠ P.I is ₱5,000.00 more", …
+ *   verdict  the line under the two amounts: "Matches the Odoo PO", "P.I is ₱5,000.00 more than the Odoo PO", …
  *   poText / piText  the two amounts as shown ("—" when there is none)
  *   warning  the sentence beside section 1's approve action; null when none
  */
@@ -57,7 +57,7 @@ export function billCheckView(figures) {
     };
   }
   if (billCheck?.status === IPAS_BILL_CHECK.MATCHES) {
-    return { ...base, kind: BILL_CHECK_KIND.MATCHES, verdict: "= matches", warning: null };
+    return { ...base, kind: BILL_CHECK_KIND.MATCHES, verdict: "Matches the Odoo PO", warning: null };
   }
 
   const difference = billCheck?.difference ?? piAmount - poTotal;
@@ -66,7 +66,7 @@ export function billCheckView(figures) {
   return {
     ...base,
     kind: BILL_CHECK_KIND.DIFFERS,
-    verdict: `≠ P.I is ${gap} ${direction}`,
+    verdict: `P.I is ${gap} ${direction} than the Odoo PO`,
     warning: `Supplier bill check: the P.I is ${gap} ${direction} than the Odoo PO (${piText} against ${poText}).`,
   };
 }

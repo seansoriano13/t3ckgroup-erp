@@ -122,7 +122,7 @@ export function FreightField({ ipas, form, set, disabled }) {
 }
 
 /** The one-line explanation under "Pesos taken from the bank" (#604). */
-const PESOS_HINT = "What the bank took out for this payment, from the bank statement. Leave it blank until then; Landed Cost is an estimate meanwhile.";
+const PESOS_HINT = "Optional. What the bank took out for this payment, from the bank statement. Left blank, Landed Cost uses the Reference Rate of the payment date.";
 
 function RateNote({ ipas, row }) {
   const currency = ipas.currency;
@@ -596,15 +596,13 @@ export function BankFields({ ipas, form, set, canChange }) {
 
 /**
  * The computation status and the spread, typed here and stored with the rest. The
- * steps keep their rules: one step from the stored status either way, and only
- * Purchasing gives them; Landed Cost below is worked out from what is stored.
+ * steps jump to any step either way, and only Purchasing gives them; Landed Cost
+ * below is worked out from what is stored.
  */
 export function CostingFields({ ipas, form, set, canChange, canSetStatus }) {
   const stored = ipas.computationStatus;
-  const storedIndex = IPAS_COMPUTATION_STATUSES.indexOf(stored);
   const shown = { ...ipas, computationStatus: form.computationStatus, landedCostSplit: form.split };
   const mayGive = (from, to) => {
-    if (Math.abs(IPAS_COMPUTATION_STATUSES.indexOf(to) - storedIndex) > 1) return false;
     if (to === stored) return true;
     return canSetStatus ? canSetStatus(stored, to) : canChange;
   };

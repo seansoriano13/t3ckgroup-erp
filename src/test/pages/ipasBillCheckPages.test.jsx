@@ -119,10 +119,10 @@ describe("IPAS Supplier bill check", () => {
       renderDetail(row.id);
 
       const box = await screen.findByTestId("ipas-bill-check");
-      expect(within(box).getByRole("heading", { name: "Supplier bill check: Odoo PO vs P.I" })).toBeInTheDocument();
+      expect(within(box).getByRole("heading", { name: "Supplier bill check" })).toBeInTheDocument();
       expect(within(box).getByTestId("bill-check-po")).toHaveTextContent("₱11,200.00");
       expect(within(box).getByTestId("bill-check-pi")).toHaveTextContent("₱11,200.00");
-      expect(within(box).getByTestId("bill-check-verdict")).toHaveTextContent("= matches");
+      expect(within(box).getByTestId("bill-check-verdict")).toHaveTextContent("Matches the Odoo PO");
       const summary = screen.getByTestId("ipas-money-summary");
       expect(within(summary).getByText("Paid")).toBeInTheDocument();
       expect(within(summary).getByText("Remaining balance")).toBeInTheDocument();
@@ -134,7 +134,7 @@ describe("IPAS Supplier bill check", () => {
       renderDetail(row.id);
 
       const box = await screen.findByTestId("ipas-bill-check");
-      expect(within(box).getByTestId("bill-check-verdict")).toHaveTextContent("≠ P.I is ₱5,000.00 more");
+      expect(within(box).getByTestId("bill-check-verdict")).toHaveTextContent("P.I is ₱5,000.00 more than the Odoo PO");
     });
 
     it("says the P.I/QT Amount is not typed yet when it is blank", async () => {
@@ -248,7 +248,7 @@ describe("IPAS Supplier bill check", () => {
 
       const sheet = await findOtherDialog();
       expect(within(sheet).getByTestId("review-bill-warning")).toHaveTextContent("the P.I is ₱400.00 less than the Odoo PO");
-      expect(within(sheet).getByTestId("review-bill-check")).toHaveTextContent("≠ P.I is ₱400.00 less");
+      expect(within(sheet).getByTestId("review-bill-check")).toHaveTextContent("P.I is ₱400.00 less than the Odoo PO");
       expect(within(sheet).getByRole("button", { name: "Approve" })).toBeEnabled();
     });
 
@@ -277,7 +277,7 @@ describe("IPAS Supplier bill check", () => {
       await user.click(await screen.findByText("Scorpe Technologies"));
 
       const sheet = await findOtherDialog();
-      expect(within(sheet).getByTestId("review-bill-check")).toHaveTextContent("= matches");
+      expect(within(sheet).getByTestId("review-bill-check")).toHaveTextContent("Matches the Odoo PO");
       expect(within(sheet).queryByTestId("review-bill-warning")).not.toBeInTheDocument();
     });
   });
