@@ -7,7 +7,6 @@ import {
   manilaTime,
   manilaToday,
   monthGrid,
-  utcTodayMirroringServerCurrentDate,
   weekGrid,
 } from './manilaDate.js'
 
@@ -17,7 +16,6 @@ describe('manilaDate', () => {
     expect(manilaToday(instant)).toBe('2026-10-21')
     expect(manilaDate(instant)).toBe('2026-10-21')
     expect(manilaTime(instant)).toBe('07:00')
-    expect(utcTodayMirroringServerCurrentDate(instant)).toBe('2026-10-20')
   })
 
   it('flips at Manila midnight', () => {

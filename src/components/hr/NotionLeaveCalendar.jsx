@@ -1,4 +1,4 @@
-import { manilaDate, utcTodayMirroringServerCurrentDate } from '@/lib/manilaDate.js';
+import { manilaDate, manilaToday } from '@/lib/manilaDate.js';
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
@@ -47,7 +47,7 @@ export default function NotionLeaveCalendar({
    * the card's own date for a leave with no group, which is a group of one.
    *
    * Compared as `YYYY-MM-DD` strings against today in UTC, which is exactly
-   * what the SQL does: `first_date < CURRENT_DATE`. Parsing either side into a
+   * what the SQL does: `first_date < manila_today()`. Parsing either side into a
    * `Date` would put the boundary eight hours into the Manila working day and
    * would also exclude the start day itself, which ADR 0015 deliberately keeps
    * withdrawable.
@@ -57,7 +57,7 @@ export default function NotionLeaveCalendar({
       ? approvedLeaves.filter((l) => l.leave_group_id === leave.leave_group_id).map((l) => l.date)
       : [leave.date];
     const firstDate = (groupDates.sort()[0] || leave.date || '').slice(0, 10);
-    return Boolean(firstDate) && firstDate < utcTodayMirroringServerCurrentDate();
+    return Boolean(firstDate) && firstDate < manilaToday();
   };
 
   const monthNames = [
