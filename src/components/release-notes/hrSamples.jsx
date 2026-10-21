@@ -64,7 +64,7 @@ export function LeaveFormSample() {
       <SampleAuthProvider user={APPLICANT}>
         <Button type="button" onClick={() => setOpen(true)}>
           <Plus size={16} />
-          Apply Leave / OT
+          File Time Off / Overtime
         </Button>
         <ApplyLeaveModal isOpen={open} onClose={() => setOpen(false)} onSuccess={noop} />
       </SampleAuthProvider>

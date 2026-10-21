@@ -4,6 +4,7 @@ import { parseManilaDate, weekGrid, manilaDate } from '@/lib/manilaDate.js';
 import { kindOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
 import { placeDay } from './timeGrid.js';
+import { isMeeting } from './meetingPreview.js';
 
 const HOUR_PX = 40;
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
@@ -152,8 +153,8 @@ const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String
 
 /** Day view with one column per active Venue for meetings; Time Off and overtime stay listed above. */
 function VenueDay({ day, venues, entries, onOpenEntry, onPickSlot, todayYmd }) {
-  const meetings = entries.filter((e) => e.kind === 'MEETING');
-  const others = entries.filter((e) => e.kind !== 'MEETING');
+  const meetings = entries.filter(isMeeting);
+  const others = entries.filter((e) => !isMeeting(e));
   const above = placeDay(others, day);
   const aboveRows = [...above.allDay, ...[...above.timed].sort((a, b) => a.startMin - b.startMin).map((b) => b.entry)];
   const cols = `3rem repeat(${venues.length}, minmax(0, 1fr))`;

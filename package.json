@@ -14,7 +14,7 @@
         "test": "vitest run",
         "test:unit": "vitest run src/utils src/constants src/lib src/hooks src/test/db src/test/factories",
         "test:integration": "vitest run src/services src/context src/components src/test/pages/approvalSplitView",
-        "test:e2e": "vitest run src/test/pages/approvals.e2e",
+        "test:e2e": "vitest run src/test/pages/approvals.e2e src/test/pages/meetingRequests.e2e",
         "test:db": "supabase db reset --local && vitest run -c vitest.db.config.js",
         "test:db:only": "vitest run -c vitest.db.config.js",
         "test:watch": "vitest",

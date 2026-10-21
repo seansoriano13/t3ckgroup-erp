@@ -164,11 +164,11 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
   });
 
-  it('sits on PageShell: Apply Leave / OT in the header, underlined tabs', async () => {
+  it('sits on PageShell: File Time Off / Overtime in the header, underlined tabs', async () => {
     renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
 
     const header = screen.getByRole('heading', { level: 1 }).closest('div').parentElement;
-    expect(header).toContainElement(screen.getByRole('button', { name: /apply leave/i }));
+    expect(header).toContainElement(screen.getByRole('button', { name: /file time off/i }));
 
     const requestsTab = await screen.findByRole('tab', { name: /^Requests/ });
     expect(requestsTab).toHaveAttribute('aria-selected', 'true');

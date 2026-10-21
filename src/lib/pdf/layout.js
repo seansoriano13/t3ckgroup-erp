@@ -83,13 +83,6 @@ export function pairIntoSheets(records) {
   return sheets;
 }
 
-export function getOvertimeOutcome(status) {
-  if (status === 'APPROVED_PAID') return 'PAID OVERTIME';
-  if (status === 'APPROVED_OFFSET') return 'OFFSET CREDIT';
-  if (status === 'REJECTED') return 'REJECTED';
-  return 'PENDING';
-}
-
 export function getOvertimeHoursDisplay(record) {
   const reqHours = record.requested_hours || record.hours || 0;
   // A null approved_hours (rejected or legacy record) is "no override to

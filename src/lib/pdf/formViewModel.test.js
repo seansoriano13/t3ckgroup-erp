@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { formHTML } from './htmlPrinter';
 import {
   getRecordNumber,
   getTreatedAs,
@@ -235,6 +236,13 @@ describe('buildTG12ViewModel', () => {
 
   it('has no Outcome block, so OFFSET CREDIT never prints', () => {
     expect(buildTG12ViewModel(record).outcome).toBeUndefined();
+  });
+
+  it('prints no Outcome block, whatever the overtime status', () => {
+    const html = formHTML(buildTG12ViewModel({ ...record, status: 'APPROVED' }));
+    expect(html).not.toContain('Outcome');
+    expect(html).not.toContain('OFFSET CREDIT');
+    expect(html).not.toContain('PAID OVERTIME');
   });
 
   it('prints the company recorded on the request, and blank when absent (issue #142)', () => {

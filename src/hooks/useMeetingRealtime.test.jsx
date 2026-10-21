@@ -5,14 +5,24 @@ import { renderHookWithQuery } from "@/test/support"
 const state = vi.hoisted(() => ({ handlers: [] }))
 
 vi.mock("../lib/supabase", () => {
-  const channel = {
-    on: vi.fn((_type, filter, handler) => {
-      state.handlers.push({ filter, handler })
-      return channel
-    }),
-    subscribe: vi.fn(() => channel),
+  const make = (topic) => {
+    const channel = {
+      topic,
+      on: vi.fn((_type, _filter, handler) => {
+        state.handlers.push({ topic, handler })
+        return channel
+      }),
+      subscribe: vi.fn(() => channel),
+    }
+    return channel
   }
-  return { supabase: { channel: vi.fn(() => channel), removeChannel: vi.fn() } }
+  return {
+    supabase: {
+      channel: vi.fn((topic) => make(topic)),
+      removeChannel: vi.fn(),
+      realtime: { setAuth: vi.fn(() => Promise.resolve()) },
+    },
+  }
 })
 
 import { supabase } from "../lib/supabase"
@@ -23,9 +33,12 @@ describe("useMeetingRealtime", () => {
     vi.clearAllMocks()
   })
 
-  it("listens to postgres_changes on both meeting tables", () => {
+  it("listens to the broadcast channel of both meeting tables", () => {
     const { unmount } = renderHookWithQuery(() => useMeetingRealtime())
-    expect(state.handlers.map((h) => h.filter.table)).toEqual(["meeting_requests", "meeting_request_participants"])
+    expect(state.handlers.map((h) => h.topic)).toEqual([
+      "meeting_requests-changes",
+      "meeting_request_participants-changes",
+    ])
     unmount()
   })
 
@@ -38,13 +51,13 @@ describe("useMeetingRealtime", () => {
     unmount()
   })
 
-  it("shares one channel between screens and removes it when the last one unmounts", () => {
+  it("shares one channel per table between screens and removes them when the last one unmounts", () => {
     const a = renderHookWithQuery(() => useMeetingRealtime())
     const b = renderHookWithQuery(() => useMeetingRealtime())
-    expect(supabase.channel).toHaveBeenCalledTimes(1)
+    expect(supabase.channel).toHaveBeenCalledTimes(2)
     a.unmount()
     expect(supabase.removeChannel).not.toHaveBeenCalled()
     b.unmount()
-    expect(supabase.removeChannel).toHaveBeenCalledTimes(1)
+    expect(supabase.removeChannel).toHaveBeenCalledTimes(2)
   })
 })

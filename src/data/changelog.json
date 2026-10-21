@@ -1,6 +1,20 @@
 [
     {
         "date": "2026-10-21",
+        "title": "Time Off & Overtime, the Calendar, Meeting Requests and Venues",
+        "version": "1.9.58",
+        "changes": [
+            "Leaves Manager and Leave Approvals are now called Time Off & Overtime. The My Requests button is now File Time Off / Overtime, and its tabs are Overtime, Offset, Leave and Undertime.",
+            "Printed forms (TG-11 leave, TG-12 overtime, TG-13 undertime) are cleaner, show when HR validated the request, and no longer print an Outcome box.",
+            "Dates for leave, overtime and offset now follow Manila time everywhere, so a request near midnight no longer lands on the wrong day. Withdrawing a request uses the Manila date too.",
+            "HR can now record Leave Without Pay (LWOP). It is saved as approved, can be verified from its printed QR code, and shows on the Calendar.",
+            "The new Calendar shows Time Off, overtime, LWOP and meetings in Month, Week, Day and People views, and updates by itself when a meeting changes.",
+            "Meeting Requests: book a Venue from the Calendar, add a Facilitator, Participants and guests. Your department head approves first, then HR, in the Approval Center. You can edit, send again or cancel before it starts, and everyone invited gets a reminder.",
+            "Venues: HR and Super Admins can add, rename, reorder, hide or delete the Venues people can book."
+        ]
+    },
+    {
+        "date": "2026-10-21",
         "title": "IPAS list, record page and Costing Matrix page get a big upgrade",
         "version": "1.9.57",
         "changes": [

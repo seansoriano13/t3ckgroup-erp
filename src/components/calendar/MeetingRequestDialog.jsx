@@ -105,7 +105,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const endsAt = manilaInstant(date, end);
   const windowOk = Boolean(date) && end > start;
   const clash = venueName && windowOk ? findClash(dayEntries, venueName, startsAt, endsAt) : null;
-  const pickedIds = [facilitatorId, ...participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id)];
+  const participantIds = participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id);
+  const pickedIds = [facilitatorId, ...participantIds];
   const warnings =
     venueName && windowOk
       ? softWarnings(dayEntries, {
@@ -136,7 +137,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           facilitatorId,
           purpose,
           guests,
-          participantIds: participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id),
+          participantIds,
           headId: needsHead ? headId : null,
           actor: user,
         });
@@ -150,7 +151,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         facilitatorId,
         purpose,
         guests,
-        participantIds: participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id),
+        participantIds,
         headId: needsHead ? headId : null,
         applicant: user,
       });

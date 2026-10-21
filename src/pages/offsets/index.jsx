@@ -145,7 +145,7 @@ export default function EmployeeLeavesPage() {
     return requests.filter(r => r.type === typeFilter);
   }, [requests, typeFilter]);
 
-  // The balances sit beside Apply Leave / OT: they are what the person checks
+  // The balances sit beside File Time Off / Overtime: they are what the person checks
   // before applying, on either tab. A zero balance reads muted, not alarming.
   const balances = (
     <dl className="flex items-center gap-6">
@@ -179,7 +179,7 @@ export default function EmployeeLeavesPage() {
             <span aria-hidden="true" className="hidden h-8 w-px bg-border sm:block" />
             <Button onClick={() => setIsApplyModalOpen(true)}>
               <Plus size={16} />
-              Apply Leave / OT
+              File Time Off / Overtime
             </Button>
           </>
         }
