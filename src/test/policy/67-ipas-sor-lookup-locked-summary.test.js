@@ -109,8 +109,10 @@ describe("ipas_sor_headers", () => {
             "opportunity_id",
             "project_title",
             "sales_reference",
+            "sor_code",
         ])
         expect(data[0]).toMatchObject({ ipas_id: ipas.id, opportunity_id: sorId, sales_reference: ref, current_stage_name: stage?.name ?? null })
+        expect(data[0].sor_code).toMatch(/^SOR-\d+$/)
         expect(JSON.stringify(data)).not.toContain(CUSTOMER)
     })
 

@@ -220,6 +220,7 @@ export function shapeIpas(row, sors = [], extras = null) {
     salesReference: s.sales_reference,
     projectTitle: s.project_title,
     stageName: s.current_stage_name ?? null,
+    sorCode: s.sor_code ?? null,
   }));
   const poCancelledInOdoo = isPoCancelledInOdoo(row);
   const mismatch = sorMismatch(copy, shapedSors);
@@ -314,7 +315,7 @@ export function ipasErrorMessage(error, fallback = "Something went wrong.") {
 /**
  * The IPAS list's slices over shaped rows. `state` is a lifecycle state or
  * "all"; `entity`, `purpose` and `computationStatus` are exact; `search` matches the number, PO,
- * supplier and SOR references and titles.
+ * supplier, SO number, SOR number and project name, case-insensitively.
  */
 export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, search = "" } = {}) {
   const term = search.trim().toLowerCase();
@@ -332,10 +333,31 @@ export function filterIpas(rows, { state = "all", entity = null, purpose = null,
       row.number,
       row.po_number,
       row.supplier,
-      ...row.sors.flatMap((s) => [s.salesReference, s.projectTitle]),
+      ...row.sors.flatMap((s) => [s.salesReference, s.sorCode, s.projectTitle]),
     ];
     return haystack.some((field) => field?.toLowerCase().includes(term));
   });
+}
+
+/**
+ * Who raised the IPAS the way the sheet's Created By did: "1001 · Name", or
+ * just the name when they have no Call Sign. Null when the raiser is unknown.
+ */
+export function raisedByParts(row) {
+  const name = row?.creator?.name?.trim();
+  if (!name) return null;
+  const callSign = row.creator.call_sign?.trim();
+  return { callSign: callSign || null, name };
+}
+
+/**
+ * One SOR as Purchasing writes it: the SO number and the project name
+ * ("S04081 · Rescue Vehicle"), or the SOR number when it has no SO number yet
+ * ("SOR-198 · Rescue Vehicle"). `reference` is that leading number.
+ */
+export function sorLineParts(sor) {
+  const reference = sor.salesReference?.trim() || sor.sorCode?.trim() || null;
+  return { reference, project: sor.projectTitle?.trim() || null };
 }
 
 /**
