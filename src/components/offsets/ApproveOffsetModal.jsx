@@ -42,11 +42,11 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
         approvedHours: parsedHours,
         hrId,
       });
-      toast.success('Offset leave approved.');
+      toast.success('Offset approved.');
       onSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(err.message || 'Failed to approve offset leave request.');
+      toast.error(err.message || 'Failed to approve Offset request.');
     } finally {
       setSubmitting(false);
     }
@@ -57,7 +57,7 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
       <DialogContent showCloseButton={false} className="max-w-sm sm:max-w-sm flex flex-col overflow-hidden p-0 gap-0">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
-            Approve Offset Leave
+            Approve Offset
           </h2>
           <Button
             variant="ghost"

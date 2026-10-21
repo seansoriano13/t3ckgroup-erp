@@ -309,7 +309,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           attachments,
           headId: offsetHeadId,
         });
-        toast.success(`Offset leave application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
+        toast.success(`Offset application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
         setOffsetRangeStart('');
         setOffsetRangeEnd('');
         setOffsetDayHours({});
@@ -319,7 +319,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         onSuccess?.();
         onClose();
       } catch (err) {
-        toast.error(err.message || 'Failed to submit offset leave.');
+        toast.error(err.message || 'Failed to submit Offset.');
       } finally {
         setOffsetSubmitting(false);
       }
@@ -344,7 +344,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         attachments,
         headId: offsetHeadId,
       });
-      toast.success('Offset leave application submitted!');
+      toast.success('Offset application submitted!');
       setOffsetDate('');
       setOffsetStartTime('');
       setOffsetEndTime('');
@@ -354,7 +354,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       onSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(err.message || 'Failed to submit offset leave.');
+      toast.error(err.message || 'Failed to submit Offset.');
     } finally {
       setOffsetSubmitting(false);
     }
@@ -498,7 +498,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
-            Leaves & Overtime
+            Time Off & Overtime
           </h2>
           <Button
             variant="ghost"
@@ -700,7 +700,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <Textarea
                   value={offsetReason}
                   onChange={(e) => setOffsetReason(e.target.value)}
-                  placeholder="Reason for the offset leave"
+                  placeholder="Reason for the Offset"
                   rows={3}
                   className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
                   required

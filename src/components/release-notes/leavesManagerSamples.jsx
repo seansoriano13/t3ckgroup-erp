@@ -197,7 +197,7 @@ export function LeavesManagerSample() {
     <SampleProvider>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-base font-bold text-foreground">Leaves Manager</p>
+          <p className="text-base font-bold text-foreground">Time Off & Overtime</p>
           <WhoIsOut approvedLeaves={APPROVED_DAYS} />
         </div>
         <TabGroup

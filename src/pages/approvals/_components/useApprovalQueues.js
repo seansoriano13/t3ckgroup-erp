@@ -37,7 +37,7 @@ export const APPROVAL_QUEUES = [
   {
     key: "leaves",
     path: "/approvals/leaves",
-    label: "Leave & Overtime",
+    label: "Time Off & Overtime",
     icon: CalendarClock,
     can: (r) => r.isSuperAdmin || r.isHead,
   },

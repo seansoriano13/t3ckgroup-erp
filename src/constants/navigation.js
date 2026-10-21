@@ -269,7 +269,7 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
-        label: "Leave Approvals",
+        label: "Time Off & Overtime",
         link: "/approvals/leaves",
         icon: Clock,
         badgeKey: "leaveApprovals",
@@ -334,7 +334,7 @@ export const NAV_MODULES = {
       },
       {
         key: "hr.leavesManager",
-        label: "Leaves Manager",
+        label: "Time Off & Overtime",
         link: "/hr/offsets",
         icon: Clock,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.canManageLeaves,
@@ -440,7 +440,7 @@ export const QUICK_ACTIONS = [
       {
         id: "offset",
         key: "quick.offset",
-        label: "Apply Leave / Overtime",
+        label: "File Time Off / Overtime",
         icon: Clock,
         isPermitted: () => true,
       },
