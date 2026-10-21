@@ -14,7 +14,7 @@ import { ipasErrorMessage } from "@/utils/ipas";
  * The one place an IPAS section is returned or its approval undone.
  *
  *   targets   what the signed-in person may do, each
- *             { section, mode: "return" | "undo", label, effect, clears, placeholder? }:
+ *             { section, mode: "return" | "undo", no, label, effect, clears, placeholder? }:
  *             `label` is "1 · Purchasing", `effect` says what it does,
  *             `clears` lists what else it clears ("Received by Ana", ...) and
  *             is empty when nothing else goes
@@ -34,7 +34,7 @@ export default function ReturnDialog({ open, onOpenChange, ...body }) {
 
 const verbOf = (target) => (target.mode === "undo" ? "Undo approval" : "Return");
 const titleOf = (target) =>
-  target.mode === "undo" ? `Undo approval of section ${target.label}?` : `Return section ${target.label}?`;
+  target.mode === "undo" ? `Undo approval of section ${target.no}?` : `Return section ${target.no}?`;
 
 function Body({ targets, initial = null, onSubmit, onClose }) {
   const [section, setSection] = useState(

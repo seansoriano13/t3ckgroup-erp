@@ -115,6 +115,36 @@ describe("IPAS long form, two people at once", () => {
     expect(screen.getByRole("textbox", { name: /^Remarks/ })).toHaveValue("Rush order");
   });
 
+  it("#585: Save all is not refused when the Odoo refresh landed after the form loaded", async () => {
+    const row = seedIpas();
+    const user = setupUser();
+    renderEdit(row.id);
+
+    const remarks = await screen.findByRole("textbox", { name: /^Remarks/ });
+    await user.type(remarks, "Rush order");
+    // The refresh from Odoo commits its event in the viewer's name before the page reloads it.
+    db.seed("ipas_events", { ipas_id: row.id, actor_id: purchaser.id, kind: "odoo_copy_changed", detail: {}, created_at: "2026-10-14T02:00:00.000Z" });
+    db.seed("ipas_events", { ipas_id: row.id, actor_id: other.id, kind: "approvals_cleared", detail: { reason: "PO changed in Odoo", sections: [] }, created_at: "2026-10-14T02:00:01.000Z" });
+
+    await user.click(screen.getByRole("button", { name: /^Save all/ }));
+
+    await waitFor(() => expect(db.rows("ipas")[0].remarks).toBe("Rush order"));
+    expect(screen.queryByText(/someone else saved this IPAS/i)).not.toBeInTheDocument();
+  });
+
+  it("#585: another person's Odoo refresh does not raise the 'updated this IPAS' notice", async () => {
+    const row = seedIpas();
+    const user = setupUser();
+    renderEdit(row.id);
+
+    await user.type(await screen.findByRole("textbox", { name: /^Remarks/ }), "Rush order");
+    await waitFor(() => expect(handlers.length).toBeGreaterThan(0));
+    await act(async () => {
+      handlers.forEach((fn) => fn({ new: { actor_id: other.id, ipas_id: row.id, kind: "odoo_copy_changed" } }));
+    });
+    expect(screen.queryByText(/updated this IPAS/)).not.toBeInTheDocument();
+  });
+
   it("saves normally when nobody else did, including its own later steps", async () => {
     const row = seedIpas();
     const user = setupUser();

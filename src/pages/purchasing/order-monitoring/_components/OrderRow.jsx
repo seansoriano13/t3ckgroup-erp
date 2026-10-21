@@ -6,7 +6,7 @@ import { NextThing, OrderCell, SorCell, WaitCell } from "./parts";
 /** One open order on What needs doing: the next thing, who owes it, the wait, then which order it is. */
 export default function OrderRow({ row, onOpen }) {
   return (
-    <TableRow className={`cursor-pointer ${lateRowClass(row)}`} onClick={() => onOpen(row.id)}>
+    <TableRow className={`cursor-pointer ${lateRowClass(row)}`} onClick={() => onOpen(row)}>
       <TableCell>
         <NextThing row={row} />
       </TableCell>

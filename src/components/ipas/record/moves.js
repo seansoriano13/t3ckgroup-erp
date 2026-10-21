@@ -3,9 +3,13 @@ import { Check, CornerUpLeft, FileCheck2, PenLine, Undo2 } from "lucide-react";
 import {
   IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUS_LABELS,
+  IPAS_FILING_SECTION,
+  IPAS_PART_NO,
+  IPAS_PRE_FILING_SECTIONS,
   IPAS_SECTION_PART,
   IPAS_SIGNOFF_ROLE,
-  ipasSectionLabel,
+  IPAS_UNDO_APPROVAL_SECTIONS,
+  ipasSectionNo,
 } from "@/constants/ipas";
 import { hintFor } from "./moveCopy";
 
@@ -22,16 +26,18 @@ function move(key, section, { kind, icon, label, verb, confirm = true, run }, di
   return { key, section, kind, icon, label, verb, confirm, run, hint: hintFor(key, digest) };
 }
 
-const FILING = ipasSectionLabel(7);
+const FILING = ipasSectionNo(IPAS_FILING_SECTION);
 const PART = IPAS_SECTION_PART;
-// The two sections a Finance or purchasing signer can approve or return from the card.
-const MOVE_SECTIONS = [1, 3];
+// The sections whose Submit and Approve the card offers: every one before Filing.
+const SIGN_SECTIONS = IPAS_PRE_FILING_SECTIONS;
+// The ones with a Return and an Undo approval (section 6 joined them with #591).
+const RETURN_SECTIONS = IPAS_UNDO_APPROVAL_SECTIONS;
 // The filing section: its sign-offs are steps, not Prepare and Approve.
-const FILING_SECTION = 7;
+const FILING_SECTION = IPAS_FILING_SECTION;
 
 /**
  * Everything the signed-in person may do on this IPAS right now, in three groups:
- *   moves    the sign-offs: Approve and Prepare for sections 1 and 2, then the
+ *   moves    the sign-offs: Approve and Prepare for sections 1, 2 and 3, then the
  *            section 4 steps they may give
  *   costs    The next LC step, its own group below the sign-offs
  *   returns  the Return, in pale red: one button whose dialog picks the section
@@ -44,9 +50,9 @@ export function movesFor(ctx, digest) {
   const { rights, can, on } = ctx;
   const moves = [];
 
-  for (const section of MOVE_SECTIONS) {
+  for (const section of SIGN_SECTIONS) {
     const mine = rights[section];
-    const label = ipasSectionLabel(section);
+    const label = ipasSectionNo(section);
     if (mine.canApprove) {
       moves.push(
         move(`approve-${section}`, PART[section], {
@@ -120,10 +126,10 @@ export function movesFor(ctx, digest) {
   // Returns and undos, one entry each per section. The card shows them as the one
   // "Return…" button (below); the drawer's footer shows its own section's.
   const bySection = [];
-  for (const section of MOVE_SECTIONS) {
+  for (const section of RETURN_SECTIONS) {
     const mode = rights[section].returnMode;
     if (!mode) continue;
-    const label = ipasSectionLabel(section);
+    const label = ipasSectionNo(section);
     const undo = mode === "undo";
     bySection.push(
       move(`${undo ? "undo" : "return"}-${section}`, PART[section], {
@@ -172,6 +178,23 @@ export function movesFor(ctx, digest) {
 }
 
 /**
+ * What the "Your move" card shows of the sign-off moves: only the earliest
+ * section (screen order, by `IPAS_PART_NO`) that has any, with the other
+ * sections that have moves listed in `also` (part keys, in screen order) for
+ * the card's "Also waiting for you" line. Section 4 is one part, so when it is
+ * earliest all its steps (Noted and Checked together) stay. The Return button
+ * and the LC step are not sign-offs and stay as they are. `all` is the
+ * unfiltered list, for what the status line says.
+ */
+export function cardMovesFor(ctx, digest) {
+  const { moves: all, costs, returns, bySection } = movesFor(ctx, digest);
+  const parts = [...new Set(all.map((item) => item.section))].sort((a, b) => IPAS_PART_NO[a] - IPAS_PART_NO[b]);
+  const [first, ...also] = parts;
+  const moves = all.filter((item) => item.section === first);
+  return { moves, costs, returns, bySection, all, also };
+}
+
+/**
  * Whether the edit view has edit controls for a section, for this viewer: the
  * same grants its body uses (Purchasing's payments are Purchasing or Finance's;
  * a charge, a document tick or a bank line follows Finance's grants). Section 4
@@ -184,7 +207,7 @@ export function canEditSection(key, { can }) {
     case "finance":
       return can.record || can.change || can.tickFinance;
     case "costing":
-      return can.change || can.check;
+      return can.change;
     case "sales":
     case "header":
       return can.change;

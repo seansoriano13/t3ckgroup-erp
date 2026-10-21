@@ -60,6 +60,12 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
     for (const person of people) db.seed("ipas_signer_lists", { list_key: listKey, employee_id: person.id })
   }
 
+  /** Section 3 (stored 6) approved without the Computation status dance: section 4 opens only with it (#590). */
+  const approveSection3 = (ipas) => {
+    db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "prepared", signed_by: buyer.id })
+    db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "approved", signed_by: approver.id })
+  }
+
   let poSeq = 0
   async function raise({ supplierId = 553, lines } = {}) {
     const poNumber = `P0${3000 + (poSeq += 1)}`
@@ -368,6 +374,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       as(approver)
       await ipasService.sign(ipas.id, 1, "approved")
       await ipasService.sign(ipas.id, 3, "approved")
+      approveSection3(ipas)
       as(receiver)
       await ipasService.sign(ipas.id, 7, "received")
       as(noter)
@@ -380,7 +387,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       await waitForNetworkIdle()
 
       expect(out.clearedSection7).toEqual(["noted", "received"])
-      expect(live()).toEqual(["1/approved", "1/prepared"])
+      expect(live()).toEqual(["1/approved", "1/prepared", "6/approved", "6/prepared"])
       const seven = (await read(ipas.id)).signoffSections[7]
       expect(seven.received).toBeNull()
       expect(seven.history.map((entry) => entry.clearedReason)).toEqual(
@@ -412,6 +419,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       as(approver)
       await ipasService.sign(ipas.id, 1, "approved")
       await ipasService.sign(ipas.id, 3, "approved")
+      approveSection3(ipas)
       as(receiver)
       await ipasService.sign(ipas.id, 7, "received")
       as(noter)
@@ -430,7 +438,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       await waitForNetworkIdle()
 
       expect(out).toMatchObject({ clearedRoles: ["checked", "noted", "received"], notified: 2 })
-      expect(live()).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared"])
+      expect(live()).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared"])
 
       const seven = (await read(ipas.id)).signoffSections[7]
       expect(seven.received).toBeNull()
@@ -469,6 +477,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       as(approver)
       await ipasService.sign(ipas.id, 1, "approved")
       await ipasService.sign(ipas.id, 3, "approved")
+      approveSection3(ipas)
       await expect(ipasService.sendBack(ipas.id, 7, "Nothing yet")).rejects.toMatchObject({ code: "55000" })
 
       await ipasService.sign(ipas.id, 7, "received")
@@ -516,7 +525,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       expect(live()).toEqual(["1/approved", "1/prepared", "3/prepared"])
     })
 
-    it("a flagged Account # clears both approvals with 'Account # flagged' and notifies the preparer", async () => {
+    it("a flagged Account # clears only the section 3 approval (section 1 stands) with 'Account # flagged' and notifies the preparer", async () => {
       const first = await raise({ supplierId: 7001 })
       await ipasService.setBankDetails(first.id, { bankName: "BDO", accountName: "Scorpe", accountNumber: "1111" })
       const second = await approved(7001)
@@ -524,8 +533,8 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       const out = await ipasService.setBankDetails(second.id, { bankName: "BDO", accountName: "Scorpe", accountNumber: "9999" })
       await waitForNetworkIdle()
 
-      expect(out).toMatchObject({ flagged: true, approvalsCleared: [1, 3] })
-      expect(live()).toEqual(["1/prepared", "3/prepared"])
+      expect(out).toMatchObject({ flagged: true, approvalsCleared: [3] })
+      expect(live()).toEqual(["1/approved", "1/prepared", "3/prepared"])
       expect(db.rows("ipas_signoffs").filter((s) => s.cleared_at).every((s) => s.cleared_reason === "Account # flagged")).toBe(true)
       expect(sent(IPAS_NOTIFICATION.ACCOUNT_FLAGGED).map((n) => n.recipient_id)).toEqual([buyer.id])
     })

@@ -89,6 +89,8 @@ describe("section 7", () => {
     give(1, "approved", "boss", 2),
     give(3, "prepared", "buyer", 1),
     give(3, "approved", "boss", 2),
+    give(6, "prepared", "buyer", 1),
+    give(6, "approved", "boss", 2),
   ]
   const shaped = (...rows) => shapeSignoffs(rows)
   const LISTS = {
@@ -106,6 +108,24 @@ describe("section 7", () => {
       opened: true,
       next: ["received"],
     })
+  })
+
+  it("stays closed until section 3 is approved too, even with sections 1 and 2 approved (#590)", () => {
+    const withoutSection3 = firstSections.slice(0, 4)
+    expect(section7Signoffs(shaped(...withoutSection3))).toMatchObject({
+      status: FILING_STATUS.WAITING,
+      opened: false,
+      next: [],
+    })
+    // A section 3 that is only submitted does not open it either.
+    expect(section7Signoffs(shaped(...withoutSection3, firstSections[4]))).toMatchObject({ opened: false, next: [] })
+  })
+
+  it("keeps sign-offs already given while it is closed, and offers nothing more (#590)", () => {
+    const closed = section7Signoffs(shaped(...firstSections.slice(0, 4), give(7, "received", "rec", 3), give(7, "noted", "note", 4)))
+    expect(closed.received).not.toBeNull()
+    expect(closed.noted).not.toBeNull()
+    expect(closed).toMatchObject({ opened: false, next: [], status: FILING_STATUS.WAITING })
   })
 
   it("takes Noted and Checked in either order, then Approved", () => {
@@ -191,9 +211,9 @@ describe("section 7", () => {
     })
   })
 
-  it("knows Costs complete and later", () => {
-    expect(["encoding", "encoded"].map(isLandedCostFinal)).toEqual([false, false])
-    expect(["lc_odoo_done", "checked"].map(isLandedCostFinal)).toEqual([true, true])
+  it("knows LC Odoo Done, the last status", () => {
+    expect(["encoding", "encoded", "lc_gs_done"].map(isLandedCostFinal)).toEqual([false, false, false])
+    expect(isLandedCostFinal("lc_odoo_done")).toBe(true)
     expect(isLandedCostFinal(undefined)).toBe(false)
   })
 })

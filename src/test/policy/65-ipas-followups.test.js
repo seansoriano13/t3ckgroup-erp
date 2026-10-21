@@ -114,6 +114,13 @@ async function opened() {
         await signOk("outsider", ipas.id, section, "prepared")
         await signOk("ipasSigner", ipas.id, section, "approved")
     }
+    // Section 3 (stored 6) is approved too, or section 4 stays closed (#590). It can only be
+    // submitted at LC Odoo Done, so the rows are written straight to the table.
+    const { error } = await svc().from("ipas_signoffs").insert([
+        { ipas_id: ipas.id, section: 6, role: "prepared", signed_by: ids.outsider },
+        { ipas_id: ipas.id, section: 6, role: "approved", signed_by: ids.ipasSigner },
+    ])
+    if (error) throw error
     return ipas
 }
 
@@ -246,7 +253,7 @@ describe("sending back section 7", () => {
     it("clears Received, Noted and Checked, keeps them as history, writes the event and names who to tell", async () => {
         const ipas = await opened()
         await receivedNotedChecked(ipas)
-        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "7/checked", "7/noted", "7/received"])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared", "7/checked", "7/noted", "7/received"])
 
         // `finance` is the Checked signer and sends it back.
         const { data, error } = await sendBack("finance", ipas.id, 7, "Wrong landed cost split")
@@ -255,7 +262,7 @@ describe("sending back section 7", () => {
         expect([...data.notify_ids].sort()).toEqual([ids.ipasSigner, ids.superAdmin].sort())
         expect(data.notify_ids).not.toContain(ids.finance)
 
-        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared"])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared"])
         const cleared = (await signoffs(ipas.id)).filter((r) => r.section === 7)
         expect(cleared).toHaveLength(3)
         for (const row of cleared) {
@@ -339,7 +346,7 @@ describe("sending back section 7", () => {
         await signOk("ipasSigner", ipas.id, 7, "received")
         const back = await sendBack("finance", ipas.id, 7, "Hold on")
         expect(back.error).toBeNull()
-        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared"])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared"])
     })
 })
 
@@ -356,7 +363,7 @@ describe("returning section 1 or 3 after section 4 has begun", () => {
         expect(back.data.cleared_section_7).toEqual(["checked", "noted", "received"])
         // The preparer is told, and so is each person whose section 4 sign-off went (not the sender).
         expect([...back.data.notify_ids].sort()).toEqual([ids.outsider, ids.superAdmin, ids.finance].sort())
-        expect(await liveKeys(ipas.id)).toEqual(["3/approved", "3/prepared"])
+        expect(await liveKeys(ipas.id)).toEqual(["3/approved", "3/prepared", "6/approved", "6/prepared"])
 
         const history = await signoffs(ipas.id)
         const cleared = history.filter((r) => r.cleared_at && r.section === 7)
@@ -373,7 +380,7 @@ describe("returning section 1 or 3 after section 4 has begun", () => {
         const back = await sendBack("ipasSigner", ipas.id, 3, "Freight")
         expect(back.error).toBeNull()
         expect(back.data.cleared_section_7).toEqual([])
-        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared"])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "6/approved", "6/prepared"])
     })
 })
 
@@ -391,7 +398,7 @@ describe("undoing an approval", () => {
         expect(out.data).toMatchObject({ section: 3, cleared_section_7: [] })
         // The approver is the person undoing it, so nobody else is told.
         expect(out.data.notify_ids).toEqual([])
-        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/prepared"])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/prepared", "6/approved", "6/prepared"])
 
         const cleared = (await signoffs(ipas.id)).filter((r) => r.cleared_at)
         expect(cleared).toHaveLength(1)
@@ -427,7 +434,7 @@ describe("undoing an approval", () => {
         expect(out.error).toBeNull()
         expect(out.data.cleared_section_7).toEqual(["checked", "noted", "received"])
         expect([...out.data.notify_ids].sort()).toEqual([ids.superAdmin, ids.finance].sort())
-        expect(await liveKeys(ipas.id)).toEqual(["1/prepared", "3/approved", "3/prepared"])
+        expect(await liveKeys(ipas.id)).toEqual(["1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared"])
     })
 
     it("is refused with no approval, no reason, a long reason, a section that has none, or a stranger", async () => {
@@ -442,7 +449,7 @@ describe("undoing an approval", () => {
         for (const who of ["outsider", "superAdmin", "finance", "ordinary"]) {
             expect((await undo(who, ipas.id, 1, "No")).error?.code, who).toBe("42501")
         }
-        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared"])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared"])
     })
 
     it("is refused on a filed or cancelled IPAS", async () => {
@@ -458,47 +465,29 @@ describe("undoing an approval", () => {
     })
 })
 
-describe("Checked by", () => {
+describe("the Computation status", () => {
     const setStatus = (who, ipasId, status, extra = {}) =>
         rpc(who, "ipas_set_header", { p_ipas_id: ipasId, p_fields: { computation_status: status, ...extra } })
-    const statusOf = async (ipasId) => {
-        const { data } = await svc().from("ipas").select("computation_status").eq("id", ipasId).single()
-        return data.computation_status
-    }
 
-    it("knows the five steps (Purchasing moves up to LC Odoo Done), and refuses the old Costs complete", async () => {
+    it("knows the four steps (Purchasing moves up to LC Odoo Done), and refuses Costs complete and Checked by (#586)", async () => {
         const ipas = await raise()
         for (const status of ["encoded", "lc_gs_done", "lc_odoo_done"]) {
             expect((await setStatus("outsider", ipas.id, status)).error, status).toBeNull()
         }
         expect((await setStatus("outsider", ipas.id, "costs_complete")).error?.code).toBe("22023")
+        expect((await setStatus("outsider", ipas.id, "checked")).error?.code).toBe("22023")
     })
 
-    it("lets Finance give and take back Checked by, and nothing else", async () => {
+    it("is Purchasing's alone: Finance and a Super Admin who isn't Purchasing are refused", async () => {
         const ipas = await raise()
         await setStatus("outsider", ipas.id, "lc_odoo_done")
-
-        expect((await setStatus("finance", ipas.id, "checked")).error).toBeNull()
-        expect(await statusOf(ipas.id)).toBe("checked")
-        expect((await setStatus("finance", ipas.id, "lc_odoo_done")).error).toBeNull()
-
-        // Not an earlier step, not a jump, not with another field beside it.
         expect((await setStatus("finance", ipas.id, "encoded")).error?.code).toBe("42501")
-        expect((await setStatus("finance", ipas.id, "checked", { pi_number: "X1" })).error?.code).toBe("42501")
         expect((await rpc("finance", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { pi_number: "X1" } })).error?.code).toBe("42501")
-        await setStatus("outsider", ipas.id, "encoded")
-        expect((await setStatus("finance", ipas.id, "checked")).error?.code).toBe("42501")
-    })
-
-    it("lets a Super Admin who is not Purchasing give Checked by too, and nobody else", async () => {
-        const ipas = await raise()
-        await setStatus("outsider", ipas.id, "lc_odoo_done")
-        expect((await setStatus("superAdmin", ipas.id, "checked")).error).toBeNull()
         expect((await setStatus("ordinary", ipas.id, "lc_odoo_done")).error?.code).toBe("42501")
     })
 
-    it("holds no row on the old status any more", async () => {
-        const { data, error } = await svc().from("ipas").select("id").eq("computation_status", "costs_complete")
+    it("holds no row on the old statuses any more", async () => {
+        const { data, error } = await svc().from("ipas").select("id").in("computation_status", ["costs_complete", "checked"])
         expect(error).toBeNull()
         expect(data).toEqual([])
     })

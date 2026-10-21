@@ -442,26 +442,17 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.queryByRole("combobox", { name: "Spread charges" })).not.toBeInTheDocument();
     });
 
-    it("lets Finance give and take back Checked by, and no other step", async () => {
+    it("gives Finance no status step at all: Checked by is gone", async () => {
       mockUser.current = finance;
       stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
       const row = ipas({ po_number: "P02552", computation_status: "lc_odoo_done" });
-      const user = setupUser();
 
       renderDetail(row.id, "costing", "edit");
-      const checked = await screen.findByRole("button", { name: "Checked by" });
-      expect(checked).toBeEnabled();
-      // Purchasing's steps are read-only for Finance.
-      expect(screen.getByRole("button", { name: "LC GS Done" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toHaveAttribute("aria-pressed", "true");
 
-      await user.click(checked);
-      await saveAll(user);
-      await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("checked"));
-      // And back one step.
-      await user.click(await screen.findByRole("button", { name: "LC Odoo Done" }));
-      await saveAll(user);
-      await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("lc_odoo_done"));
+      // The steps read plain for Finance, and none is called Checked by.
+      expect(await screen.findByText("LC Odoo Done", { selector: "[aria-current='step']" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "LC GS Done" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Checked by")).not.toBeInTheDocument();
     });
 
     it("gives Finance no status step before LC Odoo Done", async () => {
@@ -484,29 +475,33 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(await screen.findByRole("button", { name: "LC GS Done" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Encoding" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "LC Odoo Done" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "Checked by" })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Checked by" })).not.toBeInTheDocument();
     });
 
-    it("locks Checked by for Purchasing, and the current step looks selected", async () => {
+    it("ends the status at LC Odoo Done: the current step is selected, ticked and green", async () => {
       const row = ipas({ po_number: "P02552", computation_status: "lc_odoo_done" });
 
       renderDetail(row.id, "costing", "edit");
 
-      const checked = await screen.findByRole("button", { name: "Checked by" });
-      expect(checked).toBeDisabled();
-      expect(checked).toHaveAttribute("title", "Finance gives Checked by");
-      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toHaveAttribute("aria-pressed", "true");
+      const done = await screen.findByRole("button", { name: "LC Odoo Done" });
+      expect(done).toHaveAttribute("aria-pressed", "true");
+      expect(done.querySelector("svg.lucide-check")).not.toBeNull();
+      expect(done.className).toMatch(/text-green-11/);
       expect(screen.getByRole("button", { name: "LC GS Done" })).toBeEnabled();
+      expect(screen.queryByRole("button", { name: "Checked by" })).not.toBeInTheDocument();
     });
 
-    it("gives Purchasing no way to take Checked by back", async () => {
-      const row = ipas({ po_number: "P02552", computation_status: "checked" });
+    it("draws the current step with a tick for a reader too, and a step not reached without one", async () => {
+      mockUser.current = reader;
+      stubIpasRpcs({ actorId: reader.id, purchasing: false, money: false });
+      const row = ipas({ po_number: "P02552", computation_status: "lc_gs_done" });
 
-      renderDetail(row.id, "costing", "edit");
+      renderDetail(row.id, "costing");
 
-      // No step is open to Purchasing: the pills are plain, and Checked by is the current one.
-      expect(await screen.findByText("Checked by", { selector: "[aria-current='step']" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "LC Odoo Done" })).not.toBeInTheDocument();
+      const current = await screen.findByText("LC GS Done", { selector: "[aria-current='step']" });
+      expect(current.querySelector("svg.lucide-check")).not.toBeNull();
+      const ahead = screen.getByText("LC Odoo Done");
+      expect(ahead.querySelector("svg.lucide-check")).toBeNull();
     });
 
     it("gives a reader with neither access no way to record anything", async () => {

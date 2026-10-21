@@ -52,9 +52,11 @@ export function buildBlocks(ctx) {
   );
 
   return {
-    // Parts the long edit form places itself (#581): the sign-offs of sections 1 and 3. The money is typed there.
+    // Parts the long edit form places itself (#581): the sign-offs of sections 1, 2 and 3 (stored 1, 3 and 6).
+    // The money is typed there.
     signoffs1: signoffs(1),
     signoffs3: signoffs(3),
+    signoffs6: signoffs(6),
     header: (
       <IpasHeaderSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} onEditHeader={on.editHeader} />
     ),
@@ -84,7 +86,9 @@ export function buildBlocks(ctx) {
         canSetStatus={can.setStatus}
         onSetStatus={on.setComputationStatus}
         onSetSplit={on.setSplit}
-      />
+      >
+        {signoffs(6)}
+      </IpasCostingSection>
     ),
     filing: (
       <IpasFilingSection ipas={ipas} rights={rights[7]} canSendBack={rights.sendBack7} />

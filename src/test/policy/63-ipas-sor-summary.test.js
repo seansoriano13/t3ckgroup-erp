@@ -204,7 +204,7 @@ describe("the summary of an SOR's IPAS", () => {
             "supplier",
         ])
         for (const item of row.buyer_track) expect(Object.keys(item).sort()).toEqual(["key", "partial", "ticked"])
-        expect(Object.keys(row.signoffs).sort()).toEqual(["1", "3", "7"])
+        expect(Object.keys(row.signoffs).sort()).toEqual(["1", "3", "6", "7"])
         expect(Object.keys(row.signoffs["1"]).sort()).toEqual(["approved", "prepared"])
         expect(Object.keys(row.signoffs["7"]).sort()).toEqual(["approved", "checked", "noted", "received"])
     })

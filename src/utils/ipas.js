@@ -21,6 +21,7 @@ import {
   IPAS_OVERRIDE,
   IPAS_OVERRIDE_FIELDS,
   IPAS_PURPOSE,
+  IPAS_SECTION_3_APPROVED_FILTER,
   IPAS_STATE,
   IPAS_WARNING,
 } from "../constants/ipas";
@@ -253,7 +254,12 @@ export function shapeIpas(row, sors = [], extras = null) {
     ...money,
     ...sections,
     signoffs,
-    signoffSections: { 1: sectionSignoffs(signoffs, 1), 3: sectionSignoffs(signoffs, 3), 7: section7Signoffs(signoffs) },
+    signoffSections: {
+      1: sectionSignoffs(signoffs, 1),
+      3: sectionSignoffs(signoffs, 3),
+      6: sectionSignoffs(signoffs, 6),
+      7: section7Signoffs(signoffs),
+    },
     // The required documents nobody has ticked: what Approving section 7 warns about.
     filingWarnings: unfiledRequiredDocuments(sections.documents ?? [], row.source),
     supplierOrigin: supplierOriginOf(row),
@@ -316,7 +322,11 @@ export function filterIpas(rows, { state = "all", entity = null, purpose = null,
     if (state !== "all" && row.state !== state) return false;
     if (entity && row.entity !== entity) return false;
     if (purpose && row.purpose !== purpose) return false;
-    if (computationStatus && (row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING) !== computationStatus) return false;
+    if (computationStatus === IPAS_SECTION_3_APPROVED_FILTER) {
+      if (!row.section3Approved) return false;
+    } else if (computationStatus && (row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING) !== computationStatus) {
+      return false;
+    }
     if (!term) return true;
     const haystack = [
       row.number,

@@ -138,7 +138,7 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(body).getByText("Not submitted")).toBeInTheDocument();
 
       // The footer holds the move, with its consequence, and nothing for other sections.
-      expect(within(drawer).getByRole("button", { name: "Submit section 1 · Purchasing" })).toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
       expect(within(drawer).getByText(/Submits section 1 · Purchasing for approval/)).toBeInTheDocument();
       expect(within(drawer).queryByRole("button", { name: /section 2/ })).not.toBeInTheDocument();
     });
@@ -150,13 +150,15 @@ describe("IPAS signing with the evidence in view", () => {
       signoff(row.id, 1, "approved", approver);
       signoff(row.id, 3, "prepared", purchaser);
       signoff(row.id, 3, "approved", approver);
+      signoff(row.id, 6, "prepared", purchaser);
+      signoff(row.id, 6, "approved", approver);
       signIn(approver);
       renderDetail(row.id, "filing");
 
       const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
       expect(within(drawer).getByTestId("ipas-filing")).toBeInTheDocument();
       expect(within(drawer).queryByTestId("ipas-give-received")).not.toBeInTheDocument();
-      expect(within(drawer).getByRole("button", { name: "Receive section 4 · Filing" })).toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Receive section 4" })).toBeInTheDocument();
     });
 
     it("gives History no moves and no Edit section: it expands under its row", async () => {
@@ -266,9 +268,9 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
-      await user.click(within(drawer).getByRole("button", { name: "Submit section 1 · Purchasing" }));
+      await user.click(within(drawer).getByRole("button", { name: "Submit section 1" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Submit section 1 · Purchasing?" });
+      const dialog = await screen.findByRole("dialog", { name: "Submit section 1?" });
       expect(within(dialog).getByText(/^You sign/)).toBeInTheDocument();
       expect(db.rows("ipas_signoffs").filter((s) => s.role === "prepared")).toHaveLength(0);
       await user.click(within(dialog).getByRole("button", { name: "Submit" }));
@@ -329,9 +331,9 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       const region = await yourMove();
-      await user.click(within(region).getByRole("button", { name: "Approve section 1 · Purchasing" }));
+      await user.click(within(region).getByRole("button", { name: "Approve section 1" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" });
+      const dialog = await screen.findByRole("dialog", { name: "Approve section 1?" });
       expect(within(dialog).getByText("1 line · no payments yet")).toBeInTheDocument();
       expect(within(dialog).getByText("You sign as Boss Lito.")).toBeInTheDocument();
       expect(db.rows("ipas_signoffs").filter((s) => s.role === "approved")).toEqual([]);
@@ -347,8 +349,8 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
-      const dialog = await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" });
+      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1" }));
+      const dialog = await screen.findByRole("dialog", { name: "Approve section 1?" });
       await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
       await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
@@ -362,7 +364,7 @@ describe("IPAS signing with the evidence in view", () => {
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Review section 1 · Purchasing" }));
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
-      expect(within(drawer).getByRole("button", { name: "Submit section 1 · Purchasing" })).toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
     });
 
     it("marks the next LC step with no question, toasts with Undo, and Undo restores the status", async () => {
@@ -409,8 +411,8 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
-      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" })).getByRole("button", { name: "Approve" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1" }));
+      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1?" })).getByRole("button", { name: "Approve" }));
 
       const alert = await within(await yourMove()).findByRole("alert");
       expect(alert).toHaveTextContent(/^you are not on the list that may give this sign-off/i);
@@ -432,8 +434,8 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
-      await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
-      await confirmMove(user, "Approve section 1 · Purchasing", "Approve");
+      await user.click(within(drawer).getByRole("button", { name: "Approve section 1" }));
+      await confirmMove(user, "Approve section 1", "Approve");
 
       const alert = await within(drawer).findByRole("alert");
       // The drawer is modal, so the card is out of reach; check its markup directly: no error there.
@@ -451,7 +453,7 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Return…" }));
-      const dialog = await screen.findByRole("dialog", { name: "Return section 1 · Purchasing?" });
+      const dialog = await screen.findByRole("dialog", { name: "Return section 1?" });
       await user.type(within(dialog).getByPlaceholderText(/What does the submitter need to fix/), "Wrong supplier");
       await user.click(within(dialog).getByRole("button", { name: "Return" }));
 
@@ -521,7 +523,7 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Return…" }));
-      const dialog = await screen.findByRole("dialog", { name: "Return section 1 · Purchasing?" });
+      const dialog = await screen.findByRole("dialog", { name: "Return section 1?" });
       expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
       expect(within(dialog).queryByText(/hard to get again/)).not.toBeInTheDocument();
     });
@@ -536,8 +538,8 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       expect(screen.queryByRole("link", { name: /Next IPAS waiting for me/ })).not.toBeInTheDocument();
-      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
-      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" })).getByRole("button", { name: "Approve" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1" }));
+      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1?" })).getByRole("button", { name: "Approve" }));
 
       const link = await screen.findByRole("link", { name: `Next IPAS waiting for me: ${second.number}` });
       expect(link).toHaveAttribute("href", `/purchasing/ipas/${second.id}`);
@@ -550,8 +552,8 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(only.id);
       const user = setupUser();
 
-      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
-      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" })).getByRole("button", { name: "Approve" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1" }));
+      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1?" })).getByRole("button", { name: "Approve" }));
 
       await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.role === "approved")).toHaveLength(1));
       expect(screen.queryByRole("link", { name: /Next IPAS waiting for me/ })).not.toBeInTheDocument();
@@ -570,23 +572,91 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       // A sign-off on the first IPAS succeeds, which names the second as the next one waiting.
-      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1 · Purchasing" }));
-      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1 · Purchasing?" })).getByRole("button", { name: "Approve" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 1" }));
+      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 1?" })).getByRole("button", { name: "Approve" }));
       await screen.findByRole("link", { name: `Next IPAS waiting for me: ${second.number}` });
 
       // The database refuses the next one on the first IPAS, so its failure is on the card.
       signIn(approver, { actorId: other.id });
-      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 2 · Purchasing & Finance" }));
-      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 2 · Purchasing & Finance?" })).getByRole("button", { name: "Approve" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Approve section 2" }));
+      await user.click(within(await screen.findByRole("dialog", { name: "Approve section 2?" })).getByRole("button", { name: "Approve" }));
       expect(await within(await yourMove()).findByRole("alert")).toBeInTheDocument();
 
       await user.click(screen.getByRole("link", { name: `Next IPAS waiting for me: ${second.number}` }));
       await waitFor(() => expect(screen.getByRole("heading", { name: second.number })).toBeInTheDocument());
       const region = await yourMove();
-      // The second IPAS offers the same move, but shows none of the first one's failure.
-      await within(region).findByRole("button", { name: "Approve section 2 · Purchasing & Finance" });
+      // The second IPAS offers its earliest move, but shows none of the first one's failure.
+      await within(region).findByRole("button", { name: "Approve section 1" });
       expect(within(region).queryByRole("alert")).not.toBeInTheDocument();
       expect(within(region).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    });
+  });
+
+  // #586: section 3 (stored 6) is a sign-off of its own, shown as section 3.
+  describe("section 3, the Landed Cost sign-off", () => {
+    const TITLE = "3 · Computation status & Landed Cost";
+
+    it("offers no Submit before LC Odoo Done, and Submit once it is reached", async () => {
+      const early = ipas({ computation_status: "lc_gs_done" });
+      const view = renderDetail(early.id, "costing");
+      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      expect(within(drawer).queryByRole("button", { name: /^Submit section 3/ })).not.toBeInTheDocument();
+      view.unmount();
+
+      const ready = ipas({ computation_status: "lc_odoo_done" });
+      renderDetail(ready.id, "costing");
+      const open = await screen.findByRole("dialog", { name: TITLE });
+      expect(await within(open).findByRole("button", { name: `Submit section 3` })).toBeInTheDocument();
+    });
+
+    it("submits as section 3, stored as section 6, and tells the section 3 list", async () => {
+      const row = ipas({ computation_status: "lc_odoo_done" });
+      onList("s6_approved", other);
+      renderDetail(row.id, "costing");
+      const user = setupUser();
+
+      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      await user.click(await within(drawer).findByRole("button", { name: `Submit section 3` }));
+      const dialog = await screen.findByRole("dialog", { name: `Submit section 3?` });
+      await user.click(within(dialog).getByRole("button", { name: "Submit" }));
+
+      await waitFor(() =>
+        expect(db.rows("ipas_signoffs").filter((s) => s.section === 6 && s.role === "prepared")).toHaveLength(1),
+      );
+    });
+
+    it("lets a section 3 list member approve it, but not the person who submitted it", async () => {
+      const row = ipas({ computation_status: "lc_odoo_done" });
+      onList("s6_approved", approver, purchaser);
+      signoff(row.id, 6, "prepared", purchaser);
+
+      signIn(purchaser);
+      const mine = renderDetail(row.id, "costing");
+      const own = await screen.findByRole("dialog", { name: TITLE });
+      expect(within(own).queryByRole("button", { name: `Approve section 3` })).not.toBeInTheDocument();
+      mine.unmount();
+
+      signIn(approver);
+      renderDetail(row.id, "costing");
+      const user = setupUser();
+      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      await user.click(await within(drawer).findByRole("button", { name: `Approve section 3` }));
+      const dialog = await screen.findByRole("dialog", { name: `Approve section 3?` });
+      await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+      await waitFor(() =>
+        expect(db.rows("ipas_signoffs").filter((s) => s.section === 6 && s.role === "approved")).toHaveLength(1),
+      );
+    });
+
+    it("reads Submitted and Approved with who gave them, in the section's body", async () => {
+      const row = ipas({ computation_status: "lc_odoo_done" });
+      signoff(row.id, 6, "prepared", purchaser);
+      signoff(row.id, 6, "approved", approver);
+      renderDetail(row.id, "costing");
+
+      const body = await screen.findByTestId("ipas-signoffs-6");
+      expect(within(body).getByText("Boss Lito")).toBeInTheDocument();
+      expect(within(body).getByText("Buyer")).toBeInTheDocument();
     });
   });
 });

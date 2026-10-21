@@ -6,6 +6,7 @@ import { orderAgeingRulesService } from "./orderAgeingRulesService";
 import { deliveryDeadlineService } from "./deliveryDeadlineService";
 import { deadlineMark, earliestDueAt } from "../utils/deliveryDeadline";
 import { transmittalService } from "./transmittalService";
+import { readSection3Signoffs } from "./ipasSection3Signoffs";
 import { finiteNumber } from "../utils/landedCost";
 import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas } from "../utils/ipas";
 import { isLandedCostFinal } from "../utils/ipasSignoffs";
@@ -101,10 +102,11 @@ async function loadOrders(today) {
   if (ipasRows.length === 0) return [];
 
   const ids = ipasRows.map((row) => row.id);
-  const [sorsByIpas, paymentsByIpas, costsAt, slipsByIpas, rules, nearDays] = await Promise.all([
+  const [sorsByIpas, paymentsByIpas, costsAt, section3, slipsByIpas, rules, nearDays] = await Promise.all([
     readSors(ids),
     readPayments(ids),
     readCostsCompleteAt(ids),
+    readSection3Signoffs(ids),
     transmittalService.forOrders(ids, { includeDrafts: true }),
     orderAgeingRulesService.getRules(),
     deliveryDeadlineService.getNearDays(),
@@ -134,6 +136,8 @@ async function loadOrders(today) {
         updatedAt: row.updated_at,
         computationStatus: row.computation_status,
         costsCompletedAt: costsAt.get(row.id),
+        section3Submitted: section3.submitted.has(row.id),
+        section3Approved: section3.approved.has(row.id),
         buyerTrack: shaped.buyerTrack,
         proofPaidOn: latestProofDate(payments),
         arrivedInPhOn: row.arrived_in_ph_on,

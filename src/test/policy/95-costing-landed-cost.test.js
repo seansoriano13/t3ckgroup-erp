@@ -165,7 +165,7 @@ beforeAll(async () => {
     const kind = await option("charge_kind")
     await exec(`insert into public.ipas_charges (ipas_id, kind_id, charged_on, amount_php, created_by) values ($1, $2, current_date, 1000, $3)`, [ipas.usd, kind, ids.outsider])
     ipas.shared = await makeIpas("SHR", "Php", [[31, 5, 100]])
-    ipas.checked = await makeIpas("CHK", "Php", [[41, 1, 300]], { status: "checked" })
+    ipas.checked = await makeIpas("CHK", "Php", [[41, 1, 300]], { status: "lc_odoo_done" })
     ipas.noPay = await makeIpas("NOPAY", "USD", [[51, 1, 100]])
 
     requestA = (await asSvc(svc().from("purchase_requests").insert({ opportunity_id: sorA, created_by: ids.dealOwner }).select("id").single(), "request A")).id

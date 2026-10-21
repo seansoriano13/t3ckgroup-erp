@@ -36,8 +36,8 @@ describe("the IPAS section numbers", () => {
 });
 
 describe("ipasSectionNo (#552)", () => {
-  it("maps the stored sign-off sections 1, 3 and 7 to the numbers the screen shows", () => {
-    expect([1, 3, 7].map(ipasSectionNo)).toEqual([1, 2, 4]);
+  it("maps the stored sign-off sections 1, 3, 6 and 7 to the numbers the screen shows", () => {
+    expect([1, 3, 6, 7].map(ipasSectionNo)).toEqual([1, 2, 3, 4]);
     expect(ipasSectionNo("3")).toBe(2);
     expect(ipasSectionWord(7)).toBe("section 4");
   });
@@ -46,6 +46,7 @@ describe("ipasSectionNo (#552)", () => {
     expect(IPAS_SIGNER_LIST_LABELS).toEqual({
       s1_approved: "Section 1 · Approved",
       s3_approved: "Section 2 · Approved",
+      s6_approved: "Section 3 · Approved",
       s7_received: "Section 4 · Received",
       s7_noted: "Section 4 · Noted",
       s7_checked: "Section 4 · Checked",

@@ -26,7 +26,7 @@ const OPEN_GROUPS = ORDER_GROUPS.filter((group) => group !== ORDER_GROUP.FILED);
  * Order Monitoring's What needs doing (#263, spec #261), a Purchasing Dashboard
  * tab: every open IPAS across every SOR. Four totals, then the groups: Needs
  * chasing, Waiting on us, Waiting on someone else, and Filed (collapsed). Each
- * line leads with the one next thing and who owes it; `onOpen(id)` opens its IPAS.
+ * line leads with the one next thing and who owes it; `onOpen(row)` opens the slip a row names, else its IPAS.
  */
 export default function NeedsDoing({ onOpen, filters: f }) {
   const [filedOpen, setFiledOpen] = useState(false);

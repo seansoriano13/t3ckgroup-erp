@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { transmittalService } from "./transmittalService";
+import { readSection3Signoffs } from "./ipasSection3Signoffs";
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUSES,
@@ -15,6 +16,7 @@ import {
   IPAS_OPTION_LIST_NOUNS,
   IPAS_OVERRIDE_FIELDS,
   IPAS_PAYMENT_KINDS,
+  IPAS_PRE_FILING_SECTIONS,
   IPAS_PRIORITIES,
   IPAS_PURPOSE,
   IPAS_PURPOSES,
@@ -24,6 +26,7 @@ import {
   IPAS_SECTION_7_ROLES,
   ipasSectionLabel,
   ipasSectionNo,
+  ipasSectionWord,
   ipasSectionName,
   IPAS_SIGNER_LISTS,
   IPAS_SIGNOFF_ROLE,
@@ -241,10 +244,12 @@ export const ipasService = {
     if (error) throw error;
     // The SOR headers are asked for by id: the database gives none for a null list.
     const sorsByIpas = await readSorHeaders((rows || []).map((row) => row.id));
+    // The list filter "Section 3 approved" (#586): one read of the live section 3 approvals.
+    const { approved: section3Approved } = await readSection3Signoffs();
 
     return (rows || [])
       .filter((row) => !entity || ipasEntity(row) === entity)
-      .map((row) => shapeIpas(row, sorsByIpas.get(row.id) ?? []));
+      .map((row) => ({ ...shapeIpas(row, sorsByIpas.get(row.id) ?? []), section3Approved: section3Approved.has(row.id) }));
   },
 
   /**
@@ -514,7 +519,7 @@ export const ipasService = {
       requireOneOf(
         computationStatus,
         IPAS_COMPUTATION_STATUSES,
-        "The computation status is Encoding, Encoded, LC GS Done, LC Odoo Done or Checked by.",
+        "The computation status is Encoding, Encoded, LC GS Done or LC Odoo Done.",
       );
       fields.computation_status = computationStatus;
     }
@@ -534,7 +539,7 @@ export const ipasService = {
     return data;
   },
 
-  /** The computation status, set by Purchasing (Finance gives Checked by). Landed Cost is final from LC Odoo Done. */
+  /** The computation status, set by Purchasing. Landed Cost is final from LC Odoo Done. */
   setComputationStatus(id, status) {
     return ipasService.setHeader(id, { computationStatus: status });
   },
@@ -556,8 +561,8 @@ export const ipasService = {
    * access only; Finance can read but not type them). Blank clears a value.
    * The database compares the Account # (spaces and dashes stripped) with the
    * same supplier's most recent other IPAS: a difference flags the account,
-   * clears the live section 1 and 3 approvals and records an event, and the
-   * preparers of those sections are notified here. The notification names the
+   * clears the live section 2 approval (stored section 3) and records an event,
+   * and the preparers of that section are notified here. The notification names the
    * IPAS and the PO, never an account number.
    *
    * Returns { bankDetails, flagged, accountChanged, approvalsCleared }.
@@ -581,7 +586,7 @@ export const ipasService = {
             recipient_id,
             type: IPAS_NOTIFICATION.ACCOUNT_FLAGGED,
             title: "Account # flagged",
-            message: `${label}: the supplier's account number differs from their last IPAS, so its approvals were cleared.`,
+            message: `${label}: the supplier's account number differs from their last IPAS, so its ${ipasSectionWord(3)} approval was cleared.`,
             reference_id: id,
           }),
         ),
@@ -945,7 +950,7 @@ export const ipasService = {
    * (Purchasing access) or "approved" (the section's list, someone other than
    * the preparer, after Prepared). Section 7 (#248): "received", then "noted"
    * and "checked" in either order, then "approved", which files the IPAS; each
-   * is its own list's, and section 7 opens once sections 1 and 3 are approved.
+   * is its own list's, and section 7 opens once sections 1, 2 and 3 (stored 1, 3 and 6) are approved.
    * The database decides and refuses with its own sentence (42501 not yours to
    * give, 55000 wrong state, Approved before LC Odoo Done included).
    * `declineSignature` signs without the stored signature, so the printed form
@@ -965,7 +970,7 @@ export const ipasService = {
    *
    * Each step tells exactly the next list, never the signer:
    *   Prepared                        that section's approval list
-   *   sections 1 and 3 both approved  the Received list
+   *   sections 1, 2 and 3 all approved  the Received list (whichever approval came last)
    *   Received                        the Noted and Checked lists
    *   Noted and Checked both given    the section 7 Approved list
    *
@@ -1115,7 +1120,7 @@ export const ipasService = {
    */
   async undoApproval(id, section, reason) {
     if (!IPAS_UNDO_APPROVAL_SECTIONS.includes(section)) {
-      throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1 and 2 have an approval to undo.");
+      throw new IpasError(IPAS_ERROR.INVALID, `Only sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(6)} have an approval to undo.`);
     }
     const why = (reason || "").trim();
     if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give a reason, so the approver knows why.");
@@ -1149,7 +1154,7 @@ export const ipasService = {
    * that is Prepared but not Approved and wasn't prepared by them (they can't
    * approve their own). `role` is "approved"; `id` is "<ipas>:<section>".
    *
-   * Section 7 (#248): an open IPAS whose sections 1 and 3 are approved and whose
+   * Section 7 (#248): an open IPAS whose sections 1, 2 and 3 are approved and whose
    * next step is one they are on the list for: Received first; Noted and Checked
    * once it is given (a person on both lists gets one row for each); Approved
    * once all three are. `role` is that step and `id` is "<ipas>:7:<role>".
@@ -1167,12 +1172,12 @@ export const ipasService = {
     if (listError) throw listError;
 
     const keys = new Set((memberships || []).map((m) => m.list_key));
-    const firstSections = [1, 3].filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
+    const firstSections = IPAS_PRE_FILING_SECTIONS.filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
     const sevenRoles = IPAS_SECTION_7_ROLES.filter((role) => keys.has(IPAS_SECTION_7_LIST[role]));
     if (firstSections.length === 0 && sevenRoles.length === 0) return [];
 
-    // Section 7 reads sections 1 and 3 too: it opens on their approvals.
-    const sections = sevenRoles.length > 0 ? [1, 3, 7] : firstSections;
+    // Section 7 reads sections 1, 3 and 6 too: it opens on their approvals.
+    const sections = sevenRoles.length > 0 ? [...new Set([...IPAS_SIGNOFF_SECTIONS, ...firstSections])] : firstSections;
     const { data: rows, error } = await supabase
       .from("ipas_signoffs")
       .select(SIGNOFF_SELECT)
@@ -1203,15 +1208,15 @@ export const ipasService = {
       }
 
       if (sevenRoles.length > 0) {
-        const sections1and3 = [live.get("1/approved"), live.get("3/approved")];
-        if (sections1and3.every(Boolean) && !live.get("7/approved")) {
+        const openers = [live.get("1/approved"), live.get("3/approved"), live.get("6/approved")];
+        if (openers.every(Boolean) && !live.get("7/approved")) {
           const received = live.get("7/received");
           const noted = live.get("7/noted");
           const checked = live.get("7/checked");
           const latest = (...signoffs) =>
             signoffs.reduce((a, b) => (String(a.signed_at) >= String(b.signed_at) ? a : b));
           const ready = [];
-          if (!received) ready.push([IPAS_SIGNOFF_ROLE.RECEIVED, latest(...sections1and3)]);
+          if (!received) ready.push([IPAS_SIGNOFF_ROLE.RECEIVED, latest(...openers)]);
           else {
             if (!noted) ready.push([IPAS_SIGNOFF_ROLE.NOTED, received]);
             if (!checked) ready.push([IPAS_SIGNOFF_ROLE.CHECKED, received]);
@@ -1395,14 +1400,17 @@ export const ipasService = {
 
 function requireSignoffSection(section) {
   if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, `Sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(7)} are signed off.`);
+    throw new IpasError(
+      IPAS_ERROR.INVALID,
+      `Sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)}, ${ipasSectionNo(6)} and ${ipasSectionNo(7)} are signed off.`,
+    );
   }
 }
 
-/** Sections 1, 3 and 7 are returned. */
+/** Sections 1, 3, 6 and 7 are returned (shown as 1, 2, 3 and 4). */
 function requireSendBackSection(section) {
   if (!IPAS_SEND_BACK_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, `Only sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(7)} can be returned.`);
+    throw new IpasError(IPAS_ERROR.INVALID, `Only sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)}, ${ipasSectionNo(6)} and ${ipasSectionNo(7)} can be returned.`);
   }
 }
 
@@ -1413,7 +1421,7 @@ function stageNotification(stage, { label, section, role }) {
       return {
         type: IPAS_NOTIFICATION.SECTION_7_READY,
         title: "IPAS ready to receive",
-        message: `${label}: sections ${ipasSectionNo(1)} and ${ipasSectionNo(3)} are approved. Section ${ipasSectionNo(7)} is ready for Received.`,
+        message: `${label}: sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(6)} are approved. Section ${ipasSectionNo(7)} is ready for Received.`,
       };
     case IPAS_SIGNOFF_STAGE.NOTED_CHECKED_READY:
       return {

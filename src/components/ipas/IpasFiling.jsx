@@ -18,8 +18,8 @@ import { FILING_STATUS, isLandedCostFinal } from "../../utils/ipasSignoffs";
 import { formatDate } from "../../utils/formatDate.js";
 import { useInDrawer } from "@/components/record/sectionChrome";
 
-/** The two sign-off sections that open section 7, as a person reads them. */
-const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")}`;
+/** The sign-off sections that open section 7, as a person reads them. */
+const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")}`;
 
 const STATUS_BADGE = {
   [FILING_STATUS.WAITING]: { label: `Waiting for ${OPENING_SECTIONS}` },

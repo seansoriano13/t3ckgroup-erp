@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import IpasListPage from "@/pages/purchasing/ipas/index";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import { renderWithProviders, setupUser } from "@/test/support";
-import { makeEmployee, makeFlowStage, makeOpportunity } from "@/test/factories";
+import { makeEmployee, makeFlowStage, makeOpportunity, makeSuperAdmin } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { stubIpasRpcs } from "@/test/stubs/ipasRpc";
@@ -662,6 +662,25 @@ describe("IPAS pages", () => {
       // Section 2's two ticks are checkboxes; the Odoo statuses are not.
       expect(screen.queryByRole("checkbox", { name: /received|bill|delivered|odoo/i })).not.toBeInTheDocument();
     });
+
+    it("hints Purchasing and a Super Admin to cancel and raise a new IPAS when the PO is wrong, and no one else", async () => {
+      const row = ipas({ po_number: "P02552" })
+      stubEdgeFunction("odoo-po-ipas", answer("P02552"))
+
+      const first = renderDetail(row.id)
+      expect(await screen.findByText("Wrong PO? Cancel this IPAS and raise a new one.")).toBeInTheDocument()
+      first.unmount()
+
+      mockUser.current = makeSuperAdmin({ name: "Boss" })
+      const second = renderDetail(row.id)
+      expect(await screen.findByText("Wrong PO? Cancel this IPAS and raise a new one.")).toBeInTheDocument()
+      second.unmount()
+
+      mockUser.current = finance
+      renderDetail(row.id)
+      expect(await screen.findByRole("heading", { name: "TGIPAS_049" })).toBeInTheDocument()
+      expect(screen.queryByText(/Wrong PO\?/)).not.toBeInTheDocument()
+    })
 
     it("gives Finance the page without any override or edit control", async () => {
       mockUser.current = finance;

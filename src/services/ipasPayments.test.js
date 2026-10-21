@@ -418,11 +418,8 @@ describe("ipasService: payments, charges and Landed Cost", () => {
         await ipasService.setComputationStatus(ipas.id, "lc_odoo_done")
         expect((await read(ipas.id)).landedCost.status).toBe(IPAS_LANDED_COST_STATUS.FINAL)
 
-        // Checked by is Finance's step (#547): Finance gives it and takes it back.
-        stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true })
-        await ipasService.setComputationStatus(ipas.id, "checked")
-        expect((await read(ipas.id)).landedCost.status).toBe(IPAS_LANDED_COST_STATUS.FINAL)
-        await ipasService.setComputationStatus(ipas.id, "lc_odoo_done")
+        // Checked by is gone (#586): LC Odoo Done is the last status.
+        await expect(ipasService.setComputationStatus(ipas.id, "checked")).rejects.toThrow(/LC Odoo Done/)
 
         stubIpasRpcs({ actorId: buyer.id })
         await ipasService.setComputationStatus(ipas.id, "encoded")

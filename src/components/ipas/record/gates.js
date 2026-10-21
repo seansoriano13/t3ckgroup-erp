@@ -1,4 +1,4 @@
-// The six gates of an IPAS, in the order they happen, and which one is Now.
+// The seven gates of an IPAS, in the order they happen, and which one is Now.
 // Pure: `gatesFor` takes the digest and runs once in `digestIpas`, so the chain,
 // the card and the section rows all read the same answer.
 
@@ -9,6 +9,7 @@ import {
   IPAS_PART_NO,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
+  ipasPartWord,
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { formatDate } from "@/utils/formatDate.js";
@@ -28,22 +29,22 @@ function waitingOnNoteOrCheck(s7) {
  * be passed yet; `moveKeys` are the moves (moves.js) that pass it.
  */
 function gateDefs(digest) {
-  const { s1, s3, s7, costsComplete, computationStatus } = digest;
-  const sectionsApproved = Boolean(s1.approved && s3.approved);
+  const { s1, s3, s6, s7, costsComplete, computationStatus } = digest;
+  const sectionsApproved = Boolean(s1.approved && s3.approved && s6.approved);
   const noteAndCheck = Boolean(s7.noted && s7.checked);
 
-  const section = (part, state, moveKeys) => ({
-    key: part,
+  const section = (part, state, moveKeys, { key = part, prereqMet = true, early = null } = {}) => ({
+    key,
     part,
     role: APPROVED,
     done: Boolean(state.approved),
-    prereqMet: true,
+    prereqMet,
     waitsOn: state.prepared ? `the approvers of ${ipasSectionLabel(part)}` : "Purchasing",
     line: state.approved
       ? `Approved by ${name(state.approved)}`
       : state.prepared
         ? `Submitted by ${name(state.prepared)}, waiting for an approver`
-        : "Waiting for Purchasing to submit it",
+        : (early ?? "Waiting for Purchasing to submit it"),
     at: state.approved?.signedAt ?? null,
     moveKeys,
   });
@@ -65,6 +66,12 @@ function gateDefs(digest) {
       at: null,
       moveKeys: ["costs"],
     },
+    // Section 3's sign-off (stored 6): Purchasing submits once LC Odoo Done, an approver on its list checks it.
+    section("costing", s6, ["prepare-6", "approve-6"], {
+      key: "costing-signoff",
+      prereqMet: Boolean(costsComplete),
+      early: "Opens once the Computation status is LC Odoo Done",
+    }),
     {
       key: "received",
       part: "filing",
@@ -76,7 +83,7 @@ function gateDefs(digest) {
         ? `Received by ${name(s7.received)}`
         : sectionsApproved
           ? "Waiting for the Received list to receive it"
-          : `Opens once ${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")} are approved`,
+          : `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved`,
       at: s7.received?.signedAt ?? null,
       moveKeys: ["receive"],
     },
@@ -104,9 +111,11 @@ function gateDefs(digest) {
       part: "filing",
       role: APPROVED,
       done: Boolean(s7.approved),
-      prereqMet: noteAndCheck && Boolean(costsComplete),
+      prereqMet: noteAndCheck && Boolean(costsComplete) && sectionsApproved,
       waitsOn: "the filing approvers",
-      line: s7.approved ? `Approved by ${name(s7.approved)}` : "Files the IPAS, after Noted, Checked and LC Odoo Done",
+      line: s7.approved
+        ? `Approved by ${name(s7.approved)}`
+        : `Files the IPAS, after Noted, Checked, LC Odoo Done and ${ipasPartWord("costing")} approved`,
       at: s7.approved?.signedAt ?? null,
       moveKeys: ["file"],
     },
@@ -114,7 +123,7 @@ function gateDefs(digest) {
 }
 
 /**
- * The six gates in order, each with its state and flags:
+ * The seven gates in order, each with its state and flags:
  *   now       the first unmet gate whose prerequisites are met: at most one. None
  *             when no gate's turn has come on an open IPAS; the card then says
  *             what it waits on (moveCopy.js)

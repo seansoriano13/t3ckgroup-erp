@@ -410,7 +410,13 @@ export function stubIpasRpcs({
   // ipas_assert_unchanged (#581): Save all's stale check, over the fake ipas_events rows.
   stubRpc("ipas_assert_unchanged", (args) => {
     if (!args.p_since) return null
-    const newer = rowsOf("ipas_events").some((e) => e.ipas_id === args.p_ipas_id && e.created_at > args.p_since)
+    const newer = rowsOf("ipas_events").some(
+      (e) =>
+        e.ipas_id === args.p_ipas_id &&
+        e.created_at > args.p_since &&
+        !["odoo_copy_changed", "filled_from_odoo", "odoo_changed_since_filing"].includes(e.kind) &&
+        !(e.kind === "approvals_cleared" && e.detail?.reason === "PO changed in Odoo"),
+    )
     if (newer) refuse("40001", "ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.")
     return null
   })
@@ -477,6 +483,7 @@ export function stubIpasRpcs({
           signoffs: {
             1: roles(1, ["prepared", "approved"]),
             3: roles(3, ["prepared", "approved"]),
+            6: roles(6, ["prepared", "approved"]),
             7: roles(7, ["received", "noted", "checked", "approved"]),
           },
           ...summaryLandedCost(row),
@@ -505,7 +512,7 @@ export function stubIpasRpcs({
     if (!sorReader) return []
     const sorId = args.p_opportunity_id
     const wanted = new Set(rowsOf("ipas_sors").filter((s) => s.opportunity_id === sorId).map((s) => s.ipas_id))
-    const final = ["lc_odoo_done", "checked"]
+    const final = ["lc_odoo_done"]
 
     return rowsOf("ipas")
       .filter((row) => wanted.has(row.id) && row.purpose === "project")
@@ -563,10 +570,10 @@ export function stubIpasRpcs({
       })
   })
 
-  /** The helper both resets share: clears the live section 1 and 3 approvals, returns { sections, preparers }. */
-  const clearApprovals = (ipasId, reason) => {
+  /** The helper both resets share: clears the live approvals of the given stored sections (1 and 3 unless told otherwise; an Account # flag passes only 3), returns { sections, preparers }. */
+  const clearApprovals = (ipasId, reason, only = [1, 3]) => {
     const live = liveSignoffs(ipasId)
-    const approved = live.filter((s) => [1, 3].includes(s.section) && s.role === "approved")
+    const approved = live.filter((s) => only.includes(s.section) && s.role === "approved")
     const sections = [...new Set(approved.map((s) => s.section))].sort()
     for (const s of approved) {
       updateRow("ipas_signoffs", s, { cleared_at: new Date().toISOString(), cleared_by: actorId, cleared_reason: reason })
@@ -698,7 +705,7 @@ export function stubIpasRpcs({
     "remarks",
   ]
   const SPLITS = ["value", "quantity", "equal"]
-  const STATUSES = ["encoding", "encoded", "lc_gs_done", "lc_odoo_done", "checked"]
+  const STATUSES = ["encoding", "encoded", "lc_gs_done", "lc_odoo_done"]
 
   const optionOf = (id) => findRow("ipas_options", id)
 
@@ -716,8 +723,8 @@ export function stubIpasRpcs({
   const round2 = (n) => Math.round(n * 100) / 100
 
   stubRpc("ipas_set_header", (args) => {
-    const mayCheck = !purchasing && (hasFinance || superAdmin)
-    if (!purchasing && !mayCheck) requirePurchasing("ipas_set_header")
+    // Only Purchasing changes an IPAS (#586: Checked by is gone, so Finance and Super Admins have no way in).
+    requirePurchasing("ipas_set_header")
     const fields = args.p_fields
     if (!fields || typeof fields !== "object") refuse("22023", "ipas_set_header: the fields must be an object")
     for (const key of Object.keys(fields)) {
@@ -727,10 +734,6 @@ export function stubIpasRpcs({
     }
     const row = findRow("ipas", args.p_ipas_id)
     requireOpen("ipas_set_header", row)
-    // Finance (or a Super Admin who isn't Purchasing) only moves Checked by, and nothing else with it.
-    if (mayCheck && (Object.keys(fields).length !== 1 || !("computation_status" in fields))) {
-      refuse("42501", "ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by")
-    }
 
     const next = {}
     const changes = {}
@@ -798,24 +801,7 @@ export function stubIpasRpcs({
     if ("computation_status" in fields) {
       const to = fields.computation_status
       if (!STATUSES.includes(to)) {
-        refuse(
-          "22023",
-          "ipas_set_header: the computation status is Encoding, Encoded, LC GS Done, LC Odoo Done or Checked by",
-        )
-      }
-      if (mayCheck) {
-        const from = row.computation_status ?? "encoding"
-        const onlyStatus = Object.keys(fields).length === 1
-        const ok = onlyStatus && ((from === "lc_odoo_done" && to === "checked") || (from === "checked" && to === "lc_odoo_done"))
-        if (!ok) {
-          refuse("42501", "ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by")
-        }
-      }
-      if (purchasing) {
-        const from = row.computation_status ?? "encoding"
-        if (to !== from && (to === "checked" || from === "checked")) {
-          refuse("42501", "ipas_set_header: Checked by is Finance's step; Purchasing can't give it or take it back")
-        }
+        refuse("22023", "ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done")
       }
       if (to !== (row.computation_status ?? "encoding")) {
         next.computation_status = to
@@ -924,7 +910,7 @@ export function stubIpasRpcs({
     let cleared = { sections: [], preparers: [] }
     if (flagged && accountChanged) {
       event(ipas.id, "account_flagged", { previous_ipas_id: previous.ipas.id, previous_number: previous.ipas.number })
-      cleared = clearApprovals(ipas.id, "Account # flagged")
+      cleared = clearApprovals(ipas.id, "Account # flagged", [3])
     }
     const { sections, preparers } = cleared
 
@@ -1334,12 +1320,13 @@ export function stubIpasRpcs({
   const LIST_KEY = {
     "1/approved": "s1_approved",
     "3/approved": "s3_approved",
+    "6/approved": "s6_approved",
     "7/received": "s7_received",
     "7/noted": "s7_noted",
     "7/checked": "s7_checked",
     "7/approved": "s7_approved",
   }
-  const SEND_BACK_LIST = { 1: "s1_approved", 3: "s3_approved" }
+  const SEND_BACK_LIST = { 1: "s1_approved", 3: "s3_approved", 6: "s6_approved" }
   const SECTION_7_LISTS = ["s7_received", "s7_noted", "s7_checked", "s7_approved"]
   const onList = (listKey, employeeId) => {
     const member = rowsOf("ipas_signer_lists").some((l) => l.list_key === listKey && l.employee_id === employeeId)
@@ -1356,19 +1343,22 @@ export function stubIpasRpcs({
     ),
   ]
   const requireSection = (fn, section) => {
-    if (![1, 3, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 2 and 4 can be sent back`)
+    if (![1, 3, 6, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 2, 3 and 4 can be sent back`)
   }
 
   stubRpc("ipas_sign", (args) => {
     const { p_section: section, p_role: role } = args
     const sheetHasIt =
-      ([1, 3].includes(section) && ["prepared", "approved"].includes(role)) ||
+      ([1, 3, 6].includes(section) && ["prepared", "approved"].includes(role)) ||
       (section === 7 && ["received", "noted", "checked", "approved"].includes(role))
     if (!sheetHasIt) refuse("22023", `ipas_sign: section ${section} has no ${role} sign-off`)
     const ipas = requireOpenIpas("ipas_sign", args.p_ipas_id)
 
     if (role === "prepared") {
       if (!purchasing) refuse("42501", "ipas_sign: only Purchasing prepares a section")
+      if (section === 6 && ipas.computation_status !== "lc_odoo_done") {
+        refuse("22023", "ipas_sign: section 3 can be submitted once the Computation status is LC Odoo Done")
+      }
     } else if (!onList(LIST_KEY[`${section}/${role}`], actorId)) {
       refuse("42501", "ipas_sign: you are not on the list that may give this sign-off")
     }
@@ -1387,8 +1377,8 @@ export function stubIpasRpcs({
     if (section === 7) {
       const live = liveSignoffs(ipas.id)
       const has = (sec, r) => live.some((s) => s.section === sec && s.role === r)
-      if (!has(1, "approved") || !has(3, "approved")) {
-        refuse("55000", "ipas_sign: section 4 opens once sections 1 and 2 are approved")
+      if (!has(1, "approved") || !has(3, "approved") || !has(6, "approved")) {
+        refuse("55000", "ipas_sign: section 4 opens once sections 1, 2 and 3 are approved")
       }
       if (["noted", "checked"].includes(role) && !has(7, "received")) {
         refuse("55000", `ipas_sign: Received comes first; ${role[0].toUpperCase()}${role.slice(1)} can only be given after it`)
@@ -1397,7 +1387,7 @@ export function stubIpasRpcs({
         if (!has(7, "received") || !has(7, "noted") || !has(7, "checked")) {
           refuse("55000", "ipas_sign: Approved needs Received, Noted and Checked first")
         }
-        if (!["lc_odoo_done", "checked"].includes(ipas.computation_status)) {
+        if (ipas.computation_status !== "lc_odoo_done") {
           refuse(
             "55000",
             `ipas_sign: ${ipas.number} can't be filed until LC Odoo Done: Landed Cost is still provisional, and Filing freezes it as final`,
@@ -1427,10 +1417,11 @@ export function stubIpasRpcs({
     } else if (role === "prepared") {
       stage = "section_prepared"
       notify = membersOf([LIST_KEY[`${section}/approved`]])
-    } else if (section === 1 || section === 3) {
-      const other = section === 1 ? 3 : 1
+    } else if (section === 1 || section === 3 || section === 6) {
+      // The last of sections 1, 2 and 3 to be approved opens section 4 (#590).
       const live = liveSignoffs(ipas.id)
-      if (live.some((s) => s.section === other && s.role === "approved") && !live.some((s) => s.section === 7)) {
+      const allApproved = [1, 3, 6].every((sec) => live.some((s) => s.section === sec && s.role === "approved"))
+      if (allApproved && !live.some((s) => s.section === 7)) {
         stage = "received_ready"
         notify = membersOf(["s7_received"])
       }
@@ -1505,8 +1496,8 @@ export function stubIpasRpcs({
     if (sectionSeven) {
       const everything = liveSignoffs(ipas.id)
       const approved = (sec) => everything.some((s) => s.section === sec && s.role === "approved")
-      if (!approved(1) || !approved(3)) {
-        refuse("55000", "ipas_send_back: section 4 isn't open yet; sections 1 and 2 must be approved first")
+      if (!approved(1) || !approved(3) || !approved(6)) {
+        refuse("55000", "ipas_send_back: section 4 isn't open yet; sections 1, 2 and 3 must be approved first")
       }
     }
 
@@ -1544,8 +1535,8 @@ export function stubIpasRpcs({
     const reason = String(args.p_reason || "").trim()
     if (!reason) refuse("22023", "ipas_undo_approval: give a reason, so the approver knows why")
     const section = args.p_section
-    if (![1, 3].includes(section)) {
-      refuse("22023", "ipas_undo_approval: only sections 1 and 2 have an approval to undo")
+    if (![1, 3, 6].includes(section)) {
+      refuse("22023", "ipas_undo_approval: only sections 1, 2 and 3 have an approval to undo")
     }
     const ipas = requireOpenIpas("ipas_undo_approval", args.p_ipas_id)
     if (!onList(SEND_BACK_LIST[section], actorId)) {
@@ -1584,7 +1575,7 @@ export function stubIpasRpcs({
   stubRpc("ipas_set_signer_list", (args) => {
     if (!superAdmin) refuse("42501", "ipas_set_signer_list: only a Super Admin changes who is on a sign-off list")
     const listKey = args.p_list_key
-    const keys = ["s1_approved", "s3_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved"]
+    const keys = ["s1_approved", "s3_approved", "s6_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved"]
     keys.push("transmittal_warehouse", "transmittal_technical", "transmittal_logistics", "transmittal_check_by")
     if (!keys.includes(listKey)) {
       refuse("22023", `ipas_set_signer_list: ${listKey} isn't a sign-off list`)

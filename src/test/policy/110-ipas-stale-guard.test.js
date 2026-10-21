@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { closeSql, isInRealtimePublication, serviceClient } from "./support/stack.js"
-import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
 
 const svc = () => serviceClient()
 const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
@@ -57,5 +57,29 @@ describe("IPAS stale-save guard", () => {
         expect(refused.error?.code).toBe("40001")
         expect(refused.error?.message).toMatch(/Reload/)
         expect((await rpc("outsider", "ipas_assert_unchanged", { p_ipas_id: ipas.id, p_since: await newest(ipas.id) })).error).toBeNull()
+    })
+
+    it("#585: an Odoo refresh (any viewer) is not someone else saving; a real edit still is", async () => {
+        const po = "P9861002"
+        const { data: ipas, error } = await raiseAsPurchaser({
+            p_po_number: po, p_priority: "high", p_source: "local", p_purpose: "inventory", p_sor_ids: [], p_remarks: null, p_odoo_copy: copy(po),
+        })
+        expect(error).toBeNull()
+        const since = await newest(ipas.id)
+
+        // Odoo changed (the PO was confirmed, a line price moved): the refresh writes odoo_copy_changed.
+        const changedCopy = copy(po)
+        changedCopy.lines[0].price_unit = 150
+        changedCopy.lines[0].price_subtotal = 150
+        const refreshed = await recordOdooCopyAs("outsider", { p_ipas_id: ipas.id, p_odoo_copy: changedCopy })
+        expect(refreshed.error).toBeNull()
+        const kinds = (await svc().from("ipas_events").select("kind").eq("ipas_id", ipas.id).gt("created_at", since)).data.map((e) => e.kind)
+        expect(kinds).toContain("odoo_copy_changed")
+
+        expect((await rpc("outsider", "ipas_assert_unchanged", { p_ipas_id: ipas.id, p_since: since })).error).toBeNull()
+
+        expect((await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { remarks: "Real edit" } })).error).toBeNull()
+        const refused = await rpc("outsider", "ipas_assert_unchanged", { p_ipas_id: ipas.id, p_since: since })
+        expect(refused.error?.code).toBe("40001")
     })
 })

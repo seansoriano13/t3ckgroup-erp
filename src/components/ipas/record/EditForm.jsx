@@ -130,6 +130,7 @@ function SectionBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurp
       return (
         <Embedded>
           <CostingFields ipas={ipas} form={form} set={set} canChange={money.can.change} canSetStatus={money.can.setStatus} />
+          <Embedded>{blocks.signoffs6}</Embedded>
         </Embedded>
       );
     case "filing":
@@ -404,6 +405,7 @@ export default function EditForm({
         <ol className="flex gap-1 overflow-x-auto scrollbar-minimal pb-1">
           {progress.map((p) => {
             const complete = p.total > 0 && p.left === 0;
+            const green = complete || p.filled;
             const no = p.title.match(NUMBERED)?.[1];
             return (
               <li key={p.key} className="min-w-[8.5rem] flex-1">
@@ -416,7 +418,7 @@ export default function EditForm({
                   <span
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                      complete ? "bg-green-9 text-white" : p.total === 0 ? "bg-muted text-muted-foreground" : "bg-amber-3 text-amber-11",
+                      green ? "bg-green-9 text-white" : p.total === 0 ? "bg-muted text-muted-foreground" : "bg-amber-3 text-amber-11",
                     )}
                   >
                     {complete ? <Check size={13} /> : (no ?? "H")}
@@ -426,7 +428,7 @@ export default function EditForm({
                       {p.title.replace(NUMBERED, "")}
                     </span>
                     <span className="block text-[11px] text-muted-foreground tabular-nums">
-                      {p.total === 0 ? "optional" : complete ? "Complete" : `${p.done}/${p.total}`}
+                      {p.total === 0 ? (p.filled ? "Filled" : "optional") : complete ? "Complete" : `${p.done}/${p.total}`}
                     </span>
                   </span>
                 </Button>

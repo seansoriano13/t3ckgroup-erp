@@ -668,7 +668,13 @@ export function IpasStatusSection({ ipas, canChange: granted = false, onEditOrig
             {track.map((item) => (
               <TrackStatus
                 key={item.key}
-                item={{ ...item, detail: item.source === IPAS_STATUS_SOURCE.ODOO ? odooDetail(item.key, ipas.statuses) : item.detail }}
+                item={{
+                  ...item,
+                  detail:
+                    item.source === IPAS_STATUS_SOURCE.ODOO
+                      ? (!item.ticked && item.reason) || odooDetail(item.key, ipas.statuses)
+                      : item.detail,
+                }}
                 canChange={canChange}
                 onEdit={onEditStatus}
                 onStamp={onStamp}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { buildIpasDocument, buildIpasPagesHtml } from "./ipasDocument"
 import { buildIpasViewModel } from "./ipasViewModel"
-import { BAUTISTA, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
+import { BAUTISTA, RAMOS, ipasRow, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
 
 /**
  * The printed IPAS's HTML (#250): two A4 portrait pages in the module's own
@@ -102,6 +102,20 @@ describe("the two A4 pages", () => {
   })
 })
 
+describe("sign-off band", () => {
+  it("prints one row per section with the section name on the left, section 3 included", () => {
+    const html = doc()
+    expect(html.match(/<div class="sorow">/g)).toHaveLength(4)
+    expect(html).toContain('<div class="soname"><span class="no">3</span>Computation status &amp; Landed Cost</div>')
+  })
+
+  it("leaves room for the typed name so it cannot run over its label", () => {
+    const html = doc()
+    expect(html).toMatch(/\.sig \.plate \{[^}]*min-height: 9mm/)
+    expect(html).toMatch(/\.sig \.printed-name \{[^}]*white-space: nowrap/)
+  })
+})
+
 describe("signatures", () => {
   it("draws a stored signature as the image, a name-only signer as the name, and a waiting box as 'Signature required'", () => {
     const html = doc(
@@ -123,9 +137,9 @@ describe("signatures", () => {
     // Name only: printed in the plate in the printed-name style, no image.
     expect(html).toContain('<div class="printed-name">M. Ramos</div>')
     expect(html).toMatch(/name only, no signature on file/)
-    // Waiting: section 3's two boxes and Filing's four, each printed once, on page 1.
-    expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(6)
-    expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(6)
+    // Waiting: section 3's two boxes (stored 6), section 2's two and Filing's four, each printed once, on page 1.
+    expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(8)
+    expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(8)
   })
 
   it("prints a declined signature as the name only, never the image", () => {
@@ -255,5 +269,22 @@ describe("escaping", () => {
     expect(pages).not.toContain("<b>x</b>")
     expect(pages).not.toContain("<i>y</i>")
     expect(pages).toContain("&lt;b&gt;x&lt;/b&gt;")
+  })
+})
+
+describe("the buyer track's reasons on paper", () => {
+  it("prints the reason beside each unticked Odoo line", () => {
+    const copy = ipasRow().odoo_copy
+    const html = buildIpasDocument(
+      buildIpasViewModel(
+        makePrintableIpas({
+          row: { odoo_copy: { ...copy, po: { ...copy.po, state: "draft" }, receipts: { status: "pending", done: 0, total: 2 }, bills: { count: 0, draft: 0 } } },
+        }),
+      ),
+    )
+
+    expect(html).toContain("Not confirmed in Odoo yet (RFQ)")
+    expect(html).toContain("0 of 2 receipts done")
+    expect(html).toContain("No bill yet")
   })
 })

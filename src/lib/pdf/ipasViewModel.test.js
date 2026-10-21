@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildIpasViewModel, maskAccountNumber, printAmount, printDate, printDateTime } from "./ipasViewModel"
-import { BAUTISTA, CRUZ, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
+import { BAUTISTA, CRUZ, RAMOS, ipasRow, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
 
 /**
  * The printed IPAS's view model (#250): what the paper says, from
@@ -107,7 +107,6 @@ describe("Landed Cost mark", () => {
 
   it("turns final once LC Odoo Done is reached", () => {
     expect(vm({ row: { computation_status: "lc_odoo_done" } }).section6.landedCost.status).toBe("final")
-    expect(vm({ row: { computation_status: "checked" } }).section6.landedCost.status).toBe("final")
   })
 
   it("is always final on a filed IPAS, whatever the computation status says", () => {
@@ -163,7 +162,7 @@ describe("Odoo marks and the read time", () => {
     const byKey = Object.fromEntries(vm().section6.buyerTrack.map((item) => [item.key, item]))
 
     expect(byKey.purchase_order).toMatchObject({ ticked: true, detail: "Purchase order" })
-    expect(byKey.received_in_odoo).toMatchObject({ ticked: false, partial: true, detail: "Partly received · 1 of 2 receipts" })
+    expect(byKey.received_in_odoo).toMatchObject({ ticked: false, partial: true, detail: "Partly received · 1 of 2 receipts done" })
     expect(byKey.create_bill).toMatchObject({ ticked: true, detail: "1 draft bill" })
   })
 
@@ -188,6 +187,25 @@ describe("Odoo marks and the read time", () => {
 
   it("says a filed IPAS's copy is frozen at filing", () => {
     expect(vm({ row: { state: "filed", filed_at: "2026-09-20T02:00:00.000Z" } }).footer.odooNote).toBe("frozen at filing")
+  })
+})
+
+describe("sign-off rows on page 1", () => {
+  it("has one row per section in screen order, section 3 included, each with its own boxes", () => {
+    const model = vm()
+    expect(model.signoffRows.map((row) => [row.no, row.name])).toEqual([
+      [1, "Purchasing"],
+      [2, "Purchasing & Finance"],
+      [3, "Computation status & Landed Cost"],
+      [4, "Filing"],
+    ])
+    expect(model.signoffRows.map((row) => row.boxes)).toEqual([
+      model.section1.signoffs,
+      model.section3.signoffs,
+      model.section6.signoffs,
+      model.section7.signoffs,
+    ])
+    expect(model.signoffRows[2].boxes).toHaveLength(2)
   })
 })
 
@@ -379,7 +397,6 @@ describe("the page's content", () => {
       ["Encoded", true, true],
       ["LC GS Done", false, false],
       ["LC Odoo Done", false, false],
-      ["Checked by", false, false],
     ])
     expect(model.section7.checklist).toEqual([
       expect.objectContaining({ label: "LC Odoo Done", ticked: false }),
@@ -410,5 +427,26 @@ describe("the page's content", () => {
 
   it("refuses to print nothing", () => {
     expect(() => buildIpasViewModel(null)).toThrow(/IPAS is needed/)
+  })
+})
+
+describe("the buyer track's reasons on paper", () => {
+  const unticked = {
+    row: {
+      odoo_copy: {
+        ...ipasRow().odoo_copy,
+        po: { ...ipasRow().odoo_copy.po, state: "draft" },
+        receipts: { status: "pending", done: 0, total: 2 },
+        bills: { count: 0, draft: 0 },
+      },
+    },
+  }
+
+  it("carries the reason beside each unticked Odoo line", () => {
+    const byKey = Object.fromEntries(vm(unticked).section6.buyerTrack.map((item) => [item.key, item]))
+
+    expect(byKey.purchase_order.detail).toBe("Not confirmed in Odoo yet (RFQ)")
+    expect(byKey.received_in_odoo.detail).toBe("0 of 2 receipts done")
+    expect(byKey.create_bill.detail).toBe("No bill yet")
   })
 })
