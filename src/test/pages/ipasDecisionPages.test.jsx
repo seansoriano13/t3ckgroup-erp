@@ -189,7 +189,8 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     const gate = await screen.findByRole("group", { name: "Section 1, Purchasing, Approved, done" });
     expect(within(gate).getByText(/^Approved by Boss Lito · Sep 5, 2026/)).toBeInTheDocument();
     const notedAndChecked = screen.getByRole("group", { name: "Section 4, Filing, Noted and Checked, waiting" });
-    expect(within(notedAndChecked).getByText("Noted and Checked, in either order, after Received")).toBeInTheDocument();
+    // The rail keeps a waiting gate's rule in its tooltip.
+    expect(notedAndChecked).toHaveAttribute("title", "Noted and Checked, in either order, after Received");
   });
 
   it("says nothing needs the purchaser while the Now gate waits on Finance, and names the section", async () => {

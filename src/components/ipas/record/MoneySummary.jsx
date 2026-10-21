@@ -13,8 +13,8 @@ const SOURCE_WORDS = {
 
 /** The verdict's look: green when it matches, red when it differs, amber when the P.I is missing, quiet otherwise. */
 const VERDICT = {
-  [BILL_CHECK_KIND.MATCHES]: { icon: CircleCheck, className: "bg-green-a3 text-green-11" },
-  [BILL_CHECK_KIND.DIFFERS]: { icon: TriangleAlert, className: "bg-red-a3 text-red-11" },
+  [BILL_CHECK_KIND.MATCHES]: { icon: CircleCheck, className: "px-0 text-green-11" },
+  [BILL_CHECK_KIND.DIFFERS]: { icon: TriangleAlert, className: "px-0 text-red-11" },
   [BILL_CHECK_KIND.NOT_TYPED]: { icon: TriangleAlert, className: "bg-amber-a3 text-amber-11" },
   [BILL_CHECK_KIND.BEFORE_TAX]: { icon: Info, className: "bg-muted text-muted-foreground" },
   [BILL_CHECK_KIND.NO_PO]: { icon: Info, className: "bg-muted text-muted-foreground" },
@@ -39,14 +39,15 @@ function diffChars(left, right) {
 
 /** A diff row: its sign, its label and its amount, with the differing characters marked. */
 function DiffRow({ sign, label, chars, tone, testId }) {
+  // Colour is in the text only (no fills): red for the Odoo PO, green for the P.I, the differing characters in bold.
   const TONE = {
-    removed: { row: "bg-red-a2", sign: "text-red-11", text: "text-red-11", mark: "rounded-[3px] bg-red-a5" },
-    added: { row: "bg-green-a2", sign: "text-green-11", text: "text-green-11", mark: "rounded-[3px] bg-green-a5" },
-    same: { row: "bg-green-a2", sign: "text-green-11", text: "text-foreground", mark: "" },
-    plain: { row: "bg-muted/60", sign: "text-muted-foreground", text: "text-foreground", mark: "" },
+    removed: { sign: "text-red-11", text: "text-red-11", mark: "font-extrabold" },
+    added: { sign: "text-green-11", text: "text-green-11", mark: "font-extrabold" },
+    same: { sign: "text-green-11", text: "text-foreground", mark: "" },
+    plain: { sign: "text-muted-foreground", text: "text-foreground", mark: "" },
   }[tone];
   return (
-    <div className={cn("grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-baseline gap-x-2 px-3 py-2", TONE.row)}>
+    <div className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-baseline gap-x-2 px-3 py-2">
       <span aria-hidden="true" className={cn("font-mono text-sm font-bold", TONE.sign)}>
         {sign}
       </span>
@@ -54,7 +55,7 @@ function DiffRow({ sign, label, chars, tone, testId }) {
       <dd className={cn("font-mono text-lg font-semibold tracking-tight tabular-nums whitespace-pre", TONE.text)} data-testid={testId}>
         {chars.map((c, i) =>
           c.differs && TONE.mark ? (
-            <mark key={i} className={cn("text-inherit", TONE.mark)}>
+            <mark key={i} className={cn("bg-transparent text-inherit", TONE.mark)}>
               {c.char}
             </mark>
           ) : (
@@ -67,8 +68,8 @@ function DiffRow({ sign, label, chars, tone, testId }) {
 }
 
 /**
- * Supplier bill check, read like a diff: the Odoo PO on a red "−" line, the
- * P.I/QT Amount on a green "+" line, the characters that differ marked, and the
+ * Supplier bill check, read like a diff: the Odoo PO in red on a "−" line, the
+ * P.I/QT Amount in green on a "+" line, the characters that differ in bold, and the
  * verdict in words under them. When they match, both lines are green with "=".
  * Before there is something to compare (no P.I typed, no PO total, an older
  * before-tax copy), the lines are plain. Read from the digest, which reads the
@@ -86,7 +87,7 @@ function BillCheck({ bill, beforeTax }) {
       <h3 id="ipas-bill-check-title" className="text-sm font-semibold text-foreground">
         Supplier bill check
       </h3>
-      <dl className="divide-y divide-card overflow-hidden rounded-lg border border-border">
+      <dl className="divide-y divide-border rounded-lg border border-border">
         <DiffRow sign={matches ? "=" : "−"} label={`Odoo PO${beforeTax ? ", before tax" : ""}`} chars={po} tone={tone("removed")} testId="bill-check-po" />
         <DiffRow sign={matches ? "=" : "+"} label="P.I/QT Amount" chars={pi} tone={tone("added")} testId="bill-check-pi" />
       </dl>
@@ -125,7 +126,7 @@ function Stat({ label, value, sub, onOpen }) {
  * The money at the top of the record (#603), as one panel: the Supplier bill
  * check on the left; Paid, Remaining balance (ADR 0036: 0 once settled) and
  * Landed Cost, which carries its Estimate mark, on the right. Each figure opens
- * the section it comes from. Stacks below the large breakpoint.
+ * the section it comes from. Side by side only on very wide screens (the decision rail takes the right of the page); stacked otherwise.
  */
 export default function MoneySummary({ digest, onOpen }) {
   const { money, figures, bill } = digest;
@@ -134,7 +135,7 @@ export default function MoneySummary({ digest, onOpen }) {
 
   return (
     <div
-      className="grid divide-y divide-border rounded-xl border border-border bg-card lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:divide-x lg:divide-y-0"
+      className="grid divide-y divide-border rounded-xl border border-border bg-card 2xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] 2xl:divide-x 2xl:divide-y-0"
       data-testid="ipas-money-summary"
     >
       <BillCheck bill={bill} beforeTax={figures.poTotalBeforeTax} />
