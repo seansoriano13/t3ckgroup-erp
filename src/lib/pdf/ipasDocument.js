@@ -141,15 +141,19 @@ export const CSS = `
   .flag { color: var(--flag); font-weight: 700; }
 
   .band { margin-top: auto; padding-top: 4mm; border-top: 1px solid var(--rule); break-inside: avoid; }
+  .sorow { display: grid; grid-template-columns: 30mm 1fr; gap: 0 14px; align-items: end; padding: 2.5mm 0; border-bottom: 1px solid var(--rule); break-inside: avoid; }
+  .sorow:last-child { border-bottom: 0; }
+  .soname { font-size: 8pt; font-weight: 600; line-height: 1.3; align-self: center; }
+  .soname .no { display: block; font-family: var(--mono); font-size: 6.5pt; color: var(--ink-faint); letter-spacing: .08em; }
   .sigs { display: grid; gap: 14px 20px; }
   .sigs.n2 { grid-template-columns: repeat(2, 1fr); }
   .sigs.n4 { grid-template-columns: repeat(4, 1fr); }
   .sig { display: flex; flex-direction: column; }
   .sig .k { color: var(--ink-faint); }
-  .sig .plate { height: 9mm; margin-top: 4px; border-bottom: 1px solid var(--rule); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 2px; }
+  .sig .plate { min-height: 9mm; overflow: hidden; margin-top: 4px; border-bottom: 1px solid var(--rule); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 2px; }
   .sig.awaiting .plate { background: var(--wash); }
   .sig .plate img { max-height: 8mm; max-width: 100%; object-fit: contain; }
-  .sig .printed-name { font-family: var(--serif); font-style: italic; font-size: 11.5pt; font-weight: 500; }
+  .sig .printed-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-family: var(--serif); font-style: italic; font-size: 11.5pt; font-weight: 500; }
   .sig .who { font-size: 8pt; font-weight: 600; margin-top: 4px; min-height: 1.34em; }
   .sig .role { font-size: 6pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-top: 2px; }
   .sig .stamp { font-family: var(--mono); font-size: 6pt; color: var(--ink-mid); margin-top: 3px; }
@@ -193,6 +197,16 @@ function sigs(boxes, columns) {
     )
     .join('');
   return `<div class="sigs n${columns}">${html}</div>`;
+}
+
+/** The page 1 band: one row per section, its name on the left, its boxes beside it. */
+function signoffRows(vm) {
+  return vm.signoffRows
+    .map(
+      (row) =>
+        `<div class="sorow"><div class="soname"><span class="no">${esc(row.no)}</span>${esc(row.name)}</div>${sigs(row.boxes, row.boxes.length)}</div>`,
+    )
+    .join('');
 }
 
 // ── Chrome ───────────────────────────────────────────────────────────────────
@@ -515,7 +529,6 @@ function filing(vm) {
 
 /** Both pages, as markup. */
 export function buildIpasPagesHtml(vm) {
-  const boxes = [...vm.section1.signoffs, ...vm.section3.signoffs, ...vm.section6.signoffs, ...vm.section7.signoffs];
   const first = ipasSectionLabel('purchasing');
   const last = ipasSectionLabel('status');
   return `<div class="sheet first">
@@ -524,7 +537,7 @@ export function buildIpasPagesHtml(vm) {
       <div class="cL">${build(vm)}${header(vm)}</div>
       <div class="cR">${outcome(vm)}</div>
     </div>
-    <div class="band">${sigs(boxes, 4)}</div>
+    <div class="band">${signoffRows(vm)}</div>
     ${footer(vm, 1, 'Summary and sign-offs')}
   </div>
   <div class="sheet">

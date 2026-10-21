@@ -190,6 +190,25 @@ describe("Odoo marks and the read time", () => {
   })
 })
 
+describe("sign-off rows on page 1", () => {
+  it("has one row per section in screen order, section 3 included, each with its own boxes", () => {
+    const model = vm()
+    expect(model.signoffRows.map((row) => [row.no, row.name])).toEqual([
+      [1, "Purchasing"],
+      [2, "Purchasing & Finance"],
+      [3, "Computation status & Landed Cost"],
+      [4, "Filing"],
+    ])
+    expect(model.signoffRows.map((row) => row.boxes)).toEqual([
+      model.section1.signoffs,
+      model.section3.signoffs,
+      model.section6.signoffs,
+      model.section7.signoffs,
+    ])
+    expect(model.signoffRows[2].boxes).toHaveLength(2)
+  })
+})
+
 describe("sign-off boxes", () => {
   const boxes = (options) => {
     const model = vm(options)
