@@ -21,6 +21,7 @@ const LOG_LIMIT = 20;
 const WHO = {
   [IPAS_SIGNER_LIST.S1_APPROVED]: `Approves section ${ipasSectionNo(1)}: buying from and paying the supplier. Never the person who submitted it.`,
   [IPAS_SIGNER_LIST.S3_APPROVED]: `Approves section ${ipasSectionNo(3)}: the importation charges and documents. Never the person who submitted it.`,
+  [IPAS_SIGNER_LIST.S6_APPROVED]: `Approves section ${ipasSectionNo(6)}: checks the Computation status and Landed Cost. Never the person who submitted it.`,
   [IPAS_SIGNER_LIST.S7_RECEIVED]: "Receives the IPAS first when it is filed.",
   [IPAS_SIGNER_LIST.S7_NOTED]: "Notes the IPAS at filing, after it is received.",
   [IPAS_SIGNER_LIST.S7_CHECKED]: "Checks the IPAS at filing, after it is received.",

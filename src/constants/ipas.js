@@ -170,7 +170,6 @@ export const IPAS_COMPUTATION_STATUS = {
   ENCODED: "encoded",
   LC_GS_DONE: "lc_gs_done",
   LC_ODOO_DONE: "lc_odoo_done",
-  CHECKED: "checked",
 };
 
 export const IPAS_COMPUTATION_STATUSES = [
@@ -178,7 +177,6 @@ export const IPAS_COMPUTATION_STATUSES = [
   IPAS_COMPUTATION_STATUS.ENCODED,
   IPAS_COMPUTATION_STATUS.LC_GS_DONE,
   IPAS_COMPUTATION_STATUS.LC_ODOO_DONE,
-  IPAS_COMPUTATION_STATUS.CHECKED,
 ];
 
 export const IPAS_COMPUTATION_STATUS_LABELS = {
@@ -186,10 +184,18 @@ export const IPAS_COMPUTATION_STATUS_LABELS = {
   [IPAS_COMPUTATION_STATUS.ENCODED]: "Encoded",
   [IPAS_COMPUTATION_STATUS.LC_GS_DONE]: "LC GS Done",
   [IPAS_COMPUTATION_STATUS.LC_ODOO_DONE]: "LC Odoo Done",
-  [IPAS_COMPUTATION_STATUS.CHECKED]: "Checked by",
   // Stored in history before LC GS Done and LC Odoo Done replaced it.
   costs_complete: "LC Odoo Done",
+  // The old last step, gone since section 3 became a sign-off (#586). Kept so history lines
+  // written before then still read.
+  checked: "Checked by",
 };
+
+/**
+ * The IPAS list's costing filter also finds IPAS whose section 3 (stored 6) is approved.
+ * Not a Computation status: the list matches it against the live sign-off (#586).
+ */
+export const IPAS_SECTION_3_APPROVED_FILTER = "section_3_approved";
 
 /** Landed Cost is `unavailable`, or `provisional` until LC Odoo Done, then `final`. */
 export const IPAS_LANDED_COST_STATUS = {
@@ -410,7 +416,7 @@ export const IPAS_SIGNOFF_ROLE_ACTIONS = {
   [IPAS_SIGNOFF_ROLE.CHECKED]: "Check",
 };
 
-export const IPAS_SIGNOFF_SECTIONS = [1, 3, 7];
+export const IPAS_SIGNOFF_SECTIONS = [1, 3, 6, 7];
 export const IPAS_SEND_BACK_SECTIONS = [1, 3, 7];
 /** The sections whose Approved can be undone, leaving Prepared. */
 export const IPAS_UNDO_APPROVAL_SECTIONS = [1, 3];
@@ -436,7 +442,7 @@ export const IPAS_SIGNOFF_STAGE = {
  * The number each part of an IPAS shows, on screen and on the printed sheet, in
  * the order the module shows them (money and sign-offs first). The paper sheet
  * numbered them differently. Only what a person reads changes: the stored
- * sign-off sections stay 1, 3 and 7 (`ipas_signoffs.section`, the signer lists,
+ * sign-off sections stay 1, 3, 6 and 7 (`ipas_signoffs.section`, the signer lists,
  * the RPCs).
  */
 export const IPAS_PART_NO = {
@@ -460,11 +466,11 @@ export const IPAS_PART_NAMES = {
   status: "Status",
 };
 
-/** The part a stored sign-off section (1, 3 or 7) is. */
-export const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 7: "filing" };
+/** The part a stored sign-off section (1, 3, 6 or 7) is. */
+export const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 6: "costing", 7: "filing" };
 
 /**
- * The number a stored sign-off section (1, 3 or 7) shows as: 1, 2, 4 (#552).
+ * The number a stored sign-off section (1, 3, 6 or 7) shows as: 1, 2, 3, 4 (#552, #586).
  * The one mapping every screen, notice, history line and Settings list name
  * reads. Anything it doesn't know comes back as it was given.
  */
@@ -502,6 +508,7 @@ export function ipasSectionLabel(partOrSection) {
 export const IPAS_SIGNER_LIST = {
   S1_APPROVED: "s1_approved",
   S3_APPROVED: "s3_approved",
+  S6_APPROVED: "s6_approved",
   S7_RECEIVED: "s7_received",
   S7_NOTED: "s7_noted",
   S7_CHECKED: "s7_checked",
@@ -521,16 +528,18 @@ export const IPAS_SECTION_7_LIST = {
 export const IPAS_SIGNER_LIST_LABELS = {
   [IPAS_SIGNER_LIST.S1_APPROVED]: `Section ${ipasSectionNo(1)} · Approved`,
   [IPAS_SIGNER_LIST.S3_APPROVED]: `Section ${ipasSectionNo(3)} · Approved`,
+  [IPAS_SIGNER_LIST.S6_APPROVED]: `Section ${ipasSectionNo(6)} · Approved`,
   [IPAS_SIGNER_LIST.S7_RECEIVED]: `Section ${ipasSectionNo(7)} · Received`,
   [IPAS_SIGNER_LIST.S7_NOTED]: `Section ${ipasSectionNo(7)} · Noted`,
   [IPAS_SIGNER_LIST.S7_CHECKED]: `Section ${ipasSectionNo(7)} · Checked`,
   [IPAS_SIGNER_LIST.S7_APPROVED]: `Section ${ipasSectionNo(7)} · Approved (files the IPAS)`,
 };
 
-/** The list that approves a section: section 1 and 3's Approved. */
+/** The list that approves a section: the Approved of stored sections 1, 3 and 6. */
 export const IPAS_APPROVAL_LIST = {
   1: IPAS_SIGNER_LIST.S1_APPROVED,
   3: IPAS_SIGNER_LIST.S3_APPROVED,
+  6: IPAS_SIGNER_LIST.S6_APPROVED,
   7: IPAS_SIGNER_LIST.S7_APPROVED,
 };
 

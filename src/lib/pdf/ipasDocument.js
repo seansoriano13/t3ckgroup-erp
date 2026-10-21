@@ -250,6 +250,7 @@ function outcome(vm) {
     <div class="blk"><div class="k">Sign-offs</div><div class="rows">
       ${row(ipasSectionLabel('purchasing'), vm.section1.signoffs)}
       ${row(ipasSectionLabel('finance'), vm.section3.signoffs)}
+      ${row(ipasSectionLabel('costing'), vm.section6.signoffs)}
       ${row(ipasSectionLabel('filing'), vm.section7.signoffs)}
     </div></div>
     <div class="blk"><div class="k">Computation</div><div class="rows">${computation}</div></div>`;
@@ -514,7 +515,7 @@ function filing(vm) {
 
 /** Both pages, as markup. */
 export function buildIpasPagesHtml(vm) {
-  const boxes = [...vm.section1.signoffs, ...vm.section3.signoffs, ...vm.section7.signoffs];
+  const boxes = [...vm.section1.signoffs, ...vm.section3.signoffs, ...vm.section6.signoffs, ...vm.section7.signoffs];
   const first = ipasSectionLabel('purchasing');
   const last = ipasSectionLabel('status');
   return `<div class="sheet first">

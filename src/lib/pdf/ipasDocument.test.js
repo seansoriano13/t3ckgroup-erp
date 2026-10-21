@@ -123,9 +123,9 @@ describe("signatures", () => {
     // Name only: printed in the plate in the printed-name style, no image.
     expect(html).toContain('<div class="printed-name">M. Ramos</div>')
     expect(html).toMatch(/name only, no signature on file/)
-    // Waiting: section 3's two boxes and Filing's four, each printed once, on page 1.
-    expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(6)
-    expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(6)
+    // Waiting: section 3's two boxes (stored 6), section 2's two and Filing's four, each printed once, on page 1.
+    expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(8)
+    expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(8)
   })
 
   it("prints a declined signature as the name only, never the image", () => {

@@ -753,7 +753,7 @@ function IpasPage({ onClose }) {
   const canTickFinance = hasFinanceFlow && open;
   const digest = digestIpas(ipas);
 
-  // The sign-offs of sections 1 and 3: what this person may do on each.
+  // The sign-offs of sections 1, 2 and 3 (stored 1, 3 and 6): what this person may do on each.
   const sectionRights = (section) =>
     signoffRights({
       section,
@@ -762,6 +762,7 @@ function IpasPage({ onClose }) {
       hasPurchasingFlow,
       lists: signerLists,
       ipasState: ipas.state,
+      computationStatus: ipas.computationStatus,
     });
 
   // Section 7: what this person may give, from where it stands.
@@ -882,14 +883,12 @@ function IpasPage({ onClose }) {
       change: canChange,
       record: canRecord,
       tickFinance: canTickFinance,
-      // Purchasing or Finance, or a Super Admin, may give Checked by (the rest of the steps are Purchasing's).
-      check: open && (hasPurchasingFlow || hasFinanceFlow || isSuperAdmin),
-      setStatus: (from, to) =>
-        open && canSetComputationStatus({ from, to, hasPurchasingFlow, hasFinanceFlow, isSuperAdmin }),
+      // Only Purchasing moves the Computation status; section 3's sign-off is the check.
+      setStatus: (from, to) => open && canSetComputationStatus({ from, to, hasPurchasingFlow }),
       reopen: isSuperAdmin && filed,
       printFiling: filed && ipas.canReadBankDetails,
     },
-    rights: { 1: sectionRights(1), 3: sectionRights(3), 7: filingRights, sendBack7: canReturnSection7 },
+    rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, sendBack7: canReturnSection7 },
     busy: {
       signoff: signoff.isPending || returnSection.isPending,
       give: give.isPending || returnSection.isPending,
@@ -925,7 +924,7 @@ function IpasPage({ onClose }) {
       ipas={ipas}
       blocks={blocks}
       can={ctx.can}
-      canSave={canChange || canRecord || canTickFinance || ctx.can.check}
+      canSave={canChange || canRecord || canTickFinance}
       savedCount={savedCount}
       onRemoveSaved={(type, row) => setRemoving({ type, row })}
       onRemoveDocument={setRemovingDocument}

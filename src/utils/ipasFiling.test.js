@@ -191,9 +191,9 @@ describe("section 7", () => {
     })
   })
 
-  it("knows Costs complete and later", () => {
-    expect(["encoding", "encoded"].map(isLandedCostFinal)).toEqual([false, false])
-    expect(["lc_odoo_done", "checked"].map(isLandedCostFinal)).toEqual([true, true])
+  it("knows LC Odoo Done, the last status", () => {
+    expect(["encoding", "encoded", "lc_gs_done"].map(isLandedCostFinal)).toEqual([false, false, false])
+    expect(isLandedCostFinal("lc_odoo_done")).toBe(true)
     expect(isLandedCostFinal(undefined)).toBe(false)
   })
 })

@@ -458,47 +458,29 @@ describe("undoing an approval", () => {
     })
 })
 
-describe("Checked by", () => {
+describe("the Computation status", () => {
     const setStatus = (who, ipasId, status, extra = {}) =>
         rpc(who, "ipas_set_header", { p_ipas_id: ipasId, p_fields: { computation_status: status, ...extra } })
-    const statusOf = async (ipasId) => {
-        const { data } = await svc().from("ipas").select("computation_status").eq("id", ipasId).single()
-        return data.computation_status
-    }
 
-    it("knows the five steps (Purchasing moves up to LC Odoo Done), and refuses the old Costs complete", async () => {
+    it("knows the four steps (Purchasing moves up to LC Odoo Done), and refuses Costs complete and Checked by (#586)", async () => {
         const ipas = await raise()
         for (const status of ["encoded", "lc_gs_done", "lc_odoo_done"]) {
             expect((await setStatus("outsider", ipas.id, status)).error, status).toBeNull()
         }
         expect((await setStatus("outsider", ipas.id, "costs_complete")).error?.code).toBe("22023")
+        expect((await setStatus("outsider", ipas.id, "checked")).error?.code).toBe("22023")
     })
 
-    it("lets Finance give and take back Checked by, and nothing else", async () => {
+    it("is Purchasing's alone: Finance and a Super Admin who isn't Purchasing are refused", async () => {
         const ipas = await raise()
         await setStatus("outsider", ipas.id, "lc_odoo_done")
-
-        expect((await setStatus("finance", ipas.id, "checked")).error).toBeNull()
-        expect(await statusOf(ipas.id)).toBe("checked")
-        expect((await setStatus("finance", ipas.id, "lc_odoo_done")).error).toBeNull()
-
-        // Not an earlier step, not a jump, not with another field beside it.
         expect((await setStatus("finance", ipas.id, "encoded")).error?.code).toBe("42501")
-        expect((await setStatus("finance", ipas.id, "checked", { pi_number: "X1" })).error?.code).toBe("42501")
         expect((await rpc("finance", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { pi_number: "X1" } })).error?.code).toBe("42501")
-        await setStatus("outsider", ipas.id, "encoded")
-        expect((await setStatus("finance", ipas.id, "checked")).error?.code).toBe("42501")
-    })
-
-    it("lets a Super Admin who is not Purchasing give Checked by too, and nobody else", async () => {
-        const ipas = await raise()
-        await setStatus("outsider", ipas.id, "lc_odoo_done")
-        expect((await setStatus("superAdmin", ipas.id, "checked")).error).toBeNull()
         expect((await setStatus("ordinary", ipas.id, "lc_odoo_done")).error?.code).toBe("42501")
     })
 
-    it("holds no row on the old status any more", async () => {
-        const { data, error } = await svc().from("ipas").select("id").eq("computation_status", "costs_complete")
+    it("holds no row on the old statuses any more", async () => {
+        const { data, error } = await svc().from("ipas").select("id").in("computation_status", ["costs_complete", "checked"])
         expect(error).toBeNull()
         expect(data).toEqual([])
     })

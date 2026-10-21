@@ -107,7 +107,6 @@ describe("Landed Cost mark", () => {
 
   it("turns final once LC Odoo Done is reached", () => {
     expect(vm({ row: { computation_status: "lc_odoo_done" } }).section6.landedCost.status).toBe("final")
-    expect(vm({ row: { computation_status: "checked" } }).section6.landedCost.status).toBe("final")
   })
 
   it("is always final on a filed IPAS, whatever the computation status says", () => {
@@ -379,7 +378,6 @@ describe("the page's content", () => {
       ["Encoded", true, true],
       ["LC GS Done", false, false],
       ["LC Odoo Done", false, false],
-      ["Checked by", false, false],
     ])
     expect(model.section7.checklist).toEqual([
       expect.objectContaining({ label: "LC Odoo Done", ticked: false }),

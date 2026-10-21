@@ -477,6 +477,7 @@ export function stubIpasRpcs({
           signoffs: {
             1: roles(1, ["prepared", "approved"]),
             3: roles(3, ["prepared", "approved"]),
+            6: roles(6, ["prepared", "approved"]),
             7: roles(7, ["received", "noted", "checked", "approved"]),
           },
           ...summaryLandedCost(row),
@@ -505,7 +506,7 @@ export function stubIpasRpcs({
     if (!sorReader) return []
     const sorId = args.p_opportunity_id
     const wanted = new Set(rowsOf("ipas_sors").filter((s) => s.opportunity_id === sorId).map((s) => s.ipas_id))
-    const final = ["lc_odoo_done", "checked"]
+    const final = ["lc_odoo_done"]
 
     return rowsOf("ipas")
       .filter((row) => wanted.has(row.id) && row.purpose === "project")
@@ -698,7 +699,7 @@ export function stubIpasRpcs({
     "remarks",
   ]
   const SPLITS = ["value", "quantity", "equal"]
-  const STATUSES = ["encoding", "encoded", "lc_gs_done", "lc_odoo_done", "checked"]
+  const STATUSES = ["encoding", "encoded", "lc_gs_done", "lc_odoo_done"]
 
   const optionOf = (id) => findRow("ipas_options", id)
 
@@ -716,8 +717,8 @@ export function stubIpasRpcs({
   const round2 = (n) => Math.round(n * 100) / 100
 
   stubRpc("ipas_set_header", (args) => {
-    const mayCheck = !purchasing && (hasFinance || superAdmin)
-    if (!purchasing && !mayCheck) requirePurchasing("ipas_set_header")
+    // Only Purchasing changes an IPAS (#586: Checked by is gone, so Finance and Super Admins have no way in).
+    requirePurchasing("ipas_set_header")
     const fields = args.p_fields
     if (!fields || typeof fields !== "object") refuse("22023", "ipas_set_header: the fields must be an object")
     for (const key of Object.keys(fields)) {
@@ -727,10 +728,6 @@ export function stubIpasRpcs({
     }
     const row = findRow("ipas", args.p_ipas_id)
     requireOpen("ipas_set_header", row)
-    // Finance (or a Super Admin who isn't Purchasing) only moves Checked by, and nothing else with it.
-    if (mayCheck && (Object.keys(fields).length !== 1 || !("computation_status" in fields))) {
-      refuse("42501", "ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by")
-    }
 
     const next = {}
     const changes = {}
@@ -798,24 +795,7 @@ export function stubIpasRpcs({
     if ("computation_status" in fields) {
       const to = fields.computation_status
       if (!STATUSES.includes(to)) {
-        refuse(
-          "22023",
-          "ipas_set_header: the computation status is Encoding, Encoded, LC GS Done, LC Odoo Done or Checked by",
-        )
-      }
-      if (mayCheck) {
-        const from = row.computation_status ?? "encoding"
-        const onlyStatus = Object.keys(fields).length === 1
-        const ok = onlyStatus && ((from === "lc_odoo_done" && to === "checked") || (from === "checked" && to === "lc_odoo_done"))
-        if (!ok) {
-          refuse("42501", "ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by")
-        }
-      }
-      if (purchasing) {
-        const from = row.computation_status ?? "encoding"
-        if (to !== from && (to === "checked" || from === "checked")) {
-          refuse("42501", "ipas_set_header: Checked by is Finance's step; Purchasing can't give it or take it back")
-        }
+        refuse("22023", "ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done")
       }
       if (to !== (row.computation_status ?? "encoding")) {
         next.computation_status = to
@@ -1334,6 +1314,7 @@ export function stubIpasRpcs({
   const LIST_KEY = {
     "1/approved": "s1_approved",
     "3/approved": "s3_approved",
+    "6/approved": "s6_approved",
     "7/received": "s7_received",
     "7/noted": "s7_noted",
     "7/checked": "s7_checked",
@@ -1362,13 +1343,16 @@ export function stubIpasRpcs({
   stubRpc("ipas_sign", (args) => {
     const { p_section: section, p_role: role } = args
     const sheetHasIt =
-      ([1, 3].includes(section) && ["prepared", "approved"].includes(role)) ||
+      ([1, 3, 6].includes(section) && ["prepared", "approved"].includes(role)) ||
       (section === 7 && ["received", "noted", "checked", "approved"].includes(role))
     if (!sheetHasIt) refuse("22023", `ipas_sign: section ${section} has no ${role} sign-off`)
     const ipas = requireOpenIpas("ipas_sign", args.p_ipas_id)
 
     if (role === "prepared") {
       if (!purchasing) refuse("42501", "ipas_sign: only Purchasing prepares a section")
+      if (section === 6 && ipas.computation_status !== "lc_odoo_done") {
+        refuse("22023", "ipas_sign: section 3 can be submitted once the Computation status is LC Odoo Done")
+      }
     } else if (!onList(LIST_KEY[`${section}/${role}`], actorId)) {
       refuse("42501", "ipas_sign: you are not on the list that may give this sign-off")
     }
@@ -1397,7 +1381,7 @@ export function stubIpasRpcs({
         if (!has(7, "received") || !has(7, "noted") || !has(7, "checked")) {
           refuse("55000", "ipas_sign: Approved needs Received, Noted and Checked first")
         }
-        if (!["lc_odoo_done", "checked"].includes(ipas.computation_status)) {
+        if (ipas.computation_status !== "lc_odoo_done") {
           refuse(
             "55000",
             `ipas_sign: ${ipas.number} can't be filed until LC Odoo Done: Landed Cost is still provisional, and Filing freezes it as final`,
@@ -1584,7 +1568,7 @@ export function stubIpasRpcs({
   stubRpc("ipas_set_signer_list", (args) => {
     if (!superAdmin) refuse("42501", "ipas_set_signer_list: only a Super Admin changes who is on a sign-off list")
     const listKey = args.p_list_key
-    const keys = ["s1_approved", "s3_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved"]
+    const keys = ["s1_approved", "s3_approved", "s6_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved"]
     keys.push("transmittal_warehouse", "transmittal_technical", "transmittal_logistics", "transmittal_check_by")
     if (!keys.includes(listKey)) {
       refuse("22023", `ipas_set_signer_list: ${listKey} isn't a sign-off list`)

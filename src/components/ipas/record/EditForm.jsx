@@ -130,6 +130,7 @@ function SectionBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurp
       return (
         <Embedded>
           <CostingFields ipas={ipas} form={form} set={set} canChange={money.can.change} canSetStatus={money.can.setStatus} />
+          <Embedded>{blocks.signoffs6}</Embedded>
         </Embedded>
       );
     case "filing":

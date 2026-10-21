@@ -122,10 +122,10 @@ describe("Who may edit Remarks", () => {
         for (const who of ["finance", "superAdmin", "ordinary"]) {
             expect((await setRemarks(who, ipas.id, "Nope")).error?.code, who).toBe("42501")
         }
-        // Not even beside Checked by.
+        // Not even beside a status step.
         const both = await rpc("finance", "ipas_set_header", {
             p_ipas_id: ipas.id,
-            p_fields: { computation_status: "checked", remarks: "Sneaky" },
+            p_fields: { computation_status: "lc_gs_done", remarks: "Sneaky" },
         })
         expect(both.error?.code).toBe("42501")
         expect(await remarksOf(ipas.id)).toBeNull()

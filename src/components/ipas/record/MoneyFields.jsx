@@ -587,8 +587,8 @@ export function BankFields({ ipas, form, set, canChange }) {
 
 /**
  * The computation status and the spread, typed here and stored with the rest. The
- * steps keep their rules: one step from the stored status either way, and only the
- * steps this person may give; Landed Cost below is worked out from what is stored.
+ * steps keep their rules: one step from the stored status either way, and only
+ * Purchasing gives them; Landed Cost below is worked out from what is stored.
  */
 export function CostingFields({ ipas, form, set, canChange, canSetStatus }) {
   const stored = ipas.computationStatus;

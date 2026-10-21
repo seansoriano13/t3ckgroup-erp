@@ -437,7 +437,7 @@ describe("orderMonitoringService: what needs doing", () => {
     })
 
     it("files a filed order into the Filed group", async () => {
-      const ipas = seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "checked" })
+      const ipas = seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "lc_odoo_done" })
 
       const row = rowsFor(await listAll({ group: "filed" }), ipas)
 
@@ -452,7 +452,7 @@ describe("orderMonitoringService: what needs doing", () => {
     })
 
     it("counts days in Asia/Manila, so a time just after Manila midnight is the next day", async () => {
-      const ipas = seedOrder({ computationStatus: "checked" })
+      const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
       // 16:30 UTC on the 10th is 00:30 on the 11th in Manila.
       seedSlip({
         state: "awaiting_check",
@@ -535,7 +535,7 @@ describe("orderMonitoringService: what needs doing", () => {
       seedOrder({ poState: "draft", lines: [LINE(20002, 2000)] })
       const importOther = seedOrder({ source: "import", arrivedInPh: "2026-10-14", currency: "USD", lines: [LINE(20003, 500)] })
       seedPayment(importOther)
-      seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "checked", lines: [LINE(20004, 9999)] })
+      seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "lc_odoo_done", lines: [LINE(20004, 9999)] })
       await orderAgeingRulesService.setRule("import_clearance", 3)
 
       const counts = await orderMonitoringService.counts({ today: TODAY })
@@ -591,14 +591,14 @@ describe("orderMonitoringService: what needs doing", () => {
 
     it("narrows to open or filed orders by state", async () => {
       const open = seedOrder()
-      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "checked", deliveredOn: "2026-10-01" })
+      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "lc_odoo_done", deliveredOn: "2026-10-01" })
 
       expect(sortedIds(await listAll({ state: "open" }))).toEqual(idsOf(open))
       expect(sortedIds(await listAll({ state: "filed" }))).toEqual(idsOf(filed))
     })
 
     it("includes a filed order and finds it by search, and never shows a cancelled one", async () => {
-      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "checked", deliveredOn: "2026-10-01" })
+      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "lc_odoo_done", deliveredOn: "2026-10-01" })
       const cancelled = seedOrder({ state: "cancelled" })
 
       const all = await listAll()

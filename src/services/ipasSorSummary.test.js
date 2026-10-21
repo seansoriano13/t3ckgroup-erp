@@ -81,6 +81,7 @@ describe("ipasService.summariesForSor", () => {
     expect(rows[0].signoffs.map((s) => [s.section, s.done, s.total])).toEqual([
       [1, 0, 2],
       [3, 0, 2],
+      [6, 0, 2],
       [7, 0, 4],
     ])
   })

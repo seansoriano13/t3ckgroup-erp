@@ -219,7 +219,6 @@ describe("computeLandedCost", () => {
       ["encoding", IPAS_LANDED_COST_STATUS.PROVISIONAL],
       ["encoded", IPAS_LANDED_COST_STATUS.PROVISIONAL],
       ["lc_odoo_done", IPAS_LANDED_COST_STATUS.FINAL],
-      ["checked", IPAS_LANDED_COST_STATUS.FINAL],
     ])("reads %s as %s", (computationStatus, status) => {
       expect(computeLandedCost({ ...base, computationStatus }).status).toBe(status)
     })

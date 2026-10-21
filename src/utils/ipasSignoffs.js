@@ -11,8 +11,10 @@
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUS,
+  IPAS_COMPUTATION_STATUSES,
   IPAS_SECTION_7_LIST,
   IPAS_SECTION_7_ROLES,
+  IPAS_SEND_BACK_SECTIONS,
   IPAS_SIGNOFF_ROLE,
   IPAS_STATE,
 } from "../constants/ipas";
@@ -72,7 +74,8 @@ export function sectionSignoffs(signoffs = [], section) {
 /**
  * What the signed-in person can do on a section, from where it stands.
  *
- *   canPrepare    Purchasing access, an open IPAS, nothing prepared yet
+ *   canPrepare    Purchasing access, an open IPAS, nothing prepared yet; section 6
+ *                 (shown as 3) also waits for the Computation status to reach LC Odoo Done
  *   canApprove    on the section's approval list, prepared, not approved, and
  *                 not the preparer; a Super Admin is on the list or not like
  *                 anyone else
@@ -83,7 +86,7 @@ export function sectionSignoffs(signoffs = [], section) {
  *
  * `lists` is `ipasService.getSignerLists()`; a missing list reads as nobody.
  */
-export function signoffRights({ section, sectionState, userId, hasPurchasingFlow = false, lists = {}, ipasState }) {
+export function signoffRights({ section, sectionState, userId, hasPurchasingFlow = false, lists = {}, ipasState, computationStatus }) {
   const open = ipasState === IPAS_STATE.OPEN;
   const listKey = IPAS_APPROVAL_LIST[section];
   const onList = Boolean(userId) && (lists?.[listKey] ?? []).some((member) => member.employeeId === userId);
@@ -107,7 +110,7 @@ export function signoffRights({ section, sectionState, userId, hasPurchasingFlow
   return {
     open,
     onList,
-    canPrepare: open && hasPurchasingFlow && !prepared,
+    canPrepare: open && hasPurchasingFlow && !prepared && (section !== 6 || isLandedCostFinal(computationStatus)),
     canApprove: open && whyNotApprove === null,
     canSendBack: returnMode !== null,
     returnMode,
@@ -221,24 +224,26 @@ export function canSendBackSection7({ state, userId, lists = {}, ipasState }) {
  * means. The Received step itself has nothing live to return.
  */
 export function canSendBackItem({ section, role }) {
+  // Section 3 (stored 6) joins the returnable sections with its Return (#591).
+  if (!IPAS_SEND_BACK_SECTIONS.includes(section)) return false;
   return section !== 7 || role !== IPAS_SIGNOFF_ROLE.RECEIVED;
 }
 
-/** Whether a computation status is LC Odoo Done or later (Landed Cost is final, which is what Filing needs). */
+/** Whether a computation status is LC Odoo Done, the last one (Landed Cost is final from there). */
 export function isLandedCostFinal(status) {
-  return status === IPAS_COMPUTATION_STATUS.LC_ODOO_DONE || status === IPAS_COMPUTATION_STATUS.CHECKED;
+  return status === IPAS_COMPUTATION_STATUS.LC_ODOO_DONE;
 }
 
 /**
  * Whether the signed-in person may move the computation status from `from` to
- * `to` (one step either way): Purchasing (a Super Admin in Purchasing included)
- * moves the steps up to LC Odoo Done, never to or from Checked by; Finance, or a
- * Super Admin who isn't Purchasing, only gives or takes back Checked by.
+ * `to`: Purchasing (a Super Admin in Purchasing included) moves the steps from
+ * Encoding up to LC Odoo Done, and nobody else does. "Checked by" is gone (#586):
+ * section 3's sign-off is the check.
  */
-export function canSetComputationStatus({ from, to, hasPurchasingFlow = false, hasFinanceFlow = false, isSuperAdmin = false }) {
-  const { CHECKED: CHECKED_STEP } = IPAS_COMPUTATION_STATUS;
-  if (hasPurchasingFlow) return from !== CHECKED_STEP && to !== CHECKED_STEP;
-  if (!hasFinanceFlow && !isSuperAdmin) return false;
-  const { LC_ODOO_DONE, CHECKED } = IPAS_COMPUTATION_STATUS;
-  return (from === LC_ODOO_DONE && to === CHECKED) || (from === CHECKED && to === LC_ODOO_DONE);
+export function canSetComputationStatus({ from, to, hasPurchasingFlow = false }) {
+  return (
+    hasPurchasingFlow &&
+    IPAS_COMPUTATION_STATUSES.includes(from) &&
+    IPAS_COMPUTATION_STATUSES.includes(to)
+  );
 }

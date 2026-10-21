@@ -406,6 +406,8 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     buyerTrack,
     computation,
     landedCost,
+    // Section 3's sign-offs (stored section 6): Submitted and Approved.
+    signoffs: signoffPair(6, ipas.signoffSections?.[6]),
     // The legend prints whenever a status carries the mark.
     hasOdooMarks: buyerTrack.some((item) => item.stampedFromOdoo),
   };
