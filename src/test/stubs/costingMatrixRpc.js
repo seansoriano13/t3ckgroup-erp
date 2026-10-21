@@ -383,6 +383,15 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     })
   })
 
+  // ipas_summaries_for_sor, as far as Actual Revenue (#605) reads it: the SOR's project IPAS with their state and
+  // Computation status. Tests that care about the IPAS list itself stub their own, after this.
+  stubRpc("ipas_summaries_for_sor", (args) => {
+    const ids = rowsOf("ipas_sors").filter((s) => s.opportunity_id === args.p_opportunity_id).map((s) => s.ipas_id)
+    return rowsOf("ipas")
+      .filter((i) => ids.includes(i.id))
+      .map((i) => ({ ipas_id: i.id, number: i.number, po_number: i.po_number, state: i.state, computation_status: i.computation_status ?? "encoding" }))
+  })
+
   // #273: the Requested Items that name a Component of this SOR's matrix, as {id, component_id, status, request_id}.
   stubRpc("costing_component_requests", (args) => {
     if (!tier) return null

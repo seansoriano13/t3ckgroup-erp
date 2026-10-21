@@ -118,4 +118,52 @@ describe("Landed Cost on the Costing Matrix", () => {
     expect(m.totals).not.toHaveProperty("landedCost")
     expect(cutter.purchases.poNumbers).toEqual(["P02552"])
   })
+  describe("Planned and Actual Revenue for the Closed Book (#605)", () => {
+    it("works Actual on the bought Component's Landed Cost, leaves the summary alone, and marks it an estimate", async () => {
+      db.seed("costing_settings", { id: 1 })
+      requestId = request().id
+      item(hose, { quantity: 6, odoo_po_line_ids: [11] })
+
+      const m = await read()
+      // Cutter: Landed 7,500 instead of Final Acquire 7,800. Blade not bought: stays at 450.
+      expect(m.summary.revenue).toBe(6750)
+      expect(m.revenueComparison).toMatchObject({ planned: 6750, actual: 7050, difference: 300, actualLower: false, estimate: true, itemsBought: 1, itemsTotal: 2, notBought: 1 })
+    })
+
+    it("is final once every IPAS of the SOR has reached LC Odoo Done", async () => {
+      db.seed("costing_settings", { id: 1 })
+      requestId = request().id
+      item(hose, { quantity: 6, odoo_po_line_ids: [11] })
+      const row = db.internal.rowsOf("ipas").find((r) => r.id === ipas.id)
+      row.computation_status = "lc_odoo_done"
+      db.seed("ipas_sors", { ipas_id: ipas.id, opportunity_id: opportunity.id })
+      expect((await read()).revenueComparison.estimate).toBe(false)
+
+      row.computation_status = "encoded"
+      expect((await read()).revenueComparison.estimate).toBe(true)
+
+      row.state = "filed"
+      expect((await read()).revenueComparison.estimate).toBe(false)
+    })
+
+    it("holds Actual as an estimate for an IPAS of the SOR that has no Component bought yet", async () => {
+      db.seed("costing_settings", { id: 1 })
+      db.seed("ipas_sors", { ipas_id: ipas.id, opportunity_id: opportunity.id })
+      const m = await read()
+      expect(m.revenueComparison).toMatchObject({ planned: 6750, actual: 6750, itemsBought: 0, estimate: true })
+    })
+
+    it.each([
+      [COSTING_TIER.COST, ["purchasing"]],
+      [COSTING_TIER.PRICE, ["sales"]],
+      [COSTING_TIER.PARTICIPANT, []],
+    ])("gives the %s tier no comparison", async (tier, bands) => {
+      requestId = request().id
+      item(hose, { quantity: 6, odoo_po_line_ids: [11] })
+      stubCostingMatrixRpcs({ tier, bands })
+      const m = await read()
+      expect(m).not.toHaveProperty("revenueComparison")
+      expect(m).not.toHaveProperty("summary")
+    })
+  })
 })
