@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveLeaveCategory, isLateFiling, getDayCount, pairIntoSheets, isLegacySignature, getOvertimeOutcome, getOvertimeHoursDisplay } from './layout';
+import { resolveLeaveCategory, isLateFiling, getDayCount, pairIntoSheets, isLegacySignature, getOvertimeHoursDisplay } from './layout';
 
 describe('PDF Layout Logic', () => {
   describe('resolveLeaveCategory', () => {
@@ -104,25 +104,6 @@ describe('PDF Layout Logic', () => {
         { id: 2, type: 'OVERTIME' },
       ];
       expect(pairIntoSheets(records)).toEqual([{ top: records[0], bottom: records[1] }]);
-    });
-  });
-
-  describe('getOvertimeOutcome', () => {
-    it('returns PAID OVERTIME for APPROVED_PAID', () => {
-      expect(getOvertimeOutcome('APPROVED_PAID')).toBe('PAID OVERTIME');
-    });
-
-    it('returns OFFSET CREDIT for APPROVED_OFFSET', () => {
-      expect(getOvertimeOutcome('APPROVED_OFFSET')).toBe('OFFSET CREDIT');
-    });
-
-    it('returns REJECTED for REJECTED', () => {
-      expect(getOvertimeOutcome('REJECTED')).toBe('REJECTED');
-    });
-
-    it('returns PENDING for anything else', () => {
-      expect(getOvertimeOutcome('PENDING')).toBe('PENDING');
-      expect(getOvertimeOutcome('UNKNOWN')).toBe('PENDING');
     });
   });
 

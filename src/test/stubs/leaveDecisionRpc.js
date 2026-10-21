@@ -1,5 +1,6 @@
 import { stubRpc } from "@/test/msw/server"
 import { db, updateRow } from "@/test/db/store"
+import { manilaToday } from "@/lib/manilaDate"
 
 const SIL_ELIGIBLE_STATUS = "Regular"
 
@@ -117,7 +118,7 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated, app
         status: args.p_status,
         hr_notes: args.p_hr_notes || null,
         hr_processed_by: args.p_hr_id || null,
-        ...(table === "sil_leaves" ? { hr_processed_at: new Date().toISOString() } : {}),
+        ...(table !== "overtime_requests" ? { hr_processed_at: new Date().toISOString() } : {}),
         approval_hash: "stub-approval-hash",
         hr_signature_version: null,
         hr_signature_timestamp: null,
@@ -163,7 +164,7 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated, app
         status: "PENDING",
         hr_notes: null,
         hr_processed_by: null,
-        ...(table === "sil_leaves" ? { hr_processed_at: null } : {}),
+        ...(table !== "overtime_requests" ? { hr_processed_at: null } : {}),
         approval_hash: null,
         hr_signature_version: null,
         hr_signature_timestamp: null,
@@ -237,5 +238,126 @@ export function stubSilLeaveDecisionRpcs() {
       undo: "undo_sil_leave_decision",
       withdraw: "cancel_sil_leave",
     },
+  })
+}
+
+/**
+ * `decide_lwop_leave_decision` / `undo_...` / `cancel_lwop_leave` (#616). LWOP has no balance, so
+ * the stub only moves the group's status and HR stamps. Decide is gated on the head stage and
+ * withdraw on the Manila-date cutoff, like the SQL.
+ */
+export function stubLwopLeaveDecisionRpcs() {
+  const table = "lwop_leaves"
+  const groupRows = (groupId) =>
+    db.internal
+      .rowsOf(table)
+      .filter((row) => row.leave_group_id === groupId)
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+  const totalHours = (rows) => rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0)
+
+  stubRpc("decide_lwop_leave_decision", (args) => {
+    const rows = groupRows(args.p_group_id)
+    if (rows.length === 0) throw new Error("Leave application not found.")
+    if (rows.some((row) => row.status !== "PENDING")) {
+      throw new Error("This leave application has already been decided.")
+    }
+    if (rows[0].head_status && rows[0].head_status !== "APPROVED" && !rows[0].hr_override) {
+      throw new Error(
+        `Cannot decide this LWOP: the department head has not approved this request yet (head_status=${rows[0].head_status}). Use the HR override if this needs to proceed anyway.`,
+      )
+    }
+
+    const updated = rows.map((row) =>
+      updateRow(table, row, {
+        status: args.p_status,
+        hr_notes: args.p_hr_notes || null,
+        hr_processed_by: args.p_hr_id || null,
+        hr_processed_at: new Date().toISOString(),
+        approval_hash: "stub-approval-hash",
+      }),
+    )
+    return {
+      rows: updated,
+      employee_id: rows[0].employee_id,
+      total_hours: totalHours(rows),
+      dates: updated.map((row) => row.date),
+    }
+  })
+
+  stubRpc("record_lwop_leave_as_approved", (args) => {
+    const rows = groupRows(args.p_group_id)
+    if (rows.length === 0) throw new Error("Leave application not found.")
+    if (rows.some((row) => row.status !== "PENDING")) {
+      throw new Error("This leave application has already been decided.")
+    }
+    const updated = rows.map((row) =>
+      updateRow(table, row, {
+        status: "APPROVED",
+        head_status: "APPROVED",
+        recorded_by_hr: true,
+        hr_processed_by: args.p_hr_id || null,
+        hr_processed_at: new Date().toISOString(),
+        approval_hash: "stub-approval-hash",
+      }),
+    )
+    return {
+      rows: updated,
+      employee_id: rows[0].employee_id,
+      total_hours: totalHours(rows),
+      dates: updated.map((row) => row.date),
+    }
+  })
+
+  stubRpc("undo_lwop_leave_decision", (args) => {
+    const rows = groupRows(args.p_group_id)
+    if (rows.length === 0) throw new Error("Leave application not found.")
+    const previousStatus = rows[0].status
+    if (previousStatus === "PENDING") throw new Error("Leave is already pending.")
+
+    const updated = rows.map((row) =>
+      updateRow(table, row, {
+        status: "PENDING",
+        hr_notes: null,
+        hr_processed_by: null,
+        hr_processed_at: null,
+        approval_hash: null,
+        hr_signature_version: null,
+        hr_signature_timestamp: null,
+      }),
+    )
+    return {
+      rows: updated,
+      employee_id: rows[0].employee_id,
+      total_hours: totalHours(rows),
+      dates: updated.map((row) => row.date),
+      previous_status: previousStatus,
+    }
+  })
+
+  stubRpc("cancel_lwop_leave", (args) => {
+    const clicked = findRow(table, args.p_leave_id)
+    if (!clicked) throw new Error("Leave application not found.")
+    if (clicked.employee_id !== args.p_employee_id) throw new Error("Unauthorized")
+    if (clicked.status === "REJECTED" || clicked.status === "CANCELLED") {
+      throw new Error("Cannot withdraw this request.")
+    }
+
+    const rows = groupRows(clicked.leave_group_id)
+    const firstDate = rows.map((row) => row.date).sort()[0]
+    if (clicked.status === "APPROVED" && firstDate < manilaToday()) {
+      throw new Error(
+        `This leave started on ${firstDate} and has already been taken, so it cannot be withdrawn. Ask HR to undo the approval if the leave was not actually taken.`,
+      )
+    }
+
+    const updated = rows.map((row) => updateRow(table, row, { status: "CANCELLED" }))
+    return {
+      rows: updated,
+      employee_id: clicked.employee_id,
+      group_id: clicked.leave_group_id,
+      total_hours: totalHours(rows),
+      dates: updated.map((row) => row.date),
+      previous_status: clicked.status,
+    }
   })
 }

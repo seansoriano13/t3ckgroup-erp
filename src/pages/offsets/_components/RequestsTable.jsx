@@ -105,7 +105,10 @@ export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
                   )}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge theme={getRequestStageTheme(stage.tone)} label={stage.label} />
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <StatusBadge theme={getRequestStageTheme(stage.tone)} label={stage.label} />
+                    {req.recorded_by_hr && <StatusBadge theme={getRequestStageTheme('neutral')} label="Recorded by HR" />}
+                  </div>
                 </TableCell>
                 <TableCell className="text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
                   {stage.note || '—'}

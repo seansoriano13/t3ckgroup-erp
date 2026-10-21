@@ -18,6 +18,7 @@ import { buildTransmittalViewModel } from './transmittalViewModel';
 import { buildTsrViewModel } from './tsrViewModel';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
+import { lwopService } from '../../services/lwopService';
 
 const FORM_TYPES = {
   SIL: {
@@ -27,6 +28,11 @@ const FORM_TYPES = {
   OFFSET: {
     buildViewModel: buildTG11ViewModel,
     markPrinted: (record, hrId) => offsetService.markOffsetLeavesPrinted({ id: record.id, groupId: record.leave_group_id, hrId }),
+  },
+  // #621: LWOP prints on the same TG-11 and keeps the LV prefix; it stamps its own table.
+  LWOP: {
+    buildViewModel: buildTG11ViewModel,
+    markPrinted: (record, hrId) => lwopService.markLwopLeavesPrinted({ id: record.id, groupId: record.leave_group_id, hrId }),
   },
   OVERTIME: {
     buildViewModel: buildTG12ViewModel,

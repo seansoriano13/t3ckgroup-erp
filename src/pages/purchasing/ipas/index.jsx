@@ -1,3 +1,4 @@
+import { manilaToday } from "@/lib/manilaDate.js";
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -200,7 +201,7 @@ function IpasList() {
 
   // The rows shown, in the order shown, as the sheet's columns. Only what the list itself shows.
   const exportToExcel = () => {
-    downloadXlsx(`ipas-${new Date().toISOString().slice(0, 10)}.xlsx`, {
+    downloadXlsx(`ipas-${manilaToday()}.xlsx`, {
       sheetName: "IPAS",
       header: IPAS_EXPORT_HEADER,
       rows: ipasExportRows(visible),

@@ -1,5 +1,6 @@
 import {
   LayoutList,
+  CalendarDays,
   ListCheck,
   ListTodo,
   Clock,
@@ -53,6 +54,15 @@ export const NAV_MODULES = {
         label: "My Requests",
         link: "/offsets",
         icon: Clock,
+        isPermitted: () => true,
+      },
+      // The company-wide Calendar, for everyone (ADR 0037). The server decides
+      // what each viewer may see on it.
+      {
+        key: "workspace.calendar",
+        label: "Calendar",
+        link: "/calendar",
+        icon: CalendarDays,
         isPermitted: () => true,
       },
       // What changed in the ERP, for everyone (ADR 0030). The What's new
@@ -269,11 +279,21 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
-        label: "Leave Approvals",
+        label: "Time Off & Overtime",
         link: "/approvals/leaves",
         icon: Clock,
         badgeKey: "leaveApprovals",
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead,
+        exactMatch: true,
+      },
+      {
+        // Meeting Requests (#624): the head step and HR's final say.
+        key: "approvals.meetings",
+        label: "Meeting Requests",
+        link: "/approvals/meetings",
+        icon: Clock,
+        badgeKey: "meetingApprovals",
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead || ctx.isHr,
         exactMatch: true,
       },
       {
@@ -334,7 +354,7 @@ export const NAV_MODULES = {
       },
       {
         key: "hr.leavesManager",
-        label: "Leaves Manager",
+        label: "Time Off & Overtime",
         link: "/hr/offsets",
         icon: Clock,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.canManageLeaves,
@@ -440,8 +460,15 @@ export const QUICK_ACTIONS = [
       {
         id: "offset",
         key: "quick.offset",
-        label: "Apply Leave / Overtime",
+        label: "File Time Off / Overtime",
         icon: Clock,
+        isPermitted: () => true,
+      },
+      {
+        id: "meeting-request",
+        key: "quick.meetingRequest",
+        label: "New Meeting Request",
+        icon: UsersRound,
         isPermitted: () => true,
       },
     ],

@@ -532,6 +532,7 @@ describe("offsetService", () => {
       for (const row of updated) {
         expect(row.approval_hash).toBeTruthy()
         expect(row.hr_processed_by).toBe(hr.id)
+        expect(row.hr_processed_at).toEqual(expect.any(String))
       }
     })
 
@@ -659,10 +660,12 @@ describe("offsetService", () => {
         hrId: hr.id,
       })
       expect(findRow("overtime_requests", request.id).hr_processed_by).toBe(hr.id)
+      expect(findRow("overtime_requests", request.id).hr_processed_at).toEqual(expect.any(String))
 
       const reverted = await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
 
       expect(reverted.hr_processed_by).toBeNull()
+      expect(reverted.hr_processed_at).toBeNull()
     })
 
     it("records what the decision used to be in the audit trail", async () => {

@@ -45,6 +45,7 @@ import BroadcastModal from "./BroadcastModal";
 import RoleSwitcher from "./RoleSwitcher";
 import { Clock } from "lucide-react";
 import ApplyLeaveModal from "./offsets/ApplyLeaveModal";
+import MeetingRequestDialog from "./calendar/MeetingRequestDialog";
 import OpportunityFormModal from "./sor/OpportunityFormModal";
 import NewPurchaseRequestDialog from "./purchase-request/NewPurchaseRequestDialog";
 import { opportunityService } from "../services/opportunityService";
@@ -66,6 +67,7 @@ export default function SideNav() {
     if (actionId === "task") setIsLogTaskOpen(true);
     else if (actionId === "group-task") setIsCreateGroupOpen(true);
     else if (actionId === "offset") setIsApplyOffsetOpen(true);
+    else if (actionId === "meeting-request") setIsMeetingRequestOpen(true);
     else if (actionId === "sor") setIsOpportunityOpen(true);
     else if (actionId === "purchase-request") setIsPurchaseRequestOpen(true);
   };
@@ -76,6 +78,7 @@ export default function SideNav() {
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [isApplyOffsetOpen, setIsApplyOffsetOpen] = useState(false);
+  const [isMeetingRequestOpen, setIsMeetingRequestOpen] = useState(false);
   const [isOpportunityOpen, setIsOpportunityOpen] = useState(false);
   const [isPurchaseRequestOpen, setIsPurchaseRequestOpen] = useState(false);
 
@@ -616,6 +619,7 @@ export default function SideNav() {
           // You could optionally refetch globally here, or let the local pages handle their own refetch on mount/focus.
         }}
       />
+      <MeetingRequestDialog open={isMeetingRequestOpen} onClose={() => setIsMeetingRequestOpen(false)} />
       <OpportunityFormModal
         isOpen={isOpportunityOpen}
         onClose={() => setIsOpportunityOpen(false)}
