@@ -9,6 +9,7 @@ const TITLES = [
   ["/approvals/hr-verification", "HR Verification"],
   ["/approvals/ipas", "IPAS Sign-offs"],
   ["/approvals/leaves", "Time Off & Overtime"],
+  ["/approvals/meetings", "Meeting Requests"],
   ["/approvals/tasks", "Task Approvals"],
   ["/approvals/transmittals", "Transmittal Check by"],
   ["/approvals", "Approvals"],

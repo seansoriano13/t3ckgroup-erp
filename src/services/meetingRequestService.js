@@ -30,6 +30,16 @@ export const MEETING_STATUS_LABEL = {
   CANCELLED: 'Cancelled',
 };
 
+const DECISION_VERB = {
+  HEAD_APPROVED: 'approved as department head',
+  HEAD_DECLINED: 'declined',
+  HEAD_RETURNED: 'returned',
+  HR_APPROVED: 'approved',
+  HR_DECLINED: 'declined',
+  HR_RETURNED: 'returned',
+  HR_OVERRIDE: 'skipped the head step on',
+};
+
 const EXCLUSION_VIOLATION = '23P01';
 const REQUEST_SELECT = `*,
   venue:calendar_venues(id, name),
@@ -250,5 +260,106 @@ export const meetingRequestService = {
     const byId = new Map();
     for (const row of [...applied.data, ...facilitated.data, ...invited.data]) byId.set(row.id, row);
     return [...byId.values()].sort((a, b) => String(b.starts_at).localeCompare(String(a.starts_at)));
+  },
+
+  /**
+   * Requests waiting on the signed-in person's step (#624). A head sees the PENDING_HEAD ones
+   * routed to them; HR and Super Admins see PENDING_HR plus every PENDING_HEAD (which they may
+   * override). Nobody is shown their own request.
+   */
+  async listPendingForApprover({ employeeId, isHr = false, isSuperAdmin = false } = {}) {
+    let query = supabase.from('meeting_requests').select(REQUEST_SELECT).order('created_at');
+    if (isHr || isSuperAdmin) query = query.in('status', [MEETING_STATUS.PENDING_HEAD, MEETING_STATUS.PENDING_HR]);
+    else query = query.eq('status', MEETING_STATUS.PENDING_HEAD).eq('head_id', employeeId);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data ?? []).filter((r) => r.applicant_id !== employeeId);
+  },
+
+  /** The count behind the sidebar badge (same filter as the queue). */
+  async countPendingForApprover(args) {
+    return (await this.listPendingForApprover(args)).length;
+  },
+
+  /** decision: 'APPROVE' | 'DECLINE' | 'RETURN'. Decline and return need a note. */
+  async decide({ requestId, decision, note = '', actor }) {
+    const { data, error } = await supabase.rpc('decide_meeting_request', {
+      p_request_id: requestId,
+      p_decision: decision,
+      p_note: note || null,
+    });
+    if (error) throw new Error(error.message);
+    await this.afterDecision(data, { note, actor });
+    return data;
+  },
+
+  /** HR skips a pending head step. A reason is required. */
+  async overrideHead({ requestId, reason, actor }) {
+    const { data, error } = await supabase.rpc('override_meeting_request_head', {
+      p_request_id: requestId,
+      p_reason: reason,
+    });
+    if (error) throw new Error(error.message);
+    await this.afterDecision(data, { note: reason, actor });
+    return data;
+  },
+
+  /**
+   * Notifications and the audit line for one transition. The event row was written by the database;
+   * this mirrors it into the system audit log under MEETING_REQUEST.
+   *   - HR, when it reaches the HR step
+   *   - the applicant, on every decision and return
+   *   - the Facilitator and Participants, when it is approved
+   */
+  async afterDecision(result, { note = '', actor } = {}) {
+    const request = await this.getRequest(result.id);
+    const venue = request.venue?.name ?? 'a Venue';
+    const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+    const actorName = actor?.name ?? 'Someone';
+    const senderId = actor?.id ?? null;
+    const verb = DECISION_VERB[result.action] ?? 'updated';
+    const withNote = note ? ` Note: ${note}` : '';
+
+    if (result.to_status === MEETING_STATUS.PENDING_HR) {
+      await notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
+        type: 'MEETING_REQUEST',
+        title: 'Meeting Request awaiting HR',
+        message: `${request.applicant?.name ?? 'An employee'} requested ${venue}, ${when}: ${request.purpose}`,
+        reference_id: request.id,
+        sender_id: senderId,
+      });
+    }
+
+    await notificationService.createNotification({
+      recipient_id: request.applicant_id,
+      sender_id: senderId,
+      type: 'MEETING_REQUEST_DECISION',
+      title: `Meeting Request ${MEETING_STATUS_LABEL[result.to_status]?.toLowerCase() ?? 'updated'}`,
+      message: `${actorName} ${verb} your Meeting Request for ${venue}, ${when}.${withNote}`,
+      reference_id: request.id,
+    });
+
+    if (result.to_status === MEETING_STATUS.APPROVED) {
+      const invited = new Set([request.facilitator_id, ...(request.participants ?? []).map((p) => p.employee_id)]);
+      invited.delete(request.applicant_id);
+      for (const recipient_id of invited) {
+        await notificationService.createNotification({
+          recipient_id,
+          sender_id: senderId,
+          type: 'MEETING_APPROVED',
+          title: 'Meeting approved',
+          message: `${venue}, ${when}: ${request.purpose}`,
+          reference_id: request.id,
+        });
+      }
+    }
+
+    await this.mirrorEvent({
+      request,
+      action: result.action,
+      content: `${actorName} ${verb} the Meeting Request for ${venue}, ${when}.${withNote}`,
+      authorId: senderId,
+      metadata: { event: `MEETING_REQUEST_${result.action}`, from: result.from_status, to: result.to_status, note: note || null },
+    });
   },
 };
