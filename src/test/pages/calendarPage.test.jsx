@@ -80,6 +80,16 @@ describe("Calendar page", () => {
     expect(JSON.parse(window.localStorage.getItem("calendar.layers")).overtime).toBe(false);
   });
 
+  it("shows an approved LWOP in the month view and hides it when Time Off is off", async () => {
+    const user = userEvent.setup();
+    mocks.entries = [entry("LWOP", "l", "Lia Gomez")];
+    renderPage();
+    const cell = await screen.findByTestId(`day-${day}`);
+    expect(await within(cell).findByText(/Lia Gomez .+ LWOP/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Time Off" }));
+    expect(screen.queryByText(/Lia Gomez .+ LWOP/)).toBeNull();
+  });
+
   it("still works when browser storage throws", async () => {
     const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("blocked");

@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarDays, Hourglass, Timer, Users } from 'lucide-react';
+import { CalendarClock, CalendarDays, CalendarOff, Hourglass, Timer, Users } from 'lucide-react';
 
 /**
  * The Calendar's entry-kind registry (ADR 0037). One entry per `kind` the
@@ -36,6 +36,13 @@ export const ENTRY_KINDS = {
     icon: CalendarClock,
     chip: 'bg-blue-2 text-blue-11 border-blue-6',
     dot: 'bg-blue-9',
+  },
+  LWOP: {
+    layer: 'timeOff',
+    label: 'LWOP',
+    icon: CalendarOff,
+    chip: 'bg-pink-2 text-pink-11 border-pink-6',
+    dot: 'bg-pink-9',
   },
   UNDERTIME: {
     layer: 'timeOff',
