@@ -737,13 +737,15 @@ _Avoid_: Pro-forma, Invoice (unqualified, which is the supplier's final bill)
 
 **Filing**:
 The last sign-off on an IPAS — section 4's Approved, given once Finance has
-received the IPAS and it has been noted and checked, and only after sections 1
-and 2 are approved and the Computation status is LC Odoo Done, since filing
-freezes a Landed Cost that would otherwise still be provisional. A filed IPAS is frozen: its copy of the Odoo purchase order,
+received the IPAS and it has been noted and checked, and only after sections 1,
+2 and 3 are approved and the Computation status is LC Odoo Done, since filing
+freezes a Landed Cost that would otherwise still be provisional. Section 4 does
+not open until sections 1, 2 and 3 are all approved; sign-offs already given on
+an IPAS before the gate existed stay, and only the ones still to be given wait. A filed IPAS is frozen: its copy of the Odoo purchase order,
 its payments and charges, its Purpose and its SORs no longer change. Earlier
 approvals block nothing; filing is the one point that locks. Required documents
 that nobody has ticked only warn. A Super Admin can reopen a filed IPAS with a
-reason, which clears section 4 and leaves sections 1 and 2 approved; a filed IPAS
+reason, which clears section 4 and leaves sections 1, 2 and 3 approved; a filed IPAS
 can't be cancelled until it is reopened.
 _Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 2)
 
@@ -752,12 +754,12 @@ A signer on the section's approval list sends the section back to its preparer
 with a reason, to be redone: the section's Prepared and Approved sign-offs are
 cleared and kept as history, the section's data is untouched. Offered while the
 section is prepared and not yet approved; once approved the move is Undo
-approval. Returning section 1 or 2 after section 4 has begun also clears section
+approval. Section 3 can be returned too. Returning section 1, 2 or 3 after section 4 has begun also clears section
 4's open sign-offs, which the signer confirms first, naming who gave them.
 _Avoid_: Send back, Reject, Reopen (that is a filed IPAS)
 
 **Undo approval**:
-A signer on the section's approval list takes back an Approved on section 1 or 2
+A signer on the section's approval list takes back an Approved on section 1, 2 or 3
 with a reason. Only the Approved sign-off is cleared; the Prepared stays, so the
 section waits for an approver again and the preparer redoes nothing. Same
 section 4 consequence and confirmation as a Return.
@@ -778,11 +780,21 @@ _Avoid_: Payment status, Progress
 
 **Computation status**:
 Where an IPAS's cost work stands, in order: Encoding, Encoded, LC GS Done, LC
-Odoo Done, Checked by. Purchasing moves it up to LC Odoo Done (Landed Cost goes
-final there, which is what Filing waits on) and never gives Checked by; Finance,
-or a Super Admin who is not in Purchasing, gives and takes back Checked by. Shown
-on the record, the IPAS list (with a filter) and the printed IPAS.
-_Avoid_: Costs complete (the old name for LC Odoo Done), Costing status
+Odoo Done. Only Purchasing moves it (one step either way); Landed Cost goes final
+at LC Odoo Done, which is also when section 3 can be submitted. The old last step,
+Checked by, is gone: section 3's sign-off is the check. Shown on the record, the
+IPAS list (with a filter, plus "Section 3 approved") and the printed IPAS.
+_Avoid_: Costs complete (the old name for LC Odoo Done), Costing status, Checked by (the old step)
+
+**Section 3 sign-off**:
+The sign-off on an IPAS's Computation status & Landed Cost part, with Submitted
+and Approved like sections 1 and 2. Purchasing submits it once the Computation
+status is LC Odoo Done; a member of the "Section 3 Approved" list approves it,
+never the person who submitted it, and a Super Admin only if listed. The database
+stores it as sign-off section 6 and shows it as section 3 (`ipasSectionNo` is the
+one mapping). The list starts with everyone who has Finance access. "Checked" now
+means only section 4's Checked step.
+_Avoid_: Checked by, Costing approval
 
 **Finance access**:
 Who counts as Finance — granted per employee by its own access flag, the way
@@ -798,6 +810,9 @@ bank's charge fee on a payment. Its kinds come from a list the business edits.
 Every charge counts toward Landed Cost, spread over the purchase's lines; a
 charge that covers several purchases is recorded as each one's share. Shipping
 fees paid to the supplier are payments, not charges, but count the same way.
+Adding, changing or removing a charge or payment never clears an IPAS's section 1
+or 2 approval. Its one exception is section 3, which vouches for the Landed Cost:
+a change that moves the Landed Cost clears section 3's Submitted and Approved.
 _Avoid_: Fee (unqualified), Expense, Importation (as a noun)
 
 **Transmittal**:
@@ -890,7 +905,8 @@ same way for Local and Import purchases. The unit price is the purchase order's,
 before VAT and withholding, turned into PHP at the rate actually paid so far;
 Charges and shipping fees are spread over the order's lines. Provisional until
 the IPAS's Computation status reaches LC Odoo Done, final after. The basis every
-markup and income figure is taken from.
+markup and income figure is taken from. Section 3's approval vouches for one
+Landed Cost: when it changes, section 3 is cleared and approved again.
 _Avoid_: Cost, Unit Cost, Acquire Cost, Local Cost
 
 **PMS (Purchasing Monitoring System)**:

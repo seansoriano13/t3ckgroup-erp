@@ -1,3 +1,14 @@
+import { TRANSMITTAL_STAFF_LIST } from "../constants/transmittals";
+
+/** The Transmittal staff list keys the person is on, for `standingLabel` (#588). */
+export function transmittalListsOf(ctx) {
+  return [
+    ctx.isTransmittalWarehouse && TRANSMITTAL_STAFF_LIST.WAREHOUSE,
+    ctx.isTransmittalTechnical && TRANSMITTAL_STAFF_LIST.TECHNICAL,
+    ctx.isTransmittalCheckBy && TRANSMITTAL_STAFF_LIST.CHECK_BY,
+  ].filter(Boolean);
+}
+
 /**
  * The one place that answers what the current person may do.
  *
@@ -25,6 +36,8 @@ export function getPermissionContext(user) {
   const isTransmittalWarehouse = !!(user?.is_transmittal_warehouse ?? user?.isTransmittalWarehouse);
   // On the Transmittal Check by list (#254): the Approval Center's Check by queue.
   const isTransmittalCheckBy = !!(user?.is_transmittal_check_by ?? user?.isTransmittalCheckBy);
+  // On the Transmittal Technical list (#588): owes the Technical checking stage.
+  const isTransmittalTechnical = !!(user?.is_transmittal_technical ?? user?.isTransmittalTechnical);
   // On the Costing Matrix's Final Acquire list (#320); with Super Admin, decides Bid Decisions.
   const isFinalAcquire = !!(user?.is_final_acquire ?? user?.isFinalAcquire);
   const isBidDecider = isSuperAdmin || isFinalAcquire;
@@ -50,6 +63,7 @@ export function getPermissionContext(user) {
     isTransmittalStaff,
     isTransmittalWarehouse,
     isTransmittalCheckBy,
+    isTransmittalTechnical,
     isFinalAcquire,
     isBidDecider,
     hasRetailAccess,

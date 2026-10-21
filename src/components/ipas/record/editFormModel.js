@@ -17,6 +17,7 @@ import {
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
 import { isIsoDate, parseAmountInput } from "@/utils/ipasPayments";
+import { isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { isPhpCurrency } from "@/utils/landedCost";
 
 /** The sections of the form, in reading order: Header, then 1 to 7 as on the record. */
@@ -294,7 +295,21 @@ export function missingFields(form) {
   return requiredFields(form).filter((field) => !field.filled);
 }
 
-/** [{ key, title, total, left, done }] for every section. */
+/**
+ * Whether an optional section (no required fields) has something in it. Costing
+ * counts only once Landed Cost is final, Filing never (it holds only sign-offs).
+ * The spread default and an unticked box are not values.
+ */
+function sectionFilled(form, key) {
+  if (key === "filing") return false;
+  if (key === "costing") return isLandedCostFinal(form.computationStatus);
+  const has = (value) => value === true || (typeof value !== "boolean" && !blank(value));
+  if (OWNS[key].some((field) => has(form[field]))) return true;
+  if (key === "finance") return form.documents.length > 0;
+  return false;
+}
+
+/** [{ key, title, total, left, done, filled }] for every section; `filled` is for optional ones. */
 export function sectionProgress(form) {
   const all = requiredFields(form);
   return FORM_SECTIONS.map((section) => {
@@ -306,6 +321,7 @@ export function sectionProgress(form) {
       total: mine.length,
       left,
       done: mine.length - left,
+      filled: mine.length === 0 && sectionFilled(form, section.key),
     };
   });
 }

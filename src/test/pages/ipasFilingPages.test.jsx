@@ -98,12 +98,14 @@ describe("IPAS section 7 and Filing", () => {
     stubIpasRpcs({ actorId: person.id, purchasing: Boolean(person.has_purchasing_flow), ...opts });
   };
 
-  /** Sections 1 and 3 prepared by the purchaser and approved by the boss. */
+  /** Sections 1, 2 and 3 (stored 1, 3 and 6) prepared by the purchaser and approved by the boss. */
   const approvedFirstSections = (row) => {
     signoff(row.id, 1, "prepared", purchaser);
     signoff(row.id, 1, "approved", boss);
     signoff(row.id, 3, "prepared", purchaser);
     signoff(row.id, 3, "approved", boss);
+    signoff(row.id, 6, "prepared", purchaser);
+    signoff(row.id, 6, "approved", boss);
   };
   const givenThroughChecked = (row) => {
     signoff(row.id, 7, "received", receiver);
@@ -143,7 +145,7 @@ describe("IPAS section 7 and Filing", () => {
   });
 
   describe("on the IPAS page", () => {
-    it("shows section 7 waiting for sections 1 and 3, with nothing to give", async () => {
+    it("shows section 7 waiting for sections 1, 2 and 3, with nothing to give", async () => {
       const row = ipas();
       signoff(row.id, 1, "prepared", purchaser);
       signoff(row.id, 1, "approved", boss);
@@ -152,9 +154,9 @@ describe("IPAS section 7 and Filing", () => {
       renderDetail(row.id, "filing");
 
       const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).getAllByText("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved.")).toHaveLength(4);
+      expect(within(filing).getAllByText("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved.")).toHaveLength(4);
       expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.getAllByText("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved").length).toBeGreaterThan(0);
     });
 
     it("offers Received to its list, then Noted and Checked, each only to its own list", async () => {
@@ -170,7 +172,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(within(drawer).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
 
       await user.click(within(drawer).getByRole("button", { name: /Receive/ }));
-      await confirmMove(user, "Receive section 4 · Filing", "Receive");
+      await confirmMove(user, "Receive section 4", "Receive");
 
       await waitFor(() =>
         expect(within(screen.getByTestId("ipas-signoff-7-received")).getByText("Rita Receiver")).toBeInTheDocument(),
@@ -192,9 +194,9 @@ describe("IPAS section 7 and Filing", () => {
 
       renderDetail(row.id, "filing");
       const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
-      await user.click(within(drawer).getByRole("button", { name: "Return section 4 · Filing" }));
+      await user.click(within(drawer).getByRole("button", { name: "Return section 4" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Return section 4 · Filing?" });
+      const dialog = await screen.findByRole("dialog", { name: "Return section 4?" });
       const submit = within(dialog).getByRole("button", { name: "Return" });
       expect(submit).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Landed cost is off");

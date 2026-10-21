@@ -96,7 +96,7 @@ async function fileWith(o) {
     must("freight", await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { freight_service_id: o.freight.id } }))
     must("location", await rpc("outsider", "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: o.location.id }))
     must("status", await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { computation_status: "lc_odoo_done" } }))
-    for (const section of [1, 3]) {
+    for (const section of [1, 3, 6]) {
         await signOk("outsider", ipas.id, section, "prepared")
         await signOk("ipasSigner", ipas.id, section, "approved")
     }
@@ -115,7 +115,7 @@ beforeAll(async () => {
     must("flag", await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider))
     must("lists clear", await svc().from("ipas_signer_lists").delete().in("employee_id", CAST_IDS()))
     for (const [key, who] of [
-        ["s1_approved", "ipasSigner"], ["s3_approved", "ipasSigner"], ["s7_received", "finance"],
+        ["s1_approved", "ipasSigner"], ["s3_approved", "ipasSigner"], ["s6_approved", "ipasSigner"], ["s7_received", "finance"],
         ["s7_noted", "ordinary"], ["s7_checked", "support"], ["s7_approved", "ipasSigner"],
     ]) await onList(key, who)
 

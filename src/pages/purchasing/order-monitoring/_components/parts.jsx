@@ -1,6 +1,9 @@
 /** Small pieces both Order Monitoring views draw the same way. */
 
 import { pluralize } from "../../../../utils/plural";
+import { useAuth } from "../../../../context/AuthContext";
+import { getPermissionContext, transmittalListsOf } from "../../../../utils/permissions";
+import { standingLabel } from "../../../../utils/orderStanding";
 import { formatDateWith } from "../../../../utils/formatDate";
 import { DEADLINE_MARK } from "../../../../utils/deliveryDeadline";
 
@@ -20,10 +23,12 @@ export function WaitCell({ row }) {
 
 /** The one next thing, and for an Import waiting on Delivered its latest Supplier Origin date. */
 export function NextThing({ row }) {
+  const { user } = useAuth();
   const detail = row.next?.detail;
+  const label = standingLabel(row.next, transmittalListsOf(getPermissionContext(user)));
   return (
     <>
-      <div className={row.late ? "font-medium text-destructive" : "font-medium"}>{row.next?.label}</div>
+      <div className={row.late ? "font-medium text-destructive" : "font-medium"}>{label}</div>
       {detail && (
         <div className="text-xs text-muted-foreground">
           Latest supplier date: {detail.label}, {detail.on}

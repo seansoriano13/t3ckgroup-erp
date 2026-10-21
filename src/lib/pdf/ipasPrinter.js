@@ -49,7 +49,7 @@ function blobToDataUrl(blob) {
  * one whose file can't be fetched falls back to the name too, and says so.
  */
 export async function hydrateIpasSignatures(vm) {
-  const boxes = [...vm.section1.signoffs, ...vm.section3.signoffs, ...vm.section7.signoffs];
+  const boxes = vm.signoffRows.flatMap((row) => row.boxes);
   const images = new Map();
 
   await Promise.all(

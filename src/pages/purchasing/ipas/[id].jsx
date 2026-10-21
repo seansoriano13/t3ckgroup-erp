@@ -71,7 +71,10 @@ import {
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TYPED_STATUS,
   IPAS_TYPED_STATUS_LABELS,
+  IPAS_UNDO_APPROVAL_SECTIONS,
   ipasSectionLabel,
+  ipasSectionNo,
+  ipasSectionWord,
 } from "../../../constants/ipas";
 
 const HEADER_LABELS = {
@@ -637,7 +640,7 @@ function IpasPage({ onClose }) {
           await once("bank", async () => {
             const result = await ipasService.setBankDetails(id, plan.bank);
             if (result.flagged && result.accountChanged) {
-              toast.error("Account # differs from this supplier's last IPAS. It is flagged and its approvals were cleared.", {
+              toast.error(`Account # differs from this supplier's last IPAS. It is flagged and its ${ipasSectionWord(3)} approval was cleared.`, {
                 duration: 8000,
               });
             }
@@ -705,6 +708,11 @@ function IpasPage({ onClose }) {
     mutationFn: ({ filingCopy, printWindow }) =>
       printIpas(id, { printWindow, filingCopy, printedBy: user?.name ?? null }),
     onError: (error) => toast.error(error?.message || "The IPAS couldn't be printed."),
+    // Printing refreshes from Odoo and may write events; reload so the form's version is current (#585).
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ipasKey(id) });
+      queryClient.invalidateQueries({ queryKey: ipasListKey });
+    },
   });
   const startPrint = (filingCopy) => {
     const printWindow = openPrintWindow();
@@ -753,7 +761,7 @@ function IpasPage({ onClose }) {
   const canTickFinance = hasFinanceFlow && open;
   const digest = digestIpas(ipas);
 
-  // The sign-offs of sections 1 and 3: what this person may do on each.
+  // The sign-offs of sections 1, 2 and 3 (stored 1, 3 and 6): what this person may do on each.
   const sectionRights = (section) =>
     signoffRights({
       section,
@@ -762,6 +770,7 @@ function IpasPage({ onClose }) {
       hasPurchasingFlow,
       lists: signerLists,
       ipasState: ipas.state,
+      computationStatus: ipas.computationStatus,
     });
 
   // Section 7: what this person may give, from where it stands.
@@ -810,13 +819,14 @@ function IpasPage({ onClose }) {
       return signed ? `${IPAS_SIGNOFF_ROLE_LABELS[role]} by ${signed.signedBy?.name ?? "someone"}` : null;
     })
     .filter(Boolean);
-  const returnTargets = [1, 3]
+  const returnTargets = IPAS_UNDO_APPROVAL_SECTIONS
     .filter((section) => sectionRights(section).returnMode)
     .map((section) => {
       const undo = sectionRights(section).returnMode === "undo";
       return {
         section,
         mode: undo ? "undo" : "return",
+        no: ipasSectionNo(section),
         label: ipasSectionLabel(section),
         effect: undo
           ? "Takes back the approval only. Submitted stays, so it waits for an approver again."
@@ -828,8 +838,9 @@ function IpasPage({ onClose }) {
     returnTargets.push({
       section: 7,
       mode: "return",
+      no: ipasSectionNo(7),
       label: ipasSectionLabel(7),
-      effect: `Clears Received, Noted and Checked and tells who gave them. Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved.`,
+      effect: `Clears Received, Noted and Checked and tells who gave them. Sections ${ipasSectionLabel(1)}, ${ipasSectionLabel(3)} and ${ipasSectionLabel(6)} stay approved.`,
       placeholder: "What needs fixing before it is filed?",
       clears: [],
     });
@@ -882,14 +893,12 @@ function IpasPage({ onClose }) {
       change: canChange,
       record: canRecord,
       tickFinance: canTickFinance,
-      // Purchasing or Finance, or a Super Admin, may give Checked by (the rest of the steps are Purchasing's).
-      check: open && (hasPurchasingFlow || hasFinanceFlow || isSuperAdmin),
-      setStatus: (from, to) =>
-        open && canSetComputationStatus({ from, to, hasPurchasingFlow, hasFinanceFlow, isSuperAdmin }),
+      // Only Purchasing moves the Computation status; section 3's sign-off is the check.
+      setStatus: (from, to) => open && canSetComputationStatus({ from, to, hasPurchasingFlow }),
       reopen: isSuperAdmin && filed,
       printFiling: filed && ipas.canReadBankDetails,
     },
-    rights: { 1: sectionRights(1), 3: sectionRights(3), 7: filingRights, sendBack7: canReturnSection7 },
+    rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, sendBack7: canReturnSection7 },
     busy: {
       signoff: signoff.isPending || returnSection.isPending,
       give: give.isPending || returnSection.isPending,
@@ -925,7 +934,7 @@ function IpasPage({ onClose }) {
       ipas={ipas}
       blocks={blocks}
       can={ctx.can}
-      canSave={canChange || canRecord || canTickFinance || ctx.can.check}
+      canSave={canChange || canRecord || canTickFinance}
       savedCount={savedCount}
       onRemoveSaved={(type, row) => setRemoving({ type, row })}
       onRemoveDocument={setRemovingDocument}
@@ -967,6 +976,11 @@ function IpasPage({ onClose }) {
         headerActions={<HeaderActions ctx={ctx} />}
       >
         <p className="text-sm text-muted-foreground">{[ipas.po_number, ipas.supplier].filter(Boolean).join(" · ")}</p>
+        {open && (hasPurchasingFlow || isSuperAdmin) && (
+          <p className="text-xs text-muted-foreground" data-testid="ipas-wrong-po-hint">
+            Wrong PO? Cancel this IPAS and raise a new one.
+          </p>
+        )}
         <div className="space-y-6">
           {/* Keyboard users skip the figures and sections to the card; hidden until focused. */}
           {!editKey && (
@@ -1078,7 +1092,7 @@ function IpasPage({ onClose }) {
         open={reopening}
         onOpenChange={setReopening}
         title={`Reopen ${ipas.number}?`}
-        description={`It returns to open and the sign-offs of section ${ipasSectionLabel(7)} are cleared (the history keeps them). Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved. Filing it again takes section ${ipasSectionLabel(7)} from Received.`}
+        description={`It returns to open and the sign-offs of section ${ipasSectionLabel(7)} are cleared (the history keeps them). Sections ${ipasSectionLabel(1)}, ${ipasSectionLabel(3)} and ${ipasSectionLabel(6)} stay approved. Filing it again takes section ${ipasSectionLabel(7)} from Received.`}
         placeholder="Why is this filed IPAS being reopened?"
         submitLabel="Reopen"
         busyLabel="Reopening…"

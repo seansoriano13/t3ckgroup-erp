@@ -69,9 +69,10 @@ describe("shapeIpasSummary", () => {
     expect(summary.signoffs.map((s) => [s.section, s.done, s.total])).toEqual([
       [1, 2, 2],
       [3, 0, 2],
+      [6, 0, 2],
       [7, 2, 4],
     ])
-    expect(summary.signoffs[2].steps.map((s) => s.label)).toEqual(["Received", "Noted", "Checked", "Filed"])
+    expect(summary.signoffs[3].steps.map((s) => s.label)).toEqual(["Received", "Noted", "Checked", "Filed"])
   })
 
   it("never throws on a half-formed row", () => {
@@ -92,7 +93,7 @@ describe("shapeIpasSummaries / signoffProgress", () => {
     expect(shapeIpasSummaries(undefined)).toEqual([])
   })
 
-  it("lists sections 1, 3 and 7", () => {
-    expect(signoffProgress(undefined).map((s) => s.section)).toEqual([1, 3, 7])
+  it("lists stored sections 1, 3, 6 and 7", () => {
+    expect(signoffProgress(undefined).map((s) => s.section)).toEqual([1, 3, 6, 7])
   })
 })

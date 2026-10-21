@@ -31,7 +31,7 @@ const SIGNOFF_DETAIL = {
 
 /** Section 4's detail beside its state word. */
 const FILING_DETAIL = {
-  [FILING_STATUS.WAITING]: `Opens once ${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")} are approved`,
+  [FILING_STATUS.WAITING]: `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved`,
   [FILING_STATUS.READY]: "Ready to receive",
   [FILING_STATUS.IN_PROGRESS]: "In progress",
   [FILING_STATUS.FILED]: "Filed",
@@ -80,11 +80,13 @@ export function digestIpas(ipas) {
   // Sign-offs.
   const s1 = ipas.signoffSections[1];
   const s3 = ipas.signoffSections[3];
+  const s6 = ipas.signoffSections[6];
   const s7 = ipas.signoffSections[7];
   const costsComplete = isLandedCostFinal(ipas.computationStatus);
   const given7 = IPAS_SECTION_7_ROLES.filter((role) => s7[role]).length;
   const purchasingLabel = ipasSectionLabel("purchasing");
   const financeLabel = ipasSectionLabel("finance");
+  const costingLabel = ipasSectionLabel("costing");
 
   // Paperwork and tracking.
   const documents = ipas.documents ?? [];
@@ -146,10 +148,13 @@ export function digestIpas(ipas) {
       `${track.done} of ${track.total} on the buyer track`,
       track.last ? `latest: ${track.last.label}${track.last.on ? ` ${formatDay(track.last.on)}` : ""}` : null,
     ]),
-    costing: `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[ipas.computationStatus] ?? "not set"}`,
+    costing: join([
+      `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[ipas.computationStatus] ?? "not set"}`,
+      s6.approved ? "approved" : s6.prepared ? "awaiting approval" : null,
+    ]),
     filing: s7.opened
       ? join([`${given7} of 4 sign-offs`, `checklist ${docs.filingTicked + (costsComplete ? 1 : 0)} of ${docs.filingTotal + 1}`])
-      : `Opens once ${purchasingLabel} and ${financeLabel} are approved`,
+      : `Opens once ${purchasingLabel}, ${financeLabel} and ${costingLabel} are approved`,
     history: lastEvent
       ? join([
           plural(events.length, "change", "changes"),
@@ -165,6 +170,7 @@ export function digestIpas(ipas) {
     money,
     s1,
     s3,
+    s6,
     s7,
     given7,
     costsComplete,
@@ -174,7 +180,7 @@ export function digestIpas(ipas) {
     lines,
     lastEvent,
   };
-  // The six gates and which one is Now: computed once here, read by the chain, the card and the rows.
+  // The seven gates and which one is Now: computed once here, read by the chain, the card and the rows.
   return { ...digest, gates: gatesFor(digest) };
 }
 
@@ -220,7 +226,16 @@ export function sectionState(key, digest) {
   if (key === "purchasing") return { state: gate("purchasing").state, detail: SIGNOFF_DETAIL[digest.s1.status] };
   if (key === "finance") return { state: gate("finance").state, detail: SIGNOFF_DETAIL[digest.s3.status] };
   // Its Landed Cost mark (Provisional, Final) is said once, in the section body beside Landed Cost.
-  if (key === "costing") return { state: gate("costs").state, detail: null };
+  // The section is done when both its LC Odoo Done step and its sign-off are.
+  if (key === "costing") {
+    const parts = [gate("costs"), gate("costing-signoff")];
+    const state = parts.every((g) => g.done)
+      ? STATE.DONE
+      : parts.some((g) => g.now)
+        ? STATE.CURRENT
+        : STATE.WAITING;
+    return { state, detail: digest.costsComplete ? SIGNOFF_DETAIL[digest.s6.status] : null };
+  }
   if (key === "filing") {
     const filing = digest.gates.filter((g) => g.part === "filing");
     const state = filing.every((g) => g.done)

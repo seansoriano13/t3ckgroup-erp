@@ -174,3 +174,39 @@ describe("IPAS edit form model", () => {
     });
   });
 });
+
+describe("the stepper's Filled state", () => {
+  const filledOf = (form, key) => sectionProgress(form).find((p) => p.key === key).filled;
+
+  it("marks an optional section filled once a field it owns has a value", () => {
+    const form = formFromIpas(ipas());
+    expect(filledOf(form, "header")).toBe(false);
+    expect(filledOf({ ...form, remarks: "Rush" }, "header")).toBe(true);
+    // An override box counts as filled; the default spread and unticked boxes do not.
+    expect(filledOf(form, "sales")).toBe(true);
+    expect(filledOf({ ...form, analytic: "" }, "sales")).toBe(false);
+    expect(filledOf({ ...form, analytic: "", googleSheet: true }, "sales")).toBe(true);
+    expect(filledOf({ ...form, delivered: "2026-10-01" }, "status")).toBe(true);
+    expect(filledOf({ ...form, actualChecking: true }, "status")).toBe(true);
+  });
+
+  it("counts a stored document in Finance, and bank details", () => {
+    const form = formFromIpas(ipas());
+    expect(filledOf(form, "finance")).toBe(false);
+    expect(filledOf({ ...form, bankName: "BDO" }, "finance")).toBe(true);
+    expect(filledOf({ ...form, documents: [{ ...newDocumentDraft(), id: "d1" }] }, "finance")).toBe(true);
+  });
+
+  it("never marks a section with required fields, or Filing", () => {
+    const form = formFromIpas(ipas({ contact: "R. Cruz", piNumber: "PI-1", piQtAmount: 10, item_location_id: "opt-1" }));
+    expect(filledOf(form, "purchasing")).toBe(false);
+    expect(filledOf(form, "logistics")).toBe(false);
+    expect(filledOf({ ...form, remarks: "x", computationStatus: "lc_odoo_done" }, "filing")).toBe(false);
+  });
+
+  it("marks part 3 only once Landed Cost is final", () => {
+    const form = formFromIpas(ipas());
+    expect(filledOf({ ...form, computationStatus: "encoded" }, "costing")).toBe(false);
+    expect(filledOf({ ...form, computationStatus: "lc_odoo_done" }, "costing")).toBe(true);
+  });
+});

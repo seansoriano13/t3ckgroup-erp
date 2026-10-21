@@ -34,7 +34,7 @@ How they connect:
         (buying outside a project; each Canvass becomes one Requested Item)
    Requested Item "Ordered" + PO number + PO lines ──► IPAS (one per Odoo PO)
                                                           │ payments, charges, bank, documents
-                                                          │ sign-offs 1 and 2, then 4 = Filing
+                                                          │ sign-offs 1, 2 and 3, then 4 = Filing
    IPAS PO lines ◄──── TRANSMITTAL (TG03) ───────────────┘ (Warehouse, Technical, Check by)
         │
         └─ Landed Cost flows back to the Component on the Costing Matrix (read only)
@@ -58,9 +58,9 @@ Three rules that explain many surprises:
 | Who | How they get it | What it gives |
 |---|---|---|
 | Purchasing access | `has_purchasing_flow` flag | Takes and buys requests. Raises and edits IPAS. Edits option lists and ageing rules. Cost-tier view of the Costing Matrix. Reads the Dashboard and Order Monitoring. |
-| Finance access | `has_finance_flow` flag | Reads IPAS and the Dashboard. Records payments and charges. Sees bank details. Ticks "Finance has it". Edits costing rates and Marketing and OPEX. Gives "Checked by" on Computation status. |
-| Super Admin | flag | Almost everything. Sets sign-off lists. Reopens a filed IPAS. Sets the first Transmittal number. Overrides the Reference Rate of any currency. Closed Book view of costing. Gives Checked by only when not also in Purchasing. |
-| IPAS sign-off lists | Super Admin fills `ipas_signer_lists` | Section 1 Approved, section 2 Approved, section 4 Received, Noted, Checked, Approved (screen numbers; see the IPAS part table in section 9). Being on any list also lets you read every IPAS. |
+| Finance access | `has_finance_flow` flag | Reads IPAS and the Dashboard. Records payments and charges. Sees bank details. Ticks "Finance has it". Edits costing rates and Marketing and OPEX. Starts on the section 3 approval list. |
+| Super Admin | flag | Almost everything. Sets sign-off lists. Reopens a filed IPAS. Sets the first Transmittal number. Overrides the Reference Rate of any currency. Closed Book view of costing. |
+| IPAS sign-off lists | Super Admin fills `ipas_signer_lists` | Section 1 Approved, section 2 Approved, section 3 Approved, section 4 Received, Noted, Checked, Approved (screen numbers; see the IPAS part table in section 9). Being on any list also lets you read every IPAS. |
 | Transmittal staff lists | same table | Warehouse, Technical, Logistics, Check by. They read Transmittals, not IPAS (no prices). Check by also signs Canvasses. |
 | Final Acquire list | `costing_signer_lists` | Closed Book view (sees all costing money). Sets Final Acquire and markup. Takes the Bid Decision. **Opens any SOR that has a Costing Matrix**, at any stage, with no mention needed. The access stays after the stage moves. It makes nobody a Deal Team member. |
 | Evaluation list | `costing_signer_lists` | Approves the Evaluation of Specification. **Opens any SOR that has a Costing Matrix** and reads it at the participant tier (specs and compliance, no money). A caller who already has a higher tier keeps it. |
@@ -137,7 +137,7 @@ This is the usual path for a government project. Many steps can overlap, and non
 6. **Stage Conditions** "Costing priced" and "Costing settled" can now pass, so the SOR can leave those stages.
 7. **Ordering in Odoo.** The Requested Item is set to Ordered. A PO number is optional, but without one nothing downstream can link. A PO number is checked against Odoo by the server, and one Odoo does not know is refused.
 8. **Purchasing raises an IPAS** for that PO. It copies the Odoo PO. Payments, charges, bank details and documents are added.
-9. **IPAS sign-offs.** Purchasing prepares sections 1 and 2, then the lists approve them. Then section 4: Received, Noted and Checked, then Approved. Approved files the IPAS and freezes it.
+9. **IPAS sign-offs.** Purchasing prepares sections 1, 2 and 3 (section 3 once the Computation status is LC Odoo Done), then the lists approve them. Then section 4: Received, Noted and Checked, then Approved. Approved files the IPAS and freezes it.
 10. **Goods arrive.** Someone raises a Transmittal. Warehouse checks and rates every line. Technical inspects. Two Check by signers close the slip.
 11. **Items become Received**, so "Purchasing settled" can pass when every item is closed.
 12. **Landed Cost** appears beside Acquire on the Component. It is provisional until the IPAS reaches "LC Odoo Done", then final.
@@ -378,12 +378,12 @@ Each needs a read tier on the SOR. A signature image is snapshotted at signing, 
 - The screen now says **Submit / Submitted** where it used to say Prepare / Prepared. The database still calls it "prepared".
 
 ### The seven parts (screen numbering)
-Sign-off sections are numbered as the screen numbers them: **1, 2 and 4**, the number of the part each one sits in. Part 3 (Computation status) has no sign-off. Settings → Sign-off lists, notices, history lines and the IPAS screen all use these numbers. Underneath, the database still stores 1, 3 and 7 and the list keys never changed, but nobody sees those. If a note or old row says "section 3" or "section 7", it means section 2 or section 4.
+Sign-off sections are numbered as the screen numbers them: **1, 2, 3 and 4**, the number of the part each one sits in. Settings → Sign-off lists, notices, history lines and the IPAS screen all use these numbers. Underneath, the database stores the paper-sheet numbers 1, 3, 6 and 7 (and the list keys `s1_`, `s3_`, `s6_`, `s7_`), but nobody sees those. If a note or old row says "section 3", "section 6" or "section 7", it means section 2, section 3 or section 4. Part 3 became a sign-off in #586; before that it had none.
 | Part | Name | Notes |
 |---|---|---|
 | 1 | Purchasing | Odoo copy, header, overrides. Sign-off section 1 |
 | 2 | Purchasing & Finance | Payments, charges, bank details, documents. Sign-off section 2 |
-| 3 | Computation status & Landed Cost | |
+| 3 | Computation status & Landed Cost | Sign-off section 3 (stored 6) |
 | 4 | Filing | Sign-off section 4 |
 | 5 | Sales & Operation | The Transmittals that name the IPAS |
 | 6 | Logistics | |
@@ -399,12 +399,12 @@ Sign-off sections are numbered as the screen numbers them: **1, 2 and 4**, the n
 
 ### Payments, charges, bank, documents
 - **Payments** (any number): kind (down payment, payment, full payment, shipping fee), date, amount in the PO's currency, **PHP debited (required on a foreign-currency PO)**, charge fee in PHP, method, Check No., proof of payment. Purchasing **or** Finance may add, change or remove them, on an open IPAS only. Every change writes history, and a removal keeps a snapshot.
-- A payment added while section 1 has no live Approved is flagged **paid before approval**. Payments and charges never clear an approval.
+- A payment added while section 1 has no live Approved is flagged **paid before approval**. Payments and charges never clear section 1 or 2. **Section 3 is the exception** (#591): its Submitted and Approved vouch for the Landed Cost that was checked, so a payment or charge that changes the Landed Cost clears them (see Sign-offs).
 - **No balance is ever computed.** Withholding would leave a "balance" unpaid forever. The header DP and FP figures are derived by the client and never stored.
 - A typed rate more than the currency's divergence (default 2%) from the Reference Rate is **flagged beside the payment**. The Reference Rate never fills a payment.
 - **Charges:** kind (list), date, PHP amount. A charge that covers several purchases is entered as each one's share.
 - **Bank details:** only Purchasing can type them. Finance cannot, so a changed account stays a check between two departments. Readers: Purchasing, Finance, Super Admin, and members of the section 1 or 2 approval lists. Section 4's Noted and Checked signers read the IPAS but get no bank details, and the database refuses them.
-- **Changed account flag:** the Account # is compared (spaces and dashes stripped) with that supplier's most recent **other, non-cancelled IPAS with an Account # typed**, matched on the Odoo partner id. A difference raises the flag, clears the section 1 and 2 approvals and tells the preparers. Correcting the number clears the flag. The first IPAS for a supplier is never flagged, and neither is one whose supplier has no Odoo partner id. The account numbers are never written to history.
+- **Changed account flag:** the Account # is compared (spaces and dashes stripped) with that supplier's most recent **other, non-cancelled IPAS with an Account # typed**, matched on the Odoo partner id. A difference raises the flag, clears the section 2 approval only (section 1 stays approved) and tells section 2's preparers. Correcting the number clears the flag. The first IPAS for a supplier is never flagged, and neither is one whose supplier has no Odoo partner id. The account numbers are never written to history.
 - **Documents:** one list per IPAS, two ticks per row: **Purchasing has it** and **Finance has it**. Neither side can tick for the other. Each row can carry a file. Hand-added rows can be removed. Rows from a document kind can only be ticked or left unticked. Unticked required documents **warn at Filing but never block**.
 - **Supplier Origin dates** (Shipped Out, Onboard, Arrived in PH, Arrived in Whs.) are accepted on an **Import IPAS only**. A Local IPAS is refused twice over.
 - **Item Location** is one typed value from a list.
@@ -413,14 +413,14 @@ Sign-off sections are numbered as the screen numbers them: **1, 2 and 4**, the n
 ### Landed Cost
 - Worked out in **one place, the database**. The IPAS page, the SOR summary and the Costing Matrix all read the same result.
 - It is the pre-tax PO price (at the rate **actually paid** on a foreign PO), plus every charge, charge fee and shipping fee, spread over the lines by value, quantity, or equally. Value falls back to equal when nothing is priced. It is spread in whole centavos by largest remainder, with ties to the earlier line.
-- **Marks:** `unavailable` (a foreign PO with no payment), `provisional`, and `final` at LC Odoo Done, Checked by, or filed.
+- **Marks:** `unavailable` (a foreign PO with no payment), `provisional`, and `final` at LC Odoo Done or filed.
 - It is **computed on read and stored nowhere.** It feeds no markup, Final Acquire, summary, revenue, "Costing settled" or sign-off.
 
 ### Computation status
-Encoding → Encoded → LC GS Done → LC Odoo Done → Checked by.
-- Filing needs LC Odoo Done or Checked by.
-- **Purchasing moves it only up to LC Odoo Done.** Purchasing can never set Checked by, and can never move the status away from it. The Checked by step is hidden or locked for them, and a direct attempt is refused.
-- **Checked by belongs to Finance**, or a Super Admin who is **not** in Purchasing. They give it and take it back, one move between LC Odoo Done and Checked by. A Super Admin who is also in Purchasing is treated as Purchasing.
+Encoding → Encoded → LC GS Done → LC Odoo Done. It ends there: the old **Checked by** step is gone, and the check is section 3's sign-off (below).
+- Landed Cost turns final at LC Odoo Done (or once filed). Filing also needs LC Odoo Done.
+- **Only Purchasing moves it**, one step either way. Finance and a Super Admin outside Purchasing no longer have a part in it, and a direct attempt to set Checked by is refused.
+- Old IPAS that were at Checked by were converted when #586 shipped: their Checked by became a section 3 approval by the same person at the same time (see the ADR 0035), and their status moved to LC Odoo Done.
 - The current status shows as selected.
 - Old history rows that say `costs_complete` display as LC Odoo Done.
 
@@ -440,15 +440,17 @@ Encoding → Encoded → LC GS Done → LC Odoo Done → Checked by.
 |---|---|---|
 | 1 Purchasing | Purchasing access | Section 1 list |
 | 2 Finance | Purchasing access | Section 2 list |
+| 3 Computation status & Landed Cost | Purchasing access, and only once the Computation status is LC Odoo Done | Section 3 list (starts as everyone with Finance access) |
 | 4 Filing | none | Received, then Noted and Checked (either order), then Approved |
 
 Rules:
 - **No self-approval.** A Super Admin signs only if they are on the list.
-- **Section 4 opens only once sections 1 and 2 are approved.**
-- **Approved in section 4** needs Received, Noted and Checked, and computation status at LC Odoo Done or Checked. It sets `state = filed` and `filed_at` in one act, and notifies the next list at each step.
+- **Landed Cost changes clear section 3** (#591). The database clears its live Submitted and Approved (kept as history, reason recorded, shown as "section 3") when the Landed Cost changes: a payment or charge added, changed or removed, the spread changed, an Odoo refresh that changes the lines or total, or the status moving below LC Odoo Done (so undoing "Mark LC Odoo Done" clears it). The people who signed are told. A document tick, a payment proof or a refresh that moves no money clears nothing. Section 3 can be Returned or have its approval Undone, with the same section 4 consequence as sections 1 and 2.
+- **Section 4 opens only once sections 1, 2 and 3 are approved** (#590). The gate is checked at every section 4 step, so an approval undone by an Odoo change closes it again. Section 4 sign-offs given before this rule stay; only what is still to be given waits, the final Approve among it. The section 4 Received list is told when the last of the three approvals comes in.
+- **Approved in section 4** needs Received, Noted and Checked, and computation status at LC Odoo Done. It sets `state = filed` and `filed_at` in one act, and notifies the next list at each step.
 - **Return (send back)** on section 1 or 2: a signer on that list sends it to the preparer with a reason. Prepared and Approved are cleared and kept as history. The data is untouched. It **also clears section 4's live Received, Noted and Checked**, and tells those signers.
 - **Undo approval** (sections 1 and 2): takes back only Approved, leaves Prepared, needs a reason, and has the same section 4 consequence.
-- **Section 4 send back:** anyone on a section 4 list, while open (1 and 2 approved) and not filed. It clears Received, Noted and Checked. If there is nothing live to clear, it is refused.
+- **Section 4 send back:** anyone on a section 4 list, while open (1, 2 and 3 approved) and not filed. It clears Received, Noted and Checked. If there is nothing live to clear, it is refused.
 - The only things that clear approvals **by themselves** are a changed Odoo PO and a flagged Account #.
 - Every sign-off stores the signer's signature image as it was, and a declined signature never prints.
 - The signer lists are changed only through one atomic function (Super Admin), and each change is logged.
@@ -456,7 +458,7 @@ Rules:
 ### Filing and what it freezes
 - **Filed = frozen.** Triggers refuse every insert, update and delete on the IPAS row, its SORs, payments, charges, documents and bank details. This holds for the service role too. The two exceptions are `ipas_reopen` and the Odoo-changed flag.
 - Option labels used by any filed IPAS **cannot be renamed** by anyone, Super Admins included. Deactivating, reordering and adding stay allowed.
-- **Reopen:** Super Admin only, with a reason. It clears section 4's live sign-offs (kept as history) and leaves sections 1 and 2 approved. The Odoo flag is dropped.
+- **Reopen:** Super Admin only, with a reason. It clears section 4's live sign-offs (kept as history) and leaves sections 1, 2 and 3 approved. The Odoo flag is dropped.
 - **Cancel:** Purchasing, with a reason. A **filed IPAS cannot be cancelled** until it is reopened. An already cancelled one is refused.
 
 ### Printing
@@ -536,10 +538,11 @@ The decision order is fixed. The first match wins:
 1. A line rated **NA** at its slip's checking stage, with no later slip clearing it with GC. Owner is Purchasing ("resolve with supplier"). Rule step `check_open`.
 2. A slip whose checking stage is not complete. Owner is Warehouse, then Technical. Rule step `check_open`.
 3. A slip awaiting Check by. Owner is Check by signers.
-4. Computation status at LC Odoo Done or Checked, and not filed: "ready to file". Owner is the section 4 signers. Rule step `ready_to_file`.
-5. Delivered, with no Transmittal naming the IPAS. Owner is Purchasing. Rule step `no_transmittal`. **A draft Transmittal counts as raised**, so Purchasing is not nagged while someone has started the hand-off.
-6. The first unticked buyer-track step. Owners: Purchasing, Finance (With P.O.P, Create Bill), Warehouse (Received in Odoo), and **Others** (Import Clearance, Delivered). Others = supplier, forwarder or port.
-7. Everything ticked but costs not complete: "Costs not complete". Owner is Purchasing.
+4. Computation status at LC Odoo Done, but section 3 not approved: "Section 3 waiting for approval". Owner is the section 3 approval list. Rule step `section_3_approval`, blank by default (#590).
+5. Computation status at LC Odoo Done, section 3 approved, and not filed: "ready to file". Owner is the section 4 signers. Rule step `ready_to_file`.
+6. Delivered, with no Transmittal naming the IPAS. Owner is Purchasing. Rule step `no_transmittal`. **A draft Transmittal counts as raised**, so Purchasing is not nagged while someone has started the hand-off.
+7. The first unticked buyer-track step. Owners: Purchasing, Finance (With P.O.P, Create Bill), Warehouse (Received in Odoo), and **Others** (Import Clearance, Delivered). Others = supplier, forwarder or port.
+8. Everything ticked but costs not complete: "Costs not complete". Owner is Purchasing.
 
 **Groups:** Filed (no wait), else **Needs chasing** if late, else **Waiting on someone else** if the owner is Others, else **Waiting on us**.
 
@@ -576,7 +579,7 @@ This is the **Projects** tab of the Purchasing Dashboard (section 3). Five group
 | Transmittal lists: Product, Reference Checklist | Purchasing, Super Admin | Same rules |
 | Ageing rules (10 steps) | Purchasing, Super Admin | Blank = no rule. A positive whole number only. Never deleted. Any employee reads them. |
 | Reference rates (USD and EUR by default) | Fetched daily. Super Admin overrides **any currency**. | See below |
-| IPAS sign-off lists (1, 2, 4, named as the screen numbers them) and Transmittal staff lists | Super Admin | Logged. Seeded from the sheet by call sign (101, 1203). The two section 4 Noted and Checked lists are **not seeded**. |
+| IPAS sign-off lists (1, 2, 3, 4, named as the screen numbers them) and Transmittal staff lists | Super Admin | Logged. Seeded from the sheet by call sign (101, 1203). The two section 4 Noted and Checked lists are **not seeded**. |
 | First Transmittal number | Super Admin | Once only |
 | Costing rates | Finance, Super Admin | Single row |
 | Markup presets | Final Acquire list, Super Admin | Deactivated, never deleted |
@@ -628,7 +631,8 @@ All are read only. The browser never talks to Odoo, and credentials live in func
 - An IPAS's PO number, a Transmittal number and a cancelled IPAS number never change or return.
 - A filed IPAS's option labels cannot be renamed.
 - Currency, Supplier, item lines and Brand on an IPAS cannot be overridden.
-- Purchasing cannot give Checked by; only Finance or a non-Purchasing Super Admin can.
+- The Computation status ends at LC Odoo Done; nobody can set Checked by any more (section 3's sign-off is the check).
+- A change to the Landed Cost clears section 3's Submitted and Approved, and nothing else: payments and charges never clear section 1 or 2 (#591).
 - An IPAS's Remarks freeze once filed; its SOR list is fixed after raising.
 
 **Things that warn but do not block**

@@ -31,6 +31,7 @@ import {
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
   ipasSectionName,
+  ipasSectionNo,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_SOURCE_LABELS,
@@ -177,7 +178,7 @@ function odooDetail(key, statuses = {}) {
 function trackItem(item, statuses) {
   const stampedFromOdoo = item.source === IPAS_STATUS_SOURCE.ODOO;
   let detail = item.detail ?? null;
-  if (stampedFromOdoo) detail = odooDetail(item.key, statuses);
+  if (stampedFromOdoo) detail = (!item.ticked && item.reason) || odooDetail(item.key, statuses);
   else if (item.source === IPAS_STATUS_SOURCE.TYPED || item.source === IPAS_STATUS_SOURCE.STAMPED) {
     const parts = [];
     if (item.on) parts.push(formatDay(item.on));
@@ -406,6 +407,8 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     buyerTrack,
     computation,
     landedCost,
+    // Section 3's sign-offs (stored section 6): Submitted and Approved.
+    signoffs: signoffPair(6, ipas.signoffSections?.[6]),
     // The legend prints whenever a status carries the mark.
     hasOdooMarks: buyerTrack.some((item) => item.stampedFromOdoo),
   };
@@ -469,6 +472,16 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     section5,
     section6,
     section7,
+    signoffRows: [
+      [1, section1],
+      [3, section3],
+      [6, section6],
+      [7, section7],
+    ].map(([stored, section]) => ({
+      no: ipasSectionNo(stored),
+      name: ipasSectionName(stored),
+      boxes: section.signoffs,
+    })),
     footer: {
       reference: [text(ipas.number), ...sors.map((sor) => text(sor.salesReference))].filter(Boolean).join(' · '),
       landedCost: landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE ? null : `Landed Cost ${landedCost.label.toLowerCase()}`,

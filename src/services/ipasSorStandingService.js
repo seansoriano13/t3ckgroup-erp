@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_STATE } from "../constants/ipas";
+import { IPAS_COSTING_SECTION, IPAS_STATE } from "../constants/ipas";
+import { section3StateOf } from "../utils/ipasSignoffs";
 import { buildBuyerTrack } from "../utils/ipasDocuments";
 import { deriveTransmittalTrack } from "../utils/ipasTransmittals";
 import { orderStanding } from "../utils/orderStanding";
@@ -36,9 +37,16 @@ function odooStatusesOf(summary) {
   };
 }
 
+/** Where section 3 (the stored costing section) stands, from the summary's sign-off progress. */
+function section3Of(summary) {
+  const section = (summary.signoffs ?? []).find((entry) => entry.section === IPAS_COSTING_SECTION);
+  return section3StateOf((section?.steps ?? []).filter((step) => step.done).map((step) => step.role));
+}
+
 function standingOf(summary, facts, rules, today) {
+  const section3 = section3Of(summary);
   if (!facts || summary.state === IPAS_STATE.CANCELLED) {
-    return { nextThing: null, owner: null, daysWaiting: null, late: false };
+    return { nextThing: null, nextList: null, owner: null, daysWaiting: null, late: false };
   }
   const named = facts.slips ?? [];
   const derived = deriveTransmittalTrack(submittedSlips(named), {
@@ -69,6 +77,8 @@ function standingOf(summary, facts, rules, today) {
       updatedAt: facts.updated_at,
       computationStatus: summary.computationStatus,
       costsCompletedAt: facts.costs_completed_at,
+      section3Submitted: section3.submitted,
+      section3Approved: section3.approved,
       buyerTrack,
       proofPaidOn: facts.proof_paid_on,
       arrivedInPhOn: facts.arrived_in_ph_on,
@@ -80,6 +90,8 @@ function standingOf(summary, facts, rules, today) {
   );
   return {
     nextThing: standing.next.label,
+    nextList: standing.next.list,
+    nextSlip: standing.next.slip ?? null,
     owner: standing.next.owner,
     daysWaiting: standing.daysWaiting,
     late: standing.late,

@@ -64,7 +64,9 @@ function PurchasingDashboard() {
     const link = linkFor(row);
     navigate(link.to, link.state ? { state: link.state } : undefined);
   };
-  const openIpas = (id) => navigate(`/purchasing/ipas/${id}`);
+  // A row that names a Transmittal opens that slip (#588); every other row opens its IPAS.
+  const openOrder = (row) =>
+    navigate(row.next?.slip?.id ? `/purchasing/transmittals/${row.next.slip.id}` : `/purchasing/ipas/${row.id}`);
 
   return (
     <>
@@ -74,8 +76,8 @@ function PurchasingDashboard() {
         tabs={<TabGroup variant="underline" tabs={TABS} activeTab={tab} onChange={changeTab} />}
       >
         {tab === DASHBOARD_TAB.PROJECTS && <Projects filters={projects} onOpen={openProjectRow} />}
-        {tab === DASHBOARD_TAB.NEEDS && <NeedsDoing onOpen={openIpas} filters={needs} />}
-        {tab === DASHBOARD_TAB.REGISTER && <OrderRegister onOpen={openIpas} register={register} />}
+        {tab === DASHBOARD_TAB.NEEDS && <NeedsDoing onOpen={openOrder} filters={needs} />}
+        {tab === DASHBOARD_TAB.REGISTER && <OrderRegister onOpen={openOrder} register={register} />}
       </PageShell>
 
       <PurchaseRequestSlideOver

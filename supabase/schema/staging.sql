@@ -807,7 +807,8 @@ create table if not exists public."ipas_signoffs" (
   "signature_version" text,
   "cleared_at" timestamp with time zone,
   "cleared_by" uuid,
-  "cleared_reason" text
+  "cleared_reason" text,
+  "lc_fingerprint" text
 );
 
 create table if not exists public."ipas_sors" (
@@ -1956,7 +1957,7 @@ alter table hr_day_shift_config add constraint "hr_day_shift_config_weekday_chec
 alter table ipas add constraint "ipas_actual_checking_pair_chk" CHECK (((actual_checking_by IS NULL) = (actual_checking_at IS NULL)));
 alter table ipas add constraint "ipas_cancelled_chk" CHECK (((state <> 'cancelled'::text) OR ((cancelled_at IS NOT NULL) AND (cancel_reason IS NOT NULL) AND (length(btrim(cancel_reason)) > 0))));
 alter table ipas add constraint "ipas_change_note_chk" CHECK (((odoo_change_note IS NULL) OR (jsonb_typeof(odoo_change_note) = 'object'::text)));
-alter table ipas add constraint "ipas_computation_status_chk" CHECK ((computation_status = ANY (ARRAY['encoding'::text, 'encoded'::text, 'lc_gs_done'::text, 'lc_odoo_done'::text, 'checked'::text])));
+alter table ipas add constraint "ipas_computation_status_chk" CHECK ((computation_status = ANY (ARRAY['encoding'::text, 'encoded'::text, 'lc_gs_done'::text, 'lc_odoo_done'::text])));
 alter table ipas add constraint "ipas_import_clearance_import_chk" CHECK (((source = 'import'::text) OR (import_clearance_on IS NULL)));
 alter table ipas add constraint "ipas_landed_cost_split_chk" CHECK ((landed_cost_split = ANY (ARRAY['value'::text, 'quantity'::text, 'equal'::text])));
 alter table ipas add constraint "ipas_odoo_copy_chk" CHECK ((jsonb_typeof(odoo_copy) = 'object'::text));
@@ -1989,17 +1990,17 @@ alter table ipas_payments add constraint "ipas_payments_kind_chk" CHECK ((kind =
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_action_chk" CHECK ((action = ANY (ARRAY['added'::text, 'removed'::text])));
-alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
-alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL) AND (cleared_by IS NULL)) OR ((cleared_at IS NOT NULL) AND (cleared_reason IS NOT NULL) AND (length(btrim(cleared_reason)) > 0))));
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
-alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 7])));
+alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 6, 7])));
 alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
-alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['purchase_order'::text, 'with_pop'::text, 'import_clearance'::text, 'delivered'::text, 'received_in_odoo'::text, 'create_bill'::text, 'actual_checking'::text, 'no_transmittal'::text, 'check_open'::text, 'ready_to_file'::text])));
+alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['purchase_order'::text, 'with_pop'::text, 'import_clearance'::text, 'delivered'::text, 'received_in_odoo'::text, 'create_bill'::text, 'actual_checking'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
 alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
 alter table order_deadline_setting add constraint "order_deadline_setting_one_row_chk" CHECK ((id = true));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -4420,6 +4421,7 @@ AS $function$
   select case
     when p_section = 1 then public._ipas_on_list('s1_approved', p_employee_id)
     when p_section = 3 then public._ipas_on_list('s3_approved', p_employee_id)
+    when p_section = 6 then public._ipas_on_list('s6_approved', p_employee_id)
     when p_section = 7 then
       public._ipas_on_list('s7_received', p_employee_id)
       or public._ipas_on_list('s7_noted', p_employee_id)
@@ -4634,6 +4636,171 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_clear_section_3_for_lc(p_ipas_id uuid, p_reason text, p_force boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ipas public.ipas;
+  v_actor uuid := public.get_employee_id();
+  v_fingerprint text;
+  v_notify uuid[];
+begin
+  select * into v_ipas from public.ipas where id = p_ipas_id;
+  if not found or v_ipas.state <> 'open' then
+    return;
+  end if;
+  if not exists (
+    select 1 from public.ipas_signoffs s
+     where s.ipas_id = p_ipas_id and s.section = 6 and s.role in ('prepared', 'approved') and s.cleared_at is null
+  ) then
+    return;
+  end if;
+
+  if not p_force then
+    v_fingerprint := public._ipas_lc_fingerprint(p_ipas_id);
+    if not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = p_ipas_id and s.section = 6 and s.role in ('prepared', 'approved') and s.cleared_at is null
+         and s.lc_fingerprint is distinct from v_fingerprint
+    ) then
+      return;
+    end if;
+  end if;
+
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = v_actor, cleared_reason = p_reason
+     where s.ipas_id = p_ipas_id
+       and s.section = 6
+       and s.role in ('prepared', 'approved')
+       and s.cleared_at is null
+    returning s.signed_by
+  )
+  select coalesce(array_agg(distinct signed_by) filter (where signed_by is distinct from v_actor), '{}'::uuid[])
+    into v_notify
+    from cleared;
+
+  perform public._ipas_write_event(p_ipas_id, v_actor, 'approvals_cleared', jsonb_build_object(
+    'reason', p_reason,
+    'sections', jsonb_build_array(6)
+  ));
+
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select n, v_actor, 'IPAS_SECTION_3_CLEARED',
+         'IPAS section ' || public._ipas_section_no(6) || ' cleared',
+         format('Section %s of IPAS %s was cleared (%s). It needs to be submitted and approved again.',
+                public._ipas_section_no(6), v_ipas.number, p_reason),
+         p_ipas_id::text
+    from unnest(v_notify) as n;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_clear_section_approvals(p_ipas_id uuid, p_actor uuid, p_reason text, p_sections integer[], OUT sections integer[], OUT preparer_ids uuid[])
+ RETURNS record
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = p_actor, cleared_reason = p_reason
+     where s.ipas_id = p_ipas_id
+       and s.section = any (p_sections)
+       and s.role = 'approved'
+       and s.cleared_at is null
+    returning s.section
+  )
+  select coalesce(array_agg(distinct section::integer), '{}'::integer[]) into sections from cleared;
+
+  preparer_ids := '{}'::uuid[];
+  if cardinality(sections) > 0 then
+    select coalesce(array_agg(distinct s.signed_by), '{}'::uuid[])
+      into preparer_ids
+      from public.ipas_signoffs s
+     where s.ipas_id = p_ipas_id
+       and s.section = any (sections)
+       and s.role = 'prepared'
+       and s.cleared_at is null;
+
+    perform public._ipas_write_event(p_ipas_id, p_actor, 'approvals_cleared', jsonb_build_object(
+      'reason', p_reason,
+      'sections', to_jsonb(sections)
+    ));
+  end if;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_convert_checked_by()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r record;
+  v_sub_by uuid;
+  v_sub_at timestamptz;
+  v_app_by uuid;
+  v_app_at timestamptz;
+  v_signoff public.ipas_signoffs;
+  v_moved integer;
+begin
+  for r in
+    select i.id from public.ipas i
+     where i.computation_status = 'checked' and i.state <> 'cancelled'
+  loop
+    select ev.actor_id, ev.created_at into v_sub_by, v_sub_at
+      from public.ipas_events ev
+     where ev.ipas_id = r.id and ev.kind = 'header_changed'
+       and ev.detail #>> '{fields,computation_status,to}' in ('lc_odoo_done', 'costs_complete')
+     order by ev.created_at desc, ev.id desc
+     limit 1;
+
+    select ev.actor_id, ev.created_at into v_app_by, v_app_at
+      from public.ipas_events ev
+     where ev.ipas_id = r.id and ev.kind = 'header_changed'
+       and ev.detail #>> '{fields,computation_status,to}' = 'checked'
+     order by ev.created_at desc, ev.id desc
+     limit 1;
+
+    if v_sub_by is not null and v_app_by is not null
+       and not exists (
+         select 1 from public.ipas_signoffs s
+          where s.ipas_id = r.id and s.section = 6 and s.cleared_at is null
+       ) then
+      insert into public.ipas_signoffs (ipas_id, section, role, signed_by, signed_at, signature_declined, signature_version)
+      select r.id, 6, 'prepared', v_sub_by, v_sub_at, false, e.signature_path
+        from public.employees e where e.id = v_sub_by
+      returning * into v_signoff;
+      insert into public.ipas_events (ipas_id, actor_id, kind, detail, created_at)
+      values (r.id, v_sub_by, 'signed', jsonb_build_object(
+        'section', 6, 'role', 'prepared', 'signoff_id', v_signoff.id,
+        'signature_declined', false, 'migrated', true), v_sub_at);
+
+      insert into public.ipas_signoffs (ipas_id, section, role, signed_by, signed_at, signature_declined, signature_version)
+      select r.id, 6, 'approved', v_app_by, v_app_at, false, e.signature_path
+        from public.employees e where e.id = v_app_by
+      returning * into v_signoff;
+      insert into public.ipas_events (ipas_id, actor_id, kind, detail, created_at)
+      values (r.id, v_app_by, 'signed', jsonb_build_object(
+        'section', 6, 'role', 'approved', 'signoff_id', v_signoff.id,
+        'signature_declined', false, 'migrated', true), v_app_at);
+    end if;
+  end loop;
+
+  perform set_config('ipas.reopening', 'on', true);
+  update public.ipas set computation_status = 'lc_odoo_done' where computation_status = 'checked';
+  get diagnostics v_moved = row_count;
+  perform set_config('ipas.reopening', 'off', true);
+
+  return v_moved;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_copy_digest(p_copy jsonb)
  RETURNS jsonb
  LANGUAGE sql
@@ -4682,6 +4849,22 @@ AS $function$
     p_document.label,
     (select o.label from public.ipas_options o where o.id = p_document.kind_id)
   );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_filing_open(p_ipas_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select (
+    select count(distinct s.section)
+      from public.ipas_signoffs s
+     where s.ipas_id = p_ipas_id
+       and s.section in (1, 3, 6)
+       and s.role = 'approved'
+       and s.cleared_at is null
+  ) = 3;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
@@ -4840,6 +5023,37 @@ begin
     )
   );
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_lc_fingerprint(p_ipas_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select md5(
+    coalesce((
+      select string_agg(
+               concat_ws('|',
+                 coalesce(e.l ->> 'lineId', ''),
+                 round(coalesce((e.l ->> 'quantity')::numeric, 0), 4)::text,
+                 round(coalesce((e.l ->> 'goodsPhp')::numeric, 0), 2)::text,
+                 round(coalesce((e.l ->> 'spreadPhp')::numeric, 0), 2)::text,
+                 round(coalesce((e.l ->> 'landedPhp')::numeric, 0), 2)::text),
+               ';' order by e.ord)
+        from jsonb_array_elements(coalesce(x.lc -> 'lines', '[]'::jsonb)) with ordinality as e(l, ord)
+    ), '')
+    || '#' ||
+    case
+      when jsonb_typeof(x.lc -> 'totals') = 'object' then
+        concat_ws('|',
+          round(coalesce((x.lc #>> '{totals,goodsPhp}')::numeric, 0), 2)::text,
+          round(coalesce((x.lc #>> '{totals,spreadPhp}')::numeric, 0), 2)::text,
+          round(coalesce((x.lc #>> '{totals,landedPhp}')::numeric, 0), 2)::text)
+      else 'none'
+    end
+  )
+  from (select public._ipas_landed_cost(p_ipas_id) as lc) x;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_line_key(p_line jsonb)
@@ -5072,7 +5286,29 @@ CREATE OR REPLACE FUNCTION public._ipas_section_no(p_section integer)
  IMMUTABLE
  SET search_path TO 'public'
 AS $function$
-  select case p_section when 3 then 2 when 7 then 4 else p_section end;
+  select case p_section when 3 then 2 when 6 then 3 when 7 then 4 else p_section end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_seed_s6_approved()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_added integer;
+begin
+  insert into public.ipas_signer_lists (list_key, employee_id)
+  select 's6_approved', e.id
+    from public.employees e
+   where e.has_finance_flow
+     and not coalesce(e.is_deleted, false)
+     and not exists (
+       select 1 from public.ipas_signer_lists l where l.list_key = 's6_approved' and l.employee_id = e.id
+     );
+  get diagnostics v_added = row_count;
+  return v_added;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_signoff_list_key(p_section integer, p_role text)
@@ -5083,6 +5319,7 @@ AS $function$
   select case
     when p_section = 1 and p_role = 'approved' then 's1_approved'
     when p_section = 3 and p_role = 'approved' then 's3_approved'
+    when p_section = 6 and p_role = 'approved' then 's6_approved'
     when p_section = 7 and p_role = 'received' then 's7_received'
     when p_section = 7 and p_role = 'noted' then 's7_noted'
     when p_section = 7 and p_role = 'checked' then 's7_checked'
@@ -5096,7 +5333,7 @@ CREATE OR REPLACE FUNCTION public._ipas_signoff_pair_ok(p_section integer, p_rol
  LANGUAGE sql
  IMMUTABLE
 AS $function$
-  select (p_section in (1, 3) and p_role in ('prepared', 'approved'))
+  select (p_section in (1, 3, 6) and p_role in ('prepared', 'approved'))
       or (p_section = 7 and p_role in ('received', 'noted', 'checked', 'approved'));
 $function$
 ;
@@ -10513,7 +10750,13 @@ begin
   if p_since is null then
     return;
   end if;
-  if exists (select 1 from public.ipas_events where ipas_id = p_ipas_id and created_at > p_since) then
+  if exists (
+    select 1 from public.ipas_events e
+     where e.ipas_id = p_ipas_id
+       and e.created_at > p_since
+       and e.kind not in ('odoo_copy_changed', 'filled_from_odoo', 'odoo_changed_since_filing')
+       and not (e.kind = 'approvals_cleared' and e.detail ->> 'reason' = 'PO changed in Odoo')
+  ) then
     raise exception 'ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.'
       using errcode = '40001';
   end if;
@@ -10838,6 +11081,43 @@ CREATE OR REPLACE FUNCTION public.ipas_landed_cost(p_ipas_id uuid)
  SET search_path TO 'public'
 AS $function$
   select case when coalesce(public.ipas_can_read(), false) then public._ipas_landed_cost(p_ipas_id) end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_lc_header_changed()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.computation_status is distinct from old.computation_status
+     and new.computation_status in ('encoding', 'encoded', 'lc_gs_done') then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'Status moved below LC Odoo Done', true);
+  elsif new.odoo_copy is distinct from old.odoo_copy then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'PO changed in Odoo');
+  elsif new.landed_cost_split is distinct from old.landed_cost_split then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'Spread changed');
+  end if;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_lc_money_changed()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_what text := case when tg_table_name = 'ipas_payments' then 'Payment' else 'Charge' end;
+  v_verb text := case tg_op when 'INSERT' then 'added' when 'DELETE' then 'removed' else 'changed' end;
+begin
+  perform public._ipas_clear_section_3_for_lc(
+    case when tg_op = 'DELETE' then old.ipas_id else new.ipas_id end,
+    v_what || ' ' || v_verb
+  );
+  return null;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_line_landed_costs(p_ipas_id uuid)
@@ -11501,8 +11781,8 @@ begin
   if length(v_reason) > 500 then
     raise exception 'ipas_send_back: the reason is 500 characters at most' using errcode = '22023';
   end if;
-  if p_section is null or p_section not in (1, 3, 7) then
-    raise exception 'ipas_send_back: only sections 1, 2 and 4 can be returned' using errcode = '22023';
+  if p_section is null or p_section not in (1, 3, 6, 7) then
+    raise exception 'ipas_send_back: only sections 1, 2, 3 and 4 can be returned' using errcode = '22023';
   end if;
 
   -- Refuses a filed or cancelled IPAS (55000): a filed one is reopened, not returned.
@@ -11511,18 +11791,13 @@ begin
   if p_section = 7 then
     -- Anyone on a section 7 list, whichever sign-off they give.
     if not public._ipas_can_sign_section(7, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section 4 returns it' using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section % returns it', public._ipas_section_no(7) using errcode = '42501';
     end if;
 
-    -- Section 7 is open once sections 1 and 3 are approved.
-    if not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = v_ipas.id and s.section = 1 and s.role = 'approved' and s.cleared_at is null
-    ) or not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
-    ) then
-      raise exception 'ipas_send_back: section 4 isn''t open yet; sections 1 and 2 must be approved first' using errcode = '22023';
+    -- Section 7 is open once sections 1, 2 and 3 are approved (#590: the Filing gate
+    -- now includes section 3, stored 6).
+    if not public._ipas_filing_open(v_ipas.id) then
+      raise exception 'ipas_send_back: section % isn''t open yet; sections %, % and % must be approved first', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
     end if;
 
     with cleared as (
@@ -11566,7 +11841,7 @@ begin
       with cleared as (
         update public.ipas_signoffs s
            set cleared_at = now(), cleared_by = v_actor,
-               cleared_reason = 'Section ' || p_section || ' returned: ' || v_reason
+               cleared_reason = 'Section ' || public._ipas_section_no(p_section) || ' returned: ' || v_reason
          where s.ipas_id = v_ipas.id
            and s.section = 7
            and s.role in ('received', 'noted', 'checked')
@@ -11722,10 +11997,11 @@ begin
       'previous_number', v_prev_number
     ));
 
-    -- The live section 1 and 3 approvals no longer approve this account.
+    -- The bank details belong to screen section 2 (stored 3): only its live
+    -- approval no longer approves this account. Section 1 is left alone.
     select c.sections, c.preparer_ids
       into v_sections, v_preparers
-      from public._ipas_clear_approvals(v_ipas.id, v_actor, 'Account # flagged') c;
+      from public._ipas_clear_section_approvals(v_ipas.id, v_actor, 'Account # flagged', array[3]) c;
   end if;
 
   return jsonb_build_object(
@@ -11791,17 +12067,14 @@ declare
   v_gantt boolean;
   v_label text;
   v_remarks text;
-  v_is_purchasing boolean;
   v_changes jsonb := '{}'::jsonb;
 begin
   if v_actor is null then
     raise exception 'ipas_set_header: not signed in' using errcode = '42501';
   end if;
-  -- Purchasing changes an IPAS. Finance or a Super Admin may only give or take back
-  -- "Checked by" (the last computation status), which is checked further down.
-  v_is_purchasing := public.has_purchasing_access();
-  if not v_is_purchasing
-     and not (public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+  -- Only Purchasing changes an IPAS (#586: Checked by is gone, so there is no Finance
+  -- or Super Admin exception any more; section 3's sign-off is the check).
+  if not public.has_purchasing_access() then
     raise exception 'ipas_set_header: only Purchasing changes an IPAS' using errcode = '42501';
   end if;
   if p_fields is null or jsonb_typeof(p_fields) <> 'object' then
@@ -11893,30 +12166,9 @@ begin
   v_status := v_row.computation_status;
   if jsonb_exists(p_fields, 'computation_status') then
     v_status := p_fields->>'computation_status';
-    if v_status is null or v_status not in ('encoding', 'encoded', 'lc_gs_done', 'lc_odoo_done', 'checked') then
-      raise exception 'ipas_set_header: the computation status is Encoding, Encoded, LC GS Done, LC Odoo Done or Checked by'
+    if v_status is null or v_status not in ('encoding', 'encoded', 'lc_gs_done', 'lc_odoo_done') then
+      raise exception 'ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done'
         using errcode = '22023';
-    end if;
-  end if;
-
-  -- Checked by belongs to Finance (#547). Purchasing, a Super Admin in Purchasing included, moves
-  -- the status only from Encoding up to LC Odoo Done: it never gives Checked by and never takes it back.
-  if v_is_purchasing then
-    if v_status is distinct from v_row.computation_status
-       and (v_status = 'checked' or v_row.computation_status = 'checked') then
-      raise exception 'ipas_set_header: Checked by is Finance''s step; Purchasing can''t give it or take it back'
-        using errcode = '42501';
-    end if;
-  else
-    -- Finance and Super Admins (who aren't Purchasing) only move Checked by: from LC Odoo Done
-    -- to Checked by, or back, and nothing else in the same call.
-    if (select count(*) from jsonb_object_keys(p_fields)) <> 1
-       or not jsonb_exists(p_fields, 'computation_status')
-       or not (
-         (v_row.computation_status = 'lc_odoo_done' and v_status = 'checked')
-         or (v_row.computation_status = 'checked' and v_status = 'lc_odoo_done')
-       ) then
-      raise exception 'ipas_set_header: only Purchasing changes an IPAS; Finance gives or takes back Checked by' using errcode = '42501';
     end if;
   end if;
 
@@ -12123,7 +12375,7 @@ begin
     raise exception 'ipas_set_signer_list: only a Super Admin changes who is on a sign-off list' using errcode = '42501';
   end if;
   if p_list_key is null or p_list_key not in (
-    's1_approved', 's3_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved',
+    's1_approved', 's3_approved', 's6_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved',
     'transmittal_warehouse', 'transmittal_technical', 'transmittal_logistics', 'transmittal_check_by'
   ) then
     raise exception 'ipas_set_signer_list: % isn''t a sign-off list', coalesce(p_list_key, 'null') using errcode = '22023';
@@ -12310,7 +12562,6 @@ declare
   v_notify uuid[] := '{}';
   v_stage text;
   v_filed boolean := false;
-  v_other integer;
 begin
   if v_actor is null then
     raise exception 'ipas_sign: not signed in' using errcode = '42501';
@@ -12333,6 +12584,14 @@ begin
     raise exception 'ipas_sign: you are not on the list that may give this sign-off' using errcode = '42501';
   end if;
 
+  -- Section 3 (stored 6) is the Landed Cost check: Purchasing submits it once the
+  -- Computation status is LC Odoo Done, and not before.
+  if p_section = 6 and p_role = 'prepared'
+     and v_ipas.computation_status is distinct from 'lc_odoo_done' then
+    raise exception 'ipas_sign: section % can be submitted once the Computation status is LC Odoo Done', public._ipas_section_no(6)
+      using errcode = '22023';
+  end if;
+
   if exists (
     select 1 from public.ipas_signoffs s
      where s.ipas_id = v_ipas.id and s.section = p_section and s.role = p_role and s.cleared_at is null
@@ -12340,7 +12599,7 @@ begin
     raise exception 'ipas_sign: section % is already % on %', public._ipas_section_no(p_section), p_role, v_ipas.number using errcode = '22023';
   end if;
 
-  if p_role = 'approved' and p_section in (1, 3) then
+  if p_role = 'approved' and p_section in (1, 3, 6) then
     select * into v_prepared
       from public.ipas_signoffs s
      where s.ipas_id = v_ipas.id and s.section = p_section and s.role = 'prepared' and s.cleared_at is null;
@@ -12353,16 +12612,13 @@ begin
   end if;
 
   if p_section = 7 then
-    -- Section 7 opens once sections 1 and 3 are approved (checked at every step:
-    -- an approval undone by an Odoo change closes it again).
-    if not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = v_ipas.id and s.section = 1 and s.role = 'approved' and s.cleared_at is null
-    ) or not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
-    ) then
-      raise exception 'ipas_sign: section 4 opens once sections 1 and 2 are approved' using errcode = '22023';
+    -- Section 7 (Filing, screen section 4) opens once sections 1, 2 and 3 are
+    -- approved (stored 1, 3 and 6). Checked at every step: an approval undone by an
+    -- Odoo change closes it again. The gate runs for every section 7 role, so
+    -- Approved waits for section 3 too, and so does a Noted or Checked not yet given
+    -- (#590); the ones already given stay.
+    if not public._ipas_filing_open(v_ipas.id) then
+      raise exception 'ipas_sign: section % opens once sections %, % and % are approved', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.
@@ -12423,14 +12679,10 @@ begin
     -- the person who just prepared it).
     v_stage := 'section_prepared';
     v_notify := public._ipas_list_members(array[public._ipas_signoff_list_key(p_section, 'approved')], v_actor);
-  elsif p_section in (1, 3) then
-    -- This section is approved. When the other is too and section 7 hasn't
-    -- started, section 7 is ready for Received.
-    v_other := case p_section when 1 then 3 else 1 end;
-    if exists (
-         select 1 from public.ipas_signoffs s
-          where s.ipas_id = v_ipas.id and s.section = v_other and s.role = 'approved' and s.cleared_at is null
-       )
+  elsif p_section in (1, 3, 6) then
+    -- This section is approved. When it was the last of sections 1, 2 and 3 and
+    -- section 7 hasn't started, section 7 is ready for Received (#590).
+    if public._ipas_filing_open(v_ipas.id)
        and not exists (
          select 1 from public.ipas_signoffs s
           where s.ipas_id = v_ipas.id and s.section = 7 and s.cleared_at is null
@@ -12508,6 +12760,20 @@ begin
      or new.signature_declined is distinct from old.signature_declined
      or new.signature_version is distinct from old.signature_version then
     raise exception 'ipas_signoffs: a signature can only be cleared, never changed' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_signoffs_lc_fingerprint()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.section = 6 and new.role in ('prepared', 'approved') and new.lc_fingerprint is null then
+    new.lc_fingerprint := public._ipas_lc_fingerprint(new.ipas_id);
   end if;
   return new;
 end;
@@ -12745,6 +13011,10 @@ AS $function$
         'prepared', '3:prepared' = any (lv.live),
         'approved', '3:approved' = any (lv.live)
       ),
+      '6', jsonb_build_object(
+        'prepared', '6:prepared' = any (lv.live),
+        'approved', '6:approved' = any (lv.live)
+      ),
       '7', jsonb_build_object(
         'received', '7:received' = any (lv.live),
         'noted', '7:noted' = any (lv.live),
@@ -12904,8 +13174,8 @@ begin
   if length(v_reason) > 500 then
     raise exception 'ipas_undo_approval: the reason is 500 characters at most' using errcode = '22023';
   end if;
-  if p_section is null or p_section not in (1, 3) then
-    raise exception 'ipas_undo_approval: only sections 1 and 2 have an approval to undo' using errcode = '22023';
+  if p_section is null or p_section not in (1, 3, 6) then
+    raise exception 'ipas_undo_approval: only sections 1, 2 and 3 have an approval to undo' using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_undo_approval', p_ipas_id);
@@ -12927,7 +13197,7 @@ begin
   with cleared as (
     update public.ipas_signoffs s
        set cleared_at = now(), cleared_by = v_actor,
-           cleared_reason = 'Section ' || p_section || ' approval undone: ' || v_reason
+           cleared_reason = 'Section ' || public._ipas_section_no(p_section) || ' approval undone: ' || v_reason
      where s.ipas_id = v_ipas.id
        and s.section = 7
        and s.role in ('received', 'noted', 'checked')
@@ -20936,12 +21206,14 @@ CREATE TRIGGER ipas_actual_checking_hand_guard BEFORE UPDATE ON public.ipas FOR 
 CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_fill_from_odoo_copy();
 CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
+CREATE TRIGGER ipas_lc_clear AFTER UPDATE OF landed_cost_split, computation_status, odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_lc_header_changed();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_suggest_documents_on_insert();
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_bank_details_updated_at BEFORE UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
+CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_documents_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
@@ -20951,11 +21223,13 @@ CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
+CREATE TRIGGER ipas_payments_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_payments_paid_before_approval BEFORE INSERT OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_payments_paid_before_approval();
 CREATE TRIGGER ipas_payments_updated_at BEFORE UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_signer_list_log_no_change BEFORE DELETE OR UPDATE ON public.ipas_signer_list_log FOR EACH ROW EXECUTE FUNCTION ipas_signer_list_log_append_only();
 CREATE TRIGGER ipas_signer_list_log_no_truncate BEFORE TRUNCATE ON public.ipas_signer_list_log FOR EACH STATEMENT EXECUTE FUNCTION ipas_signer_list_log_append_only();
 CREATE TRIGGER ipas_signoffs_guard BEFORE UPDATE ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_guard();
+CREATE TRIGGER ipas_signoffs_lc_fingerprint BEFORE INSERT ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_lc_fingerprint();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_sors FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();

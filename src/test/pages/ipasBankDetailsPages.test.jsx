@@ -110,6 +110,8 @@ describe("IPAS page: bank details", () => {
     const alert = await within(block).findByRole("alert");
     expect(alert).toHaveTextContent("Account # changed");
     expect(alert).toHaveTextContent(/differs from this supplier's last IPAS/);
+    expect(alert).toHaveTextContent(/approval given on section 2/);
+    expect(alert).not.toHaveTextContent(/section 1/);
     expect(within(block).getByText("Changed account")).toBeInTheDocument();
     expect(within(block).getByRole("textbox", { name: /^Account #/ })).toHaveValue("2222");
   });

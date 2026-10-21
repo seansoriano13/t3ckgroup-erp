@@ -283,7 +283,8 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Actual Checking — 1 awaiting Technical")
+      expect(row.next.label).toMatch(/ needs Technical checking$/)
+      expect(row.next.slip.id).toBeTruthy()
       expect(row.next.owner).toBe("technical")
       expect(row.next.step).toBe("check_open")
       expect(row.group).toBe("waiting_on_us")
@@ -315,7 +316,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Actual Checking — 1 awaiting Warehouse")
+      expect(row.next.label).toMatch(/ needs Warehouse checking$/)
       expect(row.next.owner).toBe("warehouse")
     })
 
@@ -330,7 +331,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Actual Checking — 2 awaiting Technical")
+      expect(row.next.label).toMatch(/ needs Technical checking \(\+1 more\)$/)
       expect(row.next.owner).toBe("technical")
     })
 
@@ -345,7 +346,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Actual Checking — 2 awaiting Warehouse or Technical")
+      expect(row.next.label).toMatch(/ needs Warehouse checking \(\+1 more\)$/)
       expect(row.next.owner).toBe("warehouse")
     })
 
@@ -362,7 +363,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Transmittal awaiting Check by")
+      expect(row.next.label).toMatch(/ needs Check by$/)
       expect(row.next.owner).toBe("check_by")
       expect(row.daysWaiting).toBe(5)
     })
@@ -378,7 +379,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("NA at checking — resolve with supplier")
+      expect(row.next.label).toMatch(/ has NA at checking — resolve with supplier$/)
       expect(row.next.owner).toBe("purchasing")
       expect(row.next.step).toBe("check_open")
     })
@@ -403,12 +404,13 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).not.toBe("NA at checking — resolve with supplier")
+      expect(row.next.label).not.toMatch(/NA at checking/)
       expect(row.next.step).toBe("received_in_odoo")
     })
 
-    it("says costs complete and unfiled are ready to file, owed by the section 7 signers", async () => {
+    it("says costs complete, section 3 approved and unfiled are ready to file, owed by the section 7 signers", async () => {
       const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
+      db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "approved", signed_by: makeEmployee({ name: "S3 Approver" }).id, cleared_at: null })
       db.seed("ipas_events", {
         ipas_id: ipas.id,
         kind: "header_changed",
@@ -425,6 +427,43 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.group).toBe("waiting_on_us")
     })
 
+    it("says costs complete but section 3 not submitted is owed by Purchasing (#590)", async () => {
+      const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
+      db.seed("ipas_events", {
+        ipas_id: ipas.id,
+        kind: "header_changed",
+        detail: { fields: { computation_status: { from: "lc_gs_done", to: "lc_odoo_done" } } },
+        created_at: at(5),
+      })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Section 3 waiting for submit")
+      expect(row.next.owner).toBe("purchasing")
+      expect(row.next.step).toBe("section_3_approval")
+    })
+
+    it("says costs complete and section 3 submitted but not approved is waiting on the section 3 list (#590)", async () => {
+      const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
+      db.seed("ipas_events", {
+        ipas_id: ipas.id,
+        kind: "header_changed",
+        detail: { fields: { computation_status: { from: "lc_gs_done", to: "lc_odoo_done" } } },
+        created_at: at(5),
+      })
+      db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "prepared", signed_by: makeEmployee({ name: "S3 Submitter" }).id })
+      // A cleared approval does not count.
+      db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "approved", signed_by: makeEmployee({ name: "S3 Approver" }).id, cleared_at: at(6) })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Section 3 waiting for approval")
+      expect(row.next.owner).toBe("section_3_approvers")
+      expect(row.next.step).toBe("section_3_approval")
+      expect(row.daysWaiting).toBe(11)
+      expect(row.group).toBe("waiting_on_us")
+    })
+
     it("shows an RFQ-only order as no Purchase Order yet, owed by Purchasing", async () => {
       const ipas = seedOrder({ poState: "draft", createdAt: at(12) })
 
@@ -437,7 +476,7 @@ describe("orderMonitoringService: what needs doing", () => {
     })
 
     it("files a filed order into the Filed group", async () => {
-      const ipas = seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "checked" })
+      const ipas = seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "lc_odoo_done" })
 
       const row = rowsFor(await listAll({ group: "filed" }), ipas)
 
@@ -452,7 +491,7 @@ describe("orderMonitoringService: what needs doing", () => {
     })
 
     it("counts days in Asia/Manila, so a time just after Manila midnight is the next day", async () => {
-      const ipas = seedOrder({ computationStatus: "checked" })
+      const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
       // 16:30 UTC on the 10th is 00:30 on the 11th in Manila.
       seedSlip({
         state: "awaiting_check",
@@ -535,7 +574,7 @@ describe("orderMonitoringService: what needs doing", () => {
       seedOrder({ poState: "draft", lines: [LINE(20002, 2000)] })
       const importOther = seedOrder({ source: "import", arrivedInPh: "2026-10-14", currency: "USD", lines: [LINE(20003, 500)] })
       seedPayment(importOther)
-      seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "checked", lines: [LINE(20004, 9999)] })
+      seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "lc_odoo_done", lines: [LINE(20004, 9999)] })
       await orderAgeingRulesService.setRule("import_clearance", 3)
 
       const counts = await orderMonitoringService.counts({ today: TODAY })
@@ -591,14 +630,14 @@ describe("orderMonitoringService: what needs doing", () => {
 
     it("narrows to open or filed orders by state", async () => {
       const open = seedOrder()
-      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "checked", deliveredOn: "2026-10-01" })
+      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "lc_odoo_done", deliveredOn: "2026-10-01" })
 
       expect(sortedIds(await listAll({ state: "open" }))).toEqual(idsOf(open))
       expect(sortedIds(await listAll({ state: "filed" }))).toEqual(idsOf(filed))
     })
 
     it("includes a filed order and finds it by search, and never shows a cancelled one", async () => {
-      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "checked", deliveredOn: "2026-10-01" })
+      const filed = seedOrder({ state: "filed", filedAt: at(3), computationStatus: "lc_odoo_done", deliveredOn: "2026-10-01" })
       const cancelled = seedOrder({ state: "cancelled" })
 
       const all = await listAll()

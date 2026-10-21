@@ -189,18 +189,32 @@ describe("what the viewer may return, and who may check", () => {
     expect(signoffRights({ ...section(), ipasState: "filed" }).returnMode).toBeNull()
   })
 
-  it("lets Purchasing step up to LC Odoo Done and Finance or a Super Admin only Checked by", () => {
-    const base = { from: "lc_odoo_done", to: "checked" }
-    expect(canSetComputationStatus({ ...base, hasPurchasingFlow: true })).toBe(false)
-    expect(canSetComputationStatus({ from: "checked", to: "lc_odoo_done", hasPurchasingFlow: true })).toBe(false)
-    expect(canSetComputationStatus({ ...base, hasPurchasingFlow: true, isSuperAdmin: true })).toBe(false)
-    expect(canSetComputationStatus({ ...base, hasPurchasingFlow: true, hasFinanceFlow: true })).toBe(false)
+  it("lets only Purchasing move the Computation status, up to LC Odoo Done", () => {
     expect(canSetComputationStatus({ from: "lc_gs_done", to: "lc_odoo_done", hasPurchasingFlow: true })).toBe(true)
+    expect(canSetComputationStatus({ from: "lc_odoo_done", to: "lc_gs_done", hasPurchasingFlow: true })).toBe(true)
     expect(canSetComputationStatus({ from: "encoding", to: "encoded", hasPurchasingFlow: true })).toBe(true)
-    expect(canSetComputationStatus({ ...base, hasFinanceFlow: true })).toBe(true)
-    expect(canSetComputationStatus({ ...base, isSuperAdmin: true })).toBe(true)
-    expect(canSetComputationStatus({ from: "checked", to: "lc_odoo_done", hasFinanceFlow: true })).toBe(true)
-    expect(canSetComputationStatus({ from: "encoded", to: "lc_gs_done", hasFinanceFlow: true })).toBe(false)
-    expect(canSetComputationStatus({ ...base })).toBe(false)
+    // Checked by is gone: nothing past LC Odoo Done, for anyone.
+    expect(canSetComputationStatus({ from: "lc_odoo_done", to: "checked", hasPurchasingFlow: true })).toBe(false)
+    expect(canSetComputationStatus({ from: "checked", to: "lc_odoo_done", hasPurchasingFlow: true })).toBe(false)
+    // Finance and a Super Admin outside Purchasing no longer set it.
+    expect(canSetComputationStatus({ from: "encoded", to: "lc_gs_done", hasFinanceFlow: true, isSuperAdmin: true })).toBe(false)
+    expect(canSetComputationStatus({ from: "lc_gs_done", to: "lc_odoo_done" })).toBe(false)
+  })
+
+  it("lets Purchasing submit section 3 only from LC Odoo Done", () => {
+    const section3 = (computationStatus) =>
+      signoffRights({
+        section: 6,
+        sectionState: { prepared: null, approved: null },
+        userId: "pia",
+        hasPurchasingFlow: true,
+        lists: {},
+        ipasState: "open",
+        computationStatus,
+      })
+    expect(section3("lc_gs_done").canPrepare).toBe(false)
+    expect(section3("lc_odoo_done").canPrepare).toBe(true)
+    // Sections 1 and 2 don't wait for the status.
+    expect(signoffRights({ section: 1, sectionState: { prepared: null, approved: null }, userId: "pia", hasPurchasingFlow: true, lists: {}, ipasState: "open", computationStatus: "encoding" }).canPrepare).toBe(true)
   })
 })

@@ -45,6 +45,10 @@ const SECTION_STEPS = {
     { role: "prepared", label: "Submitted" },
     { role: "approved", label: "Approved" },
   ],
+  6: [
+    { role: "prepared", label: "Submitted" },
+    { role: "approved", label: "Approved" },
+  ],
   7: [
     { role: "received", label: "Received" },
     { role: "noted", label: "Noted" },
@@ -70,7 +74,7 @@ function shapeTrack(value) {
 
 /**
  * The sign-off progress by section: `{ section, name, steps: [{ role, label,
- * done }], done, total }`, for sections 1, 3 and 7.
+ * done }], done, total }`, for stored sections 1, 3, 6 and 7.
  */
 export function signoffProgress(signoffs) {
   const given = asObject(signoffs);

@@ -2,10 +2,11 @@
 // rights, and who the IPAS waits on. The card itself is the shared RecordCard.
 
 import RecordCard from "@/components/record/RecordCard";
-import { ipasSectionLabel } from "@/constants/ipas";
+import { Button } from "@/components/ui/button";
+import { ipasPartWord, ipasSectionLabel } from "@/constants/ipas";
 import { nowGate } from "./gates";
 import { COSTS_WAITING } from "./moveCopy";
-import { movesFor } from "./moves";
+import { cardMovesFor } from "./moves";
 
 /** One line under "Your move": what the viewer can do, or who the IPAS waits on. */
 function statusLine(digest, gates, offered) {
@@ -22,8 +23,9 @@ function statusLine(digest, gates, offered) {
 
 export default function DecisionCard({ ctx, digest, onReview, next }) {
   const { busy, failure, viewer } = ctx;
-  const { moves, costs, returns } = movesFor(ctx, digest);
-  const offered = [...moves, ...costs, ...returns];
+  const { moves, costs, returns, all, also } = cardMovesFor(ctx, digest);
+  // The status line reads every offered move, not just the ones this card shows.
+  const offered = [...all, ...costs, ...returns];
 
   return (
     <RecordCard
@@ -38,6 +40,26 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
       restate={(section) => digest.lines[section]}
       reviewText={(section) => `Review section ${ipasSectionLabel(section)}`}
       onReview={onReview}
+      footnote={
+        also.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Also waiting for you:{" "}
+            {also.map((part, index) => (
+              <span key={part}>
+                {index > 0 && ", "}
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => onReview(part)}
+                  className="h-auto p-0 text-sm font-semibold text-foreground underline"
+                >
+                  {ipasPartWord(part)}
+                </Button>
+              </span>
+            ))}
+          </p>
+        )
+      }
       viewer={viewer}
       busy={busy.signoff || busy.give}
       failure={failure}
