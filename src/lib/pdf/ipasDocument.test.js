@@ -102,6 +102,20 @@ describe("the two A4 pages", () => {
   })
 })
 
+describe("sign-off band", () => {
+  it("prints one row per section with the section name on the left, section 3 included", () => {
+    const html = doc()
+    expect(html.match(/<div class="sorow">/g)).toHaveLength(4)
+    expect(html).toContain('<div class="soname"><span class="no">3</span>Computation status &amp; Landed Cost</div>')
+  })
+
+  it("leaves room for the typed name so it cannot run over its label", () => {
+    const html = doc()
+    expect(html).toMatch(/\.sig \.plate \{[^}]*min-height: 9mm/)
+    expect(html).toMatch(/\.sig \.printed-name \{[^}]*white-space: nowrap/)
+  })
+})
+
 describe("signatures", () => {
   it("draws a stored signature as the image, a name-only signer as the name, and a waiting box as 'Signature required'", () => {
     const html = doc(
