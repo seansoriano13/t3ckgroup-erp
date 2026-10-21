@@ -61,11 +61,13 @@ export function SectionLinks({ views, open, className }) {
 export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   useWarmTabs(p, ["items", "details", "journey"]);
   const { ctx, opportunity } = p;
-  const [view, setView] = useState("summary");
-  const [opened, setOpened] = useState(["summary"]);
-  const [notesOpen, setNotesOpen] = useState(false);
   // The PMS tab exists for everyone who can see the SOR; PmsTab shows the Costing Matrix only to a tier.
   const views = nestedViews(p);
+  // A caller can open the SOR on a tab (the Costing Matrix page opens "pms"); one this person has no tab for opens the Summary.
+  const [start] = useState(() => (views.some((v) => v.key === p.initialView) ? p.initialView : "summary"));
+  const [view, setView] = useState(start);
+  const [opened, setOpened] = useState(start === "summary" ? ["summary"] : ["summary", start]);
+  const [notesOpen, setNotesOpen] = useState(false);
   const current = views.find((v) => v.key === view);
 
   const open = (key) => {

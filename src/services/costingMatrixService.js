@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
 import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
+import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 import { canvassService } from "./canvassService";
@@ -1019,6 +1020,17 @@ export const costingMatrixService = {
       abcTotal: row.abc_total === null || row.abc_total === undefined ? null : Number(row.abc_total),
       waitingSince: row.waiting_since,
     }));
+  },
+
+  /**
+   * The Costing Matrix page's rows (#606): every SOR with a Costing Matrix, with Planned and Actual
+   * Revenue worked from the database's per-SOR totals and the summary's rates (`shapeMatrixPage`).
+   * Closed Book only; the database refuses anyone else.
+   */
+  async matrixPage() {
+    const [read, settings] = await Promise.all([supabase.rpc("costing_matrix_page"), costingMatrixService.getSettings()]);
+    if (read.error) throw read.error;
+    return shapeMatrixPage(read.data, settings ?? DEFAULT_COSTING_SETTINGS);
   },
 };
 
