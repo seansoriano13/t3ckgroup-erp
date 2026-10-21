@@ -72,6 +72,7 @@ import {
   IPAS_TYPED_STATUS,
   IPAS_TYPED_STATUS_LABELS,
   ipasSectionLabel,
+  ipasSectionNo,
 } from "../../../constants/ipas";
 
 const HEADER_LABELS = {
@@ -823,6 +824,7 @@ function IpasPage({ onClose }) {
       return {
         section,
         mode: undo ? "undo" : "return",
+        no: ipasSectionNo(section),
         label: ipasSectionLabel(section),
         effect: undo
           ? "Takes back the approval only. Submitted stays, so it waits for an approver again."
@@ -834,6 +836,7 @@ function IpasPage({ onClose }) {
     returnTargets.push({
       section: 7,
       mode: "return",
+      no: ipasSectionNo(7),
       label: ipasSectionLabel(7),
       effect: `Clears Received, Noted and Checked and tells who gave them. Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved.`,
       placeholder: "What needs fixing before it is filed?",

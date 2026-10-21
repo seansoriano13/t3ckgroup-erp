@@ -39,6 +39,7 @@ function MoveGroup({ items, origin, className, ...rest }) {
  * @param {(section: string) => string} props.restate  the line a confirming move restates
  * @param {(section: string) => string} [props.reviewText]  the words of a move's review link
  * @param {(section: string) => void} [props.onReview]
+ * @param {React.ReactNode} [props.footnote]  a line under the moves (the IPAS's "Also waiting for you")
  * @param {string} [props.viewer]
  * @param {boolean} props.busy     a move is running; every move is disabled
  * @param {object|null} props.failure  the failed move, shown under it with Retry
@@ -52,6 +53,7 @@ export default function RecordCard({
   restate,
   reviewText,
   onReview,
+  footnote,
   viewer,
   busy,
   failure,
@@ -107,6 +109,7 @@ export default function RecordCard({
               .map((group, index) => (
                 <MoveGroup key={index} items={group.items} origin={CHROME.CARD} className={group.className} {...rest} />
               ))}
+            {footnote}
           </div>
         )}
       </div>
