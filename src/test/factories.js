@@ -324,6 +324,19 @@ export function makeSilLeave(overrides = {}) {
   })
 }
 
+export function makeLwopLeave(overrides = {}) {
+  const employeeId = overrides.employee_id ?? makeEmployee().id
+  return seedWithWindow("lwop_leaves", {
+    date: "2026-03-10",
+    start_time: "09:00",
+    end_time: "17:00",
+    reason: "Family matter",
+    status: "PENDING",
+    ...overrides,
+    employee_id: employeeId,
+  })
+}
+
 export function makeOvertimeRequest(overrides = {}) {
   const employeeId = overrides.employee_id ?? makeEmployee().id
   return seedWithWindow(

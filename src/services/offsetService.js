@@ -41,10 +41,11 @@ export async function stampApplication({ employeeId, categoryId, dates, totalHou
 }
 
 export async function checkOverlap(employeeId, date, startTime, endTime) {
-  const [ot, offset, sil, undertime] = await Promise.all([
+  const [ot, offset, sil, lwop, undertime] = await Promise.all([
     supabase.from('overtime_requests').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     supabase.from('offset_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     supabase.from('sil_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    supabase.from('lwop_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     // Undertime carries no single start/end pair — the window that actually
     // occupied the employee's day is the actual (worked) window, not the
     // original schedule, so that's what's compared here.
@@ -55,6 +56,7 @@ export async function checkOverlap(employeeId, date, startTime, endTime) {
     ...(ot.data || []),
     ...(offset.data || []),
     ...(sil.data || []),
+    ...(lwop.data || []),
     ...(undertime.data || []).map((r) => ({ start_time: r.actual_start_time, end_time: r.actual_end_time })),
   ].filter(r => r.start_time && r.end_time);
 
@@ -87,14 +89,15 @@ export async function getPendingOffsetHours(employeeId) {
 }
 
 export async function checkDateTaken(employeeId, date) {
-  const [ot, offset, sil, undertime] = await Promise.all([
+  const [ot, offset, sil, lwop, undertime] = await Promise.all([
     supabase.from('overtime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     supabase.from('offset_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     supabase.from('sil_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    supabase.from('lwop_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     supabase.from('undertime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
   ]);
 
-  if ([...(ot.data || []), ...(offset.data || []), ...(sil.data || []), ...(undertime.data || [])].length > 0) {
+  if ([...(ot.data || []), ...(offset.data || []), ...(sil.data || []), ...(lwop.data || []), ...(undertime.data || [])].length > 0) {
     throw new Error(`An application already exists on ${date}.`);
   }
 }

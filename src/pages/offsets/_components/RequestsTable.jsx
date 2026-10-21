@@ -112,7 +112,7 @@ export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
-                  {req.verification_token && (
+                  {req.verification_token && req.type !== 'LWOP' && (
                     <Link
                       to={`/verify/${req.verification_token}`}
                       target="_blank"

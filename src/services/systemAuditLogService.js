@@ -8,6 +8,7 @@ export const HR_ENTITY_TYPES = [
   "OVERTIME",
   "OFFSET_LEAVE",
   "SIL_LEAVE",
+  "LWOP_LEAVE",
   "HR_SETTINGS",
 ];
 
