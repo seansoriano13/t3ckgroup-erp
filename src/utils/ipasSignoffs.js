@@ -226,7 +226,6 @@ export function canSendBackSection7({ state, userId, lists = {}, ipasState }) {
  * means. The Received step itself has nothing live to return.
  */
 export function canSendBackItem({ section, role }) {
-  // Section 3 (stored 6) joins the returnable sections with its Return (#591).
   if (!IPAS_SEND_BACK_SECTIONS.includes(section)) return false;
   return section !== 7 || role !== IPAS_SIGNOFF_ROLE.RECEIVED;
 }

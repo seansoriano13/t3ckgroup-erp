@@ -601,6 +601,7 @@ All are read only. The browser never talks to Odoo, and credentials live in func
 - A filed IPAS's option labels cannot be renamed.
 - Currency, Supplier, item lines and Brand on an IPAS cannot be overridden.
 - The Computation status ends at LC Odoo Done; nobody can set Checked by any more (section 3's sign-off is the check).
+- A change to the Landed Cost clears section 3's Submitted and Approved, and nothing else: payments and charges never clear section 1 or 2 (#591).
 - An IPAS's Remarks freeze once filed; its SOR list is fixed after raising.
 
 **Things that warn but do not block**
