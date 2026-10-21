@@ -12,6 +12,7 @@ export function resolveLeaveCategory(record) {
   if (record.type === 'OVERTIME') return 'Overtime';
   if (record.type === 'OFFSET') return 'Offset';
   if (record.type === 'SIL') return 'Service Incentive Leave';
+  if (record.type === 'LWOP') return 'Leave Without Pay';
   return 'Unknown';
 }
 

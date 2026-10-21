@@ -290,6 +290,11 @@ describe('printed form titles and field lists (issue #612)', () => {
     expect(buildTG11ViewModel(rec).fields[2].v).toBe('Leave With Pay (LWP)');
     expect(buildTG11ViewModel({ ...rec, type: 'OFFSET' }).fields[2].v).toBe('Offset');
   });
+  it('TG-11 treated as reads Leave Without Pay (LWOP) for an LWOP, with an LV record number (#621)', () => {
+    const vm = buildTG11ViewModel({ ...rec, type: 'LWOP' });
+    expect(vm.fields[2].v).toBe('Leave Without Pay (LWOP)');
+    expect(getRecordNumber({ ...rec, type: 'LWOP' })).toMatch(/^LV-/);
+  });
   it('TG-12 title and exact fields', () => {
     const vm = buildTG12ViewModel({ ...rec, type: 'OVERTIME' });
     expect(vm.kind).toBe('Overtime Authorization Form');

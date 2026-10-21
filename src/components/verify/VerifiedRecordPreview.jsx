@@ -23,6 +23,7 @@ function getStatusConfig(status) {
 /** Same wording the printed TG-11 uses for how a record is treated. */
 function treatedAsLabel(formType, category) {
   if (formType === "Offset") return "Offset";
+  if (formType === "LWOP") return "Leave Without Pay (LWOP)";
   if (formType === "Leave") return "Leave With Pay (LWP)";
   return category;
 }
@@ -72,6 +73,11 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
             table = "offset_leaves";
             employeeFkey = "offset_leaves_employee_id_fkey";
             hrFkey = "offset_leaves_hr_processed_by_fkey";
+          }
+          if (record.form_type === "LWOP") {
+            table = "lwop_leaves";
+            employeeFkey = "lwop_leaves_employee_id_fkey";
+            hrFkey = "lwop_leaves_hr_processed_by_fkey";
           }
           if (record.form_type === "Overtime") {
             table = "overtime_requests";

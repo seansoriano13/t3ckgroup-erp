@@ -11,6 +11,24 @@ import { manilaToday } from "@/lib/manilaDate"
  * LWOP is a record, not an entitlement: no path in this service may read or write a balance.
  * Every test that touches an employee row checks the balances are exactly as seeded.
  */
+describe("lwopService.markLwopLeavesPrinted (#621)", () => {
+  it("stamps every row of a group, and a single row by id", async () => {
+    const hr = makeHrEmployee({ name: "HR Officer" })
+    const emp = makeEmployee({ name: "Ana Reyes" })
+    const groupId = crypto.randomUUID()
+    const d1 = makeLwopLeave({ employee_id: emp.id, status: "APPROVED", leave_group_id: groupId, date: "2026-03-10" })
+    const d2 = makeLwopLeave({ employee_id: emp.id, status: "APPROVED", leave_group_id: groupId, date: "2026-03-11" })
+    const solo = makeLwopLeave({ employee_id: emp.id, status: "APPROVED", date: "2026-03-12" })
+
+    await lwopService.markLwopLeavesPrinted({ groupId, hrId: hr.id })
+    await lwopService.markLwopLeavesPrinted({ id: solo.id, hrId: hr.id })
+
+    const rows = db.rows("lwop_leaves").filter((r) => [d1.id, d2.id, solo.id].includes(r.id))
+    expect(rows).toHaveLength(3)
+    expect(rows.every((r) => r.printed_by === hr.id && typeof r.printed_at === "string")).toBe(true)
+  })
+})
+
 describe("lwopService", () => {
   let employee
   let hr

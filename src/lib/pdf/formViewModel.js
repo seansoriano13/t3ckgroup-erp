@@ -9,7 +9,7 @@ import { formatManilaDate, formatManilaDateTime } from '../manilaDate';
 import { getInclusiveDates, getDayCount, isLateFiling, isLegacySignature, getOvertimeHoursDisplay } from './layout';
 
 /** One record number prefix per record type — the single source the registry (formTypeRegistry.js) draws its label from. */
-const RECORD_PREFIXES = { OVERTIME: 'OT', UNDERTIME: 'UT', SIL: 'LV', OFFSET: 'LV' };
+const RECORD_PREFIXES = { OVERTIME: 'OT', UNDERTIME: 'UT', SIL: 'LV', OFFSET: 'LV', LWOP: 'LV' };
 
 /** "LV-2026-4F91" / "OT-2026-4F91" / "UT-2026-4F91" — stable per record, never a claimed sequence number. */
 export function getRecordNumber(record) {
@@ -24,6 +24,7 @@ export function getRecordNumber(record) {
 export function getTreatedAs(record) {
   if (record.type === 'SIL') return 'Leave With Pay (LWP)';
   if (record.type === 'OFFSET') return 'Offset';
+  if (record.type === 'LWOP') return 'Leave Without Pay (LWOP)';
   return 'Unknown';
 }
 

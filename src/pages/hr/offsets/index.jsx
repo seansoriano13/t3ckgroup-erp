@@ -309,9 +309,7 @@ export default function HrLeavesManagerPage() {
   // The Document Center's picker is scoped to approved records only — same
   // restriction Request History enforced when it still had a print action.
   const approvedForDocuments = useMemo(
-    // LWOP stays out of the Document Center until printing lands (#621): the form registry
-    // throws on a type it does not know.
-    () => filteredProcessed.filter(r => r.status.startsWith('APPROVED') && r.type !== 'LWOP'),
+    () => filteredProcessed.filter(r => r.status.startsWith('APPROVED')),
     [filteredProcessed]
   );
 
