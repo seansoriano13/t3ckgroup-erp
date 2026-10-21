@@ -8,7 +8,7 @@ import Avatar from "../Avatar"
 import WhoIsOut from "../../pages/hr/offsets/_components/WhoIsOut"
 import PendingList from "../../pages/hr/offsets/_components/PendingList"
 import HistoryView from "../../pages/hr/offsets/_components/HistoryView"
-import CalendarTab from "../../pages/hr/offsets/_components/CalendarTab"
+import CalendarMonth from "../calendar/CalendarMonth"
 import BalancesTable from "../../pages/hr/offsets/_components/BalancesTable"
 import LeaveSheet from "../../pages/hr/offsets/_components/LeaveSheet"
 import ProfileSheet from "../../pages/hr/offsets/_components/ProfileSheet"
@@ -110,6 +110,23 @@ const APPROVED_DAYS = [
   day(PEOPLE.paolo, "SIL", monthDay(24)),
 ]
 
+// The same approved days as entries of the shared Calendar (sample data only).
+const CALENDAR_ENTRIES = APPROVED_DAYS.map((d) => ({
+  kind: d.type,
+  id: d.id,
+  group_id: d.id,
+  starts_at: `${d.date}T01:00:00Z`,
+  ends_at: `${d.date}T09:00:00Z`,
+  all_day: true,
+  manila_date: d.date,
+  employee: { id: d.employee_id, name: d.employee?.name, department: d.employee?.department, avatar: null },
+  status: "APPROVED",
+  hours: d.hours,
+  venue: null,
+  title: d.type,
+  details: {},
+}))
+
 const REQUESTS = [...PENDING, ...DECIDED]
 const availableHoursFor = (r) => {
   const balance = r.type === "OFFSET" ? r.employee?.offset_hours_balance : r.type === "SIL" ? r.employee?.sil_hours_balance : null
@@ -184,7 +201,7 @@ export function LeavesManagerSample() {
   if (view === "pending") {
     body = <PendingList rows={PENDING} total={PENDING.length} loading={false} availableHoursFor={availableHoursFor} asc onOpen={openRequest} />
   } else if (view === "calendar") {
-    body = <CalendarTab approvedLeaves={APPROVED_DAYS} pendingLeaves={PENDING} monthStart={monthDay(1)} />
+    body = <CalendarMonth anchor={monthDay(1)} entries={CALENDAR_ENTRIES} onOpenEntry={() => {}} todayYmd={isoDate(0)} />
   } else if (view === "history") {
     body = <HistoryView rows={DECIDED} loading={false} onOpen={openRequest} />
   } else if (view === "documents") {

@@ -1,7 +1,9 @@
 import { formatEntryDate, formatEntryTime } from './entryFormat.js';
 import SlideOver, { SlideOverBody } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
+import { Button } from '@/components/ui/button';
 import { kindOf } from './entryKinds.jsx';
+import { canWithdrawEntry } from './withdraw.js';
 
 const STATUS_LABEL = { APPROVED: 'Approved', PENDING: 'Pending' };
 
@@ -29,7 +31,7 @@ export function DefaultEntryDetail({ entry }) {
 }
 
 /** The detail panel for one Calendar entry; each kind may supply its own body in the registry. */
-export default function EntryDetail({ entry, onClose }) {
+export default function EntryDetail({ entry, onClose, entries = [], viewerId = null, onWithdraw = null }) {
   return (
     <SlideOver
       record={entry}
@@ -44,7 +46,25 @@ export default function EntryDetail({ entry, onClose }) {
     >
       {(e) => {
         const Body = kindOf(e.kind)?.Detail ?? DefaultEntryDetail;
-        return <Body entry={e} />;
+        return (
+          <>
+            <Body entry={e} />
+            {onWithdraw && canWithdrawEntry(e, entries, viewerId) && (
+              <div className="px-4 pb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onWithdraw(e);
+                    onClose();
+                  }}
+                >
+                  Withdraw
+                </Button>
+              </div>
+            )}
+          </>
+        );
       }}
     </SlideOver>
   );
