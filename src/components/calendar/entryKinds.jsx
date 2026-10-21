@@ -22,6 +22,9 @@ export const LAYERS = [
 
 export const DEFAULT_LAYERS = { meetings: true, timeOff: true, overtime: true };
 
+/** The preset for the filtered views (HR's Time Off & Overtime tab, My Requests): no Meetings. */
+export const TIME_OFF_OVERTIME_LAYERS = { meetings: false, timeOff: true, overtime: true };
+
 export const ENTRY_KINDS = {
   SIL: {
     layer: 'timeOff',

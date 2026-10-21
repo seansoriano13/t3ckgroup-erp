@@ -13,21 +13,29 @@ function read() {
   return { ...DEFAULT_LAYERS };
 }
 
-/** Layer toggles, remembered per viewer in this browser. Storage is a convenience only. */
-export function useCalendarLayers() {
-  const [layers, setLayers] = useState(read);
+/**
+ * Layer toggles, remembered per viewer in this browser. Storage is a convenience only.
+ * A `preset` (a filtered view of the Calendar, such as HR's) starts from those
+ * layers and neither reads nor writes the remembered choice.
+ */
+export function useCalendarLayers(preset = null) {
+  const [layers, setLayers] = useState(() => (preset ? { ...DEFAULT_LAYERS, ...preset } : read()));
 
-  const toggle = useCallback((key) => {
-    setLayers((current) => {
-      const next = { ...current, [key]: !current[key] };
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // Not remembered, still toggled.
-      }
-      return next;
-    });
-  }, []);
+  const toggle = useCallback(
+    (key) => {
+      setLayers((current) => {
+        const next = { ...current, [key]: !current[key] };
+        if (preset) return next;
+        try {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // Not remembered, still toggled.
+        }
+        return next;
+      });
+    },
+    [preset],
+  );
 
   return [layers, toggle];
 }

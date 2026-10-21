@@ -34,7 +34,8 @@ import PendingList from './_components/PendingList';
 import LeaveSheet from './_components/LeaveSheet';
 import ProfileSheet from './_components/ProfileSheet';
 import HistoryView from './_components/HistoryView';
-import CalendarTab from './_components/CalendarTab';
+import Calendar from '@/components/calendar/Calendar';
+import { TIME_OFF_OVERTIME_LAYERS } from '@/components/calendar/entryKinds.jsx';
 import BalancesTable from './_components/BalancesTable';
 import DocumentCenterTab from './_components/DocumentCenterTab';
 import { LEAVE_TYPES, LEAVE_VIEWS, TYPE_META } from './_components/leaveDisplay';
@@ -142,8 +143,7 @@ export default function HrLeavesManagerPage() {
         combined.filter(req => req.status !== 'PENDING' && req.status !== 'CANCELLED')
       ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
-      // Approved feeds the calendar, which plots one card per day — left
-      // ungrouped so every day in a range still gets its own cell.
+      // Approved feeds "Who is out" only; the Calendar reads its own projection.
       const approved = combined.filter(req => ['APPROVED', 'APPROVED_OFFSET', 'APPROVED_PAID'].includes(req.status) && (req.type === 'OFFSET' || req.type === 'SIL'));
 
       return {
@@ -429,7 +429,7 @@ export default function HrLeavesManagerPage() {
       />
     );
   } else if (activeTab === 'calendar') {
-    view = <CalendarTab approvedLeaves={approvedLeaves} pendingLeaves={pendingLeaves} monthStart={dateRange.startDate} />;
+    view = <Calendar presetLayers={TIME_OFF_OVERTIME_LAYERS} />;
   } else if (activeTab === 'history') {
     view = <HistoryView rows={filteredProcessed} loading={loading} onOpen={openFrom} />;
   } else if (activeTab === 'documents') {

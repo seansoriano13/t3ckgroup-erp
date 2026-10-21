@@ -2,9 +2,9 @@ import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EmployeeLeavesPage from '@/pages/offsets/index';
 import { renderWithProviders, setupUser } from '@/test/support';
+import { manilaToday } from '@/lib/manilaDate.js';
 import { within } from '@testing-library/react';
 import { makeEmployee, makeOffsetLeave, makeOvertimeRequest, makeUndertimeRequest } from '@/test/factories';
-import { stubCalendarOffsetLeavesRpc, stubCalendarSilLeavesRpc } from '@/test/stubs/calendarLeavesRpc';
 
 // The page's history queries are bound to the currently displayed month
 // (defaulting to "today"), while its pending queries are unbounded. A test
@@ -14,6 +14,11 @@ import { stubCalendarOffsetLeavesRpc, stubCalendarSilLeavesRpc } from '@/test/st
 const todayStr = new Date().toISOString().slice(0, 10);
 
 const mockUser = vi.hoisted(() => ({ current: null }));
+const mockCalendar = vi.hoisted(() => ({ entries: [] }));
+
+vi.mock('@/services/calendarService', () => ({
+  calendarService: { fetchEntries: vi.fn(async () => mockCalendar.entries) },
+}));
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
@@ -32,9 +37,6 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
       sil_hours_balance: 20,
     });
     mockUser.current = { id: employee.id, name: employee.name, offset_hours_balance: 10, sil_hours_balance: 20 };
-    // The page reads the viewer's own leaves through the calendar projection RPCs.
-    stubCalendarOffsetLeavesRpc({ viewerId: employee.id });
-    stubCalendarSilLeavesRpc({ viewerId: employee.id });
   });
 
   it('renders the My Requests header and both balances', () => {
@@ -134,6 +136,31 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     const calendarTab = await screen.findByRole('tab', { name: /^Calendar$/i });
     await setupUser().click(calendarTab);
     expect(screen.queryByText('No requests found')).not.toBeInTheDocument();
+  });
+
+  it('shows the shared Calendar with the viewer\'s own reasons and no colleague\'s', async () => {
+    const date = manilaToday();
+    const row = (id, who, details) => ({
+      kind: 'OFFSET', id, group_id: id, starts_at: `${date}T01:00:00Z`, ends_at: `${date}T09:00:00Z`,
+      all_day: false, manila_date: date, employee: { id: who.id, name: who.name, department: 'SALES', avatar: null },
+      status: 'APPROVED', hours: 8, venue: null, title: 'Offset', details,
+    });
+    mockCalendar.entries = [
+      row('mine', { id: employee.id, name: 'John Doe' }, { reason: 'My dentist' }),
+      row('theirs', { id: 'other', name: 'Ben Lim' }, {}),
+    ];
+    const user = setupUser();
+    renderWithProviders(<EmployeeLeavesPage />);
+    await user.click(await screen.findByRole('tab', { name: /^Calendar$/i }));
+
+    await user.click(await screen.findByText(/John Doe · Offset/));
+    expect(await screen.findByText('My dentist')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    await user.click(screen.getByText(/Ben Lim · Offset/));
+    expect(await screen.findAllByText('Ben Lim')).not.toHaveLength(0);
+    expect(screen.queryByText('Reason')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
   });
 
   it('sits on PageShell: Apply Leave / OT in the header, underlined tabs', async () => {
