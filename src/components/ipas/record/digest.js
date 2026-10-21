@@ -15,6 +15,8 @@ import {
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { formatAmount } from "@/utils/ipas";
+import { billCheckView } from "@/utils/ipasBillCheck";
+import { ipasFigures } from "@/utils/ipasFigures";
 import { filingChecklist } from "@/utils/ipasDocuments";
 import { FILING_STATUS, SIGNOFF_STATUS, isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { formatDay } from "@/utils/ipasPayments";
@@ -80,6 +82,10 @@ export function digestIpas(ipas) {
     landedText: lc.totals ? `${pesos(lc.totals.landedPhp)}${isLandedCostEstimate(lc) ? " (estimate)" : ""}` : "Not available yet",
     rateText: lc.rate ? `${lc.rate.rate.toFixed(4)} PHP per ${lc.currency}` : null,
   };
+
+  // The money summary and section 1's approval warning read the same figures (#603).
+  const figures = ipasFigures(ipas);
+  const bill = billCheckView(figures);
 
   // Sign-offs.
   const s1 = ipas.signoffSections[1];
@@ -172,6 +178,8 @@ export function digestIpas(ipas) {
     filed,
     cancelled,
     money,
+    figures,
+    bill,
     s1,
     s3,
     s6,

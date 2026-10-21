@@ -22,7 +22,7 @@ const LOOK = {
  * the link's words.
  */
 export default function MoveButton({ move, origin, disabled = false, onRun, onReview, reviewText, failure, busy = false }) {
-  const { icon: Icon, label, hint, kind, key } = move;
+  const { icon: Icon, label, hint, kind, key, warning } = move;
   const failed = failure && failure.key === key && failure.origin === origin ? failure : null;
 
   return (
@@ -42,6 +42,16 @@ export default function MoveButton({ move, origin, disabled = false, onRun, onRe
         <Icon size={16} aria-hidden="true" />
         <span className="min-w-0">{label}</span>
       </Button>
+      {/* A warning beside the button (the IPAS's bill check): it says something is off, and never disables the move. */}
+      {warning && (
+        <p
+          role="status"
+          data-testid={`move-warning-${origin}-${key}`}
+          className="rounded-lg bg-amber-a3 px-2.5 py-2 text-xs leading-relaxed font-semibold text-amber-11"
+        >
+          {warning}
+        </p>
+      )}
       {/* The hint takes the full width, with the review link on its own line under it. */}
       <div className="grid gap-1.5">
         <p id={`move-hint-${origin}-${key}`} className="text-xs leading-relaxed text-muted-foreground">
