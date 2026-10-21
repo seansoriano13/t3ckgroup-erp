@@ -11,6 +11,10 @@ describe('getFormType', () => {
     expect(getFormType('OFFSET').buildViewModel).toBe(buildTG11ViewModel);
   });
 
+  it('resolves LWOP to the TG-11 builder (#621)', () => {
+    expect(getFormType('LWOP').buildViewModel).toBe(buildTG11ViewModel);
+  });
+
   it('resolves OVERTIME to the TG-12 builder', () => {
     expect(getFormType('OVERTIME').buildViewModel).toBe(buildTG12ViewModel);
   });

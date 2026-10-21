@@ -17,6 +17,19 @@ import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours } from './leave
  */
 export const lwopService = {
   /**
+   * Stamp a printed batch's LWOP rows as printed (Document Center). Informational only; the
+   * same group-or-id shape as silService.markSilLeavesPrinted.
+   */
+  async markLwopLeavesPrinted({ id, groupId, hrId }) {
+    const query = supabase
+      .from('lwop_leaves')
+      .update({ printed_at: new Date().toISOString(), printed_by: hrId });
+
+    const { error } = groupId ? await query.eq('leave_group_id', groupId) : await query.eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
    * Apply for LWOP on a single day with a time window (Employee).
    */
   async applyLwopLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
