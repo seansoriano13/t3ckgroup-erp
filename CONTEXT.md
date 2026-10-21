@@ -100,10 +100,6 @@ _Avoid_: Client, Client Name, Customer, Account
 The individual at the Company that the salesperson actually deals with. Free text by design — it routinely carries a mobile number or a working nickname that Odoo does not hold.
 _Avoid_: Client, Contact Name
 
-**Offset**:
-Compensatory time off or overtime adjustment claimed by an employee for hours worked outside standard shifts.
-_Avoid_: Leave credit, OT slip
-
 **Group Task**:
 A collaborative project or shared task assignment involving multiple team members with defined roles and templates.
 _Avoid_: Project, Shared Task
@@ -140,6 +136,46 @@ _Avoid_: HR Management, User List
 **Call Sign**:
 The short number each person goes by inside the company — 101 for Boss Lito, 1001 for Ma'am Raquel, 102 for Ma'am Grace — kept on their employee record. Paper forms name signers by it ("Check by … 1001"), so printed forms print it under a signature, and signer lists are seeded by it. The IPAS sheet's "Created By" column is the raiser's call sign. An identifier people say aloud, not a login or payroll number. The full list is in docs/call-signs.md.
 _Avoid_: Employee code, Employee ID
+
+### Time Off & Overtime
+
+**Offset**:
+Time off an employee pays for with their Offset Credits. Not a leave: it spends overtime already worked, not a leave entitlement, though it is filed on the same paper form as a leave (TG-11).
+_Avoid_: Offset Leave, Leave credit, OT slip
+
+**Offset Credit**:
+Overtime hours HR approved to be banked instead of paid, held in the employee's offset balance until an Offset spends them.
+_Avoid_: Comp time, Offset leave balance
+
+**Service Incentive Leave (SIL)**:
+Paid leave drawn from the employee's SIL balance. The printed form calls it Leave With Pay (LWP).
+_Avoid_: Paid leave (as a separate type)
+
+**LWOP (Leave Without Pay)**:
+Time an employee was away with no pay and no balance spent, whether they filed for it ahead or simply did not come in. Kept for records only. HR may record one after the fact for an employee who never filed, and it stands as approved.
+_Avoid_: Absent, AWOL, Unpaid leave
+
+### Meetings
+
+**Meeting Request**:
+One request to hold a meeting at a Venue for a set time, naming its Facilitator, Participants and purpose. The same record from filing, through approval, to the meeting itself; it holds its slot from the moment it is filed until it is declined or cancelled.
+_Avoid_: Meeting Booking, Room Reservation, Meeting Schedule
+
+**Venue**:
+A room a meeting is held in: today the Conference Room or the Admin Office. Each Venue is booked on its own, so two Venues may host meetings at the same time, but one Venue never hosts two.
+_Avoid_: Room, Location
+
+**Facilitator**:
+The department head who runs a meeting. Not the head who approves its Meeting Request, who is the applicant's own department head.
+_Avoid_: Host, Organizer, Chair
+
+**Participant**:
+An employee named on a Meeting Request as attending. People from outside the company are Guests, typed in by name, never Participants.
+_Avoid_: Attendee, Invitee
+
+**Return** (of a Meeting Request):
+A head or HR sending a Meeting Request back to its applicant with a note to fix it. Sending it again starts approval over at the head. Not a decline, which ends the request.
+_Avoid_: Reject, Send back
 
 ### Commission
 
