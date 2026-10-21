@@ -396,6 +396,7 @@ export function stubIpasRpcs({
           sales_reference: o?.sales_reference ?? null,
           project_title: o?.project_title ?? null,
           current_stage_name: (o && findRow("flow_stages", o.flow_stage_id)?.name) ?? null,
+          sor_code: o?.sor_code ?? (o?.serial_no != null ? `SOR-${o.serial_no}` : null),
         }
       })
   })

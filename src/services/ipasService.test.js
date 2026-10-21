@@ -355,7 +355,7 @@ describe("ipasService", () => {
       expect(rows.map((r) => r.po_number)).toEqual(["P01002", "P01001"])
       expect(rows[1]).toMatchObject({ entity: "T3ck Trading", supplier: "Scorpe Technologies", currency: "Php" })
       expect(rows[1].sors).toEqual([
-        { id: sor.id, salesReference: "S07920", projectTitle: "Capas LGU", stageName: "Quotation" },
+        { id: sor.id, salesReference: "S07920", projectTitle: "Capas LGU", stageName: "Quotation", sorCode: `SOR-${sor.serial_no}` },
       ])
       expect(rows[0].sors).toEqual([])
     })

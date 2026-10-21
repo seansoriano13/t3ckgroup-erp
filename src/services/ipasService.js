@@ -58,7 +58,7 @@ import { shapeIpasSummaries } from "../utils/ipasSummary";
 import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
-  "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
+  "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path, call_sign), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
   " import_clearance_typer:employees!ipas_import_clearance_typed_by_fkey(id, name)," +
   " delivered_typer:employees!ipas_delivered_typed_by_fkey(id, name)," +
   " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)";

@@ -48,8 +48,8 @@ const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 const ALL = "__all__";
 
-// Supplier, Entity, SORs and Raised hide below md so the number, Purpose, Costing and State stay in view.
-const NARROW_HIDDEN = new Set(["Supplier", "Entity", "SORs", "Raised"]);
+// Supplier, Entity, Project / SO, Raised and Raised by hide below md so the number, Purpose, Costing and State stay in view.
+const NARROW_HIDDEN = new Set(["Supplier", "Entity", "Project / SO", "Raised", "Raised by"]);
 
 const IPAS_SORT = {
   ipas: (r) => r.number,
@@ -58,8 +58,9 @@ const IPAS_SORT = {
   entity: (r) => r.entity,
   purpose: (r) => IPAS_PURPOSE_LABELS[r.purpose],
   costing: (r) => IPAS_COMPUTATION_STATUSES.indexOf(r.computation_status),
-  sors: (r) => r.sors[0]?.salesReference,
+  "project-so": (r) => r.sors[0]?.salesReference ?? r.sors[0]?.sorCode,
   raised: (r) => new Date(r.created_at).getTime(),
+  "raised-by": (r) => r.creator?.name,
   state: (r) => r.state,
 };
 
@@ -127,7 +128,7 @@ function IpasList() {
         ]}
       />
       <FilterBar
-        search={{ value: search, onChange: setSearch, placeholder: "Search IPAS" }}
+        search={{ value: search, onChange: setSearch, placeholder: "Search IPAS, PO, supplier, SO, SOR or project" }}
         chips={
           <>
             <FilterSelect
@@ -223,7 +224,7 @@ function IpasList() {
               <Table tableId="ipas" className="md:min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "Costing", "SORs", "Raised", "State"].map((heading) => (
+                    {["IPAS", "Odoo PO", "Supplier", "Entity", "Purpose", "Costing", "Project / SO", "Raised", "Raised by", "State"].map((heading) => (
                       <SortHead
                         key={heading}
                         id={slug(heading)}
@@ -239,7 +240,7 @@ function IpasList() {
                 </TableHeader>
                 <TableBody>
                   {paging.rows.map((row) => (
-                    <IpasRow key={row.id} row={row} onOpen={(id) => navigate(`/purchasing/ipas/${id}`)} />
+                    <IpasRow key={row.id} row={row} search={search} onOpen={(id) => navigate(`/purchasing/ipas/${id}`)} />
                   ))}
                 </TableBody>
               </Table>

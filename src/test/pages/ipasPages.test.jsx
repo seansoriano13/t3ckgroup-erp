@@ -131,6 +131,109 @@ describe("IPAS pages", () => {
       expect(await screen.findByText("S07920")).toBeInTheDocument();
     });
 
+    it("shows each SOR as SO number and project, or SOR number and project when it has no SO number", async () => {
+      const withSo = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", sor_code: "SOR-198", project_title: "Capas LGU" });
+      const withoutSo = makeOpportunity({ registered_by: salesperson.id, sales_reference: null, sor_code: "SOR-210", project_title: "Tarlac Depot" });
+      const row = ipas({ purpose: "project" });
+      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: withSo.id });
+      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: withoutSo.id });
+
+      renderList();
+
+      const lines = within(await screen.findByTestId("ipas-row-sors")).getAllByRole("listitem");
+      expect(lines.map((li) => li.textContent)).toEqual(["S07920 · Capas LGU", "SOR-210 · Tarlac Depot"]);
+    });
+
+    it("shows who raised it by Call Sign and name, or just the name without a Call Sign", async () => {
+      const withSign = makeEmployee({ name: "Raquel Cruz", call_sign: "1001" });
+      const noSign = makeEmployee({ name: "Pat Reyes", call_sign: null });
+      ipas({ po_number: "P02552", created_by: withSign.id });
+      ipas({ po_number: "P02553", created_by: noSign.id });
+
+      renderList();
+
+      await screen.findAllByTestId("ipas-row");
+      const shown = screen.getAllByTestId("ipas-row-raised-by").map((el) => el.textContent);
+      expect(shown.sort()).toEqual(["1001 · Raquel Cruz", "Pat Reyes"]);
+    });
+
+    describe("searching", () => {
+      let capas, tarlac;
+
+      beforeEach(() => {
+        const capasSor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", sor_code: "SOR-198", project_title: "Capas LGU Rescue" });
+        const tarlacSor = makeOpportunity({ registered_by: salesperson.id, sales_reference: null, sor_code: "SOR-210", project_title: "Tarlac Depot" });
+        capas = ipas({ po_number: "P02552", purpose: "project" });
+        tarlac = ipas({ po_number: "P02553", purpose: "project" });
+        db.seed("ipas_sors", { ipas_id: capas.id, opportunity_id: capasSor.id });
+        db.seed("ipas_sors", { ipas_id: tarlac.id, opportunity_id: tarlacSor.id });
+      });
+
+      const highlighted = (row) => Array.from(row.querySelectorAll(".text-amber-11")).map((el) => el.textContent);
+
+      it("finds an IPAS by SOR number, case-insensitively, and highlights it", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "sor-210");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        const row = screen.getByTestId("ipas-row");
+        expect(within(row).getByText(tarlac.number)).toBeInTheDocument();
+        expect(highlighted(row).join("").toLowerCase()).toBe("sor-210");
+      });
+
+      it("finds an IPAS by SOR number even when the SOR has an SO number, and shows the SOR number it matched", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "SOR-198");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        const row = screen.getByTestId("ipas-row");
+        expect(within(row).getByText(capas.number)).toBeInTheDocument();
+        expect(highlighted(row)).toEqual(["SOR-198"]);
+      });
+
+      it("finds an IPAS by project name, case-insensitively, and highlights it", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "capas lgu");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        const row = screen.getByTestId("ipas-row");
+        expect(within(row).getByText(capas.number)).toBeInTheDocument();
+        expect(highlighted(row)).toEqual(["Capas LGU"]);
+      });
+
+      it("finds an IPAS by SO number and highlights it", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "s0792");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        expect(highlighted(screen.getByTestId("ipas-row"))).toEqual(["S0792"]);
+      });
+
+      it("finds an IPAS by Odoo PO and highlights it", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "p02553");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        expect(within(screen.getByTestId("ipas-row")).getByText(tarlac.number)).toBeInTheDocument();
+        expect(highlighted(screen.getByTestId("ipas-row"))).toEqual(["P02553"]);
+      });
+    });
+
     it("says there are none yet", async () => {
       renderList();
       expect(await screen.findByText("No IPAS yet")).toBeInTheDocument();
