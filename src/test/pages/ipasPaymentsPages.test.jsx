@@ -252,7 +252,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.type(amount, "640");
       // Optional (#604): no Needed mark, a one-line explanation under it, and Save all goes without it.
       expect(within(payment).queryByText("Needed")).not.toBeInTheDocument();
-      expect(within(payment).getByTestId("payment-pesos-hint")).toHaveTextContent(/Leave it blank until then/);
+      expect(within(payment).getByTestId("payment-pesos-hint")).toHaveTextContent(/Left blank, Landed Cost uses the Reference Rate/);
       await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
@@ -471,14 +471,14 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.queryByRole("button", { name: "Checked by" })).not.toBeInTheDocument();
     });
 
-    it("moves the status one step either way for Purchasing, and no further", async () => {
+    it("jumps the status to any step for Purchasing (feedback on #595)", async () => {
       const row = ipas({ po_number: "P02552", computation_status: "encoded" });
 
       renderDetail(row.id, "costing", "edit");
 
       expect(await screen.findByRole("button", { name: "LC GS Done" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Encoding" })).toBeEnabled();
-      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toBeEnabled();
       expect(screen.queryByRole("button", { name: "Checked by" })).not.toBeInTheDocument();
     });
 

@@ -1,4 +1,4 @@
-import { Ban, FileLock2, Pencil, Printer } from "lucide-react";
+import { Ban, CirclePause, CirclePlay, FileLock2, Pencil, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import IpasStateBadge from "@/components/ipas/IpasStateBadge";
@@ -18,6 +18,13 @@ export default function HeaderActions({ ctx }) {
   ];
   if (can.printFiling) {
     items.push({ key: "filing", label: "Print filing copy", icon: FileLock2, disabled: busy.print, onSelect: on.printFiling });
+  }
+  if (can.hold) {
+    items.push(
+      ctx.onHold
+        ? { key: "hold", label: "Clear On-Hold", icon: CirclePlay, onSelect: on.hold }
+        : { key: "hold", label: "Put On-Hold", icon: CirclePause, onSelect: on.hold },
+    );
   }
   if (can.change) {
     // A Project's SORs are fixed when it is raised, so its Purpose has nowhere to go (#551).

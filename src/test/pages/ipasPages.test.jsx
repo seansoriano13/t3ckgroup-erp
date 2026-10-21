@@ -114,7 +114,8 @@ describe("IPAS pages", () => {
       expect(rows).toHaveLength(2);
       expect(rows.map((r) => within(r).getByTestId("ipas-row-costing").textContent).sort()).toEqual(["Encoded", "LC Odoo Done"]);
 
-      await user.click(screen.getByRole("button", { name: /Any costing status/ }));
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /Any costing status/ }));
       await user.click(await screen.findByRole("button", { name: "LC Odoo Done" }));
 
       await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
@@ -207,44 +208,53 @@ describe("IPAS pages", () => {
       expect(within(screen.getByTestId("ipas-row")).getByText("P02553")).toBeInTheDocument();
     });
 
-    it("puts an open IPAS On-Hold from its pill with a note, and clears it again (#597)", async () => {
-      const row = ipas({ po_number: "P02552" });
-      const user = setupUser();
-
-      renderList();
-      await user.click(await screen.findByRole("button", { name: /Pending\. Put On-Hold/ }));
-      await user.type(await screen.findByPlaceholderText(/Why is it on hold/), "Waiting on the client");
-      await user.click(screen.getByRole("button", { name: "Put On-Hold" }));
-
-      await waitFor(() => expect(screen.getByTestId("ipas-status-pill").dataset.status).toBe("on_hold"));
-      expect(db.internal.rowsOf("ipas").find((r) => r.id === row.id)).toMatchObject({ on_hold: true, on_hold_note: "Waiting on the client" });
-      expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_set");
-      // The click on the pill did not open the IPAS behind it.
-      expect(screen.queryByText("The IPAS page")).not.toBeInTheDocument();
-
-      await user.click(await screen.findByRole("button", { name: /On-Hold\. Clear On-Hold/ }));
-      await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
-      await waitFor(() => expect(screen.getByTestId("ipas-status-pill").dataset.status).toBe("pending"));
-      expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_cleared");
-    });
-
-    it("lets Finance toggle On-Hold, and shows everyone else a read-only pill (#597)", async () => {
+    it("shows the list's status pill read-only, even to Purchasing (feedback on #595)", async () => {
       ipas({ po_number: "P02552" });
-      mockUser.current = finance;
-      stubIpasRpcs({ actorId: finance.id, money: true });
-      renderList();
-      expect(await screen.findByRole("button", { name: /Pending\. Put On-Hold/ })).toBeInTheDocument();
-    });
-
-    it("shows a read-only pill to a reader without Purchasing or Finance access (#597)", async () => {
-      ipas({ po_number: "P02552" });
-      const signer = makeEmployee({ name: "Signer" });
-      mockUser.current = signer;
-      stubIpasRpcs({ actorId: signer.id, purchasing: false, money: false });
       renderList();
       const pill = await screen.findByTestId("ipas-status-pill");
       expect(pill.dataset.status).toBe("pending");
       expect(screen.queryByRole("button", { name: /Put On-Hold/ })).not.toBeInTheDocument();
+    });
+
+    it("puts an open IPAS On-Hold from the record's More menu with a note, and clears it again (#597)", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = setupUser();
+
+      renderDetail(row.id);
+      await openMore(user);
+      await user.click(await screen.findByRole("button", { name: "Put On-Hold" }));
+      await user.type(await screen.findByPlaceholderText(/Why is it on hold/), "Waiting on the client");
+      await user.click(screen.getByRole("button", { name: "Put On-Hold" }));
+
+      const region = await screen.findByTestId("ipas-record-status");
+      await waitFor(() => expect(within(region).getByTestId("ipas-status-pill").dataset.status).toBe("on_hold"));
+      expect(db.internal.rowsOf("ipas").find((r) => r.id === row.id)).toMatchObject({ on_hold: true, on_hold_note: "Waiting on the client" });
+      expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_set");
+
+      await openMore(user);
+      await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
+      await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
+      await waitFor(() => expect(within(region).getByTestId("ipas-status-pill").dataset.status).toBe("pending"));
+      expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_cleared");
+    });
+
+    it("offers On-Hold to Finance, and to no one without Purchasing or Finance access (#597)", async () => {
+      const row = ipas({ po_number: "P02552" });
+      mockUser.current = finance;
+      stubIpasRpcs({ actorId: finance.id, money: true });
+      const user = setupUser();
+      const { unmount } = renderDetail(row.id);
+      await openMore(user);
+      expect(await screen.findByRole("button", { name: "Put On-Hold" })).toBeInTheDocument();
+      unmount();
+
+      const signer = makeEmployee({ name: "Signer" });
+      mockUser.current = signer;
+      stubIpasRpcs({ actorId: signer.id, purchasing: false, money: false });
+      renderDetail(row.id);
+      await openMore(user);
+      expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Put On-Hold" })).not.toBeInTheDocument();
     });
 
     it("shows a Project IPAS's SORs", async () => {
@@ -797,7 +807,7 @@ describe("IPAS pages", () => {
       await user.click(within(banner).getByRole("button", { name: "Dismiss" }));
 
       expect(screen.queryByText("Odoo didn't answer")).not.toBeInTheDocument();
-      expect(screen.getByText("Supplier bill check: Odoo PO vs P.I")).toBeInTheDocument();
+      expect(screen.getByText("Supplier bill check")).toBeInTheDocument();
     });
 
     it("overrides Entity with Odoo's value beside it, and resets in one action", async () => {

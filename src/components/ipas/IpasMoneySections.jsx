@@ -334,8 +334,8 @@ export function LandedCostBadge({ status, estimate = false }) {
  * LC Odoo Done) and Landed Cost per line and per unit with its provisional or
  * final mark and how it was spread.
  *
- * The status moves one step either way, by Purchasing (`canSetStatus(from, to)`
- * says). The current step looks selected for everyone and carries a tick like
+ * The status jumps to any step, either way, by Purchasing (`canSetStatus(from, to)`
+ * says; feedback on #595: the steps mean little until Purchasing says so). The current step looks selected for everyone and carries a tick like
  * the steps before it; LC Odoo Done, once reached, is green (#586). Section 3's
  * sign-offs arrive as `children`, below the Landed Cost.
  */
@@ -348,7 +348,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
   const foreign = lc.isForeign;
   const estimate = isLandedCostEstimate(lc);
   const mayStep = (status, index) =>
-    Math.abs(index - currentIndex) === 1 && (canSetStatus ? canSetStatus(ipas.computationStatus, status) : granted);
+    index !== currentIndex && (canSetStatus ? canSetStatus(ipas.computationStatus, status) : granted);
   const anyStep = IPAS_COMPUTATION_STATUSES.some((status, index) => mayStep(status, index));
 
   return (

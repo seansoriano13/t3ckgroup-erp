@@ -39,6 +39,7 @@
         "local:realtime": "node scripts/local-realtime.mjs",
         "db:seed:snapshot": "node scripts/seed-snapshot.mjs",
         "seed:mock:local": "node scripts/seed-mock-employees.mjs --local",
+        "seed:mock:purchasing:local": "node scripts/seed-mock-purchasing.mjs && node scripts/seed-mock-costing.mjs",
         "clean:branches": "node scripts/cleanup-branches.mjs",
         "prepare": "node scripts/install-hooks.mjs"
     },

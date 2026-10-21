@@ -27,15 +27,17 @@ export default function MoveButton({ move, origin, disabled = false, onRun, onRe
 
   return (
     <li className="space-y-2">
-      {/* A long label wraps inside the button instead of running into its edges. */}
+      {/* A long label wraps inside the button instead of running into its edges. On the
+          card the button fits its label (the card spans the page); the drawer's footer fills its width. */}
       <Button
-        size="lg"
+        size={origin === "card" ? "default" : "lg"}
         variant={LOOK[kind].variant}
         disabled={disabled}
         onClick={() => onRun(move, origin)}
         aria-describedby={`move-hint-${origin}-${key}`}
         className={cn(
           "h-auto min-h-10 w-full justify-center gap-2 px-4 py-2.5 text-center font-semibold leading-snug whitespace-normal",
+          origin === "card" && "min-h-9 sm:w-auto sm:min-w-48 sm:max-w-full sm:py-2",
           LOOK[kind].className,
         )}
       >
@@ -47,13 +49,13 @@ export default function MoveButton({ move, origin, disabled = false, onRun, onRe
         <p
           role="status"
           data-testid={`move-warning-${origin}-${key}`}
-          className="rounded-lg bg-amber-a3 px-2.5 py-2 text-xs leading-relaxed font-semibold text-amber-11"
+          className="max-w-prose rounded-lg bg-amber-a3 px-2.5 py-2 text-xs leading-relaxed font-semibold text-amber-11"
         >
           {warning}
         </p>
       )}
       {/* The hint takes the full width, with the review link on its own line under it. */}
-      <div className="grid gap-1.5">
+      <div className="grid max-w-prose gap-1.5">
         <p id={`move-hint-${origin}-${key}`} className="text-xs leading-relaxed text-muted-foreground">
           {hint}
         </p>
