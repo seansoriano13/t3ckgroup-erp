@@ -650,7 +650,7 @@ describe("what undoes an approval, for real", () => {
         expect(cleared.every((r) => r.cleared_reason === "Account # flagged")).toBe(true)
     })
 
-    it("a payment, a charge, an override, Purpose and SORs leave every approval standing", async () => {
+    it("a payment, a charge, an override, Purpose and SORs leave sections 1 and 2 (stored 1 and 3) standing; only section 3 (stored 6) is cleared by payments and charges, see 112", async () => {
         const ipas = await approved([1, 3])
         const before = await liveKeys(ipas.id)
         expect(before).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared"])
