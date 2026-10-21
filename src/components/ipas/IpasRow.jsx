@@ -27,12 +27,13 @@ const paymentTotal = (value, currency) => (value > 0 ? formatAmount(value, curre
  * scheme, DP, FP and Remaining balance, each in the PO's currency. Read from
  * the IPAS figures; nothing is worked out here.
  */
-function IpasMoneyCells({ figures }) {
+function IpasMoneyCells({ figures, show }) {
   const { currency, amount, amountSource, amountBeforeTax, paymentScheme, downPayment, fullPayment, remainingBalance } =
     figures;
   const money = "text-right text-xs tabular-nums text-foreground";
   return (
     <>
+      {show("amount") && (
       <TableCell className="text-right">
         <span className={`block ${money}`} data-testid="ipas-row-amount">
           {amount === null ? "—" : formatAmount(amount, currency)}
@@ -44,26 +45,35 @@ function IpasMoneyCells({ figures }) {
           </span>
         )}
       </TableCell>
+      )}
+      {show("payment-scheme") && (
       <TableCell className="hidden md:table-cell">
         <span className="block max-w-[12rem] truncate text-xs text-foreground" data-testid="ipas-row-scheme">
           {paymentScheme || "—"}
         </span>
       </TableCell>
+      )}
+      {show("dp") && (
       <TableCell className="hidden md:table-cell">
         <span className={`block ${money}`} data-testid="ipas-row-dp">
           {paymentTotal(downPayment, currency)}
         </span>
       </TableCell>
+      )}
+      {show("fp") && (
       <TableCell className="hidden md:table-cell">
         <span className={`block ${money}`} data-testid="ipas-row-fp">
           {paymentTotal(fullPayment, currency)}
         </span>
       </TableCell>
+      )}
+      {show("remaining-balance") && (
       <TableCell className="text-right">
         <span className={`block ${money}`} data-testid="ipas-row-remaining">
           {remainingBalance === null ? "—" : formatAmount(remainingBalance, currency)}
         </span>
       </TableCell>
+      )}
     </>
   );
 }
@@ -74,7 +84,7 @@ function IpasMoneyCells({ figures }) {
  * below md so the number, Purpose and State stay in view. `search` is the
  * list's search text: where it matches, the text is highlighted.
  */
-export default function IpasRow({ row, onOpen, search = "", canSetHold = false }) {
+export default function IpasRow({ row, onOpen, search = "", canSetHold = false, show = () => true }) {
   const raisedBy = raisedByParts(row);
   const term = search.trim().toLowerCase();
 
@@ -99,27 +109,38 @@ export default function IpasRow({ row, onOpen, search = "", canSetHold = false }
           {IPAS_PRIORITY_LABELS[row.priority]} · {IPAS_SOURCE_LABELS[row.source]}
         </span>
       </TableCell>
+      {show("odoo-po") && (
       <TableCell>
         <span className="font-mono text-xs text-foreground">
           <HighlightText text={row.po_number} search={search} />
         </span>
       </TableCell>
+      )}
+      {show("supplier") && (
       <TableCell className="hidden md:table-cell">
         <span className="block max-w-[16rem] truncate text-xs text-foreground">
           {row.supplier ? <HighlightText text={row.supplier} search={search} /> : "—"}
         </span>
       </TableCell>
+      )}
+      {show("entity") && (
       <TableCell className="hidden md:table-cell">
         <span className="text-xs text-muted-foreground">{row.entity || "—"}</span>
       </TableCell>
+      )}
+      {show("purpose") && (
       <TableCell>
         <span className="text-xs font-medium text-foreground">{IPAS_PURPOSE_LABELS[row.purpose]}</span>
       </TableCell>
+      )}
+      {show("costing") && (
       <TableCell>
         <span className="text-xs text-foreground" data-testid="ipas-row-costing">
           {IPAS_COMPUTATION_STATUS_LABELS[row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING] ?? "—"}
         </span>
       </TableCell>
+      )}
+      {show("project-so") && (
       <TableCell className="hidden md:table-cell">
         {row.sors.length === 0 ? (
           <span className="text-xs text-muted-foreground">—</span>
@@ -150,9 +171,13 @@ export default function IpasRow({ row, onOpen, search = "", canSetHold = false }
           </ul>
         )}
       </TableCell>
+      )}
+      {show("raised") && (
       <TableCell className="hidden md:table-cell">
         <span className="text-xs tabular-nums text-muted-foreground">{formatDate(row.created_at)}</span>
       </TableCell>
+      )}
+      {show("raised-by") && (
       <TableCell className="hidden md:table-cell">
         {raisedBy ? (
           <span className="block max-w-[14rem] truncate text-xs text-foreground" data-testid="ipas-row-raised-by">
@@ -162,13 +187,18 @@ export default function IpasRow({ row, onOpen, search = "", canSetHold = false }
           <span className="text-xs text-muted-foreground">—</span>
         )}
       </TableCell>
-      <IpasMoneyCells figures={row.figures} />
+      )}
+      <IpasMoneyCells figures={row.figures} show={show} />
+      {show("status") && (
       <TableCell>
         <IpasStatusControl ipas={row} figures={row.figures} canSet={canSetHold} />
       </TableCell>
+      )}
+      {show("state") && (
       <TableCell className="text-right">
         <IpasStateBadge state={row.state} />
       </TableCell>
+      )}
     </TableRow>
   );
 }
