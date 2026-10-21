@@ -64,6 +64,7 @@ async function ipasListMembership(employee) {
     isTransmittalStaff: false,
     isTransmittalWarehouse: false,
     isTransmittalCheckBy: false,
+    isTransmittalTechnical: false,
   };
   try {
     const { data, error } = await supabase.from("ipas_signer_lists").select("list_key").eq("employee_id", employee.id);
@@ -81,6 +82,7 @@ async function ipasListMembership(employee) {
       isTransmittalWarehouse: keys.includes(TRANSMITTAL_STAFF_LIST.WAREHOUSE),
       // On the Check by list: the Approval Center's Transmittal queue.
       isTransmittalCheckBy: keys.includes(TRANSMITTAL_STAFF_LIST.CHECK_BY),
+      isTransmittalTechnical: keys.includes(TRANSMITTAL_STAFF_LIST.TECHNICAL),
     };
   } catch {
     return none;
@@ -149,6 +151,7 @@ export const employeeService = {
       isTransmittalWarehouse: ipasLists.isTransmittalWarehouse,
       // On the Transmittal Check by list: the nav shows the Check by queue.
       isTransmittalCheckBy: ipasLists.isTransmittalCheckBy,
+      isTransmittalTechnical: ipasLists.isTransmittalTechnical,
       // On the Costing Matrix's Final Acquire list: decides Bid Decisions (#320).
       isFinalAcquire,
       isIssuedPassword: !!data.is_issued_password,

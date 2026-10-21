@@ -185,7 +185,7 @@ export default function OrderRegister({ onOpen, register }) {
               </TableHeader>
               <TableBody>
                 {rows.map((row) => (
-                  <TableRow key={row.id} className={`cursor-pointer ${lateRowClass(row)}`} onClick={() => onOpen(row.id)}>
+                  <TableRow key={row.id} className={`cursor-pointer ${lateRowClass(row)}`} onClick={() => onOpen(row)}>
                     <TableCell>
                       <OrderCell row={row}>
                         <div className="text-xs text-muted-foreground">{IPAS_SOURCE_LABELS[row.source] ?? row.source}</div>

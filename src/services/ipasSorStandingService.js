@@ -38,7 +38,7 @@ function odooStatusesOf(summary) {
 
 function standingOf(summary, facts, rules, today) {
   if (!facts || summary.state === IPAS_STATE.CANCELLED) {
-    return { nextThing: null, owner: null, daysWaiting: null, late: false };
+    return { nextThing: null, nextList: null, owner: null, daysWaiting: null, late: false };
   }
   const named = facts.slips ?? [];
   const derived = deriveTransmittalTrack(submittedSlips(named), {
@@ -80,6 +80,7 @@ function standingOf(summary, facts, rules, today) {
   );
   return {
     nextThing: standing.next.label,
+    nextList: standing.next.list,
     owner: standing.next.owner,
     daysWaiting: standing.daysWaiting,
     late: standing.late,

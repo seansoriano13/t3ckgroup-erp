@@ -4,7 +4,8 @@ import { Button } from "../ui/button";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { useAuth } from "../../context/AuthContext";
-import { getPermissionContext, canReadIpas } from "../../utils/permissions";
+import { getPermissionContext, canReadIpas, transmittalListsOf } from "../../utils/permissions";
+import { standingLabel } from "../../utils/orderStanding";
 import { pluralize } from "../../utils/plural";
 import { IPAS_PURPOSE_LABELS } from "../../constants/ipas";
 import { ORDER_OWNER_LABELS } from "../../constants/orderMonitoring";
@@ -34,6 +35,8 @@ function TrackChip({ item }) {
 }
 
 function SummaryRow({ summary, canOpen }) {
+  const { user } = useAuth();
+  const lists = transmittalListsOf(getPermissionContext(user));
   return (
     <div className="space-y-2.5 rounded-xl border border-border/70 bg-card/50 px-4 py-3" data-testid="ipas-summary">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -55,7 +58,9 @@ function SummaryRow({ summary, canOpen }) {
 
       {summary.nextThing && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid="ipas-next-thing">
-          <span className="font-medium text-foreground">{summary.nextThing}</span>
+          <span className="font-medium text-foreground">
+            {standingLabel({ label: summary.nextThing, list: summary.nextList }, lists)}
+          </span>
           {summary.owner && (
             <span className="text-muted-foreground">· {ORDER_OWNER_LABELS[summary.owner] ?? summary.owner}</span>
           )}
@@ -64,7 +69,7 @@ function SummaryRow({ summary, canOpen }) {
               · {pluralize(summary.daysWaiting, "day")} waiting
             </span>
           )}
-          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
+          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
         </p>
       )}
 

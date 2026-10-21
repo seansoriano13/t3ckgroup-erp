@@ -31,7 +31,7 @@ const odooPo = (name) => ({
   bills: { count: 0, draft: 0 },
 })
 
-const NEW_FIELDS = ["daysWaiting", "late", "nextThing", "owner"]
+const NEW_FIELDS = ["daysWaiting", "late", "nextList", "nextThing", "owner"]
 const SHAPED_KEYS = [
   "buyerTrack", "computationLabel", "computationStatus", "id", "isCancelled", "isFiled", "landedCost", "number",
   "poNumber", "purpose", "signoffs", "state", "supplier", "trackDone", "trackTotal",
@@ -80,7 +80,7 @@ describe("ipasSorStandingService.summariesForSor", () => {
     const [row] = await ipasSorStandingService.summariesForSor(sor.id, { today: TODAY })
 
     expect(row.late).toBe(true)
-    expect(row.daysWaiting).toBe(15)
+    expect(row.daysWaiting).toBe(15)
   })
 
   it("does not say no Transmittal was raised when a draft already names the order", async () => {
@@ -125,7 +125,7 @@ describe("ipasSorStandingService.summariesForSor", () => {
     })
   })
 
-  it("adds only the four fields to the summary's key set, with no money or bank column", async () => {
+  it("adds only the standing fields to the summary's key set, with no money or bank column", async () => {
     stubIpasRpcs({ actorId: buyer.id })
     await raise()
     db.seed("ipas_payments", { ipas_id: db.rows("ipas")[0].id, kind: "payment", paid_on: "2026-10-01", amount: 987654.32, method_id: options.payment_method["Dated Check"].id, proof_url: "https://x.test/proof.png" })

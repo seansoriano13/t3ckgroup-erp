@@ -78,6 +78,7 @@ const renderPage = (entry = "/purchasing/order-monitoring") =>
       <Routes>
         <Route path="/purchasing/order-monitoring" element={<OrderMonitoringRedirect />} />
         <Route path="/purchasing/dashboard" element={<PurchasingDashboardPage />} />
+        <Route path="/purchasing/transmittals/:id" element={<p>Slip page</p>} />
         <Route path="/" element={<p>Home page</p>} />
       </Routes>
       <Where />
@@ -115,6 +116,39 @@ describe("Order Monitoring on the Purchasing Dashboard", () => {
     expect(screen.getByText(`TGIPAS_${800 + 1}`)).toBeInTheDocument();
     expect(screen.getByText("Purchase Order — no PO confirmed yet")).toBeInTheDocument();
     expect(screen.getByText(`PO ${waiting.po_number}`)).toBeInTheDocument();
+  });
+
+  it("names the slip and the action on a Transmittal row, says who it waits on, and opens that slip (#588)", async () => {
+    const ipas = seedOrder({ poState: "draft" });
+    const slip = db.seed("transmittals", {
+      number: "TG03-0012",
+      prepared_on: dateAgo(3),
+      origin: "purchasing",
+      priority: "high",
+      entity: "T3ck Trading",
+      check_warehouse: true,
+      check_technical: false,
+      state: "warehouse_checking",
+      prepared_by: makeEmployee({ name: "Preparer" }).id,
+      submitted_at: timeAgo(3),
+    });
+    db.seed("transmittal_lines", {
+      transmittal_id: slip.id,
+      position: 1,
+      kind: "po_line",
+      ipas_id: ipas.id,
+      odoo_po_line_id: 30001,
+      description: "Cutter",
+      quantity: 1,
+    });
+    const user = setupUser();
+
+    renderPage("/purchasing/dashboard?tab=needs");
+
+    const label = await screen.findByText("TG03-0012 needs Warehouse checking, waiting on Transmittal · Warehouse");
+    await user.click(label);
+
+    expect(screen.getByTestId("where")).toHaveTextContent(`/purchasing/transmittals/${slip.id}`);
   });
 
   it("narrows What needs doing by search, and the totals follow (#574)", async () => {

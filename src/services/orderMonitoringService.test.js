@@ -283,7 +283,8 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Actual Checking — 1 awaiting Technical")
+      expect(row.next.label).toMatch(/ needs Technical checking$/)
+      expect(row.next.slip.id).toBeTruthy()
       expect(row.next.owner).toBe("technical")
       expect(row.next.step).toBe("check_open")
       expect(row.group).toBe("waiting_on_us")
@@ -315,7 +316,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Actual Checking — 1 awaiting Warehouse")
+      expect(row.next.label).toMatch(/ needs Warehouse checking$/)
       expect(row.next.owner).toBe("warehouse")
     })
 
@@ -330,7 +331,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Actual Checking — 2 awaiting Technical")
+      expect(row.next.label).toMatch(/ needs Technical checking \(\+1 more\)$/)
       expect(row.next.owner).toBe("technical")
     })
 
@@ -345,7 +346,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Actual Checking — 2 awaiting Warehouse or Technical")
+      expect(row.next.label).toMatch(/ needs Warehouse checking \(\+1 more\)$/)
       expect(row.next.owner).toBe("warehouse")
     })
 
@@ -362,7 +363,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("Transmittal awaiting Check by")
+      expect(row.next.label).toMatch(/ needs Check by$/)
       expect(row.next.owner).toBe("check_by")
       expect(row.daysWaiting).toBe(5)
     })
@@ -378,7 +379,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).toBe("NA at checking — resolve with supplier")
+      expect(row.next.label).toMatch(/ has NA at checking — resolve with supplier$/)
       expect(row.next.owner).toBe("purchasing")
       expect(row.next.step).toBe("check_open")
     })
@@ -403,7 +404,7 @@ describe("orderMonitoringService: what needs doing", () => {
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.label).not.toBe("NA at checking — resolve with supplier")
+      expect(row.next.label).not.toMatch(/NA at checking/)
       expect(row.next.step).toBe("received_in_odoo")
     })
 

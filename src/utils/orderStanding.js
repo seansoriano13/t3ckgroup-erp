@@ -32,7 +32,13 @@ import {
   ORDER_OWNER,
 } from "../constants/orderMonitoring";
 import { IPAS_STATE } from "../constants/ipas";
-import { TRANSMITTAL_RATING, TRANSMITTAL_STAGE, TRANSMITTAL_STATE } from "../constants/transmittals";
+import {
+  TRANSMITTAL_RATING,
+  TRANSMITTAL_STAFF_LIST,
+  TRANSMITTAL_STAFF_LIST_LABELS,
+  TRANSMITTAL_STAGE,
+  TRANSMITTAL_STATE,
+} from "../constants/transmittals";
 import { isLandedCostFinal } from "./ipasSignoffs";
 import { checkingStageOf, stageRowOf } from "./transmittals";
 import { inDateOrder } from "./ipasTransmittals";
@@ -138,6 +144,35 @@ function awaitingStageOwner(slip) {
   return ORDER_OWNER.TECHNICAL;
 }
 
+/** A slip the way a row names and opens it: its id and number. */
+const slipRef = (slip) => ({ id: slip.id ?? null, number: slip.number ?? null });
+
+/** "TG03-0012", or a plain "A Transmittal" when the slip has no number yet. */
+const slipName = (slip) => slip.number ?? "A Transmittal";
+
+const handedInMs = (slip) => instantOf(slip.submitted_at ?? slip.created_at) ?? Infinity;
+
+/** The oldest of some slips by when they were handed in. */
+const oldestSlip = (slips) => slips.reduce((best, slip) => (handedInMs(slip) < handedInMs(best) ? slip : best));
+
+/** The staff list a Transmittal owner stands for. */
+const LIST_OF_OWNER = {
+  [ORDER_OWNER.WAREHOUSE]: TRANSMITTAL_STAFF_LIST.WAREHOUSE,
+  [ORDER_OWNER.TECHNICAL]: TRANSMITTAL_STAFF_LIST.TECHNICAL,
+  [ORDER_OWNER.CHECK_BY]: TRANSMITTAL_STAFF_LIST.CHECK_BY,
+};
+
+/**
+ * The next thing's label for one viewer (#588). `viewerLists` are the Transmittal staff list keys
+ * the viewer is on. A Transmittal row the viewer is not on the list for ends "waiting on <list name>";
+ * a viewer whose lists are unknown (null) cannot act either. Rows with no list read as they are.
+ */
+export function standingLabel(next, viewerLists = null) {
+  if (!next?.label) return "";
+  if (!next.list || (viewerLists ?? []).includes(next.list)) return next.label;
+  return `${next.label}, waiting on ${TRANSMITTAL_STAFF_LIST_LABELS[next.list] ?? next.list}`;
+}
+
 /** Track steps: the label, owner and waiting text the next thing shows for each unstamped step. */
 function trackStep(item, order) {
   switch (item.key) {
@@ -190,8 +225,10 @@ function nextThing(order, slips, track) {
   const na = unresolvedNa(order, slips);
   if (na) {
     return {
-      label: "NA at checking — resolve with supplier",
+      label: `${slipName(na.slip)} has NA at checking — resolve with supplier`,
       owner: ORDER_OWNER.PURCHASING,
+      slip: slipRef(na.slip),
+      list: null,
       step: "check_open",
       since: completedMs(na.slip, checkingStage(na.slip)) ?? instantOf(na.slip.submitted_at ?? na.slip.created_at),
     };
@@ -202,15 +239,15 @@ function nextThing(order, slips, track) {
     // The owner is the stage each slip waits on. When slips wait on both, the
     // Warehouse is owner (the earlier stage) and the words keep both.
     const owners = new Set(pending.map(awaitingStageOwner));
-    const who =
-      owners.size > 1
-        ? "Warehouse or Technical"
-        : owners.has(ORDER_OWNER.WAREHOUSE)
-          ? "Warehouse"
-          : "Technical";
+    const owner = owners.has(ORDER_OWNER.WAREHOUSE) ? ORDER_OWNER.WAREHOUSE : ORDER_OWNER.TECHNICAL;
+    // The row names the oldest slip waiting on that owner and opens it; the others are counted.
+    const slip = oldestSlip(pending.filter((entry) => awaitingStageOwner(entry) === owner));
+    const more = pending.length > 1 ? ` (+${pending.length - 1} more)` : "";
     return {
-      label: `Actual Checking — ${pending.length} awaiting ${who}`,
-      owner: owners.has(ORDER_OWNER.WAREHOUSE) ? ORDER_OWNER.WAREHOUSE : ORDER_OWNER.TECHNICAL,
+      label: `${slipName(slip)} needs ${owner === ORDER_OWNER.WAREHOUSE ? "Warehouse" : "Technical"} checking${more}`,
+      owner,
+      slip: slipRef(slip),
+      list: LIST_OF_OWNER[owner],
       step: "check_open",
       since: Math.min(...pending.map((slip) => instantOf(slip.submitted_at ?? slip.created_at) ?? Infinity)),
     };
@@ -218,9 +255,13 @@ function nextThing(order, slips, track) {
 
   const awaiting = slips.filter((slip) => slip.state === TRANSMITTAL_STATE.AWAITING_CHECK);
   if (awaiting.length > 0) {
+    const checkedMs = (slip) => completedMs(slip, checkingStage(slip)) ?? Infinity;
+    const slip = awaiting.reduce((best, entry) => (checkedMs(entry) < checkedMs(best) ? entry : best));
     return {
-      label: "Transmittal awaiting Check by",
+      label: `${slipName(slip)} needs Check by`,
       owner: ORDER_OWNER.CHECK_BY,
+      slip: slipRef(slip),
+      list: LIST_OF_OWNER[ORDER_OWNER.CHECK_BY],
       step: "check_open",
       since: Math.min(...awaiting.map((slip) => completedMs(slip, checkingStage(slip)) ?? Infinity)),
     };
@@ -285,7 +326,7 @@ export function orderStanding(order, rules, today) {
   if (order.state === IPAS_STATE.FILED) {
     return {
       group: ORDER_GROUP.FILED,
-      next: { label: "Filed", owner: null, step: null, detail: null },
+      next: { label: "Filed", owner: null, step: null, detail: null, slip: null, list: null },
       waitingSince: null,
       daysWaiting: null,
       ruleDays: null,
@@ -308,7 +349,14 @@ export function orderStanding(order, rules, today) {
 
   return {
     group,
-    next: { label: found.label, owner: found.owner, step: found.step, detail: found.detail ?? null },
+    next: {
+      label: found.label,
+      owner: found.owner,
+      step: found.step,
+      detail: found.detail ?? null,
+      slip: found.slip ?? null,
+      list: found.list ?? null,
+    },
     waitingSince: new Date(since).toISOString(),
     daysWaiting,
     ruleDays,
