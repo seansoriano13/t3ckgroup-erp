@@ -47,6 +47,7 @@ const STEPS = [
     "actual_checking",
     "no_transmittal",
     "check_open",
+    "section_3_approval",
     "ready_to_file",
 ]
 

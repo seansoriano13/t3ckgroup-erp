@@ -29,7 +29,7 @@ function waitingOnNoteOrCheck(s7) {
  */
 function gateDefs(digest) {
   const { s1, s3, s6, s7, costsComplete, computationStatus } = digest;
-  const sectionsApproved = Boolean(s1.approved && s3.approved);
+  const sectionsApproved = Boolean(s1.approved && s3.approved && s6.approved);
   const noteAndCheck = Boolean(s7.noted && s7.checked);
 
   const section = (part, state, moveKeys, { key = part, prereqMet = true, early = null } = {}) => ({
@@ -82,7 +82,7 @@ function gateDefs(digest) {
         ? `Received by ${name(s7.received)}`
         : sectionsApproved
           ? "Waiting for the Received list to receive it"
-          : `Opens once ${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")} are approved`,
+          : `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved`,
       at: s7.received?.signedAt ?? null,
       moveKeys: ["receive"],
     },
@@ -110,9 +110,11 @@ function gateDefs(digest) {
       part: "filing",
       role: APPROVED,
       done: Boolean(s7.approved),
-      prereqMet: noteAndCheck && Boolean(costsComplete),
+      prereqMet: noteAndCheck && Boolean(costsComplete) && sectionsApproved,
       waitsOn: "the filing approvers",
-      line: s7.approved ? `Approved by ${name(s7.approved)}` : "Files the IPAS, after Noted, Checked and LC Odoo Done",
+      line: s7.approved
+        ? `Approved by ${name(s7.approved)}`
+        : "Files the IPAS, after Noted, Checked, LC Odoo Done and section 3 approved",
       at: s7.approved?.signedAt ?? null,
       moveKeys: ["file"],
     },

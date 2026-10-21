@@ -101,10 +101,11 @@ async function loadOrders(today) {
   if (ipasRows.length === 0) return [];
 
   const ids = ipasRows.map((row) => row.id);
-  const [sorsByIpas, paymentsByIpas, costsAt, slipsByIpas, rules, nearDays] = await Promise.all([
+  const [sorsByIpas, paymentsByIpas, costsAt, section3Approved, slipsByIpas, rules, nearDays] = await Promise.all([
     readSors(ids),
     readPayments(ids),
     readCostsCompleteAt(ids),
+    readSection3Approved(ids),
     transmittalService.forOrders(ids, { includeDrafts: true }),
     orderAgeingRulesService.getRules(),
     deliveryDeadlineService.getNearDays(),
@@ -134,6 +135,7 @@ async function loadOrders(today) {
         updatedAt: row.updated_at,
         computationStatus: row.computation_status,
         costsCompletedAt: costsAt.get(row.id),
+        section3Approved: section3Approved.has(row.id),
         buyerTrack: shaped.buyerTrack,
         proofPaidOn: latestProofDate(payments),
         arrivedInPhOn: row.arrived_in_ph_on,
@@ -205,6 +207,19 @@ async function readPayments(ids) {
     byIpas.set(row.ipas_id, list);
   }
   return byIpas;
+}
+
+/** The ids of the IPAS whose section 3 (stored 6) has a live Approved, one query for the list (#590). */
+async function readSection3Approved(ids) {
+  const { data, error } = await supabase
+    .from("ipas_signoffs")
+    .select("ipas_id")
+    .in("ipas_id", ids)
+    .eq("section", 6)
+    .eq("role", "approved")
+    .is("cleared_at", null);
+  if (error) throw error;
+  return new Set((data ?? []).map((row) => row.ipas_id));
 }
 
 /**

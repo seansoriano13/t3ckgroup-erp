@@ -1,10 +1,10 @@
-import { ipasSectionNo } from "./ipas";
+import { IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS, ipasSectionNo } from "./ipas";
 
 /**
  * Order Monitoring (spec #261): the steps an ageing rule can be set on, in the
- * order an order runs. The first seven are the IPAS buyer track; the last three
+ * order an order runs. The first seven are the IPAS buyer track; the rest
  * are the hand-off facts (a delivery with no Transmittal, a Transmittal check
- * still open, costs complete and ready to file). The keys are the database's
+ * still open, section 3 waiting for approval, costs complete and ready to file). The keys are the database's
  * `order_ageing_rules.step` values, so they must match the migration.
  */
 export const ORDER_AGEING_STEPS = [
@@ -17,6 +17,7 @@ export const ORDER_AGEING_STEPS = [
   { key: "actual_checking", label: "Actual Checking" },
   { key: "no_transmittal", label: "Delivered, no Transmittal raised" },
   { key: "check_open", label: "Transmittal check open" },
+  { key: "section_3_approval", label: "Section 3 waiting for approval" },
   { key: "ready_to_file", label: "Costs complete, ready to file" },
 ];
 
@@ -64,6 +65,7 @@ export const ORDER_OWNER = {
   WAREHOUSE: "warehouse",
   TECHNICAL: "technical",
   CHECK_BY: "check_by",
+  SECTION_3_APPROVERS: "section_3_approvers",
   SIGNERS: "signers",
   OTHERS: "others",
 };
@@ -74,6 +76,7 @@ export const ORDER_OWNER_LABELS = {
   [ORDER_OWNER.WAREHOUSE]: "Warehouse",
   [ORDER_OWNER.TECHNICAL]: "Technical",
   [ORDER_OWNER.CHECK_BY]: "Check by signers",
+  [ORDER_OWNER.SECTION_3_APPROVERS]: IPAS_SIGNER_LIST_LABELS[IPAS_SIGNER_LIST.S6_APPROVED],
   [ORDER_OWNER.SIGNERS]: `Section ${ipasSectionNo(7)} signers`,
   [ORDER_OWNER.OTHERS]: "Supplier, forwarder or port",
 };

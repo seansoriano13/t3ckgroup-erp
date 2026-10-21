@@ -716,14 +716,15 @@ _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 
 **Filing**:
 The last sign-off on an IPAS — section 4's Approved, given once Finance has
-received the IPAS and it has been noted and checked, and only after sections 1
-and 2 are approved and the Computation status is LC Odoo Done (the Filing gate
-for section 3's approval is ticket #590), since filing
-freezes a Landed Cost that would otherwise still be provisional. A filed IPAS is frozen: its copy of the Odoo purchase order,
+received the IPAS and it has been noted and checked, and only after sections 1,
+2 and 3 are approved and the Computation status is LC Odoo Done, since filing
+freezes a Landed Cost that would otherwise still be provisional. Section 4 does
+not open until sections 1, 2 and 3 are all approved; sign-offs already given on
+an IPAS before the gate existed stay, and only the ones still to be given wait. A filed IPAS is frozen: its copy of the Odoo purchase order,
 its payments and charges, its Purpose and its SORs no longer change. Earlier
 approvals block nothing; filing is the one point that locks. Required documents
 that nobody has ticked only warn. A Super Admin can reopen a filed IPAS with a
-reason, which clears section 4 and leaves sections 1 and 2 approved; a filed IPAS
+reason, which clears section 4 and leaves sections 1, 2 and 3 approved; a filed IPAS
 can't be cancelled until it is reopened.
 _Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 2)
 

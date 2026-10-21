@@ -1377,8 +1377,8 @@ export function stubIpasRpcs({
     if (section === 7) {
       const live = liveSignoffs(ipas.id)
       const has = (sec, r) => live.some((s) => s.section === sec && s.role === r)
-      if (!has(1, "approved") || !has(3, "approved")) {
-        refuse("55000", "ipas_sign: section 4 opens once sections 1 and 2 are approved")
+      if (!has(1, "approved") || !has(3, "approved") || !has(6, "approved")) {
+        refuse("55000", "ipas_sign: section 4 opens once sections 1, 2 and 3 are approved")
       }
       if (["noted", "checked"].includes(role) && !has(7, "received")) {
         refuse("55000", `ipas_sign: Received comes first; ${role[0].toUpperCase()}${role.slice(1)} can only be given after it`)
@@ -1417,10 +1417,11 @@ export function stubIpasRpcs({
     } else if (role === "prepared") {
       stage = "section_prepared"
       notify = membersOf([LIST_KEY[`${section}/approved`]])
-    } else if (section === 1 || section === 3) {
-      const other = section === 1 ? 3 : 1
+    } else if (section === 1 || section === 3 || section === 6) {
+      // The last of sections 1, 2 and 3 to be approved opens section 4 (#590).
       const live = liveSignoffs(ipas.id)
-      if (live.some((s) => s.section === other && s.role === "approved") && !live.some((s) => s.section === 7)) {
+      const allApproved = [1, 3, 6].every((sec) => live.some((s) => s.section === sec && s.role === "approved"))
+      if (allApproved && !live.some((s) => s.section === 7)) {
         stage = "received_ready"
         notify = membersOf(["s7_received"])
       }
@@ -1495,8 +1496,8 @@ export function stubIpasRpcs({
     if (sectionSeven) {
       const everything = liveSignoffs(ipas.id)
       const approved = (sec) => everything.some((s) => s.section === sec && s.role === "approved")
-      if (!approved(1) || !approved(3)) {
-        refuse("55000", "ipas_send_back: section 4 isn't open yet; sections 1 and 2 must be approved first")
+      if (!approved(1) || !approved(3) || !approved(6)) {
+        refuse("55000", "ipas_send_back: section 4 isn't open yet; sections 1, 2 and 3 must be approved first")
       }
     }
 

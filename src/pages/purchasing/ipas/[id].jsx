@@ -838,7 +838,7 @@ function IpasPage({ onClose }) {
       mode: "return",
       no: ipasSectionNo(7),
       label: ipasSectionLabel(7),
-      effect: `Clears Received, Noted and Checked and tells who gave them. Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved.`,
+      effect: `Clears Received, Noted and Checked and tells who gave them. Sections ${ipasSectionLabel(1)}, ${ipasSectionLabel(3)} and ${ipasSectionLabel(6)} stay approved.`,
       placeholder: "What needs fixing before it is filed?",
       clears: [],
     });
@@ -1090,7 +1090,7 @@ function IpasPage({ onClose }) {
         open={reopening}
         onOpenChange={setReopening}
         title={`Reopen ${ipas.number}?`}
-        description={`It returns to open and the sign-offs of section ${ipasSectionLabel(7)} are cleared (the history keeps them). Sections ${ipasSectionLabel(1)} and ${ipasSectionLabel(3)} stay approved. Filing it again takes section ${ipasSectionLabel(7)} from Received.`}
+        description={`It returns to open and the sign-offs of section ${ipasSectionLabel(7)} are cleared (the history keeps them). Sections ${ipasSectionLabel(1)}, ${ipasSectionLabel(3)} and ${ipasSectionLabel(6)} stay approved. Filing it again takes section ${ipasSectionLabel(7)} from Received.`}
         placeholder="Why is this filed IPAS being reopened?"
         submitLabel="Reopen"
         busyLabel="Reopening…"

@@ -10,14 +10,17 @@
  *      the same Odoo PO line GC at its checking stage)
  *   2. a slip whose checking stage isn't complete (owner: the Warehouse or Technical)
  *   3. a slip awaiting Check by
- *   4. costs complete and not filed
- *   5. Delivered with no Transmittal naming the IPAS (a draft counts as naming it)
- *   6. the first unstamped buyer-track step
- *   7. every step stamped but costs not complete
+ *   4. costs complete but section 3 (the Landed Cost check) not approved
+ *      (owner: the section 3 approval list)
+ *   5. costs complete, section 3 approved and not filed ("ready to file")
+ *   6. Delivered with no Transmittal naming the IPAS (a draft counts as naming it)
+ *   7. the first unstamped buyer-track step
+ *   8. every step stamped but costs not complete
  *
  * `order` is the IPAS as the service shapes it (see orderMonitoringService):
  *   id, state, source, createdAt, updatedAt, computationStatus,
- *   costsCompletedAt (when costs went complete, or null), buyerTrack (the
+ *   costsCompletedAt (when costs went complete, or null),
+ *   section3Approved (section 3, stored 6, has a live Approved), buyerTrack (the
  *   shaped items with key, ticked, on, at), proofPaidOn and arrivedInPhOn
  *   ('YYYY-MM-DD' or null), latestSupplierOrigin ({ label, on } or null), and
  *   slips (the raw submitted Transmittal rows that name this IPAS, with stages and
@@ -270,11 +273,21 @@ function nextThing(order, slips, track) {
   if (isLandedCostFinal(order.computationStatus)) {
     // The wait starts at the Costs complete event. An order whose history has no such event
     // (set outside the app) falls back to its last update, then its creation.
+    const since = instantOf(order.costsCompletedAt) ?? instantOf(order.updatedAt) ?? instantOf(order.createdAt);
+    // Filing waits for section 3 (#590): until the section 3 list approves, that list owes the next thing.
+    if (order.section3Approved !== true) {
+      return {
+        label: "Section 3 waiting for approval",
+        owner: ORDER_OWNER.SECTION_3_APPROVERS,
+        step: "section_3_approval",
+        since,
+      };
+    }
     return {
       label: "Costs complete — ready to file",
       owner: ORDER_OWNER.SIGNERS,
       step: "ready_to_file",
-      since: instantOf(order.costsCompletedAt) ?? instantOf(order.updatedAt) ?? instantOf(order.createdAt),
+      since,
     };
   }
 

@@ -36,6 +36,12 @@ function odooStatusesOf(summary) {
   };
 }
 
+/** Whether section 3 (stored 6) has a live Approved, from the summary's sign-off progress. */
+function section3ApprovedOf(summary) {
+  const section = (summary.signoffs ?? []).find((entry) => entry.section === 6);
+  return Boolean(section?.steps.find((step) => step.role === "approved")?.done);
+}
+
 function standingOf(summary, facts, rules, today) {
   if (!facts || summary.state === IPAS_STATE.CANCELLED) {
     return { nextThing: null, nextList: null, owner: null, daysWaiting: null, late: false };
@@ -69,6 +75,7 @@ function standingOf(summary, facts, rules, today) {
       updatedAt: facts.updated_at,
       computationStatus: summary.computationStatus,
       costsCompletedAt: facts.costs_completed_at,
+      section3Approved: section3ApprovedOf(summary),
       buyerTrack,
       proofPaidOn: facts.proof_paid_on,
       arrivedInPhOn: facts.arrived_in_ph_on,
