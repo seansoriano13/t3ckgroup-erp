@@ -131,8 +131,9 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const saved = await screen.findByTestId("ipas-payment-row");
       expect(within(saved).getByText("Down payment")).toBeInTheDocument();
       expect(within(saved).getByDisplayValue("CHK-0042")).toBeInTheDocument();
-      // DP is read off the rows. The record shows no balance yet (the list behind it does, #596).
-      const record = document.querySelector('[data-modal-shell="wide"]');
+      // DP is read off the rows. The record page shows no balance yet (the IPAS list does, #596).
+      // Only the record page is on screen now (#602), so the whole screen is the record.
+      const record = document.body;
       await waitFor(() => expect(within(record).getByText("DP").parentElement).toHaveTextContent(/3,000\.00/));
       expect(within(record).queryByText(/balance/i)).not.toBeInTheDocument();
     }, 20_000);
