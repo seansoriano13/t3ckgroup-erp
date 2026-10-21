@@ -454,6 +454,13 @@ export const QUICK_ACTIONS = [
         icon: Clock,
         isPermitted: () => true,
       },
+      {
+        id: "meeting-request",
+        key: "quick.meetingRequest",
+        label: "New Meeting Request",
+        icon: UsersRound,
+        isPermitted: () => true,
+      },
     ],
   },
   {

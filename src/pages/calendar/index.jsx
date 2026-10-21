@@ -12,6 +12,9 @@ import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
 import { getPermissionContext } from '@/utils/permissions';
 import { manilaDate, manilaToday, parseManilaDate } from '@/lib/manilaDate.js';
+import MeetingRequestDialog from '@/components/calendar/MeetingRequestDialog';
+import MyMeetingRequests from '@/components/calendar/MyMeetingRequests';
+import TabGroup from '@/components/ui/TabGroup';
 import CalendarMonth from '@/components/calendar/CalendarMonth';
 import EntryDetail from '@/components/calendar/EntryDetail';
 import { LAYERS, visibleEntries } from '@/components/calendar/entryKinds.jsx';
@@ -32,6 +35,8 @@ export default function CalendarPage() {
   const [layers, toggleLayer] = useCalendarLayers();
   const [showPending, setShowPending] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [tab, setTab] = useState('calendar');
+  const [requestOpen, setRequestOpen] = useState(false);
 
   const { from, to } = monthRange(anchor);
   const includePending = canSeePending && showPending;
@@ -82,8 +87,25 @@ export default function CalendarPage() {
 
   return (
     <ProtectedRoute>
-      <PageShell title="Calendar" description="Time Off and overtime across the company." toolbar={toolbar}>
-        {error ? (
+      <PageShell
+        title="Calendar"
+        description="Meetings, Time Off and overtime across the company."
+        action={<Button onClick={() => setRequestOpen(true)}>New Meeting Request</Button>}
+        tabs={
+          <TabGroup
+            tabs={[
+              { value: 'calendar', label: 'Calendar' },
+              { value: 'mine', label: 'My Meeting Requests' },
+            ]}
+            activeTab={tab}
+            onChange={setTab}
+          />
+        }
+        toolbar={tab === 'calendar' ? toolbar : undefined}
+      >
+        {tab === 'mine' ? (
+          <MyMeetingRequests />
+        ) : error ? (
           <QueryError onRetry={refetch} />
         ) : isLoading ? (
           <PageLoading />
@@ -91,6 +113,7 @@ export default function CalendarPage() {
           <CalendarMonth anchor={anchor} entries={entries} onOpenEntry={setSelected} todayYmd={manilaToday()} />
         )}
         <EntryDetail entry={selected} onClose={() => setSelected(null)} />
+        <MeetingRequestDialog open={requestOpen} onClose={() => setRequestOpen(false)} />
       </PageShell>
     </ProtectedRoute>
   );

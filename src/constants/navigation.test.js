@@ -471,6 +471,7 @@ describe("navigation registry", () => {
       expect(actions[0].category).toBe("Personal");
       expect(actions[0].items.map((i) => i.label)).toEqual([
         "File Time Off / Overtime",
+        "New Meeting Request",
       ]);
       expect(actions[1].category).toBe("Operations");
       expect(actions[1].items.map((i) => i.label)).toEqual(["New Purchase Request"]);

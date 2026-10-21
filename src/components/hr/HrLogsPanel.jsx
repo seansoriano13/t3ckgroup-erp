@@ -32,6 +32,7 @@ const ENTITY_CONFIG = {
   OVERTIME: { label: "Overtime", icon: Timer, style: "bg-mauve-a2 text-mauve-11 border-mauve-a4" },
   OFFSET_LEAVE: { label: "Offset", icon: CalendarClock, style: "bg-blue-2 text-blue-11 border-blue-6" },
   SIL_LEAVE: { label: "SIL Leave", icon: CalendarHeart, style: "bg-green-2 text-green-11 border-green-6" },
+  MEETING_REQUEST: { label: "Meeting", icon: Users, style: "bg-teal-2 text-teal-11 border-teal-6" },
   HR_SETTINGS: { label: "Settings", icon: Settings, style: "bg-purple-a2 text-purple-11 border-purple-a4" },
 };
 
