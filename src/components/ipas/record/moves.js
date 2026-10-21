@@ -3,9 +3,10 @@ import { Check, CornerUpLeft, FileCheck2, PenLine, Undo2 } from "lucide-react";
 import {
   IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUS_LABELS,
+  IPAS_PART_NO,
   IPAS_SECTION_PART,
   IPAS_SIGNOFF_ROLE,
-  ipasSectionLabel,
+  ipasSectionNo,
 } from "@/constants/ipas";
 import { hintFor } from "./moveCopy";
 
@@ -22,7 +23,7 @@ function move(key, section, { kind, icon, label, verb, confirm = true, run }, di
   return { key, section, kind, icon, label, verb, confirm, run, hint: hintFor(key, digest) };
 }
 
-const FILING = ipasSectionLabel(7);
+const FILING = ipasSectionNo(7);
 const PART = IPAS_SECTION_PART;
 // The stored sections whose Submit and Approve the card offers: 1, 3 and 6 (shown as 1, 2 and 3).
 const SIGN_SECTIONS = [1, 3, 6];
@@ -48,7 +49,7 @@ export function movesFor(ctx, digest) {
 
   for (const section of SIGN_SECTIONS) {
     const mine = rights[section];
-    const label = ipasSectionLabel(section);
+    const label = ipasSectionNo(section);
     if (mine.canApprove) {
       moves.push(
         move(`approve-${section}`, PART[section], {
@@ -125,7 +126,7 @@ export function movesFor(ctx, digest) {
   for (const section of RETURN_SECTIONS) {
     const mode = rights[section].returnMode;
     if (!mode) continue;
-    const label = ipasSectionLabel(section);
+    const label = ipasSectionNo(section);
     const undo = mode === "undo";
     bySection.push(
       move(`${undo ? "undo" : "return"}-${section}`, PART[section], {
@@ -171,6 +172,23 @@ export function movesFor(ctx, digest) {
   }
 
   return { moves, costs, returns, bySection };
+}
+
+/**
+ * What the "Your move" card shows of the sign-off moves: only the earliest
+ * section (screen order, by `IPAS_PART_NO`) that has any, with the other
+ * sections that have moves listed in `also` (part keys, in screen order) for
+ * the card's "Also waiting for you" line. Section 4 is one part, so when it is
+ * earliest all its steps (Noted and Checked together) stay. The Return button
+ * and the LC step are not sign-offs and stay as they are. `all` is the
+ * unfiltered list, for what the status line says.
+ */
+export function cardMovesFor(ctx, digest) {
+  const { moves: all, costs, returns, bySection } = movesFor(ctx, digest);
+  const parts = [...new Set(all.map((item) => item.section))].sort((a, b) => IPAS_PART_NO[a] - IPAS_PART_NO[b]);
+  const [first, ...also] = parts;
+  const moves = all.filter((item) => item.section === first);
+  return { moves, costs, returns, bySection, all, also };
 }
 
 /**

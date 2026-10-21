@@ -170,7 +170,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(within(drawer).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
 
       await user.click(within(drawer).getByRole("button", { name: /Receive/ }));
-      await confirmMove(user, "Receive section 4 · Filing", "Receive");
+      await confirmMove(user, "Receive section 4", "Receive");
 
       await waitFor(() =>
         expect(within(screen.getByTestId("ipas-signoff-7-received")).getByText("Rita Receiver")).toBeInTheDocument(),
@@ -192,9 +192,9 @@ describe("IPAS section 7 and Filing", () => {
 
       renderDetail(row.id, "filing");
       const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
-      await user.click(within(drawer).getByRole("button", { name: "Return section 4 · Filing" }));
+      await user.click(within(drawer).getByRole("button", { name: "Return section 4" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Return section 4 · Filing?" });
+      const dialog = await screen.findByRole("dialog", { name: "Return section 4?" });
       const submit = within(dialog).getByRole("button", { name: "Return" });
       expect(submit).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Landed cost is off");

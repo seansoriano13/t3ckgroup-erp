@@ -117,8 +117,10 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     const region = await screen.findByRole("region", { name: "Your move" });
     expect(within(region).getByRole("heading", { name: "Your move" })).toBeInTheDocument();
 
-    expect(within(region).getByRole("button", { name: "Submit section 1 · Purchasing" })).toBeInTheDocument();
-    expect(within(region).getByRole("button", { name: "Submit section 2 · Purchasing & Finance" })).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
+    // Only the earliest section's moves show; the other is listed under them.
+    expect(within(region).queryByRole("button", { name: "Submit section 2" })).not.toBeInTheDocument();
+    expect(within(region).getByText(/Also waiting for you:/)).toHaveTextContent("Also waiting for you: section 2");
     expect(within(region).queryByRole("button", { name: /^Approve/ })).not.toBeInTheDocument();
     expect(within(region).queryByRole("button", { name: /Send section/ })).not.toBeInTheDocument();
     expect(within(region).queryByRole("button", { name: "Reopen this IPAS" })).not.toBeInTheDocument();
@@ -127,6 +129,17 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
       within(region).getByText("Submits section 1 · Purchasing for approval. Nothing locks. Next: the approvers of 1 · Purchasing, told now."),
     ).toBeInTheDocument();
     expect(within(region).getByText("Waiting for you: 1 · Purchasing")).toBeInTheDocument();
+  });
+
+  it("opens the right drawer from the Also waiting for you line, where the section's own button lives", async () => {
+    const user = setupUser();
+    const row = ipas();
+    renderDetail(row.id);
+
+    const region = await screen.findByRole("region", { name: "Your move" });
+    await user.click(within(region).getByRole("button", { name: "section 2" }));
+    const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
+    expect(within(drawer).getByRole("button", { name: "Submit section 2" })).toBeInTheDocument();
   });
 
   it("keeps the next LC step in its own group below the sign-offs, with a divider", async () => {
@@ -139,7 +152,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     const costs = within(region).getByRole("button", { name: "Mark LC Odoo Done" });
     const group = costs.closest("ul");
     expect(group).toHaveClass("border-t");
-    expect(group).not.toBe(within(region).getByRole("button", { name: "Submit section 2 · Purchasing & Finance" }).closest("ul"));
+    expect(group).not.toBe(within(region).getByRole("button", { name: "Submit section 2" }).closest("ul"));
     expect(within(region).getByText(/Makes Landed Cost final/)).toBeInTheDocument();
   });
 
@@ -197,7 +210,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByRole("button", { name: "Approve section 1 · Purchasing" })).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Approve section 1" })).toBeInTheDocument();
     // One Return button on the card; its dialog picks the section.
     expect(within(region).getByRole("button", { name: "Return…" })).toBeInTheDocument();
     expect(within(region).queryByRole("button", { name: /^Submit/ })).not.toBeInTheDocument();
@@ -297,8 +310,8 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).queryByRole("button", { name: "Submit section 1 · Purchasing" })).not.toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: "Submit section 1" })).not.toBeInTheDocument();
     await user.click(within(region).getByRole("button", { name: /Show my moves/ }));
-    expect(within(region).getByRole("button", { name: "Submit section 1 · Purchasing" })).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
   });
 });

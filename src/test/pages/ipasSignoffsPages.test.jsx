@@ -111,12 +111,12 @@ describe("IPAS sign-offs", () => {
       expect(within(one).getByText("Not submitted")).toBeInTheDocument();
       expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
 
-      await user.click(within(drawer).getByRole("button", { name: "Submit section 1 · Purchasing" }));
-      await confirmMove(user, "Submit section 1 · Purchasing", "Submit");
+      await user.click(within(drawer).getByRole("button", { name: "Submit section 1" }));
+      await confirmMove(user, "Submit section 1", "Submit");
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Awaiting approval")).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-prepared")).getByText("Buyer")).toBeInTheDocument();
-      expect(within(drawer).queryByRole("button", { name: "Submit section 1 · Purchasing" })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: "Submit section 1" })).not.toBeInTheDocument();
       await waitForNetworkIdle();
       expect(db.rows("notifications").map((n) => n.recipient_id).sort()).toEqual([approver.id, other.id].sort());
     });
@@ -132,12 +132,12 @@ describe("IPAS sign-offs", () => {
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(one).queryByRole("button", { name: /Submit section/ })).not.toBeInTheDocument();
-      await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
-      await confirmMove(user, "Approve section 1 · Purchasing", "Approve");
+      await user.click(within(drawer).getByRole("button", { name: "Approve section 1" }));
+      await confirmMove(user, "Approve section 1", "Approve");
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-approved")).getByText("Boss Lito")).toBeInTheDocument();
-      expect(within(drawer).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: "Approve section 1" })).not.toBeInTheDocument();
     });
 
     it("doesn't offer Approve to the preparer, and says why", async () => {
@@ -149,10 +149,10 @@ describe("IPAS sign-offs", () => {
 
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
-      expect(within(drawer).queryByRole("button", { name: "Approve section 1 · Purchasing" })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: "Approve section 1" })).not.toBeInTheDocument();
       expect(within(one).getByText(/You submitted this section, so someone else approves it/)).toBeInTheDocument();
       // They are on the list, so they may still return it: from the footer.
-      expect(within(drawer).getByRole("button", { name: "Return section 1 · Purchasing" })).toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Return section 1" })).toBeInTheDocument();
     });
 
     it("offers nothing to someone off the list, a Super Admin included", async () => {
@@ -177,9 +177,9 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id, "finance");
       const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
-      await user.click(within(drawer).getByRole("button", { name: "Return section 2 · Purchasing & Finance" }));
+      await user.click(within(drawer).getByRole("button", { name: "Return section 2" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Return section 2 · Purchasing & Finance?" });
+      const dialog = await screen.findByRole("dialog", { name: "Return section 2?" });
       const send = within(dialog).getByRole("button", { name: "Return" });
       expect(send).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/What does the submitter need to fix/), "  Freight is missing ");
@@ -207,10 +207,10 @@ describe("IPAS sign-offs", () => {
       renderDetail(row.id, "finance");
       const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
       // Once approved it is Undo approval, never Return.
-      expect(within(drawer).queryByRole("button", { name: "Return section 2 · Purchasing & Finance" })).not.toBeInTheDocument();
-      await user.click(within(drawer).getByRole("button", { name: "Undo approval of section 2 · Purchasing & Finance" }));
+      expect(within(drawer).queryByRole("button", { name: "Return section 2" })).not.toBeInTheDocument();
+      await user.click(within(drawer).getByRole("button", { name: "Undo approval of section 2" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Undo approval of section 2 · Purchasing & Finance?" });
+      const dialog = await screen.findByRole("dialog", { name: "Undo approval of section 2?" });
       const undo = within(dialog).getByRole("button", { name: "Undo approval" });
       expect(undo).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/Why is this approval being taken back/), "Approved too fast");
@@ -282,8 +282,8 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id, "purchasing");
       const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
-      await user.click(within(drawer).getByRole("button", { name: "Approve section 1 · Purchasing" }));
-      await confirmMove(user, "Approve section 1 · Purchasing", "Approve");
+      await user.click(within(drawer).getByRole("button", { name: "Approve section 1" }));
+      await confirmMove(user, "Approve section 1", "Approve");
 
       await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/^you are not on the list that may give this sign-off/i)));
       expect(toastError.mock.calls.at(-1)[0]).not.toMatch(/ipas_sign|42501/);
@@ -306,14 +306,15 @@ describe("IPAS sign-offs", () => {
 
       const view = renderDetail(row.id, "finance");
       const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
-      await user.click(within(drawer).getByRole("button", { name: "Return section 2 · Purchasing & Finance" }));
-      await screen.findByRole("dialog", { name: "Return section 2 · Purchasing & Finance?" });
+      await user.click(within(drawer).getByRole("button", { name: "Return section 2" }));
+      await screen.findByRole("dialog", { name: "Return section 2?" });
 
       const text = document.body.textContent ?? "";
-      expect(text).toContain("Return section 2 · Purchasing & Finance?");
+      expect(text).toContain("Return section 2?");
       expect(text).toContain("Opens once 1 · Purchasing and 2 · Purchasing & Finance are approved");
-      // A section is named with its number and its name, or not by number at all.
-      expect(text).not.toMatch(/\b(?:sections?|send|waiting for|and|for)\s+\d+\b(?!\s*·)/i);
+      // Apart from the short move names (#593), a section is named with its number and its name, or not by number at all.
+      const prose = text.replace(/(?:Return section|Undo approval of section) \d/g, "");
+      expect(prose).not.toMatch(/\b(?:sections?|send|waiting for|and|for)\s+\d+\b(?!\s*·)/i);
       view.unmount();
 
       // History names the same sections the same way.
