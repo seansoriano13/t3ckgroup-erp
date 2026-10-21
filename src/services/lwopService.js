@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { cleanAttachments, checkOverlap, checkDateTaken, stampApplication } from './offsetService';
+import { manilaToday } from '../lib/manilaDate';
 import { describeLeaveRange, formatWindow } from '../utils/time';
 import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours } from './leaveRules';
 
@@ -301,6 +302,69 @@ export const lwopService = {
     ).catch(console.error);
 
     return updatedRows;
+  },
+
+  /**
+   * HR records an absence as LWOP, already approved (#620). The group must
+   * already exist as PENDING (filed on the employee's behalf); the database
+   * function checks the caller is HR or a Super Admin and writes it APPROVED
+   * with the head stage approved and `recorded_by_hr` set.
+   */
+  async recordLwopLeaveAsApproved({ groupId, hrId }) {
+    const { data: result, error } = await supabase.rpc('record_lwop_leave_as_approved', {
+      p_group_id: groupId,
+      p_hr_id: hrId || null,
+    });
+
+    if (error) throw new Error(error.message);
+
+    const { rows: updatedRows, employee_id: employeeId, total_hours: totalHours } = result;
+    const rangeLabel = describeLeaveRange(result.dates, { withDayCount: true });
+
+    notificationService.createNotification({
+      recipient_id: employeeId,
+      sender_id: hrId,
+      type: 'LWOP_LEAVE_DECISION',
+      title: 'LWOP Recorded',
+      message: `HR recorded you as absent without pay for ${totalHours} hrs (${rangeLabel}).`,
+      reference_id: groupId,
+    });
+
+    systemAuditLogService.addApprovalEvent(
+      'LWOP_LEAVE',
+      groupId,
+      `LWOP for ${totalHours} hrs (${rangeLabel}) was recorded by HR as approved.`,
+      { event: 'LWOP_LEAVE_RECORDED_BY_HR', status: 'APPROVED', employeeId, leaveGroupId: groupId },
+      hrId,
+    ).catch(console.error);
+
+    return updatedRows;
+  },
+
+  /**
+   * Approved LWOP hours per employee for the current Manila month. Derived and
+   * read-only, like the undertime figure: never stored as a balance.
+   */
+  async getMonthlyLwopTotals() {
+    const today = manilaToday();
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const [y, m] = today.split('-').map(Number);
+    const monthEnd = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+
+    const { data, error } = await supabase
+      .from('lwop_leaves')
+      .select('employee_id, hours')
+      .eq('status', 'APPROVED')
+      .gte('date', monthStart)
+      .lt('date', monthEnd);
+
+    if (error) throw new Error(error.message);
+
+    const totals = {};
+    for (const row of data || []) {
+      totals[row.employee_id] = (totals[row.employee_id] || 0) + parseFloat(row.hours || 0);
+    }
+    return totals;
   },
 
   /** Undo HR's decision: every day-row returns to PENDING and the HR stamps clear. */

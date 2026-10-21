@@ -81,6 +81,7 @@ export default function HrLeavesManagerPage() {
       // 1. Fetch Balances
       const allEmps = await employeeService.getAllEmployees();
       const undertimeTotals = await offsetService.getMonthlyUndertimeTotals();
+      const lwopTotals = await lwopService.getMonthlyLwopTotals();
       const empData = allEmps.map(emp => ({
         id: emp.id,
         name: emp.name,
@@ -90,6 +91,7 @@ export default function HrLeavesManagerPage() {
         sil_hours_balance: emp.sil_hours_balance,
         // Derived, read-only — never a stored balance (issue #148).
         undertime_this_month: undertimeTotals[emp.id] || 0,
+        lwop_this_month: lwopTotals[emp.id] || 0,
         company: emp.company,
       })).sort((a, b) => a.name.localeCompare(b.name));
 

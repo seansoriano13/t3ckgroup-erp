@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { X, Calendar, PlusCircle, Clock } from 'lucide-react';
 import TabGroup from '../ui/TabGroup';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
 import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
@@ -142,6 +143,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const [silDayHours, setSilDayHours] = useState({});
   const [silReason, setSilReason] = useState('');
   const [silHeadId, setSilHeadId] = useState('');
+  const [recordAbsent, setRecordAbsent] = useState(false); // HR only: save the LWOP as already approved (#620)
   const [silSubmitting, setSilSubmitting] = useState(false);
   const silFiles = useFileAttachments();
 
@@ -199,6 +201,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     return employees.find((e) => e.id === selectedEmployeeId)?.name || 'Unknown';
   }, [employees, selectedEmployeeId]);
 
+  const canRecordAbsent = showEmployeeSelector && leavePay === 'lwop';
   const employeeId = showEmployeeSelector ? selectedEmployeeId : user.id;
   const employeeName = showEmployeeSelector ? selectedEmployeeName : user.name;
 
@@ -364,15 +367,27 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const handleApplySilLeave = async (e) => {
     e.preventDefault();
-    if (!employeeId || !silHeadId) {
+    const isLwop = leavePay === 'lwop';
+    const recording = canRecordAbsent && recordAbsent;
+    if (!employeeId || (!silHeadId && !recording)) {
       toast.error('Please fill in all fields.');
       return;
     }
 
-    const isLwop = leavePay === 'lwop';
     const leaveLabel = isLwop ? 'LWOP' : 'SIL leave';
-    const applyLeaveRange = isLwop ? lwopService.applyLwopLeaveRange : silService.applySilLeaveRange;
-    const applyLeave = isLwop ? lwopService.applyLwopLeave : silService.applySilLeave;
+    const filedRange = isLwop ? lwopService.applyLwopLeaveRange : silService.applySilLeaveRange;
+    const filedOne = isLwop ? lwopService.applyLwopLeave : silService.applySilLeave;
+    // Recording as absent files the LWOP on the employee's behalf, then marks it approved.
+    const withRecording = (fn) => async (args) => {
+      const saved = await fn(args);
+      if (recording) {
+        const groupId = Array.isArray(saved) ? saved[0]?.leave_group_id : saved?.leave_group_id;
+        await lwopService.recordLwopLeaveAsApproved({ groupId, hrId: user.id });
+      }
+      return saved;
+    };
+    const applyLeaveRange = withRecording(filedRange);
+    const applyLeave = withRecording(filedOne);
 
     if (silApplyMode === 'range') {
       const days = enumerateDateRange(silRangeStart, silRangeEnd);
@@ -391,9 +406,9 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           categoryId: silCategoryId,
           employeeName,
           attachments,
-          headId: silHeadId,
+          headId: recording ? null : silHeadId,
         });
-        toast.success(`${leaveLabel} application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
+        toast.success(`${leaveLabel} ${recording ? 'recorded as approved' : 'application submitted'} for ${days.length} day${days.length > 1 ? 's' : ''}!`);
         setSilRangeStart('');
         setSilRangeEnd('');
         setSilDayHours({});
@@ -428,9 +443,9 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         categoryId: silCategoryId,
         employeeName,
         attachments,
-        headId: silHeadId,
+        headId: recording ? null : silHeadId,
       });
-      toast.success(`${leaveLabel} application submitted!`);
+      toast.success(recording ? `${leaveLabel} recorded as approved!` : `${leaveLabel} application submitted!`);
       setSilDate('');
       setSilCategoryId('');
       setSilStartTime('');
@@ -833,7 +848,18 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   )}
                 </>
               )}
-              <HeadSelectField employee={selectedEmployee} value={silHeadId} onChange={setSilHeadId} />
+              {canRecordAbsent && (
+                <div
+                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border px-3.5 py-3 text-sm font-semibold text-foreground"
+                  onClick={(e) => e.target === e.currentTarget && setRecordAbsent(!recordAbsent)}
+                >
+                  <Checkbox checked={recordAbsent} onCheckedChange={setRecordAbsent} aria-label="Record as absent (already approved)" />
+                  <span onClick={() => setRecordAbsent(!recordAbsent)}>Record as absent (already approved)</span>
+                </div>
+              )}
+              {!(canRecordAbsent && recordAbsent) && (
+                <HeadSelectField employee={selectedEmployee} value={silHeadId} onChange={setSilHeadId} />
+              )}
               <div>
                 <FieldBox label="Reason" className="block mb-1.5" />
                 <Textarea

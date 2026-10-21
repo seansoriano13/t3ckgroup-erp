@@ -284,6 +284,30 @@ export function stubLwopLeaveDecisionRpcs() {
     }
   })
 
+  stubRpc("record_lwop_leave_as_approved", (args) => {
+    const rows = groupRows(args.p_group_id)
+    if (rows.length === 0) throw new Error("Leave application not found.")
+    if (rows.some((row) => row.status !== "PENDING")) {
+      throw new Error("This leave application has already been decided.")
+    }
+    const updated = rows.map((row) =>
+      updateRow(table, row, {
+        status: "APPROVED",
+        head_status: "APPROVED",
+        recorded_by_hr: true,
+        hr_processed_by: args.p_hr_id || null,
+        hr_processed_at: new Date().toISOString(),
+        approval_hash: "stub-approval-hash",
+      }),
+    )
+    return {
+      rows: updated,
+      employee_id: rows[0].employee_id,
+      total_hours: totalHours(rows),
+      dates: updated.map((row) => row.date),
+    }
+  })
+
   stubRpc("undo_lwop_leave_decision", (args) => {
     const rows = groupRows(args.p_group_id)
     if (rows.length === 0) throw new Error("Leave application not found.")
