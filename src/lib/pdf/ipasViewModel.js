@@ -43,7 +43,7 @@ import {
 import { filingChecklist } from '../../utils/ipasDocuments';
 import { formatDay } from '../../utils/ipasPayments';
 import { isLandedCostFinal } from '../../utils/ipasSignoffs';
-import { isPhpCurrency } from '../../utils/landedCost';
+import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from '../../utils/landedCost';
 
 /** The printed form is read in the company's own timezone, wherever it is printed. */
 const PRINT_TIMEZONE = 'Asia/Manila';
@@ -204,15 +204,21 @@ function landedCostOf(ipas, filed, charges) {
   if (lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE) {
     const note =
       lc.reason === IPAS_LANDED_COST_REASON.NO_PAYMENTS
-        ? `This Odoo PO is in ${lc.currency || 'a foreign currency'}. Landed Cost converts at the rate actually paid, so it needs a payment with the PHP debited.`
-        : 'The Odoo PO has no item lines to cost.';
+        ? `This Odoo PO is in ${lc.currency || 'a foreign currency'}. Landed Cost converts at the rate actually paid, so it needs a payment.`
+        : lc.reason === IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE
+          ? `A payment has no pesos taken from the bank yet, and there is no Reference Rate on or before its date to estimate with.`
+          : 'The Odoo PO has no item lines to cost.';
     return { status: lc.status, label: 'Not available', note, lines: [], total: null, build: [], perUnit: null, units: null };
   }
 
   // A filed IPAS is final whatever the computation status says.
   const status = filed ? IPAS_LANDED_COST_STATUS.FINAL : lc.status;
   const notes = [];
-  if (lc.isForeign && lc.rate) {
+  // An estimate (a payment's pesos still blank, #604) is never final, filed or not.
+  const estimate = !filed && isLandedCostEstimate(lc);
+  if (estimate) {
+    notes.push(landedCostEstimateNote(lc));
+  } else if (lc.isForeign && lc.rate) {
     notes.push(`Converted at ${lc.rate.rate.toFixed(4)} PHP per ${lc.currency}, the rate actually paid.`);
   }
   notes.push(`Charges, charge fees and shipping fees spread ${(IPAS_LANDED_COST_SPLIT_LABELS[lc.usedSplit] ?? '').toLowerCase()}.`);
@@ -238,7 +244,7 @@ function landedCostOf(ipas, filed, charges) {
     build,
     perUnit: only ? peso(only.landedPerUnitPhp) : null,
     units: only ? `${only.quantity}${text(only.unit) ? ` ${only.unit}` : ''}` : `${lc.lines.length} lines`,
-    label: status === IPAS_LANDED_COST_STATUS.FINAL ? 'Final' : 'Provisional',
+    label: status === IPAS_LANDED_COST_STATUS.FINAL ? 'Final' : estimate ? 'Estimate' : 'Provisional',
     note: notes.join(' '),
     lines: lc.lines.map((line) => ({
       name: line.name || BLANK,

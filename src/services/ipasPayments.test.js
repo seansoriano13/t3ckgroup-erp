@@ -108,26 +108,24 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       expect(opened).not.toHaveProperty("balance")
     })
 
-    it("refuses a foreign-currency payment with no PHP debited, and writes nothing", async () => {
+    it("saves a foreign-currency payment with the pesos taken from the bank blank (#604)", async () => {
       const ipas = await raise({ currency: "USD" })
 
-      for (const phpDebited of ["", "0", undefined]) {
-        await expect(
-          ipasService.addPayment(ipas.id, peso({ amount: "640", phpDebited }), { isPhpPo: false }),
-        ).rejects.toMatchObject({ code: IPAS_ERROR.INVALID, message: expect.stringMatching(/PHP actually debited/) })
+      for (const phpDebited of ["", undefined]) {
+        await ipasService.addPayment(ipas.id, peso({ amount: "640", phpDebited }), { isPhpPo: false })
       }
-      expect(db.rows("ipas_payments")).toEqual([])
-      expect(kinds()).toEqual(["created"])
+      expect(db.rows("ipas_payments")).toHaveLength(2)
+      expect(db.rows("ipas_payments").map((p) => p.php_debited)).toEqual([null, null])
     })
 
-    it("refuses a foreign payment with no PHP debited at the database too, if the screen didn't ask", async () => {
+    it("still refuses a figure that isn't more than zero, and writes nothing", async () => {
       const ipas = await raise({ currency: "USD" })
 
-      await expect(ipasService.addPayment(ipas.id, peso({ amount: "640" }), { isPhpPo: true })).rejects.toMatchObject({
-        code: "22023",
-        message: expect.stringMatching(/foreign-currency PO/),
-      })
+      await expect(
+        ipasService.addPayment(ipas.id, peso({ amount: "640", phpDebited: "0" }), { isPhpPo: false }),
+      ).rejects.toMatchObject({ code: IPAS_ERROR.INVALID, message: expect.stringMatching(/Pesos taken from the bank must be more than zero/) })
       expect(db.rows("ipas_payments")).toEqual([])
+      expect(kinds()).toEqual(["created"])
     })
 
     it("stores the PHP debited and the charge fee on a foreign payment", async () => {
@@ -348,6 +346,66 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       expect(landedCost.status).toBe(IPAS_LANDED_COST_STATUS.UNAVAILABLE)
       expect(landedCost.reason).toBe(IPAS_LANDED_COST_REASON.NO_PAYMENTS)
       expect(landedCost.lines).toEqual([])
+    })
+
+    describe("while a payment's pesos taken from the bank are blank (#604)", () => {
+      const rate = (rate_date, php_per_unit) => {
+        if (!db.rows("currency_rate_currencies").length) db.seed("currency_rate_currencies", { currency: "USD" })
+        db.seed("currency_rates", { currency: "USD", rate_date, php_per_unit, source: "test" })
+      }
+      const withBlank = async () => {
+        // 10 x USD 20 = USD 200 of goods; one payment of USD 200, pesos blank, paid 2026-10-01.
+        const ipas = await raise({ currency: "USD", lines: [line(1, 10, 20)] })
+        const payment = await ipasService.addPayment(ipas.id, peso({ kind: "full_payment", amount: "200", phpDebited: "" }), { isPhpPo: false })
+        return { ipas, payment }
+      }
+
+      it("is an estimate at the payment date's Reference Rate, and nothing is stored", async () => {
+        rate("2026-09-28", 56)
+        rate("2026-10-02", 99)
+        const { ipas, payment } = await withBlank()
+
+        const { landedCost } = await read(ipas.id)
+
+        expect(landedCost.status).toBe(IPAS_LANDED_COST_STATUS.PROVISIONAL)
+        expect(landedCost.estimate).toBe(true)
+        expect(landedCost.totals.landedPhp).toBe(11200)
+        expect(landedCost.estimates).toEqual([
+          expect.objectContaining({ paymentId: payment.id, paidOn: "2026-10-01", rateDate: "2026-09-28", referenceRate: 56, php: 11200 }),
+        ])
+        expect(db.rows("ipas_payments").find((p) => p.id === payment.id).php_debited).toBeNull()
+      })
+
+      it("is not available when there is no Reference Rate to estimate with", async () => {
+        const { ipas } = await withBlank()
+        const { landedCost } = await read(ipas.id)
+        expect(landedCost.status).toBe(IPAS_LANDED_COST_STATUS.UNAVAILABLE)
+        expect(landedCost.reason).toBe(IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE)
+      })
+
+      it("becomes the final figure at the rate actually paid once the pesos are filled in", async () => {
+        rate("2026-09-28", 56)
+        const { ipas, payment } = await withBlank()
+        expect((await read(ipas.id)).landedCost.estimate).toBe(true)
+
+        await ipasService.updatePayment(payment.id, peso({ kind: "full_payment", amount: "200", phpDebited: "11800" }), { isPhpPo: false })
+        await ipasService.setComputationStatus(ipas.id, "lc_odoo_done")
+
+        const { landedCost } = await read(ipas.id)
+        expect(landedCost.estimate).toBe(false)
+        expect(landedCost.status).toBe(IPAS_LANDED_COST_STATUS.FINAL)
+        expect(landedCost.totals.landedPhp).toBe(11800)
+      })
+
+      it("refuses LC Odoo Done and names the payments", async () => {
+        rate("2026-09-28", 56)
+        const { ipas } = await withBlank()
+
+        await expect(ipasService.setComputationStatus(ipas.id, "lc_odoo_done")).rejects.toMatchObject({
+          message: expect.stringContaining("Full payment of USD 200.00 on Oct 1, 2026"),
+        })
+        expect((await read(ipas.id)).computationStatus).toBe("encoding")
+      })
     })
 
     describe("spread by value, by quantity and equally", () => {

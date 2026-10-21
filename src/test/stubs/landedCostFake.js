@@ -45,6 +45,77 @@ export function paidRate(payments = []) {
 }
 
 /**
+ * The Reference Rate for a day: the latest row of `currency` on or before `onDate`
+ * (the database's `reference_rate`). `rates` rows are `{ currency, rate_date, php_per_unit }`.
+ */
+export function referenceRateOn(rates = [], currency, onDate) {
+  const code = String(currency ?? "").trim().toUpperCase();
+  let best = null;
+  for (const row of rates) {
+    if (String(row?.currency ?? "").toUpperCase() !== code) continue;
+    if (!(String(row.rate_date) <= String(onDate))) continue;
+    if (!best || String(row.rate_date) > String(best.rate_date)) best = row;
+  }
+  return best;
+}
+
+/**
+ * The rate for a foreign PO, with a payment whose pesos are blank taken at the Reference Rate
+ * of its payment date (#604). Mirrors `_ipas_landed_cost`: payments in date order, a payment's
+ * pesos are rounded to the centavo, and a blank one with no Reference Rate makes the whole
+ * thing unavailable.
+ *
+ * @returns {{ rate, phpDebited, foreignPaid, payments, estimatedPayments, estimatedPhp,
+ *   estimates: object[], shippingC: number } | { missingRate: true } | null} null with no payments
+ */
+export function blendedRate(payments = [], currency, referenceRates = []) {
+  const rows = payments
+    .filter((payment) => (finiteNumber(payment?.amount) ?? 0) > 0)
+    .sort((a, b) => String(a.paid_on ?? "").localeCompare(String(b.paid_on ?? "")));
+  if (rows.length === 0) return null;
+  let php = 0;
+  let foreign = 0;
+  let estimatedPhp = 0;
+  let shippingC = 0;
+  const estimates = [];
+  for (const payment of rows) {
+    const amount = finiteNumber(payment.amount);
+    const debited = finiteNumber(payment.php_debited);
+    let pesosOfPayment;
+    if (debited !== null && debited > 0) {
+      pesosOfPayment = debited;
+    } else {
+      const reference = referenceRateOn(referenceRates, currency, payment.paid_on);
+      if (!reference) return { missingRate: true };
+      pesosOfPayment = Math.round(amount * Number(reference.php_per_unit) * 100) / 100;
+      estimatedPhp += pesosOfPayment;
+      estimates.push({
+        paymentId: payment.id ?? null,
+        kind: payment.kind,
+        paidOn: payment.paid_on,
+        amount,
+        referenceRate: Number(reference.php_per_unit),
+        rateDate: reference.rate_date,
+        php: pesosOfPayment,
+      });
+    }
+    php += pesosOfPayment;
+    foreign += amount;
+    if (payment.kind === IPAS_PAYMENT_KIND.SHIPPING_FEE) shippingC += centavos(pesosOfPayment);
+  }
+  return {
+    rate: php / foreign,
+    phpDebited: php,
+    foreignPaid: foreign,
+    payments: rows.length,
+    estimatedPayments: estimates.length,
+    estimatedPhp,
+    estimates,
+    shippingC,
+  };
+}
+
+/**
  * Shares `total` centavos over `weights` in proportion, whole centavos, summing
  * to `total` exactly (largest remainder; ties go to the earlier line).
  */
@@ -77,8 +148,11 @@ export function allocate(total, weights) {
  * @param {string}   [input.split]         value | quantity | equal
  * @param {string}   [input.computationStatus]
  * @param {boolean}  [input.filed]         a filed IPAS is always final
+ * @param {object[]} [input.referenceRates] currency_rates rows, for a payment whose pesos are blank (#604)
  * @returns {{
  *   status: "unavailable" | "provisional" | "final",
+ *   estimate: boolean,
+ *   estimates: object[],
  *   reason: string | null,
  *   currency: string | null,
  *   isForeign: boolean,
@@ -96,6 +170,7 @@ export function computeLandedCost({
   split = IPAS_LANDED_COST_SPLIT.VALUE,
   computationStatus = IPAS_COMPUTATION_STATUS.ENCODING,
   filed = false,
+  referenceRates = [],
 } = {}) {
   const currency = copy?.po?.currency ?? null;
   const isPhp = isPhpCurrency(currency);
@@ -107,6 +182,8 @@ export function computeLandedCost({
     rate: null,
     split: wanted,
     usedSplit: wanted,
+    estimate: false,
+    estimates: [],
     lines: [],
     totals: null,
   };
@@ -121,9 +198,16 @@ export function computeLandedCost({
 
   let rate = 1;
   let paid = null;
+  let estimates = [];
+  let shippingForeignC = 0;
   if (!isPhp) {
-    paid = paidRate(payments);
-    if (!paid) return unavailable(IPAS_LANDED_COST_REASON.NO_PAYMENTS);
+    const blended = blendedRate(payments, currency, referenceRates);
+    if (!blended) return unavailable(IPAS_LANDED_COST_REASON.NO_PAYMENTS);
+    if (blended.missingRate) return unavailable(IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE);
+    const { estimates: list, shippingC, ...figures } = blended;
+    paid = figures;
+    estimates = list;
+    shippingForeignC = shippingC;
     rate = paid.rate;
   }
 
@@ -134,8 +218,10 @@ export function computeLandedCost({
   let shippingC = 0;
   for (const payment of payments) {
     feesC += centavos(payment?.charge_fee_php);
-    if (payment?.kind === IPAS_PAYMENT_KIND.SHIPPING_FEE) shippingC += centavos(paymentPhp(payment, isPhp));
+    if (isPhp && payment?.kind === IPAS_PAYMENT_KIND.SHIPPING_FEE) shippingC += centavos(paymentPhp(payment, isPhp));
   }
+  // A foreign shipping fee counts at its pesos, or its estimated pesos while those are blank.
+  if (!isPhp) shippingC = shippingForeignC;
   const poolC = chargesC + feesC + shippingC;
 
   // Each line's goods, in PHP.
@@ -181,11 +267,14 @@ export function computeLandedCost({
   });
 
   const goodsC = items.reduce((sum, item) => sum + item.goodsC, 0);
-  const final = filed || FINAL_STATUSES.has(computationStatus);
+  // An estimate is never final.
+  const final = (filed || FINAL_STATUSES.has(computationStatus)) && estimates.length === 0;
 
   return {
     ...base,
     status: final ? IPAS_LANDED_COST_STATUS.FINAL : IPAS_LANDED_COST_STATUS.PROVISIONAL,
+    estimate: estimates.length > 0,
+    estimates,
     reason: null,
     rate: paid,
     usedSplit,

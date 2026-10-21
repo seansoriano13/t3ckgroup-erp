@@ -120,12 +120,12 @@ describe("IPAS edit form model", () => {
       expect(progress.find((p) => p.key === "finance")).toMatchObject({ total: 3, left: 2 });
     });
 
-    it("asks for PHP debited only on a foreign-currency PO", () => {
+    it("never asks for the pesos taken from the bank: it is optional on a foreign-currency PO (#604)", () => {
       const payment = newPaymentDraft();
       const php = { ...formFromIpas(ipas()), payments: [payment] };
       const usd = { ...formFromIpas(ipas({ currency: "USD" })), payments: [payment] };
       expect(missingFields(php).map((m) => m.id)).not.toContain(`pay-${payment.key}-phpDebited`);
-      expect(missingFields(usd).map((m) => m.id)).toContain(`pay-${payment.key}-phpDebited`);
+      expect(missingFields(usd).map((m) => m.id)).not.toContain(`pay-${payment.key}-phpDebited`);
     });
 
     it("needs a new document's pick, and its name when typed by hand", () => {
@@ -168,8 +168,13 @@ describe("IPAS edit form model", () => {
       const noMethod = { ...newPaymentDraft(), amount: "5" };
       expect(planSave({ ...base, payments: [noMethod] }, base).error).toBe("Payment 1: Pick the payment method.");
       const foreign = formFromIpas(ipas({ currency: "USD" }));
+      // Pesos taken from the bank may be left blank on a foreign PO (#604); a given figure must be above zero.
       const noPhp = { ...newPaymentDraft(), amount: "5", methodId: "m-1" };
-      expect(planSave({ ...foreign, payments: [noPhp] }, foreign).error).toBe("Payment 1: PHP debited is required on a foreign-currency Odoo PO.");
+      expect(planSave({ ...foreign, payments: [noPhp] }, foreign).error).toBeNull();
+      const zeroPhp = { ...noPhp, phpDebited: "0" };
+      expect(planSave({ ...foreign, payments: [zeroPhp] }, foreign).error).toBe(
+        "Payment 1: Pesos taken from the bank must be a number more than zero, or left blank.",
+      );
       expect(planSave({ ...base, charges: [newChargeDraft()] }, base).error).toBe("Charge 1: Pick the kind of charge.");
     });
   });

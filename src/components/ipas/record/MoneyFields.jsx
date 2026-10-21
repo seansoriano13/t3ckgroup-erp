@@ -121,6 +121,9 @@ export function FreightField({ ipas, form, set, disabled }) {
   return <PickField id="f-freight" label="Freight service" emptyLabel="None" options={options} value={form.freight} disabled={disabled} onChange={(v) => set("freight", v)} />;
 }
 
+/** The one-line explanation under "Pesos taken from the bank" (#604). */
+const PESOS_HINT = "What the bank took out for this payment, from the bank statement. Leave it blank until then; Landed Cost is an estimate meanwhile.";
+
 function RateNote({ ipas, row }) {
   const currency = ipas.currency;
   const amount = parseAmountInput(row.amount);
@@ -144,7 +147,7 @@ function RateNote({ ipas, row }) {
       )}
       {divergence?.flagged && (
         <span className="mt-0.5 block font-medium text-amber-700 dark:text-amber-400" data-testid="payment-rate-divergence">
-          That is {divergence.pct.toFixed(1)}% away from the reference. Check the PHP debited against the remittance advice.
+          That is {divergence.pct.toFixed(1)}% away from the reference. Check the pesos taken from the bank against the remittance advice.
         </span>
       )}
     </p>
@@ -244,17 +247,21 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
           onChange={(v) => onPatch({ amount: v })}
         />
         {!isPhp && (
-          <Field
-            id={id("phpDebited")}
-            label="PHP debited"
-            kind="amount"
-            prefix="PHP"
-            required
-            value={row.phpDebited}
-            disabled={disabled}
-            error={row.phpDebited !== "" && !php.ok ? "Not a number" : undefined}
-            onChange={(v) => onPatch({ phpDebited: v })}
-          />
+          <div className="min-w-0">
+            <Field
+              id={id("phpDebited")}
+              label="Pesos taken from the bank"
+              kind="amount"
+              prefix="PHP"
+              value={row.phpDebited}
+              disabled={disabled}
+              error={row.phpDebited !== "" && !php.ok ? "Not a number" : undefined}
+              onChange={(v) => onPatch({ phpDebited: v })}
+            />
+            <p className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="payment-pesos-hint">
+              {PESOS_HINT}
+            </p>
+          </div>
         )}
         {!isPhp && <RateNote ipas={ipas} row={row} />}
         <Field
@@ -285,13 +292,15 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
       <div className={GRID}>
         <ReadValue label="DP">{sum.downPayment > 0 ? formatAmount(sum.downPayment, currency) : null}</ReadValue>
         <ReadValue label="FP">{sum.fullPayment > 0 ? formatAmount(sum.fullPayment, currency) : null}</ReadValue>
-        <ReadValue label="Total debited">{sum.count > 0 ? formatAmount(sum.totalDebitedPhp, "PHP") : null}</ReadValue>
+        <ReadValue label="Total debited">
+          {sum.count > 0 ? `${formatAmount(sum.totalDebitedPhp, "PHP")}${sum.missingPhp > 0 ? " (pesos missing)" : ""}` : null}
+        </ReadValue>
       </div>
       {form.payments.length === 0 ? (
         <EmptyNote>
           No payments recorded yet.
           {canRecord && " Add payment starts one here."}
-          {!form.isPhp && " A foreign-currency Odoo PO needs a payment with the PHP debited before Landed Cost can be worked out."}
+          {!form.isPhp && " A foreign-currency Odoo PO needs a payment before Landed Cost can be worked out."}
         </EmptyNote>
       ) : (
         form.payments.map((row, index) => (

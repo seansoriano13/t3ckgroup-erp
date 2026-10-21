@@ -353,6 +353,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
         split: ipas.landed_cost_split || "value",
         computationStatus: ipas.computation_status || "encoding",
         filed: ipas.state === "filed",
+        referenceRates: rowsOf("currency_rates"),
       })
       return new Map((ipas.odoo_copy?.lines ?? []).map((l) => [l.line_id, { total: lc.lines.find((x) => x.lineId === l.line_id)?.landedPhp ?? null, mark: lc.status }]))
     }
