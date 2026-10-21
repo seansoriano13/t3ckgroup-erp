@@ -23629,7 +23629,6 @@ DECLARE
   client_ip TEXT;
   rate_limit_row RECORD;
   result_json JSONB;
-  settings RECORD;
   rec RECORD;
   group_dates TEXT[];
   group_hours NUMERIC;
@@ -23670,7 +23669,6 @@ BEGIN
     VALUES (client_ip, 1, NOW());
   END IF;
 
-  SELECT * INTO settings FROM public.hr_form_settings WHERE id = 1;
 
   -- Try SIL Leaves
   SELECT s.*, e.name AS employee_name, c.label AS category_label,
@@ -23709,7 +23707,7 @@ BEGIN
       'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
       'total_hours', group_hours,
       'status', rec.status,
-      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approver_name', rec.hr_name,
       'approval_date', COALESCE(to_char(rec.hr_processed_at, 'Mon DD, YYYY'), to_char(rec.updated_at, 'Mon DD, YYYY')),
       'application_valid', app_valid,
       'approval_valid', appr_valid,
@@ -23756,7 +23754,7 @@ BEGIN
       'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
       'total_hours', group_hours,
       'status', rec.status,
-      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approver_name', rec.hr_name,
       'approval_date', to_char(rec.updated_at, 'Mon DD, YYYY'),
       'application_valid', app_valid,
       'approval_valid', appr_valid,
@@ -23802,7 +23800,7 @@ BEGIN
       'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
       'total_hours', group_hours,
       'status', rec.status,
-      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approver_name', rec.hr_name,
       'approval_date', to_char(rec.hr_processed_at, 'Mon DD, YYYY'),
       'application_valid', app_valid,
       'approval_valid', appr_valid,
@@ -23845,7 +23843,7 @@ BEGIN
       'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
       'total_hours', rec.hours,
       'status', rec.status,
-      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approver_name', rec.hr_name,
       'approval_date', to_char(rec.updated_at, 'Mon DD, YYYY'),
       'application_valid', app_valid,
       'approval_valid', appr_valid,

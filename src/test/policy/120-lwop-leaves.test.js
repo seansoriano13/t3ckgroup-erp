@@ -254,7 +254,8 @@ describe("cancel_lwop_leave (withdraw)", () => {
         const { tomorrow } = await manilaDates()
         const { groupId, firstId } = await seedGroup({ dates: [tomorrow] })
         const { error } = await withdraw(firstId, "outsider", ids.outsider)
-        expect(error?.message).toMatch(/Unauthorized/)
+        // The function runs as the caller, so RLS hides the row and it reads as "not found".
+        expect(error?.message).toMatch(/not found|Unauthorized/)
         expect(await statusesOf(groupId)).toEqual(["PENDING"])
     })
 })

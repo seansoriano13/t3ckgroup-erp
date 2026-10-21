@@ -68,11 +68,15 @@ const cancel = async (who, id, reason) =>
     (await clientFor(who)).rpc("cancel_meeting_request", { p_request_id: id, p_reason: reason ?? null })
 
 // Moves a seeded request's start into the past (the insert-only trigger would refuse it at insert).
+// Each call takes its own past slot, so two started meetings never clash at the same Venue.
+let pastSlot = 0
 const startNow = async (id) => {
-    const past = new Date(Date.now() - 3600_000)
+    pastSlot += 1
+    const past = new Date(Date.now() - 3600_000 - pastSlot * 900_000)
     past.setUTCMinutes(Math.floor(past.getUTCMinutes() / 15) * 15, 0, 0)
     const end = new Date(past.getTime() + 900_000)
-    await svc().from("meeting_requests").update({ starts_at: past.toISOString(), ends_at: end.toISOString() }).eq("id", id)
+    const { error } = await svc().from("meeting_requests").update({ starts_at: past.toISOString(), ends_at: end.toISOString() }).eq("id", id)
+    if (error) throw new Error(error.message)
 }
 
 beforeAll(async () => {

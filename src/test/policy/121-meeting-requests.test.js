@@ -182,8 +182,7 @@ describe("direct writes are refused", () => {
         expect((await tryInsert(client, "meeting_request_participants", { request_id: id, employee_id: ids.ordinary })).ok).toBe(false)
         expect((await tryInsert(client, "meeting_request_events", { request_id: id, action: "FORGED" })).ok).toBe(false)
         expect((await tryInsert(client, "calendar_venues", { name: `${MARKER} Roof` })).ok).toBe(false)
-        const result = await tryInsert(await clientFor("hr"), "calendar_venues", { name: `${MARKER} Roof` })
-        expect(result.ok).toBe(false)
+        // HR and Super Admin may manage Venues since #626; 127-venue-management covers that.
     })
 })
 
