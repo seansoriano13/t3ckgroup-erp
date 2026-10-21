@@ -170,6 +170,7 @@ describe("systemAuditLogService", () => {
         "OFFSET_LEAVE",
         "SIL_LEAVE",
         "LWOP_LEAVE",
+        "MEETING_REQUEST",
         "HR_SETTINGS"
       ])
     })

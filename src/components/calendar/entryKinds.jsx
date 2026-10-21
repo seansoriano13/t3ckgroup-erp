@@ -1,4 +1,5 @@
 import { CalendarClock, CalendarDays, CalendarOff, Hourglass, Timer, Users } from 'lucide-react';
+import MeetingDetail from './MeetingDetail.jsx';
 
 /**
  * The Calendar's entry-kind registry (ADR 0037). One entry per `kind` the
@@ -23,6 +24,14 @@ export const LAYERS = [
 export const DEFAULT_LAYERS = { meetings: true, timeOff: true, overtime: true };
 
 export const ENTRY_KINDS = {
+  MEETING: {
+    layer: 'meetings',
+    label: 'Meeting',
+    icon: Users,
+    chip: 'bg-teal-2 text-teal-11 border-teal-6',
+    dot: 'bg-teal-9',
+    Detail: MeetingDetail,
+  },
   SIL: {
     layer: 'timeOff',
     label: 'SIL',
