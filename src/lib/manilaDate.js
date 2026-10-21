@@ -78,12 +78,3 @@ export function isFifteenMinuteStep(hhmm) {
   const match = /^(\d{2}):(\d{2})$/.exec(String(hhmm))
   return Boolean(match) && Number(match[1]) < 24 && Number(match[2]) < 60 && Number(match[2]) % 15 === 0
 }
-
-/**
- * UTC "today" as `YYYY-MM-DD`. Mirrors the server's current withdraw rule
- * (`first_date < CURRENT_DATE`, ADR 0015). Temporary: the "Withdraw cutoff uses
- * the Manila date" ticket switches callers to `manilaToday` and deletes this.
- */
-export function utcTodayMirroringServerCurrentDate(now = new Date()) {
-  return now.toISOString().slice(0, 10)
-}

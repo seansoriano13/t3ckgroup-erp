@@ -8,10 +8,11 @@
  * read the way they always did.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders, setupUser } from '@/test/support';
 import { upcomingWeekdays } from '@/test/dates';
+import { manilaToday } from '@/lib/manilaDate.js';
 import NotionLeaveCalendar from './NotionLeaveCalendar';
 
 const leave = (overrides = {}) => ({
@@ -236,10 +237,10 @@ describe('NotionLeaveCalendar', () => {
 
     it('still offers to withdraw a leave dated today, which the server still allows', async () => {
       // ADR 0015 keeps the start day itself withdrawable: the cutoff is
-      // `first_date < CURRENT_DATE`, not `<=`. Comparing parsed Dates here
+      // `first_date < manila_today()`, not `<=`. Comparing parsed Dates here
       // instead of date strings would hide the button partway through the
       // Manila morning, for a withdrawal the server would have accepted.
-      const today = new Date().toISOString().slice(0, 10);
+      const today = manilaToday();
       renderOwn([leave({ employee_id: 'ana', date: today, leave_group_id: 'g1' })], today);
 
       await openCard('8h · 9AM–5PM');
@@ -259,6 +260,26 @@ describe('NotionLeaveCalendar', () => {
       await openCard('8h · 9AM–5PM');
 
       expect(screen.queryByRole('button', { name: /Withdraw Leave/i })).not.toBeInTheDocument();
+    });
+
+    describe('at 07:00 Manila, when UTC is still yesterday', () => {
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-20T23:00:00Z')); // 07:00 on the 21st in Manila
+      });
+      afterEach(() => vi.useRealTimers());
+
+      it('offers withdraw for a leave starting today (Manila)', async () => {
+        renderOwn([leave({ employee_id: 'ana', date: '2026-10-21', leave_group_id: 'g1' })], '2026-10-21');
+        await openCard('8h \u00b7 9AM\u20135PM');
+        expect(screen.getByRole('button', { name: /Withdraw Leave/i })).toBeInTheDocument();
+      });
+
+      it('does not offer withdraw for a leave that started yesterday (Manila)', async () => {
+        renderOwn([leave({ employee_id: 'ana', date: '2026-10-20', leave_group_id: 'g1' })], '2026-10-20');
+        await openCard('8h \u00b7 9AM\u20135PM');
+        expect(screen.queryByRole('button', { name: /Withdraw Leave/i })).not.toBeInTheDocument();
+      });
     });
   });
 });
