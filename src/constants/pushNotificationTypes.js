@@ -40,6 +40,7 @@ export const PUSH_NOTIFICATION_TYPES = new Set([
   "UNDERTIME_DECISION",
   "MEETING_REQUEST_DECISION",
   "MEETING_APPROVED",
+  "MEETING_REMINDER",
 
   // A request awaiting your approval.
   "TASK_AWAITING_APPROVAL",
