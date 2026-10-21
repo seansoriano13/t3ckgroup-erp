@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
-import CalendarPage from './index';
+import CalendarPage from '@/pages/calendar';
 import { calendarService } from '@/services/calendarService';
 import { meetingRequestService } from '@/services/meetingRequestService';
 
