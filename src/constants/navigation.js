@@ -287,6 +287,16 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
+        // Meeting Requests (#624): the head step and HR's final say.
+        key: "approvals.meetings",
+        label: "Meeting Requests",
+        link: "/approvals/meetings",
+        icon: Clock,
+        badgeKey: "meetingApprovals",
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead || ctx.isHr,
+        exactMatch: true,
+      },
+      {
         // IPAS sign-offs (#247, #248): sections 1 and 3, and section 7's
         // Received, Noted, Checked and Approved, for the people on those
         // lists. A Super Admin signs only when on a list, so no pass here.

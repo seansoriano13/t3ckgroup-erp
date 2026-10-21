@@ -9,6 +9,7 @@ export function statusOf(item) {
 export const NOTE_PRESETS = {
   tasks: ["Completed as specified.", "Great quality work!", "Approved for payroll.", "Please update checklist items.", "Follow up required on details."],
   hr: ["Verified against payroll guidelines.", "Audited and approved.", "Incomplete documentation.", "Returned for manager review."],
+  meetings: ["Approved, the room is yours.", "Please add the agenda and resend.", "The room is needed at that time, please pick another."],
   leaves: ["Approved, coverage is arranged.", "Please hand over your work first.", "Clashes with a deadline, please pick another date."],
 };
 
@@ -21,6 +22,11 @@ export function whyYouSeeThis(item) {
       return `You are on the section ${ipasSectionNo(7)} ${(IPAS_SIGNOFF_ROLE_LABELS[item.source?.role] ?? "").toLowerCase()} list, and ${item.source?.role === "approved" ? "everything before it is given. Approving files the IPAS and freezes it" : "it is your turn"}.`;
     }
     return `You are on the section ${ipasSectionNo(item.source?.section)} approval list, and ${first} prepared it. Whoever prepares a section can't approve it.`;
+  }
+  if (item.queue === "meetings") {
+    return item.source?.status === "PENDING_HR"
+      ? `${first}’s Meeting Request cleared the head step, so HR gives the final decision.`
+      : `You are ${first}’s department head, the first approver for a Meeting Request. HR can also decide this step.`;
   }
   if (item.queue === "leaves") return `You are ${first}’s department head, the first approver for leave and overtime.`;
   return item.source?.reportedTo
