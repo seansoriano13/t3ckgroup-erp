@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs"
 export function functionStatements(file, prefix) {
     const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n")
     const chunks = []
-    const start = new RegExp(`^create or replace function public\.${prefix}`, "gm")
+    const start = new RegExp(`^create or replace function public\\.${prefix}`, "gm")
     let match
     while ((match = start.exec(text))) {
         const end = text.indexOf("\n$$;", match.index)
