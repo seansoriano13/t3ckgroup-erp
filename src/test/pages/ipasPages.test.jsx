@@ -160,6 +160,93 @@ describe("IPAS pages", () => {
       expect(within(oldRow).getByTestId("ipas-row-scheme")).toHaveTextContent("—");
     });
 
+    it("shows each IPAS's Status pill, worked out from the IPAS (#597)", async () => {
+      const methods = seedIpasOptions((table, row) => db.seed(table, row)).payment_method;
+      const pending = ipas({ po_number: "P02552" });
+      const ongoing = ipas({ po_number: "P02553" });
+      const paid = ipas({ po_number: "P02554" });
+      const held = ipas({ po_number: "P02555", on_hold: true, on_hold_note: "Supplier issue" });
+      const done = ipas({ po_number: "P02556", state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
+      const cancelled = ipas({ po_number: "P02557", state: "cancelled", cancel_reason: "Dropped", cancelled_at: "2026-10-13T03:00:00.000Z" });
+      db.seed("ipas_payments", { ipas_id: ongoing.id, kind: "down_payment", amount: 100, method_id: methods["Bank TT"].id, paid_on: "2026-10-01", charge_fee_php: 0 });
+      db.seed("ipas_payments", { ipas_id: paid.id, kind: "full_payment", amount: 100, method_id: methods["Bank TT"].id, paid_on: "2026-10-01", charge_fee_php: 0 });
+
+      const user = setupUser();
+      renderList();
+
+      const pillOf = async (po) => {
+        const row = (await screen.findAllByTestId("ipas-row")).find((r) => within(r).queryByText(po));
+        return within(row).queryByTestId("ipas-status-pill");
+      };
+      expect((await pillOf(pending.po_number)).dataset.status).toBe("pending");
+      expect((await pillOf(ongoing.po_number)).dataset.status).toBe("ongoing");
+      expect((await pillOf(paid.po_number)).dataset.status).toBe("paid");
+      expect((await pillOf(held.po_number)).dataset.status).toBe("on_hold");
+
+      await user.click(screen.getByRole("tab", { name: /Filed/ }));
+      await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+      expect((await pillOf(done.po_number)).dataset.status).toBe("done");
+
+      await user.click(screen.getByRole("tab", { name: /Cancelled/ }));
+      await waitFor(() => expect(within(screen.getByTestId("ipas-row")).getByText(cancelled.po_number)).toBeInTheDocument());
+      expect(await pillOf(cancelled.po_number)).toBeNull();
+    });
+
+    it("filters by IPAS Status (#597)", async () => {
+      ipas({ po_number: "P02552" });
+      ipas({ po_number: "P02553", on_hold: true });
+      const user = setupUser();
+
+      renderList();
+      expect(await screen.findAllByTestId("ipas-row")).toHaveLength(2);
+
+      await user.click(screen.getByRole("button", { name: /Any IPAS Status/ }));
+      await user.click(await screen.findByRole("button", { name: "On-Hold" }));
+
+      await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+      expect(within(screen.getByTestId("ipas-row")).getByText("P02553")).toBeInTheDocument();
+    });
+
+    it("puts an open IPAS On-Hold from its pill with a note, and clears it again (#597)", async () => {
+      const row = ipas({ po_number: "P02552" });
+      const user = setupUser();
+
+      renderList();
+      await user.click(await screen.findByRole("button", { name: /Pending\. Put On-Hold/ }));
+      await user.type(await screen.findByPlaceholderText(/Why is it on hold/), "Waiting on the client");
+      await user.click(screen.getByRole("button", { name: "Put On-Hold" }));
+
+      await waitFor(() => expect(screen.getByTestId("ipas-status-pill").dataset.status).toBe("on_hold"));
+      expect(db.internal.rowsOf("ipas").find((r) => r.id === row.id)).toMatchObject({ on_hold: true, on_hold_note: "Waiting on the client" });
+      expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_set");
+      // The click on the pill did not open the IPAS behind it.
+      expect(screen.queryByText("The IPAS page")).not.toBeInTheDocument();
+
+      await user.click(await screen.findByRole("button", { name: /On-Hold\. Clear On-Hold/ }));
+      await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
+      await waitFor(() => expect(screen.getByTestId("ipas-status-pill").dataset.status).toBe("pending"));
+      expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_cleared");
+    });
+
+    it("lets Finance toggle On-Hold, and shows everyone else a read-only pill (#597)", async () => {
+      ipas({ po_number: "P02552" });
+      mockUser.current = finance;
+      stubIpasRpcs({ actorId: finance.id, money: true });
+      renderList();
+      expect(await screen.findByRole("button", { name: /Pending\. Put On-Hold/ })).toBeInTheDocument();
+    });
+
+    it("shows a read-only pill to a reader without Purchasing or Finance access (#597)", async () => {
+      ipas({ po_number: "P02552" });
+      const signer = makeEmployee({ name: "Signer" });
+      mockUser.current = signer;
+      stubIpasRpcs({ actorId: signer.id, purchasing: false, money: false });
+      renderList();
+      const pill = await screen.findByTestId("ipas-status-pill");
+      expect(pill.dataset.status).toBe("pending");
+      expect(screen.queryByRole("button", { name: /Put On-Hold/ })).not.toBeInTheDocument();
+    });
+
     it("shows a Project IPAS's SORs", async () => {
       const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" });
       const row = ipas({ purpose: "project" });
@@ -384,6 +471,16 @@ describe("IPAS pages", () => {
       expect((await screen.findAllByText("Greenspirit 2 Cutter")).length).toBeGreaterThan(0);
       expect(screen.getByText("SCORPE")).toBeInTheDocument();
       expect(screen.getByText(/Copy from Odoo, fetched/)).toBeInTheDocument();
+    });
+
+    it("shows the same IPAS Status and On-Hold note on the record as on the list (#597)", async () => {
+      const row = ipas({ po_number: "P02552", on_hold: true, on_hold_note: "Waiting on the client", created_by: purchaser.id });
+
+      renderDetail(row.id);
+
+      const region = await screen.findByTestId("ipas-record-status");
+      expect(within(region).getByTestId("ipas-status-pill").dataset.status).toBe("on_hold");
+      expect(within(region).getByTestId("ipas-record-on-hold-note")).toHaveTextContent("Waiting on the client");
     });
 
     it("shows the header facts in the Header section", async () => {

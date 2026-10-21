@@ -877,6 +877,11 @@ function eventDetail(event) {
     }
     case "item_location_changed":
       return detail.to ? `Item Location: ${detail.to}` : "Item Location: cleared";
+    case "on_hold_set":
+    case "on_hold_changed":
+      return detail.note ? `“${detail.note}”` : null;
+    case "on_hold_cleared":
+      return detail.reason === "filed" ? "Filed" : null;
     case "payment_added":
     case "payment_changed":
     case "payment_removed":

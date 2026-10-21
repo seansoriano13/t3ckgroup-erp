@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { transmittalService } from "./transmittalService";
 import { readSection3Signoffs } from "./ipasSection3Signoffs";
+import { readIpasStatusFacts } from "./ipasStatusFacts";
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUSES,
@@ -257,6 +258,8 @@ export const ipasService = {
     const { data: optionRows, error: optionsError } = await supabase.from("ipas_options").select("id, list, label");
     if (optionsError) throw optionsError;
     const options = new Map((optionRows || []).map((option) => [option.id, option]));
+    // The IPAS Status (#597) needs section 1's sign-off state and whether the IPAS was worked on: two cheap bulk reads.
+    const { section1Started, workedOn } = await readIpasStatusFacts((rows || []).map((row) => row.id));
 
     return (rows || [])
       .filter((row) => !entity || ipasEntity(row) === entity)
@@ -264,6 +267,8 @@ export const ipasService = {
         ...shapeIpas(row, sorsByIpas.get(row.id) ?? []),
         payments: (paymentRows || []).map((payment) => shapePayment(payment, options)),
         section3Approved: section3Approved.has(row.id),
+        section1Started: section1Started.has(row.id),
+        workedOn: workedOn.has(row.id),
       }));
   },
 
@@ -286,7 +291,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs, landed] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs, landed, statusFacts] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -311,6 +316,7 @@ export const ipasService = {
       transmittalService.forIpas(id),
       supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
       supabase.rpc("ipas_landed_cost", { p_ipas_id: id }),
+      readIpasStatusFacts([id]),
     ]);
     for (const result of [events, payments, charges, options, documents, signoffs, landed]) {
       if (result.error) throw result.error;
@@ -329,6 +335,9 @@ export const ipasService = {
 
     return {
       ...shapeIpas(row, sors, sections),
+      // The IPAS Status's "changed since raising" fact (#597). Section 1's sign-off state comes from the
+      // shaped sign-offs, so an optimistic edit moves the status without a refetch.
+      workedOn: statusFacts.workedOn.has(id),
       // The rows it was shaped from, so the page can show an edit before the
       // server has answered (utils/ipasOptimistic.js).
       raw: rawOf({ row, sors, ...sections }),
@@ -1437,6 +1446,22 @@ export const ipasService = {
     const why = (reason || "").trim();
     if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give a reason for cancelling.");
     const { data, error } = await supabase.rpc("ipas_cancel", { p_ipas_id: id, p_reason: why });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Puts an open IPAS On-Hold, or clears it (#597). The one write the IPAS Status
+   * has: every other step is worked out. Purchasing access or Finance access; a
+   * filed or cancelled IPAS is refused by the database. `note` is optional and
+   * only kept while on hold. Each change is an IPAS history event. Returns the row.
+   */
+  async setOnHold(id, onHold, note = "") {
+    const { data, error } = await supabase.rpc("ipas_set_on_hold", {
+      p_ipas_id: id,
+      p_on_hold: onHold === true,
+      p_note: onHold === true ? (note || "").trim() || null : null,
+    });
     if (error) throw error;
     return data;
   },
