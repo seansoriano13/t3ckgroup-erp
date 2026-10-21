@@ -150,6 +150,8 @@ describe("IPAS signing with the evidence in view", () => {
       signoff(row.id, 1, "approved", approver);
       signoff(row.id, 3, "prepared", purchaser);
       signoff(row.id, 3, "approved", approver);
+      signoff(row.id, 6, "prepared", purchaser);
+      signoff(row.id, 6, "approved", approver);
       signIn(approver);
       renderDetail(row.id, "filing");
 
