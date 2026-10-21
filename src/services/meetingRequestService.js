@@ -54,14 +54,90 @@ async function describeHolder({ venueId, startsAt, endsAt }) {
 }
 
 export const meetingRequestService = {
-  async listVenues() {
-    const { data, error } = await supabase
-      .from('calendar_venues')
-      .select('id, name, active, sort_order')
-      .eq('active', true)
-      .order('sort_order');
+  /** Open Venues by default (what the request form offers); `includeInactive` is for Settings. */
+  async listVenues({ includeInactive = false } = {}) {
+    let query = supabase.from('calendar_venues').select('id, name, active, sort_order');
+    if (!includeInactive) query = query.eq('active', true);
+    const { data, error } = await query.order('sort_order').order('name');
     if (error) throw error;
     return data ?? [];
+  },
+
+  async auditVenue(venue, event, content, actorId, metadata = {}) {
+    await systemAuditLogService.addSystemEvent(
+      'HR_SETTINGS',
+      venue.id,
+      content,
+      { event, venue: venue.name, ...metadata },
+      actorId,
+    );
+  },
+
+  async addVenue(name, actorId) {
+    const label = String(name ?? '').trim();
+    if (!label) throw new Error('Give the Venue a name.');
+    const { data: last } = await supabase
+      .from('calendar_venues')
+      .select('sort_order')
+      .order('sort_order', { ascending: false })
+      .limit(1);
+    const sortOrder = (last?.[0]?.sort_order ?? 0) + 1;
+    const { data, error } = await supabase
+      .from('calendar_venues')
+      .insert({ name: label, sort_order: sortOrder })
+      .select('id, name, active, sort_order')
+      .single();
+    if (error) throw new Error(error.code === '23505' ? 'A Venue with that name already exists.' : error.message);
+    await this.auditVenue(data, 'VENUE_CREATED', `Added Venue "${label}"`, actorId);
+    return data;
+  },
+
+  async renameVenue(venue, name, actorId) {
+    const label = String(name ?? '').trim();
+    if (!label) throw new Error('Give the Venue a name.');
+    const { error } = await supabase.from('calendar_venues').update({ name: label }).eq('id', venue.id);
+    if (error) throw new Error(error.code === '23505' ? 'A Venue with that name already exists.' : error.message);
+    await this.auditVenue({ id: venue.id, name: label }, 'VENUE_RENAMED', `Renamed Venue "${venue.name}" to "${label}"`, actorId, { from: venue.name });
+  },
+
+  async setVenueActive(venue, active, actorId) {
+    const { error } = await supabase.from('calendar_venues').update({ active }).eq('id', venue.id);
+    if (error) throw new Error(error.message);
+    await this.auditVenue(
+      venue,
+      active ? 'VENUE_SWITCHED_ON' : 'VENUE_SWITCHED_OFF',
+      `Switched ${active ? 'on' : 'off'} Venue "${venue.name}"`,
+      actorId,
+    );
+  },
+
+  /** `ordered` is the full list in its new order; only Venues whose position changed are written. */
+  async reorderVenues(ordered, actorId) {
+    const changed = ordered.map((v, i) => ({ v, order: i + 1 })).filter(({ v, order }) => v.sort_order !== order);
+    for (const { v, order } of changed) {
+      const { error } = await supabase.from('calendar_venues').update({ sort_order: order }).eq('id', v.id);
+      if (error) throw new Error(error.message);
+    }
+    if (changed.length) {
+      await this.auditVenue(
+        { id: ordered[0].id, name: ordered[0].name },
+        'VENUES_REORDERED',
+        `Reordered Venues: ${ordered.map((v) => v.name).join(', ')}`,
+        actorId,
+        { order: ordered.map((v) => v.name) },
+      );
+    }
+  },
+
+  /** A Venue with Meeting Requests is refused by the database; the message tells HR to switch it off instead. */
+  async deleteVenue(venue, actorId) {
+    const { data, error } = await supabase.from('calendar_venues').delete().eq('id', venue.id).select('id');
+    if (error) {
+      if (error.code === '23503') throw new Error('This Venue has Meeting Requests, so it cannot be deleted. Switch it off instead.');
+      throw new Error(error.message);
+    }
+    if (!data?.length) throw new Error('Could not delete the Venue.');
+    await this.auditVenue(venue, 'VENUE_DELETED', `Deleted Venue "${venue.name}"`, actorId);
   },
 
   /**
