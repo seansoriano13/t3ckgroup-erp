@@ -1,3 +1,4 @@
+import { manilaToday } from "@/lib/manilaDate.js";
 import PageLoading from "@/components/ui/PageLoading";
 import { useState, useMemo } from "react";
 import { usePaging } from "@/hooks/usePaging";
@@ -584,7 +585,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
             silService.getMySilLeaves(employee.id),
             offsetService.getMyOffsetLeaves(employee.id),
           ]);
-          const today = new Date().toISOString().slice(0, 10);
+          const today = manilaToday();
           const approvedFutureSil = silLeaves.filter((l) => l.status === "APPROVED" && l.date >= today);
           const approvedFutureOffset = offsetLeaves.filter((l) => l.status === "APPROVED" && l.date >= today);
 

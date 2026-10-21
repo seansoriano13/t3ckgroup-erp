@@ -1,3 +1,4 @@
+import { manilaDate, utcTodayMirroringServerCurrentDate } from '@/lib/manilaDate.js';
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
@@ -56,7 +57,7 @@ export default function NotionLeaveCalendar({
       ? approvedLeaves.filter((l) => l.leave_group_id === leave.leave_group_id).map((l) => l.date)
       : [leave.date];
     const firstDate = (groupDates.sort()[0] || leave.date || '').slice(0, 10);
-    return Boolean(firstDate) && firstDate < new Date().toISOString().slice(0, 10);
+    return Boolean(firstDate) && firstDate < utcTodayMirroringServerCurrentDate();
   };
 
   const monthNames = [
@@ -212,7 +213,7 @@ export default function NotionLeaveCalendar({
                   <Button
                     variant="outline"
                     onClick={() => {
-                      const dateStr = new Date(year, month, day).toISOString().split('T')[0];
+                      const dateStr = manilaDate(new Date(year, month, day));
                       setSelectedDayLeaves({ dateStr, leaves, dayNum: day });
                     }}
                     className="w-full h-auto py-1 bg-muted hover:bg-muted/80 border-border text-foreground rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"

@@ -50,7 +50,7 @@ export function enumerateDateRange(startDate, endDate) {
 
   const dates = [];
   for (let d = start; d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-    dates.push(d.toISOString().slice(0, 10));
+    dates.push(d.toISOString().slice(0, 10)); // eslint-disable-line local/no-iso-date-slice -- UTC midnight from plain y/m/d, no instant involved
   }
   return dates;
 }
