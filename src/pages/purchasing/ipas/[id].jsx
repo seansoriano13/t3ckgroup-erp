@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ReceiptText } from "lucide-react";
+import { ArrowLeft, ReceiptText } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
-import ModalShell from "../../../components/ui/ModalShell";
-import IpasListPage from "./index";
+import PageShell from "../../../components/ui/PageShell";
 import PageLoading from "../../../components/ui/PageLoading";
 import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
@@ -27,14 +26,12 @@ import InlineError from "../../../components/record/InlineError";
 import EditForm from "../../../components/ipas/record/EditForm";
 import Figures from "../../../components/ipas/record/Figures";
 import HeaderActions from "../../../components/ipas/record/HeaderActions";
-import SectionDrawer from "../../../components/ipas/record/SectionDrawer";
-import SectionsList from "../../../components/ipas/record/SectionsList";
+import SectionsPanel from "../../../components/ipas/record/SectionsPanel";
 import { buildBlocks } from "../../../components/ipas/record/blocks";
-import { digestIpas, filingSummary, isInPlace } from "../../../components/ipas/record/digest";
-import { CHROME, RecordSectionChrome } from "../../../components/record/sectionChrome";
+import { digestIpas, filingSummary } from "../../../components/ipas/record/digest";
 import { useEditSection } from "../../../components/ipas/record/useEditSection";
 import { loadedVersion, useIpasChanged } from "../../../components/ipas/record/useIpasChanged";
-import { useOpenSection } from "../../../components/ipas/record/useOpenSection";
+import { useSectionsOpen } from "../../../components/ipas/record/useSectionsOpen";
 import {
   ipasKey,
   ipasListKey,
@@ -141,7 +138,7 @@ function typingInitialValue(field, ipas) {
  * ticked) and the filed state: a banner, every edit control gone, and a Super
  * Admin's Reopen with a reason.
  */
-function IpasPage({ onClose }) {
+function IpasPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -185,14 +182,14 @@ function IpasPage({ onClose }) {
   const [removingDocument, setRemovingDocument] = useState(null);
   // The typed dates being edited: "origin" (Supplier Origin) or a typed status key.
   const [dates, setDates] = useState(null);
-  // The section the drawer shows (?open=), and each section row, so focus can go back to it.
-  const { index, current, inPlace, open: openDrawer, step: stepSection, close: closeSection } = useOpenSection();
-  // The section in the edit view (?edit=), and the section last left, to focus its row on the way back.
+  // Which section blocks are open (several can be; ?open= names one on arrival), and each block's
+  // header, so focus can go back to it.
+  const sections = useSectionsOpen();
+  // The section in the edit view (?edit=), and the section last left, to focus its block on the way back.
   const { key: editKey, edit: openEdit, leave: leaveEdit } = useEditSection();
   const editedKey = useRef(null);
   const rowEls = useRef({});
-  const openSection = (key) => openDrawer(key);
-  // Back from the edit view lands on that section's drawer, where it was opened from.
+  // Back from the edit view lands on that section, open, where it was edited from.
   const backToPreview = () => leaveEdit(editKey);
 
   // The stored copy, at once. The refresh below catches it up.
@@ -232,8 +229,7 @@ function IpasPage({ onClose }) {
     enabled: Boolean(id),
   });
 
-  // Leaving the edit view (its link, or Back) returns to the overview with that section's row
-  // focused: under the row when it expands in place, unless the drawer came back and holds focus.
+  // Leaving the edit view (its link, or Back) returns to the overview with that section's header focused.
   useEffect(() => {
     if (editKey) {
       editedKey.current = editKey;
@@ -242,8 +238,8 @@ function IpasPage({ onClose }) {
     const from = editedKey.current;
     if (!from) return;
     editedKey.current = null;
-    if (!current) rowEls.current[from]?.focus();
-  }, [editKey, current]);
+    rowEls.current[from]?.focus();
+  }, [editKey]);
 
   useEffect(() => {
     if (!refresh.dataUpdatedAt) return;
@@ -723,31 +719,35 @@ function IpasPage({ onClose }) {
     print.mutate({ filingCopy, printWindow });
   };
 
-  // The link has an href for when #531's card region is absent; where it is, the
-  // jump also moves focus there.
-  const skipToYourMove = (event) => {
-    const target = document.getElementById("your-move");
-    if (!target) return;
-    event.preventDefault();
-    target.scrollIntoView({ block: "start" });
-    target.focus({ preventScroll: true });
-  };
+  const back = (
+    <Link
+      to="/purchasing/ipas"
+      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+      IPAS
+    </Link>
+  );
 
-  if (isLoading || isError || !ipas) {
+  if (isLoading) return <PageLoading />;
+
+  if (isError) {
     return (
-      <ModalShell open onOpenChange={(next) => !next && onClose()} size="wide" cancelLabel="Close" crumbs={["IPAS"]}>
-        {isLoading ? (
-          <PageLoading />
-        ) : isError ? (
-          <QueryError title="This IPAS could not be loaded." onRetry={refetch} />
-        ) : (
-          <EmptyState
-            icon={ReceiptText}
-            title="IPAS not found"
-            description="It doesn't exist, or you don't have access to it."
-          />
-        )}
-      </ModalShell>
+      <PageShell title="IPAS" action={back}>
+        <QueryError title="This IPAS could not be loaded." onRetry={refetch} />
+      </PageShell>
+    );
+  }
+
+  if (!ipas) {
+    return (
+      <PageShell title="IPAS" action={back}>
+        <EmptyState
+          icon={ReceiptText}
+          title="IPAS not found"
+          description="It doesn't exist, or you don't have access to it."
+        />
+      </PageShell>
     );
   }
 
@@ -905,28 +905,12 @@ function IpasPage({ onClose }) {
       print: print.isPending,
     },
     on,
+    back,
     printedBy: user?.name ?? null,
     viewer: user?.name ?? null,
     failure: failure && { ...failure, dismiss: () => setFailure(null) },
   };
   const blocks = buildBlocks(ctx);
-  // A row opens its section in the drawer; a short section toggles in place under its row.
-  const openRow = (key) => (isInPlace(key) && inPlace === key ? closeSection() : openSection(key));
-  // Logistics and Status are edited right there, under their row. Header and Sales show
-  // read-only, as the drawer did, and edit in the edit view: their Edit section goes there.
-  const inline = (key) => <RecordSectionChrome.Provider value={CHROME.INLINE}>{blocks[key]}</RecordSectionChrome.Provider>;
-  const preview = (key) => (
-    <div className="space-y-4">
-      <RecordSectionChrome.Provider value={CHROME.DRAWER}>{blocks[key]}</RecordSectionChrome.Provider>
-    </div>
-  );
-  const inPlaceBodies = {
-    header: preview("header"),
-    sales: preview("sales"),
-    logistics: inline("logistics"),
-    status: inline("status"),
-    history: inline("history"),
-  };
   // The long edit form (#581). The money is typed in its cards; only the sign-offs and the
   // filing checklist reuse the section bodies.
   const editView = editKey ? (
@@ -966,32 +950,17 @@ function IpasPage({ onClose }) {
   // shows inline at the move that started it, with Retry.
   return (
     <>
-      <ModalShell
-        open
-        onOpenChange={(next) => !next && onClose()}
-        size="wide"
-        expandable
-        cancelLabel="Close"
-        crumbs={["IPAS", ipas.number]}
-        headerActions={<HeaderActions ctx={ctx} />}
+      <PageShell
+        title={ipas.number}
+        description={[ipas.po_number, ipas.supplier].filter(Boolean).join(" · ")}
+        action={<HeaderActions ctx={ctx} />}
       >
-        <p className="text-sm text-muted-foreground">{[ipas.po_number, ipas.supplier].filter(Boolean).join(" · ")}</p>
         {open && (hasPurchasingFlow || isSuperAdmin) && (
-          <p className="text-xs text-muted-foreground" data-testid="ipas-wrong-po-hint">
+          <p className="mb-4 text-xs text-muted-foreground" data-testid="ipas-wrong-po-hint">
             Wrong PO? Cancel this IPAS and raise a new one.
           </p>
         )}
         <div className="space-y-6">
-          {/* Keyboard users skip the figures and sections to the card; hidden until focused. */}
-          {!editKey && (
-            <Link
-              to="#your-move"
-              onClick={skipToYourMove}
-              className="sr-only text-sm font-medium text-foreground underline underline-offset-4 focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-4 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-card focus-visible:px-3 focus-visible:py-2 focus-visible:shadow-sm focus-visible:ring-3 focus-visible:ring-ring"
-            >
-              Skip to your move
-            </Link>
-          )}
           <div className="space-y-2 empty:hidden">
             {!editKey && shownFailure && (
               <InlineError
@@ -1023,42 +992,28 @@ function IpasPage({ onClose }) {
             />
           </div>
 
-          {/* The decider: the figures and sections on the left; the card beside them from the wide breakpoint, sticky and without an inner scroll. Below it the card follows the sections. */}
+          {/* Top to bottom: the decision card, the money, then every section as a block that opens in place. */}
           {editView ?? (
-            <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
-              <div className="min-w-0 space-y-8">
-                <Figures digest={digest} onOpen={openRow} />
-                <SectionsList
-                  digest={digest}
-                  onOpen={openRow}
-                  inPlace={inPlace}
-                  bodies={inPlaceBodies}
-                  rowRef={(key) => (node) => {
-                    rowEls.current[key] = node;
-                  }}
-                />
+            <div className="min-w-0 space-y-8">
+              <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
+              {/* The money summary's place (#603): its Supplier bill check, Paid, Remaining balance and Landed Cost replace the headline figures here. */}
+              <div data-testid="ipas-money-summary-slot">
+                <Figures digest={digest} onOpen={sections.show} />
               </div>
-              <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
-                <DecisionCard ctx={ctx} digest={digest} onReview={openSection} next={nextIpas} />
-              </aside>
+              <SectionsPanel
+                ctx={ctx}
+                blocks={blocks}
+                digest={digest}
+                open={sections}
+                headRef={(key) => (node) => {
+                  rowEls.current[key] = node;
+                }}
+                onEdit={openEdit}
+              />
             </div>
           )}
         </div>
-
-        {!editKey && (
-          <SectionDrawer
-            ctx={ctx}
-            blocks={blocks}
-            digest={digest}
-            index={index}
-            current={current}
-            step={stepSection}
-            close={closeSection}
-            getRow={(key) => rowEls.current[key]}
-            onEdit={openEdit}
-          />
-        )}
-      </ModalShell>
+      </PageShell>
 
       <EditPurposeSorsDialog ipas={ipas} open={editing} onOpenChange={setEditing} />
 
@@ -1209,14 +1164,9 @@ function IpasPage({ onClose }) {
 // from a clean page: no failure, dialog or sign-off from the last IPAS carries over.
 export default function IpasPageRoute() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  // The record is a modal over the IPAS list; the URL keeps working as a deep link.
   return (
-    <>
-      <IpasListPage />
-      <ProtectedRoute>
-        <IpasPage key={id} onClose={() => navigate("/purchasing/ipas")} />
-      </ProtectedRoute>
-    </>
+    <ProtectedRoute>
+      <IpasPage key={id} />
+    </ProtectedRoute>
   );
 }
