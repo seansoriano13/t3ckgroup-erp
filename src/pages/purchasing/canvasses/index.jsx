@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { useQuery } from "@tanstack/react-query";
 import { Navigate, useSearchParams } from "react-router";
 import { Plus, Scale } from "lucide-react";
 
@@ -12,10 +11,10 @@ import FilterBar from "../../../components/ui/FilterBar";
 import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
 import { Checkbox } from "../../../components/ui/checkbox";
-import { Input } from "../../../components/ui/input";
-import ModalShell from "../../../components/ui/ModalShell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import CanvassPanel from "../../../components/CanvassPanel";
+import NewCanvassModal from "../../../components/NewCanvassModal";
+import CreatePurchaseRequestModal from "../../../components/CreatePurchaseRequestModal";
 import { useAuth } from "../../../context/AuthContext";
 import { canvassService } from "../../../services/canvassService";
 import { CANVASS_KIND, CANVASS_LIST_KEY } from "../../../constants/canvass";
@@ -99,32 +98,16 @@ function CanvassesPage({ userId, canEdit }) {
     return null;
   }, [openRow, itemParam, componentParam]);
   const ready = !isLoading && !isError;
-  // A new Canvass with no subject: nothing is written until its first Offer is saved (canvass_start),
-  // which makes the starter its Canvasser and gives it a number. Then it is a row like any other.
+  const openCanvass = (id) => setParams({ canvass: id });
+  // New Canvasses with no subject: nothing is written until Save (canvass_start), which makes the
+  // starter their Canvasser and gives each a number. Then each is a row like any other.
   const [starting, setStarting] = useState(false);
 
   // Picking Canvasses for one Purchase Request (ADR 0034): only subject-less ones can be picked.
-  const queryClient = useQueryClient();
   const [picked, setPicked] = useState([]);
   const [creating, setCreating] = useState(false);
-  const [requestTitle, setRequestTitle] = useState("");
   const pickedRows = rows.filter((r) => picked.includes(r.id));
-  const unsignedRows = pickedRows.filter((r) => !r.signedOffAt);
-  const noWinnerRows = pickedRows.filter((r) => !r.winner);
   const togglePick = (id) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-  const createRequest = useMutation({
-    mutationFn: () => canvassService.createPurchaseRequest({ title: requestTitle, items: pickedRows.map((r) => ({ canvassId: r.id })) }),
-    onSuccess: (made) => {
-      toast.success("Purchase Request created.");
-      const numbers = rows.filter((r) => made.unsignedCanvassIds.includes(r.id)).map((r) => r.number);
-      if (numbers.length > 0) toast.warning(`Not signed off yet: ${numbers.join(", ")}.`);
-      setCreating(false);
-      setPicked([]);
-      setRequestTitle("");
-      queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
-    },
-    onError: (err) => toast.error(err.message),
-  });
 
   return (
     <PageShell
@@ -183,8 +166,20 @@ function CanvassesPage({ userId, canEdit }) {
             </TableHeader>
             <TableBody>
               {shown.map((row) => (
-                <TableRow key={row.id} data-testid="canvass-row">
-                  <TableCell className="w-8">
+                <TableRow
+                  key={row.id}
+                  data-testid="canvass-row"
+                  tabIndex={0}
+                  className="cursor-pointer outline-none focus-visible:bg-muted"
+                  onClick={() => openCanvass(row.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.target === e.currentTarget) {
+                      e.preventDefault();
+                      openCanvass(row.id);
+                    }
+                  }}
+                >
+                  <TableCell className="w-8" onClick={(e) => e.stopPropagation()}>
                     {canEdit && row.kind === CANVASS_KIND.NONE && (
                       <Checkbox
                         aria-label={`Pick Canvass ${row.number}`}
@@ -200,7 +195,10 @@ function CanvassesPage({ userId, canEdit }) {
                       size="sm"
                       className="h-auto p-0 font-medium tabular-nums"
                       aria-label={`Open Canvass ${row.number}`}
-                      onClick={() => setParams({ canvass: row.id })}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openCanvass(row.id);
+                      }}
                     >
                       {row.number}
                     </Button>
@@ -224,42 +222,19 @@ function CanvassesPage({ userId, canEdit }) {
         </div>
       )}
 
-      <ModalShell
-        open={canEdit && creating}
-        onOpenChange={setCreating}
-        crumbs={["Canvass", "Create Purchase Request"]}
-        actions={
-          <Button type="button" size="lg" disabled={createRequest.isPending || !requestTitle.trim() || noWinnerRows.length > 0} onClick={() => createRequest.mutate()}>
-            Create request
-          </Button>
-        }
-      >
-          <p className="text-sm text-muted-foreground">
-            One request with one Requested Item for each of the {pickedRows.length} picked Canvass{pickedRows.length === 1 ? "" : "es"}, filled from its winner.
-          </p>
-          <Input aria-label="Purchase Request title" placeholder="Title of the request" value={requestTitle} onChange={(e) => setRequestTitle(e.target.value)} />
-          {noWinnerRows.length > 0 && (
-            <p role="alert" className="text-sm text-destructive">
-              No winner yet: {noWinnerRows.map((r) => r.number).join(", ")}. Pick a winner first.
-            </p>
-          )}
-          {unsignedRows.length > 0 && (
-            <p role="status" className="text-sm text-amber-600">
-              Not signed off yet: {unsignedRows.map((r) => r.number).join(", ")}. You can still create the request.
-            </p>
-          )}
-      </ModalShell>
-
-      {starting && canEdit && (
-        <CanvassPanel
+      {creating && canEdit && (
+        <CreatePurchaseRequestModal
           open
-          onOpenChange={(next) => !next && setStarting(false)}
-          subject={{}}
-          subjectLabel="New Canvass"
-          userId={userId}
-          canEdit
+          onOpenChange={setCreating}
+          canvasses={pickedRows}
+          onCreated={() => {
+            setCreating(false);
+            setPicked([]);
+          }}
         />
       )}
+
+      {starting && canEdit && <NewCanvassModal open onOpenChange={setStarting} userId={userId} />}
 
       {openRow && (
         <CanvassPanel

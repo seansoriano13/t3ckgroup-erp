@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   Award,
-  ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink as ExternalLinkIcon,
   Pencil,
   Plus,
@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import ModalShell from "./ui/ModalShell";
 import CanvassSignoffDialog from "./CanvassSignoffDialog";
+import CanvassSupplierField, { canvassFieldClass as fieldClass } from "./CanvassSupplierField";
+import CreatePurchaseRequestModal from "./CreatePurchaseRequestModal";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
 import { SelectField } from "./ui/SelectField";
@@ -69,86 +71,8 @@ const quoted = (offer) => {
   return `${offerCurrency(offer)} ${amount}`;
 };
 
-const fieldClass =
-  "h-auto rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8";
-
-/**
- * The Offer's supplier (#277): free text that suggests matching Odoo suppliers as it is typed.
- * Picking one records its Odoo id beside the name; typing again afterwards drops the id, since the
- * name no longer says which Odoo supplier it was. A supplier Odoo doesn't know is simply typed.
- */
-function SupplierField({ value, onTyped, onPicked }) {
-  const [open, setOpen] = useState(false);
-  const [debounced, setDebounced] = useState(value.trim());
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value.trim()), 250);
-    return () => clearTimeout(timer);
-  }, [value]);
-
-  const { data: suggestions = [] } = useQuery({
-    queryKey: ["canvass-supplier-search", debounced],
-    queryFn: () => canvassService.searchSuppliers(debounced),
-    enabled: open && debounced.length >= 2,
-    staleTime: 60_000,
-  });
-
-  return (
-    <div className="relative min-w-0">
-      <Input
-        autoFocus
-        aria-label="Supplier"
-        role="combobox"
-        aria-expanded={open && suggestions.length > 0}
-        aria-autocomplete="list"
-        autoComplete="off"
-        value={value}
-        onChange={(e) => {
-          onTyped(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && open) {
-            e.stopPropagation();
-            setOpen(false);
-          }
-        }}
-        placeholder="Supplier"
-        containerClassName="min-w-0"
-        className={`${fieldClass} font-semibold`}
-      />
-      {open && suggestions.length > 0 && (
-        <ul
-          role="listbox"
-          aria-label="Odoo suppliers"
-          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded-md border border-border bg-card py-1 shadow-md"
-        >
-          {suggestions.map((supplier) => (
-            <li key={supplier.id} role="option" aria-selected={false}>
-              <Button
-                type="button"
-                variant="ghost"
-                // mousedown, not click: the input's blur would close the list before a click lands.
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onPicked(supplier);
-                  setOpen(false);
-                }}
-                className="h-auto w-full justify-start rounded-none px-2.5 py-1.5 text-left text-[13px] font-normal text-foreground"
-              >
-                {supplier.name}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
+/** `inline` stacks the fields for one card's width, so an Offer is edited or added in its own place in the grid. */
+function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending, inline = false }) {
   const [supplierName, setSupplierName] = useState(initial?.supplier_name || "");
   const [odooSupplierId, setOdooSupplierId] = useState(initial?.odoo_supplier_id ?? null);
   const [brand, setBrand] = useState(initial?.brand || "");
@@ -216,8 +140,8 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
       aria-label={initial ? "Edit offer" : "New offer"}
       className="space-y-2.5 rounded-xl border border-dashed border-mauve-7 bg-muted/20 p-3"
     >
-      <div className="grid grid-cols-2 gap-2">
-        <SupplierField
+      <div className={`grid gap-2 ${inline ? "grid-cols-1" : "grid-cols-2"}`}>
+        <CanvassSupplierField
           value={supplierName}
           onTyped={(name) => {
             setSupplierName(name);
@@ -247,7 +171,7 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
         className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px] md:text-[12.5px]"
       />
 
-      <div className="grid grid-cols-[6rem_1fr_1fr] gap-2">
+      <div className={`grid gap-2 ${inline ? "grid-cols-[5.5rem_1fr]" : "grid-cols-[6rem_1fr_1fr]"}`}>
         <SelectField
           aria-label="Currency"
           size="sm"
@@ -280,7 +204,7 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
               setRateIsSuggested(false);
             }}
             placeholder={`Comparison rate (PHP per ${currency})`}
-            containerClassName="min-w-0"
+            containerClassName={inline ? "col-span-2 min-w-0" : "min-w-0"}
             className={fieldClass}
           />
         )}
@@ -300,7 +224,7 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
         </p>
       )}
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid gap-2 ${inline ? "grid-cols-2" : "grid-cols-3"}`}>
         <Input
           type="date"
           aria-label="Quote valid until"
@@ -323,7 +247,7 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending }) {
           value={qualityNote}
           onChange={(e) => setQualityNote(e.target.value)}
           placeholder="Quality note"
-          containerClassName="min-w-0"
+          containerClassName={inline ? "col-span-2 min-w-0" : "min-w-0"}
           className={fieldClass}
         />
       </div>
@@ -423,6 +347,7 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
   if (isEditing) {
     return (
       <OfferForm
+        inline
         initial={offer}
         canReadMoney={canReadMoney}
         isPending={isPending}
@@ -442,17 +367,48 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
   return (
     <div
       data-testid="offer"
-      className={`group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+      className={`group flex min-w-0 flex-col gap-2 rounded-xl border p-3 transition-colors ${
         offer.is_winner ? "border-amber-7 bg-amber-a2" : "border-border/60 bg-card hover:border-mauve-8"
       }`}
     >
-      <div className="min-w-0 flex-1">
+      <div className="flex min-h-7 items-center justify-between gap-2">
+        <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Offer {index + 1}</span>
+        {canEdit && offer.is_winner && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={isPending}
+            onClick={onClearWin}
+            aria-label={`Clear ${title} as the winner`}
+            title="Un-pick the winner, leaving none"
+            className="h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-amber-11 hover:bg-amber-a3"
+          >
+            <X size={12} className="mr-1" aria-hidden="true" />
+            Clear winner
+          </Button>
+        )}
+        {canEdit && !offer.is_winner && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={isPending || needsRate}
+            onClick={() => onWin(offer.id)}
+            aria-label={`Mark ${title} the winner`}
+            title={needsRate ? "Add the comparison rate before this offer can win" : "Mark this offer the winner"}
+            className="h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-amber-a3 hover:text-amber-11"
+          >
+            <Award size={12} className="mr-1" aria-hidden="true" />
+            Pick winner
+          </Button>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-1.5">
           {offer.is_winner && <Award size={14} className="text-amber-11" aria-label="Winning offer" />}
           <span className="text-sm font-bold text-foreground">{offer.supplier_name || offer.brand || "—"}</span>
-          {offer.supplier_name && offer.brand && (
-            <span className="text-xs text-muted-foreground">{offer.brand}</span>
-          )}
           {offer.source_link && (
             <ExternalLink
               href={offer.source_link}
@@ -467,113 +423,90 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
           {offer.expired && (
             <span className="rounded-full bg-red-a3 px-1.5 py-0.5 text-[10px] font-bold text-red-11">Quote expired</span>
           )}
-          {quoted(offer) && (
-            <span className="ml-auto shrink-0 text-right text-sm font-bold tabular-nums text-foreground">
-              {quoted(offer)}
-              {foreign && (
-                <span className="block text-[11px] font-normal text-muted-foreground" data-testid="php-figure">
-                  {offer.php_figure === null || offer.php_figure === undefined
-                    ? "No comparison rate yet"
-                    : `${pesos(offer.php_figure)} at ${offer.comparison_rate}`}
-                </span>
-              )}
-            </span>
-          )}
         </div>
-        {offer.description && (
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{offer.description}</p>
+        {offer.supplier_name && offer.brand && <p className="text-xs font-medium text-foreground/70">{offer.brand}</p>}
+        {offer.description && <p className="text-xs leading-relaxed text-muted-foreground">{offer.description}</p>}
+        {quoted(offer) && (
+          <p className="pt-1.5 text-base font-bold tabular-nums text-foreground">
+            {quoted(offer)}
+            {foreign && (
+              <span className="block text-[11px] font-normal text-muted-foreground" data-testid="php-figure">
+                {offer.php_figure === null || offer.php_figure === undefined
+                  ? "No comparison rate yet"
+                  : `${pesos(offer.php_figure)} at ${offer.comparison_rate}`}
+              </span>
+            )}
+          </p>
         )}
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
           {offer.lead_time && <span>Lead time: {offer.lead_time}</span>}
           {offer.valid_until && <span>Valid until {offer.valid_until}</span>}
           {offer.quality_note && <span>Quality: {offer.quality_note}</span>}
         </div>
-        {offer.remarks && <p className="mt-1 text-[11px] italic text-muted-foreground/80">{offer.remarks}</p>}
+        {offer.remarks && <p className="text-[11px] italic text-muted-foreground/80">{offer.remarks}</p>}
         <OfferProjection projection={projection} />
         {offer.brochure?.length > 0 && (
-          <div className="mt-1.5">
+          <div className="pt-0.5">
             <AttachmentList attachments={offer.brochure} compact />
           </div>
         )}
       </div>
 
       {canEdit && (
-        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-          {offer.is_winner && (
+        <div className="mt-auto flex items-center justify-between border-t border-border/50 pt-2">
+          <div className="flex items-center gap-0.5">
             <Button
               type="button"
               variant="ghost"
-              size="xs"
+              size="icon-xs"
+              disabled={index === 0 || isPending}
+              onClick={() => onMove(index, -1)}
+              aria-label={`Move ${title} up`}
+              title="Move earlier"
+              className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+            >
+              <ChevronLeft size={14} />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={index === count - 1 || isPending}
+              onClick={() => onMove(index, 1)}
+              aria-label={`Move ${title} down`}
+              title="Move later"
+              className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+            >
+              <ChevronRight size={14} />
+            </Button>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setIsEditing(true)}
+              aria-label={`Edit ${title}`}
+              title="Edit"
+              className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+            >
+              <Pencil size={14} />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              onClick={() =>
+                confirmDeleteToast("Remove this offer?", `${title} comes off the comparison.`, () => onRemove(offer.id))
+              }
               disabled={isPending}
-              onClick={onClearWin}
-              aria-label={`Clear ${title} as the winner`}
-              title="Un-pick the winner, leaving none"
-              className="mr-1 h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+              aria-label={`Remove ${title}`}
+              title="Remove"
+              className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-red-a3 hover:text-red-11"
             >
-              <X size={12} className="mr-1" aria-hidden="true" />
-              Clear winner
+              <Trash2 size={14} />
             </Button>
-          )}
-          {!offer.is_winner && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={isPending || needsRate}
-              onClick={() => onWin(offer.id)}
-              aria-label={`Mark ${title} the winner`}
-              title={needsRate ? "Add the comparison rate before this offer can win" : "Mark this offer the winner"}
-              className="mr-1 h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-amber-a3 hover:text-amber-11"
-            >
-              <Award size={12} className="mr-1" aria-hidden="true" />
-              Winner
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={index === 0 || isPending}
-            onClick={() => onMove(index, -1)}
-            aria-label={`Move ${title} up`}
-            className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
-          >
-            <ChevronUp size={13} />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={index === count - 1 || isPending}
-            onClick={() => onMove(index, 1)}
-            aria-label={`Move ${title} down`}
-            className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
-          >
-            <ChevronDown size={13} />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setIsEditing(true)}
-            aria-label={`Edit ${title}`}
-            className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
-          >
-            <Pencil size={13} />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            onClick={() =>
-              confirmDeleteToast("Remove this offer?", `${title} comes off the comparison.`, () => onRemove(offer.id))
-            }
-            disabled={isPending}
-            aria-label={`Remove ${title}`}
-            className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-red-a3 hover:text-red-11"
-          >
-            <Trash2 size={13} />
-          </Button>
+          </div>
         </div>
       )}
     </div>
@@ -588,6 +521,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const [productDraft, setProductDraft] = useState(null);
   const [reasonDraft, setReasonDraft] = useState(null);
   const [isSigning, setIsSigning] = useState(false);
+  const [requesting, setRequesting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const { user } = useAuth();
   const isApprover = useCanvassApprover(userId);
@@ -808,6 +742,25 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
       expandable
       cancelLabel="Close"
       crumbs={["Canvass", canvass?.number].filter(Boolean)}
+      footerStart={
+        canEdit && canvass && isBare && !winner ? (
+          <span className="text-xs text-muted-foreground">Pick a winner to create a Purchase Request.</span>
+        ) : null
+      }
+      actions={
+        canEdit && canvass && isBare ? (
+          <Button
+            type="button"
+            size="lg"
+            disabled={!winner}
+            title={winner ? undefined : "Pick a winner first"}
+            onClick={() => setRequesting(true)}
+          >
+            <ShoppingCart className="size-4" aria-hidden="true" />
+            Create Purchase Request
+          </Button>
+        ) : null
+      }
       headerActions={
         canvass && canPrintCanvass(canvass) ? (
           <Button
@@ -908,7 +861,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                 )}
               </div>
 
-              <div className="space-y-1.5">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3" data-testid="offers-grid">
                 {offers.map((offer, index) => (
                   <OfferRow
                     key={offer.id}
@@ -926,27 +879,30 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     onClearWin={clearWinner}
                   />
                 ))}
+
+                {canEdit && isAdding && (
+                  <OfferForm
+                    inline
+                    canReadMoney={canReadMoney}
+                    isPending={addMutation.isPending}
+                    onCancel={() => setIsAdding(false)}
+                    onSubmit={(input) => addMutation.mutate(input)}
+                  />
+                )}
+
+                {canEdit && !isAdding && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAdding(true)}
+                    className={`h-auto flex w-full items-center justify-center gap-1.5 rounded-xl border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-mauve-8 hover:bg-mauve-a3 hover:text-foreground ${
+                      offers.length > 0 && offers.length % 3 === 0 ? "md:col-span-3" : "min-h-16"
+                    }`}
+                  >
+                    <Plus size={14} /> Add offer
+                  </Button>
+                )}
               </div>
-
-              {canEdit && isAdding && (
-                <OfferForm
-                  canReadMoney={canReadMoney}
-                  isPending={addMutation.isPending}
-                  onCancel={() => setIsAdding(false)}
-                  onSubmit={(input) => addMutation.mutate(input)}
-                />
-              )}
-
-              {canEdit && !isAdding && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAdding(true)}
-                  className="h-auto flex w-full items-center justify-center gap-1.5 rounded-xl border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-mauve-8 hover:bg-mauve-a3 hover:text-foreground"
-                >
-                  <Plus size={14} /> Add offer
-                </Button>
-              )}
 
               <div className="space-y-1.5 border-t border-border/60 pt-3">
                 <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Why this supplier</span>
@@ -1049,6 +1005,18 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         </div>
 
     </ModalShell>
+
+      {requesting && canvass && (
+        <CreatePurchaseRequestModal
+          open={requesting}
+          onOpenChange={setRequesting}
+          canvasses={[{ id: canvass.id, number: canvass.number, winner, signedOffAt: canvass.signed_off_at }]}
+          onCreated={() => {
+            setRequesting(false);
+            invalidate();
+          }}
+        />
+      )}
 
       {isSigning && canvass && (
         <CanvassSignoffDialog
