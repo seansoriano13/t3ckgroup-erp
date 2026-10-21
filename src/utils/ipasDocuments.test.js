@@ -139,3 +139,30 @@ describe("the buyer track", () => {
     expect(items.actual_checking).toMatchObject({ ticked: true, by: { name: "Buyer" }, at: "2026-10-06T01:00:00Z", source: "stamped" })
   })
 })
+
+describe("the buyer track's reasons", () => {
+  const reasons = (copy) =>
+    Object.fromEntries(
+      buildBuyerTrack({ source: "local" }, odooStatuses(copy)).map((i) => [i.key, i.reason ?? null]),
+    )
+
+  it("says why each unticked Odoo line is not ticked", () => {
+    const r = reasons({ po: { state: "draft" }, receipts: { status: "pending", done: 0, total: 2 }, bills: { count: 0, draft: 0 } })
+    expect(r.purchase_order).toBe("Not confirmed in Odoo yet (RFQ)")
+    expect(r.received_in_odoo).toBe("0 of 2 receipts done")
+    expect(r.create_bill).toBe("No bill yet")
+  })
+
+  it("keeps Partly received for a part-done receipt, and copes with no receipts or no state", () => {
+    const partial = reasons({ po: { state: "purchase" }, receipts: { status: "partial", done: 1, total: 2 }, bills: { count: 0, draft: 0 } })
+    expect(partial.received_in_odoo).toBe("Partly received · 1 of 2 receipts done")
+    const none = reasons({ receipts: { total: 0 } })
+    expect(none.purchase_order).toBe("Not confirmed in Odoo yet")
+    expect(none.received_in_odoo).toBe("No receipts in Odoo yet")
+  })
+
+  it("gives no reason once a line is ticked", () => {
+    const r = reasons({ po: { state: "purchase" }, receipts: { status: "full", done: 2, total: 2 }, bills: { count: 1, draft: 0 } })
+    expect(r).toMatchObject({ purchase_order: null, received_in_odoo: null, create_bill: null })
+  })
+})

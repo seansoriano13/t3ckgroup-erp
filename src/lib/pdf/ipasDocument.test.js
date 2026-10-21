@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { buildIpasDocument, buildIpasPagesHtml } from "./ipasDocument"
 import { buildIpasViewModel } from "./ipasViewModel"
-import { BAUTISTA, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
+import { BAUTISTA, RAMOS, ipasRow, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
 
 /**
  * The printed IPAS's HTML (#250): two A4 portrait pages in the module's own
@@ -255,5 +255,22 @@ describe("escaping", () => {
     expect(pages).not.toContain("<b>x</b>")
     expect(pages).not.toContain("<i>y</i>")
     expect(pages).toContain("&lt;b&gt;x&lt;/b&gt;")
+  })
+})
+
+describe("the buyer track's reasons on paper", () => {
+  it("prints the reason beside each unticked Odoo line", () => {
+    const copy = ipasRow().odoo_copy
+    const html = buildIpasDocument(
+      buildIpasViewModel(
+        makePrintableIpas({
+          row: { odoo_copy: { ...copy, po: { ...copy.po, state: "draft" }, receipts: { status: "pending", done: 0, total: 2 }, bills: { count: 0, draft: 0 } } },
+        }),
+      ),
+    )
+
+    expect(html).toContain("Not confirmed in Odoo yet (RFQ)")
+    expect(html).toContain("0 of 2 receipts done")
+    expect(html).toContain("No bill yet")
   })
 })

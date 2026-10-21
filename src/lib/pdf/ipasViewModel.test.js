@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildIpasViewModel, maskAccountNumber, printAmount, printDate, printDateTime } from "./ipasViewModel"
-import { BAUTISTA, CRUZ, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
+import { BAUTISTA, CRUZ, RAMOS, ipasRow, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
 
 /**
  * The printed IPAS's view model (#250): what the paper says, from
@@ -163,7 +163,7 @@ describe("Odoo marks and the read time", () => {
     const byKey = Object.fromEntries(vm().section6.buyerTrack.map((item) => [item.key, item]))
 
     expect(byKey.purchase_order).toMatchObject({ ticked: true, detail: "Purchase order" })
-    expect(byKey.received_in_odoo).toMatchObject({ ticked: false, partial: true, detail: "Partly received · 1 of 2 receipts" })
+    expect(byKey.received_in_odoo).toMatchObject({ ticked: false, partial: true, detail: "Partly received · 1 of 2 receipts done" })
     expect(byKey.create_bill).toMatchObject({ ticked: true, detail: "1 draft bill" })
   })
 
@@ -410,5 +410,26 @@ describe("the page's content", () => {
 
   it("refuses to print nothing", () => {
     expect(() => buildIpasViewModel(null)).toThrow(/IPAS is needed/)
+  })
+})
+
+describe("the buyer track's reasons on paper", () => {
+  const unticked = {
+    row: {
+      odoo_copy: {
+        ...ipasRow().odoo_copy,
+        po: { ...ipasRow().odoo_copy.po, state: "draft" },
+        receipts: { status: "pending", done: 0, total: 2 },
+        bills: { count: 0, draft: 0 },
+      },
+    },
+  }
+
+  it("carries the reason beside each unticked Odoo line", () => {
+    const byKey = Object.fromEntries(vm(unticked).section6.buyerTrack.map((item) => [item.key, item]))
+
+    expect(byKey.purchase_order.detail).toBe("Not confirmed in Odoo yet (RFQ)")
+    expect(byKey.received_in_odoo.detail).toBe("0 of 2 receipts done")
+    expect(byKey.create_bill.detail).toBe("No bill yet")
   })
 })

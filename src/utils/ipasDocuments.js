@@ -10,12 +10,31 @@ import {
   IPAS_SOURCE,
   IPAS_STATUS_SOURCE,
   IPAS_SUPPLIER_ORIGIN_FIELDS,
+  ODOO_PO_STATE_LABELS,
 } from "../constants/ipas";
 
 const clean = (value) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text === "" ? null : text;
 };
+
+/** Why the Purchase Order line is not ticked, from Odoo's PO state. */
+function purchaseOrderReason({ ticked, state }) {
+  if (ticked) return null;
+  const label = ODOO_PO_STATE_LABELS[state];
+  return label ? `Not confirmed in Odoo yet (${label})` : "Not confirmed in Odoo yet";
+}
+
+/** Why the Received in Odoo line is not ticked: receipts done out of total. */
+function receivedReason({ ticked, partial, receiptsDone, receiptsTotal }) {
+  if (ticked) return null;
+  if (receiptsTotal <= 0) return "No receipts in Odoo yet";
+  const done = `${receiptsDone} of ${receiptsTotal} receipts done`;
+  return partial ? `Partly received · ${done}` : done;
+}
+
+/** Why the Create Bill line is not ticked. */
+const billReason = ({ ticked }) => (ticked ? null : "No bill yet");
 
 /** Whether a document kind is suggested for a Source (its own, or Both). */
 export function kindMatchesSource(kind, source) {
@@ -170,6 +189,7 @@ export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, t
       partial: false,
       source: IPAS_STATUS_SOURCE.ODOO,
       detail: null,
+      reason: purchaseOrderReason(odoo.purchaseOrder),
     },
     {
       key: "with_pop",
@@ -206,6 +226,7 @@ export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, t
       partial: odoo.receivedInOdoo.partial,
       source: IPAS_STATUS_SOURCE.ODOO,
       detail: null,
+      reason: receivedReason(odoo.receivedInOdoo),
     },
     {
       key: "create_bill",
@@ -214,6 +235,7 @@ export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, t
       partial: false,
       source: IPAS_STATUS_SOURCE.ODOO,
       detail: null,
+      reason: billReason(odoo.createBill),
     },
     actualCheckingItem(row, transmittal),
   );

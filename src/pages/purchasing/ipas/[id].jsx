@@ -972,6 +972,11 @@ function IpasPage({ onClose }) {
         headerActions={<HeaderActions ctx={ctx} />}
       >
         <p className="text-sm text-muted-foreground">{[ipas.po_number, ipas.supplier].filter(Boolean).join(" · ")}</p>
+        {open && (hasPurchasingFlow || isSuperAdmin) && (
+          <p className="text-xs text-muted-foreground" data-testid="ipas-wrong-po-hint">
+            Wrong PO? Cancel this IPAS and raise a new one.
+          </p>
+        )}
         <div className="space-y-6">
           {/* Keyboard users skip the figures and sections to the card; hidden until focused. */}
           {!editKey && (
