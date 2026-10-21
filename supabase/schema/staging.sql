@@ -4636,6 +4636,68 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_clear_section_3_for_lc(p_ipas_id uuid, p_reason text, p_force boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ipas public.ipas;
+  v_actor uuid := public.get_employee_id();
+  v_fingerprint text;
+  v_notify uuid[];
+begin
+  select * into v_ipas from public.ipas where id = p_ipas_id;
+  if not found or v_ipas.state <> 'open' then
+    return;
+  end if;
+  if not exists (
+    select 1 from public.ipas_signoffs s
+     where s.ipas_id = p_ipas_id and s.section = 6 and s.role in ('prepared', 'approved') and s.cleared_at is null
+  ) then
+    return;
+  end if;
+
+  if not p_force then
+    v_fingerprint := public._ipas_lc_fingerprint(p_ipas_id);
+    if not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = p_ipas_id and s.section = 6 and s.role in ('prepared', 'approved') and s.cleared_at is null
+         and s.lc_fingerprint is distinct from v_fingerprint
+    ) then
+      return;
+    end if;
+  end if;
+
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = v_actor, cleared_reason = p_reason
+     where s.ipas_id = p_ipas_id
+       and s.section = 6
+       and s.role in ('prepared', 'approved')
+       and s.cleared_at is null
+    returning s.signed_by
+  )
+  select coalesce(array_agg(distinct signed_by) filter (where signed_by is distinct from v_actor), '{}'::uuid[])
+    into v_notify
+    from cleared;
+
+  perform public._ipas_write_event(p_ipas_id, v_actor, 'approvals_cleared', jsonb_build_object(
+    'reason', p_reason,
+    'sections', jsonb_build_array(6)
+  ));
+
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select n, v_actor, 'IPAS_SECTION_3_CLEARED',
+         'IPAS section ' || public._ipas_section_no(6) || ' cleared',
+         format('Section %s of IPAS %s was cleared (%s). It needs to be submitted and approved again.',
+                public._ipas_section_no(6), v_ipas.number, p_reason),
+         p_ipas_id::text
+    from unnest(v_notify) as n;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_clear_section_approvals(p_ipas_id uuid, p_actor uuid, p_reason text, p_sections integer[], OUT sections integer[], OUT preparer_ids uuid[])
  RETURNS record
  LANGUAGE plpgsql
@@ -4694,7 +4756,7 @@ begin
     select ev.actor_id, ev.created_at into v_sub_by, v_sub_at
       from public.ipas_events ev
      where ev.ipas_id = r.id and ev.kind = 'header_changed'
-       and ev.detail #>> '{fields,computation_status,to}' = 'lc_odoo_done'
+       and ev.detail #>> '{fields,computation_status,to}' in ('lc_odoo_done', 'costs_complete')
      order by ev.created_at desc, ev.id desc
      limit 1;
 
@@ -4811,97 +4873,6 @@ CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
  IMMUTABLE
 AS $function$
   select upper(btrim(coalesce(p_copy->'po'->>'currency', ''))) = 'PHP';
-$function$
-;
-CREATE OR REPLACE FUNCTION public._ipas_lc_fingerprint(p_ipas_id uuid)
- RETURNS text
- LANGUAGE sql STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select md5(
-    coalesce((
-      select string_agg(
-               concat_ws('|',
-                 coalesce(e.l ->> 'lineId', ''),
-                 round(coalesce((e.l ->> 'quantity')::numeric, 0), 4)::text,
-                 round(coalesce((e.l ->> 'goodsPhp')::numeric, 0), 2)::text,
-                 round(coalesce((e.l ->> 'spreadPhp')::numeric, 0), 2)::text,
-                 round(coalesce((e.l ->> 'landedPhp')::numeric, 0), 2)::text),
-               ';' order by e.ord)
-        from jsonb_array_elements(coalesce(x.lc -> 'lines', '[]'::jsonb)) with ordinality as e(l, ord)
-    ), '')
-    || '#' ||
-    case
-      when jsonb_typeof(x.lc -> 'totals') = 'object' then
-        concat_ws('|',
-          round(coalesce((x.lc #>> '{totals,goodsPhp}')::numeric, 0), 2)::text,
-          round(coalesce((x.lc #>> '{totals,spreadPhp}')::numeric, 0), 2)::text,
-          round(coalesce((x.lc #>> '{totals,landedPhp}')::numeric, 0), 2)::text)
-      else 'none'
-    end
-  )
-  from (select public._ipas_landed_cost(p_ipas_id) as lc) x;
-$function$
-;
-CREATE OR REPLACE FUNCTION public._ipas_clear_section_3_for_lc(p_ipas_id uuid, p_reason text, p_force boolean default false)
- RETURNS void
- LANGUAGE plpgsql SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_ipas public.ipas;
-  v_actor uuid := public.get_employee_id();
-  v_fingerprint text;
-  v_notify uuid[];
-begin
-  select * into v_ipas from public.ipas where id = p_ipas_id;
-  if not found or v_ipas.state <> 'open' then
-    return;
-  end if;
-  if not exists (
-    select 1 from public.ipas_signoffs s
-     where s.ipas_id = p_ipas_id and s.section = 6 and s.role in ('prepared', 'approved') and s.cleared_at is null
-  ) then
-    return;
-  end if;
-
-  if not p_force then
-    v_fingerprint := public._ipas_lc_fingerprint(p_ipas_id);
-    if not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = p_ipas_id and s.section = 6 and s.role in ('prepared', 'approved') and s.cleared_at is null
-         and s.lc_fingerprint is distinct from v_fingerprint
-    ) then
-      return;
-    end if;
-  end if;
-
-  with cleared as (
-    update public.ipas_signoffs s
-       set cleared_at = now(), cleared_by = v_actor, cleared_reason = p_reason
-     where s.ipas_id = p_ipas_id
-       and s.section = 6
-       and s.role in ('prepared', 'approved')
-       and s.cleared_at is null
-    returning s.signed_by
-  )
-  select coalesce(array_agg(distinct signed_by) filter (where signed_by is distinct from v_actor), '{}'::uuid[])
-    into v_notify
-    from cleared;
-
-  perform public._ipas_write_event(p_ipas_id, v_actor, 'approvals_cleared', jsonb_build_object(
-    'reason', p_reason,
-    'sections', jsonb_build_array(6)
-  ));
-
-  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
-  select n, v_actor, 'IPAS_SECTION_3_CLEARED',
-         'IPAS section 3 cleared',
-         format('Section 3 of IPAS %s was cleared (%s). It needs to be submitted and approved again.',
-                coalesce(v_ipas.po_number, 'without a PO'), p_reason),
-         p_ipas_id::text
-    from unnest(v_notify) as n;
-end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_landed_cost(p_ipas_id uuid)
@@ -5052,6 +5023,37 @@ begin
     )
   );
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_lc_fingerprint(p_ipas_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select md5(
+    coalesce((
+      select string_agg(
+               concat_ws('|',
+                 coalesce(e.l ->> 'lineId', ''),
+                 round(coalesce((e.l ->> 'quantity')::numeric, 0), 4)::text,
+                 round(coalesce((e.l ->> 'goodsPhp')::numeric, 0), 2)::text,
+                 round(coalesce((e.l ->> 'spreadPhp')::numeric, 0), 2)::text,
+                 round(coalesce((e.l ->> 'landedPhp')::numeric, 0), 2)::text),
+               ';' order by e.ord)
+        from jsonb_array_elements(coalesce(x.lc -> 'lines', '[]'::jsonb)) with ordinality as e(l, ord)
+    ), '')
+    || '#' ||
+    case
+      when jsonb_typeof(x.lc -> 'totals') = 'object' then
+        concat_ws('|',
+          round(coalesce((x.lc #>> '{totals,goodsPhp}')::numeric, 0), 2)::text,
+          round(coalesce((x.lc #>> '{totals,spreadPhp}')::numeric, 0), 2)::text,
+          round(coalesce((x.lc #>> '{totals,landedPhp}')::numeric, 0), 2)::text)
+      else 'none'
+    end
+  )
+  from (select public._ipas_landed_cost(p_ipas_id) as lc) x;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_line_key(p_line jsonb)
@@ -11081,6 +11083,43 @@ AS $function$
   select case when coalesce(public.ipas_can_read(), false) then public._ipas_landed_cost(p_ipas_id) end
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_lc_header_changed()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.computation_status is distinct from old.computation_status
+     and new.computation_status in ('encoding', 'encoded', 'lc_gs_done') then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'Status moved below LC Odoo Done', true);
+  elsif new.odoo_copy is distinct from old.odoo_copy then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'PO changed in Odoo');
+  elsif new.landed_cost_split is distinct from old.landed_cost_split then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'Spread changed');
+  end if;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_lc_money_changed()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_what text := case when tg_table_name = 'ipas_payments' then 'Payment' else 'Charge' end;
+  v_verb text := case tg_op when 'INSERT' then 'added' when 'DELETE' then 'removed' else 'changed' end;
+begin
+  perform public._ipas_clear_section_3_for_lc(
+    case when tg_op = 'DELETE' then old.ipas_id else new.ipas_id end,
+    v_what || ' ' || v_verb
+  );
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_line_landed_costs(p_ipas_id uuid)
  RETURNS TABLE(odoo_line_id integer, quantity numeric, unit_php numeric, total_php numeric, mark text)
  LANGUAGE sql
@@ -11752,13 +11791,13 @@ begin
   if p_section = 7 then
     -- Anyone on a section 7 list, whichever sign-off they give.
     if not public._ipas_can_sign_section(7, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section 4 returns it' using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section % returns it', public._ipas_section_no(7) using errcode = '42501';
     end if;
 
     -- Section 7 is open once sections 1, 2 and 3 are approved (#590: the Filing gate
     -- now includes section 3, stored 6).
     if not public._ipas_filing_open(v_ipas.id) then
-      raise exception 'ipas_send_back: section 4 isn''t open yet; sections 1, 2 and 3 must be approved first' using errcode = '22023';
+      raise exception 'ipas_send_back: section % isn''t open yet; sections %, % and % must be approved first', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
     end if;
 
     with cleared as (
@@ -12549,7 +12588,7 @@ begin
   -- Computation status is LC Odoo Done, and not before.
   if p_section = 6 and p_role = 'prepared'
      and v_ipas.computation_status is distinct from 'lc_odoo_done' then
-    raise exception 'ipas_sign: section 3 can be submitted once the Computation status is LC Odoo Done'
+    raise exception 'ipas_sign: section % can be submitted once the Computation status is LC Odoo Done', public._ipas_section_no(6)
       using errcode = '22023';
   end if;
 
@@ -12579,7 +12618,7 @@ begin
     -- Approved waits for section 3 too, and so does a Noted or Checked not yet given
     -- (#590); the ones already given stay.
     if not public._ipas_filing_open(v_ipas.id) then
-      raise exception 'ipas_sign: section 4 opens once sections 1, 2 and 3 are approved' using errcode = '22023';
+      raise exception 'ipas_sign: section % opens once sections %, % and % are approved', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.
@@ -12705,54 +12744,6 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_signoffs_lc_fingerprint()
- RETURNS trigger
- LANGUAGE plpgsql SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  if new.section = 6 and new.role in ('prepared', 'approved') and new.lc_fingerprint is null then
-    new.lc_fingerprint := public._ipas_lc_fingerprint(new.ipas_id);
-  end if;
-  return new;
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.ipas_lc_money_changed()
- RETURNS trigger
- LANGUAGE plpgsql SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_what text := case when tg_table_name = 'ipas_payments' then 'Payment' else 'Charge' end;
-  v_verb text := case tg_op when 'INSERT' then 'added' when 'DELETE' then 'removed' else 'changed' end;
-begin
-  perform public._ipas_clear_section_3_for_lc(
-    case when tg_op = 'DELETE' then old.ipas_id else new.ipas_id end,
-    v_what || ' ' || v_verb
-  );
-  return null;
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.ipas_lc_header_changed()
- RETURNS trigger
- LANGUAGE plpgsql SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  if new.computation_status is distinct from old.computation_status
-     and new.computation_status in ('encoding', 'encoded', 'lc_gs_done') then
-    perform public._ipas_clear_section_3_for_lc(new.id, 'Status moved below LC Odoo Done', true);
-  elsif new.odoo_copy is distinct from old.odoo_copy then
-    perform public._ipas_clear_section_3_for_lc(new.id, 'PO changed in Odoo');
-  elsif new.landed_cost_split is distinct from old.landed_cost_split then
-    perform public._ipas_clear_section_3_for_lc(new.id, 'Spread changed');
-  end if;
-  return null;
-end;
-$function$
-;
 CREATE OR REPLACE FUNCTION public.ipas_signoffs_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -12769,6 +12760,20 @@ begin
      or new.signature_declined is distinct from old.signature_declined
      or new.signature_version is distinct from old.signature_version then
     raise exception 'ipas_signoffs: a signature can only be cleared, never changed' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_signoffs_lc_fingerprint()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.section = 6 and new.role in ('prepared', 'approved') and new.lc_fingerprint is null then
+    new.lc_fingerprint := public._ipas_lc_fingerprint(new.ipas_id);
   end if;
   return new;
 end;

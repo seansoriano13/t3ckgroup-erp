@@ -282,7 +282,7 @@ begin
   -- Computation status is LC Odoo Done, and not before.
   if p_section = 6 and p_role = 'prepared'
      and v_ipas.computation_status is distinct from 'lc_odoo_done' then
-    raise exception 'ipas_sign: section 3 can be submitted once the Computation status is LC Odoo Done'
+    raise exception 'ipas_sign: section % can be submitted once the Computation status is LC Odoo Done', public._ipas_section_no(6)
       using errcode = '22023';
   end if;
 
@@ -315,7 +315,7 @@ begin
       select 1 from public.ipas_signoffs s
        where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
     ) then
-      raise exception 'ipas_sign: section 4 opens once sections 1 and 2 are approved' using errcode = '22023';
+      raise exception 'ipas_sign: section % opens once sections % and % are approved', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3) using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.
@@ -627,6 +627,7 @@ $$;
 -- Re-runnable and callable from tests. For every non-cancelled IPAS at Checked by:
 --   Approved  = actor and time of the LATEST header_changed event that moved the status to checked
 --   Submitted = actor and time of the LATEST header_changed event that moved it to lc_odoo_done
+--               (or to costs_complete, its name before the rename)
 -- Both are written only when a Submitted event exists (an Approved with nobody having
 -- submitted would break "someone else approves"); with no history the section stays
 -- unsigned. A signature_version is the signer's stored signature today, or null (the
@@ -657,7 +658,7 @@ begin
     select ev.actor_id, ev.created_at into v_sub_by, v_sub_at
       from public.ipas_events ev
      where ev.ipas_id = r.id and ev.kind = 'header_changed'
-       and ev.detail #>> '{fields,computation_status,to}' = 'lc_odoo_done'
+       and ev.detail #>> '{fields,computation_status,to}' in ('lc_odoo_done', 'costs_complete')
      order by ev.created_at desc, ev.id desc
      limit 1;
 
