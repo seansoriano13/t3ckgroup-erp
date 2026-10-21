@@ -37,11 +37,12 @@ export default function GlobalDetailManager() {
 
   useEffect(() => {
     const handleOpenDetails = (e) => {
-      const { id, type, isNew } = e.detail;
+      const { id, type, isNew, view } = e.detail;
       if (id && type === "PURCHASE_REQUEST") {
         setPurchaseRequestId(id);
       } else if (id && type) {
-        setActiveItem({ id, type });
+        // `view` names the tab an SOR opens on (the Costing Matrix page opens "pms"); absent, it opens on its Summary.
+        setActiveItem(view ? { id, type, view } : { id, type });
         if (isNew) {
           setHighlightIdOnClose(id);
         }
@@ -369,6 +370,7 @@ export default function GlobalDetailManager() {
           opportunityId={activeItem?.id}
           accessLevel={opportunityData.accessLevel}
           lockedSummary={opportunityData.lockedSummary}
+          initialView={activeItem?.view}
         />
       )}
 

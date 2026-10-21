@@ -63,6 +63,23 @@ describe("navigation registry", () => {
       expect(groups[3].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
     });
 
+    it("offers the Costing Matrix page to the Closed Book only (#606)", () => {
+      const costingMatrix = (user) =>
+        getFilteredNavigationGroups(user)
+          .flatMap((g) => g.links)
+          .some((l) => l.label === "Costing Matrix");
+
+      expect(costingMatrix({ id: "sa", isSuperAdmin: true })).toBe(true);
+      expect(costingMatrix({ id: "fa", is_final_acquire: true })).toBe(true);
+
+      // Not Purchasing, Finance, the Deal Team (sales flow), a Head, HR, or a standard employee.
+      expect(costingMatrix({ id: "pu", has_purchasing_flow: true })).toBe(false);
+      expect(costingMatrix({ id: "fi", has_finance_flow: true })).toBe(false);
+      expect(costingMatrix({ id: "sa-flow", has_sales_flow: true })).toBe(false);
+      expect(costingMatrix({ id: "hd", isHead: true, isHr: true })).toBe(false);
+      expect(costingMatrix({ id: "st" })).toBe(false);
+    });
+
     it("includes My Tasks in Workspace when user has task flow", () => {
       const taskUser = {
         id: "user-2",

@@ -23,6 +23,7 @@ import {
   Gavel,
   Scale,
   LayoutDashboard,
+  Calculator,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -98,6 +99,18 @@ export const NAV_MODULES = {
         link: "/sors",
         icon: Target,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
+        exactMatch: true,
+      },
+      // The Costing Matrix page (#606): every SOR's matrix with Planned and
+      // Actual Revenue. The Closed Book only (Super Admins and the Final
+      // Acquire list); the page sends anyone else home and the database
+      // refuses the read.
+      {
+        key: "sales.costingMatrix",
+        label: "Costing Matrix",
+        link: "/costing-matrix",
+        icon: Calculator,
+        isPermitted: (ctx) => ctx.isBidDecider,
         exactMatch: true,
       },
       // ADR 0021 keeps a Stage Participant out of `sales_opportunities`, so a

@@ -69,6 +69,7 @@ export default function SorModal({
   lockedSummary: lockedSummaryProp,
   siblingIds,
   onNavigate,
+  initialView = null,
 }) {
   const { user } = useAuth();
   const id = rawOpportunity?.id || opportunityId;
@@ -957,6 +958,7 @@ export default function SorModal({
     mentionShares,
     notes,
     canViewJourney,
+    initialView,
     isWide,
     hasOpened,
     markOpened,
