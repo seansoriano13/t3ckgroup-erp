@@ -13,6 +13,7 @@ import { calendarService } from '@/services/calendarService';
 import { getPermissionContext } from '@/utils/permissions';
 import { manilaDate, manilaToday, parseManilaDate } from '@/lib/manilaDate.js';
 import CalendarMonth from '@/components/calendar/CalendarMonth';
+import CalendarPeople from '@/components/calendar/CalendarPeople';
 import EntryDetail from '@/components/calendar/EntryDetail';
 import { LAYERS, visibleEntries } from '@/components/calendar/entryKinds.jsx';
 import { monthRange } from '@/components/calendar/monthWeeks.js';
@@ -32,9 +33,11 @@ export default function CalendarPage() {
   const [layers, toggleLayer] = useCalendarLayers();
   const [showPending, setShowPending] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [view, setView] = useState('month');
 
   const { from, to } = monthRange(anchor);
-  const includePending = canSeePending && showPending;
+  // The People view always includes pending for viewers who may see it.
+  const includePending = canSeePending && (showPending || view === 'people');
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['calendar-entries', from, to, includePending],
     queryFn: () => calendarService.fetchEntries({ from, to, includePending }),
@@ -56,6 +59,16 @@ export default function CalendarPage() {
         <Button variant="ghost" size="sm" onClick={() => setAnchor(manilaToday().slice(0, 8) + '01')}>
           Today
         </Button>
+      </div>
+      <div className="flex items-center gap-1.5" role="group" aria-label="View">
+        {[
+          ['month', 'Month'],
+          ['people', 'People'],
+        ].map(([key, label]) => (
+          <Button key={key} variant={view === key ? 'secondary' : 'outline'} size="sm" aria-pressed={view === key} onClick={() => setView(key)}>
+            {label}
+          </Button>
+        ))}
       </div>
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Layers">
         {LAYERS.map(({ key, label, icon: Icon }) => (
@@ -88,7 +101,11 @@ export default function CalendarPage() {
         ) : isLoading ? (
           <PageLoading />
         ) : (
-          <CalendarMonth anchor={anchor} entries={entries} onOpenEntry={setSelected} todayYmd={manilaToday()} />
+          view === 'people' ? (
+            <CalendarPeople anchor={anchor} entries={entries} onOpenEntry={setSelected} todayYmd={manilaToday()} />
+          ) : (
+            <CalendarMonth anchor={anchor} entries={entries} onOpenEntry={setSelected} todayYmd={manilaToday()} />
+          )
         )}
         <EntryDetail entry={selected} onClose={() => setSelected(null)} />
       </PageShell>
