@@ -164,6 +164,14 @@ export const SEED_TABLES = [
 
 /** Tables the migrations build that the seed deliberately leaves out, each with why. */
 export const SEED_EXCLUDED_TABLES = {
+  calendar_venues:
+    "The two Venues (#619) are inserted by the migration itself, so a seed would only replace them with whatever the remote held.",
+  meeting_requests:
+    "Meeting Requests (#619) are transactional bookings tied to real people and dates. A local stack files its own.",
+  meeting_request_participants:
+    "Belongs to meeting_requests, which the seed leaves out.",
+  meeting_request_events:
+    "The history of meeting_requests, which the seed leaves out.",
   costing_tables:
     "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
   costing_column_tiers:
