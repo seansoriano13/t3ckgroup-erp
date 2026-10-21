@@ -704,7 +704,9 @@ create table if not exists public."ipas" (
   "actual_checking_at" timestamp with time zone,
   "item_location_id" uuid,
   "google_sheet" boolean not null default false,
-  "gantt_chart" boolean not null default false
+  "gantt_chart" boolean not null default false,
+  "on_hold" boolean not null default false,
+  "on_hold_note" text
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -1961,6 +1963,7 @@ alter table ipas add constraint "ipas_computation_status_chk" CHECK ((computatio
 alter table ipas add constraint "ipas_import_clearance_import_chk" CHECK (((source = 'import'::text) OR (import_clearance_on IS NULL)));
 alter table ipas add constraint "ipas_landed_cost_split_chk" CHECK ((landed_cost_split = ANY (ARRAY['value'::text, 'quantity'::text, 'equal'::text])));
 alter table ipas add constraint "ipas_odoo_copy_chk" CHECK ((jsonb_typeof(odoo_copy) = 'object'::text));
+alter table ipas add constraint "ipas_on_hold_note_chk" CHECK ((on_hold OR (on_hold_note IS NULL)));
 alter table ipas add constraint "ipas_overrides_chk" CHECK ((((entity_override IS NULL) OR (length(btrim(entity_override)) > 0)) AND ((source_doc_override IS NULL) OR (length(btrim(source_doc_override)) > 0)) AND ((analytic_override IS NULL) OR (length(btrim(analytic_override)) > 0))));
 alter table ipas add constraint "ipas_pi_qt_amount_chk" CHECK (((pi_qt_amount IS NULL) OR (pi_qt_amount >= (0)::numeric)));
 alter table ipas add constraint "ipas_po_number_chk" CHECK ((po_number ~ '^P[0-9]+$'::text));
@@ -4548,8 +4551,16 @@ begin
     -- A PHP payment's PHP is its amount: no second figure to disagree with it.
     v_php := null;
   else
-    if v_php is null or v_php <= 0 then
-      raise exception '%: % is a foreign-currency PO; give the PHP actually debited', p_fn, p_ipas.number
+    -- #604: the pesos taken from the bank may be left blank (Landed Cost is then an estimate);
+    -- a figure that is given has to make sense.
+    if v_php is not null and v_php <= 0 then
+      raise exception '%: the pesos taken from the bank must be more than zero, or left blank until the bank statement arrives', p_fn
+        using errcode = '22023';
+    end if;
+    -- Once Landed Cost is final (LC Odoo Done, or any status after it), it can't go back to an estimate.
+    if v_php is null and p_ipas.computation_status in ('lc_odoo_done', 'costs_complete', 'checked') then
+      raise exception '%: % is % LC Odoo Done, so Landed Cost is final; give the pesos taken from the bank', p_fn, p_ipas.number,
+        case when p_ipas.computation_status = 'lc_odoo_done' then 'at' else 'past' end
         using errcode = '22023';
     end if;
   end if;
@@ -4900,6 +4911,14 @@ declare
   v_lines     jsonb;
   v_goods     numeric;
   v_base      jsonb;
+  r           record;
+  v_ref       numeric;
+  v_ref_date  date;
+  v_est_php   numeric;
+  v_est_n     integer := 0;
+  v_est_php_t numeric := 0;
+  v_estimates jsonb := '[]'::jsonb;
+  v_ship_c    numeric := 0;
 begin
   select * into v_ipas from public.ipas where id = p_ipas_id;
   if not found then
@@ -4917,6 +4936,8 @@ begin
     'rate', null,
     'split', v_split,
     'usedSplit', v_split,
+    'estimate', false,
+    'estimates', '[]'::jsonb,
     'lines', '[]'::jsonb,
     'totals', null
   );
@@ -4930,17 +4951,51 @@ begin
     return v_base || jsonb_build_object('status', 'unavailable', 'reason', 'no_lines');
   end if;
 
-  -- A foreign PO converts at what was actually paid: combined PHP debited / combined amount.
+  -- A foreign PO converts at what was actually paid: combined pesos taken from the bank / combined
+  -- amount. A payment whose "Pesos taken from the bank" is still blank (#604) is taken at the
+  -- Reference Rate of its payment date instead, which makes the whole figure an estimate. That
+  -- estimate is only ever worked out here, on the way out; nothing is written back.
   if not v_php then
-    select sum(p.php_debited), sum(p.amount), count(*)
-      into v_php_paid, v_foreign, v_payments
-    from public.ipas_payments p
-    where p.ipas_id = p_ipas_id and p.php_debited > 0 and p.amount > 0;
-    if coalesce(v_payments, 0) = 0 or coalesce(v_foreign, 0) = 0 then
+    v_php_paid := 0;
+    v_foreign := 0;
+    v_payments := 0;
+    for r in
+      select p.id, p.kind, p.paid_on, p.amount, p.php_debited
+      from public.ipas_payments p
+      where p.ipas_id = p_ipas_id and p.amount > 0
+      order by p.paid_on, p.id
+    loop
+      v_payments := v_payments + 1;
+      v_foreign := v_foreign + r.amount;
+      if r.php_debited > 0 then
+        v_est_php := r.php_debited;
+        v_php_paid := v_php_paid + r.php_debited;
+      else
+        v_ref := null;
+        select rr.php_per_unit, rr.rate_date into v_ref, v_ref_date
+        from public.reference_rate(v_currency, r.paid_on) rr;
+        if v_ref is null then
+          return v_base || jsonb_build_object('status', 'unavailable', 'reason', 'no_reference_rate');
+        end if;
+        v_est_php := round(r.amount * v_ref, 2);
+        v_php_paid := v_php_paid + v_est_php;
+        v_est_php_t := v_est_php_t + v_est_php;
+        v_est_n := v_est_n + 1;
+        v_estimates := v_estimates || jsonb_build_object(
+          'paymentId', r.id, 'kind', r.kind, 'paidOn', r.paid_on, 'amount', r.amount,
+          'referenceRate', v_ref, 'rateDate', v_ref_date, 'php', v_est_php);
+      end if;
+      if r.kind = 'shipping_fee' then
+        v_ship_c := v_ship_c + round(v_est_php * 100);
+      end if;
+    end loop;
+    if v_payments = 0 or v_foreign = 0 then
       return v_base || jsonb_build_object('status', 'unavailable', 'reason', 'no_payments');
     end if;
     v_rate := v_php_paid / v_foreign;
-    v_rate_json := jsonb_build_object('rate', v_rate, 'phpDebited', v_php_paid, 'foreignPaid', v_foreign, 'payments', v_payments);
+    v_rate_json := jsonb_build_object(
+      'rate', v_rate, 'phpDebited', v_php_paid, 'foreignPaid', v_foreign, 'payments', v_payments,
+      'estimatedPayments', v_est_n, 'estimatedPhp', v_est_php_t);
   end if;
 
   -- The pool, in centavos: every charge, every charge fee and every shipping fee.
@@ -4952,6 +5007,10 @@ begin
       then round(coalesce(case when v_php then p.amount else p.php_debited end, 0) * 100) else 0 end), 0)
     into v_fees, v_shipping
   from public.ipas_payments p where p.ipas_id = p_ipas_id;
+  -- A foreign payment's shipping fee is its pesos, or its estimated pesos while those are blank.
+  if not v_php then
+    v_shipping := v_ship_c;
+  end if;
   v_pool := v_charges + v_fees + v_shipping;
 
   with lines as (
@@ -5008,7 +5067,9 @@ begin
   from shared;
 
   return v_base || jsonb_build_object(
-    'status', case when v_final then 'final' else 'provisional' end,
+    'status', case when v_final and v_est_n = 0 then 'final' else 'provisional' end,
+    'estimate', v_est_n > 0,
+    'estimates', v_estimates,
     'reason', null,
     'rate', v_rate_json,
     'usedSplit', v_used,
@@ -5194,6 +5255,24 @@ AS $function$
        and l.employee_id = p_employee_id
        and not coalesce(e.is_deleted, false)
   );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_payments_missing_pesos(p_ipas_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select string_agg(
+           upper(left(replace(p.kind, '_', ' '), 1)) || substr(replace(p.kind, '_', ' '), 2)
+             || ' of ' || upper(btrim(i.odoo_copy #>> '{po,currency}')) || ' ' || to_char(p.amount, 'FM999,999,999,990.00')
+             || ' on ' || to_char(p.paid_on, 'FMMon FMDD, YYYY'),
+           '; ' order by p.paid_on, p.id)
+  from public.ipas i
+  join public.ipas_payments p on p.ipas_id = i.id
+  where i.id = p_ipas_id
+    and not public._ipas_is_php(i.odoo_copy)
+    and p.php_debited is null
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_po_line_ids(p_po_number text)
@@ -9029,6 +9108,106 @@ AS $function$
   select opportunity_id from public.costing_matrices where id = p_matrix_id
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_matrix_page()
+ RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, stage text, entities text[], final_offer_total numeric, final_acquire_total numeric, landed_cost_total numeric, bought_final_acquire_total numeric, items_bought integer, items_total integer, ipas_short boolean)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_matrix_page: not signed in' using errcode = '42501';
+  end if;
+  if not (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire')) then
+    raise exception 'costing_matrix_page: only Super Admins and the Final Acquire list read the Costing Matrix page'
+      using errcode = '42501';
+  end if;
+
+  return query
+  select
+    o.id,
+    o.sor_code,
+    o.sales_reference,
+    o.project_title,
+    fs.name,
+    coalesce(ent.names, '{}'::text[]),
+    offer.total,
+    acquire.total,
+    lc.landed,
+    lc.bought_acquire,
+    lc.bought,
+    lc.total_items,
+    (shortage.open_short or lc.provisional)
+  from public.costing_matrices m
+  join public.sales_opportunities o on o.id = m.opportunity_id
+  left join public.flow_stages fs on fs.id = o.flow_stage_id
+  cross join lateral (
+    select case when count(*) > 0 and bool_and(p.final_offer_unit is not null)
+                then sum(round(p.final_offer_unit * t.quantity, 2)) end as total
+    from public.costing_tender_lines t
+    left join public.costing_tender_line_prices p on p.tender_line_id = t.id
+    where t.matrix_id = m.id
+  ) offer
+  cross join lateral (
+    select case when count(*) > 0 and bool_and(x.fa is not null)
+                then sum(round(x.fa * x.q, 2)) end as total
+    from (
+      select cc.final_acquire_unit as fa, c.quantity as q
+      from public.costing_components c
+      join public.costing_tender_lines t on t.id = c.tender_line_id
+      left join public.costing_component_costs cc on cc.component_id = c.id
+      where t.matrix_id = m.id
+      union all
+      select r.final_acquire_unit, r.quantity
+      from public.costing_cost_rows r
+      where r.matrix_id = m.id
+    ) x
+  ) acquire
+  cross join lateral (
+    select
+      count(*)::integer as total_items,
+      (count(*) filter (where l.total_php is not null))::integer as bought,
+      -- Each Component's Landed Cost is rounded to the centavo before it is added, as the SOR summary does.
+      coalesce(sum(round(l.total_php, 2)) filter (where l.total_php is not null), 0) as landed,
+      case when coalesce(bool_and(l.total_php is null or cc.final_acquire_unit is not null), true)
+           then coalesce(sum(round(cc.final_acquire_unit * c.quantity, 2)) filter (where l.total_php is not null), 0)
+      end as bought_acquire,
+      coalesce(bool_or(l.total_php is not null and l.mark is distinct from 'final'), false) as provisional
+    from public.costing_components c
+    join public.costing_tender_lines t on t.id = c.tender_line_id
+    left join public.costing_component_costs cc on cc.component_id = c.id
+    left join public.costing_landed_costs(o.id) l on l.component_id = c.id
+    where t.matrix_id = m.id
+  ) lc
+  cross join lateral (
+    select exists (
+      select 1
+      from public.ipas i
+      join public.ipas_sors s on s.ipas_id = i.id
+      where s.opportunity_id = o.id
+        and i.purpose = 'project'
+        and i.state = 'open'
+        and coalesce(i.computation_status, '') not in ('lc_odoo_done', 'costs_complete', 'checked')
+    ) as open_short
+  ) shortage
+  cross join lateral (
+    select array_agg(distinct e.name order by e.name) as names
+    from (
+      select nullif(btrim(coalesce(nullif(btrim(i.entity_override), ''), i.odoo_copy #>> '{po,company}')), '') as name
+      from public.ipas i
+      join public.ipas_sors s on s.ipas_id = i.id
+      where s.opportunity_id = o.id
+        and i.purpose = 'project'
+        and i.state <> 'cancelled'
+    ) e
+    where e.name is not null
+  ) ent
+  where not coalesce(o.is_deleted, false)
+    and not coalesce(o.is_scratch, false)
+  order by o.serial_no desc;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_matrix_read(p_opportunity_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -10964,6 +11143,27 @@ AS $function$
   else '{}'::uuid[] end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_filing_clears_hold()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.state = 'filed' and old.state is distinct from 'filed' and new.on_hold then
+    new.on_hold := false;
+    new.on_hold_note := null;
+    perform public._ipas_write_event(
+      new.id,
+      public.get_employee_id(),
+      'on_hold_cleared',
+      jsonb_build_object('note', null, 'previous_note', old.on_hold_note, 'reason', 'filed')
+    );
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_fill_from_odoo_copy()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -10980,7 +11180,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_find_sors(p_refs text[] DEFAULT NULL::text[], p_search text DEFAULT NULL::text)
- RETURNS TABLE(opportunity_id uuid, sales_reference text, project_title text, current_stage_name text)
+ RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, current_stage_name text)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -10988,6 +11188,8 @@ AS $function$
 declare
   v_refs text[];
   v_term text := lower(nullif(btrim(p_search), ''));
+  -- "SOR-198", "sor 198" and "sor198" are the same thing to a person.
+  v_squash text := nullif(regexp_replace(lower(coalesce(p_search, '')), '[\s-]', '', 'g'), '');
 begin
   if public.get_employee_id() is null then
     raise exception 'ipas_find_sors: not signed in' using errcode = '42501';
@@ -11000,23 +11202,27 @@ begin
     from unnest(coalesce(p_refs, '{}'::text[])) r;
 
   return query
-    select o.id, o.sales_reference, o.project_title, fs.name
+    select o.id, o.sor_code, o.sales_reference, o.project_title, fs.name
       from public.sales_opportunities o
       left join public.flow_stages fs on fs.id = o.flow_stage_id
      where not coalesce(o.is_deleted, false)
        and not coalesce(o.is_scratch, false)
-       and o.sales_reference is not null
        and (
          o.sales_reference = any (v_refs)
          or (
            v_term is not null
            and (
-             position(v_term in lower(o.sales_reference)) > 0
-             or position(v_term in lower(o.project_title)) > 0
+             position(v_term in lower(coalesce(o.sales_reference, ''))) > 0
+             or position(v_term in lower(coalesce(o.opportunity_no, ''))) > 0
+             or position(v_term in lower(coalesce(o.project_title, ''))) > 0
+             or (
+               v_squash is not null
+               and position(v_squash in regexp_replace(lower(coalesce(o.sor_code, '')), '[\s-]', '', 'g')) > 0
+             )
            )
          )
        )
-     order by o.sales_reference desc
+     order by o.serial_no desc
      limit 25;
 end;
 $function$
@@ -11072,6 +11278,16 @@ begin
   end if;
   return new;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_highest_number_given()
+ RETURNS bigint
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(max((substring(number from '^TGIPAS_(\d+)$'))::bigint), 0)
+  from public.ipas;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_landed_cost(p_ipas_id uuid)
@@ -11144,6 +11360,32 @@ AS $function$
   from lc
   cross join lateral jsonb_array_elements(lc.r -> 'lines') as l
   where lc.r ->> 'status' <> 'unavailable'
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_next_number()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_last bigint;
+  v_called boolean;
+  v_next bigint;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'ipas_next_number: sign in first' using errcode = '42501';
+  end if;
+
+  select last_value, is_called into v_last, v_called from public.ipas_number_seq;
+  v_next := case when v_called then v_last + 1 else v_last end;
+
+  return jsonb_build_object(
+    'next_value', v_next,
+    'number_format', public.ipas_format_number(v_next),
+    'highest_given', public.ipas_highest_number_given()
+  );
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_option_on_filed(p_option_id uuid)
@@ -11374,6 +11616,40 @@ begin
   ));
 
   return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_recent_sors()
+ RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, current_stage_name text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_me uuid := public.get_employee_id();
+begin
+  if v_me is null then
+    raise exception 'ipas_recent_sors: not signed in' using errcode = '42501';
+  end if;
+  if not coalesce(public.has_purchasing_access(), false) then
+    raise exception 'ipas_recent_sors: only Purchasing picks an IPAS''s SORs' using errcode = '42501';
+  end if;
+
+  return query
+    select o.id, o.sor_code, o.sales_reference, o.project_title, fs.name
+      from (
+        select s.opportunity_id as opp_id, max(s.created_at) as last_named
+          from public.ipas_sors s
+          join public.ipas i on i.id = s.ipas_id
+         where i.created_by = v_me
+         group by s.opportunity_id
+      ) r
+      join public.sales_opportunities o on o.id = r.opp_id
+      left join public.flow_stages fs on fs.id = o.flow_stage_id
+     where not coalesce(o.is_deleted, false)
+       and not coalesce(o.is_scratch, false)
+     order by r.last_named desc, o.serial_no desc
+     limit 5;
 end;
 $function$
 ;
@@ -12067,6 +12343,7 @@ declare
   v_gantt boolean;
   v_label text;
   v_remarks text;
+  v_missing text;
   v_changes jsonb := '{}'::jsonb;
 begin
   if v_actor is null then
@@ -12170,6 +12447,15 @@ begin
       raise exception 'ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done'
         using errcode = '22023';
     end if;
+    -- #604: LC Odoo Done makes Landed Cost final, and a final Landed Cost needs the pesos actually
+    -- paid. Refused while a foreign-currency payment has "Pesos taken from the bank" blank.
+    if v_status = 'lc_odoo_done' and v_status is distinct from v_row.computation_status then
+      v_missing := public._ipas_payments_missing_pesos(v_row.id);
+      if v_missing is not null then
+        raise exception 'ipas_set_header: LC Odoo Done needs the pesos taken from the bank on every foreign-currency payment. Still blank: %', v_missing
+          using errcode = '22023';
+      end if;
+    end if;
   end if;
 
   if v_contact is distinct from v_row.supplier_contact then
@@ -12271,6 +12557,118 @@ begin
     'from', v_from_label,
     'to', v_to_label
   ));
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_set_next_number(p_number bigint)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_before jsonb;
+  v_highest bigint;
+begin
+  if not coalesce(public.is_super_admin(), false) then
+    raise exception 'ipas_set_next_number: only a Super Admin sets the next IPAS number' using errcode = '42501';
+  end if;
+  if p_number is null or p_number < 1 then
+    raise exception 'ipas_set_next_number: the next number must be 1 or more' using errcode = '22023';
+  end if;
+
+  -- Wait for any IPAS being raised right now, and hold new ones back, so the
+  -- highest number given cannot move between the check and the change.
+  lock table public.ipas in share row exclusive mode;
+
+  v_highest := public.ipas_highest_number_given();
+  if p_number <= v_highest then
+    raise exception 'ipas_set_next_number: % is already used or below it; the next number must be above %',
+      public.ipas_format_number(p_number), public.ipas_format_number(v_highest)
+      using errcode = '22023';
+  end if;
+
+  v_before := public.ipas_next_number();
+  perform setval('public.ipas_number_seq', p_number, false);
+
+  insert into public.system_audit_logs (author_id, entity_type, entity_id, content, type, metadata)
+  values (
+    v_actor,
+    'IPAS_NUMBER',
+    'ipas_number_seq',
+    'Next IPAS number set to ' || public.ipas_format_number(p_number)
+      || ' (was ' || (v_before ->> 'number_format') || ')',
+    'SYSTEM',
+    jsonb_build_object(
+      'from', (v_before ->> 'next_value')::bigint,
+      'to', p_number,
+      'highest_given', v_highest
+    )
+  );
+
+  return jsonb_build_object(
+    'next_value', p_number,
+    'number_format', public.ipas_format_number(p_number),
+    'highest_given', v_highest
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_set_on_hold(p_ipas_id uuid, p_on_hold boolean, p_note text DEFAULT NULL::text)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_before public.ipas;
+  v_row public.ipas;
+  v_note text := nullif(btrim(p_note), '');
+begin
+  if v_actor is null then
+    raise exception 'ipas_set_on_hold: not signed in' using errcode = '42501';
+  end if;
+  if not (public.has_purchasing_access() or public.has_finance_access()) then
+    raise exception 'ipas_set_on_hold: only Purchasing or Finance puts an IPAS On-Hold' using errcode = '42501';
+  end if;
+  if p_on_hold is null then
+    raise exception 'ipas_set_on_hold: say whether the IPAS is on hold' using errcode = '22023';
+  end if;
+
+  -- Open IPAS only: _ipas_lock_open refuses a filed or cancelled one.
+  v_before := public._ipas_lock_open('ipas_set_on_hold', p_ipas_id);
+
+  -- A note only goes with a hold.
+  if not p_on_hold then
+    v_note := null;
+  end if;
+
+  if v_before.on_hold = p_on_hold and v_before.on_hold_note is not distinct from v_note then
+    return v_before;
+  end if;
+
+  update public.ipas
+     set on_hold = p_on_hold, on_hold_note = v_note
+   where id = v_before.id
+  returning * into v_row;
+
+  perform public._ipas_write_event(
+    v_row.id,
+    v_actor,
+    case
+      when not p_on_hold then 'on_hold_cleared'
+      when v_before.on_hold then 'on_hold_changed'
+      else 'on_hold_set'
+    end,
+    jsonb_build_object(
+      'note', v_note,
+      'previous_note', v_before.on_hold_note
+    )
+  );
 
   return v_row;
 end;
@@ -12780,7 +13178,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_sor_headers(p_ipas_ids uuid[] DEFAULT NULL::uuid[])
- RETURNS TABLE(ipas_id uuid, opportunity_id uuid, sales_reference text, project_title text, current_stage_name text)
+ RETURNS TABLE(ipas_id uuid, opportunity_id uuid, sales_reference text, project_title text, current_stage_name text, sor_code text)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -12798,12 +13196,12 @@ begin
   end if;
 
   return query
-    select s.ipas_id, s.opportunity_id, o.sales_reference, o.project_title, fs.name
+    select s.ipas_id, s.opportunity_id, o.sales_reference, o.project_title, fs.name, o.sor_code
       from public.ipas_sors s
       join public.sales_opportunities o on o.id = s.opportunity_id
       left join public.flow_stages fs on fs.id = o.flow_stage_id
      where s.ipas_id = any (p_ipas_ids)
-     order by o.sales_reference;
+     order by o.sales_reference nulls last, o.sor_code;
 end;
 $function$
 ;
@@ -12856,7 +13254,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_standing_for_sor(p_opportunity_id uuid)
- RETURNS TABLE(ipas_id uuid, source text, created_at timestamp with time zone, updated_at timestamp with time zone, costs_completed_at timestamp with time zone, proof_paid_on date, shipped_out_on date, onboard_on date, arrived_in_ph_on date, arrived_in_whs_on date, import_clearance_on date, delivered_on date, actual_checking_stamped boolean, actual_checking_at timestamp with time zone, slips jsonb)
+ RETURNS TABLE(ipas_id uuid, source text, created_at timestamp with time zone, updated_at timestamp with time zone, costs_completed_at timestamp with time zone, proof_paid_on date, shipped_out_on date, onboard_on date, arrived_in_ph_on date, arrived_in_whs_on date, import_clearance_on date, delivered_on date, actual_checking_stamped boolean, actual_checking_at timestamp with time zone, slips jsonb, on_hold boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -12921,7 +13319,8 @@ AS $function$
            select 1 from public.transmittal_lines l
             where l.transmittal_id = t.id and l.ipas_id = i.id
          )
-    ), '[]'::jsonb)
+    ), '[]'::jsonb),
+    i.on_hold
   from public.ipas i
   where (select public.sor_access_level(p_opportunity_id)) = 'full'
     and i.purpose = 'project'
@@ -13391,6 +13790,23 @@ begin
 
   return v_row;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_worked_on(p_ipas_ids uuid[])
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  select distinct e.ipas_id
+    from public.ipas_events e
+   where e.ipas_id = any (coalesce(p_ipas_ids, '{}'::uuid[]))
+     and e.kind not in (
+       'created',
+       'odoo_copy_changed', 'filled_from_odoo', 'odoo_changed_since_filing',
+       'on_hold_set', 'on_hold_changed', 'on_hold_cleared'
+     )
+     and not (e.kind = 'approvals_cleared' and e.detail ->> 'reason' = 'PO changed in Odoo');
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.is_head()
@@ -21203,6 +21619,7 @@ CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
 CREATE TRIGGER ipas_actual_checking_hand_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_actual_checking_hand_guard();
+CREATE TRIGGER ipas_filing_clears_hold BEFORE UPDATE OF state ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_filing_clears_hold();
 CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_fill_from_odoo_copy();
 CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();

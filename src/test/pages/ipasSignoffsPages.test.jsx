@@ -106,7 +106,7 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id, "purchasing");
       // The drawer's footer carries the move; the body only reads.
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(one).getByText("Not submitted")).toBeInTheDocument();
       expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
@@ -129,7 +129,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderDetail(row.id, "purchasing");
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(one).queryByRole("button", { name: /Submit section/ })).not.toBeInTheDocument();
       await user.click(within(drawer).getByRole("button", { name: "Approve section 1" }));
@@ -147,7 +147,7 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id, "purchasing");
 
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(drawer).queryByRole("button", { name: "Approve section 1" })).not.toBeInTheDocument();
       expect(within(one).getByText(/You submitted this section, so someone else approves it/)).toBeInTheDocument();
@@ -176,7 +176,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderDetail(row.id, "finance");
-      const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
+      const drawer = await screen.findByRole("region", { name: "2 · Purchasing & Finance" });
       await user.click(within(drawer).getByRole("button", { name: "Return section 2" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Return section 2?" });
@@ -205,7 +205,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderDetail(row.id, "finance");
-      const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
+      const drawer = await screen.findByRole("region", { name: "2 · Purchasing & Finance" });
       // Once approved it is Undo approval, never Return.
       expect(within(drawer).queryByRole("button", { name: "Return section 2" })).not.toBeInTheDocument();
       await user.click(within(drawer).getByRole("button", { name: "Undo approval of section 2" }));
@@ -281,7 +281,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderDetail(row.id, "purchasing");
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Approve section 1" }));
       await confirmMove(user, "Approve section 1", "Approve");
 
@@ -305,7 +305,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       const view = renderDetail(row.id, "finance");
-      const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
+      const drawer = await screen.findByRole("region", { name: "2 · Purchasing & Finance" });
       await user.click(within(drawer).getByRole("button", { name: "Return section 2" }));
       await screen.findByRole("dialog", { name: "Return section 2?" });
 

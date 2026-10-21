@@ -71,11 +71,11 @@ afterAll(async () => {
 })
 
 describe("ipas_find_sors", () => {
-    it("returns reference, project and Stage only, never the customer", async () => {
+    it("returns reference, SOR number, project and Stage only, never the customer", async () => {
         const { data, error } = await rpc("outsider", "ipas_find_sors", { p_refs: [ref], p_search: null })
         expect(error).toBeNull()
         expect(data).toHaveLength(1)
-        expect(Object.keys(data[0]).sort()).toEqual(["current_stage_name", "opportunity_id", "project_title", "sales_reference"])
+        expect(Object.keys(data[0]).sort()).toEqual(["current_stage_name", "opportunity_id", "project_title", "sales_reference", "sor_code"])
         expect(data[0]).toMatchObject({
             opportunity_id: sorId,
             sales_reference: ref,
@@ -109,8 +109,10 @@ describe("ipas_sor_headers", () => {
             "opportunity_id",
             "project_title",
             "sales_reference",
+            "sor_code",
         ])
         expect(data[0]).toMatchObject({ ipas_id: ipas.id, opportunity_id: sorId, sales_reference: ref, current_stage_name: stage?.name ?? null })
+        expect(data[0].sor_code).toMatch(/^SOR-\d+$/)
         expect(JSON.stringify(data)).not.toContain(CUSTOMER)
     })
 

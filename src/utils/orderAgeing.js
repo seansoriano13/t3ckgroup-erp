@@ -48,6 +48,7 @@ export function orderStandingInput({
   arrivedInPhOn,
   origins,
   slips = [],
+  onHold = false,
 }) {
   const submitted = submittedSlips(slips);
   return {
@@ -66,5 +67,6 @@ export function orderStandingInput({
     latestSupplierOrigin: latestSupplierOrigin(origins),
     slips: submitted,
     hasDraftTransmittal: submitted.length < slips.length,
+    onHold: onHold === true,
   };
 }

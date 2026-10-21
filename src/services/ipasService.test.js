@@ -222,35 +222,98 @@ describe("ipasService", () => {
       expect(byRef.S04602.id).toBe(s04602.id)
     })
 
-    it("gives only the reference, project and Stage, never the customer", async () => {
+    it("gives only the SOR number, SO number, project and Stage, never the customer", async () => {
       const stage = makeFlowStage({ name: "Quotation" })
       const sor = makeOpportunity({
         registered_by: salesperson.id,
         sales_reference: "S07930",
+        sor_code: "SOR-7930",
         project_title: "Staged",
         client_name: "Zorblax Holdings",
         flow_stage_id: stage.id,
       })
 
       const [suggestion] = await ipasService.suggestSors(odooPo({ origin: "S07930 Staged" }))
-      expect(Object.keys(suggestion).sort()).toEqual(["current_stage_name", "found_in", "id", "project_title", "sales_reference"])
-      expect(suggestion).toMatchObject({ id: sor.id, current_stage_name: "Quotation" })
+      expect(Object.keys(suggestion).sort()).toEqual([
+        "current_stage_name",
+        "found_in",
+        "id",
+        "project_title",
+        "sales_reference",
+        "sor_code",
+      ])
+      expect(suggestion).toMatchObject({ id: sor.id, sor_code: "SOR-7930", current_stage_name: "Quotation" })
 
       const [found] = await ipasService.searchSors("S07930")
-      expect(Object.keys(found).sort()).toEqual(["current_stage_name", "id", "project_title", "sales_reference"])
+      expect(Object.keys(found).sort()).toEqual([
+        "current_stage_name",
+        "id",
+        "project_title",
+        "sales_reference",
+        "sor_code",
+      ])
     })
 
-    it("searches by reference or project, and no longer by customer", async () => {
+    it("searches by SOR number, SO number or project, in any case, and no longer by customer", async () => {
       makeOpportunity({
         registered_by: salesperson.id,
         sales_reference: "S07931",
+        sor_code: "SOR-7931",
         project_title: "Harbour Rescue",
         client_name: "Zorblax Holdings",
       })
 
       expect((await ipasService.searchSors("harbour")).map((s) => s.sales_reference)).toEqual(["S07931"])
-      expect((await ipasService.searchSors("S07931")).map((s) => s.sales_reference)).toEqual(["S07931"])
+      expect((await ipasService.searchSors("s07931")).map((s) => s.sales_reference)).toEqual(["S07931"])
+      for (const typed of ["SOR-7931", "sor 7931", "sor7931"]) {
+        expect((await ipasService.searchSors(typed)).map((s) => s.sor_code), typed).toEqual(["SOR-7931"])
+      }
       expect(await ipasService.searchSors("zorblax")).toEqual([])
+    })
+
+    it("finds an SOR with no SO number, and by the older opportunity number", async () => {
+      makeOpportunity({
+        registered_by: salesperson.id,
+        sales_reference: null,
+        sor_code: "SOR-7932",
+        project_title: "Lagoon Survey",
+      })
+      makeOpportunity({
+        registered_by: salesperson.id,
+        sales_reference: null,
+        opportunity_no: "OLD-0042",
+        sor_code: "SOR-7933",
+        project_title: "Dockside",
+      })
+
+      expect(await ipasService.searchSors("lagoon")).toEqual([
+        expect.objectContaining({ sor_code: "SOR-7932", sales_reference: null, project_title: "Lagoon Survey" }),
+      ])
+      expect((await ipasService.searchSors("old-0042")).map((s) => s.sor_code)).toEqual(["SOR-7933"])
+    })
+
+    it("lists the caller's last five SORs, newest first, and none of anyone else's", async () => {
+      const own = [1, 2, 3, 4, 5, 6].map((n) =>
+        makeOpportunity({ registered_by: salesperson.id, sales_reference: `S0800${n}`, sor_code: `SOR-800${n}`, project_title: `Pick ${n}` }),
+      )
+      const theirs = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S08099", sor_code: "SOR-8099" })
+      const colleague = makeEmployee({ name: "Colleague", department: "OPERATIONS", has_purchasing_flow: true })
+      own.forEach((sor, i) => {
+        const ipas = db.seed("ipas", { number: `TGIPAS_9${i}`, po_number: `P0900${i}`, created_by: buyer.id, state: "open", priority: "high", source: "local", purpose: "project", odoo_copy: {} })
+        db.seed("ipas_sors", { ipas_id: ipas.id, opportunity_id: sor.id })
+      })
+      const other = db.seed("ipas", { number: "TGIPAS_99", po_number: "P09099", created_by: colleague.id, state: "open", priority: "high", source: "local", purpose: "project", odoo_copy: {} })
+      db.seed("ipas_sors", { ipas_id: other.id, opportunity_id: theirs.id })
+
+      const recent = await ipasService.recentSors()
+      expect(recent.map((s) => s.sor_code)).toEqual(["SOR-8006", "SOR-8005", "SOR-8004", "SOR-8003", "SOR-8002"])
+      expect(Object.keys(recent[0]).sort()).toEqual([
+        "current_stage_name",
+        "id",
+        "project_title",
+        "sales_reference",
+        "sor_code",
+      ])
     })
 
     it("suggests nothing when the copy names no SOR, and ignores an S number no SOR has", async () => {
@@ -355,7 +418,7 @@ describe("ipasService", () => {
       expect(rows.map((r) => r.po_number)).toEqual(["P01002", "P01001"])
       expect(rows[1]).toMatchObject({ entity: "T3ck Trading", supplier: "Scorpe Technologies", currency: "Php" })
       expect(rows[1].sors).toEqual([
-        { id: sor.id, salesReference: "S07920", projectTitle: "Capas LGU", stageName: "Quotation" },
+        { id: sor.id, salesReference: "S07920", projectTitle: "Capas LGU", stageName: "Quotation", sorCode: `SOR-${sor.serial_no}` },
       ])
       expect(rows[0].sors).toEqual([])
     })
@@ -373,7 +436,7 @@ describe("ipasService", () => {
       expect(await numbers({ state: "cancelled" })).toEqual(["P01002"])
       expect(await numbers({ state: "filed" })).toEqual([])
       expect(await numbers({ entity: "TG Enterprise" })).toEqual(["P01003"])
-      expect(await numbers({ purpose: "project" })).toEqual([a.po_number])
+      expect(await numbers({ purpose: "project", odoo_copy: {} })).toEqual([a.po_number])
       expect(await numbers({ state: "open", purpose: "supplies" })).toEqual(["P01003"])
     })
 

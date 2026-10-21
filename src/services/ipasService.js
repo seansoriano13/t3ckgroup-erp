@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { transmittalService } from "./transmittalService";
 import { readSection3Signoffs } from "./ipasSection3Signoffs";
+import { readIpasStatusFacts } from "./ipasStatusFacts";
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUSES,
@@ -49,19 +50,23 @@ import {
   shapeBankDetails,
   shapeIpas,
 } from "../utils/ipas";
-import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
+import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
 import { REFUSAL } from "../constants/refusal";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
+import { ipasFigures } from "../utils/ipasFigures";
 import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
-  "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
+  "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path, call_sign), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
   " import_clearance_typer:employees!ipas_import_clearance_typed_by_fkey(id, name)," +
   " delivered_typer:employees!ipas_delivered_typed_by_fkey(id, name)," +
   " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)";
+// The list also reads each IPAS's payments (kind, amount, method) so the money
+// columns need no per-record fetch (#596).
+const LIST_SELECT = IPAS_SELECT + ", ipas_payments(kind, amount, method_id, paid_on, created_at)";
 const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, avatar_path)";
 const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
@@ -139,8 +144,8 @@ export const ipasService = {
   /**
    * The SORs whose Sales Reference the copy mentions — in the PO's Source
    * Document or in a line's analytic account name — as
-   * `{ id, sales_reference, project_title, current_stage_name, found_in }` (found_in:
-   * "origin" and/or "analytic"). Only references that name an SOR come back.
+   * `{ id, sor_code, sales_reference, project_title, current_stage_name, found_in }`
+   * (found_in: "origin" and/or "analytic"). Only references that name an SOR come back.
    */
   async suggestSors(odooCopy) {
     const mentioned = salesReferencesIn(odooCopy);
@@ -150,26 +155,29 @@ export const ipasService = {
     const { data, error } = await supabase.rpc("ipas_find_sors", { p_refs: references, p_search: null });
     if (error) throw error;
     return (data || []).map((sor) => ({
-      id: sor.opportunity_id,
-      sales_reference: sor.sales_reference,
-      project_title: sor.project_title,
-      current_stage_name: sor.current_stage_name,
+      ...sorSummaryOf(sor),
       found_in: mentioned[sor.sales_reference] ?? [],
     }));
   },
 
-  /** SORs to attach to a Project IPAS, by Sales Reference or project. */
+  /**
+   * SORs to attach to a Project IPAS, by SOR number, SO number (Sales
+   * Reference) or project, in any case. An SOR with no SO number yet is found
+   * too (its `sales_reference` is null).
+   */
   async searchSors(term) {
     const search = (term || "").trim();
     if (search.length < 2) return [];
     const { data, error } = await supabase.rpc("ipas_find_sors", { p_refs: null, p_search: search });
     if (error) throw error;
-    return (data || []).map((sor) => ({
-      id: sor.opportunity_id,
-      sales_reference: sor.sales_reference,
-      project_title: sor.project_title,
-      current_stage_name: sor.current_stage_name,
-    }));
+    return (data || []).map(sorSummaryOf);
+  },
+
+  /** Up to 5 SORs most recently named on IPAS the caller raised, newest first. */
+  async recentSors() {
+    const { data, error } = await supabase.rpc("ipas_recent_sors");
+    if (error) throw error;
+    return (data || []).map(sorSummaryOf);
   },
 
   /**
@@ -232,11 +240,12 @@ export const ipasService = {
   /**
    * The IPAS list: `{ state, entity, purpose }`. `state` is open, filed,
    * cancelled or "all" (the default); `entity` is an Odoo company name (the
-   * IPAS's entity); `purpose` is a Purpose. Newest first, each with its SORs.
-   * The database returns only what the caller may read.
+   * IPAS's entity); `purpose` is a Purpose. Newest first, each with its SORs
+   * and its `payments` (shaped: kind, amount, method label; #596) for the IPAS
+   * figures. The database returns only what the caller may read.
    */
   async list({ state = IPAS_STATE_FILTER_ALL, entity = null, purpose = null } = {}) {
-    let query = supabase.from("ipas").select(IPAS_SELECT).order("created_at", { ascending: false });
+    let query = supabase.from("ipas").select(LIST_SELECT).order("created_at", { ascending: false });
     if (state && state !== IPAS_STATE_FILTER_ALL) query = query.eq("state", state);
     if (purpose) query = query.eq("purpose", purpose);
 
@@ -246,10 +255,22 @@ export const ipasService = {
     const sorsByIpas = await readSorHeaders((rows || []).map((row) => row.id));
     // The list filter "Section 3 approved" (#586): one read of the live section 3 approvals.
     const { approved: section3Approved } = await readSection3Signoffs();
+    // Payment methods are option rows read by id, as on the record.
+    const { data: optionRows, error: optionsError } = await supabase.from("ipas_options").select("id, list, label");
+    if (optionsError) throw optionsError;
+    const options = new Map((optionRows || []).map((option) => [option.id, option]));
+    // The IPAS Status (#597) needs section 1's sign-off state and whether the IPAS was worked on: two cheap bulk reads.
+    const { section1Started, workedOn } = await readIpasStatusFacts((rows || []).map((row) => row.id));
 
     return (rows || [])
       .filter((row) => !entity || ipasEntity(row) === entity)
-      .map((row) => ({ ...shapeIpas(row, sorsByIpas.get(row.id) ?? []), section3Approved: section3Approved.has(row.id) }));
+      .map(({ ipas_payments: paymentRows, ...row }) => ({
+        ...shapeIpas(row, sorsByIpas.get(row.id) ?? []),
+        payments: (paymentRows || []).map((payment) => shapePayment(payment, options)),
+        section3Approved: section3Approved.has(row.id),
+        section1Started: section1Started.has(row.id),
+        workedOn: workedOn.has(row.id),
+      }));
   },
 
   /**
@@ -271,7 +292,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs, landed] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs, landed, statusFacts] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -296,6 +317,7 @@ export const ipasService = {
       transmittalService.forIpas(id),
       supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
       supabase.rpc("ipas_landed_cost", { p_ipas_id: id }),
+      readIpasStatusFacts([id]),
     ]);
     for (const result of [events, payments, charges, options, documents, signoffs, landed]) {
       if (result.error) throw result.error;
@@ -314,6 +336,9 @@ export const ipasService = {
 
     return {
       ...shapeIpas(row, sors, sections),
+      // The IPAS Status's "changed since raising" fact (#597). Section 1's sign-off state comes from the
+      // shaped sign-offs, so an optimistic edit moves the status without a refetch.
+      workedOn: statusFacts.workedOn.has(id),
       // The rows it was shaped from, so the page can show an edit before the
       // server has answered (utils/ipasOptimistic.js).
       raw: rawOf({ row, sors, ...sections }),
@@ -607,8 +632,9 @@ export const ipasService = {
    * Records a payment on an open IPAS (Purchasing or Finance).
    * `{ kind, paidOn, amount, phpDebited, chargeFeePhp, methodId, checkNo,
    * proofUrl }`: `amount` is in the PO's currency, `phpDebited` is the PHP
-   * actually debited and is required on a foreign-currency PO (pass
-   * `isPhpPo: false`; the database enforces it either way), and
+   * taken from the bank ("Pesos taken from the bank"); on a foreign-currency
+   * PO (pass `isPhpPo: false`) it may be left blank, and Landed Cost is then
+   * an estimate until it is filled (#604), and
    * `chargeFeePhp` is always PHP. Returns the payment row.
    */
   async addPayment(id, payment, { isPhpPo = true } = {}) {
@@ -784,6 +810,34 @@ export const ipasService = {
       p_ipas_id: id,
       p_stamped: Boolean(stamped),
     });
+    if (error) throw error;
+    return data;
+  },
+
+  // ── The IPAS number series (#600) ────────────────────────────────────────
+
+  /**
+   * The number the next IPAS will take: `{ next_value, number_format, highest_given }`,
+   * e.g. `number_format` "TGIPAS_049". Any signed-in employee may read it.
+   */
+  async nextNumber() {
+    const { data, error } = await supabase.rpc("ipas_next_number");
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Super Admins only: sets the number the next IPAS takes. The database refuses
+   * a value at or below the highest number already given (cancelled IPAS
+   * included) and records who set it. Returns the same shape as `nextNumber`.
+   */
+  async setNextNumber(n) {
+    const text = String(n ?? "").trim();
+    const value = Number(text);
+    if (!/^\d+$/.test(text) || !Number.isSafeInteger(value) || value < 1) {
+      throw new IpasError(IPAS_ERROR.INVALID, "The next number is a whole number from 1.");
+    }
+    const { data, error } = await supabase.rpc("ipas_set_next_number", { p_number: value });
     if (error) throw error;
     return data;
   },
@@ -1238,7 +1292,7 @@ export const ipasService = {
 
     const { data: ipasRows, error: ipasError } = await supabase
       .from("ipas")
-      .select("id, number, po_number, purpose, priority, state, odoo_copy")
+      .select("id, number, po_number, purpose, priority, state, odoo_copy, pi_qt_amount")
       .in("id", [...new Set(waiting.map((entry) => entry.ipasId))])
       .eq("state", IPAS_STATE.OPEN);
     if (ipasError) throw ipasError;
@@ -1259,6 +1313,8 @@ export const ipasService = {
           priority: ipas.priority,
           total: (ipas.odoo_copy?.lines ?? []).reduce((sum, line) => sum + (Number(line?.price_subtotal) || 0), 0),
           currency: ipasCurrency(ipas),
+          // The Supplier bill check's figures (#603): the review warns beside section 1's Approve.
+          figures: ipasFigures(ipas),
           section: entry.section,
           role: entry.role,
           preparedBy: madeReady.signedBy,
@@ -1396,6 +1452,22 @@ export const ipasService = {
     if (error) throw error;
     return data;
   },
+
+  /**
+   * Puts an open IPAS On-Hold, or clears it (#597). The one write the IPAS Status
+   * has: every other step is worked out. Purchasing access or Finance access; a
+   * filed or cancelled IPAS is refused by the database. `note` is optional and
+   * only kept while on hold. Each change is an IPAS history event. Returns the row.
+   */
+  async setOnHold(id, onHold, note = "") {
+    const { data, error } = await supabase.rpc("ipas_set_on_hold", {
+      p_ipas_id: id,
+      p_on_hold: onHold === true,
+      p_note: onHold === true ? (note || "").trim() || null : null,
+    });
+    if (error) throw error;
+    return data;
+  },
 };
 
 function requireSignoffSection(section) {
@@ -1510,6 +1582,21 @@ async function readIpasLabel(id, row) {
   return ipas?.number ? `${ipas.number} (${ipas.po_number})` : "An IPAS";
 }
 
+/**
+ * A row of `ipas_find_sors` / `ipas_recent_sors` (the locked SOR summary,
+ * never the customer): the SOR number (`sor_code`, SOR-198), the SO number
+ * (`sales_reference`, null until Odoo has a sales order), project and Stage.
+ */
+function sorSummaryOf(sor) {
+  return {
+    id: sor.opportunity_id,
+    sor_code: sor.sor_code ?? null,
+    sales_reference: sor.sales_reference ?? null,
+    project_title: sor.project_title,
+    current_stage_name: sor.current_stage_name,
+  };
+}
+
 function unavailable(po) {
   return new IpasError(
     IPAS_ERROR.ODOO_UNAVAILABLE,
@@ -1529,12 +1616,10 @@ function paymentArgs(payment, isPhpPo) {
   }
 
   const phpRead = parseAmountInput(phpDebited);
-  if (!phpRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "PHP debited must be a number.");
-  if (!isPhpPo && (phpRead.value === null || phpRead.value <= 0)) {
-    throw new IpasError(
-      IPAS_ERROR.INVALID,
-      "This Odoo PO is in a foreign currency: give the PHP actually debited, so Landed Cost can use the real rate.",
-    );
+  if (!phpRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "Pesos taken from the bank must be a number.");
+  // Blank is allowed (#604): Landed Cost is an estimate until the bank statement's pesos are in.
+  if (!isPhpPo && phpRead.value !== null && phpRead.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "Pesos taken from the bank must be more than zero, or left blank until the bank statement arrives.");
   }
 
   const feeRead = parseAmountInput(chargeFeePhp);

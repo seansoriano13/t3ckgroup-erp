@@ -33,7 +33,7 @@ const ipasSummary = {
   signoffs: { 1: { prepared: true, approved: false }, 3: { prepared: false, approved: false }, 7: { received: false, noted: false, checked: false, approved: false } },
 };
 
-function openModal(deal) {
+function openModal(deal, extraProps = {}) {
   const owner = makeEmployee();
   authUser = { id: owner.id, isSuperAdmin: true };
   stubEdgeFunction("odoo-sor-lookup", { success: true, found: true, order: { id: 1, name: "S1", state: "sale" }, customer: {}, items: [] });
@@ -43,7 +43,7 @@ function openModal(deal) {
     transmittals: [{ id: "t-1", number: "TG03-901", prepared_on: "2026-10-15", priority: "high", state: "awaiting_check", na_count: 0, can_open: false }],
     packing_lists: [],
   });
-  renderWithProviders(<OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} />);
+  renderWithProviders(<OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} {...extraProps} />);
   return setupUser();
 }
 
@@ -81,6 +81,26 @@ describe("the PMS tab", () => {
     expect(await screen.findByText("TGIPAS_052")).toBeInTheDocument();
     expect(await screen.findByText("TG03-901")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Transmittals and Packing Lists/ })).toBeInTheDocument();
+  });
+
+  it("opens straight on the PMS tab when asked to, as the Costing Matrix page does (#606)", async () => {
+    db.seed("costing_matrices", { opportunity_id: deal.id });
+    stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+    openModal(deal, { initialView: "pms" });
+
+    expect(await screen.findByRole("heading", { name: /Costing Matrix/ })).toBeInTheDocument();
+    expect(await screen.findByText("TGIPAS_052")).toBeInTheDocument();
+  });
+
+  it("opens on the Summary when the tab asked for does not exist", async () => {
+    db.seed("costing_matrices", { opportunity_id: deal.id });
+    stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+    openModal(deal, { initialView: "no-such-tab" });
+
+    await screen.findByRole("button", { name: /^PMS/ });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(screen.queryByTestId("tender-line")).not.toBeInTheDocument();
+    expect(screen.queryByText("TGIPAS_052")).not.toBeInTheDocument();
   });
 
   it("no longer shows the IPAS and Transmittal sections on the Summary or This stage", async () => {

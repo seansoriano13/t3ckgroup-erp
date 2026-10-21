@@ -1,6 +1,6 @@
 // One IPAS boiled down to what a summary needs: where the money stands, where
-// each sign-off stands, and what is still open. The section rows, the drawer
-// header and the decision card all read this, so they say the same thing.
+// each sign-off stands, and what is still open. The section blocks' headers
+// and the decision card all read this, so they say the same thing.
 
 import {
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -15,9 +15,12 @@ import {
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { formatAmount } from "@/utils/ipas";
+import { billCheckView } from "@/utils/ipasBillCheck";
+import { ipasFigures } from "@/utils/ipasFigures";
 import { filingChecklist } from "@/utils/ipasDocuments";
 import { FILING_STATUS, SIGNOFF_STATUS, isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { formatDay } from "@/utils/ipasPayments";
+import { isLandedCostEstimate } from "@/utils/landedCost";
 import { formatDate } from "@/utils/formatDate.js";
 import { gatesFor } from "./gates";
 import { STATE } from "@/components/record/statePalette";
@@ -73,9 +76,16 @@ export function digestIpas(ipas) {
     missingPhp: sum.missingPhp,
     landedStatus: lc.status,
     landedPhp: lc.totals?.landedPhp ?? null,
-    landedText: lc.totals ? pesos(lc.totals.landedPhp) : "Not available yet",
+    landedEstimate: isLandedCostEstimate(lc),
+    // An estimate (a payment's pesos still blank) is said so wherever the figure shows (#604).
+    landedFigureText: lc.totals ? pesos(lc.totals.landedPhp) : "Not available yet",
+    landedText: lc.totals ? `${pesos(lc.totals.landedPhp)}${isLandedCostEstimate(lc) ? " (estimate)" : ""}` : "Not available yet",
     rateText: lc.rate ? `${lc.rate.rate.toFixed(4)} PHP per ${lc.currency}` : null,
   };
+
+  // The money summary and section 1's approval warning read the same figures (#603).
+  const figures = ipasFigures(ipas);
+  const bill = billCheckView(figures);
 
   // Sign-offs.
   const s1 = ipas.signoffSections[1];
@@ -168,6 +178,8 @@ export function digestIpas(ipas) {
     filed,
     cancelled,
     money,
+    figures,
+    bill,
     s1,
     s3,
     s6,
@@ -191,29 +203,20 @@ export function sectionTitle(key) {
 
 /**
  * The sections in list order: money and sign-offs first, then (`secondary`)
- * everything else. `key` is what the drawer and `?open=` use. `inPlace` marks
- * the sections that expand under their row instead of opening the drawer:
- * every one of "Everything else". Money and sign-offs keep the drawer for now.
+ * everything else. `key` is what `?open=` uses. Every one opens in place on
+ * the record page, as a collapsible block.
  */
 export const SECTIONS = [
   { key: "purchasing" },
   { key: "finance" },
   { key: "costing" },
   { key: "filing" },
-  { key: "header", secondary: true, inPlace: true },
-  { key: "sales", secondary: true, inPlace: true },
-  { key: "logistics", secondary: true, inPlace: true },
-  { key: "status", secondary: true, inPlace: true },
-  { key: "history", secondary: true, inPlace: true },
+  { key: "header", secondary: true },
+  { key: "sales", secondary: true },
+  { key: "logistics", secondary: true },
+  { key: "status", secondary: true },
+  { key: "history", secondary: true },
 ].map((section) => ({ ...section, title: sectionTitle(section.key) }));
-
-/** The sections the drawer shows (J and K step through these); the in-place ones are skipped. */
-export const DRAWER_SECTIONS = SECTIONS.filter((section) => !section.inPlace);
-
-/** True for a section that expands under its row (`?open=` names it, no drawer). */
-export function isInPlace(key) {
-  return SECTIONS.some((section) => section.key === key && section.inPlace);
-}
 
 /**
  * A section's state for the state palette: its `state` (done, current or
@@ -254,6 +257,6 @@ export function sectionState(key, digest) {
  */
 export function filingSummary(digest) {
   const { money, docs } = digest;
-  const landed = money.landedPhp === null ? "Landed Cost is not available yet" : `Landed Cost becomes final at ${money.landedText}`;
+  const landed = money.landedPhp === null ? "Landed Cost is not available yet" : `Landed Cost becomes final at ${money.landedFigureText}`;
   return `${landed}. ${docs.ticked} of ${docs.total} documents in hand are frozen with it.`;
 }

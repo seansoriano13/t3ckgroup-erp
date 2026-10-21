@@ -84,6 +84,7 @@ function standingOf(summary, facts, rules, today) {
       arrivedInPhOn: facts.arrived_in_ph_on,
       origins: facts,
       slips: named,
+      onHold: facts.on_hold === true,
     }),
     rules,
     today,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, percentOf, summary } from "./costingMath";
+import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -418,5 +418,104 @@ describe("describeComplianceRollup", () => {
     expect(describeComplianceRollup({ deviates: 0, notEvaluated: 0, total: 1 })).toBe("Complies");
     expect(describeComplianceRollup({ deviates: 0, notEvaluated: 0, total: 0 })).toBeNull();
     expect(describeComplianceRollup(undefined)).toBeNull();
+  });
+});
+
+describe("Planned and Actual Revenue (#605)", () => {
+  const settings = { vatDivisor: 1.12, taxRate: 0.06, retentionRate: 0.01, itrRate: 0.08, itrAllowance: 250000 };
+  const landed = (total, mark = "final") => ({ total, unit: total, mark, blankReason: null });
+  const notBought = { total: null, unit: null, mark: null, blankReason: "not_ordered" };
+
+  /** The #229 sample (Final Offer 2,980,000; Final Acquire 2,338,500 -> Revenue 423,100) over two Components and a cost-only row. */
+  const sample = ({ a, b, ipasShort } = {}) => ({
+    matrix: {
+      tenderLines: [
+        {
+          quantity: 1,
+          final_offer_unit: 2980000,
+          components: [
+            { quantity: 1, final_acquire_unit: 1000000, landed_cost: a },
+            { quantity: 2, final_acquire_unit: 500000, landed_cost: b },
+          ],
+        },
+      ],
+      costRows: [{ quantity: 1, final_acquire_unit: 338500 }],
+    },
+    ipasShort,
+  });
+  const work = (args) => {
+    const { matrix, ipasShort } = sample(args);
+    return { totals: revenueInputs(matrix, { ipasShort }), result: revenueComparison(revenueInputs(matrix, { ipasShort }), settings) };
+  };
+
+  it("Planned Revenue is exactly the summary's Revenue", () => {
+    const { matrix } = sample({ a: landed(900000), b: notBought });
+    expect(revenueComparison(revenueInputs(matrix), settings).planned).toBe(summary(matrix, settings).revenue);
+    expect(summary(matrix, settings).revenue).toBe(423100);
+  });
+
+  it("an item nobody has bought counts at Final Acquire, so Actual equals Planned and the count says so", () => {
+    const { totals, result } = work({ a: notBought, b: notBought });
+    expect(totals).toMatchObject({ finalAcquireTotal: 2338500, landedCostTotal: 0, boughtFinalAcquireTotal: 0, itemsBought: 0, itemsTotal: 2 });
+    expect(result).toMatchObject({ planned: 423100, actual: 423100, difference: 0, actualLower: false, estimate: false, itemsBought: 0, notBought: 2 });
+    expect(result.actualCost).toBe(2338500);
+  });
+
+  it("a bought item takes its Landed Cost in place of its Final Acquire, the rest stays at Final Acquire", () => {
+    // A: Landed 900,000 instead of 1,000,000. B (1,000,000 at Final Acquire) and the cost-only row (338,500) stay.
+    const { totals, result } = work({ a: landed(900000), b: notBought });
+    expect(totals).toMatchObject({ landedCostTotal: 900000, boughtFinalAcquireTotal: 1000000, itemsBought: 1, itemsTotal: 2 });
+    expect(result).toMatchObject({ actualCost: 2238500, actual: 523100, planned: 423100, difference: 100000, actualLower: false, notBought: 1 });
+  });
+
+  it("highlights when buying cost more than planned: Actual is lower and the difference is negative", () => {
+    const { result } = work({ a: landed(1100000), b: landed(1000000) });
+    // Landed 2,100,000 against Final Acquire 2,000,000 on the two Components; the 338,500 row is unchanged.
+    expect(result).toMatchObject({ actualCost: 2438500, actual: 323100, difference: -100000, actualLower: true, notBought: 0 });
+  });
+
+  it("is an estimate while any IPAS is short of LC Odoo Done, and final once none is", () => {
+    expect(work({ a: landed(900000), b: notBought, ipasShort: true }).result.estimate).toBe(true);
+    expect(work({ a: landed(900000), b: notBought, ipasShort: false }).result.estimate).toBe(false);
+  });
+
+  it("a provisional Landed Cost is itself proof of a short IPAS", () => {
+    expect(work({ a: landed(900000, "provisional"), b: notBought }).result.estimate).toBe(true);
+    expect(work({ a: landed(900000, "final"), b: landed(1000000, "final") }).result.estimate).toBe(false);
+  });
+
+  it("never reads a blank as zero: a missing Final Acquire or Final Offer blanks both, a bought item with no Final Acquire blanks Actual", () => {
+    const missingCost = { tenderLines: [{ quantity: 1, final_offer_unit: 1000, components: [{ quantity: 1, final_acquire_unit: null }] }] };
+    expect(revenueComparison(revenueInputs(missingCost), settings)).toMatchObject({ planned: null, actual: null, difference: null, actualLower: false });
+    const noOffer = { tenderLines: [{ quantity: 1, final_offer_unit: null, components: [{ quantity: 1, final_acquire_unit: 5 }] }] };
+    expect(revenueComparison(revenueInputs(noOffer), settings)).toMatchObject({ planned: null, actual: null });
+    const boughtNoAcquire = {
+      tenderLines: [
+        {
+          quantity: 1,
+          final_offer_unit: 3000000,
+          components: [
+            { quantity: 1, final_acquire_unit: null, landed_cost: landed(10) },
+            { quantity: 1, final_acquire_unit: 5 },
+          ],
+        },
+      ],
+    };
+    const result = revenueComparison(revenueInputs(boughtNoAcquire), settings);
+    expect(result.actual).toBeNull();
+    expect(result.difference).toBeNull();
+  });
+
+  it("works from per-SOR totals alone, so a database row gives the same answer as the shaped matrix", () => {
+    const fromRow = revenueComparison(
+      { finalOfferTotal: 2980000, finalAcquireTotal: 2338500, landedCostTotal: 900000, boughtFinalAcquireTotal: 1000000, itemsBought: 1, itemsTotal: 2, ipasShort: true },
+      settings,
+    );
+    expect(fromRow).toEqual(work({ a: landed(900000), b: notBought, ipasShort: true }).result);
+  });
+
+  it("a blank total in a row is blank in the answer, not zero", () => {
+    expect(revenueComparison({ finalOfferTotal: 2980000, finalAcquireTotal: 2338500 }, settings).actual).toBeNull();
+    expect(revenueComparison({}, settings)).toMatchObject({ planned: null, actual: null, difference: null, itemsBought: 0, itemsTotal: 0, notBought: 0 });
   });
 });

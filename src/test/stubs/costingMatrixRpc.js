@@ -353,6 +353,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
         split: ipas.landed_cost_split || "value",
         computationStatus: ipas.computation_status || "encoding",
         filed: ipas.state === "filed",
+        referenceRates: rowsOf("currency_rates"),
       })
       return new Map((ipas.odoo_copy?.lines ?? []).map((l) => [l.line_id, { total: lc.lines.find((x) => x.lineId === l.line_id)?.landedPhp ?? null, mark: lc.status }]))
     }
@@ -381,6 +382,15 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       const rounded = Math.round(total * 100) / 100
       return { ...row, total_php: rounded, unit_php: Math.round((rounded / Number(c.quantity)) * 100) / 100, mark: final ? "final" : "provisional" }
     })
+  })
+
+  // ipas_summaries_for_sor, as far as Actual Revenue (#605) reads it: the SOR's project IPAS with their state and
+  // Computation status. Tests that care about the IPAS list itself stub their own, after this.
+  stubRpc("ipas_summaries_for_sor", (args) => {
+    const ids = rowsOf("ipas_sors").filter((s) => s.opportunity_id === args.p_opportunity_id).map((s) => s.ipas_id)
+    return rowsOf("ipas")
+      .filter((i) => ids.includes(i.id))
+      .map((i) => ({ ipas_id: i.id, number: i.number, po_number: i.po_number, state: i.state, computation_status: i.computation_status ?? "encoding" }))
   })
 
   // #273: the Requested Items that name a Component of this SOR's matrix, as {id, component_id, status, request_id}.

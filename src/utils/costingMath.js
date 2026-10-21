@@ -263,12 +263,9 @@ export function summary(matrix, settings) {
     offer === null || taxRate === null || retentionRate === null ? null : roundDiv(offer * (MICRO - taxRate - retentionRate), MICRO);
   // Only the part of the offer above the allowance is taxed. Below it the sheet's formula goes
   // negative and would add to Revenue, so the taxed amount stops at zero.
-  const taxed = offer === null || allowance === null ? null : offer > allowance ? offer - allowance : 0n;
+  const taxed = taxedOffer(offer, allowance);
   const itr = taxed === null || itrRate === null ? null : roundDiv(taxed * itrRate, MICRO);
-  const revenue =
-    taxed === null || acquire === null || itrRate === null
-      ? null
-      : roundDiv((offer - acquire) * MICRO - taxed * itrRate, MICRO);
+  const revenue = revenueCentavos(offer, acquire, taxed, itrRate);
 
   const ceiling = matrixTotals(lines);
 
@@ -287,6 +284,119 @@ export function summary(matrix, settings) {
     percentOfAbc: ceiling.percentOfAbc,
     overAbc: ceiling.overAbc,
     incomplete: { missingCost, missingOffer, noTenderLines: lines.length === 0, noCostRows: costed.length === 0 },
+  };
+}
+
+/** Revenue in centavos: (Final Offer - cost) - ITR on the taxed part of the offer. Null while any input is blank. */
+function revenueCentavos(offer, cost, taxed, itrRate) {
+  if (offer === null || cost === null || taxed === null || itrRate === null) return null;
+  return roundDiv((offer - cost) * MICRO - taxed * itrRate, MICRO);
+}
+
+/** The part of the offer above the ITR allowance, in centavos (zero at or below it); null while blank. */
+function taxedOffer(offer, allowance) {
+  return offer === null || allowance === null ? null : offer > allowance ? offer - allowance : 0n;
+}
+
+/**
+ * The per-SOR totals that Planned and Actual Revenue are worked from (#605), taken from a shaped
+ * matrix (Closed Book: Components carry `final_acquire_unit` and `landed_cost`). The Costing Matrix
+ * page (#606) builds the same object from its database read, so the page and the SOR's own summary
+ * share one set of maths (`revenueComparison`). Pesos, or null where a figure cannot be worked.
+ *
+ *   finalOfferTotal         the Tender Lines' Final Offers added up (null while any is blank)
+ *   finalAcquireTotal       every Component and cost-only row at Final Acquire (null while any is blank)
+ *   landedCostTotal         the Landed Cost of the bought Components; 0 when none is bought
+ *   boughtFinalAcquireTotal the Final Acquire of those same bought Components; 0 when none is bought
+ *   itemsBought, itemsTotal bought Components out of all Components (cost-only rows are never bought)
+ *   ipasShort               true while any IPAS of the SOR has not reached LC Odoo Done (the caller says so;
+ *                           a bought Component whose Landed Cost is provisional says so too)
+ *
+ * A Component is bought when it has a Landed Cost. One with none (not ordered, or its PO line not
+ * picked yet) stays at Final Acquire.
+ */
+export function revenueInputs(matrix, { ipasShort = false } = {}) {
+  const lines = matrix?.tenderLines ?? [];
+  const components = lines.flatMap((line) => line?.components ?? []);
+  const costRows = matrix?.costRows ?? [];
+
+  const offers = lines.map((line) => extendedCentavos(line?.final_offer_unit, line?.quantity));
+  const offer = lines.length > 0 && offers.every((o) => o !== null) ? offers.reduce((sum, o) => sum + o, 0n) : null;
+
+  const costed = [...components, ...costRows].map((row) => extendedCentavos(row?.final_acquire_unit, row?.quantity));
+  const acquire = costed.length > 0 && costed.every((c) => c !== null) ? costed.reduce((sum, c) => sum + c, 0n) : null;
+
+  let landed = 0n;
+  let boughtAcquire = 0n;
+  let boughtAcquireKnown = true;
+  let itemsBought = 0;
+  let provisional = false;
+  for (const component of components) {
+    const lc = component?.landed_cost ? extendedCentavos(component.landed_cost.total, 1) : null;
+    if (lc === null) continue;
+    itemsBought += 1;
+    // A Landed Cost is final only once its IPAS reached LC Odoo Done, so a provisional one is proof of a short IPAS.
+    if (component.landed_cost.mark !== "final") provisional = true;
+    landed += lc;
+    const fa = extendedCentavos(component?.final_acquire_unit, component?.quantity);
+    if (fa === null) boughtAcquireKnown = false;
+    else boughtAcquire += fa;
+  }
+
+  return {
+    finalOfferTotal: pesosFromCentavos(offer),
+    finalAcquireTotal: pesosFromCentavos(acquire),
+    landedCostTotal: pesosFromCentavos(landed),
+    boughtFinalAcquireTotal: boughtAcquireKnown ? pesosFromCentavos(boughtAcquire) : null,
+    itemsBought,
+    itemsTotal: components.length,
+    ipasShort: Boolean(ipasShort) || provisional,
+  };
+}
+
+/**
+ * Planned Revenue and Actual Revenue side by side (#605, glossary "Planned Revenue / Actual
+ * Revenue"). Takes the per-SOR totals of `revenueInputs` and the summary's rates (`itrRate`,
+ * `itrAllowance`), so the SOR's summary and the Costing Matrix page work the same figures.
+ *
+ *   planned      exactly the summary's Revenue: (Final Offer - Final Acquire total) - ITR
+ *   actual       the same Revenue with each bought Component at its Landed Cost instead of its
+ *                Final Acquire; an unbought Component, and every cost-only row, stays at Final Acquire.
+ *                ITR is on the offer, so it is the same for both.
+ *   difference   actual - planned: negative when buying cost more than planned
+ *   actualLower  actual is below planned (the highlight)
+ *   estimate     actual is provisional while any IPAS of the SOR is short of LC Odoo Done
+ *   itemsBought, itemsTotal, notBought   how many Components are bought, and how many are not yet
+ *   plannedCost, actualCost              the cost line each Revenue was worked from
+ *
+ * Each figure is null while an input is blank (never zero): no Final Offer or a Final Acquire gap
+ * blanks both; a bought Component with no Final Acquire, or a missing Landed Cost total, blanks Actual.
+ */
+export function revenueComparison(totals, settings) {
+  const offer = extendedCentavos(totals?.finalOfferTotal, 1);
+  const acquire = extendedCentavos(totals?.finalAcquireTotal, 1);
+  const landed = extendedCentavos(totals?.landedCostTotal, 1);
+  const boughtAcquire = extendedCentavos(totals?.boughtFinalAcquireTotal, 1);
+  const itrRate = scaled(settings?.itrRate);
+  const taxed = taxedOffer(offer, extendedCentavos(settings?.itrAllowance, 1));
+
+  const actualCost = acquire === null || landed === null || boughtAcquire === null ? null : acquire - boughtAcquire + landed;
+  const planned = revenueCentavos(offer, acquire, taxed, itrRate);
+  const actual = revenueCentavos(offer, actualCost, taxed, itrRate);
+  const itemsBought = Number(totals?.itemsBought) || 0;
+  const itemsTotal = Number(totals?.itemsTotal) || 0;
+
+  return {
+    planned: pesosFromCentavos(planned),
+    actual: pesosFromCentavos(actual),
+    difference: planned === null || actual === null ? null : pesosFromCentavos(actual - planned),
+    actualLower: planned !== null && actual !== null && actual < planned,
+    estimate: Boolean(totals?.ipasShort),
+    itemsBought,
+    itemsTotal,
+    notBought: Math.max(itemsTotal - itemsBought, 0),
+    plannedCost: pesosFromCentavos(acquire),
+    actualCost: pesosFromCentavos(actualCost),
   };
 }
 

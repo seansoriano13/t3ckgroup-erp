@@ -4,6 +4,7 @@
 
 import { REFUSAL } from "../constants/refusal";
 import { finiteNumber, isPhpCurrency } from "./landedCost";
+import { matchesSearch, sorSearchFields } from "./sorSearch";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { deriveTransmittalTrack } from "./ipasTransmittals";
 import {
@@ -220,6 +221,7 @@ export function shapeIpas(row, sors = [], extras = null) {
     salesReference: s.sales_reference,
     projectTitle: s.project_title,
     stageName: s.current_stage_name ?? null,
+    sorCode: s.sor_code ?? null,
   }));
   const poCancelledInOdoo = isPoCancelledInOdoo(row);
   const mismatch = sorMismatch(copy, shapedSors);
@@ -313,29 +315,45 @@ export function ipasErrorMessage(error, fallback = "Something went wrong.") {
 
 /**
  * The IPAS list's slices over shaped rows. `state` is a lifecycle state or
- * "all"; `entity`, `purpose` and `computationStatus` are exact; `search` matches the number, PO,
- * supplier and SOR references and titles.
+ * "all"; `entity`, `purpose`, `computationStatus` and `status` (the IPAS Status, from the row's
+ * `figures`) are exact; `search` matches the number, PO,
+ * supplier, SO number, SOR number and project name, case-insensitively.
  */
-export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, search = "" } = {}) {
-  const term = search.trim().toLowerCase();
+export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, status = null, search = "" } = {}) {
   return rows.filter((row) => {
     if (state !== "all" && row.state !== state) return false;
     if (entity && row.entity !== entity) return false;
     if (purpose && row.purpose !== purpose) return false;
+    // The IPAS Status is worked out by the IPAS figures (utils/ipasFigures.js), which the list puts on each row.
+    if (status && row.figures?.status !== status) return false;
     if (computationStatus === IPAS_SECTION_3_APPROVED_FILTER) {
       if (!row.section3Approved) return false;
     } else if (computationStatus && (row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING) !== computationStatus) {
       return false;
     }
-    if (!term) return true;
-    const haystack = [
-      row.number,
-      row.po_number,
-      row.supplier,
-      ...row.sors.flatMap((s) => [s.salesReference, s.projectTitle]),
-    ];
-    return haystack.some((field) => field?.toLowerCase().includes(term));
+    return matchesSearch(search, [row.number, row.po_number, row.supplier, ...row.sors.flatMap(sorSearchFields)]);
   });
+}
+
+/**
+ * Who raised the IPAS the way the sheet's Created By did: "1001 · Name", or
+ * just the name when they have no Call Sign. Null when the raiser is unknown.
+ */
+export function raisedByParts(row) {
+  const name = row?.creator?.name?.trim();
+  if (!name) return null;
+  const callSign = row.creator.call_sign?.trim();
+  return { callSign: callSign || null, name };
+}
+
+/**
+ * One SOR as Purchasing writes it: the SO number and the project name
+ * ("S04081 · Rescue Vehicle"), or the SOR number when it has no SO number yet
+ * ("SOR-198 · Rescue Vehicle"). `reference` is that leading number.
+ */
+export function sorLineParts(sor) {
+  const reference = sor.salesReference?.trim() || sor.sorCode?.trim() || null;
+  return { reference, project: sor.projectTitle?.trim() || null };
 }
 
 /**

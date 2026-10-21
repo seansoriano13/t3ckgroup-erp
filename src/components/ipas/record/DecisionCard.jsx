@@ -29,6 +29,7 @@ export default function DecisionCard({ ctx, digest, onReview, next }) {
 
   return (
     <RecordCard
+      split
       status={statusLine(digest, digest.gates, offered)}
       next={next && { to: `/purchasing/ipas/${next.ipasId}`, label: `Next IPAS waiting for me: ${next.number}` }}
       groups={[

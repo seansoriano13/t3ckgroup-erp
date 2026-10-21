@@ -3,6 +3,7 @@ import { stubs } from "@/test/msw/postgrest"
 import { db, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { computeLandedCost } from "@/test/stubs/landedCostFake"
+import { formatDay } from "@/utils/ipasPayments"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
@@ -361,24 +362,50 @@ export function stubIpasRpcs({
     return updated
   })
 
+  const squash = (value) => String(value || "").toLowerCase().replace(/[\s-]/g, "")
+  const sorSummary = (o) => ({
+    opportunity_id: o.id,
+    sor_code: o.sor_code ?? (o.serial_no != null ? `SOR-${o.serial_no}` : null),
+    sales_reference: o.sales_reference ?? null,
+    project_title: o.project_title,
+    current_stage_name: findRow("flow_stages", o.flow_stage_id)?.name ?? null,
+  })
+  const liveSor = (o) => !o.is_deleted && !o.is_scratch
+
+  // SOR number, SO number (Sales Reference and the older opportunity_no) or
+  // project, in any case; an SOR with no SO number is found too (#601).
   stubRpc("ipas_find_sors", (args) => {
     requirePurchasing("ipas_find_sors")
     const refs = (args.p_refs || []).map((r) => String(r).trim().toUpperCase())
     const term = String(args.p_search || "").trim().toLowerCase()
+    const squashed = squash(args.p_search)
     return rowsOf("sales_opportunities")
-      .filter((o) => !o.is_deleted && !o.is_scratch && o.sales_reference)
+      .filter(liveSor)
       .filter(
         (o) =>
-          refs.includes(o.sales_reference) ||
+          (o.sales_reference && refs.includes(o.sales_reference)) ||
           (term &&
-            [o.sales_reference, o.project_title].some((f) => String(f || "").toLowerCase().includes(term))),
+            ([o.sales_reference, o.opportunity_no, o.project_title].some((f) =>
+              String(f || "").toLowerCase().includes(term),
+            ) ||
+              (squashed && squash(sorSummary(o).sor_code).includes(squashed)))),
       )
-      .map((o) => ({
-        opportunity_id: o.id,
-        sales_reference: o.sales_reference,
-        project_title: o.project_title,
-        current_stage_name: findRow("flow_stages", o.flow_stage_id)?.name ?? null,
-      }))
+      .map(sorSummary)
+  })
+
+  // The caller's last five SORs named on an IPAS they raised, newest first.
+  stubRpc("ipas_recent_sors", () => {
+    requirePurchasing("ipas_recent_sors")
+    const mine = new Set(rowsOf("ipas").filter((i) => i.created_by === actorId).map((i) => i.id))
+    const seen = new Set()
+    const recent = []
+    for (const link of [...rowsOf("ipas_sors")].reverse()) {
+      if (!mine.has(link.ipas_id) || seen.has(link.opportunity_id)) continue
+      seen.add(link.opportunity_id)
+      const sor = findRow("sales_opportunities", link.opportunity_id)
+      if (sor && liveSor(sor)) recent.push(sorSummary(sor))
+    }
+    return recent.slice(0, 5)
   })
 
   stubRpc("ipas_sor_headers", (args) => {
@@ -396,6 +423,7 @@ export function stubIpasRpcs({
           sales_reference: o?.sales_reference ?? null,
           project_title: o?.project_title ?? null,
           current_stage_name: (o && findRow("flow_stages", o.flow_stage_id)?.name) ?? null,
+          sor_code: o?.sor_code ?? (o?.serial_no != null ? `SOR-${o.serial_no}` : null),
         }
       })
   })
@@ -434,6 +462,7 @@ export function stubIpasRpcs({
       split: row.landed_cost_split || "value",
       computationStatus: row.computation_status || "encoding",
       filed: row.state === "filed",
+      referenceRates: rowsOf("currency_rates"),
     })
   })
 
@@ -501,6 +530,7 @@ export function stubIpasRpcs({
       split: row.landed_cost_split || "value",
       computationStatus: row.computation_status || "encoding",
       filed: row.state === "filed",
+      referenceRates: rowsOf("currency_rates"),
     })
     if (lc.lines.length === 0 && lc.status === "unavailable" && lc.reason !== "no_payments") return { landed_cost_total_php: null, landed_cost_mark: null }
     return { landed_cost_total_php: lc.totals?.landedPhp ?? null, landed_cost_mark: lc.status }
@@ -566,8 +596,44 @@ export function stubIpasRpcs({
           actual_checking_stamped: Boolean(row.actual_checking_by),
           actual_checking_at: row.actual_checking_at ?? null,
           slips,
+          on_hold: row.on_hold === true,
         }
       })
+  })
+
+  // #597: Purchasing or Finance sets and clears On-Hold on an open IPAS, with a history event per change.
+  stubRpc("ipas_set_on_hold", (args) => {
+    if (!canWriteMoney) refuse("42501", "ipas_set_on_hold: only Purchasing or Finance puts an IPAS On-Hold")
+    const row = findRow("ipas", args.p_ipas_id)
+    if (!row) refuse("22023", `ipas_set_on_hold: IPAS ${args.p_ipas_id} not found`)
+    if (row.state === "filed") refuse("22023", `ipas_set_on_hold: ${row.number} is filed; a Super Admin reopens it first`)
+    if (row.state === "cancelled") refuse("22023", `ipas_set_on_hold: ${row.number} is cancelled`)
+    const onHold = args.p_on_hold === true
+    const note = onHold ? String(args.p_note ?? "").trim() || null : null
+    if (Boolean(row.on_hold) === onHold && (row.on_hold_note ?? null) === note) return row
+    // updateRow edits the stored row in place, so read what it was first.
+    const wasOnHold = Boolean(row.on_hold)
+    const previousNote = row.on_hold_note ?? null
+    const updated = updateRow("ipas", row, { on_hold: onHold, on_hold_note: note })
+    event(row.id, !onHold ? "on_hold_cleared" : wasOnHold ? "on_hold_changed" : "on_hold_set", {
+      note,
+      previous_note: previousNote,
+    })
+    return updated
+  })
+
+  // #597: which of these IPAS have history beyond the system's own entries.
+  stubRpc("ipas_worked_on", (args) => {
+    const system = ["created", "odoo_copy_changed", "filled_from_odoo", "odoo_changed_since_filing", "on_hold_set", "on_hold_changed", "on_hold_cleared"]
+    const wanted = new Set(args.p_ipas_ids ?? [])
+    return [
+      ...new Set(
+        rowsOf("ipas_events")
+          .filter((e) => wanted.has(e.ipas_id) && !system.includes(e.kind))
+          .filter((e) => !(e.kind === "approvals_cleared" && e.detail?.reason === "PO changed in Odoo"))
+          .map((e) => e.ipas_id),
+      ),
+    ]
   })
 
   /** The helper both resets share: clears the live approvals of the given stored sections (1 and 3 unless told otherwise; an Account # flag passes only 3), returns { sections, preparers }. */
@@ -803,6 +869,17 @@ export function stubIpasRpcs({
       if (!STATUSES.includes(to)) {
         refuse("22023", "ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done")
       }
+      if (to === "lc_odoo_done" && to !== (row.computation_status ?? "encoding") && !isPhpCopy(row.odoo_copy)) {
+        // #604: a final Landed Cost needs the pesos actually taken from the bank; names the payments.
+        const KIND = { down_payment: "Down payment", payment: "Payment", full_payment: "Full payment", shipping_fee: "Shipping fee" }
+        const blanks = rowsOf("ipas_payments")
+          .filter((p) => p.ipas_id === row.id && (p.php_debited ?? null) === null)
+          .sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+          .map((p) => `${KIND[p.kind] ?? p.kind} of ${String(row.odoo_copy?.po?.currency).trim().toUpperCase()} ${Number(p.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} on ${formatDay(p.paid_on)}`)
+        if (blanks.length) {
+          refuse("22023", `ipas_set_header: LC Odoo Done needs the pesos taken from the bank on every foreign-currency payment. Still blank: ${blanks.join("; ")}`)
+        }
+      }
       if (to !== (row.computation_status ?? "encoding")) {
         next.computation_status = to
         note("computation_status", row.computation_status ?? "encoding", to)
@@ -937,8 +1014,16 @@ export function stubIpasRpcs({
 
     let php = args.p_php_debited == null ? null : round2(Number(args.p_php_debited))
     if (isPhpCopy(ipas.odoo_copy)) php = null
-    else if (php === null || !(php > 0)) {
-      refuse("22023", `${fn}: ${ipas.number} is a foreign-currency PO; give the PHP actually debited`)
+    else {
+      // #604: the pesos taken from the bank may be blank; a figure that is given has to make sense.
+      if (php !== null && !(php > 0)) {
+        refuse("22023", `${fn}: the pesos taken from the bank must be more than zero, or left blank until the bank statement arrives`)
+      }
+      // Final at LC Odoo Done and at any status after it.
+      if (php === null && ["lc_odoo_done", "costs_complete", "checked"].includes(ipas.computation_status)) {
+        const at = ipas.computation_status === "lc_odoo_done" ? "at" : "past"
+        refuse("22023", `${fn}: ${ipas.number} is ${at} LC Odoo Done, so Landed Cost is final; give the pesos taken from the bank`)
+      }
     }
     const label = checkOption(fn, args.p_method_id, "payment_method", currentMethod, "payment method")
     const proof = clean(args.p_proof_url)
@@ -1412,6 +1497,11 @@ export function stubIpasRpcs({
     let filedIpas = ipas
     if (section === 7 && role === "approved") {
       filedIpas = updateRow("ipas", ipas, { state: "filed", filed_at: new Date().toISOString() })
+      // Filing clears On-Hold (#597), as the database trigger does.
+      if (ipas.on_hold) {
+        filedIpas = updateRow("ipas", filedIpas, { on_hold: false, on_hold_note: null })
+        event(ipas.id, "on_hold_cleared", { note: null, previous_note: ipas.on_hold_note ?? null, reason: "filed" })
+      }
       event(ipas.id, "filed", { computation_status: ipas.computation_status, signoff_id: signoff.id })
       stage = "filed"
     } else if (role === "prepared") {
@@ -1637,7 +1727,7 @@ export function stubIpasRpcs({
  */
 export function seedIpasOptions(seed) {
   const lists = {
-    payment_method: ["Alipay", "Bank Deposit", "Bank TT", "Cash", "Credit Card", "Dated Check", "Petnet", "Western Union", "Alibaba", "Paypal", "Other"],
+    payment_method: ["Alipay", "Bank Deposit", "Bank TT", "Cash", "Credit Card", "Dated Check", "Petnet", "Western Union", "Alibaba", "Paypal", "Others"],
     charge_kind: ["Brokerage Fee", "Delivery Fee", "Destination Charges", "Duties & Taxes", "Origin Charges", "Processing Fee", "Truck Rental"],
     freight_service: ["Ahead", "AVV", "DHL", "FedEx", "UPS", "Wide Range", "DSV", "TD Express Air", "TD Express Sea", "Other"],
   }

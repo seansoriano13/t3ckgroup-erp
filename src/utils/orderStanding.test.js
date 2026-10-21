@@ -143,3 +143,39 @@ describe("Filing waits for section 3 (#590)", () => {
     expect(standing.ruleDays).toBeNull();
   });
 });
+
+describe("On-Hold (#597)", () => {
+  const rules = [{ step: "purchase_order", days: 1 }];
+  const held = (extra = {}) => ({
+    ...order([]),
+    onHold: true,
+    updatedAt: "2026-10-10T00:00:00Z",
+    buyerTrack: [{ key: "purchase_order", ticked: false, on: false }],
+    ...extra,
+  });
+
+  it("waits on someone else, whatever step it was at", () => {
+    const standing = orderStanding(held(), rules, TODAY);
+    expect(standing.group).toBe("waiting_on_others");
+    expect(standing.next.label).toBe("On-Hold");
+    expect(standing.next.step).toBe("on_hold");
+  });
+
+  it("never counts as late, even past an ageing rule it would otherwise break", () => {
+    const standing = orderStanding(held(), rules, TODAY);
+    expect(standing.late).toBe(false);
+    expect(standing.ruleDays).toBeNull();
+    expect(standing.daysPastRule).toBeNull();
+    const free = orderStanding(held({ onHold: false }), rules, TODAY);
+    expect(free.late).toBe(true);
+    expect(free.group).toBe("needs_chasing");
+  });
+
+  it("counts how long it has been held from the last change", () => {
+    expect(orderStanding(held(), rules, TODAY).daysWaiting).toBe(10);
+  });
+
+  it("a filed order is Filed even if the flag were stale", () => {
+    expect(orderStanding(held({ state: "filed" }), rules, TODAY).group).toBe("filed");
+  });
+});

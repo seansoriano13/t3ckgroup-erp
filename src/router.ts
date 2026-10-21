@@ -14,6 +14,7 @@ export type Path =
   | `/approvals/tasks`
   | `/approvals/transmittals`
   | `/bug-reports`
+  | `/costing-matrix`
   | `/crm`
   | `/crm/commission`
   | `/crm/commission-formula`

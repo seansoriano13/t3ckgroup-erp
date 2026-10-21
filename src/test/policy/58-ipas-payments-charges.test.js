@@ -107,7 +107,7 @@ beforeAll(async () => {
     methodIds = {
         check: await optionId("payment_method", "Dated Check"),
         alipay: await optionId("payment_method", "Alipay"),
-        other: await optionId("payment_method", "Other"),
+        other: await optionId("payment_method", "Others"),
     }
     kindIds = {
         brokerage: await optionId("charge_kind", "Brokerage Fee"),
@@ -137,13 +137,13 @@ describe("the new tables are protected", () => {
 })
 
 describe("the option lists", () => {
-    it("start from the sheet's values: the payment methods run Alipay to Other, and there are seven charge kinds", async () => {
+    it("start from the sheet's values: the payment methods run Alipay to Others, and there are seven charge kinds", async () => {
         const { data } = await svc().from("ipas_options").select("list, label, sort, active").order("sort")
         const labels = (list) => data.filter((o) => o.list === list && o.active).map((o) => o.label)
 
         const methods = labels("payment_method")
         expect(methods[0]).toBe("Alipay")
-        expect(methods.at(-1)).toBe("Other")
+        expect(methods.at(-1)).toBe("Others")
         expect(methods).toContain("Dated Check")
         expect(labels("charge_kind")).toHaveLength(7)
         expect(labels("freight_service").length).toBeGreaterThan(0)
@@ -269,12 +269,14 @@ describe("recording payments", () => {
         expect(Number((await paymentRow(row.id)).amount)).toBe(500)
     })
 
-    it("refuses a foreign-currency payment with no PHP debited, and says so in a sentence", async () => {
+    // #604: "Pesos taken from the bank" is optional; a figure that is given still has to be above zero.
+    // The blank-save and LC Odoo Done rules are 116-ipas-pesos-taken-from-the-bank.
+    it("refuses a foreign-currency payment whose pesos taken from the bank aren't more than zero, and says so in a sentence", async () => {
         const usd = await raise("USD")
-        for (const php of [null, 0, -5]) {
+        for (const php of [0, -5]) {
             const { error } = await addPayment("outsider", usd.id, { p_php_debited: php })
             expect(error?.code).toBe("22023")
-            expect(error?.message).toMatch(/PHP actually debited/)
+            expect(error?.message).toMatch(/pesos taken from the bank must be more than zero/)
         }
         const { data } = await svc().from("ipas_payments").select("id").eq("ipas_id", usd.id)
         expect(data).toEqual([])
@@ -403,11 +405,13 @@ describe("changing and removing payments", () => {
     it("holds a changed payment to the same rules as a new one", async () => {
         const usd = await raise("USD")
         const { data: row } = await addPayment("outsider", usd.id, { p_amount: 100, p_php_debited: 5600 })
-        const noPhp = await update("outsider", row.id, { p_amount: 100, p_php_debited: null })
-        expect(noPhp.error?.code).toBe("22023")
         const zero = await update("outsider", row.id, { p_amount: 0, p_php_debited: 5600 })
         expect(zero.error?.code).toBe("22023")
         expect(Number((await paymentRow(row.id)).php_debited)).toBe(5600)
+        // #604: the pesos taken from the bank may be blanked again (Landed Cost is then an estimate).
+        const noPhp = await update("outsider", row.id, { p_amount: 100, p_php_debited: null })
+        expect(noPhp.error).toBeNull()
+        expect((await paymentRow(row.id)).php_debited).toBeNull()
     })
 
     it("is refused to anyone without Purchasing or Finance access", async () => {

@@ -167,7 +167,7 @@ describe("IPAS section 7 and Filing", () => {
 
       renderDetail(row.id, "filing");
       // The drawer's footer carries the step; the card repeats it.
-      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
       expect(within(drawer).getByRole("button", { name: /Receive/ })).toBeInTheDocument();
       expect(within(drawer).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
 
@@ -193,7 +193,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderDetail(row.id, "filing");
-      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
       await user.click(within(drawer).getByRole("button", { name: "Return section 4" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Return section 4?" });
@@ -219,7 +219,7 @@ describe("IPAS section 7 and Filing", () => {
       approvedFirstSections(early);
       signIn(noter);
       const { unmount } = renderDetail(early.id, "filing");
-      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
       expect(within(drawer).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
       unmount();
 
@@ -228,7 +228,7 @@ describe("IPAS section 7 and Filing", () => {
       signoff(given.id, 7, "received", receiver);
       signIn(superAdmin, { superAdmin: true });
       const second = renderDetail(given.id, "filing");
-      const drawer2 = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer2 = await screen.findByRole("region", { name: "4 · Filing" });
       expect(within(drawer2).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
       second.unmount();
 
@@ -239,7 +239,7 @@ describe("IPAS section 7 and Filing", () => {
       signIn(noter);
       renderDetail(filed.id, "filing");
       await screen.findByTestId("ipas-filed-notice");
-      const drawer3 = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer3 = await screen.findByRole("region", { name: "4 · Filing" });
       expect(within(drawer3).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
     });
 
@@ -276,7 +276,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderDetail(row.id, "filing");
-      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
       await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
 
       const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
@@ -301,7 +301,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderDetail(row.id, "filing");
-      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
       await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
 
       const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
@@ -323,7 +323,7 @@ describe("IPAS section 7 and Filing", () => {
       renderDetail(row.id, "filing");
       // Offered from a stale read: Costs complete here, then the status moves underneath.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "lc_odoo_done";
-      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
       await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoding";
       const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });

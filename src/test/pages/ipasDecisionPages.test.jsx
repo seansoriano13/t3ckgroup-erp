@@ -131,15 +131,16 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(within(region).getByText("Waiting for you: 1 · Purchasing")).toBeInTheDocument();
   });
 
-  it("opens the right drawer from the Also waiting for you line, where the section's own button lives", async () => {
+  it("opens the right section from the Also waiting for you line, where the section's own button lives", async () => {
     const user = setupUser();
     const row = ipas();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
     await user.click(within(region).getByRole("button", { name: "section 2" }));
-    const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
-    expect(within(drawer).getByRole("button", { name: "Submit section 2" })).toBeInTheDocument();
+    const section = await screen.findByRole("region", { name: "2 · Purchasing & Finance" });
+    expect(screen.getByRole("button", { name: /^2 · Purchasing & Finance/ })).toHaveAttribute("aria-expanded", "true");
+    expect(await within(section).findByRole("button", { name: "Submit section 2" })).toBeInTheDocument();
   });
 
   it("keeps the next LC step in its own group below the sign-offs, with a divider", async () => {
@@ -289,14 +290,14 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(within(dialog).getByPlaceholderText("Why is this filed IPAS being reopened?")).toBeInTheDocument();
   });
 
-  it("below the wide breakpoint, the sections come before the card and the chain sits behind a toggle", async () => {
+  it("puts the card before the sections, and below the wide breakpoint the chain sits behind a toggle", async () => {
     stubWide(false);
     const row = ipas();
     renderDetail(row.id);
 
     const sections = await screen.findByRole("heading", { name: "Sections" });
     const yourMove = screen.getByRole("heading", { name: "Your move" });
-    expect(sections.compareDocumentPosition(yourMove) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(yourMove.compareDocumentPosition(sections) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     expect(screen.queryByRole("group", { name: /^Section 1, Purchasing/ })).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: "Where it stands · 0 of 7" });

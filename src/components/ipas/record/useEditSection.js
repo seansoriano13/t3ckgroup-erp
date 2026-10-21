@@ -6,12 +6,11 @@ const PARAM = "edit";
 
 /**
  * The section open in the edit view, kept in `?edit=<key>`. Entering it from
- * the drawer replaces the `?open=` entry, so the history reads [overview,
- * overview with ?edit=] and Back lands on the overview; entering it any other
- * way pushes an entry. Leaving (its link, or Back) replaces the entry. Entering
- * it drops `?open=`: the drawer closes as the view opens. Leaving (its link, or
- * Back) replaces the entry and lands on that section's `?open=` (its drawer, or
- * expanded under its row), where the person was before editing.
+ * a link that carried `?open=` replaces that entry, so the history reads
+ * [overview, overview with ?edit=] and Back lands on the overview; entering it
+ * any other way pushes an entry. Entering it drops `?open=`. Leaving (its
+ * link, or Back) replaces the entry and lands on that section's `?open=` (the
+ * section opens and is scrolled to), where the person was before editing.
  */
 export function useEditSection() {
   const [params, setParams] = useSearchParams();

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import toast from "react-hot-toast";
 import { MemoryRouter, Route, Routes, RouterProvider, createMemoryRouter } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
@@ -127,12 +127,12 @@ describe("IPAS signing with the evidence in view", () => {
     toastSpy = null;
   });
 
-  describe("the drawer", () => {
+  describe("the section blocks", () => {
     it("shows the viewer's moves for the section in a pinned footer, and the body only reads", async () => {
       const row = ipas();
       renderDetail(row.id, "purchasing");
 
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       const body = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(body).queryByRole("button")).not.toBeInTheDocument();
       expect(within(body).getByText("Not submitted")).toBeInTheDocument();
@@ -155,7 +155,7 @@ describe("IPAS signing with the evidence in view", () => {
       signIn(approver);
       renderDetail(row.id, "filing");
 
-      const drawer = await screen.findByRole("dialog", { name: "4 · Filing" });
+      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
       expect(within(drawer).getByTestId("ipas-filing")).toBeInTheDocument();
       expect(within(drawer).queryByTestId("ipas-give-received")).not.toBeInTheDocument();
       expect(within(drawer).getByRole("button", { name: "Receive section 4" })).toBeInTheDocument();
@@ -177,7 +177,7 @@ describe("IPAS signing with the evidence in view", () => {
       const row = ipas();
       renderDetail(row.id, "purchasing");
 
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       expect(within(drawer).queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
       expect(within(drawer).queryByRole("button", { name: /^Edit P\.I/ })).not.toBeInTheDocument();
       expect(within(drawer).getByRole("button", { name: "Edit section" })).toBeInTheDocument();
@@ -187,17 +187,19 @@ describe("IPAS signing with the evidence in view", () => {
       const row = ipas();
       signIn(approver);
       renderDetail(row.id, "purchasing");
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       expect(within(drawer).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
     });
 
-    it("Edit section opens the edit view with the tables editable, and Back to preview returns to that section's drawer", async () => {
+    it("Edit section opens the edit view with the tables editable, and Back to preview returns to that section, open", async () => {
       const row = ipas();
       renderRouted(row.id);
       const user = setupUser();
 
-      await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      // Section 1 is the one waiting on the purchaser, so it is open on arrival.
+      const header = await screen.findByRole("button", { name: /^1 · Purchasing/ });
+      await waitFor(() => expect(header).toHaveAttribute("aria-expanded", "true"));
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Edit section" }));
 
       expect(await screen.findByRole("button", { name: "Add payment" })).toBeInTheDocument();
@@ -205,21 +207,21 @@ describe("IPAS signing with the evidence in view", () => {
       expect(screen.queryByRole("region", { name: "Your move" })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: "Back to preview" }));
-      // The drawer it was opened from comes back, with the section's read-only body.
-      expect(await screen.findByRole("dialog", { name: "1 · Purchasing" })).toBeInTheDocument();
+      // The section it was edited from comes back open, with its read-only body.
+      expect(await screen.findByRole("button", { name: /^1 · Purchasing/ })).toHaveAttribute("aria-expanded", "true");
       expect(screen.queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
     });
 
-    it("Edit section from the drawer, then Back, lands on the overview with the row focused and no drawer", async () => {
+    it("Edit section, then Back, lands on the overview with the section's header focused", async () => {
       const row = ipas();
       const router = renderRouted(row.id);
       const user = setupUser();
 
-      await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const header = await screen.findByRole("button", { name: /^1 · Purchasing/ });
+      await waitFor(() => expect(header).toHaveAttribute("aria-expanded", "true"));
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Edit section" }));
       await screen.findByRole("button", { name: "Back to preview" });
-      // The drawer's entry was replaced, not stacked under the edit view.
       expect(router.state.location.search).toBe("?edit=purchasing");
 
       await act(() => router.navigate(-1));
@@ -267,7 +269,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id, "purchasing");
       const user = setupUser();
 
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Submit section 1" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Submit section 1?" });
@@ -278,46 +280,20 @@ describe("IPAS signing with the evidence in view", () => {
       await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.role === "prepared")).toHaveLength(1));
     });
 
-    it("steps with J and K, and Back closes it (opening pushed the entry)", async () => {
+    it("toggling a section leaves the address alone, so Back leaves the page rather than replaying toggles", async () => {
       const row = ipas();
       const router = renderRouted(row.id);
       const user = setupUser();
 
-      await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
-      await screen.findByRole("dialog", { name: "1 · Purchasing" });
-      expect(router.state.location.search).toBe("?open=purchasing");
-
-      fireEvent.keyDown(window, { key: "j" });
-      expect(await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" })).toBeInTheDocument();
-      fireEvent.keyDown(window, { key: "k" });
-      expect(await screen.findByRole("dialog", { name: "1 · Purchasing" })).toBeInTheDocument();
-      // K at the first section does nothing.
-      fireEvent.keyDown(window, { key: "k" });
-      expect(screen.getByRole("dialog", { name: "1 · Purchasing" })).toBeInTheDocument();
-
-      await act(() => router.navigate(-1));
-      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
+      await user.click(await screen.findByRole("button", { name: /^6 · Logistics/ }));
+      expect(screen.getByRole("button", { name: /^6 · Logistics/ })).toHaveAttribute("aria-expanded", "true");
       expect(router.state.location.search).toBe("");
-    });
-
-    it("ignores J while a field has the focus", async () => {
-      const row = ipas();
-      renderDetail(row.id, "purchasing");
-      await screen.findByRole("dialog", { name: "1 · Purchasing" });
-      // A field outside React's tree, so the page's own markup is left alone.
-      const field = document.createElement("input");
-      document.body.appendChild(field);
-      field.focus();
-
-      fireEvent.keyDown(field, { key: "j" });
-      field.remove();
-      expect(screen.getByRole("dialog", { name: "1 · Purchasing" })).toBeInTheDocument();
     });
 
     it("has no N of 9 caption", async () => {
       const row = ipas();
       renderDetail(row.id, "purchasing");
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       expect(within(drawer).queryByText(/\d+ of \d+/)).not.toBeInTheDocument();
     });
   });
@@ -357,13 +333,13 @@ describe("IPAS signing with the evidence in view", () => {
       expect(db.rows("ipas_signoffs").filter((s) => s.role === "approved")).toEqual([]);
     });
 
-    it("offers a Review section link that opens the drawer for that move's section", async () => {
+    it("offers a Review section link that opens that move's section", async () => {
       const row = ipas();
       renderDetail(row.id);
       const user = setupUser();
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Review section 1 · Purchasing" }));
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       expect(within(drawer).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
     });
 
@@ -433,7 +409,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id, "purchasing");
       const user = setupUser();
 
-      const drawer = await screen.findByRole("dialog", { name: "1 · Purchasing" });
+      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Approve section 1" }));
       await confirmMove(user, "Approve section 1", "Approve");
 
@@ -599,13 +575,13 @@ describe("IPAS signing with the evidence in view", () => {
     it("offers no Submit before LC Odoo Done, and Submit once it is reached", async () => {
       const early = ipas({ computation_status: "lc_gs_done" });
       const view = renderDetail(early.id, "costing");
-      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      const drawer = await screen.findByRole("region", { name: TITLE });
       expect(within(drawer).queryByRole("button", { name: /^Submit section 3/ })).not.toBeInTheDocument();
       view.unmount();
 
       const ready = ipas({ computation_status: "lc_odoo_done" });
       renderDetail(ready.id, "costing");
-      const open = await screen.findByRole("dialog", { name: TITLE });
+      const open = await screen.findByRole("region", { name: TITLE });
       expect(await within(open).findByRole("button", { name: `Submit section 3` })).toBeInTheDocument();
     });
 
@@ -615,7 +591,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id, "costing");
       const user = setupUser();
 
-      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      const drawer = await screen.findByRole("region", { name: TITLE });
       await user.click(await within(drawer).findByRole("button", { name: `Submit section 3` }));
       const dialog = await screen.findByRole("dialog", { name: `Submit section 3?` });
       await user.click(within(dialog).getByRole("button", { name: "Submit" }));
@@ -632,14 +608,14 @@ describe("IPAS signing with the evidence in view", () => {
 
       signIn(purchaser);
       const mine = renderDetail(row.id, "costing");
-      const own = await screen.findByRole("dialog", { name: TITLE });
+      const own = await screen.findByRole("region", { name: TITLE });
       expect(within(own).queryByRole("button", { name: `Approve section 3` })).not.toBeInTheDocument();
       mine.unmount();
 
       signIn(approver);
       renderDetail(row.id, "costing");
       const user = setupUser();
-      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      const drawer = await screen.findByRole("region", { name: TITLE });
       await user.click(await within(drawer).findByRole("button", { name: `Approve section 3` }));
       const dialog = await screen.findByRole("dialog", { name: `Approve section 3?` });
       await user.click(within(dialog).getByRole("button", { name: "Approve" }));

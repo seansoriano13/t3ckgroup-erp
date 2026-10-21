@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasListPage from "@/pages/purchasing/ipas/index";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
@@ -7,7 +7,7 @@ import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee, makeFlowStage, makeOpportunity, makeSuperAdmin } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
-import { stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -121,6 +121,132 @@ describe("IPAS pages", () => {
       expect(within(screen.getByTestId("ipas-row")).getByText("P02553")).toBeInTheDocument();
     });
 
+    it("shows each IPAS's Amount, Payment scheme, DP, FP and Remaining balance in its PO's currency (#596)", async () => {
+      const methods = seedIpasOptions((table, row) => db.seed(table, row)).payment_method;
+      const usdCopy = copy("P02600");
+      usdCopy.po = { ...usdCopy.po, currency: "USD", amount_total: 2000 };
+      // One typed P.I with a down payment and a cash top-up, one that falls back to the Odoo total with a full payment (withholding: paid less than the Amount),
+      // and one old copy without totals.
+      const typed = ipas({ po_number: "P02552", pi_qt_amount: 10000 });
+      const settled = ipas({ po_number: "P02600", odoo_copy: usdCopy });
+      const old = ipas({ po_number: "P02700" });
+      const pay = (row, kind, amount, method, paidOn) =>
+        db.seed("ipas_payments", { ipas_id: row.id, kind, amount, method_id: methods[method].id, paid_on: paidOn, charge_fee_php: 0 });
+      pay(typed, "down_payment", 3000, "Bank TT", "2026-10-01");
+      pay(typed, "payment", 1000, "Cash", "2026-10-02");
+      pay(typed, "payment", 500, "Bank TT", "2026-10-03");
+      pay(settled, "full_payment", 1800, "Cash", "2026-10-02");
+
+      renderList();
+
+      const rowOf = async (po) => (await screen.findAllByTestId("ipas-row")).find((r) => within(r).queryByText(po));
+      const typedRow = await rowOf("P02552");
+      expect(within(typedRow).getByTestId("ipas-row-amount")).toHaveTextContent("₱10,000.00");
+      expect(within(typedRow).getByTestId("ipas-row-amount-source")).toHaveTextContent("P.I/QT");
+      expect(within(typedRow).getByTestId("ipas-row-scheme")).toHaveTextContent("Bank TT + Cash");
+      expect(within(typedRow).getByTestId("ipas-row-dp")).toHaveTextContent("₱3,000.00");
+      expect(within(typedRow).getByTestId("ipas-row-fp")).toHaveTextContent("—");
+      expect(within(typedRow).getByTestId("ipas-row-remaining")).toHaveTextContent("₱5,500.00");
+
+      const settledRow = await rowOf("P02600");
+      expect(within(settledRow).getByTestId("ipas-row-amount")).toHaveTextContent("$2,000.00");
+      expect(within(settledRow).getByTestId("ipas-row-amount-source")).toHaveTextContent("Odoo PO");
+      expect(within(settledRow).getByTestId("ipas-row-fp")).toHaveTextContent("$1,800.00");
+      expect(within(settledRow).getByTestId("ipas-row-remaining")).toHaveTextContent("$0.00");
+
+      const oldRow = await rowOf(old.po_number);
+      expect(within(oldRow).getByTestId("ipas-row-amount")).toHaveTextContent("₱7,500.00");
+      expect(within(oldRow).getByTestId("ipas-row-amount-source")).toHaveTextContent("Odoo PO · before tax");
+      expect(within(oldRow).getByTestId("ipas-row-scheme")).toHaveTextContent("—");
+    });
+
+    it("shows each IPAS's Status pill, worked out from the IPAS (#597)", async () => {
+      const methods = seedIpasOptions((table, row) => db.seed(table, row)).payment_method;
+      const pending = ipas({ po_number: "P02552" });
+      const ongoing = ipas({ po_number: "P02553" });
+      const paid = ipas({ po_number: "P02554" });
+      const held = ipas({ po_number: "P02555", on_hold: true, on_hold_note: "Supplier issue" });
+      const done = ipas({ po_number: "P02556", state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
+      const cancelled = ipas({ po_number: "P02557", state: "cancelled", cancel_reason: "Dropped", cancelled_at: "2026-10-13T03:00:00.000Z" });
+      db.seed("ipas_payments", { ipas_id: ongoing.id, kind: "down_payment", amount: 100, method_id: methods["Bank TT"].id, paid_on: "2026-10-01", charge_fee_php: 0 });
+      db.seed("ipas_payments", { ipas_id: paid.id, kind: "full_payment", amount: 100, method_id: methods["Bank TT"].id, paid_on: "2026-10-01", charge_fee_php: 0 });
+
+      const user = setupUser();
+      renderList();
+
+      const pillOf = async (po) => {
+        const row = (await screen.findAllByTestId("ipas-row")).find((r) => within(r).queryByText(po));
+        return within(row).queryByTestId("ipas-status-pill");
+      };
+      expect((await pillOf(pending.po_number)).dataset.status).toBe("pending");
+      expect((await pillOf(ongoing.po_number)).dataset.status).toBe("ongoing");
+      expect((await pillOf(paid.po_number)).dataset.status).toBe("paid");
+      expect((await pillOf(held.po_number)).dataset.status).toBe("on_hold");
+
+      await user.click(screen.getByRole("tab", { name: /Filed/ }));
+      await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+      expect((await pillOf(done.po_number)).dataset.status).toBe("done");
+
+      await user.click(screen.getByRole("tab", { name: /Cancelled/ }));
+      await waitFor(() => expect(within(screen.getByTestId("ipas-row")).getByText(cancelled.po_number)).toBeInTheDocument());
+      expect(await pillOf(cancelled.po_number)).toBeNull();
+    });
+
+    it("filters by IPAS Status (#597)", async () => {
+      ipas({ po_number: "P02552" });
+      ipas({ po_number: "P02553", on_hold: true });
+      const user = setupUser();
+
+      renderList();
+      expect(await screen.findAllByTestId("ipas-row")).toHaveLength(2);
+
+      await user.click(screen.getByRole("button", { name: /Any IPAS Status/ }));
+      await user.click(await screen.findByRole("button", { name: "On-Hold" }));
+
+      await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+      expect(within(screen.getByTestId("ipas-row")).getByText("P02553")).toBeInTheDocument();
+    });
+
+    it("puts an open IPAS On-Hold from its pill with a note, and clears it again (#597)", async () => {
+      const row = ipas({ po_number: "P02552" });
+      const user = setupUser();
+
+      renderList();
+      await user.click(await screen.findByRole("button", { name: /Pending\. Put On-Hold/ }));
+      await user.type(await screen.findByPlaceholderText(/Why is it on hold/), "Waiting on the client");
+      await user.click(screen.getByRole("button", { name: "Put On-Hold" }));
+
+      await waitFor(() => expect(screen.getByTestId("ipas-status-pill").dataset.status).toBe("on_hold"));
+      expect(db.internal.rowsOf("ipas").find((r) => r.id === row.id)).toMatchObject({ on_hold: true, on_hold_note: "Waiting on the client" });
+      expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_set");
+      // The click on the pill did not open the IPAS behind it.
+      expect(screen.queryByText("The IPAS page")).not.toBeInTheDocument();
+
+      await user.click(await screen.findByRole("button", { name: /On-Hold\. Clear On-Hold/ }));
+      await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
+      await waitFor(() => expect(screen.getByTestId("ipas-status-pill").dataset.status).toBe("pending"));
+      expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_cleared");
+    });
+
+    it("lets Finance toggle On-Hold, and shows everyone else a read-only pill (#597)", async () => {
+      ipas({ po_number: "P02552" });
+      mockUser.current = finance;
+      stubIpasRpcs({ actorId: finance.id, money: true });
+      renderList();
+      expect(await screen.findByRole("button", { name: /Pending\. Put On-Hold/ })).toBeInTheDocument();
+    });
+
+    it("shows a read-only pill to a reader without Purchasing or Finance access (#597)", async () => {
+      ipas({ po_number: "P02552" });
+      const signer = makeEmployee({ name: "Signer" });
+      mockUser.current = signer;
+      stubIpasRpcs({ actorId: signer.id, purchasing: false, money: false });
+      renderList();
+      const pill = await screen.findByTestId("ipas-status-pill");
+      expect(pill.dataset.status).toBe("pending");
+      expect(screen.queryByRole("button", { name: /Put On-Hold/ })).not.toBeInTheDocument();
+    });
+
     it("shows a Project IPAS's SORs", async () => {
       const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" });
       const row = ipas({ purpose: "project" });
@@ -129,6 +255,109 @@ describe("IPAS pages", () => {
       renderList();
 
       expect(await screen.findByText("S07920")).toBeInTheDocument();
+    });
+
+    it("shows each SOR as SO number and project, or SOR number and project when it has no SO number", async () => {
+      const withSo = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", sor_code: "SOR-198", project_title: "Capas LGU" });
+      const withoutSo = makeOpportunity({ registered_by: salesperson.id, sales_reference: null, sor_code: "SOR-210", project_title: "Tarlac Depot" });
+      const row = ipas({ purpose: "project" });
+      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: withSo.id });
+      db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: withoutSo.id });
+
+      renderList();
+
+      const lines = within(await screen.findByTestId("ipas-row-sors")).getAllByRole("listitem");
+      expect(lines.map((li) => li.textContent)).toEqual(["S07920 · Capas LGU", "SOR-210 · Tarlac Depot"]);
+    });
+
+    it("shows who raised it by Call Sign and name, or just the name without a Call Sign", async () => {
+      const withSign = makeEmployee({ name: "Raquel Cruz", call_sign: "1001" });
+      const noSign = makeEmployee({ name: "Pat Reyes", call_sign: null });
+      ipas({ po_number: "P02552", created_by: withSign.id });
+      ipas({ po_number: "P02553", created_by: noSign.id });
+
+      renderList();
+
+      await screen.findAllByTestId("ipas-row");
+      const shown = screen.getAllByTestId("ipas-row-raised-by").map((el) => el.textContent);
+      expect(shown.sort()).toEqual(["1001 · Raquel Cruz", "Pat Reyes"]);
+    });
+
+    describe("searching", () => {
+      let capas, tarlac;
+
+      beforeEach(() => {
+        const capasSor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", sor_code: "SOR-198", project_title: "Capas LGU Rescue" });
+        const tarlacSor = makeOpportunity({ registered_by: salesperson.id, sales_reference: null, sor_code: "SOR-210", project_title: "Tarlac Depot" });
+        capas = ipas({ po_number: "P02552", purpose: "project" });
+        tarlac = ipas({ po_number: "P02553", purpose: "project" });
+        db.seed("ipas_sors", { ipas_id: capas.id, opportunity_id: capasSor.id });
+        db.seed("ipas_sors", { ipas_id: tarlac.id, opportunity_id: tarlacSor.id });
+      });
+
+      const highlighted = (row) => Array.from(row.querySelectorAll(".text-amber-11")).map((el) => el.textContent);
+
+      it("finds an IPAS by SOR number, case-insensitively, and highlights it", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "sor-210");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        const row = screen.getByTestId("ipas-row");
+        expect(within(row).getByText(tarlac.number)).toBeInTheDocument();
+        expect(highlighted(row).join("").toLowerCase()).toBe("sor-210");
+      });
+
+      it("finds an IPAS by SOR number even when the SOR has an SO number, and shows the SOR number it matched", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "SOR-198");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        const row = screen.getByTestId("ipas-row");
+        expect(within(row).getByText(capas.number)).toBeInTheDocument();
+        expect(highlighted(row)).toEqual(["SOR-198"]);
+      });
+
+      it("finds an IPAS by project name, case-insensitively, and highlights it", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "capas lgu");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        const row = screen.getByTestId("ipas-row");
+        expect(within(row).getByText(capas.number)).toBeInTheDocument();
+        expect(highlighted(row)).toEqual(["Capas LGU"]);
+      });
+
+      it("finds an IPAS by SO number and highlights it", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "s0792");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        expect(highlighted(screen.getByTestId("ipas-row"))).toEqual(["S0792"]);
+      });
+
+      it("finds an IPAS by Odoo PO and highlights it", async () => {
+        const user = setupUser();
+        renderList();
+        await screen.findAllByTestId("ipas-row");
+
+        await user.type(screen.getByPlaceholderText(/Search IPAS/), "p02553");
+
+        await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
+        expect(within(screen.getByTestId("ipas-row")).getByText(tarlac.number)).toBeInTheDocument();
+        expect(highlighted(screen.getByTestId("ipas-row"))).toEqual(["P02553"]);
+      });
     });
 
     it("says there are none yet", async () => {
@@ -237,12 +466,21 @@ describe("IPAS pages", () => {
 
       renderDetail(row.id, "purchasing");
 
-      // The drawer is modal, so the page behind it is hidden from role queries.
-      expect(await findOtherDialog()).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: /^1 · / })).toHaveAttribute("aria-expanded", "true");
       // The item shows in section 1 and again in Landed Cost (#244).
       expect((await screen.findAllByText("Greenspirit 2 Cutter")).length).toBeGreaterThan(0);
       expect(screen.getByText("SCORPE")).toBeInTheDocument();
       expect(screen.getByText(/Copy from Odoo, fetched/)).toBeInTheDocument();
+    });
+
+    it("shows the same IPAS Status and On-Hold note on the record as on the list (#597)", async () => {
+      const row = ipas({ po_number: "P02552", on_hold: true, on_hold_note: "Waiting on the client", created_by: purchaser.id });
+
+      renderDetail(row.id);
+
+      const region = await screen.findByTestId("ipas-record-status");
+      expect(within(region).getByTestId("ipas-status-pill").dataset.status).toBe("on_hold");
+      expect(within(region).getByTestId("ipas-record-on-hold-note")).toHaveTextContent("Waiting on the client");
     });
 
     it("shows the header facts in the Header section", async () => {
@@ -361,51 +599,75 @@ describe("IPAS pages", () => {
       expect(screen.getByRole("heading", { name: "Everything else" })).toBeInTheDocument();
     });
 
-    it("opens a section from ?open=, and Escape returns focus to its row", async () => {
+    // The record is a full page again: no list behind it, nothing is a dialog.
+    it("renders as a page at its own address: header, then the card, the money's place, then the sections", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      const user = setupUser();
+      renderDetail(row.id);
 
-      renderDetail(row.id, "finance");
-      expect(await screen.findByRole("dialog", { name: /^2 · / })).toBeInTheDocument();
-
-      await user.keyboard("{Escape}");
-
-      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
-      expect(screen.getByRole("button", { name: /^2 · / })).toHaveFocus();
-    });
-
-    // #533: a short section expands under its row, with no drawer.
-    it("expands Logistics in place from ?open=, with no drawer", async () => {
-      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
-      renderDetail(row.id, "logistics");
-
-      const trigger = await screen.findByRole("button", { name: /^6 · Logistics/ });
-      expect(trigger).toHaveAttribute("aria-expanded", "true");
-      expect(screen.getByText("Item Location")).toBeInTheDocument();
+      const title = await screen.findByRole("heading", { level: 1, name: row.number });
+      const card = await screen.findByRole("region", { name: "Your move" });
+      const slot = screen.getByTestId("ipas-money-summary-slot");
+      const sections = screen.getByRole("heading", { name: "Sections" });
+      const before = (a, b) => expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      before(title, card);
+      before(card, slot);
+      before(slot, sections);
+      expect(screen.getByRole("link", { name: "IPAS" })).toHaveAttribute("href", "/purchasing/ipas");
       expect(queryOtherDialog()).not.toBeInTheDocument();
     });
 
-    it("toggles a section of Everything else in place from its row, and J stays in Money and sign-offs", async () => {
+    it("toggles sections in place, several open at once, with Open all and Close all", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = setupUser();
       renderDetail(row.id);
 
-      const trigger = await screen.findByRole("button", { name: /^6 · Logistics/ });
-      expect(trigger).toHaveAttribute("aria-expanded", "false");
-      await user.click(trigger);
-      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      const logistics = await screen.findByRole("button", { name: /^6 · Logistics/ });
+      const history = screen.getByRole("button", { name: /^History/ });
+      expect(logistics).toHaveAttribute("aria-expanded", "false");
+      await user.click(logistics);
+      await user.click(history);
+      expect(logistics).toHaveAttribute("aria-expanded", "true");
+      expect(history).toHaveAttribute("aria-expanded", "true");
+      expect(await screen.findByText("Item Location")).toBeInTheDocument();
       expect(queryOtherDialog()).not.toBeInTheDocument();
-      await user.click(trigger);
-      expect(trigger).toHaveAttribute("aria-expanded", "false");
 
-      // From section 4, J goes nowhere: Everything else is not in the drawer's order.
-      await user.click(screen.getByRole("button", { name: /^3 · / }));
-      await screen.findByRole("dialog", { name: /^3 · / });
-      fireEvent.keyDown(window, { key: "j" });
-      expect(await screen.findByRole("dialog", { name: /^4 · / })).toBeInTheDocument();
-      fireEvent.keyDown(window, { key: "j" });
-      expect(screen.getByRole("dialog", { name: /^4 · / })).toBeInTheDocument();
-      expect(screen.queryByRole("dialog", { name: "Header" })).not.toBeInTheDocument();
+      await user.click(logistics);
+      expect(logistics).toHaveAttribute("aria-expanded", "false");
+      expect(history).toHaveAttribute("aria-expanded", "true");
+
+      await user.click(screen.getByRole("button", { name: "Open all" }));
+      expect(logistics).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("button", { name: "Open all" })).toBeDisabled();
+
+      await user.click(screen.getByRole("button", { name: "Close all" }));
+      expect(logistics).toHaveAttribute("aria-expanded", "false");
+      expect(history).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByRole("button", { name: "Close all" })).toBeDisabled();
+    });
+
+    it("opens the section ?open= names and scrolls to it, leaving the others shut", async () => {
+      const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      renderDetail(row.id, "finance");
+
+      const finance = await screen.findByRole("button", { name: /^2 · / });
+      expect(finance).toHaveAttribute("aria-expanded", "true");
+      expect(await screen.findByRole("region", { name: /^2 · / })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^1 · / })).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByRole("button", { name: /^6 · Logistics/ })).toHaveAttribute("aria-expanded", "false");
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(finance.closest("li"));
+      expect(queryOtherDialog()).not.toBeInTheDocument();
+      scrollIntoView.mockRestore();
+    });
+
+    it("opens the section that needs the viewer on arrival", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      renderDetail(row.id);
+
+      // A purchaser with nothing submitted yet owes section 1.
+      await waitFor(() => expect(screen.getByRole("button", { name: /^1 · / })).toHaveAttribute("aria-expanded", "true"));
+      expect(screen.getByRole("button", { name: /^6 · Logistics/ })).toHaveAttribute("aria-expanded", "false");
     });
 
     // Every section of Everything else is a dropdown; Header and Sales read there and edit in the edit view.
@@ -421,7 +683,7 @@ describe("IPAS pages", () => {
       // Read-only under the row: Remarks is edited in the edit view.
       expect(screen.queryByRole("button", { name: /^Edit Remarks/ })).not.toBeInTheDocument();
 
-      expect(screen.queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
+      expect(within(trigger.closest("li")).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Edit" }));
       expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
       expect(screen.getByRole("region", { name: "Header" })).toBeInTheDocument();
@@ -535,7 +797,7 @@ describe("IPAS pages", () => {
       await user.click(within(banner).getByRole("button", { name: "Dismiss" }));
 
       expect(screen.queryByText("Odoo didn't answer")).not.toBeInTheDocument();
-      expect(screen.getByText("Odoo PO, before tax")).toBeInTheDocument();
+      expect(screen.getByText("Supplier bill check: Odoo PO vs P.I")).toBeInTheDocument();
     });
 
     it("overrides Entity with Odoo's value beside it, and resets in one action", async () => {

@@ -3,6 +3,8 @@ export const ipasListKey = ["ipas", "list"];
 export const ipasKey = (id) => ["ipas", "one", id];
 export const ipasRefreshKey = (id) => ["ipas", "refresh", id];
 export const ipasSorSearchKey = (term) => ["ipas", "sor-search", term];
+/** The caller's last five SORs named on an IPAS (#601). */
+export const ipasRecentSorsKey = ["ipas", "recent-sors"];
 export const ipasOptionsKey = (list) => ["ipas", "options", list];
 /** The options a filed IPAS uses: those can't be renamed. */
 export const ipasFiledOptionsKey = ["ipas", "filed-options"];
@@ -16,3 +18,5 @@ export const ipasPendingKey = (employeeId) => [...ipasPendingPrefix, employeeId]
 export const ipasFilingWarningsKey = (id) => ["ipas", "filing-warnings", id];
 /** An SOR's IPAS summaries (#249). */
 export const ipasSorSummariesKey = (opportunityId) => ["ipas", "sor-summaries", opportunityId];
+/** The number the next IPAS will take (#600). */
+export const ipasNextNumberKey = ["ipas", "next-number"];

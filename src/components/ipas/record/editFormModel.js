@@ -260,13 +260,7 @@ export function requiredFields(form) {
     const n = `Payment ${i + 1}`;
     need("purchasing", `pay-${p.key}-paidOn`, `${n} date`, p.paidOn);
     need("purchasing", `pay-${p.key}-amount`, `${n} amount`, p.amount);
-    if (!form.isPhp)
-      need(
-        "purchasing",
-        `pay-${p.key}-phpDebited`,
-        `${n} PHP debited`,
-        p.phpDebited,
-      );
+    // "Pesos taken from the bank" is optional (#604): not a required field.
     need("purchasing", `pay-${p.key}-methodId`, `${n} method`, p.methodId);
   });
   form.charges.forEach((c, i) => {
@@ -336,8 +330,9 @@ function positive(raw) {
 function paymentProblem(p, isPhp) {
   if (!isIsoDate(p.paidOn)) return "Give the date of the payment.";
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
-  if (!isPhp && !positive(p.phpDebited))
-    return "PHP debited is required on a foreign-currency Odoo PO.";
+  // Blank is fine (#604); a figure that is given has to be a number above zero.
+  if (!isPhp && !blank(p.phpDebited) && !positive(p.phpDebited))
+    return "Pesos taken from the bank must be a number more than zero, or left blank.";
   if (!parseAmountInput(p.chargeFeePhp).ok)
     return "Charge fee must be a number.";
   if (!p.methodId) return "Pick the payment method.";

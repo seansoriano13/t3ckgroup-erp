@@ -1,7 +1,8 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
 import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
-import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, summary } from "../utils/costingMath";
+import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
+import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 import { canvassService } from "./canvassService";
@@ -423,18 +424,24 @@ async function attachSupplierMismatch(components, opportunityId) {
  * The money tier only: `landed_cost` = `{ total, unit, mark, blankReason }` on each Component, and
  * `totals.landedCost` on each Tender Line and on the matrix (costingMath.landedCostRollup). For any
  * other tier the `landed_cost` key is absent. Landed Cost feeds nothing else: markup, the summary,
- * Revenue and "Costing settled" were worked out before it arrives and never read it.
+ * Revenue and "Costing settled" were worked out before it arrives and never read it. The one
+ * exception is the Closed Book's `revenueComparison` (#605), Planned beside Actual Revenue, worked here
+ * because Actual needs the Landed Costs; `summary` itself is never changed by it.
  */
 async function withPurchases(shaped, opportunityId) {
   if (!shaped || !opportunityId) return shaped;
   const components = shaped.tenderLines.flatMap((line) => line.components);
   const money = tierReadsLandedCost(shaped.tier);
-  const [purchases, landed] = await Promise.all([
+  // Actual Revenue (#605) is the Closed Book's: it also needs to know whether any IPAS of the SOR is short.
+  const actual = tierReadsSummary(shaped.tier) && Boolean(shaped.summary);
+  const [purchases, landed, ipases] = await Promise.all([
     supabase.rpc("costing_component_purchases", { p_opportunity_id: opportunityId }),
     money ? supabase.rpc("costing_landed_costs", { p_opportunity_id: opportunityId }) : Promise.resolve({ data: null }),
+    actual ? supabase.rpc("ipas_summaries_for_sor", { p_opportunity_id: opportunityId }) : Promise.resolve({ data: null }),
   ]);
   if (purchases.error) throw purchases.error;
   if (landed.error) throw landed.error;
+  if (ipases.error) throw ipases.error;
 
   const purchasesBy = new Map((purchases.data ?? []).map((row) => [row.component_id, row]));
   const landedBy = new Map((landed.data ?? []).map((row) => [row.component_id, row]));
@@ -449,8 +456,13 @@ async function withPurchases(shaped, opportunityId) {
   }
   const { landedCost: _none, ...totals } = shaped.totals;
   shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines).landedCost } : totals;
+  // Planned Revenue is `summary.revenue`, untouched; Actual sits beside it, never inside it.
+  if (actual) shaped.revenueComparison = revenueComparison(revenueInputs(shaped, { ipasShort: (ipases.data ?? []).some(ipasShortOfLcOdooDone) }), shaped.rates);
   return shaped;
 }
+
+/** An open IPAS (from `ipas_summaries_for_sor`) that has not reached LC Odoo Done. Filed and cancelled ones never hold Actual back. */
+const ipasShortOfLcOdooDone = (row) => row.state === "open" && !["lc_odoo_done", "costs_complete", "checked"].includes(row.computation_status);
 
 const numberOrNull = (value) => (value === null || value === undefined || value === "" ? null : Number(value));
 
@@ -1008,6 +1020,17 @@ export const costingMatrixService = {
       abcTotal: row.abc_total === null || row.abc_total === undefined ? null : Number(row.abc_total),
       waitingSince: row.waiting_since,
     }));
+  },
+
+  /**
+   * The Costing Matrix page's rows (#606): every SOR with a Costing Matrix, with Planned and Actual
+   * Revenue worked from the database's per-SOR totals and the summary's rates (`shapeMatrixPage`).
+   * Closed Book only; the database refuses anyone else.
+   */
+  async matrixPage() {
+    const [read, settings] = await Promise.all([supabase.rpc("costing_matrix_page"), costingMatrixService.getSettings()]);
+    if (read.error) throw read.error;
+    return shapeMatrixPage(read.data, settings ?? DEFAULT_COSTING_SETTINGS);
   },
 };
 
