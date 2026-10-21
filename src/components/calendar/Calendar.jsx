@@ -17,6 +17,7 @@ import EntryDetail from '@/components/calendar/EntryDetail';
 import { LAYERS, visibleEntries } from '@/components/calendar/entryKinds.jsx';
 import { VIEWS, parseCalendarParams, shiftDate, viewRange, viewTitle } from '@/components/calendar/calendarNav.js';
 import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
+import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 
 const BODIES = { month: CalendarMonth, people: CalendarPeople, week: CalendarWeek, day: CalendarDay };
 
@@ -39,6 +40,7 @@ function CalendarBody({ view, ...props }) {
 export default function Calendar({ presetLayers = null, onWithdraw = null }) {
   const { user } = useAuth();
   const ctx = getPermissionContext(user);
+  useMeetingRealtime();
   const canSeePending = ctx.isHr || ctx.isSuperAdmin || ctx.canManageLeaves;
 
   const [params, setParams] = useSearchParams();

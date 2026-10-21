@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import PageLoading from '@/components/ui/PageLoading';
 import QueryError from '@/components/ui/QueryError';
@@ -8,6 +9,7 @@ import { formatManilaDateTime, manilaTime } from '@/lib/manilaDate.js';
 /** "My Meeting Requests": every request I filed, run as Facilitator, or am a Participant in, with its status and history. */
 export default function MyMeetingRequests() {
   const { user } = useAuth();
+  useMeetingRealtime();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['meeting-requests', 'mine', user?.id],
     queryFn: () => meetingRequestService.listMine(user.id),
