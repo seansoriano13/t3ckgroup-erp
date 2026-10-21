@@ -10,6 +10,7 @@ import { FieldBox } from '@/components/ui/FieldBox';
 import { SelectField } from '@/components/ui/SelectField';
 import PeoplePicker from '@/components/ui/PeoplePicker';
 import HeadSelectField from '@/components/offsets/HeadSelectField';
+import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import { employeeService } from '@/services/employeeService';
 import { meetingRequestService } from '@/services/meetingRequestService';
@@ -29,6 +30,7 @@ export default function MeetingRequestDialog({ open, onClose }) {
 function MeetingRequestForm({ onClose }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  useMeetingRealtime();
 
   const [venueId, setVenueId] = useState('');
   const [date, setDate] = useState(() => manilaToday());

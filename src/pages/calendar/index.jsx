@@ -22,6 +22,7 @@ import { LAYERS, visibleEntries } from '@/components/calendar/entryKinds.jsx';
 import { CalendarDay, CalendarWeek } from '@/components/calendar/CalendarTimeViews';
 import { VIEWS, parseCalendarParams, shiftDate, viewRange, viewTitle } from '@/components/calendar/calendarNav.js';
 import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
+import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 
 const BODIES = { month: CalendarMonth, people: CalendarPeople, week: CalendarWeek, day: CalendarDay };
 
@@ -44,6 +45,7 @@ export default function CalendarPage() {
   const { view, date: anchor } = parseCalendarParams(params);
   const go = (next) => setParams({ view, date: anchor, ...next }, { replace: true });
   const [layers, toggleLayer] = useCalendarLayers();
+  useMeetingRealtime();
   const [showPending, setShowPending] = useState(false);
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState('calendar');
