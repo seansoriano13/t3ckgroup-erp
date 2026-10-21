@@ -244,7 +244,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
   });
 
   it("says Filed, with no moves; Reopen sits in the filed banner and only a Super Admin gets it", async () => {
-    const row = ipas({ state: "filed", filed_at: "2026-10-14T00:00:00.000Z", computation_status: "checked" });
+    const row = ipas({ state: "filed", filed_at: "2026-10-14T00:00:00.000Z", computation_status: "lc_odoo_done" });
     signoff(row.id, 1, "prepared", purchaser);
     signoff(row.id, 1, "approved", approver);
     signoff(row.id, 3, "prepared", purchaser);
@@ -282,7 +282,7 @@ describe("IPAS decider: Your move, the chain and the filed state", () => {
     expect(sections.compareDocumentPosition(yourMove) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     expect(screen.queryByRole("group", { name: /^Section 1, Purchasing/ })).not.toBeInTheDocument();
-    const toggle = screen.getByRole("button", { name: "Where it stands · 0 of 6" });
+    const toggle = screen.getByRole("button", { name: "Where it stands · 0 of 7" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     const user = setupUser();
     await user.click(toggle);

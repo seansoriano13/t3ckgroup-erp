@@ -25,6 +25,7 @@ const summary = (over = {}) => ({
   signoffs: {
     1: { prepared: true, approved: true },
     3: { prepared: true, approved: false },
+    6: { prepared: false, approved: false },
     7: { received: false, noted: false, checked: false, approved: false },
   },
   ...over,
@@ -46,7 +47,7 @@ describe("IpasSorSection (#249)", () => {
     expect(screen.getByTitle("Received in Odoo: partly done")).toBeInTheDocument()
     expect(screen.getByText("Encoded")).toBeInTheDocument()
     expect(screen.getByText("Submitted, Approved")).toBeInTheDocument()
-    expect(screen.getAllByText("Not started")).toHaveLength(1)
+    expect(screen.getAllByText("Not started")).toHaveLength(2)
   })
 
   it("renders nothing when no IPAS names the SOR", async () => {
@@ -94,7 +95,8 @@ describe("IpasSorSection (#249)", () => {
     const { container } = renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
     await screen.findByText("TGIPAS_052")
 
-    expect(container.textContent).not.toMatch(/₱|PHP|Landed|account|payment|charge/i)
+    // Section 3 is named "Computation status & Landed Cost"; that is a name, not a figure.
+    expect(container.textContent.replace("Computation status & Landed Cost", "")).not.toMatch(/₱|PHP|Landed|account|payment|charge/i)
   })
 
   it("shows the next thing, who owes it and a late mark per row (#265)", async () => {

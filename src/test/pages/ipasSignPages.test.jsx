@@ -589,4 +589,72 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(region).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     });
   });
+
+  // #586: section 3 (stored 6) is a sign-off of its own, shown as section 3.
+  describe("section 3, the Landed Cost sign-off", () => {
+    const TITLE = "3 · Computation status & Landed Cost";
+
+    it("offers no Submit before LC Odoo Done, and Submit once it is reached", async () => {
+      const early = ipas({ computation_status: "lc_gs_done" });
+      const view = renderDetail(early.id, "costing");
+      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      expect(within(drawer).queryByRole("button", { name: /^Submit section 3/ })).not.toBeInTheDocument();
+      view.unmount();
+
+      const ready = ipas({ computation_status: "lc_odoo_done" });
+      renderDetail(ready.id, "costing");
+      const open = await screen.findByRole("dialog", { name: TITLE });
+      expect(await within(open).findByRole("button", { name: `Submit section ${TITLE}` })).toBeInTheDocument();
+    });
+
+    it("submits as section 3, stored as section 6, and tells the section 3 list", async () => {
+      const row = ipas({ computation_status: "lc_odoo_done" });
+      onList("s6_approved", other);
+      renderDetail(row.id, "costing");
+      const user = setupUser();
+
+      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      await user.click(await within(drawer).findByRole("button", { name: `Submit section ${TITLE}` }));
+      const dialog = await screen.findByRole("dialog", { name: `Submit section ${TITLE}?` });
+      await user.click(within(dialog).getByRole("button", { name: "Submit" }));
+
+      await waitFor(() =>
+        expect(db.rows("ipas_signoffs").filter((s) => s.section === 6 && s.role === "prepared")).toHaveLength(1),
+      );
+    });
+
+    it("lets a section 3 list member approve it, but not the person who submitted it", async () => {
+      const row = ipas({ computation_status: "lc_odoo_done" });
+      onList("s6_approved", approver, purchaser);
+      signoff(row.id, 6, "prepared", purchaser);
+
+      signIn(purchaser);
+      const mine = renderDetail(row.id, "costing");
+      const own = await screen.findByRole("dialog", { name: TITLE });
+      expect(within(own).queryByRole("button", { name: `Approve section ${TITLE}` })).not.toBeInTheDocument();
+      mine.unmount();
+
+      signIn(approver);
+      renderDetail(row.id, "costing");
+      const user = setupUser();
+      const drawer = await screen.findByRole("dialog", { name: TITLE });
+      await user.click(await within(drawer).findByRole("button", { name: `Approve section ${TITLE}` }));
+      const dialog = await screen.findByRole("dialog", { name: `Approve section ${TITLE}?` });
+      await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+      await waitFor(() =>
+        expect(db.rows("ipas_signoffs").filter((s) => s.section === 6 && s.role === "approved")).toHaveLength(1),
+      );
+    });
+
+    it("reads Submitted and Approved with who gave them, in the section's body", async () => {
+      const row = ipas({ computation_status: "lc_odoo_done" });
+      signoff(row.id, 6, "prepared", purchaser);
+      signoff(row.id, 6, "approved", approver);
+      renderDetail(row.id, "costing");
+
+      const body = await screen.findByTestId("ipas-signoffs-6");
+      expect(within(body).getByText("Boss Lito")).toBeInTheDocument();
+      expect(within(body).getByText("Buyer")).toBeInTheDocument();
+    });
+  });
 });

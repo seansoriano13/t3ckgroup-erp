@@ -28,6 +28,7 @@ import {
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_PURPOSES,
   IPAS_PURPOSE_LABELS,
+  IPAS_SECTION_3_APPROVED_FILTER,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
 } from "../../../constants/ipas";
@@ -63,6 +64,7 @@ const IPAS_SORT = {
 const COSTING_OPTIONS = [
   { value: ALL, label: "Any costing status" },
   ...IPAS_COMPUTATION_STATUSES.map((value) => ({ value, label: IPAS_COMPUTATION_STATUS_LABELS[value] })),
+  { value: IPAS_SECTION_3_APPROVED_FILTER, label: "Section 3 approved" },
 ];
 
 const PURPOSE_OPTIONS = [

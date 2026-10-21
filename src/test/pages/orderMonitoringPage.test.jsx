@@ -40,7 +40,7 @@ function seedOrder({ source = "local", state = "open", poState = "purchase", arr
     purpose: "supplies",
     state,
     filed_at: filed ? timeAgo(1) : null,
-    computation_status: filed ? "checked" : "encoding",
+    computation_status: filed ? "lc_odoo_done" : "encoding",
     arrived_in_ph_on: arrivedInPh,
     odoo_copy: {
       po: { id: seq, name: `P0${8000 + seq}`, state: poState, company: "T3ck Trading", currency: "Php" },

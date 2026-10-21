@@ -105,6 +105,17 @@ describe("filterIpas", () => {
     expect(numbers({ entity: "T3ck Trading", purpose: "supplies" })).toEqual(["TGIPAS_051"])
   })
 
+  it("finds the IPAS whose section 3 is approved, apart from the Computation status", () => {
+    const costed = [
+      { number: "A", computation_status: "lc_odoo_done", section3Approved: true, state: "open", sors: [] },
+      { number: "B", computation_status: "lc_odoo_done", section3Approved: false, state: "open", sors: [] },
+      { number: "C", computation_status: "encoded", state: "open", sors: [] },
+    ]
+    const found = (computationStatus) => filterIpas(costed, { computationStatus }).map((r) => r.number)
+    expect(found("section_3_approved")).toEqual(["A"])
+    expect(found("lc_odoo_done")).toEqual(["A", "B"])
+  })
+
   it("searches number, PO, supplier and SORs", () => {
     expect(numbers({ search: "050" })).toEqual(["TGIPAS_050"])
     expect(numbers({ search: "p02554" })).toEqual(["TGIPAS_051"])

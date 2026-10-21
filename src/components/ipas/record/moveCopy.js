@@ -28,10 +28,13 @@ const MOVE_HINT = {
     `Confirms ${sectionOf("finance")}. Nothing locks until filing. Next: ${d.s1.approved ? "Finance receives it for filing." : `${approversOf("purchasing")}.`}`,
   "prepare-1": () => `Submits ${sectionOf("purchasing")} for approval. Nothing locks. Next: ${approversOf("purchasing")}, told now.`,
   "prepare-3": () => `Submits ${sectionOf("finance")} for approval. Nothing locks. Next: ${approversOf("finance")}, told now.`,
+  "approve-6": () =>
+    `Confirms ${sectionOf("costing")}: the Landed Cost was checked. Nothing locks until filing. Next: filing, once ${ipasSectionLabel("filing")} is received, noted and checked.`,
+  "prepare-6": () => `Submits ${sectionOf("costing")} for approval. Nothing locks. Next: ${approversOf("costing")}, told now.`,
   costs: (d) =>
     d.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED
       ? "Records that Landed Cost is worked out in the GS sheet. Undo is offered. Next: LC Odoo Done."
-      : `Makes Landed Cost final and lets filing go ahead. Undo is offered. Next: filing, once ${ipasSectionLabel("filing")} is received, noted and checked.`,
+      : `Makes Landed Cost final. Undo is offered. Next: Purchasing submits ${sectionOf("costing")} for approval.`,
   receive: () => `Starts ${sectionOf("filing")}. Next: Noted and Checked, in either order.`,
   note: (d) => `Records Noted on ${sectionOf("filing")}. Next: ${d.s7.checked ? "the filing approvers" : "whoever checks it"}.`,
   check: (d) => `Records Checked on ${sectionOf("filing")}. Next: ${d.s7.noted ? "the filing approvers" : "whoever notes it"}.`,

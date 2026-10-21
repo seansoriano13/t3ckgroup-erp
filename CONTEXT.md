@@ -717,7 +717,8 @@ _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 **Filing**:
 The last sign-off on an IPAS — section 4's Approved, given once Finance has
 received the IPAS and it has been noted and checked, and only after sections 1
-and 2 are approved and the Computation status is LC Odoo Done, since filing
+and 2 are approved and the Computation status is LC Odoo Done (the Filing gate
+for section 3's approval is ticket #590), since filing
 freezes a Landed Cost that would otherwise still be provisional. A filed IPAS is frozen: its copy of the Odoo purchase order,
 its payments and charges, its Purpose and its SORs no longer change. Earlier
 approvals block nothing; filing is the one point that locks. Required documents
@@ -744,11 +745,21 @@ _Avoid_: Unapprove, Revert
 
 **Computation status**:
 Where an IPAS's cost work stands, in order: Encoding, Encoded, LC GS Done, LC
-Odoo Done, Checked by. Purchasing moves it up to LC Odoo Done (Landed Cost goes
-final there, which is what Filing waits on) and never gives Checked by; Finance,
-or a Super Admin who is not in Purchasing, gives and takes back Checked by. Shown
-on the record, the IPAS list (with a filter) and the printed IPAS.
-_Avoid_: Costs complete (the old name for LC Odoo Done), Costing status
+Odoo Done. Only Purchasing moves it (one step either way); Landed Cost goes final
+at LC Odoo Done, which is also when section 3 can be submitted. The old last step,
+Checked by, is gone: section 3's sign-off is the check. Shown on the record, the
+IPAS list (with a filter, plus "Section 3 approved") and the printed IPAS.
+_Avoid_: Costs complete (the old name for LC Odoo Done), Costing status, Checked by (the old step)
+
+**Section 3 sign-off**:
+The sign-off on an IPAS's Computation status & Landed Cost part, with Submitted
+and Approved like sections 1 and 2. Purchasing submits it once the Computation
+status is LC Odoo Done; a member of the "Section 3 Approved" list approves it,
+never the person who submitted it, and a Super Admin only if listed. The database
+stores it as sign-off section 6 and shows it as section 3 (`ipasSectionNo` is the
+one mapping). The list starts with everyone who has Finance access. "Checked" now
+means only section 4's Checked step.
+_Avoid_: Checked by, Costing approval
 
 **Finance access**:
 Who counts as Finance — granted per employee by its own access flag, the way

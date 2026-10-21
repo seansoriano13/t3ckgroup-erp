@@ -293,18 +293,6 @@ describe("filing", () => {
         expect((await liveKeys(ipas.id)).filter((k) => k.startsWith("7/"))).toEqual(["7/approved", "7/checked", "7/noted", "7/received"])
     })
 
-    it("also files at Checked, the status after LC Odoo Done", async () => {
-        const ipas = await raise()
-        await approvedThrough(ipas)
-        await receivedNotedChecked(ipas)
-        // #547: Checked by is Finance's step. Purchasing takes the status to LC Odoo Done, Finance gives Checked by.
-        expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
-        expect((await rpc("finance", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { computation_status: "checked" } })).error).toBeNull()
-        expect((await rowOf(ipas.id)).computation_status).toBe("checked")
-        expect((await sign("ipasSigner", ipas.id, 7, "approved")).error).toBeNull()
-        expect((await rowOf(ipas.id)).state).toBe("filed")
-    })
-
     it("refuses any further sign-off on a filed IPAS", async () => {
         const { ipas } = await filed()
         const { error } = await sign("finance", ipas.id, 7, "received")

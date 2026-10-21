@@ -241,10 +241,12 @@ export const ipasService = {
     if (error) throw error;
     // The SOR headers are asked for by id: the database gives none for a null list.
     const sorsByIpas = await readSorHeaders((rows || []).map((row) => row.id));
+    // The list filter "Section 3 approved" (#586): one read of the live section 3 approvals.
+    const section3Approved = await readSection3Approved();
 
     return (rows || [])
       .filter((row) => !entity || ipasEntity(row) === entity)
-      .map((row) => shapeIpas(row, sorsByIpas.get(row.id) ?? []));
+      .map((row) => ({ ...shapeIpas(row, sorsByIpas.get(row.id) ?? []), section3Approved: section3Approved.has(row.id) }));
   },
 
   /**
@@ -514,7 +516,7 @@ export const ipasService = {
       requireOneOf(
         computationStatus,
         IPAS_COMPUTATION_STATUSES,
-        "The computation status is Encoding, Encoded, LC GS Done, LC Odoo Done or Checked by.",
+        "The computation status is Encoding, Encoded, LC GS Done or LC Odoo Done.",
       );
       fields.computation_status = computationStatus;
     }
@@ -534,7 +536,7 @@ export const ipasService = {
     return data;
   },
 
-  /** The computation status, set by Purchasing (Finance gives Checked by). Landed Cost is final from LC Odoo Done. */
+  /** The computation status, set by Purchasing. Landed Cost is final from LC Odoo Done. */
   setComputationStatus(id, status) {
     return ipasService.setHeader(id, { computationStatus: status });
   },
@@ -1167,12 +1169,12 @@ export const ipasService = {
     if (listError) throw listError;
 
     const keys = new Set((memberships || []).map((m) => m.list_key));
-    const firstSections = [1, 3].filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
+    const firstSections = [1, 3, 6].filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
     const sevenRoles = IPAS_SECTION_7_ROLES.filter((role) => keys.has(IPAS_SECTION_7_LIST[role]));
     if (firstSections.length === 0 && sevenRoles.length === 0) return [];
 
     // Section 7 reads sections 1 and 3 too: it opens on their approvals.
-    const sections = sevenRoles.length > 0 ? [1, 3, 7] : firstSections;
+    const sections = sevenRoles.length > 0 ? [...new Set([1, 3, 7, ...firstSections])] : firstSections;
     const { data: rows, error } = await supabase
       .from("ipas_signoffs")
       .select(SIGNOFF_SELECT)
@@ -1393,9 +1395,24 @@ export const ipasService = {
   },
 };
 
+/** The ids of the IPAS whose section 3 (stored 6) is approved right now. */
+async function readSection3Approved() {
+  const { data, error } = await supabase
+    .from("ipas_signoffs")
+    .select("ipas_id")
+    .eq("section", 6)
+    .eq("role", IPAS_SIGNOFF_ROLE.APPROVED)
+    .is("cleared_at", null);
+  if (error) throw error;
+  return new Set((data || []).map((row) => row.ipas_id));
+}
+
 function requireSignoffSection(section) {
   if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, `Sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(7)} are signed off.`);
+    throw new IpasError(
+      IPAS_ERROR.INVALID,
+      `Sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)}, ${ipasSectionNo(6)} and ${ipasSectionNo(7)} are signed off.`,
+    );
   }
 }
 
