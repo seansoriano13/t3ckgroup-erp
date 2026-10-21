@@ -361,24 +361,50 @@ export function stubIpasRpcs({
     return updated
   })
 
+  const squash = (value) => String(value || "").toLowerCase().replace(/[\s-]/g, "")
+  const sorSummary = (o) => ({
+    opportunity_id: o.id,
+    sor_code: o.sor_code ?? (o.serial_no != null ? `SOR-${o.serial_no}` : null),
+    sales_reference: o.sales_reference ?? null,
+    project_title: o.project_title,
+    current_stage_name: findRow("flow_stages", o.flow_stage_id)?.name ?? null,
+  })
+  const liveSor = (o) => !o.is_deleted && !o.is_scratch
+
+  // SOR number, SO number (Sales Reference and the older opportunity_no) or
+  // project, in any case; an SOR with no SO number is found too (#601).
   stubRpc("ipas_find_sors", (args) => {
     requirePurchasing("ipas_find_sors")
     const refs = (args.p_refs || []).map((r) => String(r).trim().toUpperCase())
     const term = String(args.p_search || "").trim().toLowerCase()
+    const squashed = squash(args.p_search)
     return rowsOf("sales_opportunities")
-      .filter((o) => !o.is_deleted && !o.is_scratch && o.sales_reference)
+      .filter(liveSor)
       .filter(
         (o) =>
-          refs.includes(o.sales_reference) ||
+          (o.sales_reference && refs.includes(o.sales_reference)) ||
           (term &&
-            [o.sales_reference, o.project_title].some((f) => String(f || "").toLowerCase().includes(term))),
+            ([o.sales_reference, o.opportunity_no, o.project_title].some((f) =>
+              String(f || "").toLowerCase().includes(term),
+            ) ||
+              (squashed && squash(sorSummary(o).sor_code).includes(squashed)))),
       )
-      .map((o) => ({
-        opportunity_id: o.id,
-        sales_reference: o.sales_reference,
-        project_title: o.project_title,
-        current_stage_name: findRow("flow_stages", o.flow_stage_id)?.name ?? null,
-      }))
+      .map(sorSummary)
+  })
+
+  // The caller's last five SORs named on an IPAS they raised, newest first.
+  stubRpc("ipas_recent_sors", () => {
+    requirePurchasing("ipas_recent_sors")
+    const mine = new Set(rowsOf("ipas").filter((i) => i.created_by === actorId).map((i) => i.id))
+    const seen = new Set()
+    const recent = []
+    for (const link of [...rowsOf("ipas_sors")].reverse()) {
+      if (!mine.has(link.ipas_id) || seen.has(link.opportunity_id)) continue
+      seen.add(link.opportunity_id)
+      const sor = findRow("sales_opportunities", link.opportunity_id)
+      if (sor && liveSor(sor)) recent.push(sorSummary(sor))
+    }
+    return recent.slice(0, 5)
   })
 
   stubRpc("ipas_sor_headers", (args) => {

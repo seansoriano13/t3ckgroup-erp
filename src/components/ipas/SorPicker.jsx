@@ -6,28 +6,48 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
+import HighlightText from "../HighlightText";
 import { ipasService } from "../../services/ipasService";
-import { ipasSorSearchKey } from "./ipasKeys";
+import { ipasRecentSorsKey, ipasSorSearchKey } from "./ipasKeys";
 
 const FOUND_IN = { origin: "Source Document", analytic: "Analytic account" };
 
-function SorLine({ sor }) {
+/**
+ * One SOR as the picker names it: SOR number, SO number when it has one,
+ * project and Stage, with the typed text highlighted.
+ */
+function SorLine({ sor, search = "" }) {
   return (
     <span className="min-w-0 text-[13px]">
-      <span className="font-mono font-semibold">{sor.sales_reference}</span>
-      <span className="text-muted-foreground"> · {sor.project_title}</span>
+      <span className="font-mono font-semibold">
+        <HighlightText text={sor.sor_code || ""} search={search} />
+      </span>
+      {sor.sales_reference && (
+        <span className="font-mono text-muted-foreground">
+          {" "}
+          · <HighlightText text={sor.sales_reference} search={search} />
+        </span>
+      )}
+      <span className="text-muted-foreground">
+        {" "}
+        · <HighlightText text={sor.project_title || ""} search={search} />
+      </span>
       {sor.current_stage_name && <span className="text-muted-foreground"> · {sor.current_stage_name}</span>}
     </span>
   );
 }
 
+const nameOf = (sor) => sor.sor_code || sor.sales_reference || sor.project_title;
+
 /**
  * The SORs a Project IPAS names. `suggestions` are the SORs the PO's Source
- * Document or analytic accounts mention (one tick each); anything else is
- * found by Sales Reference or project. `selected` and `onChange` are
- * lists of `{ id, sales_reference, project_title, current_stage_name }`.
+ * Document or analytic accounts mention (one tick each); with `showRecent`,
+ * the caller's last SORs on other IPAS follow them (Purchasing only). Anything
+ * else is found by SOR number, SO number or project. `selected` and `onChange`
+ * are lists of `{ id, sor_code, sales_reference, project_title,
+ * current_stage_name }`; `sales_reference` is null until Odoo has a sales order.
  */
-export default function SorPicker({ selected, onChange, suggestions = [], disabled = false }) {
+export default function SorPicker({ selected, onChange, suggestions = [], showRecent = false, disabled = false }) {
   const [term, setTerm] = useState("");
   const search = term.trim();
 
@@ -38,37 +58,49 @@ export default function SorPicker({ selected, onChange, suggestions = [], disabl
     staleTime: 30_000,
   });
 
+  const { data: recentAll = [] } = useQuery({
+    queryKey: ipasRecentSorsKey,
+    queryFn: () => ipasService.recentSors(),
+    enabled: showRecent,
+    staleTime: 30_000,
+  });
+
   const selectedIds = new Set(selected.map((s) => s.id));
   const toggle = (sor, on) =>
     onChange(on ? [...selected.filter((s) => s.id !== sor.id), sor] : selected.filter((s) => s.id !== sor.id));
 
   const suggestedIds = new Set(suggestions.map((s) => s.id));
-  const picked = selected.filter((s) => !suggestedIds.has(s.id));
-  const addable = results.filter((r) => !selectedIds.has(r.id) && !suggestedIds.has(r.id));
+  const recents = recentAll.filter((s) => !suggestedIds.has(s.id));
+  const listedIds = new Set([...suggestedIds, ...recents.map((s) => s.id)]);
+  const picked = selected.filter((s) => !listedIds.has(s.id));
+  const addable = results.filter((r) => !selectedIds.has(r.id) && !listedIds.has(r.id));
+
+  const tickRow = (sor, note) => (
+    <FieldBox inline key={sor.id} className="rounded-lg border border-border px-2.5 py-2 hover:bg-muted/40">
+      <Checkbox
+        checked={selectedIds.has(sor.id)}
+        disabled={disabled}
+        onCheckedChange={(on) => toggle(sor, on)}
+        aria-label={`Name ${nameOf(sor)}`}
+      />
+      <SorLine sor={sor} search={search} />
+      {note && <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{note}</span>}
+    </FieldBox>
+  );
 
   return (
     <div className="space-y-3">
       {suggestions.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground">Mentioned on the Odoo PO</p>
-          {suggestions.map((sor) => (
-            <FieldBox
-              inline
-              key={sor.id}
-              className="rounded-lg border border-border px-2.5 py-2 hover:bg-muted/40"
-            >
-              <Checkbox
-                checked={selectedIds.has(sor.id)}
-                disabled={disabled}
-                onCheckedChange={(on) => toggle(sor, on)}
-                aria-label={`Name ${sor.sales_reference}`}
-              />
-              <SorLine sor={sor} />
-              <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-                {(sor.found_in || []).map((w) => FOUND_IN[w]).join(" · ")}
-              </span>
-            </FieldBox>
-          ))}
+          {suggestions.map((sor) => tickRow(sor, (sor.found_in || []).map((w) => FOUND_IN[w]).join(" · ")))}
+        </div>
+      )}
+
+      {recents.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">Picked recently</p>
+          {recents.map((sor) => tickRow(sor))}
         </div>
       )}
 
@@ -82,7 +114,7 @@ export default function SorPicker({ selected, onChange, suggestions = [], disabl
                 variant="ghost"
                 size="icon-xs"
                 className="ml-auto"
-                aria-label={`Remove ${sor.sales_reference}`}
+                aria-label={`Remove ${nameOf(sor)}`}
                 disabled={disabled}
                 onClick={() => toggle(sor, false)}
               >
@@ -93,19 +125,19 @@ export default function SorPicker({ selected, onChange, suggestions = [], disabl
         </ul>
       )}
 
-      <FieldBox label={picked.length || suggestions.length ? "Find another SOR" : "Find an SOR"} bare>
+      <FieldBox label={picked.length || listedIds.size ? "Find another SOR" : "Find an SOR"} bare>
         <Input
           value={term}
           disabled={disabled}
           onChange={(e) => setTerm(e.target.value)}
-          placeholder="Sales Reference or project"
+          placeholder="SOR number, SO number or project"
         />
       </FieldBox>
       {search.length >= 2 && (
         <ul className="space-y-1">
           {addable.map((sor) => (
             <li key={sor.id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted/40">
-              <SorLine sor={sor} />
+              <SorLine sor={sor} search={search} />
               <Button
                 type="button"
                 variant="outline"
