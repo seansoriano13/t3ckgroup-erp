@@ -9,6 +9,7 @@ import {
   buildTG11ViewModel,
   buildTG12ViewModel,
   buildTG13ViewModel,
+  getValidationStamp,
 } from './formViewModel';
 
 const employee = { name: 'Alvin Roa', role: 'Logistics Assistant', department: 'Operations', sub_department: 'Logistics', employment_status: 'Regular' };
@@ -305,5 +306,38 @@ describe('printed form titles and field lists (issue #612)', () => {
     expect(getRecordNumber({ ...rec, type: 'OFFSET' })).toMatch(/^LV-/);
     expect(getRecordNumber({ ...rec, type: 'OVERTIME' })).toMatch(/^OT-/);
     expect(getRecordNumber({ ...rec, type: 'UNDERTIME' })).toMatch(/^UT-/);
+  });
+});
+
+describe('validation date fallback (issue #614)', () => {
+  const stamp = (vm) => vm.hrd.find((h) => h[0] === 'Validation date')[1];
+  const base = { id: 'abcd1234', created_at: '2026-10-01T00:00:00Z', status: 'APPROVED', employee, hr: { name: 'HR' } };
+  // 2026-10-14T07:27:00Z is 3:27 PM in Manila.
+  const cases = [
+    ['TG-11', buildTG11ViewModel, 'OFFSET'],
+    ['TG-12', buildTG12ViewModel, 'OVERTIME'],
+    ['TG-13', buildTG13ViewModel, 'UNDERTIME'],
+  ];
+
+  for (const [label, build, type] of cases) {
+    it(`${label}: hr_processed_at wins, with date and time`, () => {
+      const vm = build({ ...base, type, hr_processed_at: '2026-10-14T07:27:00Z', hr_signature_timestamp: '2026-10-10T01:00:00Z', updated_at: '2026-10-20T00:00:00Z' });
+      expect(stamp(vm)).toBe('Oct 14, 2026 · 3:27 PM');
+    });
+    it(`${label}: falls back to hr_signature_timestamp, with date and time`, () => {
+      const vm = build({ ...base, type, hr_signature_timestamp: '2026-10-14T07:27:00Z', updated_at: '2026-10-20T00:00:00Z' });
+      expect(stamp(vm)).toBe('Oct 14, 2026 · 3:27 PM');
+    });
+    it(`${label}: last falls back to updated_at, date only`, () => {
+      const vm = build({ ...base, type, updated_at: '2026-10-14T07:27:00Z' });
+      expect(stamp(vm)).toBe('Oct 14, 2026');
+    });
+    it(`${label}: shows a dash when nothing is recorded`, () => {
+      expect(stamp(build({ ...base, type }))).toBe('—');
+    });
+  }
+
+  it('uses the Manila date near midnight UTC', () => {
+    expect(getValidationStamp({ hr_processed_at: '2026-10-14T17:30:00Z' })).toBe('Oct 15, 2026 · 1:30 AM');
   });
 });

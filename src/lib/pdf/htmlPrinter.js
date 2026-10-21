@@ -136,9 +136,9 @@ export function buildPrintableDocument(mappedData) {
   .blk .v { font-size: 12px; line-height: 1.3; font-weight: 600; margin-top: 5px; display: flex; align-items: center; gap: 7px; letter-spacing: -.004em; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--f-ink); flex: 0 0 5px; }
   .rows { margin-top: 8px; display: grid; gap: 7px; }
-  .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 10px; line-height: 1.3; }
+  .row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 10px; line-height: 1.3; }
   .row .a { color: var(--f-3); white-space: nowrap; }
-  .row .b2 { font-weight: 500; text-align: right; }
+  .row .b2 { font-weight: 500; text-align: right; white-space: nowrap; margin-left: auto; }
 
   .band { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--f-rule); display: flex; gap: 26px; align-items: flex-start; }
   .sigs { flex: 1; display: grid; gap: 22px; }

@@ -5,6 +5,7 @@
  * form never shows a fact the record can't back up.
  */
 
+import { formatManilaDate, formatManilaDateTime } from '../manilaDate';
 import { getInclusiveDates, getDayCount, isLateFiling, isLegacySignature, getOvertimeHoursDisplay } from './layout';
 
 /** One record number prefix per record type — the single source the registry (formTypeRegistry.js) draws its label from. */
@@ -154,13 +155,23 @@ function buildSignatureBand(record) {
   ];
 }
 
+/**
+ * When HR validated the record. Fallback order: hr_processed_at (date and
+ * time), hr_signature_timestamp (date and time), then updated_at (date only,
+ * since it moves whenever the row changes and its time cannot be trusted).
+ */
+export function getValidationStamp(record) {
+  if (record.hr_processed_at) return formatManilaDateTime(record.hr_processed_at);
+  if (record.hr_signature_timestamp) return formatManilaDateTime(record.hr_signature_timestamp);
+  if (record.updated_at) return formatManilaDate(record.updated_at);
+  return '�';
+}
+
 /** Fields common to both templates' right-rail "HRD validation" block. */
 function hrdValidationRows(record, balanceLabel) {
   return [
     ['Validated by', record.hr?.name || '—'],
-    ['Validation date', record.hr_processed_at || record.updated_at
-      ? new Date(record.hr_processed_at || record.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      : '—'],
+    ['Validation date', getValidationStamp(record)],
     [balanceLabel, record.approval_credits_snapshot !== null && record.approval_credits_snapshot !== undefined
       ? `${trimNumber(record.approval_credits_snapshot)} hrs` : '—'],
     ['Filed', getFiledStatus(record)],
@@ -178,9 +189,7 @@ function hrdValidationRows(record, balanceLabel) {
 function undertimeValidationRows(record) {
   return [
     ['Validated by', record.hr?.name || '—'],
-    ['Validation date', record.hr_processed_at
-      ? new Date(record.hr_processed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      : '—'],
+    ['Validation date', getValidationStamp(record)],
     ['Filed', getFiledStatus(record)],
   ];
 }
