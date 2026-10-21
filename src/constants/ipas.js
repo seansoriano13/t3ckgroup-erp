@@ -72,6 +72,32 @@ export const IPAS_STATE_LABELS = {
 export const IPAS_STATE_FILTER_ALL = "all";
 
 /**
+ * The IPAS Status (spec #595, #597): the six steps the sheet kept, worked out from
+ * the IPAS by utils/ipasFigures.js and never stored. Only On-Hold is set by a person
+ * (`ipas.on_hold`). A cancelled IPAS has none. Separate from the state above and from
+ * the Computation status. In the order the filter lists them.
+ */
+export const IPAS_STATUS = {
+  PENDING: "pending",
+  REQUESTED: "requested",
+  ONGOING: "ongoing",
+  PAID: "paid",
+  DONE: "done",
+  ON_HOLD: "on_hold",
+};
+
+export const IPAS_STATUSES = Object.values(IPAS_STATUS);
+
+export const IPAS_STATUS_LABELS = {
+  [IPAS_STATUS.PENDING]: "Pending",
+  [IPAS_STATUS.REQUESTED]: "Requested",
+  [IPAS_STATUS.ONGOING]: "Ongoing",
+  [IPAS_STATUS.PAID]: "Paid",
+  [IPAS_STATUS.DONE]: "Done",
+  [IPAS_STATUS.ON_HOLD]: "On-Hold",
+};
+
+/**
  * Why a PO couldn't become an IPAS, for the screen to say apart:
  *   PO_INVALID        the number isn't an Odoo PO ("P" then digits)
  *   PO_NOT_FOUND      Odoo answered and has no such PO
@@ -431,6 +457,8 @@ export const IPAS_UNDO_APPROVAL_SECTIONS = [1, 3, 6];
 /** The stored section that is Filing (shown as 4) and the one that is Computation status & Landed Cost (shown as 3). */
 export const IPAS_FILING_SECTION = 7;
 export const IPAS_COSTING_SECTION = 6;
+/** The stored section that is Purchasing's first sign-off (shown as 1): its Submit is what makes an IPAS Requested. */
+export const IPAS_REQUEST_SECTION = 1;
 /** The sections signed before Filing opens: every sign-off section but Filing. */
 export const IPAS_PRE_FILING_SECTIONS = IPAS_SIGNOFF_SECTIONS.filter((section) => section !== IPAS_FILING_SECTION);
 /** The reason the database gives when a changed PO in Odoo clears the approvals (history and the cleared rows carry it). */
@@ -611,4 +639,7 @@ export const IPAS_EVENT_LABELS = {
   actual_checking_stamped: "Actual Checking stamped",
   actual_checking_cleared: "Actual Checking cleared",
   item_location_changed: "Item Location changed",
+  on_hold_set: "Put On-Hold",
+  on_hold_changed: "On-Hold note changed",
+  on_hold_cleared: "On-Hold cleared",
 };

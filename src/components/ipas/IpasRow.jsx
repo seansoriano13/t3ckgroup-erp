@@ -9,9 +9,10 @@ import {
   IPAS_STATE,
 } from "../../constants/ipas";
 import { formatAmount, raisedByParts, sorLineParts } from "../../utils/ipas";
-import { IPAS_AMOUNT_SOURCE } from "../../utils/ipasFigures";
 import HighlightText from "../HighlightText";
+import { IPAS_AMOUNT_SOURCE } from "../../utils/ipasFigures";
 import IpasStateBadge from "./IpasStateBadge";
+import IpasStatusControl from "./IpasStatusControl";
 
 const AMOUNT_SOURCE_NOTE = {
   [IPAS_AMOUNT_SOURCE.PI_QT]: "P.I/QT",
@@ -73,7 +74,7 @@ function IpasMoneyCells({ figures }) {
  * below md so the number, Purpose and State stay in view. `search` is the
  * list's search text: where it matches, the text is highlighted.
  */
-export default function IpasRow({ row, onOpen, search = "" }) {
+export default function IpasRow({ row, onOpen, search = "", canSetHold = false }) {
   const raisedBy = raisedByParts(row);
   const term = search.trim().toLowerCase();
 
@@ -162,6 +163,9 @@ export default function IpasRow({ row, onOpen, search = "" }) {
         )}
       </TableCell>
       <IpasMoneyCells figures={row.figures} />
+      <TableCell>
+        <IpasStatusControl ipas={row} figures={row.figures} canSet={canSetHold} />
+      </TableCell>
       <TableCell className="text-right">
         <IpasStateBadge state={row.state} />
       </TableCell>

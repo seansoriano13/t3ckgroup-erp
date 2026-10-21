@@ -4,10 +4,9 @@
  * record's money summary and the section 1 approval warning all read this and
  * never compute these figures themselves.
  *
- * Pure: no network, no React. The IPAS Status joins this module in #597 (it
- * reads the same payments); the money figures are built first so `status` can be
- * added to the result, and the Remaining balance's "settled" rule can then read
- * it instead of the two facts it stands in for today.
+ * Pure: no network, no React. The IPAS Status (#597) is worked out here from the
+ * same facts and is never stored; only the On-Hold flag is. The Remaining
+ * balance reads it ("Paid or Done settles the balance", ADR 0035).
  *
  * Input is a shaped IPAS (utils/ipas.js `shapeIpas`, with `payments` from the
  * list read or the record read):
@@ -16,10 +15,14 @@
  *   pi_qt_amount   the typed P.I/QT Amount, or null
  *   payments       [{ kind, amount, methodLabel | method.label, paid_on? }]
  *   state          open / filed / cancelled
+ *   on_hold        the On-Hold flag (`ipas.on_hold`), and on_hold_note its note
+ *   section1Started  section 1 is prepared or approved (a live sign-off). Read
+ *                  from `signoffSections[1]` when the service did not set it
+ *   workedOn       the IPAS has history beyond its raising (`ipas_worked_on`)
  * Everything is in the PO's currency; currencies are never converted.
  */
 
-import { IPAS_PAYMENT_KIND, IPAS_STATE } from "../constants/ipas";
+import { IPAS_PAYMENT_KIND, IPAS_STATE, IPAS_STATUS } from "../constants/ipas";
 import { finiteNumber } from "./landedCost";
 
 /** The bill check's three answers. */
@@ -70,6 +73,33 @@ function inPaymentOrder(payments) {
     .map(({ payment }) => payment);
 }
 
+/** Section 1 has a live Prepared or Approved: the facts the service sets, or the record's shaped sign-offs. */
+function section1StartedOf(ipas) {
+  if (typeof ipas?.section1Started === "boolean") return ipas.section1Started;
+  const section = ipas?.signoffSections?.[1];
+  return Boolean(section?.prepared || section?.approved);
+}
+
+/**
+ * The IPAS Status, highest precedence first:
+ *   cancelled -> none (null); filed -> Done; On-Hold flag -> On-Hold;
+ *   a full payment recorded -> Paid; any payment recorded -> Ongoing;
+ *   section 1 prepared or approved -> Requested; changed since raising -> Ongoing;
+ *   else Pending.
+ * Filing clears On-Hold in the database, but a filed IPAS still reads Done first
+ * here, so a stale flag can never hide it.
+ */
+export function ipasStatusOf({ state, onHold, hasFullPayment, hasPayments, section1Started, workedOn }) {
+  if (state === IPAS_STATE.CANCELLED) return null;
+  if (state === IPAS_STATE.FILED) return IPAS_STATUS.DONE;
+  if (onHold) return IPAS_STATUS.ON_HOLD;
+  if (hasFullPayment) return IPAS_STATUS.PAID;
+  if (hasPayments) return IPAS_STATUS.ONGOING;
+  if (section1Started) return IPAS_STATUS.REQUESTED;
+  if (workedOn) return IPAS_STATUS.ONGOING;
+  return IPAS_STATUS.PENDING;
+}
+
 const methodLabelOf = (payment) => {
   const label = payment?.methodLabel ?? payment?.method?.label ?? null;
   const trimmed = typeof label === "string" ? label.trim() : "";
@@ -95,9 +125,12 @@ const methodLabelOf = (payment) => {
  *   fullPayment         sum of the Full payment rows
  *   hasFullPayment      a Full payment row is recorded
  *   paid                every payment row, whatever its kind
- *   remainingBalance    amount - paid; 0 once a full payment is recorded or the
- *                       IPAS is filed (ADR 0035: withholding never leaves a settled
- *                       order owing); null when there is no Amount
+ *   status              the IPAS Status (constants/ipas IPAS_STATUS), or null for a
+ *                       cancelled IPAS
+ *   onHold, onHoldNote  the On-Hold flag and its note (the note only while on hold)
+ *   remainingBalance    amount - paid; 0 once the status is Paid or Done (ADR 0035:
+ *                       withholding never leaves a settled order owing); null when
+ *                       there is no Amount
  *   paymentMethods      distinct method labels, first used first
  *   paymentScheme       those joined, "Bank TT + Cash"; "" with none
  */
@@ -147,9 +180,22 @@ export function ipasFigures(ipas) {
     if (label && !methods.includes(label)) methods.push(label);
   }
 
-  // ADR 0035: a full payment settles the balance, and so does filing. #597 turns
-  // this into "status is Paid or Done"; until then it is the same two facts.
-  const settled = hasFullPayment || ipas?.state === IPAS_STATE.FILED;
+  const onHold = ipas?.on_hold === true;
+  const status = ipas
+    ? ipasStatusOf({
+        state: ipas.state,
+        onHold,
+        hasFullPayment,
+        hasPayments: payments.length > 0,
+        section1Started: section1StartedOf(ipas),
+        workedOn: ipas.workedOn === true,
+      })
+    : null;
+
+  // ADR 0035: the balance reads 0 once the status is Paid or Done (a full payment
+  // recorded, or filed), because tax withheld from a payment would otherwise leave
+  // a settled order owing forever. An On-Hold order shows what is really left.
+  const settled = status === IPAS_STATUS.PAID || status === IPAS_STATUS.DONE;
   let remainingBalance = null;
   if (settled) remainingBalance = 0;
   else if (amount !== null) remainingBalance = fromCents(toCents(amount) - paidCents);
@@ -167,6 +213,9 @@ export function ipasFigures(ipas) {
     fullPayment: fromCents(fullCents),
     hasFullPayment,
     paid: fromCents(paidCents),
+    status,
+    onHold,
+    onHoldNote: onHold ? (ipas?.on_hold_note ?? null) : null,
     remainingBalance,
     paymentMethods: methods,
     paymentScheme: methods.join(PAYMENT_SCHEME_SEPARATOR),
