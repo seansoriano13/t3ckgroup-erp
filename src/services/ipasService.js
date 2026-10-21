@@ -788,6 +788,34 @@ export const ipasService = {
     return data;
   },
 
+  // ── The IPAS number series (#600) ────────────────────────────────────────
+
+  /**
+   * The number the next IPAS will take: `{ next_value, number_format, highest_given }`,
+   * e.g. `number_format` "TGIPAS_049". Any signed-in employee may read it.
+   */
+  async nextNumber() {
+    const { data, error } = await supabase.rpc("ipas_next_number");
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Super Admins only: sets the number the next IPAS takes. The database refuses
+   * a value at or below the highest number already given (cancelled IPAS
+   * included) and records who set it. Returns the same shape as `nextNumber`.
+   */
+  async setNextNumber(n) {
+    const text = String(n ?? "").trim();
+    const value = Number(text);
+    if (!/^\d+$/.test(text) || !Number.isSafeInteger(value) || value < 1) {
+      throw new IpasError(IPAS_ERROR.INVALID, "The next number is a whole number from 1.");
+    }
+    const { data, error } = await supabase.rpc("ipas_set_next_number", { p_number: value });
+    if (error) throw error;
+    return data;
+  },
+
   /** The typed Item Location (an active `item_location` option), or null to clear it. Returns the row. */
   async setItemLocation(id, optionId) {
     const { data, error } = await supabase.rpc("ipas_set_item_location", {

@@ -4,6 +4,7 @@ import TabGroup from "../ui/TabGroup";
 import IpasOptionListEditor from "../ipas/IpasOptionListEditor";
 import IpasSignerListEditor from "../ipas/IpasSignerListEditor";
 import TransmittalFirstNumber from "../transmittals/TransmittalFirstNumber";
+import NextIpasNumber from "./NextIpasNumber";
 import OrderAgeingRules from "./OrderAgeingRules";
 import DeliveryDeadlineSetting from "./DeliveryDeadlineSetting";
 import ReferenceRates from "./ReferenceRates";
@@ -12,6 +13,9 @@ import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
 
 /** The sub-tab for the sign-off lists, offered to Super Admins only. */
 const SIGNERS_TAB = "signers";
+
+/** The sub-tab for the IPAS number series (#600): everyone sees it, Super Admins set it. */
+const NUMBERING_TAB = "numbering";
 
 /** The sub-tab for how many days each order step may take (#262). */
 const AGEING_TAB = "ageing";
@@ -37,15 +41,17 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
   const tabs = [
     ...IPAS_OPTION_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
     ...TRANSMITTAL_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
+    { value: NUMBERING_TAB, label: "IPAS number" },
     { value: AGEING_TAB, label: "Ageing rules" },
     { value: RATES_TAB, label: "Reference rates" },
     ...(isSuperAdmin ? [{ value: SIGNERS_TAB, label: "Sign-off lists" }] : []),
   ];
   // The sign-off lists tab only exists for Super Admins; anyone else stays on an option list.
   const showSigners = list === SIGNERS_TAB && isSuperAdmin;
+  const showNumbering = list === NUMBERING_TAB;
   const showAgeing = list === AGEING_TAB;
   const showRates = list === RATES_TAB;
-  const optionList = list === SIGNERS_TAB || showAgeing || showRates ? IPAS_OPTION_LISTS[0] : list;
+  const optionList = list === SIGNERS_TAB || showNumbering || showAgeing || showRates ? IPAS_OPTION_LISTS[0] : list;
 
   return (
     <div className="space-y-4" data-testid="purchasing-settings">
@@ -56,9 +62,11 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
           apply to new rows; existing rows keep their option.
         </p>
       </div>
-      <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : showAgeing ? AGEING_TAB : showRates ? RATES_TAB : optionList} onChange={setList} tabs={tabs} />
+      <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : showNumbering ? NUMBERING_TAB : showAgeing ? AGEING_TAB : showRates ? RATES_TAB : optionList} onChange={setList} tabs={tabs} />
       {showRates ? (
         <ReferenceRates isSuperAdmin={isSuperAdmin} />
+      ) : showNumbering ? (
+        <NextIpasNumber isSuperAdmin={isSuperAdmin} />
       ) : showAgeing ? (
         <>
           <OrderAgeingRules />
