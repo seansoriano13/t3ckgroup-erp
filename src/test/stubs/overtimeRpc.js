@@ -56,6 +56,7 @@ export function stubOvertimeDecisionRpcs() {
       hr_signature_timestamp: null,
       approval_credits_snapshot: creditsSnapshot,
       hr_processed_by: args.p_hr_id || null,
+      hr_processed_at: new Date().toISOString(),
     })
   })
 
@@ -88,6 +89,7 @@ export function stubOvertimeDecisionRpcs() {
       hr_signature_timestamp: null,
       approval_credits_snapshot: null,
       hr_processed_by: null,
+      hr_processed_at: null,
     })
   })
 }
