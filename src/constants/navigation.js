@@ -173,7 +173,7 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       // The Purchasing Dashboard (#322): every SOR's buying grouped by what is
-      // outstanding, with Order Monitoring (#263) as two of its tabs since
+      // outstanding, with Order Monitoring (#263) folded into its tracker since
       // 2026-10-20. Purchasing access, Finance access and Super Admins; the
       // database limits the rows and the page sends anyone else home.
       {
