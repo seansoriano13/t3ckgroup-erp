@@ -26,15 +26,9 @@ import { ipasListKey } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
 import { getPermissionContext } from "../../../utils/permissions";
 import { filterIpas, formatAmount } from "../../../utils/ipas";
-import { ipasFigures } from "../../../utils/ipasFigures";
-import {
-  IPAS_EXPORT_HEADER,
-  IPAS_VIEW,
-  IPAS_VIEW_LABELS,
-  inIpasView,
-  ipasExportRows,
-  ipasTotalsByCurrency,
-} from "../../../utils/ipasListExport";
+import { ipasFigures, ipasTotalsByCurrency } from "../../../utils/ipasFigures";
+import { IPAS_EXPORT_HEADER, ipasExportRows } from "../../../utils/ipasListExport";
+import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasListViews";
 import { downloadXlsx } from "../../../utils/xlsx";
 import {
   IPAS_COMPUTATION_STATUSES,

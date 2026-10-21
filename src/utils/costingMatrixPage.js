@@ -1,4 +1,6 @@
 import { revenueComparison } from "./costingMath";
+import { sumPesos } from "./landedCost";
+import { matchesSearch, sorSearchFields } from "./sorSearch";
 
 /**
  * The Costing Matrix page's rows (#606, spec #595): every SOR that has a Costing Matrix with its
@@ -44,18 +46,13 @@ export function shapeMatrixPage(rows, settings) {
  * the way Purchasing writes them ("S04081 BFP Command Bus").
  */
 export function filterMatrixPage(rows, { stage = null, entity = null, belowPlanned = false, search = "" } = {}) {
-  const term = search.trim().toLowerCase();
   return rows.filter((row) => {
     if (stage && row.stage !== stage) return false;
     if (entity && !row.entities.includes(entity)) return false;
     if (belowPlanned && !row.comparison.actualLower) return false;
-    if (!term) return true;
-    return [row.sorNumber, row.soNumber, row.projectTitle, `${row.soNumber} ${row.projectTitle}`].some((field) => field.toLowerCase().includes(term));
+    return matchesSearch(search, sorSearchFields({ salesReference: row.soNumber, sorCode: row.sorNumber, projectTitle: row.projectTitle }));
   });
 }
-
-/** Adds pesos exactly: centavos, so a long column never drifts. */
-const sumPesos = (values) => values.reduce((sum, v) => sum + Math.round(v * 100), 0) / 100;
 
 /**
  * Totals for the rows shown. Each money column adds the rows that have a figure; a row whose

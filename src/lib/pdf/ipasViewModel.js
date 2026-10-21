@@ -43,7 +43,7 @@ import {
 import { filingChecklist } from '../../utils/ipasDocuments';
 import { formatDay } from '../../utils/ipasPayments';
 import { isLandedCostFinal } from '../../utils/ipasSignoffs';
-import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from '../../utils/landedCost';
+import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote, landedCostMarkLabel } from '../../utils/landedCost';
 
 /** The printed form is read in the company's own timezone, wherever it is printed. */
 const PRINT_TIMEZONE = 'Asia/Manila';
@@ -244,7 +244,7 @@ function landedCostOf(ipas, filed, charges) {
     build,
     perUnit: only ? peso(only.landedPerUnitPhp) : null,
     units: only ? `${only.quantity}${text(only.unit) ? ` ${only.unit}` : ''}` : `${lc.lines.length} lines`,
-    label: status === IPAS_LANDED_COST_STATUS.FINAL ? 'Final' : estimate ? 'Estimate' : 'Provisional',
+    label: landedCostMarkLabel({ ...lc, status, estimate }),
     note: notes.join(' '),
     lines: lc.lines.map((line) => ({
       name: line.name || BLANK,

@@ -1,78 +1,14 @@
 /**
- * What the IPAS list offers beyond its rows (spec #595, ticket #599): the
- * built-in views, the per-currency totals and the Excel export. Pure: every
- * money figure is read from `row.figures` (utils/ipasFigures.js) and nothing is
- * worked out here but sums.
+ * The IPAS list's Excel export (spec #595, ticket #599). Pure: every money figure is read from
+ * `row.figures` (utils/ipasFigures.js) and nothing is worked out here.
  *
- * Currencies are never added together: totals are kept per currency, and the
- * export writes each amount as a number in its own currency's format.
+ * Currencies are never added together: the export writes each amount as a number in its own
+ * currency's format. The list's views are in ipasListViews.js, its totals in ipasFigures.js.
  */
 
-import { IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS } from "../constants/ipas";
+import { IPAS_STATUS_LABELS } from "../constants/ipas";
 import { formatDate } from "./formatDate.js";
 import { raisedByParts, sorLineParts } from "./ipas";
-
-/** The list's built-in views (a view narrows the rows; null is no view). */
-export const IPAS_VIEW = Object.freeze({
-  UNPAID: "unpaid",
-  ON_HOLD: "on_hold",
-  ONGOING: "ongoing",
-  MINE: "mine",
-});
-
-export const IPAS_VIEW_LABELS = {
-  [IPAS_VIEW.UNPAID]: "Unpaid",
-  [IPAS_VIEW.ON_HOLD]: "On-Hold",
-  [IPAS_VIEW.ONGOING]: "Ongoing",
-  [IPAS_VIEW.MINE]: "Raised by me",
-};
-
-/**
- * Whether a row belongs to a view. Unpaid is the open IPAS that are not yet
- * Paid (Done is a filed one, so it is never open); On-Hold and Ongoing are that
- * IPAS Status; Raised by me is the IPAS the signed-in employee raised.
- */
-export function inIpasView(row, view, userId) {
-  switch (view) {
-    case IPAS_VIEW.UNPAID:
-      return row.state === IPAS_STATE.OPEN && row.figures?.status !== IPAS_STATUS.PAID && row.figures?.status !== IPAS_STATUS.DONE;
-    case IPAS_VIEW.ON_HOLD:
-      return row.figures?.status === IPAS_STATUS.ON_HOLD;
-    case IPAS_VIEW.ONGOING:
-      return row.figures?.status === IPAS_STATUS.ONGOING;
-    case IPAS_VIEW.MINE:
-      return Boolean(userId) && row.created_by === userId;
-    default:
-      return true;
-  }
-}
-
-const toCents = (n) => Math.round(n * 100);
-
-/**
- * Amount and Remaining balance totals for the rows shown, one entry per
- * currency, in the order each currency first appears:
- * [{ currency, amount, remainingBalance, count }]. A row with no figure adds
- * nothing to that total. `currency` is null for a PO whose currency is unknown.
- */
-export function ipasTotalsByCurrency(rows) {
-  const byCurrency = new Map();
-  for (const row of rows) {
-    const { currency = null, amount, remainingBalance } = row.figures ?? {};
-    const key = currency ?? null;
-    if (!byCurrency.has(key)) byCurrency.set(key, { currency: key, amountCents: 0, remainingCents: 0, count: 0 });
-    const total = byCurrency.get(key);
-    total.count += 1;
-    if (amount !== null && amount !== undefined) total.amountCents += toCents(amount);
-    if (remainingBalance !== null && remainingBalance !== undefined) total.remainingCents += toCents(remainingBalance);
-  }
-  return [...byCurrency.values()].map(({ currency, amountCents, remainingCents, count }) => ({
-    currency,
-    amount: amountCents / 100,
-    remainingBalance: remainingCents / 100,
-    count,
-  }));
-}
 
 /** The export's columns, in the Google Sheet's order. */
 export const IPAS_EXPORT_HEADER = [

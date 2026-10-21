@@ -47,7 +47,6 @@ import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage } from "../../../utils/ipas";
-import { ipasFigures } from "../../../utils/ipasFigures";
 import IpasStatusControl from "../../../components/ipas/IpasStatusControl";
 import { parseAmountInput } from "../../../utils/ipasPayments";
 import {
@@ -762,7 +761,6 @@ function IpasPage() {
   // Finance has it: Finance access alone ticks it, until Filing.
   const canTickFinance = hasFinanceFlow && open;
   const digest = digestIpas(ipas);
-  const statusFigures = ipasFigures(ipas);
 
   // The sign-offs of sections 1, 2 and 3 (stored 1, 3 and 6): what this person may do on each.
   const sectionRights = (section) =>
@@ -960,10 +958,10 @@ function IpasPage() {
           <>
             {/* The IPAS Status (#597): the list's pill, read from the same IPAS figures so the two never disagree. */}
             <div className="flex flex-wrap items-center gap-2 empty:hidden" data-testid="ipas-record-status">
-              <IpasStatusControl ipas={ipas} figures={statusFigures} canSet={hasPurchasingFlow || hasFinanceFlow} />
-              {statusFigures.onHoldNote && (
+              <IpasStatusControl ipas={ipas} figures={digest.figures} canSet={hasPurchasingFlow || hasFinanceFlow} />
+              {digest.figures.onHoldNote && (
                 <span className="text-xs text-muted-foreground" data-testid="ipas-record-on-hold-note">
-                  {statusFigures.onHoldNote}
+                  {digest.figures.onHoldNote}
                 </span>
               )}
             </div>

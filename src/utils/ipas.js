@@ -4,6 +4,7 @@
 
 import { REFUSAL } from "../constants/refusal";
 import { finiteNumber, isPhpCurrency } from "./landedCost";
+import { matchesSearch, sorSearchFields } from "./sorSearch";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { deriveTransmittalTrack } from "./ipasTransmittals";
 import {
@@ -319,7 +320,6 @@ export function ipasErrorMessage(error, fallback = "Something went wrong.") {
  * supplier, SO number, SOR number and project name, case-insensitively.
  */
 export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, status = null, search = "" } = {}) {
-  const term = search.trim().toLowerCase();
   return rows.filter((row) => {
     if (state !== "all" && row.state !== state) return false;
     if (entity && row.entity !== entity) return false;
@@ -331,14 +331,7 @@ export function filterIpas(rows, { state = "all", entity = null, purpose = null,
     } else if (computationStatus && (row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING) !== computationStatus) {
       return false;
     }
-    if (!term) return true;
-    const haystack = [
-      row.number,
-      row.po_number,
-      row.supplier,
-      ...row.sors.flatMap((s) => [s.salesReference, s.sorCode, s.projectTitle]),
-    ];
-    return haystack.some((field) => field?.toLowerCase().includes(term));
+    return matchesSearch(search, [row.number, row.po_number, row.supplier, ...row.sors.flatMap(sorSearchFields)]);
   });
 }
 

@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_STATE, IPAS_STATUS_SOURCE } from "../constants/ipas";
+import { IPAS_STATE, IPAS_STATUS, IPAS_STATUS_SOURCE } from "../constants/ipas";
 import { ORDER_GROUP } from "../constants/orderMonitoring";
 import { TRANSMITTAL_RATING } from "../constants/transmittals";
 import { orderAgeingRulesService } from "./orderAgeingRulesService";
@@ -9,6 +9,7 @@ import { transmittalService } from "./transmittalService";
 import { readSection3Signoffs } from "./ipasSection3Signoffs";
 import { finiteNumber } from "../utils/landedCost";
 import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas } from "../utils/ipas";
+import { ipasFigures } from "../utils/ipasFigures";
 import { isLandedCostFinal } from "../utils/ipasSignoffs";
 import { checkResultOf, daysBetweenManila, orderStanding } from "../utils/orderStanding";
 import { inDateOrder } from "../utils/ipasTransmittals";
@@ -143,7 +144,8 @@ async function loadOrders(today) {
         arrivedInPhOn: row.arrived_in_ph_on,
         origins: row,
         slips: named,
-        onHold: row.on_hold === true,
+        // The On-Hold rule is the IPAS Status's, read from the figures (utils/ipasFigures.js), not the raw flag.
+        onHold: ipasFigures(shaped).status === IPAS_STATUS.ON_HOLD,
       }),
       rules,
       today,

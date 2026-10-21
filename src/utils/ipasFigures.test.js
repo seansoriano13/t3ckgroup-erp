@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { IPAS_AMOUNT_SOURCE, IPAS_BILL_CHECK, ipasFigures, odooPoTotal } from "./ipasFigures"
+import { IPAS_AMOUNT_SOURCE, IPAS_BILL_CHECK, ipasFigures, ipasTotalsByCurrency, odooPoTotal } from "./ipasFigures"
 
 const line = (subtotal) => ({ line_id: 1, name: "Item", quantity: 1, price_unit: subtotal, price_subtotal: subtotal })
 
@@ -326,5 +326,18 @@ describe("ipasFigures: IPAS Status (#597)", () => {
       const payments = [pay("full_payment", 4000, "Cash")]
       expect(ipasFigures(ipas({ ...owing, state: "cancelled", payments })).remainingBalance).toBe(6000)
     })
+  })
+})
+
+describe("ipasTotalsByCurrency", () => {
+  const row = (currency, amount, remainingBalance) => ({ figures: { currency, amount, remainingBalance } })
+
+  it("adds per currency to the centavo, in the order each first appears, and never across currencies", () => {
+    const totals = ipasTotalsByCurrency([row("USD", 0.1, 0.1), row("PHP", 10, 4), row("USD", 0.2, 0.2), row(null, null, null)])
+    expect(totals).toEqual([
+      { currency: "USD", amount: 0.3, remainingBalance: 0.3, count: 2 },
+      { currency: "PHP", amount: 10, remainingBalance: 4, count: 1 },
+      { currency: null, amount: 0, remainingBalance: 0, count: 1 },
+    ])
   })
 })

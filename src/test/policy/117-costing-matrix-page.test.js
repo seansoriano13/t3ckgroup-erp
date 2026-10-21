@@ -181,6 +181,16 @@ describe("the Closed Book", () => {
         expect(row.ipas_short).toBe(true)
     })
 
+    it("adds each item's Landed Cost to the centavo, exactly as the SOR summary does", async () => {
+        const client = await clientFor("ipasSigner")
+        const { data: items, error } = await client.rpc("costing_landed_costs", { p_opportunity_id: sorA })
+        expect(error).toBeNull()
+        const cents = items.filter((i) => i.total_php !== null).reduce((sum, i) => sum + Math.round(Number(i.total_php) * 100), 0)
+        const row = rowOf((await page("ipasSigner")).data, sorA)
+        expect(Math.round(Number(row.landed_cost_total) * 100)).toBe(cents)
+        expect(cents).toBeGreaterThan(0)
+    })
+
     it("leaves a figure null while an input is blank, and zero where nothing is bought", async () => {
         const row = rowOf((await page("superAdmin")).data, sorB)
         expect(row.final_offer_total).toBeNull()

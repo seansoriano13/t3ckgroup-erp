@@ -405,11 +405,13 @@ describe("changing and removing payments", () => {
     it("holds a changed payment to the same rules as a new one", async () => {
         const usd = await raise("USD")
         const { data: row } = await addPayment("outsider", usd.id, { p_amount: 100, p_php_debited: 5600 })
-        const noPhp = await update("outsider", row.id, { p_amount: 100, p_php_debited: null })
-        expect(noPhp.error?.code).toBe("22023")
         const zero = await update("outsider", row.id, { p_amount: 0, p_php_debited: 5600 })
         expect(zero.error?.code).toBe("22023")
         expect(Number((await paymentRow(row.id)).php_debited)).toBe(5600)
+        // #604: the pesos taken from the bank may be blanked again (Landed Cost is then an estimate).
+        const noPhp = await update("outsider", row.id, { p_amount: 100, p_php_debited: null })
+        expect(noPhp.error).toBeNull()
+        expect((await paymentRow(row.id)).php_debited).toBeNull()
     })
 
     it("is refused to anyone without Purchasing or Finance access", async () => {

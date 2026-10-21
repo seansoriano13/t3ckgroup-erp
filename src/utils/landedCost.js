@@ -15,6 +15,16 @@ export function finiteNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * IPAS money is added in whole centavos so a long column never drifts. These are the only
+ * conversions: figures, totals, the export and the Costing Matrix page all use them.
+ */
+export const toCents = (n) => Math.round(n * 100);
+export const fromCents = (cents) => cents / 100;
+
+/** Adds pesos (or any currency) exactly, to the centavo. */
+export const sumPesos = (values) => fromCents(values.reduce((sum, v) => sum + toCents(v), 0));
+
 /** Whether the PO's currency is the peso. Anything else, or none, is foreign. */
 export function isPhpCurrency(currency) {
   return String(currency ?? "").trim().toUpperCase() === "PHP";

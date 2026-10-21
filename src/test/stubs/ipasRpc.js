@@ -1019,8 +1019,10 @@ export function stubIpasRpcs({
       if (php !== null && !(php > 0)) {
         refuse("22023", `${fn}: the pesos taken from the bank must be more than zero, or left blank until the bank statement arrives`)
       }
-      if (php === null && ipas.computation_status === "lc_odoo_done") {
-        refuse("22023", `${fn}: ${ipas.number} is at LC Odoo Done, so Landed Cost is final; give the pesos taken from the bank`)
+      // Final at LC Odoo Done and at any status after it.
+      if (php === null && ["lc_odoo_done", "costs_complete", "checked"].includes(ipas.computation_status)) {
+        const at = ipas.computation_status === "lc_odoo_done" ? "at" : "past"
+        refuse("22023", `${fn}: ${ipas.number} is ${at} LC Odoo Done, so Landed Cost is final; give the pesos taken from the bank`)
       }
     }
     const label = checkOption(fn, args.p_method_id, "payment_method", currentMethod, "payment method")

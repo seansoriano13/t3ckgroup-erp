@@ -10,6 +10,7 @@ import {
 } from "../../constants/ipas";
 import { formatAmount, raisedByParts, sorLineParts } from "../../utils/ipas";
 import HighlightText from "../HighlightText";
+import { matchesSorCode } from "../../utils/sorSearch";
 import { IPAS_AMOUNT_SOURCE } from "../../utils/ipasFigures";
 import IpasStateBadge from "./IpasStateBadge";
 import IpasStatusControl from "./IpasStatusControl";
@@ -86,7 +87,6 @@ function IpasMoneyCells({ figures, show }) {
  */
 export default function IpasRow({ row, onOpen, search = "", canSetHold = false, show = () => true }) {
   const raisedBy = raisedByParts(row);
-  const term = search.trim().toLowerCase();
 
   return (
     <TableRow
@@ -150,7 +150,7 @@ export default function IpasRow({ row, onOpen, search = "", canSetHold = false, 
               const { reference, project } = sorLineParts(sor);
               // A line leads with the SO number; when the search is the SOR number
               // of an SOR that has an SO number, the SOR number is shown so the match is visible.
-              const showSorCode = Boolean(sor.salesReference && sor.sorCode && term && sor.sorCode.toLowerCase().includes(term));
+              const showSorCode = Boolean(sor.salesReference && matchesSorCode(search, sor.sorCode));
               return (
                 <li key={sor.id} className="max-w-[20rem] truncate text-xs text-foreground">
                   <span className="font-mono">{reference ? <HighlightText text={reference} search={search} /> : "—"}</span>

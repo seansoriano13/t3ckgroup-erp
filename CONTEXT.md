@@ -735,6 +735,32 @@ amount on it or on the supplier's quotation (P.I/QT Amount), typed from the
 supplier's document.
 _Avoid_: Pro-forma, Invoice (unqualified, which is the supplier's final bill)
 
+**Supplier bill check**:
+The comparison of the Odoo purchase order's total with the P.I/QT Amount typed
+on the IPAS, to the centavo, in the PO's currency. It answers matches, differs
+(by how much, and which side is higher) or cannot be checked (no P.I/QT Amount
+typed yet, or an older Odoo copy that states no total). It only warns: the
+warning shows beside section 1's Approve, in the Approval Center review and in
+the record's money summary, and it never blocks an approval.
+_Avoid_: Bill match, Invoice check, Three-way match
+
+**Pesos taken from the bank**:
+What a foreign-currency payment actually cost in pesos, read off the bank
+statement (the column is still called `php_debited`). Optional: Finance may
+record the payment the day it is made and fill this in when the statement
+arrives. While it is blank, that payment is taken at its payment date's
+Reference Rate and the Landed Cost is an estimate; the Computation status cannot
+reach LC Odoo Done, and a payment cannot be saved blank once it has. A PHP
+payment has no such figure, since its amount is already pesos.
+_Avoid_: PHP debited (the old label), Peso equivalent, Converted amount
+
+**Payment scheme**:
+How an IPAS was paid, as the payment methods used joined in the order they were
+first used ("Bank TT + Cash"), worked out from its payments and never typed.
+Empty while nothing is paid. A column of the IPAS list and its Excel export,
+beside the Down Payment and Full Payment totals.
+_Avoid_: Payment terms (what the supplier agreed to, not what was done), Payment mode
+
 **Filing**:
 The last sign-off on an IPAS — section 4's Approved, given once Finance has
 received the IPAS and it has been noted and checked, and only after sections 1,

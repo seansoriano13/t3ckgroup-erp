@@ -23,7 +23,7 @@
  */
 
 import { IPAS_PAYMENT_KIND, IPAS_STATE, IPAS_STATUS } from "../constants/ipas";
-import { finiteNumber } from "./landedCost";
+import { finiteNumber, fromCents, toCents } from "./landedCost";
 
 /** The bill check's three answers. */
 export const IPAS_BILL_CHECK = Object.freeze({
@@ -40,9 +40,6 @@ export const IPAS_AMOUNT_SOURCE = Object.freeze({
 
 /** Joins the payment methods in a Payment scheme ("Bank TT + Cash"). */
 export const PAYMENT_SCHEME_SEPARATOR = " + ";
-
-const toCents = (n) => Math.round(n * 100);
-const fromCents = (c) => c / 100;
 
 /**
  * The Odoo PO's total as the copy states it, or, for an older copy without
@@ -220,4 +217,29 @@ export function ipasFigures(ipas) {
     paymentMethods: methods,
     paymentScheme: methods.join(PAYMENT_SCHEME_SEPARATOR),
   };
+}
+
+/**
+ * Amount and Remaining balance totals for the rows shown (each carrying `figures`), one entry
+ * per currency, in the order each currency first appears:
+ * [{ currency, amount, remainingBalance, count }]. Currencies are never added together. A row
+ * with no figure adds nothing to that total. `currency` is null for a PO whose currency is unknown.
+ */
+export function ipasTotalsByCurrency(rows) {
+  const byCurrency = new Map();
+  for (const row of rows) {
+    const { currency = null, amount, remainingBalance } = row.figures ?? {};
+    const key = currency ?? null;
+    if (!byCurrency.has(key)) byCurrency.set(key, { currency: key, amountCents: 0, remainingCents: 0, count: 0 });
+    const total = byCurrency.get(key);
+    total.count += 1;
+    if (amount !== null && amount !== undefined) total.amountCents += toCents(amount);
+    if (remainingBalance !== null && remainingBalance !== undefined) total.remainingCents += toCents(remainingBalance);
+  }
+  return [...byCurrency.values()].map(({ currency, amountCents, remainingCents, count }) => ({
+    currency,
+    amount: fromCents(amountCents),
+    remainingBalance: fromCents(remainingCents),
+    count,
+  }));
 }
