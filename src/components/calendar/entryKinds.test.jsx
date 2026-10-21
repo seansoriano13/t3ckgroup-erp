@@ -6,6 +6,7 @@ describe('entry-kind registry', () => {
     expect(layerOf('SIL')).toBe('timeOff');
     expect(layerOf('OFFSET')).toBe('timeOff');
     expect(layerOf('UNDERTIME')).toBe('timeOff');
+    expect(layerOf('LWOP')).toBe('timeOff');
     expect(layerOf('OVERTIME')).toBe('overtime');
   });
 
