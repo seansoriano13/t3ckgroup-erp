@@ -52,6 +52,7 @@ describe("navigation registry", () => {
       expect(groups[0].links.map((l) => l.label)).toEqual([
         "Dashboard",
         "My Requests",
+        "Calendar",
         // Open to everyone (ADR 0030).
         "Release Notes",
       ]);
@@ -92,6 +93,7 @@ describe("navigation registry", () => {
         "Dashboard",
         "My Tasks",
         "My Requests",
+        "Calendar",
         "Release Notes",
       ]);
     });

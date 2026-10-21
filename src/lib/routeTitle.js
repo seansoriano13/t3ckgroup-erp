@@ -13,6 +13,7 @@ const TITLES = [
   ["/approvals/transmittals", "Transmittal Check by"],
   ["/approvals", "Approvals"],
   ["/bug-reports", "Bug Reports"],
+  ["/calendar", "Calendar"],
   ["/flow-versions", "Flow Snapshot"],
   ["/group-tasks/templates", "Group Task Templates"],
   ["/group-tasks", "Group Tasks"],

@@ -1,5 +1,6 @@
 import {
   LayoutList,
+  CalendarDays,
   ListCheck,
   ListTodo,
   Clock,
@@ -53,6 +54,15 @@ export const NAV_MODULES = {
         label: "My Requests",
         link: "/offsets",
         icon: Clock,
+        isPermitted: () => true,
+      },
+      // The company-wide Calendar, for everyone (ADR 0037). The server decides
+      // what each viewer may see on it.
+      {
+        key: "workspace.calendar",
+        label: "Calendar",
+        link: "/calendar",
+        icon: CalendarDays,
         isPermitted: () => true,
       },
       // What changed in the ERP, for everyone (ADR 0030). The What's new
