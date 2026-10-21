@@ -1012,24 +1012,29 @@ function IpasPage() {
             />
           </div>
 
-          {/* Top to bottom: the decision card, the money, then every section as a block that opens in place. */}
+          {/* Top to bottom: the money, the decision card, then every section as a block that opens in place. */}
           {editView ?? (
-            <div className="min-w-0 space-y-8">
-              <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
-              {/* The money summary (#603): Supplier bill check, Paid, Remaining balance, Landed Cost. */}
-              <div data-testid="ipas-money-summary-slot">
+            // From the wide breakpoint the decision card is a sticky rail on the right, beside the money and
+            // the sections; below it, it sits between them. The money comes first either way (#603).
+            <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_17rem] xl:gap-y-8">
+              <div data-testid="ipas-money-summary-slot" className="min-w-0 xl:col-start-1 xl:row-start-1">
                 <MoneySummary digest={digest} onOpen={sections.show} />
               </div>
-              <SectionsPanel
-                ctx={ctx}
-                blocks={blocks}
-                digest={digest}
-                open={sections}
-                headRef={(key) => (node) => {
-                  rowEls.current[key] = node;
-                }}
-                onEdit={openEdit}
-              />
+              <aside className="min-w-0 xl:sticky xl:top-4 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
+                <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
+              </aside>
+              <div className="min-w-0 xl:col-start-1 xl:row-start-2">
+                <SectionsPanel
+                  ctx={ctx}
+                  blocks={blocks}
+                  digest={digest}
+                  open={sections}
+                  headRef={(key) => (node) => {
+                    rowEls.current[key] = node;
+                  }}
+                  onEdit={openEdit}
+                />
+              </div>
             </div>
           )}
         </div>
