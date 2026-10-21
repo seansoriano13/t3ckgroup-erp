@@ -42,7 +42,7 @@ BEGIN
     RAISE EXCEPTION 'Overtime request not found.';
   END IF;
 
-  -- Same lock this function already holds on the row — the gate and the
+  -- Same lock this function already holds on the row â€” the gate and the
   -- decision it guards can no longer be split across two round-trips.
   IF p_status LIKE 'APPROVED%' AND v_request.head_status <> 'APPROVED' AND NOT v_request.hr_override THEN
     RAISE EXCEPTION 'Cannot approve this overtime request: the department head has not approved this request yet (head_status=%). Use the HR override if this needs to proceed anyway.', v_request.head_status;
@@ -339,7 +339,7 @@ BEGIN
   END IF;
 
   -- The refund is an addition, so it can never take the balance negative the
-  -- way undoing an overtime credit can (#108) — there is nothing to refuse.
+  -- way undoing an overtime credit can (#108) â€” there is nothing to refuse.
   IF v_previous_status = 'APPROVED' THEN
     SELECT offset_hours_balance INTO v_balance FROM employees WHERE id = v_employee_id FOR UPDATE;
     UPDATE employees
