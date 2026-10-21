@@ -21,15 +21,24 @@ const RETURN_HINT = (d) =>
 const UNDO_HINT = (d) =>
   `Takes back the approval only. Submitted stays, so it waits for an approver again. Needs a reason.${FILING_CASCADE(d)}`;
 
+/** What follows an approval of section 1, 2 or 3 (#590): filing opens once all three are approved. */
+const AFTER_APPROVAL = (d, part) => {
+  const others = [
+    ["purchasing", d.s1],
+    ["finance", d.s3],
+    ["costing", d.s6],
+  ].filter(([key, state]) => key !== part && !state.approved);
+  if (others.length === 0) return "Finance receives it for filing.";
+  return `${others.map(([key]) => approversOf(key)).join(" and ")}, before filing opens.`;
+};
+
 const MOVE_HINT = {
-  "approve-1": (d) =>
-    `Confirms ${sectionOf("purchasing")}. Nothing locks until filing. Next: ${d.s3.approved ? "Finance receives it for filing." : `${approversOf("finance")}.`}`,
-  "approve-3": (d) =>
-    `Confirms ${sectionOf("finance")}. Nothing locks until filing. Next: ${d.s1.approved ? "Finance receives it for filing." : `${approversOf("purchasing")}.`}`,
+  "approve-1": (d) => `Confirms ${sectionOf("purchasing")}. Nothing locks until filing. Next: ${AFTER_APPROVAL(d, "purchasing")}`,
+  "approve-3": (d) => `Confirms ${sectionOf("finance")}. Nothing locks until filing. Next: ${AFTER_APPROVAL(d, "finance")}`,
   "prepare-1": () => `Submits ${sectionOf("purchasing")} for approval. Nothing locks. Next: ${approversOf("purchasing")}, told now.`,
   "prepare-3": () => `Submits ${sectionOf("finance")} for approval. Nothing locks. Next: ${approversOf("finance")}, told now.`,
-  "approve-6": () =>
-    `Confirms ${sectionOf("costing")}: the Landed Cost was checked. Nothing locks until filing. Next: filing, once ${ipasSectionLabel("filing")} is received, noted and checked.`,
+  "approve-6": (d) =>
+    `Confirms ${sectionOf("costing")}: the Landed Cost was checked. Nothing locks until filing. Next: ${AFTER_APPROVAL(d, "costing")}`,
   "prepare-6": () => `Submits ${sectionOf("costing")} for approval. Nothing locks. Next: ${approversOf("costing")}, told now.`,
   costs: (d) =>
     d.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED
@@ -45,7 +54,7 @@ const MOVE_HINT = {
   "undo-3": UNDO_HINT,
   return: () => "Asks which section and why. Return clears Prepared and Approved; Undo approval clears the approval only.",
   "return-7": () =>
-    `Clears Received, Noted and Checked and tells who gave them. ${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")} stay approved. Needs a reason. Next: Finance receives it again.`,
+    `Clears Received, Noted and Checked and tells who gave them. ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} stay approved. Needs a reason. Next: Finance receives it again.`,
 };
 
 /** The one-line consequence hint for a move, from the digest. */

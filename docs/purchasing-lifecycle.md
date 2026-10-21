@@ -32,7 +32,7 @@ How they connect:
         │
    Requested Item "Ordered" + PO number + PO lines ──► IPAS (one per Odoo PO)
                                                           │ payments, charges, bank, documents
-                                                          │ sign-offs 1 and 2, then 4 = Filing
+                                                          │ sign-offs 1, 2 and 3, then 4 = Filing
    IPAS PO lines ◄──── TRANSMITTAL (TG03) ───────────────┘ (Warehouse, Technical, Check by)
         │
         └─ Landed Cost flows back to the Component on the Costing Matrix (read only)
@@ -416,11 +416,11 @@ Encoding → Encoded → LC GS Done → LC Odoo Done. It ends there: the old **C
 
 Rules:
 - **No self-approval.** A Super Admin signs only if they are on the list.
-- **Section 4 opens only once sections 1 and 2 are approved.**
+- **Section 4 opens only once sections 1, 2 and 3 are approved** (#590). The gate is checked at every section 4 step, so an approval undone by an Odoo change closes it again. Section 4 sign-offs given before this rule stay; only what is still to be given waits, the final Approve among it. The section 4 Received list is told when the last of the three approvals comes in.
 - **Approved in section 4** needs Received, Noted and Checked, and computation status at LC Odoo Done. It sets `state = filed` and `filed_at` in one act, and notifies the next list at each step.
 - **Return (send back)** on section 1 or 2: a signer on that list sends it to the preparer with a reason. Prepared and Approved are cleared and kept as history. The data is untouched. It **also clears section 4's live Received, Noted and Checked**, and tells those signers.
 - **Undo approval** (sections 1 and 2): takes back only Approved, leaves Prepared, needs a reason, and has the same section 4 consequence.
-- **Section 4 send back:** anyone on a section 4 list, while open (1 and 2 approved) and not filed. It clears Received, Noted and Checked. If there is nothing live to clear, it is refused.
+- **Section 4 send back:** anyone on a section 4 list, while open (1, 2 and 3 approved) and not filed. It clears Received, Noted and Checked. If there is nothing live to clear, it is refused.
 - The only things that clear approvals **by themselves** are a changed Odoo PO and a flagged Account #.
 - Every sign-off stores the signer's signature image as it was, and a declined signature never prints.
 - The signer lists are changed only through one atomic function (Super Admin), and each change is logged.
@@ -428,7 +428,7 @@ Rules:
 ### Filing and what it freezes
 - **Filed = frozen.** Triggers refuse every insert, update and delete on the IPAS row, its SORs, payments, charges, documents and bank details. This holds for the service role too. The two exceptions are `ipas_reopen` and the Odoo-changed flag.
 - Option labels used by any filed IPAS **cannot be renamed** by anyone, Super Admins included. Deactivating, reordering and adding stay allowed.
-- **Reopen:** Super Admin only, with a reason. It clears section 4's live sign-offs (kept as history) and leaves sections 1 and 2 approved. The Odoo flag is dropped.
+- **Reopen:** Super Admin only, with a reason. It clears section 4's live sign-offs (kept as history) and leaves sections 1, 2 and 3 approved. The Odoo flag is dropped.
 - **Cancel:** Purchasing, with a reason. A **filed IPAS cannot be cancelled** until it is reopened. An already cancelled one is refused.
 
 ### Printing
@@ -506,10 +506,11 @@ The decision order is fixed. The first match wins:
 1. A line rated **NA** at its slip's checking stage, with no later slip clearing it with GC. Owner is Purchasing ("resolve with supplier"). Rule step `check_open`.
 2. A slip whose checking stage is not complete. Owner is Warehouse, then Technical. Rule step `check_open`.
 3. A slip awaiting Check by. Owner is Check by signers.
-4. Computation status at LC Odoo Done, and not filed: "ready to file". Owner is the section 4 signers. Rule step `ready_to_file`.
-5. Delivered, with no Transmittal naming the IPAS. Owner is Purchasing. Rule step `no_transmittal`. **A draft Transmittal counts as raised**, so Purchasing is not nagged while someone has started the hand-off.
-6. The first unticked buyer-track step. Owners: Purchasing, Finance (With P.O.P, Create Bill), Warehouse (Received in Odoo), and **Others** (Import Clearance, Delivered). Others = supplier, forwarder or port.
-7. Everything ticked but costs not complete: "Costs not complete". Owner is Purchasing.
+4. Computation status at LC Odoo Done, but section 3 not approved: "Section 3 waiting for approval". Owner is the section 3 approval list. Rule step `section_3_approval`, blank by default (#590).
+5. Computation status at LC Odoo Done, section 3 approved, and not filed: "ready to file". Owner is the section 4 signers. Rule step `ready_to_file`.
+6. Delivered, with no Transmittal naming the IPAS. Owner is Purchasing. Rule step `no_transmittal`. **A draft Transmittal counts as raised**, so Purchasing is not nagged while someone has started the hand-off.
+7. The first unticked buyer-track step. Owners: Purchasing, Finance (With P.O.P, Create Bill), Warehouse (Received in Odoo), and **Others** (Import Clearance, Delivered). Others = supplier, forwarder or port.
+8. Everything ticked but costs not complete: "Costs not complete". Owner is Purchasing.
 
 **Groups:** Filed (no wait), else **Needs chasing** if late, else **Waiting on someone else** if the owner is Others, else **Waiting on us**.
 

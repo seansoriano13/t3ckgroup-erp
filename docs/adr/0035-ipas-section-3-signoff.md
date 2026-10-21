@@ -86,6 +86,26 @@ display-time special case:
   `ipas_reopen` uses, and is switched off straight after. The guard itself is
   unchanged, and a filed IPAS still refuses every other write.
 
+## Filing waits for section 3 (#590)
+
+Section 4 (Filing, stored 7) opens only once sections 1, 2 and 3 (stored 1, 3
+and 6) all have a live Approved. One helper, `_ipas_filing_open(ipas_id)`, is the
+only place that knows this, and `ipas_sign` and `ipas_send_back` both ask it.
+
+- The gate is checked for every section 4 role, so the final Approve waits for
+  section 3 without a separate rule. For the same reason, an IPAS that is
+  part-signed on release day cannot get its remaining Noted or Checked until
+  section 3 is approved. Received, Noted and Checked already given **stay**: the
+  migration clears nothing.
+- The Received list is told when section 3 (or 1, or 2) is the last of the three
+  to be approved and section 4 has nothing live.
+- Order standing gains a step, "Section 3 waiting for approval", owed by the
+  section 3 approval list and ageing under the rule key `section_3_approval`
+  (blank by default). "Ready to file" now needs section 3 approved too.
+- **Release order:** the section 3 migration above (list seeding and the Checked
+  by conversion) must run before this gate reaches users, or no IPAS has a
+  section 3 approval and Filing stops.
+
 ## Consequences
 
 - A filed IPAS from before this change shows its old Checked by as a section 3

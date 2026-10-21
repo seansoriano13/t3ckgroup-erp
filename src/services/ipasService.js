@@ -947,7 +947,7 @@ export const ipasService = {
    * (Purchasing access) or "approved" (the section's list, someone other than
    * the preparer, after Prepared). Section 7 (#248): "received", then "noted"
    * and "checked" in either order, then "approved", which files the IPAS; each
-   * is its own list's, and section 7 opens once sections 1 and 3 are approved.
+   * is its own list's, and section 7 opens once sections 1, 2 and 3 (stored 1, 3 and 6) are approved.
    * The database decides and refuses with its own sentence (42501 not yours to
    * give, 55000 wrong state, Approved before LC Odoo Done included).
    * `declineSignature` signs without the stored signature, so the printed form
@@ -967,7 +967,7 @@ export const ipasService = {
    *
    * Each step tells exactly the next list, never the signer:
    *   Prepared                        that section's approval list
-   *   sections 1 and 3 both approved  the Received list
+   *   sections 1, 2 and 3 all approved  the Received list (whichever approval came last)
    *   Received                        the Noted and Checked lists
    *   Noted and Checked both given    the section 7 Approved list
    *
@@ -1151,7 +1151,7 @@ export const ipasService = {
    * that is Prepared but not Approved and wasn't prepared by them (they can't
    * approve their own). `role` is "approved"; `id` is "<ipas>:<section>".
    *
-   * Section 7 (#248): an open IPAS whose sections 1 and 3 are approved and whose
+   * Section 7 (#248): an open IPAS whose sections 1, 2 and 3 are approved and whose
    * next step is one they are on the list for: Received first; Noted and Checked
    * once it is given (a person on both lists gets one row for each); Approved
    * once all three are. `role` is that step and `id` is "<ipas>:7:<role>".
@@ -1173,8 +1173,8 @@ export const ipasService = {
     const sevenRoles = IPAS_SECTION_7_ROLES.filter((role) => keys.has(IPAS_SECTION_7_LIST[role]));
     if (firstSections.length === 0 && sevenRoles.length === 0) return [];
 
-    // Section 7 reads sections 1 and 3 too: it opens on their approvals.
-    const sections = sevenRoles.length > 0 ? [...new Set([1, 3, 7, ...firstSections])] : firstSections;
+    // Section 7 reads sections 1, 3 and 6 too: it opens on their approvals.
+    const sections = sevenRoles.length > 0 ? [...new Set([1, 3, 6, 7, ...firstSections])] : firstSections;
     const { data: rows, error } = await supabase
       .from("ipas_signoffs")
       .select(SIGNOFF_SELECT)
@@ -1205,15 +1205,15 @@ export const ipasService = {
       }
 
       if (sevenRoles.length > 0) {
-        const sections1and3 = [live.get("1/approved"), live.get("3/approved")];
-        if (sections1and3.every(Boolean) && !live.get("7/approved")) {
+        const openers = [live.get("1/approved"), live.get("3/approved"), live.get("6/approved")];
+        if (openers.every(Boolean) && !live.get("7/approved")) {
           const received = live.get("7/received");
           const noted = live.get("7/noted");
           const checked = live.get("7/checked");
           const latest = (...signoffs) =>
             signoffs.reduce((a, b) => (String(a.signed_at) >= String(b.signed_at) ? a : b));
           const ready = [];
-          if (!received) ready.push([IPAS_SIGNOFF_ROLE.RECEIVED, latest(...sections1and3)]);
+          if (!received) ready.push([IPAS_SIGNOFF_ROLE.RECEIVED, latest(...openers)]);
           else {
             if (!noted) ready.push([IPAS_SIGNOFF_ROLE.NOTED, received]);
             if (!checked) ready.push([IPAS_SIGNOFF_ROLE.CHECKED, received]);
@@ -1430,7 +1430,7 @@ function stageNotification(stage, { label, section, role }) {
       return {
         type: IPAS_NOTIFICATION.SECTION_7_READY,
         title: "IPAS ready to receive",
-        message: `${label}: sections ${ipasSectionNo(1)} and ${ipasSectionNo(3)} are approved. Section ${ipasSectionNo(7)} is ready for Received.`,
+        message: `${label}: sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(6)} are approved. Section ${ipasSectionNo(7)} is ready for Received.`,
       };
     case IPAS_SIGNOFF_STAGE.NOTED_CHECKED_READY:
       return {

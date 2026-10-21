@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { orderStanding, standingLabel } from "./orderStanding";
 import { TRANSMITTAL_STAFF_LIST } from "../constants/transmittals";
+import { ORDER_OWNER_LABELS } from "../constants/orderMonitoring";
 
 const TODAY = "2026-10-20";
 
@@ -87,5 +88,49 @@ describe("standingLabel", () => {
     expect(standingLabel({ label: "With P.O.P — no payment carries proof", list: null }, [])).toBe(
       "With P.O.P — no payment carries proof",
     );
+  });
+});
+
+describe("Filing waits for section 3 (#590)", () => {
+  const costsDone = (extra = {}) => ({
+    ...order([]),
+    computationStatus: "lc_odoo_done",
+    costsCompletedAt: "2026-10-10T00:00:00Z",
+    ...extra,
+  });
+  const RULES = [{ step: "section_3_approval", days: 3 }];
+
+  it("is waiting on the section 3 list when costs are complete and section 3 is not approved", () => {
+    const standing = orderStanding(costsDone({ section3Approved: false }), [], TODAY);
+    expect(standing.next).toMatchObject({
+      label: "Section 3 waiting for approval",
+      owner: "section_3_approvers",
+      step: "section_3_approval",
+    });
+    expect(ORDER_OWNER_LABELS[standing.next.owner]).toBe("Section 3 · Approved");
+  });
+
+  it("is ready to file once section 3 is approved", () => {
+    const next = orderStanding(costsDone({ section3Approved: true }), [], TODAY).next;
+    expect(next).toMatchObject({ label: "Costs complete — ready to file", owner: "signers", step: "ready_to_file" });
+  });
+
+  it("treats a missing section 3 approval as not approved", () => {
+    expect(orderStanding(costsDone(), [], TODAY).next.step).toBe("section_3_approval");
+  });
+
+  it("ages under its own rule key, blank by default", () => {
+    const blank = orderStanding(costsDone(), [], TODAY);
+    expect(blank.ruleDays).toBeNull();
+    expect(blank.late).toBe(false);
+    const ruled = orderStanding(costsDone(), RULES, TODAY);
+    expect(ruled.ruleDays).toBe(3);
+    expect(ruled.late).toBe(true);
+    expect(ruled.group).toBe("needs_chasing");
+  });
+
+  it("does not use the ready to file rule for the section 3 wait", () => {
+    const standing = orderStanding(costsDone(), [{ step: "ready_to_file", days: 1 }], TODAY);
+    expect(standing.ruleDays).toBeNull();
   });
 });

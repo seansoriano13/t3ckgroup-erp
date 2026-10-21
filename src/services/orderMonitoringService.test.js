@@ -408,8 +408,9 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.next.step).toBe("received_in_odoo")
     })
 
-    it("says costs complete and unfiled are ready to file, owed by the section 7 signers", async () => {
+    it("says costs complete, section 3 approved and unfiled are ready to file, owed by the section 7 signers", async () => {
       const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
+      db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "approved", signed_by: makeEmployee({ name: "S3 Approver" }).id, cleared_at: null })
       db.seed("ipas_events", {
         ipas_id: ipas.id,
         kind: "header_changed",
@@ -422,6 +423,26 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.next.label).toBe("Costs complete — ready to file")
       expect(row.next.owner).toBe("signers")
       expect(row.next.step).toBe("ready_to_file")
+      expect(row.daysWaiting).toBe(11)
+      expect(row.group).toBe("waiting_on_us")
+    })
+
+    it("says costs complete but section 3 not approved is waiting on the section 3 list (#590)", async () => {
+      const ipas = seedOrder({ computationStatus: "lc_odoo_done" })
+      db.seed("ipas_events", {
+        ipas_id: ipas.id,
+        kind: "header_changed",
+        detail: { fields: { computation_status: { from: "lc_gs_done", to: "lc_odoo_done" } } },
+        created_at: at(5),
+      })
+      // A cleared approval does not count.
+      db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "approved", signed_by: makeEmployee({ name: "S3 Approver" }).id, cleared_at: at(6) })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Section 3 waiting for approval")
+      expect(row.next.owner).toBe("section_3_approvers")
+      expect(row.next.step).toBe("section_3_approval")
       expect(row.daysWaiting).toBe(11)
       expect(row.group).toBe("waiting_on_us")
     })

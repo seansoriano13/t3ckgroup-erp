@@ -1999,7 +1999,7 @@ alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CH
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
-alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['purchase_order'::text, 'with_pop'::text, 'import_clearance'::text, 'delivered'::text, 'received_in_odoo'::text, 'create_bill'::text, 'actual_checking'::text, 'no_transmittal'::text, 'check_open'::text, 'ready_to_file'::text])));
+alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['purchase_order'::text, 'with_pop'::text, 'import_clearance'::text, 'delivered'::text, 'received_in_odoo'::text, 'create_bill'::text, 'actual_checking'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
 alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
 alter table order_deadline_setting add constraint "order_deadline_setting_one_row_chk" CHECK ((id = true));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -4786,6 +4786,22 @@ AS $function$
     p_document.label,
     (select o.label from public.ipas_options o where o.id = p_document.kind_id)
   );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_filing_open(p_ipas_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select (
+    select count(distinct s.section)
+      from public.ipas_signoffs s
+     where s.ipas_id = p_ipas_id
+       and s.section in (1, 3, 6)
+       and s.role = 'approved'
+       and s.cleared_at is null
+  ) = 3;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
@@ -11647,15 +11663,10 @@ begin
       raise exception 'ipas_send_back: only a signer of section 4 returns it' using errcode = '42501';
     end if;
 
-    -- Section 7 is open once sections 1 and 3 are approved.
-    if not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = v_ipas.id and s.section = 1 and s.role = 'approved' and s.cleared_at is null
-    ) or not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
-    ) then
-      raise exception 'ipas_send_back: section 4 isn''t open yet; sections 1 and 2 must be approved first' using errcode = '22023';
+    -- Section 7 is open once sections 1, 2 and 3 are approved (#590: the Filing gate
+    -- now includes section 3, stored 6).
+    if not public._ipas_filing_open(v_ipas.id) then
+      raise exception 'ipas_send_back: section 4 isn''t open yet; sections 1, 2 and 3 must be approved first' using errcode = '22023';
     end if;
 
     with cleared as (
@@ -12420,7 +12431,6 @@ declare
   v_notify uuid[] := '{}';
   v_stage text;
   v_filed boolean := false;
-  v_other integer;
 begin
   if v_actor is null then
     raise exception 'ipas_sign: not signed in' using errcode = '42501';
@@ -12471,16 +12481,13 @@ begin
   end if;
 
   if p_section = 7 then
-    -- Section 7 opens once sections 1 and 3 are approved (checked at every step:
-    -- an approval undone by an Odoo change closes it again).
-    if not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = v_ipas.id and s.section = 1 and s.role = 'approved' and s.cleared_at is null
-    ) or not exists (
-      select 1 from public.ipas_signoffs s
-       where s.ipas_id = v_ipas.id and s.section = 3 and s.role = 'approved' and s.cleared_at is null
-    ) then
-      raise exception 'ipas_sign: section 4 opens once sections 1 and 2 are approved' using errcode = '22023';
+    -- Section 7 (Filing, screen section 4) opens once sections 1, 2 and 3 are
+    -- approved (stored 1, 3 and 6). Checked at every step: an approval undone by an
+    -- Odoo change closes it again. The gate runs for every section 7 role, so
+    -- Approved waits for section 3 too, and so does a Noted or Checked not yet given
+    -- (#590); the ones already given stay.
+    if not public._ipas_filing_open(v_ipas.id) then
+      raise exception 'ipas_sign: section 4 opens once sections 1, 2 and 3 are approved' using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.
@@ -12541,14 +12548,10 @@ begin
     -- the person who just prepared it).
     v_stage := 'section_prepared';
     v_notify := public._ipas_list_members(array[public._ipas_signoff_list_key(p_section, 'approved')], v_actor);
-  elsif p_section in (1, 3) then
-    -- This section is approved. When the other is too and section 7 hasn't
-    -- started, section 7 is ready for Received.
-    v_other := case p_section when 1 then 3 else 1 end;
-    if exists (
-         select 1 from public.ipas_signoffs s
-          where s.ipas_id = v_ipas.id and s.section = v_other and s.role = 'approved' and s.cleared_at is null
-       )
+  elsif p_section in (1, 3, 6) then
+    -- This section is approved. When it was the last of sections 1, 2 and 3 and
+    -- section 7 hasn't started, section 7 is ready for Received (#590).
+    if public._ipas_filing_open(v_ipas.id)
        and not exists (
          select 1 from public.ipas_signoffs s
           where s.ipas_id = v_ipas.id and s.section = 7 and s.cleared_at is null

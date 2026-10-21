@@ -121,7 +121,7 @@ export function signoffRights({ section, sectionState, userId, hasPurchasingFlow
 // ── Section 7 and Filing (#248) ─────────────────────────────────────────────
 
 export const FILING_STATUS = {
-  /** Sections 1 and 3 aren't both approved yet, so section 7 hasn't opened. */
+  /** Sections 1, 2 and 3 (stored 1, 3 and 6) aren't all approved yet, so section 7 hasn't opened. */
   WAITING: "waiting",
   /** Open for Received. */
   READY: "ready",
@@ -133,7 +133,7 @@ const SECTION_7 = 7;
 
 /**
  * Section 7's state from the shaped sign-offs: the live Received, Noted,
- * Checked and Approved, whether it has opened (sections 1 and 3 both approved),
+ * Checked and Approved, whether it has opened (sections 1, 2 and 3, stored 1, 3 and 6, all approved),
  * where it stands, and the cleared ones newest first (a reopening clears the
  * lot, and the history says why).
  *
@@ -146,7 +146,9 @@ export function section7Signoffs(signoffs = []) {
   const noted = live(SECTION_7, IPAS_SIGNOFF_ROLE.NOTED);
   const checked = live(SECTION_7, IPAS_SIGNOFF_ROLE.CHECKED);
   const approved = live(SECTION_7, IPAS_SIGNOFF_ROLE.APPROVED);
-  const opened = Boolean(live(1, IPAS_SIGNOFF_ROLE.APPROVED) && live(3, IPAS_SIGNOFF_ROLE.APPROVED));
+  const opened = Boolean(
+    live(1, IPAS_SIGNOFF_ROLE.APPROVED) && live(3, IPAS_SIGNOFF_ROLE.APPROVED) && live(6, IPAS_SIGNOFF_ROLE.APPROVED),
+  );
 
   const next = [];
   if (opened && !approved) {

@@ -23,10 +23,11 @@ function digestOf({ status = "encoding", s1 = {}, s3 = {}, s6 = {}, s7 = {}, ope
 const gatesOf = (overrides) => gatesFor(digestOf(overrides));
 const byKey = (gates, key) => gates.find((gate) => gate.key === key);
 const approvedBoth = { s1: { approved: who("Ana") }, s3: { approved: who("Ben") } };
+const approvedAll = { ...approvedBoth, s6: { approved: who("Cy") } };
 
 describe("gatesFor: the one Now", () => {
-  it("is Received, not LC Odoo Done, when the status is encoding and sections 1 and 2 are approved", () => {
-    const gates = gatesOf({ status: "encoding", ...approvedBoth });
+  it("is Received, not LC Odoo Done, when the status is encoding and sections 1, 2 and 3 are approved", () => {
+    const gates = gatesOf({ status: "encoding", ...approvedAll });
     expect(nowGate(gates)?.key).toBe("received");
     expect(byKey(gates, "costs").now).toBe(false);
     expect(byKey(gates, "costs").state).toBe("waiting");
@@ -48,7 +49,7 @@ describe("gatesFor: the one Now", () => {
   });
 
   it("is Noted and Checked once Received is given", () => {
-    const gates = gatesOf({ status: "encoding", ...approvedBoth, s7: { received: who("Fi") } });
+    const gates = gatesOf({ status: "encoding", ...approvedAll, s7: { received: who("Fi") } });
     expect(nowGate(gates).key).toBe("noted-checked");
   });
 
@@ -153,6 +154,23 @@ describe("gatesFor: names, states and lines", () => {
 
   it("names the sections waited on, once each", () => {
     expect(waitingSections(gatesOf({ status: "encoding" }))).toBe("1 · Purchasing and 2 · Purchasing & Finance");
-    expect(waitingSections(gatesOf({ status: "encoding", ...approvedBoth }))).toBe("4 · Filing");
+    expect(waitingSections(gatesOf({ status: "encoding", ...approvedAll }))).toBe("4 · Filing");
+  });
+
+  it("keeps Filing closed until section 3 is approved too (#590)", () => {
+    const gates = gatesOf({ status: "lc_odoo_done", ...approvedBoth });
+    const received = byKey(gates, "received");
+    expect(received.prereqMet).toBe(false);
+    expect(received.line).toBe("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved");
+    expect(byKey(gatesOf({ status: "lc_odoo_done", ...approvedAll }), "received").prereqMet).toBe(true);
+  });
+
+  it("holds the final Approve for section 3 even when Received, Noted and Checked were given before (#590)", () => {
+    const given = { received: who("Fi"), noted: who("No"), checked: who("Ch") };
+    const held = gatesOf({ status: "lc_odoo_done", ...approvedBoth, s7: given });
+    expect(byKey(held, "approved").prereqMet).toBe(false);
+    expect(byKey(held, "received").done).toBe(true);
+    const open = gatesOf({ status: "lc_odoo_done", ...approvedAll, s7: given });
+    expect(byKey(open, "approved").prereqMet).toBe(true);
   });
 });

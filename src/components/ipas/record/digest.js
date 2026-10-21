@@ -31,7 +31,7 @@ const SIGNOFF_DETAIL = {
 
 /** Section 4's detail beside its state word. */
 const FILING_DETAIL = {
-  [FILING_STATUS.WAITING]: `Opens once ${ipasSectionLabel("purchasing")} and ${ipasSectionLabel("finance")} are approved`,
+  [FILING_STATUS.WAITING]: `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved`,
   [FILING_STATUS.READY]: "Ready to receive",
   [FILING_STATUS.IN_PROGRESS]: "In progress",
   [FILING_STATUS.FILED]: "Filed",
@@ -86,6 +86,7 @@ export function digestIpas(ipas) {
   const given7 = IPAS_SECTION_7_ROLES.filter((role) => s7[role]).length;
   const purchasingLabel = ipasSectionLabel("purchasing");
   const financeLabel = ipasSectionLabel("finance");
+  const costingLabel = ipasSectionLabel("costing");
 
   // Paperwork and tracking.
   const documents = ipas.documents ?? [];
@@ -153,7 +154,7 @@ export function digestIpas(ipas) {
     ]),
     filing: s7.opened
       ? join([`${given7} of 4 sign-offs`, `checklist ${docs.filingTicked + (costsComplete ? 1 : 0)} of ${docs.filingTotal + 1}`])
-      : `Opens once ${purchasingLabel} and ${financeLabel} are approved`,
+      : `Opens once ${purchasingLabel}, ${financeLabel} and ${costingLabel} are approved`,
     history: lastEvent
       ? join([
           plural(events.length, "change", "changes"),
