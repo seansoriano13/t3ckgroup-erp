@@ -139,6 +139,10 @@ _Avoid_: Employee code, Employee ID
 
 ### Time Off & Overtime
 
+**Time Off**:
+Any time an employee is away from work that HR keeps a record of: SIL, LWOP, an Offset, or undertime. Overtime is not Time Off; the HR area covers both under the name "Time Off & Overtime".
+_Avoid_: Leaves (as the name for all of them)
+
 **Offset**:
 Time off an employee pays for with their Offset Credits. Not a leave: it spends overtime already worked, not a leave entitlement, though it is filed on the same paper form as a leave (TG-11).
 _Avoid_: Offset Leave, Leave credit, OT slip
@@ -155,7 +159,11 @@ _Avoid_: Paid leave (as a separate type)
 Time an employee was away with no pay and no balance spent, whether they filed for it ahead or simply did not come in. Kept for records only. HR may record one after the fact for an employee who never filed, and it stands as approved.
 _Avoid_: Absent, AWOL, Unpaid leave
 
-### Meetings
+### Meetings & Calendar
+
+**Calendar**:
+The one company-wide calendar every dated record shows on: Meeting Requests, Time Off and overtime today, more kinds later. HR's view and an employee's own view are filtered views of it, never separate calendars.
+_Avoid_: TG Calendar, Central Calendar, Leave Calendar
 
 **Meeting Request**:
 One request to hold a meeting at a Venue for a set time, naming its Facilitator, Participants and purpose. The same record from filing, through approval, to the meeting itself; it holds its slot from the moment it is filed until it is declined or cancelled.
