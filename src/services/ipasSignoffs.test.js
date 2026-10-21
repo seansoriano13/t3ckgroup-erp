@@ -525,7 +525,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       expect(live()).toEqual(["1/approved", "1/prepared", "3/prepared"])
     })
 
-    it("a flagged Account # clears both approvals with 'Account # flagged' and notifies the preparer", async () => {
+    it("a flagged Account # clears only the section 3 approval (section 1 stands) with 'Account # flagged' and notifies the preparer", async () => {
       const first = await raise({ supplierId: 7001 })
       await ipasService.setBankDetails(first.id, { bankName: "BDO", accountName: "Scorpe", accountNumber: "1111" })
       const second = await approved(7001)
@@ -533,8 +533,8 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       const out = await ipasService.setBankDetails(second.id, { bankName: "BDO", accountName: "Scorpe", accountNumber: "9999" })
       await waitForNetworkIdle()
 
-      expect(out).toMatchObject({ flagged: true, approvalsCleared: [1, 3] })
-      expect(live()).toEqual(["1/prepared", "3/prepared"])
+      expect(out).toMatchObject({ flagged: true, approvalsCleared: [3] })
+      expect(live()).toEqual(["1/approved", "1/prepared", "3/prepared"])
       expect(db.rows("ipas_signoffs").filter((s) => s.cleared_at).every((s) => s.cleared_reason === "Account # flagged")).toBe(true)
       expect(sent(IPAS_NOTIFICATION.ACCOUNT_FLAGGED).map((n) => n.recipient_id)).toEqual([buyer.id])
     })
