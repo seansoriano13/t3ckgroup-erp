@@ -1,3 +1,4 @@
+import { manilaToday } from "@/lib/manilaDate.js";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -26,7 +27,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 const FORM_ID = "opportunity-form";
 
 const blankForm = () => ({
-  registration_date: new Date().toISOString().slice(0, 10),
+  registration_date: manilaToday(),
   lead_source: "",
   lead_source_detail: "",
   client_name: "",
