@@ -19,7 +19,7 @@ const PO = "P9960001"
 
 const KEYS = [
     "actual_checking_at", "actual_checking_stamped", "arrived_in_ph_on", "arrived_in_whs_on", "costs_completed_at",
-    "created_at", "delivered_on", "import_clearance_on", "ipas_id", "onboard_on", "proof_paid_on", "shipped_out_on",
+    "created_at", "delivered_on", "import_clearance_on", "ipas_id", "on_hold", "onboard_on", "proof_paid_on", "shipped_out_on",
     "slips", "source", "updated_at",
 ]
 
