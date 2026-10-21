@@ -1,6 +1,6 @@
 // One IPAS boiled down to what a summary needs: where the money stands, where
-// each sign-off stands, and what is still open. The section rows, the drawer
-// header and the decision card all read this, so they say the same thing.
+// each sign-off stands, and what is still open. The section blocks' headers
+// and the decision card all read this, so they say the same thing.
 
 import {
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -191,29 +191,20 @@ export function sectionTitle(key) {
 
 /**
  * The sections in list order: money and sign-offs first, then (`secondary`)
- * everything else. `key` is what the drawer and `?open=` use. `inPlace` marks
- * the sections that expand under their row instead of opening the drawer:
- * every one of "Everything else". Money and sign-offs keep the drawer for now.
+ * everything else. `key` is what `?open=` uses. Every one opens in place on
+ * the record page, as a collapsible block.
  */
 export const SECTIONS = [
   { key: "purchasing" },
   { key: "finance" },
   { key: "costing" },
   { key: "filing" },
-  { key: "header", secondary: true, inPlace: true },
-  { key: "sales", secondary: true, inPlace: true },
-  { key: "logistics", secondary: true, inPlace: true },
-  { key: "status", secondary: true, inPlace: true },
-  { key: "history", secondary: true, inPlace: true },
+  { key: "header", secondary: true },
+  { key: "sales", secondary: true },
+  { key: "logistics", secondary: true },
+  { key: "status", secondary: true },
+  { key: "history", secondary: true },
 ].map((section) => ({ ...section, title: sectionTitle(section.key) }));
-
-/** The sections the drawer shows (J and K step through these); the in-place ones are skipped. */
-export const DRAWER_SECTIONS = SECTIONS.filter((section) => !section.inPlace);
-
-/** True for a section that expands under its row (`?open=` names it, no drawer). */
-export function isInPlace(key) {
-  return SECTIONS.some((section) => section.key === key && section.inPlace);
-}
 
 /**
  * A section's state for the state palette: its `state` (done, current or

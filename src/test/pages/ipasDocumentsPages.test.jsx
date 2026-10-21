@@ -95,14 +95,14 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
   };
 
   describe("documents", () => {
-    // #533: in the drawer the two ticks read as words; the edit view keeps the boxes.
-    it("reads the ticks as words in the drawer, and offers no document controls there", async () => {
+    // #533: in the section the two ticks read as words; the edit view keeps the boxes.
+    it("reads the ticks as words in the section, and offers no document controls there", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
 
       renderDetail(row.id, "finance");
 
-      const drawer = await screen.findByRole("dialog", { name: "2 · Purchasing & Finance" });
+      const drawer = await screen.findByRole("region", { name: "2 · Purchasing & Finance" });
       const waybill = await within(drawer).findByText("Waybill");
       const rowEl = waybill.closest("tr");
       expect(within(rowEl).queryByRole("checkbox")).not.toBeInTheDocument();

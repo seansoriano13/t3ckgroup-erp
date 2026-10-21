@@ -44,6 +44,7 @@ function MoveGroup({ items, origin, className, ...rest }) {
  * @param {boolean} props.busy     a move is running; every move is disabled
  * @param {object|null} props.failure  the failed move, shown under it with Retry
  * @param {string} [props.chainLabel]  e.g. "Where it stands"
+ * @param {boolean} [props.split]  the card spans the page: from the wide breakpoint the moves sit left and the chain right
  */
 export default function RecordCard({
   status,
@@ -58,6 +59,7 @@ export default function RecordCard({
   busy,
   failure,
   chainLabel = "Where it stands",
+  split = false,
 }) {
   const wide = useMediaQuery(WIDE);
   const movesId = useId();
@@ -76,7 +78,10 @@ export default function RecordCard({
       id="your-move"
       tabIndex={-1}
       aria-labelledby="your-move-heading"
-      className="overflow-hidden rounded-2xl border border-border bg-card outline-none"
+      className={cn(
+        "overflow-hidden rounded-2xl border border-border bg-card outline-none",
+        split && "xl:grid xl:grid-cols-[minmax(0,1fr)_24rem]",
+      )}
     >
       <div className="space-y-4 p-5">
         <h2 id="your-move-heading" className="text-base font-semibold text-foreground">
@@ -128,7 +133,7 @@ export default function RecordCard({
         </div>
       )}
       {(wide || chainOpen) && (
-        <div id="your-move-chain" className="border-t border-border p-5">
+        <div id="your-move-chain" className={cn("border-t border-border p-5", split && "xl:border-t-0 xl:border-l")}>
           <RecordChain gates={gates} label={chainLabel} />
         </div>
       )}

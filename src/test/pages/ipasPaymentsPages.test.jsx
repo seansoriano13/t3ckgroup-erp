@@ -257,12 +257,12 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
       expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 640, php_debited: 36160 });
       // 640 of USD for PHP 36,160 is a rate; Landed Cost is available from it.
-      // The edit view stays. Back to the section's drawer, close it, then open Costing from its row.
+      // The edit view stays. Back to the section, then open Costing from its header.
       await waitFor(() => expect(screen.getByText("All changes saved")).toBeInTheDocument());
       await user.click(screen.getByRole("button", { name: "Back to preview" }));
-      await user.click(within(await screen.findByRole("dialog", { name: "1 · Purchasing" })).getByRole("button", { name: "Close" }));
-      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
-      // The section row (its number first); the card's "Review section 3 · …" link names it too.
+      expect(await screen.findByRole("button", { name: /^1 · Purchasing/ })).toHaveAttribute("aria-expanded", "true");
+      expect(queryOtherDialog()).not.toBeInTheDocument();
+      // The section header (its number first); the card's "Review section 3 · …" link names it too.
       await user.click(await screen.findByRole("button", { name: /^3 · Computation status & Landed Cost/ }));
       expect(await screen.findByTestId("ipas-landed-line")).toBeInTheDocument();
     });
