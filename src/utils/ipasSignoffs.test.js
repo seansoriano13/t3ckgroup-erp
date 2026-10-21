@@ -138,8 +138,8 @@ describe("sending section 7 back", () => {
     expect(canSendBackItem({ section: 1, role: "approved" })).toBe(true)
     expect(canSendBackItem({ section: 3, role: "approved" })).toBe(true)
     expect(canSendBackItem({ section: 7, role: "received" })).toBe(false)
-    // Section 3 (stored 6) has no Return until #591.
-    expect(canSendBackItem({ section: 6, role: "approved" })).toBe(false)
+    // Section 3 (stored 6) has its Return since #591.
+    expect(canSendBackItem({ section: 6, role: "approved" })).toBe(true)
     for (const role of ["noted", "checked", "approved"]) expect(canSendBackItem({ section: 7, role }), role).toBe(true)
   })
 })

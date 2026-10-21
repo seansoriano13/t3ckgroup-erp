@@ -127,6 +127,10 @@ approval; they still never clear sections 1 or 2.
   the change. History shows the event against section 3.
 - Return and Undo approval accept section 3, with the same section 4 consequence and
   confirmation as sections 1 and 2.
+- The automatic clear does not touch section 4's open sign-offs (it is not a
+  decision by a signer to confirm); Filing simply closes until section 3 is approved
+  again (#590). Undoing "Mark LC Odoo Done" is a status move below LC Odoo Done, so it
+  clears section 3 too.
 
 ## Consequences
 

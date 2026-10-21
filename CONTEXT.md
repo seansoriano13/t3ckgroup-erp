@@ -776,6 +776,9 @@ bank's charge fee on a payment. Its kinds come from a list the business edits.
 Every charge counts toward Landed Cost, spread over the purchase's lines; a
 charge that covers several purchases is recorded as each one's share. Shipping
 fees paid to the supplier are payments, not charges, but count the same way.
+Adding, changing or removing a charge or payment never clears an IPAS's section 1
+or 2 approval. Its one exception is section 3, which vouches for the Landed Cost:
+a change that moves the Landed Cost clears section 3's Submitted and Approved.
 _Avoid_: Fee (unqualified), Expense, Importation (as a noun)
 
 **Transmittal**:
@@ -868,7 +871,8 @@ same way for Local and Import purchases. The unit price is the purchase order's,
 before VAT and withholding, turned into PHP at the rate actually paid so far;
 Charges and shipping fees are spread over the order's lines. Provisional until
 the IPAS's Computation status reaches LC Odoo Done, final after. The basis every
-markup and income figure is taken from.
+markup and income figure is taken from. Section 3's approval vouches for one
+Landed Cost: when it changes, section 3 is cleared and approved again.
 _Avoid_: Cost, Unit Cost, Acquire Cost, Local Cost
 
 **PMS (Purchasing Monitoring System)**:
