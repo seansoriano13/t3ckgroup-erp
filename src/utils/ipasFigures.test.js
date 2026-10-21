@@ -180,7 +180,7 @@ describe("ipasFigures: Remaining balance", () => {
     const short = pay("payment", 4500, "Bank TT")
     expect(ipasFigures(ipas({ pi_qt_amount: 10000, payments: [down, short] })).remainingBalance).toBe(500)
 
-    // Tax withheld: the full payment is 450 short of the Amount, yet nothing is owed (ADR 0035).
+    // Tax withheld: the full payment is 450 short of the Amount, yet nothing is owed (ADR 0036).
     const full = pay("full_payment", 4550, "Bank TT")
     const settled = ipasFigures(ipas({ pi_qt_amount: 10000, payments: [down, full] }))
     expect(settled.paid).toBe(9550)
@@ -296,7 +296,7 @@ describe("ipasFigures: IPAS Status (#597)", () => {
     expect(ipasFigures(null).status).toBeNull()
   })
 
-  describe("the Remaining balance reads the status (ADR 0035)", () => {
+  describe("the Remaining balance reads the status (ADR 0036)", () => {
     const owing = { pi_qt_amount: 10000 }
 
     it("is 0 when the status is Paid", () => {

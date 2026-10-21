@@ -1,7 +1,7 @@
 -- #597 (spec #595): On-Hold, and the facts the automatic IPAS Status reads.
 --
 -- The IPAS Status (Pending, Requested, Ongoing, Paid, Done, On-Hold) is worked out
--- in the app from the IPAS itself and is never stored (ADR 0035). Only On-Hold is
+-- in the app from the IPAS itself and is never stored (ADR 0036). Only On-Hold is
 -- a person's decision, so only it is stored:
 --
 -- 1. `ipas.on_hold` (flag) and `ipas.on_hold_note` (optional reason). The note only

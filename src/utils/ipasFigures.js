@@ -6,7 +6,7 @@
  *
  * Pure: no network, no React. The IPAS Status (#597) is worked out here from the
  * same facts and is never stored; only the On-Hold flag is. The Remaining
- * balance reads it ("Paid or Done settles the balance", ADR 0035).
+ * balance reads it ("Paid or Done settles the balance", ADR 0036).
  *
  * Input is a shaped IPAS (utils/ipas.js `shapeIpas`, with `payments` from the
  * list read or the record read):
@@ -125,7 +125,7 @@ const methodLabelOf = (payment) => {
  *   status              the IPAS Status (constants/ipas IPAS_STATUS), or null for a
  *                       cancelled IPAS
  *   onHold, onHoldNote  the On-Hold flag and its note (the note only while on hold)
- *   remainingBalance    amount - paid; 0 once the status is Paid or Done (ADR 0035:
+ *   remainingBalance    amount - paid; 0 once the status is Paid or Done (ADR 0036:
  *                       withholding never leaves a settled order owing); null when
  *                       there is no Amount
  *   paymentMethods      distinct method labels, first used first
@@ -189,7 +189,7 @@ export function ipasFigures(ipas) {
       })
     : null;
 
-  // ADR 0035: the balance reads 0 once the status is Paid or Done (a full payment
+  // ADR 0036: the balance reads 0 once the status is Paid or Done (a full payment
   // recorded, or filed), because tax withheld from a payment would otherwise leave
   // a settled order owing forever. An On-Hold order shows what is really left.
   const settled = status === IPAS_STATUS.PAID || status === IPAS_STATUS.DONE;

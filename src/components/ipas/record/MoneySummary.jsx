@@ -56,7 +56,7 @@ function BillCheck({ bill, beforeTax }) {
 
 /**
  * The money at the top of the record (#603): the Supplier bill check, then
- * Paid, Remaining balance (ADR 0035: 0 once settled) and Landed Cost, which
+ * Paid, Remaining balance (ADR 0036: 0 once settled) and Landed Cost, which
  * carries its Estimate mark. Each stat opens the section it comes from.
  */
 export default function MoneySummary({ digest, onOpen }) {
