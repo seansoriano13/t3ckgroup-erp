@@ -610,7 +610,7 @@ describe("IPAS pages", () => {
     });
 
     // The record is a full page again: no list behind it, nothing is a dialog.
-    it("renders as a page at its own address: header, then the card, the money's place, then the sections", async () => {
+    it("renders as a page at its own address: header, then the money, the card, then the sections", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       renderDetail(row.id);
 
@@ -619,9 +619,9 @@ describe("IPAS pages", () => {
       const slot = screen.getByTestId("ipas-money-summary-slot");
       const sections = screen.getByRole("heading", { name: "Sections" });
       const before = (a, b) => expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      before(title, card);
-      before(card, slot);
-      before(slot, sections);
+      before(title, slot);
+      before(slot, card);
+      before(card, sections);
       expect(screen.getByRole("link", { name: "IPAS" })).toHaveAttribute("href", "/purchasing/ipas");
       expect(queryOtherDialog()).not.toBeInTheDocument();
     });

@@ -1012,14 +1012,14 @@ function IpasPage() {
             />
           </div>
 
-          {/* Top to bottom: the decision card, the money, then every section as a block that opens in place. */}
+          {/* Top to bottom: the money, the decision card, then every section as a block that opens in place. */}
           {editView ?? (
             <div className="min-w-0 space-y-8">
-              <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
-              {/* The money summary (#603): Supplier bill check, Paid, Remaining balance, Landed Cost. */}
+              {/* The money summary (#603) first: Supplier bill check, Paid, Remaining balance, Landed Cost. */}
               <div data-testid="ipas-money-summary-slot">
                 <MoneySummary digest={digest} onOpen={sections.show} />
               </div>
+              <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
               <SectionsPanel
                 ctx={ctx}
                 blocks={blocks}
