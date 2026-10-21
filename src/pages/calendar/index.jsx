@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
+import { meetingRequestService } from '@/services/meetingRequestService';
 import { getPermissionContext } from '@/utils/permissions';
-import { manilaDate, manilaToday, parseManilaDate } from '@/lib/manilaDate.js';
+import { manilaToday } from '@/lib/manilaDate.js';
 import MeetingRequestDialog from '@/components/calendar/MeetingRequestDialog';
 import MyMeetingRequests from '@/components/calendar/MyMeetingRequests';
 import TabGroup from '@/components/ui/TabGroup';
@@ -47,7 +48,9 @@ export default function CalendarPage() {
   const [showPending, setShowPending] = useState(false);
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState('calendar');
-  const [requestOpen, setRequestOpen] = useState(false);
+  const [request, setRequest] = useState(null); // null = closed; an object = open, with optional pre-fill
+  const openRequest = (initial = {}) => setRequest(initial);
+  const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
 
   const { from, to } = viewRange(view, anchor);
   // The People view always includes pending for viewers who may see it.
@@ -108,7 +111,7 @@ export default function CalendarPage() {
       <PageShell
         title="Calendar"
         description="Meetings, Time Off and overtime across the company."
-        action={<Button onClick={() => setRequestOpen(true)}>New Meeting Request</Button>}
+        action={<Button onClick={() => openRequest()}>New Meeting Request</Button>}
         tabs={
           <TabGroup
             tabs={[
@@ -128,10 +131,18 @@ export default function CalendarPage() {
         ) : isLoading ? (
           <PageLoading />
         ) : (
-          <CalendarBody view={view} anchor={anchor} entries={entries} onOpenEntry={setSelected} todayYmd={manilaToday()} />
+          <CalendarBody
+            view={view}
+            anchor={anchor}
+            entries={entries}
+            onOpenEntry={setSelected}
+            todayYmd={manilaToday()}
+            venues={venues}
+            onPickSlot={openRequest}
+          />
         )}
         <EntryDetail entry={selected} onClose={() => setSelected(null)} />
-        <MeetingRequestDialog open={requestOpen} onClose={() => setRequestOpen(false)} />
+        <MeetingRequestDialog open={Boolean(request)} initial={request ?? undefined} onClose={() => setRequest(null)} />
       </PageShell>
     </ProtectedRoute>
   );

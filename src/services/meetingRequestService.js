@@ -64,6 +64,19 @@ export const meetingRequestService = {
     return data ?? [];
   },
 
+  /** The applicant's most recent request's Facilitator and Venue, or null when there is none. */
+  async lastPicks(applicantId) {
+    const { data, error } = await supabase
+      .from('meeting_requests')
+      .select('facilitator_id, venue_id')
+      .eq('applicant_id', applicantId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (error) throw new Error(error.message);
+    const row = data?.[0];
+    return row ? { facilitatorId: row.facilitator_id, venueId: row.venue_id } : null;
+  },
+
   /**
    * Files a Meeting Request. `startsAt` / `endsAt` are ISO instants (the form builds
    * them from a Manila date and times). Returns the saved request.
