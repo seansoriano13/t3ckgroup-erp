@@ -281,6 +281,123 @@ export const meetingRequestService = {
     return (await this.listPendingForApprover(args)).length;
   },
 
+  /**
+   * Applicant edit before the start (#628). Pending-HR and approved requests go back to the head;
+   * the head is told, and the Facilitator and Participants when it was approved.
+   */
+  async editRequest({ requestId, venueId, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, actor }) {
+    const { data, error } = await supabase.rpc('edit_meeting_request', {
+      p_request_id: requestId,
+      p_venue_id: venueId,
+      p_starts_at: startsAt,
+      p_ends_at: endsAt,
+      p_facilitator_id: facilitatorId,
+      p_purpose: purpose,
+      p_guests: guests,
+      p_participant_ids: participantIds,
+      p_head_id: headId,
+    });
+    if (error) {
+      if (error.code === EXCLUSION_VIOLATION) throw new Error(await describeHolder({ venueId, startsAt, endsAt }));
+      throw new Error(error.message);
+    }
+    await this.afterChange(data, { actor });
+    return data;
+  },
+
+  /** Applicant sends a returned request again. */
+  async resend({ requestId, actor }) {
+    const { data, error } = await supabase.rpc('resend_meeting_request', { p_request_id: requestId });
+    if (error) throw new Error(error.message);
+    await this.afterChange(data, { actor });
+    return data;
+  },
+
+  /** The applicant cancels (reason optional); HR / Super Admin cancel with a required reason. */
+  async cancel({ requestId, reason = '', actor }) {
+    const { data, error } = await supabase.rpc('cancel_meeting_request', {
+      p_request_id: requestId,
+      p_reason: reason || null,
+    });
+    if (error) throw new Error(error.message);
+    await this.afterChange(data, { note: reason, actor });
+    return data;
+  },
+
+  /**
+   * Notifications and the audit line for an edit, a resend or a cancel (the event row was written
+   * by the database).
+   *   - the head, when it lands back with them (HR when it lands at the HR step)
+   *   - the Facilitator and Participants, when an approved request is changed or cancelled
+   *   - the applicant, when HR cancels
+   */
+  async afterChange(result, { note = '', actor } = {}) {
+    const request = await this.getRequest(result.id);
+    const venue = request.venue?.name ?? 'a Venue';
+    const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+    const actorName = actor?.name ?? 'Someone';
+    const senderId = actor?.id ?? null;
+    const cancelled = result.to_status === MEETING_STATUS.CANCELLED;
+    const wasApproved = result.from_status === MEETING_STATUS.APPROVED;
+    const changed = Object.keys(result.changed_fields ?? {});
+    const withNote = note ? ` Reason: ${note}` : '';
+
+    if (!cancelled && [MEETING_STATUS.PENDING_HEAD, MEETING_STATUS.PENDING_HR].includes(result.to_status) && result.to_status !== result.from_status) {
+      const message = `${actorName} ${result.action === 'RESENT' ? 'sent again' : 'changed'}: ${venue}, ${when}: ${request.purpose}`;
+      const base = { type: 'MEETING_REQUEST', title: 'Meeting Request back for approval', message, reference_id: request.id, sender_id: senderId };
+      if (result.to_status === MEETING_STATUS.PENDING_HR) await notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], base);
+      else if (request.head_id) await notificationService.createNotification({ ...base, recipient_id: request.head_id });
+    }
+
+    if (wasApproved && (cancelled || result.action === 'EDITED')) {
+      const invited = new Set([
+        request.facilitator_id,
+        result.old_facilitator_id,
+        ...(request.participants ?? []).map((p) => p.employee_id),
+        ...(result.old_participant_ids ?? []),
+      ]);
+      invited.delete(request.applicant_id);
+      invited.delete(null);
+      invited.delete(undefined);
+      for (const recipient_id of invited) {
+        await notificationService.createNotification({
+          recipient_id,
+          sender_id: senderId,
+          type: cancelled ? 'MEETING_CANCELLED' : 'MEETING_CHANGED',
+          title: cancelled ? 'Meeting cancelled' : 'Meeting changed',
+          message: `${venue}, ${when}: ${request.purpose}.${withNote}`,
+          reference_id: request.id,
+        });
+      }
+    }
+
+    if (result.action === 'HR_CANCELLED') {
+      await notificationService.createNotification({
+        recipient_id: request.applicant_id,
+        sender_id: senderId,
+        type: 'MEETING_REQUEST_DECISION',
+        title: 'Meeting Request cancelled by HR',
+        message: `${actorName} cancelled your Meeting Request for ${venue}, ${when}.${withNote}`,
+        reference_id: request.id,
+      });
+    }
+
+    const verb = { EDITED: 'edited', RESENT: 'sent again', CANCELLED: 'cancelled', HR_CANCELLED: 'cancelled' }[result.action] ?? 'updated';
+    await this.mirrorEvent({
+      request,
+      action: result.action,
+      content: `${actorName} ${verb} the Meeting Request for ${venue}, ${when}.${withNote}${changed.length ? ` Changed: ${changed.join(', ')}.` : ''}`,
+      authorId: senderId,
+      metadata: {
+        event: `MEETING_REQUEST_${result.action}`,
+        from: result.from_status,
+        to: result.to_status,
+        changed_fields: result.changed_fields ?? null,
+        note: note || null,
+      },
+    });
+  },
+
   /** decision: 'APPROVE' | 'DECLINE' | 'RETURN'. Decline and return need a note. */
   async decide({ requestId, decision, note = '', actor }) {
     const { data, error } = await supabase.rpc('decide_meeting_request', {

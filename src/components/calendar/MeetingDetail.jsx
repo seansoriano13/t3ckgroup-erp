@@ -2,6 +2,7 @@ import { formatEntryDate, formatEntryTime } from './entryFormat.js';
 import { SlideOverBody } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
 import { MEETING_STATUS_LABEL } from '@/services/meetingRequestService';
+import MeetingActions from './MeetingActions.jsx';
 
 /** Meeting details are visible to everyone: Venue, Facilitator, Participants, Guests, purpose and stage. */
 export default function MeetingDetail({ entry }) {
@@ -26,6 +27,7 @@ export default function MeetingDetail({ entry }) {
           <DetailRow label="Guests">{guests.length ? guests.join(', ') : 'None'}</DetailRow>
         </dl>
       </DetailSection>
+      <MeetingActions request={{ id: entry.id, status: d.stage, startsAt: entry.starts_at, applicantId: person.id }} />
     </SlideOverBody>
   );
 }

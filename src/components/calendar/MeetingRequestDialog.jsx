@@ -16,7 +16,7 @@ import { calendarService } from '@/services/calendarService';
 import { employeeService } from '@/services/employeeService';
 import { meetingRequestService } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
-import { manilaToday, manilaTime } from '@/lib/manilaDate.js';
+import { manilaDate, manilaToday, manilaTime } from '@/lib/manilaDate.js';
 import { TIME_OPTIONS, draftProblem, manilaInstant } from './meetingDraft.js';
 import { clashMessage, findClash, softWarnings, venueMeetings } from './meetingPreview.js';
 
@@ -24,9 +24,9 @@ import { clashMessage, findClash, softWarnings, venueMeetings } from './meetingP
  * The Meeting Request form (#619). Mounted only while open, so it starts blank each time.
  * The database refuses a clash; this form only asks and shows what the service says.
  */
-export default function MeetingRequestDialog({ open, onClose, initial }) {
+export default function MeetingRequestDialog({ open, onClose, initial, editing = null, resend = false }) {
   if (!open) return null;
-  return <MeetingRequestForm onClose={onClose} initial={initial} />;
+  return <MeetingRequestForm onClose={onClose} initial={initial} editing={editing} resend={resend} />;
 }
 
 /** The chosen Venue's day: held slots listed, pending ones faded. */
@@ -61,21 +61,24 @@ function VenuePreview({ venueName, meetings }) {
   );
 }
 
-function MeetingRequestForm({ onClose, initial = {} }) {
+/** `editing` is a saved request (from getRequest) to change; `resend` also sends a returned one again. */
+function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = false }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   useMeetingRealtime();
 
-  const [venuePick, setVenueId] = useState(initial.venueId ?? '');
-  const [date, setDate] = useState(() => initial.date ?? manilaToday());
-  const [start, setStart] = useState(initial.start ?? '09:00');
-  const [end, setEnd] = useState(initial.end ?? '10:00');
-  const [facilitatorPick, setFacilitatorId] = useState('');
-  const [participants, setParticipants] = useState([]);
-  const [guests, setGuests] = useState([]);
+  const [venuePick, setVenueId] = useState(editing?.venue_id ?? initial.venueId ?? '');
+  const [date, setDate] = useState(() => (editing ? manilaDate(editing.starts_at) : (initial.date ?? manilaToday())));
+  const [start, setStart] = useState(editing ? manilaTime(editing.starts_at) : (initial.start ?? '09:00'));
+  const [end, setEnd] = useState(editing ? manilaTime(editing.ends_at) : (initial.end ?? '10:00'));
+  const [facilitatorPick, setFacilitatorId] = useState(editing?.facilitator_id ?? '');
+  const [participants, setParticipants] = useState(() =>
+    (editing?.participants ?? []).map((p) => ({ type: SELECTOR_TYPES.EMPLOYEE, id: p.employee_id })),
+  );
+  const [guests, setGuests] = useState(editing?.guests ?? []);
   const [guestDraft, setGuestDraft] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [headId, setHeadId] = useState('');
+  const [purpose, setPurpose] = useState(editing?.purpose ?? '');
+  const [headId, setHeadId] = useState(editing?.head_id ?? '');
 
   const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
@@ -90,11 +93,13 @@ function MeetingRequestForm({ onClose, initial = {} }) {
   const venueId = venuePick || (venues.some((v) => v.id === lastPicks?.venueId) ? lastPicks.venueId : '');
   const facilitatorId = facilitatorPick || (heads.some((h) => h.id === lastPicks?.facilitatorId) ? lastPicks.facilitatorId : '');
 
-  const { data: dayEntries = [] } = useQuery({
+  const { data: dayAll = [] } = useQuery({
     queryKey: ['meeting-requests', 'venue-day', date],
     queryFn: () => calendarService.fetchEntries({ from: date, to: date }),
     enabled: Boolean(date),
   });
+  // Editing: the request's own slot is not a clash with itself.
+  const dayEntries = useMemo(() => (editing ? dayAll.filter((e) => e.id !== editing.id) : dayAll), [dayAll, editing]);
   const venueName = venues.find((v) => v.id === venueId)?.name;
   const startsAt = manilaInstant(date, start);
   const endsAt = manilaInstant(date, end);
@@ -121,8 +126,24 @@ function MeetingRequestForm({ onClose, initial = {} }) {
   };
 
   const mutation = useMutation({
-    mutationFn: () =>
-      meetingRequestService.fileRequest({
+    mutationFn: async () => {
+      if (editing) {
+        const saved = await meetingRequestService.editRequest({
+          requestId: editing.id,
+          venueId,
+          startsAt,
+          endsAt,
+          facilitatorId,
+          purpose,
+          guests,
+          participantIds: participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id),
+          headId: needsHead ? headId : null,
+          actor: user,
+        });
+        if (resend) await meetingRequestService.resend({ requestId: editing.id, actor: user });
+        return saved;
+      }
+      return meetingRequestService.fileRequest({
         venueId,
         startsAt,
         endsAt,
@@ -132,12 +153,13 @@ function MeetingRequestForm({ onClose, initial = {} }) {
         participantIds: participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id),
         headId: needsHead ? headId : null,
         applicant: user,
-      }),
+      });
+    },
     onSuccess: () => {
-      toast.success('Meeting Request filed.');
+      toast.success(editing ? (resend ? 'Meeting Request sent again.' : 'Meeting Request updated.') : 'Meeting Request filed.');
       queryClient.invalidateQueries({ queryKey: ['calendar-entries'] });
       queryClient.invalidateQueries({ queryKey: ['meeting-requests'] });
-      onClose();
+      onClose(true);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -146,11 +168,11 @@ function MeetingRequestForm({ onClose, initial = {} }) {
     <ModalShell
       open
       onOpenChange={(next) => !next && onClose()}
-      crumbs={['Calendar', 'New Meeting Request']}
-      title="New Meeting Request"
+      crumbs={['Calendar', editing ? 'Edit Meeting Request' : 'New Meeting Request']}
+      title={editing ? 'Edit Meeting Request' : 'New Meeting Request'}
       actions={
         <Button size="lg" disabled={Boolean(problem) || mutation.isPending} onClick={() => mutation.mutate()}>
-          {mutation.isPending ? 'Sending…' : 'Send request'}
+          {mutation.isPending ? 'Sending…' : resend ? 'Send again' : editing ? 'Save changes' : 'Send request'}
         </Button>
       }
     >
