@@ -141,9 +141,9 @@ begin
 
   insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
   select n, v_actor, 'IPAS_SECTION_3_CLEARED',
-         'IPAS section 3 cleared',
-         format('Section 3 of IPAS %s was cleared (%s). It needs to be submitted and approved again.',
-                coalesce(v_ipas.po_number, 'without a PO'), p_reason),
+         'IPAS section ' || public._ipas_section_no(6) || ' cleared',
+         format('Section %s of IPAS %s was cleared (%s). It needs to be submitted and approved again.',
+                public._ipas_section_no(6), v_ipas.number, p_reason),
          p_ipas_id::text
     from unnest(v_notify) as n;
 end;
@@ -257,13 +257,13 @@ begin
   if p_section = 7 then
     -- Anyone on a section 7 list, whichever sign-off they give.
     if not public._ipas_can_sign_section(7, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section 4 returns it' using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section % returns it', public._ipas_section_no(7) using errcode = '42501';
     end if;
 
     -- Section 7 is open once sections 1, 2 and 3 are approved (#590: the Filing gate
     -- now includes section 3, stored 6).
     if not public._ipas_filing_open(v_ipas.id) then
-      raise exception 'ipas_send_back: section 4 isn''t open yet; sections 1, 2 and 3 must be approved first' using errcode = '22023';
+      raise exception 'ipas_send_back: section % isn''t open yet; sections %, % and % must be approved first', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
     end if;
 
     with cleared as (

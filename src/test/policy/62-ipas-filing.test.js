@@ -341,9 +341,11 @@ describe("filing", () => {
     it("is refused before LC Odoo Done, with the reason", async () => {
         for (const status of ["encoding", "encoded"]) {
             const ipas = await raise()
+            // Set the status first: dropping a final Landed Cost back clears section 3 (#591), and
+            // this test is about the LC Odoo Done gate, not the section 3 one.
+            await setStatus(ipas.id, status)
             await approvedThrough(ipas)
             await receivedNotedChecked(ipas)
-            await setStatus(ipas.id, status)
 
             const { error } = await sign("ipasSigner", ipas.id, 7, "approved")
             expect(error?.code, status).toBe("22023")

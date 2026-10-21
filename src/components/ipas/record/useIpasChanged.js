@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { IPAS_PO_CHANGED_REASON } from "../../../constants/ipas";
 import { supabase } from "../../../lib/supabase";
 
 const ODOO_SYNC_KINDS = ["odoo_copy_changed", "filled_from_odoo", "odoo_changed_since_filing"];
@@ -24,7 +25,7 @@ export function useIpasChanged({ id, userId, active }) {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "ipas_events", filter: `ipas_id=eq.${id}` }, async (payload) => {
         // The Odoo sync is not somebody editing (#585): whoever opens or prints writes these.
         if (ODOO_SYNC_KINDS.includes(payload?.new?.kind)) return;
-        if (payload?.new?.kind === "approvals_cleared" && payload?.new?.detail?.reason === "PO changed in Odoo") return;
+        if (payload?.new?.kind === "approvals_cleared" && payload?.new?.detail?.reason === IPAS_PO_CHANGED_REASON) return;
         const actor = payload?.new?.actor_id ?? null;
         if (actor && actor === userId) return;
         setBy((current) => current ?? "Someone");

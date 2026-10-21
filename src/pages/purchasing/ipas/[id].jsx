@@ -71,8 +71,10 @@ import {
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TYPED_STATUS,
   IPAS_TYPED_STATUS_LABELS,
+  IPAS_UNDO_APPROVAL_SECTIONS,
   ipasSectionLabel,
   ipasSectionNo,
+  ipasSectionWord,
 } from "../../../constants/ipas";
 
 const HEADER_LABELS = {
@@ -638,7 +640,7 @@ function IpasPage({ onClose }) {
           await once("bank", async () => {
             const result = await ipasService.setBankDetails(id, plan.bank);
             if (result.flagged && result.accountChanged) {
-              toast.error("Account # differs from this supplier's last IPAS. It is flagged and its section 2 approval was cleared.", {
+              toast.error(`Account # differs from this supplier's last IPAS. It is flagged and its ${ipasSectionWord(3)} approval was cleared.`, {
                 duration: 8000,
               });
             }
@@ -817,7 +819,7 @@ function IpasPage({ onClose }) {
       return signed ? `${IPAS_SIGNOFF_ROLE_LABELS[role]} by ${signed.signedBy?.name ?? "someone"}` : null;
     })
     .filter(Boolean);
-  const returnTargets = [1, 3, 6]
+  const returnTargets = IPAS_UNDO_APPROVAL_SECTIONS
     .filter((section) => sectionRights(section).returnMode)
     .map((section) => {
       const undo = sectionRights(section).returnMode === "undo";

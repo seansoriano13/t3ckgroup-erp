@@ -422,6 +422,13 @@ export const IPAS_SIGNOFF_SECTIONS = [1, 3, 6, 7];
 export const IPAS_SEND_BACK_SECTIONS = [1, 3, 6, 7];
 /** The sections whose Approved can be undone, leaving Prepared. */
 export const IPAS_UNDO_APPROVAL_SECTIONS = [1, 3, 6];
+/** The stored section that is Filing (shown as 4) and the one that is Computation status & Landed Cost (shown as 3). */
+export const IPAS_FILING_SECTION = 7;
+export const IPAS_COSTING_SECTION = 6;
+/** The sections signed before Filing opens: every sign-off section but Filing. */
+export const IPAS_PRE_FILING_SECTIONS = IPAS_SIGNOFF_SECTIONS.filter((section) => section !== IPAS_FILING_SECTION);
+/** The reason the database gives when a changed PO in Odoo clears the approvals (history and the cleared rows carry it). */
+export const IPAS_PO_CHANGED_REASON = "PO changed in Odoo";
 
 /** Section 7's sign-offs in the order they are given (Noted and Checked in either order). */
 export const IPAS_SECTION_7_ROLES = [
@@ -484,6 +491,11 @@ export function ipasSectionNo(section) {
 /** "section 4": a stored sign-off section as it reads inside a sentence. */
 export function ipasSectionWord(section) {
   return `section ${ipasSectionNo(section)}`;
+}
+
+/** "section 3": a part key ("costing") as it reads inside a sentence. */
+export function ipasPartWord(part) {
+  return `section ${IPAS_PART_NO[part]}`;
 }
 
 /** A stored sign-off section's name, unnumbered: "Purchasing", "Purchasing & Finance", "Filing". */

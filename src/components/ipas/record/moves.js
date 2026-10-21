@@ -3,9 +3,12 @@ import { Check, CornerUpLeft, FileCheck2, PenLine, Undo2 } from "lucide-react";
 import {
   IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUS_LABELS,
+  IPAS_FILING_SECTION,
   IPAS_PART_NO,
+  IPAS_PRE_FILING_SECTIONS,
   IPAS_SECTION_PART,
   IPAS_SIGNOFF_ROLE,
+  IPAS_UNDO_APPROVAL_SECTIONS,
   ipasSectionNo,
 } from "@/constants/ipas";
 import { hintFor } from "./moveCopy";
@@ -23,14 +26,14 @@ function move(key, section, { kind, icon, label, verb, confirm = true, run }, di
   return { key, section, kind, icon, label, verb, confirm, run, hint: hintFor(key, digest) };
 }
 
-const FILING = ipasSectionNo(7);
+const FILING = ipasSectionNo(IPAS_FILING_SECTION);
 const PART = IPAS_SECTION_PART;
-// The stored sections whose Submit and Approve the card offers: 1, 3 and 6 (shown as 1, 2 and 3).
-const SIGN_SECTIONS = [1, 3, 6];
+// The sections whose Submit and Approve the card offers: every one before Filing.
+const SIGN_SECTIONS = IPAS_PRE_FILING_SECTIONS;
 // The ones with a Return and an Undo approval (section 6 joined them with #591).
-const RETURN_SECTIONS = [1, 3, 6];
+const RETURN_SECTIONS = IPAS_UNDO_APPROVAL_SECTIONS;
 // The filing section: its sign-offs are steps, not Prepare and Approve.
-const FILING_SECTION = 7;
+const FILING_SECTION = IPAS_FILING_SECTION;
 
 /**
  * Everything the signed-in person may do on this IPAS right now, in three groups:

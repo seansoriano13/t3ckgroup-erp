@@ -59,15 +59,18 @@ re-runnable function, `_ipas_convert_checked_by()`:
 - For every non-cancelled IPAS at Checked by it writes a section 3 **Approved**
   (person and time of the latest header event that moved the status to
   `checked`) and a **Submitted** (the latest event that moved it to
-  `lc_odoo_done`). Each gets a `signed` history event dated at the original time
+  `lc_odoo_done`, or to `costs_complete`, the name it had before it was
+  renamed). Each gets a `signed` history event dated at the original time
   and flagged `migrated`, so history reads "section 3 · approved" by the same
   person at the same time.
 - The signature stored with each is the signer's current stored signature, or
   none (the print then shows the name only).
 - **Both or neither.** An Approved is written only when a Submitted event also
   exists, because an approval with nobody having submitted would break "someone
-  else approves". With no history the section stays unsigned and the status
-  still moves.
+  else approves". An IPAS that has Checked by but no LC Odoo Done (or
+  `costs_complete`) event in its history therefore stays unsigned on section 3:
+  its Checked by approval is not carried over, and Purchasing submits and
+  Finance approves it again. The status still moves.
 - Then every IPAS at Checked by moves to LC Odoo Done.
 
 ### Filed IPAS

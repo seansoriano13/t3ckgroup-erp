@@ -19,6 +19,18 @@ import {
   IPAS_STATE,
 } from "../constants/ipas";
 
+/**
+ * Where section 3 (the stored costing section) stands, from the roles that have a live
+ * sign-off: Submitted and/or Approved. The one reading every service and the SOR use.
+ */
+export function section3StateOf(liveRoles) {
+  const roles = new Set(liveRoles ?? []);
+  return {
+    submitted: roles.has(IPAS_SIGNOFF_ROLE.PREPARED),
+    approved: roles.has(IPAS_SIGNOFF_ROLE.APPROVED),
+  };
+}
+
 export const SIGNOFF_STATUS = {
   NOT_PREPARED: "not_prepared",
   AWAITING_APPROVAL: "awaiting_approval",

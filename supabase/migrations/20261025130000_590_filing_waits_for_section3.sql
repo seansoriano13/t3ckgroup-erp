@@ -83,7 +83,7 @@ begin
   -- Computation status is LC Odoo Done, and not before.
   if p_section = 6 and p_role = 'prepared'
      and v_ipas.computation_status is distinct from 'lc_odoo_done' then
-    raise exception 'ipas_sign: section 3 can be submitted once the Computation status is LC Odoo Done'
+    raise exception 'ipas_sign: section % can be submitted once the Computation status is LC Odoo Done', public._ipas_section_no(6)
       using errcode = '22023';
   end if;
 
@@ -113,7 +113,7 @@ begin
     -- Approved waits for section 3 too, and so does a Noted or Checked not yet given
     -- (#590); the ones already given stay.
     if not public._ipas_filing_open(v_ipas.id) then
-      raise exception 'ipas_sign: section 4 opens once sections 1, 2 and 3 are approved' using errcode = '22023';
+      raise exception 'ipas_sign: section % opens once sections %, % and % are approved', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.
@@ -254,13 +254,13 @@ begin
   if p_section = 7 then
     -- Anyone on a section 7 list, whichever sign-off they give.
     if not public._ipas_can_sign_section(7, v_actor) then
-      raise exception 'ipas_send_back: only a signer of section 4 returns it' using errcode = '42501';
+      raise exception 'ipas_send_back: only a signer of section % returns it', public._ipas_section_no(7) using errcode = '42501';
     end if;
 
     -- Section 7 is open once sections 1, 2 and 3 are approved (#590: the Filing gate
     -- now includes section 3, stored 6).
     if not public._ipas_filing_open(v_ipas.id) then
-      raise exception 'ipas_send_back: section 4 isn''t open yet; sections 1, 2 and 3 must be approved first' using errcode = '22023';
+      raise exception 'ipas_send_back: section % isn''t open yet; sections %, % and % must be approved first', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
     end if;
 
     with cleared as (
