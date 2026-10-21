@@ -12,31 +12,65 @@ import PeoplePicker from '@/components/ui/PeoplePicker';
 import HeadSelectField from '@/components/offsets/HeadSelectField';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
+import { calendarService } from '@/services/calendarService';
 import { employeeService } from '@/services/employeeService';
 import { meetingRequestService } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
-import { manilaToday } from '@/lib/manilaDate.js';
+import { manilaToday, manilaTime } from '@/lib/manilaDate.js';
 import { TIME_OPTIONS, draftProblem, manilaInstant } from './meetingDraft.js';
+import { clashMessage, findClash, softWarnings, venueMeetings } from './meetingPreview.js';
 
 /**
  * The Meeting Request form (#619). Mounted only while open, so it starts blank each time.
  * The database refuses a clash; this form only asks and shows what the service says.
  */
-export default function MeetingRequestDialog({ open, onClose }) {
+export default function MeetingRequestDialog({ open, onClose, initial }) {
   if (!open) return null;
-  return <MeetingRequestForm onClose={onClose} />;
+  return <MeetingRequestForm onClose={onClose} initial={initial} />;
 }
 
-function MeetingRequestForm({ onClose }) {
+/** The chosen Venue's day: held slots listed, pending ones faded. */
+function VenuePreview({ venueName, meetings }) {
+  return (
+    <div className="sm:col-span-2" data-testid="venue-preview">
+      <FieldBox label={`${venueName} on this day`} className="mb-1.5 block" />
+      {meetings.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nothing is held yet. The whole day is free.</p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {meetings.map((m) => {
+            const pending = m.status !== 'APPROVED';
+            return (
+              <li
+                key={m.id}
+                className={`flex min-w-0 flex-wrap items-baseline gap-x-2 rounded border px-2 py-1 text-xs ${pending ? 'border-dashed opacity-60' : 'border-border bg-muted/40'}`}
+              >
+                <span className="font-semibold">
+                  {manilaTime(m.starts_at)} to {manilaTime(m.ends_at)}
+                </span>
+                <span className="min-w-0 truncate">
+                  {m.title} · {m.employee?.name}
+                </span>
+                <span className="text-muted-foreground">{pending ? 'Pending' : 'Approved'}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function MeetingRequestForm({ onClose, initial = {} }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   useMeetingRealtime();
 
-  const [venueId, setVenueId] = useState('');
-  const [date, setDate] = useState(() => manilaToday());
-  const [start, setStart] = useState('09:00');
-  const [end, setEnd] = useState('10:00');
-  const [facilitatorId, setFacilitatorId] = useState('');
+  const [venuePick, setVenueId] = useState(initial.venueId ?? '');
+  const [date, setDate] = useState(() => initial.date ?? manilaToday());
+  const [start, setStart] = useState(initial.start ?? '09:00');
+  const [end, setEnd] = useState(initial.end ?? '10:00');
+  const [facilitatorPick, setFacilitatorId] = useState('');
   const [participants, setParticipants] = useState([]);
   const [guests, setGuests] = useState([]);
   const [guestDraft, setGuestDraft] = useState('');
@@ -47,8 +81,38 @@ function MeetingRequestForm({ onClose }) {
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
   const heads = useMemo(() => employees.filter((e) => e.isHead).sort((a, b) => a.name.localeCompare(b.name)), [employees]);
 
+  const { data: lastPicks } = useQuery({
+    queryKey: ['meeting-last-picks', user?.id],
+    queryFn: () => meetingRequestService.lastPicks(user.id),
+    enabled: Boolean(user?.id),
+  });
+  // Remembered picks fill in until the applicant chooses something else.
+  const venueId = venuePick || (venues.some((v) => v.id === lastPicks?.venueId) ? lastPicks.venueId : '');
+  const facilitatorId = facilitatorPick || (heads.some((h) => h.id === lastPicks?.facilitatorId) ? lastPicks.facilitatorId : '');
+
+  const { data: dayEntries = [] } = useQuery({
+    queryKey: ['meeting-requests', 'venue-day', date],
+    queryFn: () => calendarService.fetchEntries({ from: date, to: date }),
+    enabled: Boolean(date),
+  });
+  const venueName = venues.find((v) => v.id === venueId)?.name;
+  const startsAt = manilaInstant(date, start);
+  const endsAt = manilaInstant(date, end);
+  const windowOk = Boolean(date) && end > start;
+  const clash = venueName && windowOk ? findClash(dayEntries, venueName, startsAt, endsAt) : null;
+  const pickedIds = [facilitatorId, ...participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id)];
+  const warnings =
+    venueName && windowOk
+      ? softWarnings(dayEntries, {
+          people: employees.filter((e) => pickedIds.includes(e.id)).map((e) => ({ id: e.id, name: e.name })),
+          venueName,
+          startsAt,
+          endsAt,
+        })
+      : [];
+
   const needsHead = !user?.is_head && !user?.isHead;
-  const problem = draftProblem({ venueId, date, start, end, facilitatorId, purpose, headId, needsHead });
+  const problem = clash ? clashMessage(clash) : draftProblem({ venueId, date, start, end, facilitatorId, purpose, headId, needsHead });
 
   const addGuest = () => {
     const name = guestDraft.trim();
@@ -60,8 +124,8 @@ function MeetingRequestForm({ onClose }) {
     mutationFn: () =>
       meetingRequestService.fileRequest({
         venueId,
-        startsAt: manilaInstant(date, start),
-        endsAt: manilaInstant(date, end),
+        startsAt,
+        endsAt,
         facilitatorId,
         purpose,
         guests,
@@ -105,8 +169,9 @@ function MeetingRequestForm({ onClose }) {
           <FieldBox label="Date" className="mb-1.5 block" />
           <Input type="date" value={date} min={manilaToday()} onChange={(e) => setDate(e.target.value)} containerClassName="w-full" className="font-semibold" />
         </div>
+        {venueName && date && <VenuePreview venueName={venueName} meetings={venueMeetings(dayEntries, venueName)} />}
         <div>
-          <FieldBox label="Start" className="mb-1.5 block" />
+          <FieldBox label="Start"className="mb-1.5 block" />
           <SelectField value={start} onChange={setStart} options={TIME_OPTIONS} className="w-full" />
         </div>
         <div>
@@ -175,6 +240,14 @@ function MeetingRequestForm({ onClose }) {
           </div>
         )}
       </div>
+      {warnings.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs" data-testid="soft-warnings">
+          {warnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+          <li className="text-muted-foreground">You can still send the request.</li>
+        </ul>
+      )}
       {problem && date && <p className="text-xs text-muted-foreground">{problem}</p>}
     </ModalShell>
   );

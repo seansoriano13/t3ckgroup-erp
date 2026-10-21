@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
+import { meetingRequestService } from '@/services/meetingRequestService';
 import { getPermissionContext } from '@/utils/permissions';
 import { manilaToday } from '@/lib/manilaDate.js';
 import CalendarMonth from '@/components/calendar/CalendarMonth';
@@ -36,11 +37,18 @@ function CalendarBody({ view, ...props }) {
  *                 viewer's remembered choice; the choice is then not saved
  *   onWithdraw    when given, the detail panel offers Withdraw on the viewer's
  *                 own approved, upcoming Time Off; called with the entry
+ *   onPickSlot    when given, the day view splits by Venue and an empty slot calls it with a pre-fill
  */
-export default function Calendar({ presetLayers = null, onWithdraw = null }) {
+export default function Calendar({ presetLayers = null, onWithdraw = null, onPickSlot = null }) {
   const { user } = useAuth();
   const ctx = getPermissionContext(user);
   useMeetingRealtime();
+  // Venue columns in the day view, and click-empty-slot-to-file, only where the host page can open the request form.
+  const { data: venues = [] } = useQuery({
+    queryKey: ['calendar-venues'],
+    queryFn: () => meetingRequestService.listVenues(),
+    enabled: Boolean(onPickSlot),
+  });
   const canSeePending = ctx.isHr || ctx.isSuperAdmin || ctx.canManageLeaves;
 
   const [params, setParams] = useSearchParams();
@@ -121,7 +129,15 @@ export default function Calendar({ presetLayers = null, onWithdraw = null }) {
       ) : isLoading ? (
         <PageLoading />
       ) : (
-        <CalendarBody view={view} anchor={anchor} entries={entries} onOpenEntry={setSelected} todayYmd={manilaToday()} />
+        <CalendarBody
+          view={view}
+          anchor={anchor}
+          entries={entries}
+          onOpenEntry={setSelected}
+          todayYmd={manilaToday()}
+          venues={venues}
+          onPickSlot={onPickSlot}
+        />
       )}
       <EntryDetail
         entry={selected}

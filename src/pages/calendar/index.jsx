@@ -10,14 +10,15 @@ import MyMeetingRequests from '@/components/calendar/MyMeetingRequests';
 /** The Calendar page: the shared Calendar, plus the viewer's Meeting Requests. */
 export default function CalendarPage() {
   const [tab, setTab] = useState('calendar');
-  const [requestOpen, setRequestOpen] = useState(false);
+  const [request, setRequest] = useState(null); // null = closed; an object = open, with optional pre-fill
+  const openRequest = (initial = {}) => setRequest(initial);
 
   return (
     <ProtectedRoute>
       <PageShell
         title="Calendar"
         description="Meetings, Time Off and overtime across the company."
-        action={<Button onClick={() => setRequestOpen(true)}>New Meeting Request</Button>}
+        action={<Button onClick={() => openRequest()}>New Meeting Request</Button>}
         tabs={
           <TabGroup
             tabs={[
@@ -29,8 +30,8 @@ export default function CalendarPage() {
           />
         }
       >
-        {tab === 'mine' ? <MyMeetingRequests /> : <Calendar />}
-        <MeetingRequestDialog open={requestOpen} onClose={() => setRequestOpen(false)} />
+        {tab === 'mine' ? <MyMeetingRequests /> : <Calendar onPickSlot={openRequest} />}
+        <MeetingRequestDialog open={Boolean(request)} initial={request ?? undefined} onClose={() => setRequest(null)} />
       </PageShell>
     </ProtectedRoute>
   );
