@@ -177,7 +177,7 @@ function odooDetail(key, statuses = {}) {
 function trackItem(item, statuses) {
   const stampedFromOdoo = item.source === IPAS_STATUS_SOURCE.ODOO;
   let detail = item.detail ?? null;
-  if (stampedFromOdoo) detail = odooDetail(item.key, statuses);
+  if (stampedFromOdoo) detail = (!item.ticked && item.reason) || odooDetail(item.key, statuses);
   else if (item.source === IPAS_STATUS_SOURCE.TYPED || item.source === IPAS_STATUS_SOURCE.STAMPED) {
     const parts = [];
     if (item.on) parts.push(formatDay(item.on));
