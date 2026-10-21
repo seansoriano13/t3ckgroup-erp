@@ -106,6 +106,28 @@ only place that knows this, and `ipas_sign` and `ipas_send_back` both ask it.
   by conversion) must run before this gate reaches users, or no IPAS has a
   section 3 approval and Filing stops.
 
+## Landed Cost changes clear section 3 (#591)
+
+Section 3's approval vouches only for the Landed Cost number that was checked, so
+the database clears its live Submitted and Approved (kept as history, reason
+recorded) when that number changes: a payment or charge added, changed or removed,
+the spread changed, an Odoo refresh that changes the lines or total, or the status
+moving below LC Odoo Done. This is the first time payments and charges clear an
+approval; they still never clear sections 1 or 2.
+
+- Each section 3 sign-off stores a fingerprint of the Landed Cost it was given on
+  (`ipas_signoffs.lc_fingerprint`: per-line goods, spread and landed money, and the
+  totals). Row triggers on payments, charges and the IPAS compare it, so a payment
+  proof, a document tick or a refresh that moves no money clears nothing. The status
+  dropping below LC Odoo Done clears whatever the money.
+- Triggers, not rewritten RPCs, so `ipas_set_header` and the payment, charge and Odoo
+  functions are unchanged. An Odoo refresh clears with the reason "PO changed in
+  Odoo", which the stale-save guard (#585) already ignores.
+- Everyone who signed is told (`IPAS_SECTION_3_CLEARED`), except the person who made
+  the change. History shows the event against section 3.
+- Return and Undo approval accept section 3, with the same section 4 consequence and
+  confirmation as sections 1 and 2.
+
 ## Consequences
 
 - A filed IPAS from before this change shows its old Checked by as a section 3

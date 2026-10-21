@@ -78,6 +78,17 @@ describe("cardMovesFor: the earliest section only", () => {
     expect(labels(card.returns)).toEqual(["Undo approval…"]);
     expect(labels(card.bySection)).toEqual(["Undo approval of section 2"]);
   });
+
+  it("offers Return and Undo approval on section 3 (stored 6), with hints", () => {
+    const ctx = ctxOf({ s6: { returnMode: "return" } });
+    const card = cardMovesFor(ctx, digest);
+    expect(labels(card.bySection)).toEqual(["Return section 3"]);
+    expect(card.bySection[0].hint).toMatch(/Clears Submitted and Approved/);
+
+    const undo = cardMovesFor(ctxOf({ s6: { returnMode: "undo" } }), digest);
+    expect(labels(undo.bySection)).toEqual(["Undo approval of section 3"]);
+    expect(undo.bySection[0].hint).toMatch(/Takes back the approval only/);
+  });
 });
 
 describe("cardMovesFor: section 4 earliest", () => {

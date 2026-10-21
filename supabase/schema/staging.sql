@@ -807,7 +807,8 @@ create table if not exists public."ipas_signoffs" (
   "signature_version" text,
   "cleared_at" timestamp with time zone,
   "cleared_by" uuid,
-  "cleared_reason" text
+  "cleared_reason" text,
+  "lc_fingerprint" text
 );
 
 create table if not exists public."ipas_sors" (
@@ -4810,6 +4811,97 @@ CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
  IMMUTABLE
 AS $function$
   select upper(btrim(coalesce(p_copy->'po'->>'currency', ''))) = 'PHP';
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_lc_fingerprint(p_ipas_id uuid)
+ RETURNS text
+ LANGUAGE sql STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select md5(
+    coalesce((
+      select string_agg(
+               concat_ws('|',
+                 coalesce(e.l ->> 'lineId', ''),
+                 round(coalesce((e.l ->> 'quantity')::numeric, 0), 4)::text,
+                 round(coalesce((e.l ->> 'goodsPhp')::numeric, 0), 2)::text,
+                 round(coalesce((e.l ->> 'spreadPhp')::numeric, 0), 2)::text,
+                 round(coalesce((e.l ->> 'landedPhp')::numeric, 0), 2)::text),
+               ';' order by e.ord)
+        from jsonb_array_elements(coalesce(x.lc -> 'lines', '[]'::jsonb)) with ordinality as e(l, ord)
+    ), '')
+    || '#' ||
+    case
+      when jsonb_typeof(x.lc -> 'totals') = 'object' then
+        concat_ws('|',
+          round(coalesce((x.lc #>> '{totals,goodsPhp}')::numeric, 0), 2)::text,
+          round(coalesce((x.lc #>> '{totals,spreadPhp}')::numeric, 0), 2)::text,
+          round(coalesce((x.lc #>> '{totals,landedPhp}')::numeric, 0), 2)::text)
+      else 'none'
+    end
+  )
+  from (select public._ipas_landed_cost(p_ipas_id) as lc) x;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_clear_section_3_for_lc(p_ipas_id uuid, p_reason text, p_force boolean default false)
+ RETURNS void
+ LANGUAGE plpgsql SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ipas public.ipas;
+  v_actor uuid := public.get_employee_id();
+  v_fingerprint text;
+  v_notify uuid[];
+begin
+  select * into v_ipas from public.ipas where id = p_ipas_id;
+  if not found or v_ipas.state <> 'open' then
+    return;
+  end if;
+  if not exists (
+    select 1 from public.ipas_signoffs s
+     where s.ipas_id = p_ipas_id and s.section = 6 and s.role in ('prepared', 'approved') and s.cleared_at is null
+  ) then
+    return;
+  end if;
+
+  if not p_force then
+    v_fingerprint := public._ipas_lc_fingerprint(p_ipas_id);
+    if not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = p_ipas_id and s.section = 6 and s.role in ('prepared', 'approved') and s.cleared_at is null
+         and s.lc_fingerprint is distinct from v_fingerprint
+    ) then
+      return;
+    end if;
+  end if;
+
+  with cleared as (
+    update public.ipas_signoffs s
+       set cleared_at = now(), cleared_by = v_actor, cleared_reason = p_reason
+     where s.ipas_id = p_ipas_id
+       and s.section = 6
+       and s.role in ('prepared', 'approved')
+       and s.cleared_at is null
+    returning s.signed_by
+  )
+  select coalesce(array_agg(distinct signed_by) filter (where signed_by is distinct from v_actor), '{}'::uuid[])
+    into v_notify
+    from cleared;
+
+  perform public._ipas_write_event(p_ipas_id, v_actor, 'approvals_cleared', jsonb_build_object(
+    'reason', p_reason,
+    'sections', jsonb_build_array(6)
+  ));
+
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select n, v_actor, 'IPAS_SECTION_3_CLEARED',
+         'IPAS section 3 cleared',
+         format('Section 3 of IPAS %s was cleared (%s). It needs to be submitted and approved again.',
+                coalesce(v_ipas.po_number, 'without a PO'), p_reason),
+         p_ipas_id::text
+    from unnest(v_notify) as n;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_landed_cost(p_ipas_id uuid)
@@ -11650,8 +11742,8 @@ begin
   if length(v_reason) > 500 then
     raise exception 'ipas_send_back: the reason is 500 characters at most' using errcode = '22023';
   end if;
-  if p_section is null or p_section not in (1, 3, 7) then
-    raise exception 'ipas_send_back: only sections 1, 2 and 4 can be returned' using errcode = '22023';
+  if p_section is null or p_section not in (1, 3, 6, 7) then
+    raise exception 'ipas_send_back: only sections 1, 2, 3 and 4 can be returned' using errcode = '22023';
   end if;
 
   -- Refuses a filed or cancelled IPAS (55000): a filed one is reopened, not returned.
@@ -11710,7 +11802,7 @@ begin
       with cleared as (
         update public.ipas_signoffs s
            set cleared_at = now(), cleared_by = v_actor,
-               cleared_reason = 'Section ' || p_section || ' returned: ' || v_reason
+               cleared_reason = 'Section ' || public._ipas_section_no(p_section) || ' returned: ' || v_reason
          where s.ipas_id = v_ipas.id
            and s.section = 7
            and s.role in ('received', 'noted', 'checked')
@@ -12613,6 +12705,54 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_signoffs_lc_fingerprint()
+ RETURNS trigger
+ LANGUAGE plpgsql SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.section = 6 and new.role in ('prepared', 'approved') and new.lc_fingerprint is null then
+    new.lc_fingerprint := public._ipas_lc_fingerprint(new.ipas_id);
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_lc_money_changed()
+ RETURNS trigger
+ LANGUAGE plpgsql SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_what text := case when tg_table_name = 'ipas_payments' then 'Payment' else 'Charge' end;
+  v_verb text := case tg_op when 'INSERT' then 'added' when 'DELETE' then 'removed' else 'changed' end;
+begin
+  perform public._ipas_clear_section_3_for_lc(
+    case when tg_op = 'DELETE' then old.ipas_id else new.ipas_id end,
+    v_what || ' ' || v_verb
+  );
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_lc_header_changed()
+ RETURNS trigger
+ LANGUAGE plpgsql SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.computation_status is distinct from old.computation_status
+     and new.computation_status in ('encoding', 'encoded', 'lc_gs_done') then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'Status moved below LC Odoo Done', true);
+  elsif new.odoo_copy is distinct from old.odoo_copy then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'PO changed in Odoo');
+  elsif new.landed_cost_split is distinct from old.landed_cost_split then
+    perform public._ipas_clear_section_3_for_lc(new.id, 'Spread changed');
+  end if;
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_signoffs_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -13029,8 +13169,8 @@ begin
   if length(v_reason) > 500 then
     raise exception 'ipas_undo_approval: the reason is 500 characters at most' using errcode = '22023';
   end if;
-  if p_section is null or p_section not in (1, 3) then
-    raise exception 'ipas_undo_approval: only sections 1 and 2 have an approval to undo' using errcode = '22023';
+  if p_section is null or p_section not in (1, 3, 6) then
+    raise exception 'ipas_undo_approval: only sections 1, 2 and 3 have an approval to undo' using errcode = '22023';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_undo_approval', p_ipas_id);
@@ -13052,7 +13192,7 @@ begin
   with cleared as (
     update public.ipas_signoffs s
        set cleared_at = now(), cleared_by = v_actor,
-           cleared_reason = 'Section ' || p_section || ' approval undone: ' || v_reason
+           cleared_reason = 'Section ' || public._ipas_section_no(p_section) || ' approval undone: ' || v_reason
      where s.ipas_id = v_ipas.id
        and s.section = 7
        and s.role in ('received', 'noted', 'checked')
@@ -21061,12 +21201,14 @@ CREATE TRIGGER ipas_actual_checking_hand_guard BEFORE UPDATE ON public.ipas FOR 
 CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_fill_from_odoo_copy();
 CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
+CREATE TRIGGER ipas_lc_clear AFTER UPDATE OF landed_cost_split, computation_status, odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_lc_header_changed();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_suggest_documents_on_insert();
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_bank_details_updated_at BEFORE UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
+CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_documents_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
@@ -21076,11 +21218,13 @@ CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
+CREATE TRIGGER ipas_payments_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_payments_paid_before_approval BEFORE INSERT OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_payments_paid_before_approval();
 CREATE TRIGGER ipas_payments_updated_at BEFORE UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_signer_list_log_no_change BEFORE DELETE OR UPDATE ON public.ipas_signer_list_log FOR EACH ROW EXECUTE FUNCTION ipas_signer_list_log_append_only();
 CREATE TRIGGER ipas_signer_list_log_no_truncate BEFORE TRUNCATE ON public.ipas_signer_list_log FOR EACH STATEMENT EXECUTE FUNCTION ipas_signer_list_log_append_only();
 CREATE TRIGGER ipas_signoffs_guard BEFORE UPDATE ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_guard();
+CREATE TRIGGER ipas_signoffs_lc_fingerprint BEFORE INSERT ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_lc_fingerprint();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_sors FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();

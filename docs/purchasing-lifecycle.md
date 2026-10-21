@@ -370,7 +370,7 @@ Sign-off sections are numbered as the screen numbers them: **1, 2, 3 and 4**, th
 
 ### Payments, charges, bank, documents
 - **Payments** (any number): kind (down payment, payment, full payment, shipping fee), date, amount in the PO's currency, **PHP debited (required on a foreign-currency PO)**, charge fee in PHP, method, Check No., proof of payment. Purchasing **or** Finance may add, change or remove them, on an open IPAS only. Every change writes history, and a removal keeps a snapshot.
-- A payment added while section 1 has no live Approved is flagged **paid before approval**. Payments and charges never clear an approval.
+- A payment added while section 1 has no live Approved is flagged **paid before approval**. Payments and charges never clear section 1 or 2. **Section 3 is the exception** (#591): its Submitted and Approved vouch for the Landed Cost that was checked, so a payment or charge that changes the Landed Cost clears them (see Sign-offs).
 - **No balance is ever computed.** Withholding would leave a "balance" unpaid forever. The header DP and FP figures are derived by the client and never stored.
 - A typed rate more than the currency's divergence (default 2%) from the Reference Rate is **flagged beside the payment**. The Reference Rate never fills a payment.
 - **Charges:** kind (list), date, PHP amount. A charge that covers several purchases is entered as each one's share.
@@ -416,6 +416,7 @@ Encoding → Encoded → LC GS Done → LC Odoo Done. It ends there: the old **C
 
 Rules:
 - **No self-approval.** A Super Admin signs only if they are on the list.
+- **Landed Cost changes clear section 3** (#591). The database clears its live Submitted and Approved (kept as history, reason recorded, shown as "section 3") when the Landed Cost changes: a payment or charge added, changed or removed, the spread changed, an Odoo refresh that changes the lines or total, or the status moving below LC Odoo Done (so undoing "Mark LC Odoo Done" clears it). The people who signed are told. A document tick, a payment proof or a refresh that moves no money clears nothing. Section 3 can be Returned or have its approval Undone, with the same section 4 consequence as sections 1 and 2.
 - **Section 4 opens only once sections 1, 2 and 3 are approved** (#590). The gate is checked at every section 4 step, so an approval undone by an Odoo change closes it again. Section 4 sign-offs given before this rule stay; only what is still to be given waits, the final Approve among it. The section 4 Received list is told when the last of the three approvals comes in.
 - **Approved in section 4** needs Received, Noted and Checked, and computation status at LC Odoo Done. It sets `state = filed` and `filed_at` in one act, and notifies the next list at each step.
 - **Return (send back)** on section 1 or 2: a signer on that list sends it to the preparer with a reason. Prepared and Approved are cleared and kept as history. The data is untouched. It **also clears section 4's live Received, Noted and Checked**, and tells those signers.

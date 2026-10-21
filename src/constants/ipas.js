@@ -380,6 +380,8 @@ export const IPAS_NOTIFICATION = {
   SENT_BACK: "IPAS_SENT_BACK",
   APPROVAL_UNDONE: "IPAS_APPROVAL_UNDONE",
   SECTION_7_READY: "IPAS_SECTION_7_READY",
+  // Written by the database (#591) when a Landed Cost change clears section 3.
+  SECTION_3_CLEARED: "IPAS_SECTION_3_CLEARED",
 };
 
 /**
@@ -417,9 +419,9 @@ export const IPAS_SIGNOFF_ROLE_ACTIONS = {
 };
 
 export const IPAS_SIGNOFF_SECTIONS = [1, 3, 6, 7];
-export const IPAS_SEND_BACK_SECTIONS = [1, 3, 7];
+export const IPAS_SEND_BACK_SECTIONS = [1, 3, 6, 7];
 /** The sections whose Approved can be undone, leaving Prepared. */
-export const IPAS_UNDO_APPROVAL_SECTIONS = [1, 3];
+export const IPAS_UNDO_APPROVAL_SECTIONS = [1, 3, 6];
 
 /** Section 7's sign-offs in the order they are given (Noted and Checked in either order). */
 export const IPAS_SECTION_7_ROLES = [

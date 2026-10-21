@@ -733,12 +733,12 @@ A signer on the section's approval list sends the section back to its preparer
 with a reason, to be redone: the section's Prepared and Approved sign-offs are
 cleared and kept as history, the section's data is untouched. Offered while the
 section is prepared and not yet approved; once approved the move is Undo
-approval. Returning section 1 or 2 after section 4 has begun also clears section
+approval. Section 3 can be returned too. Returning section 1, 2 or 3 after section 4 has begun also clears section
 4's open sign-offs, which the signer confirms first, naming who gave them.
 _Avoid_: Send back, Reject, Reopen (that is a filed IPAS)
 
 **Undo approval**:
-A signer on the section's approval list takes back an Approved on section 1 or 2
+A signer on the section's approval list takes back an Approved on section 1, 2 or 3
 with a reason. Only the Approved sign-off is cleared; the Prepared stays, so the
 section waits for an approver again and the preparer redoes nothing. Same
 section 4 consequence and confirmation as a Return.

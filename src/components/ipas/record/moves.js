@@ -27,8 +27,8 @@ const FILING = ipasSectionNo(7);
 const PART = IPAS_SECTION_PART;
 // The stored sections whose Submit and Approve the card offers: 1, 3 and 6 (shown as 1, 2 and 3).
 const SIGN_SECTIONS = [1, 3, 6];
-// The ones with a Return and an Undo approval; section 6's join them with #591.
-const RETURN_SECTIONS = [1, 3];
+// The ones with a Return and an Undo approval (section 6 joined them with #591).
+const RETURN_SECTIONS = [1, 3, 6];
 // The filing section: its sign-offs are steps, not Prepare and Approve.
 const FILING_SECTION = 7;
 
