@@ -49,7 +49,7 @@ import {
   shapeBankDetails,
   shapeIpas,
 } from "../utils/ipas";
-import { isIsoDate, parseAmountInput } from "../utils/ipasPayments";
+import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
@@ -62,6 +62,9 @@ const IPAS_SELECT =
   " import_clearance_typer:employees!ipas_import_clearance_typed_by_fkey(id, name)," +
   " delivered_typer:employees!ipas_delivered_typed_by_fkey(id, name)," +
   " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)";
+// The list also reads each IPAS's payments (kind, amount, method) so the money
+// columns need no per-record fetch (#596).
+const LIST_SELECT = IPAS_SELECT + ", ipas_payments(kind, amount, method_id, paid_on, created_at)";
 const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, avatar_path)";
 const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
@@ -232,11 +235,12 @@ export const ipasService = {
   /**
    * The IPAS list: `{ state, entity, purpose }`. `state` is open, filed,
    * cancelled or "all" (the default); `entity` is an Odoo company name (the
-   * IPAS's entity); `purpose` is a Purpose. Newest first, each with its SORs.
-   * The database returns only what the caller may read.
+   * IPAS's entity); `purpose` is a Purpose. Newest first, each with its SORs
+   * and its `payments` (shaped: kind, amount, method label; #596) for the IPAS
+   * figures. The database returns only what the caller may read.
    */
   async list({ state = IPAS_STATE_FILTER_ALL, entity = null, purpose = null } = {}) {
-    let query = supabase.from("ipas").select(IPAS_SELECT).order("created_at", { ascending: false });
+    let query = supabase.from("ipas").select(LIST_SELECT).order("created_at", { ascending: false });
     if (state && state !== IPAS_STATE_FILTER_ALL) query = query.eq("state", state);
     if (purpose) query = query.eq("purpose", purpose);
 
@@ -246,10 +250,18 @@ export const ipasService = {
     const sorsByIpas = await readSorHeaders((rows || []).map((row) => row.id));
     // The list filter "Section 3 approved" (#586): one read of the live section 3 approvals.
     const { approved: section3Approved } = await readSection3Signoffs();
+    // Payment methods are option rows read by id, as on the record.
+    const { data: optionRows, error: optionsError } = await supabase.from("ipas_options").select("id, list, label");
+    if (optionsError) throw optionsError;
+    const options = new Map((optionRows || []).map((option) => [option.id, option]));
 
     return (rows || [])
       .filter((row) => !entity || ipasEntity(row) === entity)
-      .map((row) => ({ ...shapeIpas(row, sorsByIpas.get(row.id) ?? []), section3Approved: section3Approved.has(row.id) }));
+      .map(({ ipas_payments: paymentRows, ...row }) => ({
+        ...shapeIpas(row, sorsByIpas.get(row.id) ?? []),
+        payments: (paymentRows || []).map((payment) => shapePayment(payment, options)),
+        section3Approved: section3Approved.has(row.id),
+      }));
   },
 
   /**

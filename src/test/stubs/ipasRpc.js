@@ -1637,7 +1637,7 @@ export function stubIpasRpcs({
  */
 export function seedIpasOptions(seed) {
   const lists = {
-    payment_method: ["Alipay", "Bank Deposit", "Bank TT", "Cash", "Credit Card", "Dated Check", "Petnet", "Western Union", "Alibaba", "Paypal", "Other"],
+    payment_method: ["Alipay", "Bank Deposit", "Bank TT", "Cash", "Credit Card", "Dated Check", "Petnet", "Western Union", "Alibaba", "Paypal", "Others"],
     charge_kind: ["Brokerage Fee", "Delivery Fee", "Destination Charges", "Duties & Taxes", "Origin Charges", "Processing Fee", "Truck Rental"],
     freight_service: ["Ahead", "AVV", "DHL", "FedEx", "UPS", "Wide Range", "DSV", "TD Express Air", "TD Express Sea", "Other"],
   }

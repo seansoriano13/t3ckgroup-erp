@@ -3,7 +3,8 @@
 // bills that are not cancelled. Read-only over the existing `execute_kw`.
 //
 // What the IPAS stores is this answer, so the shape below is the stored copy's
-// shape (`ipas.odoo_copy`): { po, supplier, lines, receipts, bills }.
+// shape (`ipas.odoo_copy`): { po, supplier, lines, receipts, bills }. `po` carries
+// the PO's untaxed amount, tax and total (#596).
 //
 // A second mode, `{ action: "raise", poNumber, priority, source, purpose, sorIds,
 // remarks }`, raises the IPAS (#550): this function asks Odoo itself and calls
@@ -72,6 +73,10 @@ const ORDER_FIELDS = [
   "receipt_status",
   "picking_ids",
   "invoice_ids",
+  // The PO's own money (#596): before tax, the tax, and the total Odoo states.
+  "amount_untaxed",
+  "amount_tax",
+  "amount_total",
 ];
 
 /** Odoo tax ids -> display names, read once for every line. */
@@ -262,6 +267,12 @@ async function readPo(poNumber: unknown): Promise<Answer> {
           currency: pairName(order.currency_id),
           origin: text(order.origin) || null,
           partner_ref: text(order.partner_ref) || null,
+          // Stored on the copy so the IPAS can compare it with the P.I/QT Amount
+          // (#596). Copies stored before this have none and fall back to the
+          // sum of their line subtotals, marked as before tax.
+          amount_untaxed: Number(order.amount_untaxed) || 0,
+          amount_tax: Number(order.amount_tax) || 0,
+          amount_total: Number(order.amount_total) || 0,
         },
         supplier: {
           id: supplier.company_id,
