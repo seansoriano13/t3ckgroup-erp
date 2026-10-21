@@ -177,19 +177,98 @@ describe("computeLandedCost", () => {
       expect(result.rate).toBeNull()
     })
 
-    it("is not available while no payment carries a PHP debited", () => {
-      const result = computeLandedCost({ ...usd, payments: [pay("payment", 400)] })
+    it("is not available while a payment's pesos are blank and no Reference Rate can stand in", () => {
+      const result = computeLandedCost({ ...usd, payments: [pay("payment", 400, { paid_on: "2026-10-01" })] })
       expect(result.status).toBe(IPAS_LANDED_COST_STATUS.UNAVAILABLE)
-      expect(result.reason).toBe(IPAS_LANDED_COST_REASON.NO_PAYMENTS)
+      expect(result.reason).toBe(IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE)
     })
 
-    it("takes the rate only from the payments that say what was debited", () => {
-      const result = computeLandedCost({
-        ...usd,
-        payments: [pay("down_payment", 200, { php_debited: 11200 }), pay("payment", 200)],
+    describe("an estimate, while a payment's pesos taken from the bank are blank (#604)", () => {
+      const rates = [
+        { currency: "USD", rate_date: "2026-09-28", php_per_unit: 55 },
+        { currency: "USD", rate_date: "2026-10-02", php_per_unit: 99 },
+        { currency: "EUR", rate_date: "2026-09-28", php_per_unit: 66 },
+      ]
+      // 200 x 1 USD of goods, so Landed Cost is the pesos of the payments.
+      const oneUsd = copy("USD", [line(1, 200, 1)])
+      const final = { computationStatus: "lc_odoo_done" }
+
+      it("takes the blank payment at the Reference Rate of its payment date: the latest on or before it", () => {
+        const result = computeLandedCost({
+          copy: oneUsd,
+          payments: [pay("payment", 200, { paid_on: "2026-10-01" })],
+          referenceRates: rates,
+        })
+        expect(result.estimate).toBe(true)
+        expect(result.status).toBe(IPAS_LANDED_COST_STATUS.PROVISIONAL)
+        expect(result.rate).toMatchObject({ rate: 55, phpDebited: 11000, foreignPaid: 200, payments: 1, estimatedPayments: 1, estimatedPhp: 11000 })
+        expect(result.estimates).toEqual([
+          { paymentId: null, kind: "payment", paidOn: "2026-10-01", amount: 200, referenceRate: 55, rateDate: "2026-09-28", php: 11000 },
+        ])
+        expect(result.totals.landedPhp).toBe(11000)
       })
-      expect(result.rate).toMatchObject({ phpDebited: 11200, foreignPaid: 200, payments: 1 })
-      expect(result.rate.rate).toBe(56)
+
+      it("mixes what was actually paid with the Reference Rate for the rest", () => {
+        const result = computeLandedCost({
+          copy: oneUsd,
+          payments: [
+            pay("down_payment", 100, { paid_on: "2026-09-30", php_debited: 6000 }),
+            pay("payment", 100, { paid_on: "2026-10-01" }),
+          ],
+          referenceRates: rates,
+        })
+        // 6,000 paid + 100 x 55 estimated = 11,500 over 200: 57.5 a dollar.
+        expect(result.estimate).toBe(true)
+        expect(result.rate).toMatchObject({ phpDebited: 11500, foreignPaid: 200, payments: 2, estimatedPayments: 1, estimatedPhp: 5500 })
+        expect(result.rate.rate).toBe(57.5)
+        expect(result.totals.landedPhp).toBe(11500)
+      })
+
+      it("is never final, even at LC Odoo Done or filed", () => {
+        const payments = [pay("payment", 200, { paid_on: "2026-10-01" })]
+        expect(computeLandedCost({ copy: oneUsd, payments, referenceRates: rates, ...final }).status).toBe(IPAS_LANDED_COST_STATUS.PROVISIONAL)
+        expect(computeLandedCost({ copy: oneUsd, payments, referenceRates: rates, filed: true }).status).toBe(IPAS_LANDED_COST_STATUS.PROVISIONAL)
+      })
+
+      it("is the final figure at the rate actually paid once the pesos are in", () => {
+        const payments = [pay("payment", 200, { paid_on: "2026-10-01", php_debited: 11400 })]
+        const estimate = computeLandedCost({ copy: oneUsd, payments: [pay("payment", 200, { paid_on: "2026-10-01" })], referenceRates: rates })
+        const actual = computeLandedCost({ copy: oneUsd, payments, referenceRates: rates, ...final })
+        expect(estimate.estimate).toBe(true)
+        expect(estimate.totals.landedPhp).toBe(11000)
+        expect(actual.estimate).toBe(false)
+        expect(actual.estimates).toEqual([])
+        expect(actual.status).toBe(IPAS_LANDED_COST_STATUS.FINAL)
+        expect(actual.rate.rate).toBe(57)
+        expect(actual.totals.landedPhp).toBe(11400)
+      })
+
+      it("takes a blank shipping fee at its estimated pesos too", () => {
+        const result = computeLandedCost({
+          copy: copy("USD", [line(1, 100, 1)]),
+          payments: [
+            pay("payment", 100, { paid_on: "2026-10-01", php_debited: 5500 }),
+            pay("shipping_fee", 10, { paid_on: "2026-10-01" }),
+          ],
+          referenceRates: rates,
+        })
+        expect(result.totals.shippingFeesPhp).toBe(550)
+        expect(result.estimate).toBe(true)
+      })
+
+      it("looks at the PO's own currency, and a peso PO has no estimate at all", () => {
+        const eur = computeLandedCost({ copy: copy("EUR", [line(1, 10, 1)]), payments: [pay("payment", 10, { paid_on: "2026-10-01" })], referenceRates: rates })
+        expect(eur.rate.rate).toBe(66)
+        const php = computeLandedCost({ copy: copy("PHP", [line(1, 10, 1)]), payments: [pay("payment", 10)], referenceRates: rates })
+        expect(php.estimate).toBe(false)
+        expect(php.estimates).toEqual([])
+      })
+
+      it("is not available when the blank payment is older than every Reference Rate", () => {
+        const result = computeLandedCost({ copy: oneUsd, payments: [pay("payment", 200, { paid_on: "2026-01-01" })], referenceRates: rates })
+        expect(result.status).toBe(IPAS_LANDED_COST_STATUS.UNAVAILABLE)
+        expect(result.reason).toBe(IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE)
+      })
     })
 
     it("takes a shipping fee's PHP from its own PHP debited", () => {

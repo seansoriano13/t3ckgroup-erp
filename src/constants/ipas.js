@@ -197,7 +197,11 @@ export const IPAS_COMPUTATION_STATUS_LABELS = {
  */
 export const IPAS_SECTION_3_APPROVED_FILTER = "section_3_approved";
 
-/** Landed Cost is `unavailable`, or `provisional` until LC Odoo Done, then `final`. */
+/**
+ * Landed Cost is `unavailable`, or `provisional` until LC Odoo Done, then `final`. While a
+ * foreign-currency payment's "Pesos taken from the bank" is blank it is also an estimate
+ * (`estimate: true` beside `provisional`, #604).
+ */
 export const IPAS_LANDED_COST_STATUS = {
   UNAVAILABLE: "unavailable",
   PROVISIONAL: "provisional",
@@ -208,6 +212,8 @@ export const IPAS_LANDED_COST_STATUS = {
 export const IPAS_LANDED_COST_REASON = {
   NO_PAYMENTS: "no_payments",
   NO_LINES: "no_lines",
+  /** A payment's pesos are blank and no Reference Rate exists on or before its date (#604). */
+  NO_REFERENCE_RATE: "no_reference_rate",
 };
 
 /** The option lists (ipas_options.list). Options are deactivated, never deleted. */

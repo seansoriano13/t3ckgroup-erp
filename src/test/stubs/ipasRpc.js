@@ -3,6 +3,7 @@ import { stubs } from "@/test/msw/postgrest"
 import { db, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { computeLandedCost } from "@/test/stubs/landedCostFake"
+import { formatDay } from "@/utils/ipasPayments"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
@@ -434,6 +435,7 @@ export function stubIpasRpcs({
       split: row.landed_cost_split || "value",
       computationStatus: row.computation_status || "encoding",
       filed: row.state === "filed",
+      referenceRates: rowsOf("currency_rates"),
     })
   })
 
@@ -501,6 +503,7 @@ export function stubIpasRpcs({
       split: row.landed_cost_split || "value",
       computationStatus: row.computation_status || "encoding",
       filed: row.state === "filed",
+      referenceRates: rowsOf("currency_rates"),
     })
     if (lc.lines.length === 0 && lc.status === "unavailable" && lc.reason !== "no_payments") return { landed_cost_total_php: null, landed_cost_mark: null }
     return { landed_cost_total_php: lc.totals?.landedPhp ?? null, landed_cost_mark: lc.status }
@@ -803,6 +806,17 @@ export function stubIpasRpcs({
       if (!STATUSES.includes(to)) {
         refuse("22023", "ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done")
       }
+      if (to === "lc_odoo_done" && to !== (row.computation_status ?? "encoding") && !isPhpCopy(row.odoo_copy)) {
+        // #604: a final Landed Cost needs the pesos actually taken from the bank; names the payments.
+        const KIND = { down_payment: "Down payment", payment: "Payment", full_payment: "Full payment", shipping_fee: "Shipping fee" }
+        const blanks = rowsOf("ipas_payments")
+          .filter((p) => p.ipas_id === row.id && (p.php_debited ?? null) === null)
+          .sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+          .map((p) => `${KIND[p.kind] ?? p.kind} of ${String(row.odoo_copy?.po?.currency).trim().toUpperCase()} ${Number(p.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} on ${formatDay(p.paid_on)}`)
+        if (blanks.length) {
+          refuse("22023", `ipas_set_header: LC Odoo Done needs the pesos taken from the bank on every foreign-currency payment. Still blank: ${blanks.join("; ")}`)
+        }
+      }
       if (to !== (row.computation_status ?? "encoding")) {
         next.computation_status = to
         note("computation_status", row.computation_status ?? "encoding", to)
@@ -937,8 +951,14 @@ export function stubIpasRpcs({
 
     let php = args.p_php_debited == null ? null : round2(Number(args.p_php_debited))
     if (isPhpCopy(ipas.odoo_copy)) php = null
-    else if (php === null || !(php > 0)) {
-      refuse("22023", `${fn}: ${ipas.number} is a foreign-currency PO; give the PHP actually debited`)
+    else {
+      // #604: the pesos taken from the bank may be blank; a figure that is given has to make sense.
+      if (php !== null && !(php > 0)) {
+        refuse("22023", `${fn}: the pesos taken from the bank must be more than zero, or left blank until the bank statement arrives`)
+      }
+      if (php === null && ipas.computation_status === "lc_odoo_done") {
+        refuse("22023", `${fn}: ${ipas.number} is at LC Odoo Done, so Landed Cost is final; give the pesos taken from the bank`)
+      }
     }
     const label = checkOption(fn, args.p_method_id, "payment_method", currentMethod, "payment method")
     const proof = clean(args.p_proof_url)

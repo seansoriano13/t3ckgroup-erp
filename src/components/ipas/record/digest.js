@@ -18,6 +18,7 @@ import { formatAmount } from "@/utils/ipas";
 import { filingChecklist } from "@/utils/ipasDocuments";
 import { FILING_STATUS, SIGNOFF_STATUS, isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { formatDay } from "@/utils/ipasPayments";
+import { isLandedCostEstimate } from "@/utils/landedCost";
 import { formatDate } from "@/utils/formatDate.js";
 import { gatesFor } from "./gates";
 import { STATE } from "@/components/record/statePalette";
@@ -73,7 +74,10 @@ export function digestIpas(ipas) {
     missingPhp: sum.missingPhp,
     landedStatus: lc.status,
     landedPhp: lc.totals?.landedPhp ?? null,
-    landedText: lc.totals ? pesos(lc.totals.landedPhp) : "Not available yet",
+    landedEstimate: isLandedCostEstimate(lc),
+    // An estimate (a payment's pesos still blank) is said so wherever the figure shows (#604).
+    landedFigureText: lc.totals ? pesos(lc.totals.landedPhp) : "Not available yet",
+    landedText: lc.totals ? `${pesos(lc.totals.landedPhp)}${isLandedCostEstimate(lc) ? " (estimate)" : ""}` : "Not available yet",
     rateText: lc.rate ? `${lc.rate.rate.toFixed(4)} PHP per ${lc.currency}` : null,
   };
 
@@ -254,6 +258,6 @@ export function sectionState(key, digest) {
  */
 export function filingSummary(digest) {
   const { money, docs } = digest;
-  const landed = money.landedPhp === null ? "Landed Cost is not available yet" : `Landed Cost becomes final at ${money.landedText}`;
+  const landed = money.landedPhp === null ? "Landed Cost is not available yet" : `Landed Cost becomes final at ${money.landedFigureText}`;
   return `${landed}. ${docs.ticked} of ${docs.total} documents in hand are frozen with it.`;
 }

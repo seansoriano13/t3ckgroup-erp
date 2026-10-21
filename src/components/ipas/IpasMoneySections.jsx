@@ -23,7 +23,7 @@ import {
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
 import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
-import { isPhpCurrency } from "../../utils/landedCost";
+import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
 
@@ -120,7 +120,7 @@ export function IpasPaymentsBlock({
         <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
           No payments recorded yet.
           {!isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
-            ? " A foreign-currency Odoo PO needs a payment with the PHP debited before Landed Cost can be worked out."
+            ? " A foreign-currency Odoo PO needs a payment before Landed Cost can be worked out."
             : ""}
         </p>
       ) : (
@@ -131,7 +131,7 @@ export function IpasPaymentsBlock({
                 <TableHead className={HEAD}>Payment</TableHead>
                 <TableHead className={HEAD}>Date</TableHead>
                 <TableHead className={`${HEAD} text-right`}>{isPhp ? "Amount" : `Amount (${currency})`}</TableHead>
-                {!isPhp && <TableHead className={`${HEAD} text-right`}>PHP debited</TableHead>}
+                {!isPhp && <TableHead className={`${HEAD} text-right`}>Pesos taken from the bank</TableHead>}
                 <TableHead className={`${HEAD} text-right`}>Charge fee</TableHead>
                 <TableHead className={HEAD}>Method</TableHead>
                 <TableHead className={HEAD}>Proof</TableHead>
@@ -156,7 +156,7 @@ export function IpasPaymentsBlock({
                   {!isPhp && (
                     <TableCell className="text-right font-mono text-xs tabular-nums">
                       {payment.php_debited === null ? (
-                        <span className="text-amber-11">Missing</span>
+                        <span className="text-amber-11">Not in yet (estimate)</span>
                       ) : (
                         pesos(payment.php_debited)
                       )}
@@ -214,7 +214,7 @@ export function IpasPaymentsBlock({
           <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 border-t border-border bg-muted/20 px-4 py-2 text-xs">
             <span className="text-muted-foreground">
               Total debited, including charge fees
-              {sum.missingPhp > 0 && ` · ${sum.missingPhp} payment${sum.missingPhp === 1 ? "" : "s"} without PHP debited`}
+              {sum.missingPhp > 0 && ` · ${sum.missingPhp} payment${sum.missingPhp === 1 ? "" : "s"} without the pesos taken from the bank`}
             </span>
             <span className="font-mono font-semibold tabular-nums">{pesos(sum.totalDebitedPhp)}</span>
           </div>
@@ -317,12 +317,16 @@ const LANDED_BADGE = {
   [IPAS_LANDED_COST_STATUS.UNAVAILABLE]: { label: "Not available" },
 };
 
-/** The mark Landed Cost carries wherever it is read: provisional, final or not available. */
-export function LandedCostBadge({ status }) {
+/**
+ * The mark Landed Cost carries wherever it is read: estimate, provisional, final or not
+ * available. `estimate` (#604) is a provisional figure with a payment's pesos still blank.
+ */
+export function LandedCostBadge({ status, estimate = false }) {
   const known = status in LANDED_BADGE ? status : IPAS_LANDED_COST_STATUS.UNAVAILABLE;
   // Unavailable is registered as "not available" in status.js, so it is not read as the procurement outcome of that name.
   const registered = known === IPAS_LANDED_COST_STATUS.UNAVAILABLE ? "not_available" : known;
-  return <StatusBadge status={registered} label={LANDED_BADGE[known].label} />;
+  const label = estimate && known !== IPAS_LANDED_COST_STATUS.UNAVAILABLE ? "Estimate" : LANDED_BADGE[known].label;
+  return <StatusBadge status={registered} label={label} />;
 }
 
 /**
@@ -342,6 +346,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
   const currentIndex = IPAS_COMPUTATION_STATUSES.indexOf(ipas.computationStatus);
   const unavailable = lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE;
   const foreign = lc.isForeign;
+  const estimate = isLandedCostEstimate(lc);
   const mayStep = (status, index) =>
     Math.abs(index - currentIndex) === 1 && (canSetStatus ? canSetStatus(ipas.computationStatus, status) : granted);
   const anyStep = IPAS_COMPUTATION_STATUSES.some((status, index) => mayStep(status, index));
@@ -401,7 +406,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
 
         <div className="space-y-3">
           <SectionHeader title="Landed Cost" className="border-b-0 pb-2">
-            <LandedCostBadge status={lc.status} />
+            <LandedCostBadge status={lc.status} estimate={estimate} />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Spread charges</span>
               {canChange ? (
@@ -431,17 +436,30 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
                 <p className="font-semibold text-foreground">Landed Cost is not available yet</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {lc.reason === IPAS_LANDED_COST_REASON.NO_PAYMENTS
-                    ? `This Odoo PO is in ${lc.currency || "a foreign currency"}. Landed Cost converts at the rate actually paid, so it needs a payment with the PHP debited. It is never guessed or taken from Odoo's rate.`
-                    : "The Odoo PO has no item lines to cost."}
+                    ? `This Odoo PO is in ${lc.currency || "a foreign currency"}. Landed Cost converts at the rate actually paid, so it needs a payment. It is never guessed or taken from Odoo's rate.`
+                    : lc.reason === IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE
+                      ? `A payment has no pesos taken from the bank yet, and there is no ${lc.currency || "Reference"} Reference Rate on or before its date to estimate with. Fill the pesos in to get Landed Cost.`
+                      : "The Odoo PO has no item lines to cost."}
                 </p>
               </div>
             </div>
           ) : (
             <>
+              {estimate && (
+                <p
+                  role="status"
+                  data-testid="landed-cost-estimate-note"
+                  className="flex items-start gap-2 rounded-lg border border-amber-a4 bg-amber-a2 p-3 text-xs text-amber-11"
+                >
+                  <CircleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
+                  <span>{landedCostEstimateNote(lc)}</span>
+                </p>
+              )}
               {foreign && lc.rate && (
                 <p className="text-xs text-muted-foreground">
-                  Converted at <span className="font-semibold text-foreground tabular-nums">{lc.rate.rate.toFixed(4)}</span>{" "}
-                  PHP per {lc.currency}: <Amt>{pesos(lc.rate.phpDebited)}</Amt> debited for{" "}
+                  {estimate ? "Estimated at" : "Converted at"}{" "}
+                  <span className="font-semibold text-foreground tabular-nums">{lc.rate.rate.toFixed(4)}</span> PHP per {lc.currency}:{" "}
+                  <Amt>{pesos(lc.rate.phpDebited)}</Amt> {estimate ? "(taken from the bank, plus the Reference Rate for the rest)" : "taken from the bank"} for{" "}
                   <Amt>{formatAmount(lc.rate.foreignPaid, lc.currency)}</Amt> across {lc.rate.payments}{" "}
                   {lc.rate.payments === 1 ? "payment" : "payments"}.
                 </p>

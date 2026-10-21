@@ -71,16 +71,32 @@ const norm = (value) => {
     return value
 }
 
+// The estimated payments' row ids are the database's, and payments paid on one day come in no fixed
+// order there: compare them by kind, without the ids.
+const sameOrder = (result) => ({
+    ...result,
+    estimates: (result.estimates ?? []).map(({ paymentId: _paymentId, ...rest }) => rest).sort((a, b) => a.kind.localeCompare(b.kind)),
+})
+
 beforeAll(async () => {
     await ensureCastLoaded()
     const option = async (list) => (await sql().query(`select id from public.ipas_options where list = $1 order by sort limit 1`, [list])).rows[0].id
     method = await option("payment_method")
     kind = await option("charge_kind")
+    // A currency of this test's own, for the estimate fixtures (#604); "YYY" is left without any rate.
+    await svc().from("currency_rates").delete().eq("currency", "ZZZ")
+    await svc().from("currency_rate_currencies").delete().eq("currency", "ZZZ")
+    await sql().query(`insert into public.currency_rate_currencies (currency) values ('ZZZ')`)
+    await sql().query(`insert into public.currency_rates (currency, rate_date, php_per_unit, source) values ('ZZZ', '2000-01-01', 55.5, 'test')`)
 })
 
 afterAll(async () => {
     await purgeIpas(made)
+    await svc().from("currency_rates").delete().eq("currency", "ZZZ")
+    await svc().from("currency_rate_currencies").delete().eq("currency", "ZZZ")
 })
+
+const REFERENCE_RATES = [{ currency: "ZZZ", rate_date: "2000-01-01", php_per_unit: 55.5 }]
 
 const FIXTURES = {
     "P02552, a peso PO with no charges": { lines: [line(1, 6, 1250)] },
@@ -102,6 +118,11 @@ const FIXTURES = {
     },
     "a USD PO with no payment": { currency: "USD", lines: [line(1, 1, 100)] },
     "a USD shipping fee in PHP debited": { currency: "USD", lines: [line(1, 4, 25)], payments: [{ kind: "payment", amount: 100, php_debited: 5600 }, { kind: "shipping_fee", amount: 20, php_debited: 1150 }] },
+    // #604: a payment whose pesos taken from the bank are blank is taken at the Reference Rate.
+    "an estimate: a payment with the pesos blank": { currency: "ZZZ", lines: [line(1, 10, 20)], payments: [{ kind: "payment", amount: 100 }, { kind: "shipping_fee", amount: 10 }], charges: [100] },
+    "an estimate mixed with a payment actually paid": { currency: "ZZZ", lines: [line(1, 10, 20), line(2, 3, 7)], payments: [{ kind: "down_payment", amount: 100, php_debited: 5000 }, { kind: "payment", amount: 50 }] },
+    "an estimate is never final, even at LC Odoo Done": { currency: "ZZZ", status: "lc_odoo_done", lines: [line(1, 1, 10)], payments: [{ kind: "payment", amount: 10 }] },
+    "a blank payment with no Reference Rate": { currency: "YYY", lines: [line(1, 1, 10)], payments: [{ kind: "payment", amount: 10 }] },
     "final at LC Odoo Done": { status: "lc_odoo_done", lines: [line(1, 1, 10)] },
     "final when filed, whatever the status": { filed: true, lines: [line(1, 1, 10)] },
 }
@@ -111,13 +132,15 @@ describe("the database and the fake give the same Landed Cost", () => {
         const { id, copy } = await makeIpas(fixture)
         const fake = computeLandedCost({
             copy,
-            payments: (fixture.payments ?? []).map((p) => ({ php_debited: null, charge_fee_php: 0, ...p })),
+            // The fixtures are paid `current_date` in the database (UTC in the local stack).
+            payments: (fixture.payments ?? []).map((p) => ({ php_debited: null, charge_fee_php: 0, paid_on: new Date().toISOString().slice(0, 10), ...p })),
             charges: (fixture.charges ?? []).map((amount_php) => ({ amount_php })),
             split: fixture.split ?? "value",
             computationStatus: fixture.status ?? "encoding",
             filed: Boolean(fixture.filed),
+            referenceRates: REFERENCE_RATES,
         })
-        expect(norm(await fromDb(id))).toEqual(norm(fake))
+        expect(sameOrder(norm(await fromDb(id)))).toEqual(sameOrder(norm(fake)))
     })
 })
 

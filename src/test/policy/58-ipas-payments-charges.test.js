@@ -269,12 +269,14 @@ describe("recording payments", () => {
         expect(Number((await paymentRow(row.id)).amount)).toBe(500)
     })
 
-    it("refuses a foreign-currency payment with no PHP debited, and says so in a sentence", async () => {
+    // #604: "Pesos taken from the bank" is optional; a figure that is given still has to be above zero.
+    // The blank-save and LC Odoo Done rules are 116-ipas-pesos-taken-from-the-bank.
+    it("refuses a foreign-currency payment whose pesos taken from the bank aren't more than zero, and says so in a sentence", async () => {
         const usd = await raise("USD")
-        for (const php of [null, 0, -5]) {
+        for (const php of [0, -5]) {
             const { error } = await addPayment("outsider", usd.id, { p_php_debited: php })
             expect(error?.code).toBe("22023")
-            expect(error?.message).toMatch(/PHP actually debited/)
+            expect(error?.message).toMatch(/pesos taken from the bank must be more than zero/)
         }
         const { data } = await svc().from("ipas_payments").select("id").eq("ipas_id", usd.id)
         expect(data).toEqual([])

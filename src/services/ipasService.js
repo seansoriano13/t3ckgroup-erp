@@ -607,8 +607,9 @@ export const ipasService = {
    * Records a payment on an open IPAS (Purchasing or Finance).
    * `{ kind, paidOn, amount, phpDebited, chargeFeePhp, methodId, checkNo,
    * proofUrl }`: `amount` is in the PO's currency, `phpDebited` is the PHP
-   * actually debited and is required on a foreign-currency PO (pass
-   * `isPhpPo: false`; the database enforces it either way), and
+   * taken from the bank ("Pesos taken from the bank"); on a foreign-currency
+   * PO (pass `isPhpPo: false`) it may be left blank, and Landed Cost is then
+   * an estimate until it is filled (#604), and
    * `chargeFeePhp` is always PHP. Returns the payment row.
    */
   async addPayment(id, payment, { isPhpPo = true } = {}) {
@@ -1529,12 +1530,10 @@ function paymentArgs(payment, isPhpPo) {
   }
 
   const phpRead = parseAmountInput(phpDebited);
-  if (!phpRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "PHP debited must be a number.");
-  if (!isPhpPo && (phpRead.value === null || phpRead.value <= 0)) {
-    throw new IpasError(
-      IPAS_ERROR.INVALID,
-      "This Odoo PO is in a foreign currency: give the PHP actually debited, so Landed Cost can use the real rate.",
-    );
+  if (!phpRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "Pesos taken from the bank must be a number.");
+  // Blank is allowed (#604): Landed Cost is an estimate until the bank statement's pesos are in.
+  if (!isPhpPo && phpRead.value !== null && phpRead.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "Pesos taken from the bank must be more than zero, or left blank until the bank statement arrives.");
   }
 
   const feeRead = parseAmountInput(chargeFeePhp);

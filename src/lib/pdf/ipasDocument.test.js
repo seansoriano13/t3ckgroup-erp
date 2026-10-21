@@ -87,7 +87,7 @@ describe("the two A4 pages", () => {
   it("prints every field the ticket lists for the header and section 1", () => {
     const html = doc()
 
-    for (const text of ["Priority", "Source", "Purpose", "Date created", "Created by", "Redleaf Medical Supplies", "P02445", "PI-RL-2026-118", "Ambulance Folding Stretcher", "PHP debited", "Charge fee", "Proof"]) {
+    for (const text of ["Priority", "Source", "Purpose", "Date created", "Created by", "Redleaf Medical Supplies", "P02445", "PI-RL-2026-118", "Ambulance Folding Stretcher", "Pesos taken from the bank", "Charge fee", "Proof"]) {
       expect(html).toContain(text)
     }
   })

@@ -120,6 +120,24 @@ describe("Landed Cost mark", () => {
     expect(buildIpasViewModel(stale).section6.landedCost.status).toBe("final")
   })
 
+  it("is marked an estimate while a payment's pesos taken from the bank are blank (#604)", () => {
+    const base = makePrintableIpas({ row: { computation_status: "encoded" } })
+    const estimating = {
+      ...base,
+      landedCost: {
+        ...base.landedCost,
+        estimate: true,
+        estimates: [{ paymentId: "p1", kind: "payment", paidOn: "2026-10-01", amount: 640, referenceRate: 56, rateDate: "2026-09-28", php: 35840 }],
+      },
+    }
+    const lc = buildIpasViewModel(estimating).section6.landedCost
+    expect(lc.label).toBe("Estimate")
+    expect(lc.status).toBe("provisional")
+    expect(lc.note).toMatch(/^Estimate: A payment is taken at the Reference Rate of its payment date/)
+    expect(lc.note).not.toMatch(/the rate actually paid/)
+    expect(buildIpasViewModel(estimating).footer.landedCost).toBe("Landed Cost estimate")
+  })
+
   it("prints per unit and in total, converted at the rate paid", () => {
     const lc = vm().section6.landedCost
 
@@ -142,7 +160,7 @@ describe("Landed Cost mark", () => {
     expect(lc.status).toBe("unavailable")
     expect(lc.lines).toEqual([])
     expect(lc.total).toBeNull()
-    expect(lc.note).toMatch(/needs a payment with the PHP debited/)
+    expect(lc.note).toMatch(/needs a payment./)
     expect(vm({ extras: { payments: [] } }).footer.landedCost).toBeNull()
   })
 })

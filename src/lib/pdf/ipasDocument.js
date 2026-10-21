@@ -329,7 +329,7 @@ function purchasing(vm) {
   const payments = s.payments.length
     ? `<table><thead><tr>
         <th style="width:15%">Payment</th><th style="width:13%">Date</th><th class="num" style="width:17%">Amount</th>
-        <th class="num" style="width:17%">PHP debited</th><th class="num" style="width:14%">Charge fee</th>
+        <th class="num" style="width:17%">Pesos taken from the bank</th><th class="num" style="width:14%">Charge fee</th>
         <th style="width:16%">Method</th><th class="center" style="width:8%">Proof</th>
       </tr></thead><tbody>${s.payments
         .map(
@@ -340,7 +340,7 @@ function purchasing(vm) {
         .join('')}</tbody>
       <tfoot><tr><td colspan="3" style="text-align:right">Total debited, including charge fees</td><td class="num">${esc(s.totalDebited)}</td><td colspan="3"></td></tr></tfoot></table>${
         s.missingPhp
-          ? `<div class="sub flag">${s.missingPhp} ${s.missingPhp === 1 ? 'payment has' : 'payments have'} no PHP debited, so the total is short.</div>`
+          ? `<div class="sub flag">${s.missingPhp} ${s.missingPhp === 1 ? 'payment has' : 'payments have'} no pesos taken from the bank yet, so the total is short.</div>`
           : ''
       }`
     : '<div class="empty">No payments recorded.</div>';

@@ -232,9 +232,12 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.getByRole("button", { name: /^Save all/ })).toBeDisabled();
     });
 
-    it("asks for the PHP debited on a foreign-currency PO and won't save without it", { timeout: 20000 }, async () => {
+    it("takes the pesos taken from the bank as optional on a foreign-currency PO, and shows Landed Cost as an estimate until it is filled", { timeout: 20000 }, async () => {
       const row = ipas({ po_number: "P02445", source: "import", odoo_copy: poCopy("P02445", { currency: "USD" }), created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02445", { currency: "USD" }) });
+      // A Reference Rate older than any payment date, so the estimate has something to stand on.
+      db.seed("currency_rate_currencies", { currency: "USD" });
+      db.seed("currency_rates", { currency: "USD", rate_date: "2000-01-01", php_per_unit: 56, source: "test" });
       const user = setupUser();
 
       renderDetail(row.id, "purchasing", "edit");
@@ -243,20 +246,15 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await pick(user, payment, /^Method/, "Alipay");
 
       const amount = within(payment).getByRole("textbox", { name: /^Amount \(USD\)/ });
-      const phpDebited = within(payment).getByRole("textbox", { name: /^PHP debited/ });
+      expect(within(payment).getByRole("textbox", { name: /^Pesos taken from the bank/ })).toHaveValue("");
       await user.type(amount, "640");
-      // PHP debited is a required box here, marked Needed, and Save all won't go without it.
-      expect(within(payment).getAllByText("Needed")).toHaveLength(1);
-      await saveAll(user);
-      expect(await screen.findByText("Payment 1: PHP debited is required on a foreign-currency Odoo PO.")).toBeInTheDocument();
-      expect(db.rows("ipas_payments")).toHaveLength(0);
-
-      await user.type(phpDebited, "36160");
+      // Optional (#604): no Needed mark, a one-line explanation under it, and Save all goes without it.
+      expect(within(payment).queryByText("Needed")).not.toBeInTheDocument();
+      expect(within(payment).getByTestId("payment-pesos-hint")).toHaveTextContent(/Leave it blank until then/);
       await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
-      expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 640, php_debited: 36160 });
-      // 640 of USD for PHP 36,160 is a rate; Landed Cost is available from it.
+      expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 640, php_debited: null });
       // The edit view stays. Back to the section's drawer, close it, then open Costing from its row.
       await waitFor(() => expect(screen.getByText("All changes saved")).toBeInTheDocument());
       await user.click(screen.getByRole("button", { name: "Back to preview" }));
@@ -265,6 +263,10 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       // The section row (its number first); the card's "Review section 3 · …" link names it too.
       await user.click(await screen.findByRole("button", { name: /^3 · Computation status & Landed Cost/ }));
       expect(await screen.findByTestId("ipas-landed-line")).toBeInTheDocument();
+      // Worked out at the Reference Rate, marked as an estimate; the payment's column stays blank.
+      expect(screen.getByTestId("landed-cost-estimate-note")).toHaveTextContent(/Estimate: A payment is taken at the Reference Rate/);
+      expect(screen.getByText("Estimate")).toBeInTheDocument();
+      expect(db.rows("ipas_payments")[0].php_debited).toBeNull();
     });
 
     it("shows the Reference Rate for the payment's date beside the typed rate, flags a wide gap, and never pre-fills", { timeout: 20000 }, async () => {
@@ -285,8 +287,8 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.clear(date);
       await user.type(date, "2026-09-12");
 
-      // Context only: the PHP debited is never filled in from the Reference Rate.
-      const phpDebited = within(dialog).getByRole("textbox", { name: /^PHP debited/ });
+      // Context only: the pesos taken from the bank are never filled in from the Reference Rate.
+      const phpDebited = within(dialog).getByRole("textbox", { name: /^Pesos taken from the bank/ });
       expect(phpDebited).toHaveValue("");
       const line = await within(dialog).findByTestId("payment-reference-rate");
       expect(line).toHaveTextContent(/reference: ₱58\.20 on 12 Sep/);
