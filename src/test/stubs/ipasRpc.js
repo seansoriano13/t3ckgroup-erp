@@ -1326,7 +1326,7 @@ export function stubIpasRpcs({
     "7/checked": "s7_checked",
     "7/approved": "s7_approved",
   }
-  const SEND_BACK_LIST = { 1: "s1_approved", 3: "s3_approved" }
+  const SEND_BACK_LIST = { 1: "s1_approved", 3: "s3_approved", 6: "s6_approved" }
   const SECTION_7_LISTS = ["s7_received", "s7_noted", "s7_checked", "s7_approved"]
   const onList = (listKey, employeeId) => {
     const member = rowsOf("ipas_signer_lists").some((l) => l.list_key === listKey && l.employee_id === employeeId)
@@ -1343,7 +1343,7 @@ export function stubIpasRpcs({
     ),
   ]
   const requireSection = (fn, section) => {
-    if (![1, 3, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 2 and 4 can be sent back`)
+    if (![1, 3, 6, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 2, 3 and 4 can be sent back`)
   }
 
   stubRpc("ipas_sign", (args) => {
@@ -1535,8 +1535,8 @@ export function stubIpasRpcs({
     const reason = String(args.p_reason || "").trim()
     if (!reason) refuse("22023", "ipas_undo_approval: give a reason, so the approver knows why")
     const section = args.p_section
-    if (![1, 3].includes(section)) {
-      refuse("22023", "ipas_undo_approval: only sections 1 and 2 have an approval to undo")
+    if (![1, 3, 6].includes(section)) {
+      refuse("22023", "ipas_undo_approval: only sections 1, 2 and 3 have an approval to undo")
     }
     const ipas = requireOpenIpas("ipas_undo_approval", args.p_ipas_id)
     if (!onList(SEND_BACK_LIST[section], actorId)) {

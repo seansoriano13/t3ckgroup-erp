@@ -1117,7 +1117,7 @@ export const ipasService = {
    */
   async undoApproval(id, section, reason) {
     if (!IPAS_UNDO_APPROVAL_SECTIONS.includes(section)) {
-      throw new IpasError(IPAS_ERROR.INVALID, "Only sections 1 and 2 have an approval to undo.");
+      throw new IpasError(IPAS_ERROR.INVALID, `Only sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(6)} have an approval to undo.`);
     }
     const why = (reason || "").trim();
     if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give a reason, so the approver knows why.");
@@ -1416,10 +1416,10 @@ function requireSignoffSection(section) {
   }
 }
 
-/** Sections 1, 3 and 7 are returned. */
+/** Sections 1, 3, 6 and 7 are returned (shown as 1, 2, 3 and 4). */
 function requireSendBackSection(section) {
   if (!IPAS_SEND_BACK_SECTIONS.includes(section)) {
-    throw new IpasError(IPAS_ERROR.INVALID, `Only sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)} and ${ipasSectionNo(7)} can be returned.`);
+    throw new IpasError(IPAS_ERROR.INVALID, `Only sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)}, ${ipasSectionNo(6)} and ${ipasSectionNo(7)} can be returned.`);
   }
 }
 

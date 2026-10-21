@@ -43,15 +43,17 @@ const MOVE_HINT = {
   costs: (d) =>
     d.computationStatus === IPAS_COMPUTATION_STATUS.ENCODED
       ? "Records that Landed Cost is worked out in the GS sheet. Undo is offered. Next: LC Odoo Done."
-      : `Makes Landed Cost final. Undo is offered. Next: Purchasing submits ${sectionOf("costing")} for approval.`,
+      : `Makes Landed Cost final. Undo is offered, and it clears section 3's Submitted and Approved if it was given. Next: Purchasing submits ${sectionOf("costing")} for approval.`,
   receive: () => `Starts ${sectionOf("filing")}. Next: Noted and Checked, in either order.`,
   note: (d) => `Records Noted on ${sectionOf("filing")}. Next: ${d.s7.checked ? "the filing approvers" : "whoever checks it"}.`,
   check: (d) => `Records Checked on ${sectionOf("filing")}. Next: ${d.s7.noted ? "the filing approvers" : "whoever notes it"}.`,
   file: () => "Files the IPAS and freezes it. Only a Super Admin can reopen it. Next: nobody.",
   "return-1": RETURN_HINT,
   "return-3": RETURN_HINT,
+  "return-6": RETURN_HINT,
   "undo-1": UNDO_HINT,
   "undo-3": UNDO_HINT,
+  "undo-6": UNDO_HINT,
   return: () => "Asks which section and why. Return clears Prepared and Approved; Undo approval clears the approval only.",
   "return-7": () =>
     `Clears Received, Noted and Checked and tells who gave them. ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} stay approved. Needs a reason. Next: Finance receives it again.`,

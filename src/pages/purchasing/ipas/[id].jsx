@@ -817,7 +817,7 @@ function IpasPage({ onClose }) {
       return signed ? `${IPAS_SIGNOFF_ROLE_LABELS[role]} by ${signed.signedBy?.name ?? "someone"}` : null;
     })
     .filter(Boolean);
-  const returnTargets = [1, 3]
+  const returnTargets = [1, 3, 6]
     .filter((section) => sectionRights(section).returnMode)
     .map((section) => {
       const undo = sectionRights(section).returnMode === "undo";
