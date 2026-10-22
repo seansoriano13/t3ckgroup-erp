@@ -194,3 +194,10 @@ export function movesFor(t, rights, { forms, odooRef, on }) {
 export function footerMovesFor(built, sectionKey) {
   return [...built.moves, ...built.declines, ...built.undos].filter((item) => item.section === sectionKey);
 }
+
+/** The moves that belong to the slip itself rather than a step (Submit on a draft). */
+export function slipMovesFor(built) {
+  return [...built.moves, ...built.declines, ...built.undos].filter(
+    (item) => item.section === SECTION.DETAILS || item.section === SECTION.LINES,
+  );
+}

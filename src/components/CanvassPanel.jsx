@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
+  ArrowUpRight,
   Award,
   ChevronLeft,
   ChevronRight,
@@ -9,6 +10,8 @@ import {
   Pencil,
   Plus,
   Printer,
+  Lock,
+  LockOpen,
   ShoppingCart,
   Trash2,
   X,
@@ -20,8 +23,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import ModalShell from "./ui/ModalShell";
 import CanvassSignoffDialog from "./CanvassSignoffDialog";
+import CanvassUnlockDialog from "./CanvassUnlockDialog";
+import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
+import { procurementQueueKey } from "./purchase-request/queryKeys";
 import CanvassSupplierField, { canvassFieldClass as fieldClass } from "./CanvassSupplierField";
 import CreatePurchaseRequestModal from "./CreatePurchaseRequestModal";
+import CanvassRequestBadge from "./CanvassRequestBadge";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
 import { SelectField } from "./ui/SelectField";
@@ -34,7 +41,9 @@ import { canvassService } from "../services/canvassService";
 import { openCanvassPrintWindow, printCanvass } from "../lib/pdf/canvassPrinter";
 import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
 import { useAuth } from "../context/AuthContext";
-import { CANVASS_CURRENCIES, CANVASS_LIST_KEY, DEFAULT_CURRENCY } from "../constants/canvass";
+import { CANVASS_CURRENCIES, CANVASS_KIND, CANVASS_LIST_KEY, CANVASS_LOCKED_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
+import { getPermissionContext } from "../utils/permissions";
+import { canvassRequestState } from "../utils/canvassList";
 import { offerCurrency } from "../utils/canvassMath";
 import { projectOffer } from "../utils/offerProjection";
 import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
@@ -522,6 +531,8 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const [reasonDraft, setReasonDraft] = useState(null);
   const [isSigning, setIsSigning] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [viewingRequest, setViewingRequest] = useState(null);
   const [printing, setPrinting] = useState(false);
   const { user } = useAuth();
   const isApprover = useCanvassApprover(userId);
@@ -581,6 +592,9 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     // Prefix match: the sign-off history is keyed under the Canvass's own key.
     queryClient.invalidateQueries({ queryKey });
     queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
+    // A request's items show their Canvass, so what changed here has to reach the request too.
+    queryClient.invalidateQueries({ queryKey: ["purchase-request"] });
+    queryClient.invalidateQueries({ queryKey: procurementQueueKey });
     if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.canvasses(opportunityId) });
   };
   const onError = (err) => toast.error(err.message);
@@ -722,12 +736,36 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   };
 
   const winner = offers.find((o) => o.is_winner);
+
+  // The request this Canvass became: the Canvasses list already knows its label and status, so a
+  // Canvass on a Requested Item reads them from there (shared cache with the Canvasses page).
+  const { data: listRows = [] } = useQuery({
+    queryKey: CANVASS_LIST_KEY,
+    queryFn: () => canvassService.list(),
+    enabled: open && Boolean(canvass?.requested_item_id),
+  });
+  const listRow = canvass?.requested_item_id ? listRows.find((r) => r.id === canvass.id) : null;
+  const requestSource = canvass && {
+    kind: canvass.component_id ? CANVASS_KIND.COMPONENT : canvass.requested_item_id ? CANVASS_KIND.REQUESTED_ITEM : CANVASS_KIND.NONE,
+    winner,
+    requestId: listRow?.requestId ?? null,
+    requestLabel: listRow?.requestLabel ?? null,
+    requestItemStatus: listRow?.requestItemStatus ?? null,
+  };
   const isSigned = Boolean(canvass?.signed_off_at);
   const isCreator = Boolean(canvass && userId && canvass.created_by === userId);
   const hasReason = Boolean(String(canvass?.reason ?? "").trim());
   const readyToSign = Boolean(winner) && hasReason;
   const lastSigned = isSigned ? [...history].reverse().find((h) => h.kind === "signed") : null;
   const lastCleared = !isSigned ? [...history].reverse().find((h) => h.kind === "cleared") : null;
+  const lastUnlocked = [...history].reverse().find((h) => h.kind === "unlocked");
+
+  // Once a Purchase Request is made from it, the Canvass is what was bought on: offers, winner,
+  // reason and product name stop changing (the database refuses them too).
+  const isLocked = Boolean(canvass?.locked);
+  const isSuperAdmin = Boolean(getPermissionContext(user).isSuperAdmin);
+  const requestState = requestSource ? canvassRequestState(requestSource) : null;
+  const canChange = canEdit && !isLocked;
 
   const busy =
     updateMutation.isPending || removeMutation.isPending || reorderMutation.isPending || winnerMutation.isPending || clearWinnerMutation.isPending;
@@ -781,6 +819,24 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         <ShoppingCart size={16} />
         Canvass{canvass?.number ? ` ${canvass.number}` : ""}{title ? ` — ${title}` : ""}
       </h3>
+      {requestState && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-testid="canvass-request-strip">
+          <span>Purchase Request</span>
+          {requestState.requestId && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              onClick={() => setViewingRequest(requestState.requestId)}
+              className="h-auto gap-0.5 p-0 text-xs font-semibold"
+            >
+              {requestState.requestLabel}
+              <ArrowUpRight size={12} aria-hidden="true" />
+            </Button>
+          )}
+          <CanvassRequestBadge source={requestSource} />
+        </div>
+      )}
         <div className="space-y-3">
           {isLoading && <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>}
 
@@ -820,7 +876,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
 
           {!isLoading && canvass && (
             <>
-              {isBare && canEdit && (
+              {isBare && canChange && (
                 <Input
                   label="What is being bought"
                   value={productName}
@@ -839,6 +895,30 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   containerClassName="min-w-0"
                   className={fieldClass}
                 />
+              )}
+              {isLocked && (
+                <div
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+                  data-testid="canvass-locked-note"
+                >
+                  <Lock size={13} className="shrink-0" aria-hidden="true" />
+                  <span>
+                    {CANVASS_LOCKED_MESSAGE}
+                    {!isSuperAdmin && " Ask a Super Admin to unlock it."}
+                  </span>
+                  {isSuperAdmin && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUnlocking(true)}
+                      className="ml-auto h-7 gap-1 px-2 text-xs"
+                    >
+                      <LockOpen size={12} aria-hidden="true" />
+                      Unlock
+                    </Button>
+                  )}
+                </div>
               )}
               {!winner && offers.length > 0 && hasComponent && (
                 <p className="text-[11px] text-muted-foreground" data-testid="no-winner-note">
@@ -869,7 +949,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     projection={projectionOf(offer)}
                     index={index}
                     count={offers.length}
-                    canEdit={canEdit}
+                    canEdit={canChange}
                     canReadMoney={canReadMoney}
                     isPending={busy}
                     onUpdate={(id, patch) => updateMutation.mutate({ offerId: id, patch })}
@@ -880,7 +960,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   />
                 ))}
 
-                {canEdit && isAdding && (
+                {canChange && isAdding && (
                   <OfferForm
                     inline
                     canReadMoney={canReadMoney}
@@ -890,7 +970,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   />
                 )}
 
-                {canEdit && !isAdding && (
+                {canChange && !isAdding && (
                   <Button
                     type="button"
                     variant="outline"
@@ -906,7 +986,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
 
               <div className="space-y-1.5 border-t border-border/60 pt-3">
                 <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Why this supplier</span>
-                {canEdit ? (
+                {canChange ? (
                   <Textarea
                     aria-label="Why this supplier"
                     value={reason}
@@ -996,7 +1076,12 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     )}
                   </>
                 )}
-                {canEdit && isSigned && (
+                {lastUnlocked && (
+                  <p className="text-[11px] text-muted-foreground" data-testid="unlock-history">
+                    Unlocked by {lastUnlocked.actor?.name || "a Super Admin"}: {lastUnlocked.reason}
+                  </p>
+                )}
+                {canChange && isSigned && (
                   <p className="text-[11px] text-muted-foreground">Changing an offer, a price, the winner or the reason unsigns it.</p>
                 )}
               </div>
@@ -1017,6 +1102,12 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
           }}
         />
       )}
+
+      {unlocking && canvass && (
+        <CanvassUnlockDialog open={unlocking} onOpenChange={setUnlocking} canvass={canvass} onUnlocked={invalidate} />
+      )}
+
+      {viewingRequest && <PurchaseRequestModal requestId={viewingRequest} onClose={() => setViewingRequest(null)} />}
 
       {isSigning && canvass && (
         <CanvassSignoffDialog

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -12,12 +12,8 @@ import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Textarea } from "../../../components/ui/textarea";
-import NumbersStrip from "../../../components/record/NumbersStrip";
-import RecordCard from "../../../components/record/RecordCard";
-import RecordDrawer from "../../../components/record/RecordDrawer";
 import RecordMoreMenu from "../../../components/record/RecordMoreMenu";
-import RecordRows from "../../../components/record/RecordRows";
-import { useOpenSection } from "../../../components/record/useOpenSection";
+import TransmittalDesk from "../../../components/transmittals/record/TransmittalDesk";
 import TransmittalForm from "../../../components/transmittals/TransmittalForm";
 import { transmittalKeys } from "../../../components/transmittals/transmittalKeys";
 import {
@@ -27,15 +23,12 @@ import {
   OdooBody,
   StageBody,
 } from "../../../components/transmittals/record/SectionBodies";
-import { EMPTY_STAGE_FORM, choosesSlot, footerMovesFor, movesFor } from "../../../components/transmittals/record/transmittalMoves";
+import { EMPTY_STAGE_FORM, choosesSlot, movesFor } from "../../../components/transmittals/record/transmittalMoves";
 import {
   SECTION,
   STAGE_TITLE,
   gatesOf,
-  numbersOf,
   rightsOf,
-  sectionState,
-  sectionsOf,
   statusLine,
   summariesOf,
 } from "../../../components/transmittals/record/transmittalRecord";
@@ -84,7 +77,8 @@ function TransmittalPage({ onClose }) {
   const [forms, setForms] = useState({});
   const [odooRef, setOdooRef] = useState("");
   const [failure, setFailure] = useState(null);
-  const rowEls = useRef({});
+  // The step open in the rail (null: the one that needs doing).
+  const [pickedStep, setPickedStep] = useState(null);
 
   const { data: transmittal, isLoading, isError, refetch } = useQuery({
     queryKey: transmittalKeys.detail(id),
@@ -118,8 +112,6 @@ function TransmittalPage({ onClose }) {
     enabled: Boolean(user?.id && onCheckByList),
   });
 
-  const sections = transmittal ? sectionsOf(transmittal) : [];
-  const { index, current, open: openSection, step, close } = useOpenSection({ drawerSections: sections });
 
   if (isLoading || isError || !transmittal) {
     return (
@@ -175,7 +167,7 @@ function TransmittalPage({ onClose }) {
   };
 
   const on = {
-    open: (key) => openSection(key),
+    open: (key) => setPickedStep(key),
     submit: (from) =>
       perform(from, () => transmittalService.submit(t.id), {
         success: (done) => `${done.number} submitted.`,
@@ -222,7 +214,6 @@ function TransmittalPage({ onClose }) {
   const built = movesFor(t, rights, { forms, odooRef, on });
   const offered = [...built.moves, ...built.declines];
   const summaries = summariesOf(t, gates);
-  const numbers = numbersOf(t, gates);
 
   // The next slip waiting on the viewer: the Check by queue's first other slip they did not prepare, once nothing is left for them here.
   const nextSlip =
@@ -336,6 +327,23 @@ function TransmittalPage({ onClose }) {
     );
   };
 
+  const ctx = {
+    t,
+    rights,
+    gates,
+    summaries,
+    built,
+    members,
+    user,
+    busy,
+    failure,
+    refresh,
+    restate,
+    nextSlip,
+    status: statusLine(t, gates, offered),
+    bodyOf,
+  };
+
   return (
     <ModalShell
       open
@@ -377,71 +385,7 @@ function TransmittalPage({ onClose }) {
           onCancel={() => setEditing(false)}
         />
       ) : (
-        <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="min-w-0 space-y-8">
-            <NumbersStrip
-              stats={[
-                { key: "lines", label: "Lines", value: numbers.lines, onOpen: () => openSection(SECTION.LINES) },
-                { key: "gc", label: "GC", value: numbers.gc },
-                { key: "na", label: "NA", value: numbers.na, tone: numbers.na > 0 ? "warning" : undefined },
-                {
-                  key: "steps",
-                  label: "Steps done",
-                  value: numbers.stepsTotal > 0 ? `${numbers.stepsDone} of ${numbers.stepsTotal}` : "—",
-                },
-              ]}
-            />
-            <RecordRows
-              groups={[{ sections }]}
-              stateOf={(key) => sectionState(key, t, gates)}
-              summaryOf={(key) => summaries[key]}
-              onOpen={openSection}
-              rowRef={(key) => (node) => {
-                rowEls.current[key] = node;
-              }}
-            />
-          </div>
-          <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
-            <RecordCard
-              status={statusLine(t, gates, offered)}
-              next={nextSlip && { to: `/purchasing/transmittals/${nextSlip.id}`, label: `Next Transmittal waiting for me: ${nextSlip.number}` }}
-              groups={[
-                { items: built.moves },
-                { items: built.declines },
-                { items: built.undos, className: "border-t border-border pt-4" },
-              ]}
-              gates={gates}
-              restate={restate}
-              reviewText={() => "Review section"}
-              onReview={openSection}
-              viewer={user?.name}
-              busy={busy}
-              failure={failure}
-              chainLabel="Where it stands"
-            />
-          </aside>
-        </div>
-      )}
-
-      {!editing && (
-        <RecordDrawer
-          number={t.number}
-          sections={sections}
-          current={current}
-          index={index}
-          step={step}
-          close={close}
-          getRow={(key) => rowEls.current[key]}
-          onEdit={() => {}}
-          body={current ? bodyOf(current.key) : null}
-          summary={current ? (summaries[current.key] ?? "") : ""}
-          moves={current ? footerMovesFor(built, current.key) : []}
-          editable={false}
-          restate={restate}
-          viewer={user?.name}
-          busy={busy}
-          failure={failure}
-        />
+        <TransmittalDesk ctx={ctx} picked={pickedStep} onPick={setPickedStep} />
       )}
 
       {undoing !== null && (

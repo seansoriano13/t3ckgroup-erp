@@ -199,9 +199,13 @@ export const canvassService = {
         );
       });
 
+    const { data: locked, error: lockError } = await supabase.rpc("canvass_is_locked", { p_canvass_id: data.id });
+    if (lockError) throw lockError;
+
     return {
       ...data,
       offers: shaped,
+      locked: Boolean(locked),
       canReadMoney: Boolean(canReadMoney),
       needsMoreOffers: needsMoreOffers(shaped),
       moreOffersWarning: moreOffersWarning(shaped),
@@ -282,6 +286,7 @@ export const canvassService = {
       requestedItemId: row.requested_item_id ?? null,
       requestId: row.request_id ?? null,
       requestLabel: row.request_label ?? null,
+      requestItemStatus: row.request_item_status ?? null,
       opportunityId: row.opportunity_id ?? null,
       salesReference: row.sales_reference ?? null,
       projectTitle: row.project_title ?? null,
@@ -295,6 +300,7 @@ export const canvassService = {
       signerName: row.signer_name ?? null,
       createdBy: row.created_by ?? null,
       createdAt: row.created_at,
+      locked: Boolean(row.locked),
     }));
   },
 
@@ -355,6 +361,31 @@ export const canvassService = {
       return { canvass_id: canvassId, quantity: qty, unit: text(unit) };
     });
     const { data, error } = await supabase.rpc("canvass_create_purchase_request", { p_title: name, p_items: payload });
+    if (error) throw error;
+    return {
+      requestId: data.request_id,
+      items: (data.items ?? []).map((i) => ({ canvassId: i.canvass_id, itemId: i.item_id })),
+      unsignedCanvassIds: data.unsigned_canvass_ids ?? [],
+    };
+  },
+
+  /**
+   * Adds Canvasses that already exist to a Purchase Request that already exists
+   * (`canvass_add_to_purchase_request`). Each `{ canvassId, quantity?, unit? }` becomes a new
+   * Requested Item; each `{ canvassId, itemId }` is attached to that item of the request (one with no
+   * Canvass yet). The winner's price goes on the item and the Canvass locks. Returns
+   * `{ requestId, items: [{ canvassId, itemId }], unsignedCanvassIds }`.
+   */
+  async addToPurchaseRequest(requestId, items = []) {
+    if (!requestId) throw new Error("A Purchase Request id is required.");
+    if (items.length === 0) throw new Error("Pick at least one Canvass.");
+    const payload = items.map(({ canvassId, itemId, quantity, unit }) => {
+      if (itemId) return { canvass_id: canvassId, item_id: itemId };
+      const qty = toNumber(quantity, "The quantity");
+      if (qty !== null && qty <= 0) throw new Error("The quantity has to be more than zero.");
+      return { canvass_id: canvassId, quantity: qty, unit: text(unit) };
+    });
+    const { data, error } = await supabase.rpc("canvass_add_to_purchase_request", { p_request_id: requestId, p_items: payload });
     if (error) throw error;
     return {
       requestId: data.request_id,
@@ -490,6 +521,18 @@ export const canvassService = {
   async clearWinner(canvassId) {
     if (!canvassId) throw new Error("A Canvass id is required.");
     const { data, error } = await supabase.rpc("canvass_clear_winner", { p_canvass_id: canvassId });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Releases a locked Canvass (`canvass_unlock`): a Super Admin only, and the reason is kept in the
+   * Canvass history. Returns `{ canvass_id, unlocked }`.
+   */
+  async unlock(canvassId, reason) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    if (!String(reason ?? "").trim()) throw new Error("Say why it is being unlocked.");
+    const { data, error } = await supabase.rpc("canvass_unlock", { p_canvass_id: canvassId, p_reason: reason.trim() });
     if (error) throw error;
     return data;
   },

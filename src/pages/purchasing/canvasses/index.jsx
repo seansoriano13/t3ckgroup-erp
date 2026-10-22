@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate, useSearchParams } from "react-router";
-import { Plus, Scale } from "lucide-react";
+import { Lock, Plus, Scale } from "lucide-react";
 
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -15,10 +15,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import CanvassPanel from "../../../components/CanvassPanel";
 import NewCanvassModal from "../../../components/NewCanvassModal";
 import CreatePurchaseRequestModal from "../../../components/CreatePurchaseRequestModal";
+import CanvassRequestBadge from "../../../components/CanvassRequestBadge";
 import { useAuth } from "../../../context/AuthContext";
 import { canvassService } from "../../../services/canvassService";
 import { CANVASS_KIND, CANVASS_LIST_KEY } from "../../../constants/canvass";
-import { ANY, LINKED_FILTER, SIGNED_FILTER, WINNER_FILTER, canvassSubjectLabel, canvassAddressParams, filterCanvasses } from "../../../utils/canvassList";
+import { ANY, LINKED_FILTER, REQUEST_FILTER, SIGNED_FILTER, WINNER_FILTER, canvassSubjectLabel, filterCanvasses } from "../../../utils/canvassList";
 import { getPermissionContext } from "../../../utils/permissions";
 
 /**
@@ -43,6 +44,12 @@ const LINKED = [
   { value: LINKED_FILTER.FREE, label: "Not linked" },
 ];
 
+const REQUEST = [
+  { value: ANY, label: "Any request" },
+  { value: REQUEST_FILTER.NOT_YET, label: "Not requested yet" },
+  { value: REQUEST_FILTER.CREATED, label: "Request created" },
+];
+
 const KIND_LABEL = {
   [CANVASS_KIND.COMPONENT]: "Component",
   [CANVASS_KIND.REQUESTED_ITEM]: "Requested Item",
@@ -56,6 +63,7 @@ function CanvassesPage({ userId, canEdit }) {
   const [signed, setSigned] = useState(ANY);
   const [winner, setWinner] = useState(ANY);
   const [linked, setLinked] = useState(ANY);
+  const [request, setRequest] = useState(ANY);
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: CANVASS_LIST_KEY,
@@ -70,33 +78,20 @@ function CanvassesPage({ userId, canEdit }) {
     ];
   }, [rows]);
 
-  const shown = filterCanvasses(rows, { search, canvasserId, signed, winner, linked });
-  const active = Boolean(search) || canvasserId !== ANY || signed !== ANY || winner !== ANY || linked !== ANY;
+  const shown = filterCanvasses(rows, { search, canvasserId, signed, winner, linked, request });
+  const active = Boolean(search) || canvasserId !== ANY || signed !== ANY || winner !== ANY || linked !== ANY || request !== ANY;
   const clearAll = () => {
     setSearch("");
     setCanvasserId(ANY);
     setSigned(ANY);
     setWinner(ANY);
     setLinked(ANY);
+    setRequest(ANY);
   };
 
-  // The open Canvass is in the address: ?canvass=<id>, or ?item= / ?component= for one found by its subject.
-  const { canvass: canvassParam, item: itemParam, component: componentParam } = canvassAddressParams(params);
-  // An exact ?canvass= match wins over a Canvass found by its subject.
-  const openRow = useMemo(
-    () =>
-      (canvassParam && rows.find((r) => r.id === canvassParam)) ||
-      rows.find((r) => (itemParam && r.requestedItemId === itemParam) || (componentParam && r.componentId === componentParam)) ||
-      null,
-    [canvassParam, itemParam, componentParam, rows],
-  );
-  // ?item= / ?component= with no Canvass yet opens a draft; nothing is created until its first Offer is saved.
-  const draftSubject = useMemo(() => {
-    if (openRow) return null;
-    if (componentParam) return { componentId: componentParam };
-    if (itemParam) return { requestedItemId: itemParam };
-    return null;
-  }, [openRow, itemParam, componentParam]);
+  // The open Canvass is in the address: ?canvass=<id>.
+  const canvassParam = params.get("canvass");
+  const openRow = useMemo(() => (canvassParam && rows.find((r) => r.id === canvassParam)) || null, [canvassParam, rows]);
   const ready = !isLoading && !isError;
   const openCanvass = (id) => setParams({ canvass: id });
   // New Canvasses with no subject: nothing is written until Save (canvass_start), which makes the
@@ -138,6 +133,7 @@ function CanvassesPage({ userId, canEdit }) {
                 <FilterSelect options={SIGNED} value={signed} onChange={setSigned} label="Signed state" className="h-9 w-auto" />
                 <FilterSelect options={WINNER} value={winner} onChange={setWinner} label="Winner" className="h-9 w-auto" />
                 <FilterSelect options={LINKED} value={linked} onChange={setLinked} label="Linked" className="h-9 w-auto" />
+                <FilterSelect options={REQUEST} value={request} onChange={setRequest} label="Request" className="h-9 w-auto" />
               </>
             }
             hasActiveFilters={active}
@@ -159,7 +155,7 @@ function CanvassesPage({ userId, canEdit }) {
           <Table tableId="canvasses" className="md:min-w-[44rem]">
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                {["", "Number", "Subject", "Canvasser", "Winner", "Sign-off"].map((heading) => (
+                {["", "Number", "Subject", "Canvasser", "Winner", "Sign-off", "Request"].map((heading) => (
                   <TableHead key={heading}>{heading}</TableHead>
                 ))}
               </TableRow>
@@ -202,6 +198,9 @@ function CanvassesPage({ userId, canEdit }) {
                     >
                       {row.number}
                     </Button>
+                    {row.locked && (
+                      <Lock size={12} className="ml-1.5 inline text-muted-foreground" aria-label="Locked" role="img" />
+                    )}
                   </TableCell>
                   <TableCell>
                     <span>{canvassSubjectLabel(row) || "—"}</span>
@@ -215,6 +214,9 @@ function CanvassesPage({ userId, canEdit }) {
                     </span>
                   </TableCell>
                   <TableCell>{row.signedOffAt ? `Signed off${row.signerName ? ` by ${row.signerName}` : ""}` : "Not signed"}</TableCell>
+                  <TableCell>
+                    <CanvassRequestBadge source={row} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -245,16 +247,6 @@ function CanvassesPage({ userId, canEdit }) {
           userId={userId}
           canEdit={canEdit}
           opportunityId={openRow.opportunityId ?? undefined}
-        />
-      )}
-      {ready && draftSubject && (
-        <CanvassPanel
-          open
-          onOpenChange={(next) => !next && setParams({})}
-          subject={draftSubject}
-          subjectLabel="New Canvass"
-          userId={userId}
-          canEdit={canEdit}
         />
       )}
     </PageShell>

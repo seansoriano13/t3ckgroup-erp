@@ -11,7 +11,6 @@ import AddRequestedItems from "./AddRequestedItems";
 import RequestedItemRow from "./RequestedItemRow";
 import { SPRING, groupItems } from "./requestedItemGroups";
 import RequestedItemActions from "./RequestedItemActions";
-import RequestedItemCanvass from "./RequestedItemCanvass";
 import StatusBadge from "../StatusBadge";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
@@ -149,13 +148,6 @@ export default function RequestedItems({ request, renderActions }) {
                         open={openRows.has(item.id)}
                         onToggle={() => toggle(item.id)}
                         wide={wide}
-                        canvass={
-                          <RequestedItemCanvass
-                            item={item}
-                            request={request}
-                            actor={actor}
-                          />
-                        }
                         replaces={byId.get(item.substitute_for_item_id)}
                         replacedBy={substituteOf.get(item.id)}
                         actions={

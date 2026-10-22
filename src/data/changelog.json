@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-10-22",
+        "title": "Canvasses join Purchase Requests, and lock once bought on",
+        "version": "1.9.59",
+        "changes": [
+            "Purchase Request window: the items now get the full width. Members and Chat are tucked behind two buttons and open as a side panel, and the item you click shows clearly as selected.",
+            "In a Purchase Request, Purchasing can press Add a Canvass to bring in Canvasses they already did. Each one becomes a new item, or goes onto an item the request already has, and the winner's price goes onto that item.",
+            "A Canvass locks once a Purchase Request is made from it, so its offers, prices, winner and reason can no longer change. A Super Admin can unlock it, and has to give a reason that is kept in the Canvass history.",
+            "The Canvasses list marks locked Canvasses with a lock, and the Request column now shows just the status (for example Requested), not a link. The Canvass window names the Purchase Request and opens it on top.",
+            "A Purchase Request no longer starts a Canvass on its items. Do the Canvass on the Canvasses page, then create a request from it or add it to one."
+        ]
+    },
+    {
         "date": "2026-10-21",
         "title": "Time Off & Overtime, the Calendar, Meeting Requests and Venues",
         "version": "1.9.58",

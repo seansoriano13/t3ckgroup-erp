@@ -103,7 +103,6 @@ export default function RequestedItemRow({
   item,
   stockSnapshot,
   actions = null,
-  canvass = null,
   replaces = null,
   replacedBy = null,
   open = false,
@@ -122,7 +121,11 @@ export default function RequestedItemRow({
       layout
       layoutId={item.id}
       transition={SPRING}
-      className={cn("rounded-xl border border-border/70 bg-card", open && "bg-muted/25")}
+      className={cn(
+        "rounded-xl border bg-card transition-colors",
+        open ? "border-foreground/30 shadow-sm ring-1 ring-foreground/10" : "border-border/70 hover:border-border",
+      )}
+      data-open={open || undefined}
       data-testid="requested-item"
     >
       <div className="flex items-start gap-3 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4">
@@ -133,7 +136,7 @@ export default function RequestedItemRow({
           aria-controls={panelId}
           aria-label={`${open ? "Close" : "Open"} details of ${item.name}`}
           onClick={onToggle}
-          className="h-auto min-w-0 flex-1 cursor-pointer items-start justify-start gap-3 whitespace-normal rounded-lg p-0 text-left font-normal hover:bg-transparent focus-visible:outline-2 focus-visible:outline-ring sm:gap-4"
+          className="h-auto min-w-0 flex-1 cursor-pointer items-start justify-start gap-3 whitespace-normal rounded-lg p-0 text-left font-normal hover:bg-transparent aria-expanded:bg-transparent focus-visible:outline-2 focus-visible:outline-ring sm:gap-4"
         >
           <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", statusDot(item))} aria-hidden="true" />
           <span className="min-w-0 flex-1">
@@ -168,7 +171,7 @@ export default function RequestedItemRow({
       <Expand open={open} id={panelId}>
         <dl
           className={cn(
-            "grid grid-cols-1 gap-x-10 gap-y-4 px-4 pb-5 pt-1 sm:pl-[3.25rem] sm:pr-5",
+            "mx-4 grid grid-cols-1 gap-x-10 gap-y-4 border-t border-border/60 pb-5 pt-4 sm:mx-5",
             wide && "sm:grid-cols-2",
           )}
         >
@@ -201,7 +204,6 @@ export default function RequestedItemRow({
               </span>
             </Field>
           )}
-          {canvass && <Field label="Canvass">{canvass}</Field>}
           {(item.po_number || poLineNotPicked(item)) && (
             <Field label="Purchase order">
               <span className="flex flex-col gap-1">

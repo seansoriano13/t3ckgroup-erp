@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Calculator, ImagePlus, ListPlus, PackagePlus } from "lucide-react";
+import { Calculator, ImagePlus, ListPlus, PackagePlus, Scale } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +17,7 @@ import { AttachmentPreviews } from "@/components/ui/Attachments";
 import StatusBadge from "../StatusBadge";
 import StaleStockBadge from "./StaleStockBadge";
 import AddFromCostingMatrixDialog from "./AddFromCostingMatrixDialog";
+import AddCanvassedItemsDialog from "./AddCanvassedItemsDialog";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
 import { REQUEST_UNITS } from "../../constants/procurement";
@@ -320,12 +321,13 @@ export default function AddRequestedItems({ request, items = [] }) {
   const { data: purchasing } = useQuery({
     queryKey: purchaseRequestKeys.hasPurchasing,
     queryFn: () => purchaseRequestService.hasPurchasingAccess(),
-    enabled: !!request?.opportunity_id,
+    enabled: !!requestId,
     staleTime: 5 * 60_000,
     retry: false,
   });
 
   const fromMatrix = purchasing === true && !!request?.opportunity_id;
+  const fromCanvass = canAdd && purchasing === true;
   if (!canAdd && !fromMatrix) return null;
 
   const openAs = (name) => (open) => setDialog(open ? name : null);
@@ -342,6 +344,12 @@ export default function AddRequestedItems({ request, items = [] }) {
         <Button type="button" variant="outline" size="sm" onClick={() => setDialog("matrix")}>
           <Calculator size={14} />
           Add from the Costing Matrix
+        </Button>
+      )}
+      {fromCanvass && (
+        <Button type="button" variant="outline" size="sm" onClick={() => setDialog("canvass")}>
+          <Scale size={14} />
+          Add a Canvass
         </Button>
       )}
       {canAdd && (
@@ -368,6 +376,9 @@ export default function AddRequestedItems({ request, items = [] }) {
           opportunityId={request.opportunity_id}
           items={items}
         />
+      )}
+      {fromCanvass && (
+        <AddCanvassedItemsDialog open={dialog === "canvass"} onOpenChange={openAs("canvass")} requestId={requestId} items={items} />
       )}
       {canAdd && <NewProductDialog open={dialog === "new"} onOpenChange={openAs("new")} requestId={requestId} />}
     </div>
