@@ -103,3 +103,13 @@ export function isNavEntryVisible(ctx, entry) {
 export function canReadIpas(ctx) {
   return !!(ctx?.isSuperAdmin || ctx?.hasPurchasingFlow || ctx?.hasFinanceFlow || ctx?.isIpasSigner || ctx?.isIpasApprover);
 }
+
+/**
+ * Who may create, edit and manage Group Tasks (#656): department heads, HR
+ * and Super Admins. Everyone else only sees the tasks they belong to, chats,
+ * ticks their checklist and works on their own part. Mirrors the SQL function
+ * `public.can_manage_group_tasks()`, which is what actually enforces it.
+ */
+export function canManageGroupTasks(ctx) {
+  return !!(ctx?.isSuperAdmin || ctx?.isHead || ctx?.isHr);
+}

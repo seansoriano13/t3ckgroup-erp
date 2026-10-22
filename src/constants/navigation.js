@@ -26,7 +26,7 @@ import {
   LayoutDashboard,
   Calculator,
 } from "lucide-react";
-import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
+import { canManageGroupTasks, getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
 export const NAV_MODULES = {
   workspace: {
@@ -481,7 +481,7 @@ export const QUICK_ACTIONS = [
         key: "quick.groupTask",
         label: "Create Group Task",
         icon: UsersRound,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasTaskFlow,
+        isPermitted: (ctx) => canManageGroupTasks(ctx),
       },
       {
         // Every employee may open a Purchase Request (#179), as in the nav.
