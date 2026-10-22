@@ -22,11 +22,11 @@ vi.mock("@/services/employeeService", () => ({
   },
 }))
 
-// No capability flags at all — the creation action must be reachable by an
-// ordinary employee, not just a department head or Super Admin (#176).
+// A department head: heads, HR and Super Admins create Group Tasks (#656).
+// Ordinary employees do not get the action.
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
-    user: { id: "user-9", name: "Ana Reyes", is_head: false, is_hr: false, isSuperAdmin: false },
+    user: { id: "user-9", name: "Ana Reyes", is_head: true, is_hr: false, isSuperAdmin: false },
   }),
 }))
 
@@ -35,7 +35,7 @@ describe("Group Tasks page — create action", () => {
     vi.clearAllMocks()
   })
 
-  it("lets an employee with no capability flags create a Group Task from the page", async () => {
+  it("lets a department head create a Group Task from the page", async () => {
     renderWithProviders(
       <MemoryRouter>
         <GroupTasksPage />

@@ -493,6 +493,7 @@ export default function GroupTasksPage() {
         currentUserId={user?.id}
         isSuperAdmin={isSuperAdmin}
         isHr={isHr}
+        canManage={canManage}
         employees={employees}
         onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
         onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}

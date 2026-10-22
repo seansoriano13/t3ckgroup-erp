@@ -12,6 +12,7 @@ import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
+import { canManageGroupTasks } from "../utils/permissions";
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
@@ -324,6 +325,7 @@ export default function GlobalDetailManager() {
             currentUserId={user?.id}
             isSuperAdmin={isSuperAdmin}
             isHr={isHr}
+            canManage={canManageGroupTasks({ isHead, isHr, isSuperAdmin })}
             employees={employees}
             onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
             onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
