@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-22",
+        "title": "A new Calendar, with a Gantt beside it",
+        "version": "1.9.62",
+        "changes": [
+            "The Calendar has two layouts. Switch between Calendar and Gantt at the top left. The Calendar remembers which one you used last.",
+            "Calendar: the month shows Time Off that runs over several days as one bar. Meetings and overtime are one line each, with their start time. Weekends are narrower.",
+            "Click a day to see it on the right: who is out, each room's day from 8 AM to 7 PM, and overtime. Click a free spot on a room to book it. Use the arrow keys to move from day to day.",
+            "Gantt: two or four weeks across. Rooms come first, then people grouped by department, with a count of how many people are out each day. Search for a person or a department.",
+            "Opening a Time Off request now shows the whole request (all its dates, the number of days and the total hours), not only the day you clicked. My Requests and HR's Time Off & Overtime tab use the same new Calendar."
+        ]
+    },
+    {
+        "date": "2026-10-22",
         "title": "Purchasing looks the same everywhere",
         "version": "1.9.61",
         "changes": [

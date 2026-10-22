@@ -456,7 +456,7 @@ export default function HrLeavesManagerPage() {
 
   // Level 1 switches the view; level 2 slices the list by type. Search and
   // company narrow the lists (and the level-2 counts), Pending adds a period
-  // and a sort. Calendar (Month | People) and Documents bring their own controls.
+  // and a sort. Calendar (Calendar | Gantt) and Documents bring their own controls.
   const isList = activeTab === 'pending' || activeTab === 'history';
   const typeScope = activeTab === 'history' ? processedScoped : pendingScoped;
   const typeCounts = LEAVE_TYPES.reduce((m, t) => ({ ...m, [t]: typeScope.filter(r => r.type === t).length }), {});

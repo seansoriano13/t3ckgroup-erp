@@ -160,7 +160,7 @@ describe('HrLeavesManagerPage', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: /^Pending/i })).toHaveAttribute('aria-selected', 'true'));
   });
 
-  it('shows the shared Calendar on the Calendar tab, with Month and People views and the reasons', async () => {
+  it('shows the shared Calendar on the Calendar tab, with Calendar and Gantt layouts and the reasons', async () => {
     const user = setupUser();
     const date = manilaToday();
     mockCalendar.entries = [
@@ -187,18 +187,20 @@ describe('HrLeavesManagerPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('button', { name: 'Month', pressed: true })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'People' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Calendar', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gantt' })).toBeInTheDocument();
     // Preset to Time Off and Overtime: no Meetings layer is on.
     expect(screen.getByRole('button', { name: 'Meetings', pressed: false })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Overtime', pressed: true })).toBeInTheDocument();
 
-    await user.click(await screen.findByText(/Ana Cruz · Offset/));
+    await user.click(await screen.findByText(/Ana C\. · Offset/));
     expect(await screen.findByText('Dental visit')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Close' }));
-    await user.click(screen.getByRole('button', { name: 'People' }));
-    expect(await screen.findByRole('button', { name: 'People', pressed: true })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Gantt' }));
+    expect(await screen.findByRole('button', { name: 'Gantt', pressed: true })).toBeInTheDocument();
+    // No Meetings layer, so the Gantt has no Rooms rows.
+    expect(screen.queryByRole('button', { name: /^Rooms/ })).toBeNull();
   });
 
   describe('Document Center', () => {
