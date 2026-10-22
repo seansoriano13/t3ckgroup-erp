@@ -1,16 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import QueryError from "@/components/ui/QueryError";
-import { PackageSearch } from "lucide-react";
+import { AlertTriangle, PackageSearch } from "lucide-react";
 
 import EmptyState from "@/components/ui/EmptyState";
 import Spinner from "@/components/ui/Spinner";
 import AddRequestedItems from "./AddRequestedItems";
+import UnrequestedSorLinesHint from "./UnrequestedSorLinesHint";
 import LinerList from "@/components/record/LinerList";
 import RequestedItemDetails from "./RequestedItemDetails";
 import { groupItems } from "./requestedItemGroups";
 import RequestedItemActions from "./RequestedItemActions";
 import StatusBadge from "../StatusBadge";
-import { ITEM_SOURCE_LABEL, formatAmount, requestedItemStock } from "../../utils/requestedItem";
+import { ITEM_SOURCE_LABEL, formatAmount, requestedItemStock, sorLineChange, SOR_LINE_CHANGE } from "../../utils/requestedItem";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   ITEM_STATUS,
@@ -42,12 +43,25 @@ function summaryOf(item, stock) {
  */
 function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
+  // A closed item keeps what was asked, so it carries no flag in the list.
+  const change = isClosedStatus(item.status) ? null : sorLineChange(item);
   return {
     key: item.id,
     testId: "requested-item",
     main: item.name,
     label: item.name,
-    sub: summaryOf(item, stock),
+    sub: change ? (
+      <>
+        {summaryOf(item, stock)}
+        {" · "}
+        <span className="inline-flex items-center gap-1 font-medium text-amber-11">
+          <AlertTriangle size={12} className="shrink-0" aria-hidden="true" />
+          {change.kind === SOR_LINE_CHANGE.REMOVED ? "SOR line removed" : "SOR changed"}
+        </span>
+      </>
+    ) : (
+      summaryOf(item, stock)
+    ),
     quantity: formatAmount(item.quantity, item.unit),
     badge: { label: ITEM_STATUS_LABELS[item.status] || item.status, theme: ITEM_STATUS_THEME[item.status] },
     actions,
@@ -105,6 +119,7 @@ export default function RequestedItems({ request, renderActions }) {
         </h3>
         <AddRequestedItems request={request} items={items} />
       </div>
+      {items.length > 0 && <UnrequestedSorLinesHint request={request} items={items} />}
 
       {itemsQuery.isLoading ? (
         <div className="flex justify-center py-8">

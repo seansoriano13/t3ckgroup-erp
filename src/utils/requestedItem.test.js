@@ -35,8 +35,32 @@ describe("sorLineChange", () => {
       kind: SOR_LINE_CHANGE.CHANGED,
       quantity: 12,
       unit: "pc",
+      asked: { quantity: 10, unit: "pc" },
+      quantityChanged: true,
+      unitChanged: false,
       label: "SOR line now says 12 pc",
     })
+  })
+
+  it("says which of the quantity and the unit changed", () => {
+    expect(sorLineChange(fromLine({ sorLine: { found: true, quantity: 10, unit: "box" } }))).toMatchObject({
+      asked: { quantity: 10, unit: "pc" },
+      quantityChanged: false,
+      unitChanged: true,
+    })
+  })
+
+  it("stays quiet once someone kept the item as asked, until the SOR says something else", () => {
+    const changed = { found: true, quantity: 12, unit: "pc" }
+    const kept = { quantity: 12, unit: "pc" }
+    expect(sorLineChange(fromLine({ sorLine: changed, sor_change_seen: kept }))).toBeNull()
+    expect(sorLineChange(fromLine({ sorLine: { ...changed, quantity: 15 }, sor_change_seen: kept }))?.quantity).toBe(15)
+  })
+
+  it("still says the line is gone after the item was kept as asked", () => {
+    expect(
+      sorLineChange(fromLine({ sorLine: { found: false }, sor_change_seen: { quantity: 12, unit: "pc" } }))?.kind,
+    ).toBe(SOR_LINE_CHANGE.REMOVED)
   })
 
   it("reports a changed unit", () => {

@@ -3,6 +3,7 @@ import { AlertTriangle, Calculator, Replace } from "lucide-react";
 import DetailGrid from "@/components/record/DetailGrid";
 import StatusBadge from "../StatusBadge";
 import StaleStockBadge from "./StaleStockBadge";
+import SorLineDiff from "./SorLineDiff";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
 import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
@@ -98,7 +99,7 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
         </span>
       ),
     },
-    change && { label: "SOR line", value: <Warn>{change.label}</Warn> },
+    change && { label: "SOR line", value: <SorLineDiff item={item} change={change} /> },
     item.description && { label: "Notes", value: <span className="whitespace-pre-line">{item.description}</span> },
   ].filter(Boolean);
 

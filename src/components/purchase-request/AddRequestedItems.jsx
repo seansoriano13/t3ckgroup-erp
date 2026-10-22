@@ -36,7 +36,7 @@ const refusal = (error) => (error?.message || "Something went wrong.").replace(/
  * copied as the line is now; the dialog says so, because later SOR edits
  * won't follow it.
  */
-function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, items }) {
+export function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, items }) {
   const queryClient = useQueryClient();
   const refresh = useRefreshRequest(requestId);
   const [picked, setPicked] = useState(() => new Set());
