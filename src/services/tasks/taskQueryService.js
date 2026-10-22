@@ -310,9 +310,10 @@ export const taskQueryService = {
       `,
       )
       .eq("id", taskId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) throw new Error("Task not found. It may have been deleted.");
 
     return {
       id: data.id,

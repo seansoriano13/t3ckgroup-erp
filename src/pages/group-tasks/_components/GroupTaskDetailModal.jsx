@@ -443,7 +443,7 @@ export default function GroupTaskDetailModal({
         notificationService.createNotification({
           recipient_id: message.authorId,
           sender_id: user.id,
-          type: "TASK_REACTION",
+          type: "GROUP_TASK_REACTION",
           title: "New Reaction",
           message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
           reference_id: task.id,
