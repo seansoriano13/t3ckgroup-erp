@@ -134,6 +134,7 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
   <span class="eyebrow">STAGING · t3ckgroup-erp-staging.vercel.app · SALE TYPE "PROJECT [FOR DEMO]"</span>
   <h1>Purchasing Demo Run Sheet</h1>
   <p class="lede">One government Project deal, from Lead to filed IPAS, told from Purchasing's side. Part 0 is done alone before the meeting. Parts 1 to 9 are the one-hour demo. Tick each step as you go. Ticks stay in this browser only, and "Clear ticks" starts a fresh rehearsal.</p>
+  <p class="note"><b>Updated 2026-10-22 (v1.9.63):</b> the Costing Matrix now opens in its own window and fills its lines from the SOR's products, so Sales no longer types a Tender Line. Sales, Purchasing and the Sales Director now see the costs, and the Sales Director sets the offers with the markup playground. Parts 4 and 5 are rewritten for this.</p>
 </header>
 
 <section id="logins">
@@ -177,7 +178,8 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
     <li data-k="0.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-boss">101</span></span>Settings → <b>Costing Matrix</b> tab: Final Acquire list = 201. Evaluation list = Grace. Add a markup preset "Government" with factor <b>1.30</b>. Evaluation template = "Evaluation of Specification".</div></li>
     <li data-k="0.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-boss">101</span></span>Open the Flow Canvas (<code>/super-admin/flow-canvas</code>) → <b>Project [FOR DEMO]</b>. Add only these:
       <ul class="sub">
-        <li><b>Lead</b> → Action "Open Purchase Request". Who can request items: Deal Owner, Closing Sales, Support Sales, Sales Director, Registrar. No Buyer, so it lands in Purchasing's queue. Access window: until <b>Collection</b> is left.</li>
+        <li><b>Lead</b> → Action "Open Purchase Request". Set it to <b>When confirmed</b> (conditional), Decider = the Deal Owner and the Sales Director, so <b>Dani or 101</b> decides. Who can request items: Deal Owner, Closing Sales, Support Sales, Sales Director, Registrar. No Buyer, so it lands in Purchasing's queue. Access window: until <b>Collection</b> is left.
+          <div class="say">Why conditional: not every deal needs buying (stock only, or a lost lead), so Sales decides whether a request is opened. Skipping is final for that Lead visit.</div></li>
         <li><b>SO Evaluation</b> → Action "Open Costing Matrix": Sales incharge = Deal Owner. Purchasing incharge = Cjay. Markup preset = Government.</li>
         <li><b>PMS Sourcing GS</b> → Condition "<b>Costing priced</b>".</li>
         <li><b>For Bidding</b> → Condition "<b>Costing settled</b>".</li>
@@ -200,7 +202,8 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
   <div class="part-head"><span class="part-no">2</span><h2>Sales starts the deal</h2><span class="mins">0:05 – 0:08</span></div>
   <ol class="steps">
     <li data-k="2.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Register an SOR. Sale Type <b>Project [FOR DEMO]</b>. Client "DEMO City DRRMO". Title "DEMO Generator Sets and Radios". Product List, typed by hand:
-      <ul class="sub"><li>10KVA Diesel Generator Set, Watercooled · 2 units</li><li>DMR Portable Radio · 12 pcs</li></ul></div><div class="see">The SOR sits on Lead, and its PMS tab already shows the Purchase Request card.</div><div class="say">The request opens at Lead, so Sales can ask us about products from the very start. It is the one request for this deal, used until the end.</div></li>
+      <ul class="sub"><li>10KVA Diesel Generator Set, Watercooled · 2 units</li><li>DMR Portable Radio · 12 pcs</li></ul></div><div class="see">The SOR sits on Lead. The action "Open Purchase Request" waits for a decision.</div></li>
+    <li data-k="2.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>On the SOR, click <b>Create</b> on "Open Purchase Request".</div><div class="see">The PMS tab shows the Purchase Request card.</div><div class="say">Sales (Dani or 101) decides if a deal needs buying at all. When it does, the request opens at Lead, so Sales can ask us about products from the very start. It is the one request for this deal, used until the end.</div></li>
   </ol>
 </section>
 
@@ -219,36 +222,39 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
 <section id="part4">
   <div class="part-head"><span class="part-no">4</span><h2>Costing Matrix and Canvass</h2><span class="mins">0:14 – 0:22</span></div>
   <ol class="steps">
-    <li data-k="4.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move the SOR <b>Lead → SO Evaluation</b>.</div><div class="see">The PMS tab now shows the Costing Matrix too.</div></li>
-    <li data-k="4.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Open the Costing Matrix. Add a Tender Line "10KVA Diesel Generator Set" · qty 2 · ABC <b>₱800,000</b>.</div><div class="say">Sales owns the Tender Lines: what the client asked for and the budget (ABC).</div></li>
-    <li data-k="4.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Under it, add a Component "Yanmar 10KVA Watercooled Generator" · qty 2. In the request, link the generator item to this Component.</div><div class="say">A Component is what we actually supply. The link is how the PO and Landed Cost find their way back to the matrix. Each column belongs to one team, and the system refuses edits outside your column.</div></li>
-    <li data-k="4.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Start a <b>Canvass</b> on the Component. Add three Offers:
+    <li data-k="4.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move the SOR <b>Lead → SO Evaluation</b>.</div><div class="see">The PMS tab now shows a Costing Matrix card with an <b>Open Costing Matrix</b> button.</div></li>
+    <li data-k="4.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Click <b>Open Costing Matrix</b>. Open each line and type its <b>ABC / unit</b>:
+      <ul class="sub"><li>Line 1, generators: ₱400,000 (₱800,000 for 2)</li><li>Line 2, radios: ₱15,000 (₱180,000 for 12)</li></ul></div><div class="see">The matrix opens in its own window and fills itself: "2 lines added from the SOR", one line per product, each "priced from its product".</div><div class="say">Nobody retypes the products. Products picked from Odoo also bring their Odoo cost; ours were typed by hand, so the costs start blank. "Refresh from the SOR" adds products added later and never overwrites what someone typed. Sales owns the tender side: what the client asked for and the budget (ABC).</div></li>
+    <li data-k="4.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Open the same matrix (PMS tab, or the Costing Matrix page). Open line 1 and type the product's <b>Brand</b>: Yanmar. In the request, link the generator item to this line's product.</div><div class="say">One product per line is the normal case. "Break down into parts" is only for a line that needs it, like a generator plus its ATS. We fill in the Brand, because we inquire with suppliers. The link is how the PO and Landed Cost find their way back to the matrix. Each column belongs to a team, and the system refuses edits outside your columns.</div></li>
+    <li data-k="4.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Open line 2 (radios) and type the <b>Acquire</b>: ₱9,500 a unit, our stock cost.</div><div class="say">The radios come from stock, so there is no canvass. They still need a cost, because every line is now on the matrix and "Costing priced" waits for every product.</div></li>
+    <li data-k="4.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Back on line 1, start a <b>Canvass</b> on the product. Add three Offers:
       <ul class="sub">
         <li>All Certified Equipment Trading Corp. · PHP 281,250 · lead time 14 days</li>
         <li>Sample Power Solutions · PHP 295,000 · lead time 7 days</li>
         <li>Henan Winall · <b>USD 4,900</b> · keep the pre-filled comparison rate</li>
       </ul></div><div class="see">The number CNV_… appears only when the first Offer is saved. The USD Offer shows a peso figure from the comparison rate.</div><div class="say">The comparison rate only compares Offers. It is not the rate we pay.</div></li>
-    <li data-k="4.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Mark All Certified as the <b>winner</b>, reason "Lowest PHP price, local stock, same supplier as our PO".</div><div class="see">The Component's Acquire fills in from the winner (₱281,250).</div></li>
-    <li data-k="4.6"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">jen</span></span>Approval Center → <b>Canvass sign-offs</b> → sign the Canvass.</div><div class="say">The canvasser can never sign their own Canvass. Fewer than three Offers only warns. Editing a signed Canvass removes the signature.</div></li>
+    <li data-k="4.6"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Mark All Certified as the <b>winner</b>, reason "Lowest PHP price, local stock, same supplier as our PO".</div><div class="see">Line 1's Acquire fills in from the winner (₱281,250).</div></li>
+    <li data-k="4.7"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">jen</span></span>Approval Center → <b>Canvass sign-offs</b> → sign the Canvass.</div><div class="say">The canvasser can never sign their own Canvass. Fewer than three Offers only warns. Editing a signed Canvass removes the signature.</div></li>
   </ol>
 </section>
 
 <section id="part5">
   <div class="part-head"><span class="part-no">5</span><h2>Sign-offs and the gates</h2><span class="mins">0:22 – 0:33</span></div>
   <ol class="steps">
-    <li data-k="5.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">201</span></span>On the matrix, set <b>Final Acquire</b> ₱281,250 (the factor 1.30 came from the preset).</div><div class="say">Only the Final Acquire list sees the full money picture. Sales never sees our cost.</div></li>
-    <li data-k="5.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Set the Final Offer <b>₱365,000</b> a unit (₱730,000, under the ABC). Sign <b>Prepared</b>.</div></li>
-    <li data-k="5.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Set the Component's compliance to <b>Complies</b>. Sign <b>Costed</b>.</div><div class="say">Costed clears itself if the Acquire or the markup changes later.</div></li>
-    <li data-k="5.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">grace</span></span>Approve the <b>Evaluation</b>.</div></li>
-    <li data-k="5.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">201</span></span>Sign <b>Final approved</b>. Approval Center → <b>Bid Decisions</b> → <b>Go</b> with a reason.</div><div class="say">The Bid Decision moves nothing on the SOR. It only unlocks the gate. A later price change clears it.</div></li>
+    <li data-k="5.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">201</span></span>On the matrix, set <b>Final Acquire</b>: line 1 ₱281,250, line 2 ₱9,500.</div><div class="say">The money side is open to the Deal Team (Sales and the Sales Director) and Purchasing on their own deals, beside the Final Acquire list. Technical and Warehouse never see our cost.</div></li>
+    <li data-k="5.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">101</span></span>In the matrix window, the <b>Markup playground</b> shows "Saved: 1.30" (the Government preset). Press + to try 1.35 and watch the offer and margin move. Go back to 1.30 and click <b>Apply</b>.</div><div class="see">Every Final Offer fills in: generators ₱365,625 a unit, radios ₱12,350 a unit. Final Offer ₱879,450, about 89.7% of the ABC. Margin ₱202,950.</div><div class="say">Nothing is saved while you try a markup. Offers are kept at the ABC unless you turn that off.</div></li>
+    <li data-k="5.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Check the Final Offers are under the ABC. Sign <b>Prepared</b>.</div></li>
+    <li data-k="5.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Set both products' compliance to <b>Complies</b>. Sign <b>Costed</b>.</div><div class="say">Costed clears itself if the Acquire or the markup changes later.</div></li>
+    <li data-k="5.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">grace</span></span>Approve the <b>Evaluation</b>.</div></li>
+    <li data-k="5.6"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">201</span></span>Sign <b>Final approved</b>. Then <b>Go</b> with a reason, on the matrix window's Bid Decision card (or Approval Center → <b>Bid Decisions</b>).</div><div class="say">The Bid Decision moves nothing on the SOR. It only unlocks the gate. A later price change clears it.</div></li>
   </ol>
   <div class="dash"><strong>Dashboard check.</strong> The SOR shows in <b>To order</b>: priced, Go, no PO yet.</div>
   <ol class="steps">
-    <li data-k="5.6"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move SO Evaluation → <b>PMS Sourcing GS</b> → Proposal Submitted.</div></li>
+    <li data-k="5.7"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move SO Evaluation → <b>PMS Sourcing GS</b> → Proposal Submitted.</div></li>
   </ol>
-  <div class="gate"><strong>Gate: Costing priced</strong> on PMS Sourcing GS. Say: Sales cannot leave until Purchasing has costed every Component and a Purchasing incharge is named. Tip for the room: if you try this before step 4.5, the move is refused.</div>
+  <div class="gate"><strong>Gate: Costing priced</strong> on PMS Sourcing GS. Say: Sales cannot leave until Purchasing has costed every product on every line and a Purchasing incharge is named. Tip for the room: if you try this before step 4.6, the move is refused.</div>
   <ol class="steps">
-    <li data-k="5.7"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Keep moving: Proposal Submitted → Qualified → <b>For Bidding</b> → Bid Submitted → PQ → Negotiation → NOA → PB → <b>NTP</b>. Upload the demo PDF wherever a document is asked. Tick "Submit PB".</div><div class="say">Stage documents are Sales' work, so go fast here.</div></li>
+    <li data-k="5.8"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Keep moving: Proposal Submitted → Qualified → <b>For Bidding</b> → Bid Submitted → PQ → Negotiation → NOA → PB → <b>NTP</b>. Upload the demo PDF wherever a document is asked. Tick "Submit PB".</div><div class="say">Stage documents are Sales' work, so go fast here.</div></li>
   </ol>
   <div class="gate"><strong>Gate: Costing settled</strong> on For Bidding. Say: no bid goes out until the matrix is signed, the offer is within the ABC, and the Bid Decision is Go.</div>
 </section>
@@ -295,7 +301,7 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
 <section id="part9">
   <div class="part-head"><span class="part-no">9</span><h2>Wrap up and questions</h2><span class="mins">0:57 – 1:00+</span></div>
   <ol class="steps">
-    <li data-k="9.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Open the SOR's <b>PMS tab</b>: matrix, request, IPAS summary, the slip, the Packing List, all in one place.</div></li>
+    <li data-k="9.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Open the SOR's <b>PMS tab</b>: the matrix's numbers and Bid Decision, request, IPAS summary, the slip, the Packing List, all in one place. "Open Costing Matrix" opens the full matrix.</div></li>
     <li data-k="9.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Dashboard: the SOR has left every group. Register tab: the IPAS is under Filed.</div></li>
     <li data-k="9.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Settings → Purchasing: show the option lists and <b>Ageing rules</b>. Set "With P.O.P" to 3 days.</div><div class="say">These lists are yours to keep. Every ageing rule starts blank, so nothing is late until you set one.</div></li>
   </ol>
@@ -304,8 +310,8 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
 <section id="cuts">
   <div class="part-head"><h2>If you run late</h2></div>
   <div class="grid2">
-    <div class="card"><h4>Cut first</h4><p class="note">3.3 chat reply, 4.4 third Offer (say "fewer than three only warns"), 8.5 Packing List, 9.3 Settings.</p></div>
-    <div class="card"><h4>Pre-sign before the meeting</h4><p class="note">Run Part 2 and steps 4.1 to 4.5 alone the morning of the demo. Show Part 3 live, then start Part 4 at 4.6. You save about 10 minutes.</p></div>
+    <div class="card"><h4>Cut first</h4><p class="note">3.3 chat reply, 4.5 third Offer (say "fewer than three only warns"), the 1.35 try in 5.2 (just Apply), 8.5 Packing List, 9.3 Settings.</p></div>
+    <div class="card"><h4>Pre-sign before the meeting</h4><p class="note">Run Part 2 and steps 4.1 to 4.6 alone the morning of the demo. Show Part 3 live, then start Part 4 at 4.7. You save about 10 minutes.</p></div>
     <div class="card"><h4>If a step is refused</h4><p class="note">Read the message out loud. Most refusals are the rules doing their job: wrong person, missing signature, or a gate. That is part of the demo.</p></div>
     <div class="card"><h4>Good to know</h4><p class="note">The copied flow still makes its group tasks for the real staff named on prod. They only see them on staging. Sale Type and SOR pickers also show older test data; pick "Project [FOR DEMO]".</p></div>
   </div>
