@@ -256,6 +256,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -278,6 +279,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -299,6 +301,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -321,6 +324,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -514,6 +518,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -541,6 +546,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -568,6 +574,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -595,6 +602,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -794,6 +802,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -823,6 +832,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -851,6 +861,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -880,6 +891,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -1332,6 +1344,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -1355,6 +1368,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -1377,6 +1391,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -1400,6 +1415,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -1594,6 +1610,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -1621,6 +1638,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -1648,6 +1666,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -1675,6 +1694,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -1874,6 +1894,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -1903,6 +1924,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -1931,6 +1953,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -1960,6 +1983,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2420,6 +2444,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2445,6 +2470,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2469,6 +2495,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2494,6 +2521,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2690,6 +2718,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2717,6 +2746,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2744,6 +2774,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2771,6 +2802,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2970,6 +3002,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -2999,6 +3032,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3027,6 +3061,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3056,6 +3091,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3520,6 +3556,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3546,6 +3583,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3571,6 +3609,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3597,6 +3636,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3794,6 +3834,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3821,6 +3862,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3848,6 +3890,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -3875,6 +3918,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -4074,6 +4118,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -4103,6 +4148,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -4131,6 +4177,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -4160,6 +4207,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -4361,7 +4409,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -4384,7 +4431,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -4407,7 +4453,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -4430,7 +4475,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -5509,7 +5553,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -5533,7 +5576,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -5557,7 +5599,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -5581,7 +5622,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -6665,7 +6705,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -6691,7 +6730,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -6717,7 +6755,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -6743,7 +6780,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -7837,7 +7873,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -7864,7 +7899,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -7891,7 +7925,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -7918,7 +7951,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -9284,6 +9316,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -9311,6 +9344,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -9337,6 +9371,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -9364,6 +9399,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -9562,6 +9598,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -9594,6 +9631,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -9626,6 +9664,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -9658,6 +9697,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -9862,6 +9902,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -9896,6 +9937,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -9929,6 +9971,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -9963,6 +10006,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -10440,6 +10484,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -10468,6 +10513,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -10495,6 +10541,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -10523,6 +10570,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -10722,6 +10770,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -10754,6 +10803,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -10786,6 +10836,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -10818,6 +10869,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11022,6 +11074,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11056,6 +11109,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11089,6 +11143,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11123,6 +11178,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11608,6 +11664,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11638,6 +11695,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11667,6 +11725,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11697,6 +11756,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11898,6 +11958,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11930,6 +11991,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11962,6 +12024,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -11994,6 +12057,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -12198,6 +12262,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -12232,6 +12297,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -12265,6 +12331,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -12299,6 +12366,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -12788,6 +12856,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -12819,6 +12888,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -12849,6 +12919,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -12880,6 +12951,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13082,6 +13154,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13114,6 +13187,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13146,6 +13220,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13178,6 +13253,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13382,6 +13458,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13416,6 +13493,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13449,6 +13527,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13483,6 +13562,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -13689,7 +13769,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -13717,7 +13796,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -13745,7 +13823,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -13773,7 +13850,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -14917,7 +14993,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -14946,7 +15021,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -14975,7 +15049,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -15004,7 +15077,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -16153,7 +16225,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -16184,7 +16255,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -16215,7 +16285,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -16246,7 +16315,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -17405,7 +17473,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -17437,7 +17504,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -17469,7 +17535,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -17501,7 +17566,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -18916,6 +18980,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -18939,6 +19004,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -18961,6 +19027,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -18984,6 +19051,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -19178,6 +19246,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -19206,6 +19275,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -19234,6 +19304,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -19262,6 +19333,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -19462,6 +19534,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -19492,6 +19565,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -19521,6 +19595,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -19551,6 +19626,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -20008,6 +20084,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -20032,6 +20109,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -20055,6 +20133,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -20079,6 +20158,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -20274,6 +20354,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -20302,6 +20383,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -20330,6 +20412,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -20358,6 +20441,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -20558,6 +20642,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -20588,6 +20673,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -20617,6 +20703,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -20647,6 +20734,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21112,6 +21200,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21138,6 +21227,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21163,6 +21253,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21189,6 +21280,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21386,6 +21478,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21414,6 +21507,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21442,6 +21536,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21470,6 +21565,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21670,6 +21766,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21700,6 +21797,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21729,6 +21827,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -21759,6 +21858,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22228,6 +22328,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22255,6 +22356,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22281,6 +22383,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22308,6 +22411,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22506,6 +22610,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22534,6 +22639,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22562,6 +22668,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22590,6 +22697,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22790,6 +22898,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22820,6 +22929,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22849,6 +22959,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -22879,6 +22990,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -23081,7 +23193,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -23105,7 +23216,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -23129,7 +23239,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -23153,7 +23262,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -24245,7 +24353,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -24270,7 +24377,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -24295,7 +24401,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -24320,7 +24425,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -25417,7 +25521,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -25444,7 +25547,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -25471,7 +25573,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -25498,7 +25599,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -26605,7 +26705,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -26633,7 +26732,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -26661,7 +26759,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -26689,7 +26786,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -28072,6 +28168,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -28100,6 +28197,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -28127,6 +28225,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -28155,6 +28254,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -28354,6 +28454,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -28387,6 +28488,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -28420,6 +28522,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -28453,6 +28556,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -28658,6 +28762,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -28693,6 +28798,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -28727,6 +28833,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -28762,6 +28869,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -29244,6 +29352,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -29273,6 +29382,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -29301,6 +29411,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -29330,6 +29441,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -29530,6 +29642,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -29563,6 +29676,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -29596,6 +29710,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -29629,6 +29744,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -29834,6 +29950,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -29869,6 +29986,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -29903,6 +30021,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -29938,6 +30057,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -30428,6 +30548,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -30459,6 +30580,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -30489,6 +30611,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -30520,6 +30643,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -30722,6 +30846,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -30755,6 +30880,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -30788,6 +30914,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -30821,6 +30948,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31026,6 +31154,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31061,6 +31190,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31095,6 +31225,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31130,6 +31261,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31624,6 +31756,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31656,6 +31789,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31687,6 +31821,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31719,6 +31854,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31922,6 +32058,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31955,6 +32092,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -31988,6 +32126,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -32021,6 +32160,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -32226,6 +32366,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -32261,6 +32402,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -32295,6 +32437,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -32330,6 +32473,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -32537,7 +32681,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -32566,7 +32709,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -32595,7 +32737,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -32624,7 +32765,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -33781,7 +33921,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -33811,7 +33950,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -33841,7 +33979,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -33871,7 +34008,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -35033,7 +35169,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -35065,7 +35200,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -35097,7 +35231,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -35129,7 +35262,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -36301,7 +36433,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -36334,7 +36465,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -36367,7 +36497,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -36400,7 +36529,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -37828,6 +37956,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -37851,6 +37980,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -37873,6 +38003,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -37896,6 +38027,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -38090,6 +38222,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -38118,6 +38251,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -38146,6 +38280,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -38174,6 +38309,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -38374,6 +38510,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -38404,6 +38541,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -38433,6 +38571,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -38463,6 +38602,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -38920,6 +39060,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -38944,6 +39085,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -38967,6 +39109,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -38991,6 +39134,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -39186,6 +39330,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -39214,6 +39359,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -39242,6 +39388,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -39270,6 +39417,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -39470,6 +39618,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -39500,6 +39649,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -39529,6 +39679,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -39559,6 +39710,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40024,6 +40176,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40050,6 +40203,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40075,6 +40229,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40101,6 +40256,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40298,6 +40454,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40326,6 +40483,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40354,6 +40512,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40382,6 +40541,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40582,6 +40742,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40612,6 +40773,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40641,6 +40803,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -40671,6 +40834,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41140,6 +41304,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41167,6 +41332,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41193,6 +41359,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41220,6 +41387,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41418,6 +41586,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41446,6 +41615,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41474,6 +41644,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41502,6 +41673,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41702,6 +41874,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41732,6 +41905,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41761,6 +41935,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41791,6 +41966,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -41993,7 +42169,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -42017,7 +42192,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -42041,7 +42215,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -42065,7 +42238,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -43157,7 +43329,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -43182,7 +43353,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -43207,7 +43377,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -43232,7 +43401,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -44329,7 +44497,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -44356,7 +44523,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -44383,7 +44549,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -44410,7 +44575,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -45517,7 +45681,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -45545,7 +45708,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -45573,7 +45735,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -45601,7 +45762,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -46984,6 +47144,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -47012,6 +47173,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -47039,6 +47201,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -47067,6 +47230,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -47266,6 +47430,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -47299,6 +47464,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -47332,6 +47498,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -47365,6 +47532,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -47570,6 +47738,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -47605,6 +47774,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -47639,6 +47809,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -47674,6 +47845,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -48156,6 +48328,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -48185,6 +48358,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -48213,6 +48387,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -48242,6 +48417,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -48442,6 +48618,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -48475,6 +48652,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -48508,6 +48686,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -48541,6 +48720,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -48746,6 +48926,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -48781,6 +48962,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -48815,6 +48997,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -48850,6 +49033,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49340,6 +49524,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49371,6 +49556,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49401,6 +49587,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49432,6 +49619,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49634,6 +49822,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49667,6 +49856,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49700,6 +49890,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49733,6 +49924,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49938,6 +50130,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -49973,6 +50166,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50007,6 +50201,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50042,6 +50237,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50536,6 +50732,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50568,6 +50765,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50599,6 +50797,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50631,6 +50830,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50834,6 +51034,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50867,6 +51068,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50900,6 +51102,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -50933,6 +51136,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -51138,6 +51342,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -51173,6 +51378,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -51207,6 +51413,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -51242,6 +51449,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -51449,7 +51657,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -51478,7 +51685,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -51507,7 +51713,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -51536,7 +51741,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -52693,7 +52897,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -52723,7 +52926,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -52753,7 +52955,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -52783,7 +52984,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -53945,7 +54145,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -53977,7 +54176,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -54009,7 +54207,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -54041,7 +54238,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -55213,7 +55409,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -55246,7 +55441,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -55279,7 +55473,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -55312,7 +55505,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -56744,6 +56936,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -56768,6 +56961,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -56791,6 +56985,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -56815,6 +57010,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -57010,6 +57206,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -57039,6 +57236,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -57068,6 +57266,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -57097,6 +57296,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -57298,6 +57498,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -57329,6 +57530,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -57359,6 +57561,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -57390,6 +57593,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -57852,6 +58056,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -57877,6 +58082,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -57901,6 +58107,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -57926,6 +58133,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -58122,6 +58330,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58151,6 +58360,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58180,6 +58390,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58209,6 +58420,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58410,6 +58622,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58441,6 +58654,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58471,6 +58685,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58502,6 +58717,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58972,6 +59188,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -58999,6 +59216,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59025,6 +59243,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59052,6 +59271,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59250,6 +59470,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59279,6 +59500,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59308,6 +59530,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59337,6 +59560,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59538,6 +59762,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59569,6 +59794,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59599,6 +59825,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -59630,6 +59857,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60104,6 +60332,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60132,6 +60361,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60159,6 +60389,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60187,6 +60418,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60386,6 +60618,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60415,6 +60648,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60444,6 +60678,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60473,6 +60708,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60674,6 +60910,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60705,6 +60942,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60735,6 +60973,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60766,6 +61005,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -60969,7 +61209,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -60994,7 +61233,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -61019,7 +61257,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -61044,7 +61281,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -62149,7 +62385,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -62175,7 +62410,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -62201,7 +62435,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -62227,7 +62460,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -63337,7 +63569,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -63365,7 +63596,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -63393,7 +63623,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -63421,7 +63650,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -64541,7 +64769,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -64570,7 +64797,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -64599,7 +64825,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -64628,7 +64853,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -66028,6 +66252,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -66057,6 +66282,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -66085,6 +66311,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -66114,6 +66341,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -66314,6 +66542,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -66348,6 +66577,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -66382,6 +66612,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -66416,6 +66647,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -66622,6 +66854,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -66658,6 +66891,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -66693,6 +66927,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -66729,6 +66964,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -67216,6 +67452,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -67246,6 +67483,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -67275,6 +67513,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -67305,6 +67544,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -67506,6 +67746,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -67540,6 +67781,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -67574,6 +67816,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -67608,6 +67851,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -67814,6 +68058,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -67850,6 +68095,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -67885,6 +68131,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -67921,6 +68168,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -68416,6 +68664,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -68448,6 +68697,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -68479,6 +68729,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -68511,6 +68762,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -68714,6 +68966,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -68748,6 +69001,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -68782,6 +69036,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -68816,6 +69071,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69022,6 +69278,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69058,6 +69315,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69093,6 +69351,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69129,6 +69388,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69628,6 +69888,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69661,6 +69922,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69693,6 +69955,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69726,6 +69989,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69930,6 +70194,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69964,6 +70229,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -69998,6 +70264,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -70032,6 +70299,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -70238,6 +70506,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -70274,6 +70543,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -70309,6 +70579,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -70345,6 +70616,7 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
     "permittedActions": [
       "Personal:offset",
       "Personal:meeting-request",
+      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -70553,7 +70825,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -70583,7 +70854,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -70613,7 +70883,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -70643,7 +70912,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -71813,7 +72081,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -71844,7 +72111,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -71875,7 +72141,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -71906,7 +72171,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
     ],
     "permittedLinks": [
@@ -73081,7 +73345,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -73114,7 +73377,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -73147,7 +73409,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -73180,7 +73441,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -74365,7 +74625,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -74399,7 +74658,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -74433,7 +74691,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
@@ -74467,7 +74724,6 @@ exports[`navigation registry > permission matrix (characterisation) > produces a
       "Personal:task",
       "Personal:offset",
       "Personal:meeting-request",
-      "Operations:group-task",
       "Operations:purchase-request",
       "Sales:sor",
     ],
