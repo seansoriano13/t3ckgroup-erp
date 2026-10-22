@@ -6,12 +6,14 @@
 CREATE OR REPLACE FUNCTION public.committee_tasks_guard_manage()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
 begin
-  -- No end-user session (service role, migrations): not our concern.
-  if auth.uid() is null then
+  -- Only direct end-user writes are checked. SECURITY DEFINER callers (stage revert / hold /
+  -- resume RPCs) run as the function owner, service role and migrations run as other roles, so
+  -- current_user tells a system flow apart from a person at a client. The trigger itself is
+  -- SECURITY INVOKER for exactly this reason.
+  if current_user not in ('authenticated', 'anon') or auth.uid() is null then
     return new;
   end if;
 
@@ -33,10 +35,8 @@ begin
       using errcode = '42501';
   end if;
 
-  -- A manual cancel only sets status. System cancels (stage revert / hold
-  -- flows) also write cancel_reason, so they pass.
-  if new.status = 'CANCELLED' and old.status is distinct from 'CANCELLED'
-     and new.cancel_reason is not distinct from old.cancel_reason then
+  -- A manual cancel by a non-manager is refused whatever cancel_reason says.
+  if new.status = 'CANCELLED' and old.status is distinct from 'CANCELLED' then
     raise exception 'Only department heads, HR and Super Admins can cancel a Group Task'
       using errcode = '42501';
   end if;
