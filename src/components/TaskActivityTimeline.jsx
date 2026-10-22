@@ -1,6 +1,8 @@
 import { FileInput } from "@/components/ui/FileInput";
 import { ExternalLink } from "@/components/ui/external-link";
 import { buildReplySnapshot } from "../utils/chatReply";
+import { canUnsend, isMessageRemoved } from "../utils/chatUnsend";
+import { chatUnsendService } from "../services/chatUnsendService";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { notificationService } from "../services/notificationService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -104,8 +106,9 @@ const formatTime = (isoString) => {
 /**
  * Renders a single activity entry based on its type
  */
-function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
+function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact, onUnsend }) {
   const isMe = entry.authorId === currentUserId;
+  const removed = isMessageRemoved(entry);
 
   const reactions = entry.metadata?.reactions || {};
   const hasReactions = Object.keys(reactions).length > 0;
@@ -162,9 +165,10 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
 
           <SwipeToReplyWrapper 
             isMe={isMe} 
-            copyText={entry.content}
-            onReply={() => onReply?.(entry)}
-            onReact={(emoji) => onReact?.(entry, emoji)}
+            copyText={removed ? undefined : entry.content}
+            onReply={removed ? undefined : () => onReply?.(entry)}
+            onReact={removed ? undefined : (emoji) => onReact?.(entry, emoji)}
+            onUnsend={canUnsend(entry, currentUserId) ? () => onUnsend?.(entry) : undefined}
           >
             <div
               className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-words min-w-0 ${isMe
@@ -173,6 +177,10 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
                 }`}
               style={{ wordBreak: "break-word" }}
             >
+              {removed ? (
+                <p className="italic opacity-70">Message removed</p>
+              ) : (
+              <>
               <ReplyQuote replyTo={entry.metadata?.replyTo} />
               {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
               {entry.metadata?.attachments?.length > 0 && (
@@ -180,6 +188,8 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
                   attachments={entry.metadata.attachments} 
                   className={entry.content ? "mt-2" : ""} 
                 />
+              )}
+              </>
               )}
             </div>
           </SwipeToReplyWrapper>
@@ -539,6 +549,22 @@ export default function TaskActivityTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message, attachments, taskId, user?.id, isUploading, replyingTo, uploadAttachments]);
 
+  const unsendMessage = async (message) => {
+    if (!message?.id) return;
+    const table = entityType === "GROUP_TASK" ? "committee_task_activity" : "task_activity";
+    patchPagedMessage(queryClient, commentsKey, message.id, (m) => ({
+      ...m,
+      content: "Message removed",
+      metadata: { removed: true },
+    }));
+    try {
+      await chatUnsendService.unsend(table, message.id);
+    } catch (err) {
+      console.error("Failed to unsend message:", err);
+    }
+    queryClient.invalidateQueries({ queryKey: commentsKey });
+  };
+
   const toggleReaction = async (message, emoji) => {
     if (!message || !emoji) return;
     const currentReactions = message.metadata?.reactions || {};
@@ -657,6 +683,7 @@ export default function TaskActivityTimeline({
                 avatarMap={avatarMap}
                 onReply={(e) => setReplyingTo(buildReplySnapshot(e))}
                 onReact={toggleReaction}
+                onUnsend={unsendMessage}
               />
             ))}
           </div>
