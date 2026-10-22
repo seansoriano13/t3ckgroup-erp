@@ -24,8 +24,9 @@ const GROUPS = [
  * The IPAS's sections, every one a collapsible block that opens in place
  * (RecordSections). Logistics, Status and History keep their controls live;
  * the money and sign-off sections, Header and Sales read here, as the old
- * side drawer showed them, and end with the viewer's moves for the section and
- * an Edit section button that opens the edit view.
+ * side drawer showed them, and end with the viewer's moves for the section
+ * (never Submit, which is in Your move) and an Edit section button that opens
+ * the edit view.
  *
  * `open` is the page's useSectionsOpen. On arrival the section the link names
  * (`?open=`) opens and is scrolled to; with no link, the section that needs
@@ -64,7 +65,8 @@ export default function SectionsPanel({ ctx, blocks, digest, open, headRef, onEd
   // The foot is for the money and sign-off sections. Header and Sales edit through the page's Edit button.
   const footerOf = (key) => {
     if (SECONDARY.has(key)) return null;
-    const moves = footerMovesFor(ctx, digest, key);
+    // Submit lives only in Your move; a section's foot keeps the rest and its Edit section button.
+    const moves = footerMovesFor(ctx, digest, key).filter((item) => item.kind !== "prepare");
     const editable = canEditSection(key, ctx);
     if (moves.length === 0 && !editable) return null;
     return (

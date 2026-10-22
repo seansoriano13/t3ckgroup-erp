@@ -128,7 +128,7 @@ describe("IPAS signing with the evidence in view", () => {
   });
 
   describe("the section blocks", () => {
-    it("shows the viewer's moves for the section in a pinned footer, and the body only reads", async () => {
+    it("keeps Submit out of the section: the body only reads, and the foot holds Edit section", async () => {
       const row = ipas();
       renderDetail(row.id, "purchasing");
 
@@ -137,10 +137,10 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(body).queryByRole("button")).not.toBeInTheDocument();
       expect(within(body).getByText("Not submitted")).toBeInTheDocument();
 
-      // The footer holds the move, with its consequence, and nothing for other sections.
-      expect(within(drawer).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
-      expect(within(drawer).getByText(/Submits section 1 · Purchasing for approval/)).toBeInTheDocument();
-      expect(within(drawer).queryByRole("button", { name: /section 2/ })).not.toBeInTheDocument();
+      // Submit lives only in Your move; the section keeps its Edit section button.
+      expect(within(drawer).queryByRole("button", { name: /^Submit/ })).not.toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Edit section" })).toBeInTheDocument();
+      expect(within(await yourMove()).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
     });
 
     it("hides the in-body buttons of the filing section, and its footer gives the steps", async () => {
@@ -264,13 +264,12 @@ describe("IPAS signing with the evidence in view", () => {
       expect(await screen.findByRole("button", { name: /^2 · Purchasing & Finance/ })).toHaveFocus();
     });
 
-    it("asks in a dialog that names the section and the signer, then signs from the footer", async () => {
+    it("asks in a dialog that names the section and the signer, then signs from Your move", async () => {
       const row = ipas();
       renderDetail(row.id, "purchasing");
       const user = setupUser();
 
-      const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
-      await user.click(within(drawer).getByRole("button", { name: "Submit section 1" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Submit section 1" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Submit section 1?" });
       expect(within(dialog).getByText(/^You sign/)).toBeInTheDocument();
@@ -340,7 +339,8 @@ describe("IPAS signing with the evidence in view", () => {
 
       await user.click(within(await yourMove()).getByRole("button", { name: "Review section 1 · Purchasing" }));
       const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
-      expect(within(drawer).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: "Edit section" })).toBeInTheDocument();
+      expect(within(drawer).queryByRole("button", { name: "Submit section 1" })).not.toBeInTheDocument();
     });
 
     it("marks the next LC step with no question, toasts with Undo, and Undo restores the status", async () => {
@@ -409,13 +409,14 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id, "purchasing");
       const user = setupUser();
 
+      const card = await yourMove();
       const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Approve section 1" }));
       await confirmMove(user, "Approve section 1", "Approve");
 
       const alert = await within(drawer).findByRole("alert");
-      // The drawer is modal, so the card is out of reach; check its markup directly: no error there.
-      expect(document.getElementById("your-move").querySelector('[role="alert"]')).toBeNull();
+      // The failure shows where the move was started: none under Your move.
+      expect(card.querySelector('[role="alert"]')).toBeNull();
       await user.click(within(alert).getByRole("button", { name: "Dismiss" }));
       await waitFor(() => expect(within(drawer).queryByRole("alert")).not.toBeInTheDocument());
     });
@@ -575,14 +576,15 @@ describe("IPAS signing with the evidence in view", () => {
     it("offers no Submit before LC Odoo Done, and Submit once it is reached", async () => {
       const early = ipas({ computation_status: "lc_gs_done" });
       const view = renderDetail(early.id, "costing");
-      const drawer = await screen.findByRole("region", { name: TITLE });
-      expect(within(drawer).queryByRole("button", { name: /^Submit section 3/ })).not.toBeInTheDocument();
+      await screen.findByRole("region", { name: TITLE });
+      expect(within(await yourMove()).queryByRole("button", { name: /^Submit section 3/ })).not.toBeInTheDocument();
       view.unmount();
 
       const ready = ipas({ computation_status: "lc_odoo_done" });
       renderDetail(ready.id, "costing");
       const open = await screen.findByRole("region", { name: TITLE });
-      expect(await within(open).findByRole("button", { name: `Submit section 3` })).toBeInTheDocument();
+      expect(within(open).queryByRole("button", { name: /^Submit section 3/ })).not.toBeInTheDocument();
+      expect(await within(await yourMove()).findByRole("button", { name: `Submit section 3` })).toBeInTheDocument();
     });
 
     it("submits as section 3, stored as section 6, and tells the section 3 list", async () => {
@@ -591,8 +593,8 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id, "costing");
       const user = setupUser();
 
-      const drawer = await screen.findByRole("region", { name: TITLE });
-      await user.click(await within(drawer).findByRole("button", { name: `Submit section 3` }));
+      await screen.findByRole("region", { name: TITLE });
+      await user.click(await within(await yourMove()).findByRole("button", { name: `Submit section 3` }));
       const dialog = await screen.findByRole("dialog", { name: `Submit section 3?` });
       await user.click(within(dialog).getByRole("button", { name: "Submit" }));
 

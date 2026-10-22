@@ -58,6 +58,7 @@ function Step({ step, open, onToggle }) {
  * (green `APPROVE_CLASS` for the main one).
  */
 export default function YourMoveCard({ status, next, lead, steps, className }) {
+  const headingId = useId();
   const [openKeys, setOpenKeys] = useState(() => new Set(steps.filter((step) => step.needsMe).map((step) => step.key)));
   const needing = needsKey(steps);
 
@@ -79,9 +80,9 @@ export default function YourMoveCard({ status, next, lead, steps, className }) {
   const signed = steps.filter((step) => step.state === STATE.DONE).length;
 
   return (
-    <div className={cn("overflow-hidden rounded-2xl border border-border bg-card", className)}>
+    <section aria-labelledby={headingId} className={cn("overflow-hidden rounded-2xl border border-border bg-card", className)}>
       <div className="space-y-3 p-4">
-        <h2 className="text-label font-bold uppercase tracking-wider text-muted-foreground">Your move</h2>
+        <h2 id={headingId} className="text-label font-bold uppercase tracking-wider text-muted-foreground">Your move</h2>
         <p className="text-[15px] font-bold leading-snug text-foreground">{status}</p>
         {next}
         {steps.length > 0 && (
@@ -98,6 +99,6 @@ export default function YourMoveCard({ status, next, lead, steps, className }) {
           ))}
         </ol>
       )}
-    </div>
+    </section>
   );
 }

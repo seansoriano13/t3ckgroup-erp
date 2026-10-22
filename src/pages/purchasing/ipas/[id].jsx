@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, ReceiptText } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
-import PageShell from "../../../components/ui/PageShell";
+import ModalShell from "../../../components/ui/ModalShell";
 import PageLoading from "../../../components/ui/PageLoading";
 import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
@@ -21,7 +20,10 @@ import ReturnDialog from "../../../components/ipas/ReturnDialog";
 import FilingDialog from "../../../components/ipas/FilingDialog";
 import { IpasFiledNotice } from "../../../components/ipas/IpasFiling";
 import { IpasWarnings } from "../../../components/ipas/IpasSections";
-import DecisionCard from "../../../components/ipas/record/DecisionCard";
+import YourMove from "../../../components/ipas/record/YourMove";
+import RecordHeader from "../../../components/record/RecordHeader";
+import PropertyPills from "../../../components/record/PropertyPills";
+import { ipasBadge, ipasLine, ipasPills } from "../../../components/ipas/record/recordFacts";
 import InlineError from "../../../components/record/InlineError";
 import EditForm from "../../../components/ipas/record/EditForm";
 import MoneySummary from "../../../components/ipas/record/MoneySummary";
@@ -40,6 +42,7 @@ import {
   ipasRefreshKey,
   ipasSignerListsKey,
 } from "../../../components/ipas/ipasKeys";
+import IpasListPage from "./index";
 import { ipasService } from "../../../services/ipasService";
 import * as optimistic from "../../../utils/ipasOptimistic";
 import { openPrintWindow, printIpas } from "../../../lib/pdf/ipasPrinter";
@@ -74,6 +77,8 @@ import {
   ipasSectionNo,
   ipasSectionWord,
 } from "../../../constants/ipas";
+
+const LIST_PATH = "/purchasing/ipas";
 
 const HEADER_LABELS = {
   [IPAS_HEADER_FIELD.SUPPLIER_CONTACT]: "Supplier's name",
@@ -139,7 +144,7 @@ function typingInitialValue(field, ipas) {
  * ticked) and the filed state: a banner, every edit control gone, and a Super
  * Admin's Reopen with a reason.
  */
-function IpasPage() {
+function IpasPage({ onClose }) {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -692,6 +697,7 @@ function IpasPage() {
     mutationFn: () => ipasService.cancel(id, reason),
     onSuccess: () => {
       toast.success(`${ipas.number} cancelled. The number is kept.`);
+      setCancelling(false);
       setReason("");
       queryClient.invalidateQueries({ queryKey: ipasKey(id) });
       queryClient.invalidateQueries({ queryKey: ipasListKey });
@@ -721,35 +727,17 @@ function IpasPage() {
     print.mutate({ filingCopy, printWindow });
   };
 
-  const back = (
-    <Link
-      to="/purchasing/ipas"
-      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
-    >
-      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      IPAS
-    </Link>
-  );
-
-  if (isLoading) return <PageLoading />;
-
-  if (isError) {
+  if (isLoading || isError || !ipas) {
     return (
-      <PageShell title="IPAS" action={back}>
-        <QueryError title="This IPAS could not be loaded." onRetry={refetch} />
-      </PageShell>
-    );
-  }
-
-  if (!ipas) {
-    return (
-      <PageShell title="IPAS" action={back}>
-        <EmptyState
-          icon={ReceiptText}
-          title="IPAS not found"
-          description="It doesn't exist, or you don't have access to it."
-        />
-      </PageShell>
+      <ModalShell open onOpenChange={(next) => !next && onClose()} size="record" crumbs={["IPAS"]}>
+        {isLoading ? (
+          <PageLoading label="IPAS" />
+        ) : isError ? (
+          <QueryError title="This IPAS could not be loaded." onRetry={refetch} />
+        ) : (
+          <EmptyState title="IPAS not found" description="It doesn't exist, or you don't have access to it." />
+        )}
+      </ModalShell>
     );
   }
 
@@ -912,7 +900,6 @@ function IpasPage() {
       print: print.isPending,
     },
     on,
-    back,
     printedBy: user?.name ?? null,
     viewer: user?.name ?? null,
     failure: failure && { ...failure, dismiss: () => setFailure(null) },
@@ -957,30 +944,41 @@ function IpasPage() {
   // shows inline at the move that started it, with Retry.
   return (
     <>
-      <PageShell
-        title={ipas.number}
-        description={[ipas.po_number, ipas.supplier].filter(Boolean).join(" · ")}
-        action={
-          <>
-            {/* The IPAS Status (#597): the list's pill, read from the same IPAS figures so the two never disagree. */}
-            <div className="flex flex-wrap items-center gap-2 empty:hidden" data-testid="ipas-record-status">
-              <IpasStatusControl ipas={ipas} figures={digest.figures} canSet={canHold} asking={holding} onAskingChange={setHolding} />
+      <ModalShell
+        open
+        onOpenChange={(next) => !next && onClose()}
+        size="record"
+        crumbs={["IPAS", ipas.number]}
+        headerActions={<HeaderActions ctx={ctx} />}
+      >
+        <div className="space-y-6 pb-2">
+          <div className="space-y-3">
+            <RecordHeader reference={ipas.number} name={ipas.supplier} badge={ipasBadge(ipas)} line={ipasLine(ipas)} />
+            <PropertyPills items={ipasPills(ipas, digest.figures)} />
+            {/* The IPAS Status (#597): read from the same IPAS figures as the list, so the two never disagree.
+                Putting it On-Hold is More's item; the dialog it opens lives here. */}
+            <div data-testid="ipas-record-status" className="empty:hidden">
+              <IpasStatusControl
+                ipas={ipas}
+                figures={digest.figures}
+                canSet={canHold}
+                asking={holding}
+                onAskingChange={setHolding}
+                showPill={false}
+              />
               {digest.figures.onHoldNote && (
-                <span className="text-xs text-muted-foreground" data-testid="ipas-record-on-hold-note">
+                <p className="text-xs text-muted-foreground" data-testid="ipas-record-on-hold-note">
                   {digest.figures.onHoldNote}
-                </span>
+                </p>
               )}
             </div>
-            <HeaderActions ctx={ctx} />
-          </>
-        }
-      >
-        {open && (hasPurchasingFlow || isSuperAdmin) && (
-          <p className="mb-4 text-xs text-muted-foreground" data-testid="ipas-wrong-po-hint">
-            Wrong PO? Cancel this IPAS and raise a new one.
-          </p>
-        )}
-        <div className="space-y-6">
+            {open && (hasPurchasingFlow || isSuperAdmin) && (
+              <p className="text-xs text-muted-foreground" data-testid="ipas-wrong-po-hint">
+                Wrong PO? Cancel this IPAS and raise a new one.
+              </p>
+            )}
+          </div>
+
           <div className="space-y-2 empty:hidden">
             {!editKey && shownFailure && (
               <InlineError
@@ -1012,16 +1010,14 @@ function IpasPage() {
             />
           </div>
 
-          {/* Top to bottom: the money, the decision card, then every section as a block that opens in place. */}
+          {/* Top to bottom: the money, then every section as a block that opens in place; Your move is the rail beside them. */}
           {editView ?? (
-            // From the wide breakpoint the decision card is a sticky rail on the right, beside the money and
-            // the sections; below it, it sits between them. The money comes first either way (#603).
-            <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_17rem] xl:gap-y-8">
+            <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_25rem] xl:gap-y-8">
               <div data-testid="ipas-money-summary-slot" className="min-w-0 xl:col-start-1 xl:row-start-1">
                 <MoneySummary digest={digest} onOpen={sections.show} />
               </div>
-              <aside className="min-w-0 xl:sticky xl:top-4 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
-                <DecisionCard ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
+              <aside className="min-w-0 xl:sticky xl:top-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
+                <YourMove ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
               </aside>
               <div className="min-w-0 xl:col-start-1 xl:row-start-2">
                 <SectionsPanel
@@ -1038,7 +1034,7 @@ function IpasPage() {
             </div>
           )}
         </div>
-      </PageShell>
+      </ModalShell>
 
       <EditPurposeSorsDialog ipas={ipas} open={editing} onOpenChange={setEditing} />
 
@@ -1159,39 +1155,51 @@ function IpasPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={cancelling}
-        onOpenChange={setCancelling}
-        title={`Cancel ${ipas.number}?`}
-        description={`It stays readable and keeps its number. ${ipas.po_number} can then be raised on a new IPAS.`}
-        confirmLabel="Cancel IPAS"
-        cancelLabel="Keep it"
-        tone="destructive"
-        confirmDisabled={reason.trim() === ""}
-        onConfirm={() => cancel.mutate()}
-      >
-        <FieldBox label="Reason" bare>
-          <Textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            placeholder="Why is this IPAS being cancelled?"
-          />
-        </FieldBox>
-      </ConfirmDialog>
+      {cancelling && (
+        <ModalShell
+          open
+          onOpenChange={(next) => !next && setCancelling(false)}
+          crumbs={["IPAS", ipas.number, "Cancel"]}
+          title={`Cancel ${ipas.number}?`}
+          cancelLabel="Keep it"
+          actions={
+            <Button size="lg" variant="destructive" onClick={() => cancel.mutate()} disabled={cancel.isPending || reason.trim() === ""}>
+              Cancel IPAS
+            </Button>
+          }
+        >
+          <p className="text-sm text-muted-foreground">
+            It stays readable and keeps its number. {ipas.po_number} can then be raised on a new IPAS.
+          </p>
+          <FieldBox label="Reason" bare>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              placeholder="Why is this IPAS being cancelled?"
+            />
+          </FieldBox>
+        </ModalShell>
+      )}
     </>
   );
 }
 
 // Every employee reaches the route; the database decides what comes back
 // (ipas_can_read), so a non-reader gets the "not found" state.
-// Keyed by the IPAS, so "Next IPAS waiting for me" (same route, new id) starts
-// from a clean page: no failure, dialog or sign-off from the last IPAS carries over.
+// The record is a window over the IPAS list, and the URL stays a deep link
+// (`?open=<section>` and `?edit=<section>` included). Keyed by the IPAS, so
+// "Next IPAS waiting for me" (same route, new id) starts from a clean window:
+// no failure, dialog or sign-off from the last IPAS carries over.
 export default function IpasPageRoute() {
   const { id } = useParams();
+  const navigate = useNavigate();
   return (
-    <ProtectedRoute>
-      <IpasPage key={id} />
-    </ProtectedRoute>
+    <>
+      <IpasListPage />
+      <ProtectedRoute>
+        <IpasPage key={id} onClose={() => navigate(LIST_PATH)} />
+      </ProtectedRoute>
+    </>
   );
 }
