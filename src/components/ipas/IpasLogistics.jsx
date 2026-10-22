@@ -1,5 +1,6 @@
 import { Link } from "react-router";
-import { DetailRow } from "../ui/DetailParts";
+import DetailGrid from "@/components/record/DetailGrid";
+import LinerList from "@/components/record/LinerList";
 import { SelectField } from "../ui/SelectField";
 import { IpasSection } from "./IpasSections";
 import { IPAS_OPTION_LIST, ipasSectionLabel } from "../../constants/ipas";
@@ -29,49 +30,52 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick 
 
   return (
     <IpasSection title={ipasSectionLabel("logistics")}>
-      <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
-        <DetailRow label="Item Location">
-          {canChange ? (
-            <SelectField
-              size="sm"
-              options={options}
-              value={ipas.item_location_id ?? NONE}
-              onChange={(value) => onPick(value === NONE ? null : value)}
-              aria-label="Item Location"
-            />
-          ) : (
-            <>
-              {ipas.itemLocation?.label}
-              {ipas.itemLocation && ipas.itemLocationSource === "transmittals" && (
-                <span className="ml-2 text-xs text-muted-foreground">from the TG03 Transmittals</span>
-              )}
-            </>
-          )}
-        </DetailRow>
-      </dl>
-      <div className="mt-3" data-testid="ipas-transmittals">
-        <p className="text-xs font-medium text-muted-foreground">Transmittals (TG03)</p>
-        {transmittals.length === 0 ? (
-          <p className="mt-1 text-sm text-muted-foreground">No Transmittal carries this IPAS yet.</p>
-        ) : (
-          <ul className="mt-1 divide-y divide-border">
-            {transmittals.map((slip) => (
-              <li key={slip.id} className="flex flex-wrap items-center gap-x-3 py-2 text-sm">
+      <DetailGrid
+        items={[
+          {
+            label: "Item Location",
+            value: canChange ? (
+              <SelectField
+                size="sm"
+                options={options}
+                value={ipas.item_location_id ?? NONE}
+                onChange={(value) => onPick(value === NONE ? null : value)}
+                aria-label="Item Location"
+              />
+            ) : ipas.itemLocation ? (
+              <>
+                {ipas.itemLocation.label}
+                {ipas.itemLocationSource === "transmittals" && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">from the TG03 Transmittals</span>
+                )}
+              </>
+            ) : null,
+          },
+        ]}
+      />
+      <div className="mt-4 space-y-2" data-testid="ipas-transmittals">
+        <p className="text-xs font-semibold text-muted-foreground">Transmittals (TG03) · {transmittals.length}</p>
+        <LinerList
+          label="Transmittals (TG03)"
+          empty="No Transmittal carries this IPAS yet."
+          rows={transmittals.map((slip) => {
+            const parts = [
+              slip.date ? formatPreparedAt(slip.date, { dayOnly: true }) : null,
+              slip.priority ? slip.priority : null,
+              slip.stateLabel,
+              slip.naCount > 0 ? `${slip.naCount} NA ${slip.naCount === 1 ? "line" : "lines"}` : null,
+            ].filter(Boolean);
+            return {
+              key: slip.id,
+              main: (
                 <Link to={`/purchasing/transmittals/${slip.id}`} className="font-medium text-foreground underline-offset-2 hover:underline">
                   {slip.number}
                 </Link>
-                {slip.date && <span className="text-xs text-muted-foreground">{formatPreparedAt(slip.date, { dayOnly: true })}</span>}
-                {slip.priority && <span className="text-xs capitalize text-muted-foreground">{slip.priority}</span>}
-                <span className="text-xs text-muted-foreground">{slip.stateLabel}</span>
-                {slip.naCount > 0 && (
-                  <span className="text-xs font-medium text-amber-11">
-                    {slip.naCount} NA {slip.naCount === 1 ? "line" : "lines"}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+              ),
+              sub: parts.join(" · "),
+            };
+          })}
+        />
       </div>
     </IpasSection>
   );

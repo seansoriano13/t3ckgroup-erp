@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 
+import DetailGrid from "@/components/record/DetailGrid";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { IPAS_SIGNOFF_ROLE, IPAS_SIGNOFF_ROLE_LABELS } from "../../constants/ipas";
@@ -17,30 +18,25 @@ const WHY_NOT = {
   preparer: "You submitted this section, so someone else approves it.",
 };
 
-/** One box of the sign-off pair: who gave it and when, or that it is waiting. */
+/** One slot of the sign-off pair, in the detail grid: who gave it and when, or that it is waiting. */
 export function SignoffBox({ section, role, signoff, waiting }) {
+  const value = signoff ? (
+    <>
+      <span className="flex items-center gap-1.5 font-semibold">
+        <Check size={14} className="text-green-11" aria-hidden="true" />
+        {signoff.signedBy?.name ?? "Someone"}
+      </span>
+      <span className="block text-xs font-normal text-muted-foreground">
+        {formatDate(signoff.signedAt)}
+        {signoff.signatureDeclined ? " · signed without a signature" : ""}
+      </span>
+    </>
+  ) : (
+    <span className="font-normal text-muted-foreground">{waiting}</span>
+  );
   return (
-    <div
-      className="rounded-lg border border-border bg-muted/20 px-3 py-2.5"
-      data-testid={`ipas-signoff-${section}-${role}`}
-    >
-      <p className="text-label font-bold uppercase tracking-wider text-muted-foreground">
-        {IPAS_SIGNOFF_ROLE_LABELS[role]}
-      </p>
-      {signoff ? (
-        <>
-          <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-foreground">
-            <Check size={14} className="text-green-11" aria-hidden="true" />
-            {signoff.signedBy?.name ?? "Someone"}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {formatDate(signoff.signedAt)}
-            {signoff.signatureDeclined ? " · signed without a signature" : ""}
-          </p>
-        </>
-      ) : (
-        <p className="mt-1 text-sm text-muted-foreground">{waiting}</p>
-      )}
+    <div data-testid={`ipas-signoff-${section}-${role}`}>
+      <DetailGrid items={[{ label: IPAS_SIGNOFF_ROLE_LABELS[role], value }]} />
     </div>
   );
 }
@@ -69,7 +65,7 @@ export function IpasSignoffs({ section, state, rights }) {
       </SectionHeader>
       {!inDrawer && mayGive && <p className="text-xs text-muted-foreground">Sign-offs are in Your move.</p>}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <SignoffBox
           section={section}
           role={IPAS_SIGNOFF_ROLE.PREPARED}
