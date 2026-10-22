@@ -31,9 +31,9 @@ import { TIME_OFF, useProtoData, withSpan } from "./protoData.js";
 import { Face, LayerToggles, NavArrows, PendingSwitch } from "./protoParts.jsx";
 import { KindKey } from "./VariantMonthRail.jsx";
 
-const NAME_W = "15rem";
+const NAME_W = "13rem";
 const SPANS = [
-  { days: 14, label: "2 weeks", day: "4.75rem", weekend: "2.75rem" },
+  { days: 14, label: "2 weeks", day: "4.25rem", weekend: "2.5rem" },
   { days: 28, label: "4 weeks", day: "3.5rem", weekend: "2rem" },
 ];
 
@@ -69,7 +69,7 @@ function DayHeader({ days, cols, today, outByDay, compact }) {
   return (
     <div className="sticky top-0 z-20 flex border-b border-mauve-6 bg-mauve-2">
       <div
-        className="sticky left-0 z-10 flex shrink-0 items-end border-r border-mauve-5 bg-mauve-2 px-4 pb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+        className="sticky left-0 z-10 flex shrink-0 items-end border-r border-mauve-5 bg-mauve-2 px-4 pb-3 text-label font-bold uppercase tracking-wider text-muted-foreground"
         style={{ width: NAME_W }}
       >
         People out each day
@@ -82,16 +82,16 @@ function DayHeader({ days, cols, today, outByDay, compact }) {
               key={d.ymd}
               data-col={d.ymd}
               className={cn(
-                "flex scroll-ml-60 flex-col items-center gap-1 border-l border-mauve-5 py-2.5",
+                "flex scroll-ml-60 flex-col items-center gap-1 border-l border-mauve-5 py-2",
                 dayTint(d, today),
               )}
             >
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <span className="text-label font-bold uppercase tracking-wider text-muted-foreground">
                 {format(d.date, compact || d.weekend ? "EEEEE" : "EEE")}
               </span>
               <span
                 className={cn(
-                  "inline-flex size-8 items-center justify-center rounded-full text-base font-black tabular-nums",
+                  "inline-flex size-7 items-center justify-center rounded-full text-sm font-black tabular-nums",
                   d.ymd === today && "bg-mauve-12 text-mauve-1",
                 )}
               >
@@ -125,7 +125,7 @@ function GroupRow({ label, count, open, onToggle }) {
         variant="ghost"
         onClick={onToggle}
         aria-expanded={open}
-        className="sticky left-0 z-10 h-10 justify-start gap-2 rounded-none bg-mauve-2 px-4 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+        className="sticky left-0 z-10 h-10 justify-start gap-2 rounded-none bg-mauve-2 px-4 text-label font-bold uppercase tracking-wider text-muted-foreground"
         style={{ width: NAME_W }}
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -153,11 +153,11 @@ function VenueRow({
     <Row
       cols={cols}
       name={
-        <span className="flex min-w-0 flex-col py-2.5">
-          <span className="truncate text-[15px] font-semibold">
+        <span className="flex min-w-0 flex-col py-2">
+          <span className="truncate text-sm font-semibold">
             {venue.name}
           </span>
-          <span className="text-[13px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             Meeting start times
           </span>
         </span>
@@ -205,7 +205,7 @@ function VenueRow({
                 variant="ghost"
                 onClick={() => onPickSlot({ venueId: venue.id, date: d.ymd })}
                 aria-label={`Book ${venue.name} on ${format(d.date, "MMMM d")}`}
-                className="h-6 rounded-md px-1 text-[13px] font-medium text-mauve-9 hover:text-foreground"
+                className="h-6 rounded-md px-1 text-xs font-medium text-mauve-9 hover:text-foreground"
               >
                 {compact ? "+" : "Free"}
               </Button>
@@ -225,14 +225,14 @@ function PersonRow({ row, days, cols, today, onOpen }) {
       cols={cols}
       gridClassName="relative"
       gridStyle={{
-        gridTemplateRows: `repeat(${lanes}, 2.5rem)`,
+        gridTemplateRows: `repeat(${lanes}, 2.125rem)`,
         paddingBlock: 2,
       }}
       name={
         <>
-          <Face person={row.employee} className="size-8 text-label" />
+          <Face person={row.employee} className="size-7 text-label" />
           <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[15px] font-semibold">
+            <span className="truncate text-sm font-semibold">
               {row.employee.name}
             </span>
             <span className="truncate text-xs text-muted-foreground">
@@ -266,7 +266,7 @@ function PersonRow({ row, days, cols, today, onOpen }) {
             onClick={() => onOpen(e)}
             title={`${e.employee?.name} · ${def.label}${timed ? ` · ${formatEntryTime(e)}` : ""}${bar.pending ? " (pending)" : ""}`}
             className={cn(
-              "z-1 mx-1.5 my-1 h-auto min-w-0 justify-start gap-1 rounded-md border px-2.5 py-0 text-[13px] font-semibold",
+              "z-1 mx-1.5 my-1 h-auto min-w-0 justify-start gap-1 rounded-md border px-2.5 py-0 text-xs font-semibold",
               def.chip,
               bar.pending && "border-dashed",
               timed && "justify-center px-2",
@@ -400,7 +400,7 @@ export default function VariantBoard({
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         {switcher}
-        <h2 className="text-3xl font-black tracking-tight">
+        <h2 className="text-xl font-black tracking-tight">
           {format(days[0].date, "MMM d")}{" "}
           <span className="text-muted-foreground">to</span>{" "}
           {format(days[days.length - 1].date, "MMM d, yyyy")}
@@ -519,7 +519,7 @@ export default function VariantBoard({
                 </div>
 
                 {groups.length === 0 && (
-                  <p className="sticky left-0 p-6 text-[15px] text-muted-foreground">
+                  <p className="sticky left-0 p-6 text-sm text-muted-foreground">
                     {needle
                       ? "Nobody matches that search."
                       : "Nobody is out or on overtime in this range."}

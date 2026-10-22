@@ -30,7 +30,7 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const COLS = 'repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, 0.55fr))';
 const MAX_LANES = 3;
 const MAX_LINES = 3;
-const LANE = '1.75rem';
+const LANE = '1.5rem';
 
 const isBarEntry = (e) => TIME_OFF.has(e.kind);
 const time12 = (iso) => {
@@ -56,7 +56,7 @@ function Week({ week, entries, anchor, today, onSelect, onOpen }) {
   return (
     <div
       className="grid border-b border-mauve-5 last:border-b-0"
-      style={{ gridTemplateColumns: COLS, gridTemplateRows: `2.75rem ${lanes ? `repeat(${lanes}, ${LANE})` : ''} minmax(5.5rem, auto)` }}
+      style={{ gridTemplateColumns: COLS, gridTemplateRows: `2.25rem ${lanes ? `repeat(${lanes}, ${LANE})` : ''} minmax(4.5rem, auto)` }}
     >
       {week.map((day, i) => {
         const selected = day.ymd === anchor;
@@ -81,7 +81,7 @@ function Week({ week, entries, anchor, today, onSelect, onOpen }) {
           >
             <span
               className={cn(
-                'inline-flex size-8 items-center justify-center rounded-full text-base font-bold tabular-nums',
+                'inline-flex size-7 items-center justify-center rounded-full text-sm font-bold tabular-nums',
                 day.ymd === today ? 'bg-mauve-12 text-mauve-1' : day.inMonth ? 'text-foreground' : 'text-mauve-9',
               )}
             >
@@ -104,7 +104,7 @@ function Week({ week, entries, anchor, today, onSelect, onOpen }) {
             onClick={() => onOpen(bar.entry)}
             title={`${bar.entry.employee?.name} · ${def.label}${bar.pending ? ' (pending)' : ''}`}
             className={cn(
-              'z-10 mx-1.5 hidden h-6 min-w-0 justify-start gap-1 rounded-md border px-2 text-[13px] font-semibold sm:flex',
+              'z-10 mx-1.5 hidden h-5 min-w-0 justify-start gap-1 rounded-md border px-2 text-xs font-semibold sm:flex',
               def.chip,
               bar.pending && 'border-dashed',
             )}
@@ -132,7 +132,7 @@ function Week({ week, entries, anchor, today, onSelect, onOpen }) {
                   tabIndex={-1}
                   onClick={() => onOpen(e)}
                   title={`${e.title || kindOf(e.kind).label} · ${e.employee?.name} · ${formatEntryTime(e)}`}
-                  className={cn('pointer-events-auto h-6 min-w-0 justify-start gap-1.5 rounded-md px-1 text-[13px] font-medium', e.status === 'PENDING' && 'italic text-muted-foreground')}
+                  className={cn('pointer-events-auto h-5 min-w-0 justify-start gap-1.5 rounded-md px-1 text-xs font-medium', e.status === 'PENDING' && 'italic text-muted-foreground')}
                 >
                   <KindDot kind={e.kind} />
                   <span className="font-mono text-xs tabular-nums text-muted-foreground">{time12(e.starts_at)}</span>
@@ -144,7 +144,7 @@ function Week({ week, entries, anchor, today, onSelect, onOpen }) {
                   variant="link"
                   tabIndex={-1}
                   onClick={() => onSelect(day.ymd)}
-                  className="pointer-events-auto h-6 justify-start px-1 text-[13px] font-semibold text-muted-foreground"
+                  className="pointer-events-auto h-5 justify-start px-1 text-xs font-semibold text-muted-foreground"
                 >
                   +{extra} more
                 </Button>
@@ -165,7 +165,7 @@ function Week({ week, entries, anchor, today, onSelect, onOpen }) {
 function RailSection({ title, count, children }) {
   return (
     <section className="flex flex-col gap-2.5">
-      <h3 className="flex items-baseline justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
+      <h3 className="flex items-baseline justify-between text-label font-bold uppercase tracking-wider text-muted-foreground">
         {title}
         <span className="font-mono text-sm tabular-nums">{count}</span>
       </h3>
@@ -184,14 +184,14 @@ function DayRail({ ymd, entries, venues, today, onOpen, onPickSlot }) {
   const overtime = day.filter((e) => e.kind === 'OVERTIME');
 
   return (
-    <aside className="flex flex-col gap-7 rounded-2xl border border-mauve-5 bg-card p-6 xl:sticky xl:top-4" data-testid="day-rail" aria-live="polite">
+    <aside className="flex flex-col gap-6 rounded-2xl border border-mauve-5 bg-card p-5 xl:sticky xl:top-4" data-testid="day-rail" aria-live="polite">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <p className="flex items-center gap-2 text-base font-semibold text-muted-foreground">
+          <p className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             {format(date, 'EEEE')}
             {ymd === today && <span className="rounded-full bg-mauve-12 px-2.5 py-0.5 text-xs font-bold text-mauve-1">Today</span>}
           </p>
-          <h2 className="text-3xl font-black tracking-tight">{format(date, 'MMMM d')}</h2>
+          <h2 className="text-xl font-black tracking-tight">{format(date, 'MMMM d')}</h2>
         </div>
         {onPickSlot && (
           <Button variant="outline" onClick={() => onPickSlot({ date: ymd })}>
@@ -203,16 +203,16 @@ function DayRail({ ymd, entries, venues, today, onOpen, onPickSlot }) {
 
       <RailSection title="Out of office" count={out.length}>
         {out.length === 0 ? (
-          <p className="text-[15px] text-muted-foreground">Everyone is in.</p>
+          <p className="text-sm text-muted-foreground">Everyone is in.</p>
         ) : (
           <ul className="flex flex-col">
             {out.map((e) => (
               <li key={`${e.kind}-${e.id}`}>
                 <Button variant="ghost" onClick={() => onOpen(e)} className="h-auto w-full justify-start gap-3 px-2 py-2">
-                  <Face person={e.employee} className="size-9 text-xs" />
+                  <Face person={e.employee} />
                   <span className="min-w-0 flex-1 text-left">
-                    <span className="block truncate text-[15px] font-semibold">{e.employee?.name}</span>
-                    <span className="block truncate text-[13px] text-muted-foreground">{e.employee?.department}</span>
+                    <span className="block truncate text-sm font-semibold">{e.employee?.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{e.employee?.department}</span>
                   </span>
                   <span className={cn('shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-bold', kindOf(e.kind).chip, e.status === 'PENDING' && 'border-dashed')}>
                     {kindOf(e.kind).label}
@@ -231,9 +231,9 @@ function DayRail({ ymd, entries, venues, today, onOpen, onPickSlot }) {
             const here = meetings.filter((m) => m.venue === v.name);
             return (
               <div key={v.id} className="flex flex-col gap-2">
-                <span className="flex items-baseline justify-between text-[15px] font-semibold">
+                <span className="flex items-baseline justify-between text-sm font-semibold">
                   {v.name}
-                  <span className="text-[13px] font-medium text-muted-foreground">{here.length ? `${here.length} booked` : 'Free all day'}</span>
+                  <span className="text-xs font-medium text-muted-foreground">{here.length ? `${here.length} booked` : 'Free all day'}</span>
                 </span>
                 <VenueStrip venue={v} meetings={here} ymd={ymd} onOpen={onOpen} onPickSlot={onPickSlot} />
                 <div className="flex justify-between font-mono text-[11px] text-muted-foreground">
@@ -243,11 +243,11 @@ function DayRail({ ymd, entries, venues, today, onOpen, onPickSlot }) {
                 </div>
                 {here.map((m) => (
                   <Button key={m.id} variant="ghost" onClick={() => onOpen(m)} className="h-auto justify-start gap-3 px-2 py-1.5 text-left">
-                    <span className="w-28 shrink-0 font-mono text-[13px] tabular-nums text-muted-foreground">
+                    <span className="w-28 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
                       {time12(m.starts_at)}–{time12(m.ends_at)}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className={cn('block truncate text-[15px] font-medium', m.status === 'PENDING' && 'italic text-muted-foreground')}>{m.title}</span>
+                      <span className={cn('block truncate text-sm font-medium', m.status === 'PENDING' && 'italic text-muted-foreground')}>{m.title}</span>
                       {m.status === 'PENDING' && (
                         <span className="block text-xs text-amber-11">{MEETING_STATUS_LABEL[m.details?.stage] ?? 'Pending'}</span>
                       )}
@@ -262,13 +262,13 @@ function DayRail({ ymd, entries, venues, today, onOpen, onPickSlot }) {
 
       <RailSection title="Overtime" count={overtime.length}>
         {overtime.length === 0 ? (
-          <p className="text-[15px] text-muted-foreground">No overtime filed.</p>
+          <p className="text-sm text-muted-foreground">No overtime filed.</p>
         ) : (
           overtime.map((e) => (
             <Button key={e.id} variant="ghost" onClick={() => onOpen(e)} className="h-auto justify-start gap-3 px-2 py-1.5">
               <KindDot kind="OVERTIME" />
-              <span className="flex-1 truncate text-left text-[15px] font-medium">{e.employee?.name}</span>
-              <span className="font-mono text-[13px] tabular-nums text-muted-foreground">
+              <span className="flex-1 truncate text-left text-sm font-medium">{e.employee?.name}</span>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {time12(e.starts_at)}–{time12(e.ends_at)}
               </span>
             </Button>
@@ -281,7 +281,7 @@ function DayRail({ ymd, entries, venues, today, onOpen, onPickSlot }) {
 
 export function KindKey() {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-muted-foreground" aria-label="Colour key">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground" aria-label="Colour key">
       {Object.entries(ENTRY_KINDS).map(([kind, def]) => (
         <span key={kind} className="flex items-center gap-1.5">
           <KindDot kind={kind} />
@@ -351,11 +351,11 @@ export default function VariantMonthRail({ anchor, go, layers, toggleLayer, show
   };
 
   return (
-    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           {switcher}
-          <h2 className="min-w-52 text-3xl font-black tracking-tight">
+          <h2 className="min-w-40 text-xl font-black tracking-tight">
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
                 key={month}
@@ -382,7 +382,7 @@ export default function VariantMonthRail({ anchor, go, layers, toggleLayer, show
             <div ref={grid} onKeyDown={onKeyDown} className="overflow-hidden rounded-2xl border border-mauve-5 bg-background" role="group" aria-label="Month">
               <div className="grid border-b border-mauve-5 bg-mauve-2" style={{ gridTemplateColumns: COLS }}>
                 {WEEKDAYS.map((d) => (
-                  <div key={d} className="px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <div key={d} className="px-3 py-2 text-label font-bold uppercase tracking-wider text-muted-foreground">
                     {d}
                   </div>
                 ))}
