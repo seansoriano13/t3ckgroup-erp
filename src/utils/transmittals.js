@@ -1,4 +1,4 @@
-import { TRANSMITTAL_RATING, TRANSMITTAL_STAGE, TRANSMITTAL_STATE_LABELS } from "../constants/transmittals";
+import { TRANSMITTAL_LINE_KIND, TRANSMITTAL_RATING, TRANSMITTAL_STAGE, TRANSMITTAL_STATE_LABELS } from "../constants/transmittals";
 
 /**
  * Pure reads of a Transmittal row as the service fetches it (#252). The
@@ -240,4 +240,24 @@ export function matchCompany(companyNames, odooName) {
 export function companyOptions(companyNames, current) {
   const names = current && !companyNames.includes(current) ? [...companyNames, current] : companyNames;
   return names.map((name) => ({ value: name, label: name }));
+}
+
+/**
+ * Everything that still stops a draft slip from being submitted, in the order
+ * the form asks for it: `[{ key, text }]`, each `text` a short sentence ("Pick a
+ * priority"). The form puts the first beside Submit and all of them in its
+ * readiness strip. `header` is the form's header, `lines` its lines.
+ */
+export function slipGaps({ header, lines }) {
+  const gaps = [];
+  if (lines.length === 0) gaps.push({ key: "lines", text: "Add at least one line" });
+  if (!header.origin) gaps.push({ key: "origin", text: "Pick an origin" });
+  if (!header.priority) gaps.push({ key: "priority", text: "Pick a priority" });
+  if (!(header.checkWarehouse || header.checkTechnical)) gaps.push({ key: "checking", text: "Tick Warehouse or TCA Technical" });
+  if (!header.entity.trim()) gaps.push({ key: "entity", text: "Pick the Company" });
+  if (lines.some((line) => !(Number(line.quantity) > 0))) gaps.push({ key: "quantity", text: "Every line needs a quantity" });
+  const typed = lines.filter((line) => line.kind !== TRANSMITTAL_LINE_KIND.PO_LINE);
+  if (typed.some((line) => !line.description.trim())) gaps.push({ key: "description", text: "Every typed line needs a description" });
+  if (typed.some((line) => !line.unit.trim())) gaps.push({ key: "unit", text: "Every typed line needs a unit" });
+  return gaps;
 }

@@ -6,6 +6,7 @@ import {
   matchCompany,
   pickedLineLabel,
   shapeTransmittal,
+  slipGaps,
   stagesOf,
   tsrOf,
 } from "./transmittals";
@@ -237,5 +238,28 @@ describe("the slip's Company", () => {
   it("offers the register, plus a saved value it no longer lists", () => {
     expect(companyOptions(register, "TG Enterprise").map((o) => o.value)).toEqual(register);
     expect(companyOptions(register, "Old Co").map((o) => o.value)).toEqual([...register, "Old Co"]);
+  });
+});
+
+describe("what still stops a draft slip from being submitted", () => {
+  const header = { origin: "purchasing", priority: "high", checkWarehouse: true, checkTechnical: false, entity: "T3CK Trading" };
+  const po = { kind: "po_line", description: "Cutter", unit: "pcs", quantity: "2" };
+
+  it("is empty once the header and every line are complete", () => {
+    expect(slipGaps({ header, lines: [po] })).toEqual([]);
+  });
+
+  it("lists every gap at once, in the order the form asks", () => {
+    const gaps = slipGaps({ header: { ...header, origin: "", priority: "", entity: " " }, lines: [] });
+    expect(gaps.map((g) => g.key)).toEqual(["lines", "origin", "priority", "entity"]);
+  });
+
+  it("asks a typed line for its description and unit, but not a PO line", () => {
+    const typed = { kind: "typed", description: "", unit: "", quantity: "1" };
+    expect(slipGaps({ header, lines: [{ ...po, description: "", unit: "" }, typed] }).map((g) => g.key)).toEqual(["description", "unit"]);
+  });
+
+  it("needs a quantity above zero on every line", () => {
+    expect(slipGaps({ header, lines: [{ ...po, quantity: "0" }] }).map((g) => g.key)).toEqual(["quantity"]);
   });
 });

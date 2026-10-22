@@ -11,10 +11,10 @@ export type Path =
   | `/approvals/hr-verification`
   | `/approvals/ipas`
   | `/approvals/leaves`
+  | `/approvals/meetings`
   | `/approvals/tasks`
   | `/approvals/transmittals`
   | `/bug-reports`
-  | `/calendar`
   | `/calendar`
   | `/costing-matrix`
   | `/crm`

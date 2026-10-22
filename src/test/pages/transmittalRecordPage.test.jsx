@@ -5,7 +5,6 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import TransmittalDetailPage from "@/pages/purchasing/transmittals/[id]";
 import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
 import { shapeTransmittal } from "@/utils/transmittals";
-import { findOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 const service = vi.hoisted(() => ({
@@ -120,16 +119,14 @@ describe("Transmittal record page", () => {
     expect(screen.queryByText(/^Waiting for you/)).not.toBeInTheDocument();
   });
 
-  it("shows the numbers, a row per section and who it waits on", async () => {
+  it("shows the slip's lines on the desk and a step in the rail for each stage", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Your move" })).toBeInTheDocument();
     expect(screen.getByText("Waiting for you: Check by")).toBeInTheDocument();
-    // Numbers strip: lines, GC, NA, steps done.
-    expect(screen.getByText("Steps done")).toBeInTheDocument();
-    expect(screen.getByText("1 of 2")).toBeInTheDocument();
-    // One row per section; the Checking boxes that were not ticked are hidden.
-    for (const title of ["Details", "Lines", "Warehouse checking", "Received in Odoo", "Check by"]) {
+    expect(screen.getByRole("heading", { name: /^Lines · / })).toBeInTheDocument();
+    // One step per stage after the slip; the Checking boxes that were not ticked are hidden.
+    for (const title of ["Warehouse checking", "Received in Odoo", "Check by"]) {
       expect(screen.getAllByRole("button", { name: new RegExp(`^${title}`) }).length).toBeGreaterThan(0);
     }
     expect(screen.queryByRole("button", { name: /^Technical inspection/ })).not.toBeInTheDocument();
@@ -145,14 +142,13 @@ describe("Transmittal record page", () => {
     await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("t1", 1));
   });
 
-  it("keeps the sign buttons out of a section's body, and signs from the drawer's bottom bar", async () => {
+  it("opens a step in the rail with its one sign button under it", async () => {
     const user = setupUser();
-    renderPage("t1", "?open=check_by");
+    renderPage();
 
-    const drawer = await findOtherDialog();
-    expect(within(drawer).getByText("Check by (1)")).toBeInTheDocument();
-    // The body names who signed; the one sign button for the slot is the drawer's bar.
-    const buttons = within(drawer).getAllByRole("button", { name: "Sign Check by (1)" });
+    await user.click(await screen.findByRole("button", { name: /^Check by/ }));
+    // The body names who signed; the one sign button for the slot is under it.
+    const buttons = screen.getAllByRole("button", { name: "Sign Check by (1)" });
     expect(buttons).toHaveLength(1);
 
     await user.click(buttons[0]);

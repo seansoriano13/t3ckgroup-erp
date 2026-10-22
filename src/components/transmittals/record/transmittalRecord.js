@@ -345,6 +345,20 @@ export function summariesOf(t, gates) {
   return lines;
 }
 
+/**
+ * The steps the rail lists: every section after Details and Lines (those two are
+ * the slip itself), each with its state and its one-line summary.
+ */
+export function railStepsOf(t, gates, summaries) {
+  return sectionsOf(t)
+    .filter((section) => section.key !== SECTION.DETAILS && section.key !== SECTION.LINES)
+    .map((section) => ({
+      ...section,
+      state: sectionState(section.key, t, gates),
+      summary: summaries[section.key] ?? "",
+    }));
+}
+
 /** Whether a stage is open to be worked in its own state (for the row's "Open" detail). */
 export function stageIsOpen(t, stage) {
   return t.state === OPEN_STATE[stage];

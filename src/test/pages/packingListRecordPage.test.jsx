@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import PackingListPageRoute from "@/pages/purchasing/packing-lists/[id]";
 import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
-import { findOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 const service = vi.hoisted(() => ({
@@ -88,16 +87,14 @@ describe("Packing List record page", () => {
     service.sorProducts.mockResolvedValue([]);
   });
 
-  it("shows the boxes and weight, three rows and the one move", async () => {
+  it("shows the boxes and weight, the Packed by step and the one move", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Your move" })).toBeInTheDocument();
     expect(screen.getByText("Waiting for you: Packed by")).toBeInTheDocument();
-    expect(screen.getByText("12.50 kg")).toBeInTheDocument();
-    expect(screen.getByText("1 of 2 weighed")).toBeInTheDocument();
-    for (const title of ["Details", "Boxes", "Packed by"]) {
-      expect(screen.getAllByRole("button", { name: new RegExp(`^${title}`) }).length).toBeGreaterThan(0);
-    }
+    expect(screen.getByText("12.50 kg (1 of 2 weighed)")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Boxes · 2" })).toBeInTheDocument();
+    expect(screen.getByText("Packed by")).toBeInTheDocument();
   });
 
   it("signs Packed by from the card, asking first", async () => {
@@ -110,16 +107,11 @@ describe("Packing List record page", () => {
     await waitFor(() => expect(service.pack).toHaveBeenCalledWith("pl1"));
   });
 
-  it("signs from the Packed by drawer's bottom bar, once", async () => {
-    const user = setupUser();
-    renderPage("?open=packed_by");
+  it("offers the one sign button, once", async () => {
+    renderPage();
 
-    const drawer = await findOtherDialog();
-    const buttons = within(drawer).getAllByRole("button", { name: "Sign Packed by" });
-    expect(buttons).toHaveLength(1);
-    await user.click(buttons[0]);
-    await confirmMove(user, "Sign Packed by", "Sign Packed by");
-    await waitFor(() => expect(service.pack).toHaveBeenCalledWith("pl1"));
+    await screen.findByRole("heading", { name: "Your move" });
+    expect(screen.getAllByRole("button", { name: "Sign Packed by" })).toHaveLength(1);
   });
 
   it("says nothing is left once the list is packed", async () => {
