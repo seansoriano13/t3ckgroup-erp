@@ -20,12 +20,18 @@ import { useCalendarLayers } from '../useCalendarLayers';
 import VariantMonthRail from './VariantMonthRail.jsx';
 import VariantLedger from './VariantLedger.jsx';
 import VariantBoard from './VariantBoard.jsx';
+import VariantQuiet from './VariantQuiet.jsx';
+import VariantPulse from './VariantPulse.jsx';
+import VariantRiver from './VariantRiver.jsx';
 import { ProtoDetail } from './protoParts.jsx';
 
 const VARIANTS = [
   { key: 'A', name: 'Month + day rail', Component: VariantMonthRail },
   { key: 'B', name: 'Agenda ledger', Component: VariantLedger },
   { key: 'C', name: 'Who & where board', Component: VariantBoard },
+  { key: 'D', name: 'Quiet list (minimal)', Component: VariantQuiet },
+  { key: 'E', name: 'Pulse (experimental)', Component: VariantPulse },
+  { key: 'F', name: 'Time river (experimental)', Component: VariantRiver },
   { key: '0', name: 'Current Calendar', Component: null },
 ];
 
