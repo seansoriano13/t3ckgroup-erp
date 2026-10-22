@@ -96,6 +96,7 @@ export default function GroupTaskDetailModal({
   isDeleting,
   isSuperAdmin,
   isHr,
+  canManage = false,
   employees = [],
   onAddMember,
   isAddingMember,
@@ -677,6 +678,8 @@ export default function GroupTaskDetailModal({
     task.status === TASK_STATUS.CANCELLED || task.status === TASK_STATUS.ON_HOLD;
 
   const isCreator = task.created_by === currentUserId;
+  // Only heads, HR and Super Admins edit, add or remove members, and delete (#656).
+  const canManageTask = canManage;
   const isHrPending = task.status === "HR_PENDING";
   const isHrVerified = task.status === "HR_VERIFIED";
   const isCompletedOrBeyond =
@@ -1019,7 +1022,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {!isReadOnly && (isCreator || isSuperAdmin || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
+                            {!isReadOnly && (canManageTask || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <Button
                                   type="button"
@@ -1032,7 +1035,7 @@ export default function GroupTaskDetailModal({
                                 >
                                   <Edit3 size={14} />
                                 </Button>
-                                {(isCreator || isSuperAdmin) && (
+                                {canManageTask && (
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1247,7 +1250,7 @@ export default function GroupTaskDetailModal({
                       setSelectedMemberId(id);
                     }}
                     onAdd={
-                      (isCreator || isSuperAdmin) && !isReadOnly ? handleStartAddMember : undefined
+                      canManageTask && !isReadOnly ? handleStartAddMember : undefined
                     }
                     currentUserId={currentUserId}
                     avatarMap={avatarMap}
@@ -1592,7 +1595,7 @@ export default function GroupTaskDetailModal({
 
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto ml-auto">
             {/* Delete Task Button */}
-            {(isCreator || isSuperAdmin) && !isReadOnly && (
+            {canManageTask && !isReadOnly && (
               <Button
                 type="button"
                 variant="ghost"
@@ -1617,7 +1620,7 @@ export default function GroupTaskDetailModal({
             </Button>
 
             {/* Edit Task Button */}
-            {(isCreator || isSuperAdmin) && !isEditingTask && !isReadOnly && (
+            {canManageTask && !isEditingTask && !isReadOnly && (
               <Button
                 type="button"
                 variant="outline"

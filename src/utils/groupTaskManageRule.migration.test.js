@@ -28,3 +28,23 @@ describe("group task manage rule migration (#656)", () => {
     expect(policy).toMatch(/group_task_is_stage_action/);
   });
 });
+
+describe("group task edit/delete guard migration (#656 follow-up)", () => {
+  const guard = readFileSync(
+    new URL("../../supabase/migrations/20261102120000_group_task_manage_edit_delete.sql", import.meta.url),
+    "utf8",
+  );
+
+  it("guards detail columns and manual cancels on update", () => {
+    expect(guard).toMatch(/before update on public\.committee_tasks/);
+    expect(guard).toMatch(/new\.title is distinct from old\.title/);
+    expect(guard).toMatch(/can_manage_group_tasks\(\)/);
+    expect(guard).toMatch(/group_task_is_stage_action/);
+    expect(guard).toMatch(/new\.status = .CANCELLED./);
+  });
+
+  it("limits deletes on tasks and members to managers", () => {
+    expect(guard).toMatch(/"committee_tasks_delete"[\s\S]*using \(public\.can_manage_group_tasks\(\)\)/);
+    expect(guard).toMatch(/"committee_task_members_delete"[\s\S]*using \(public\.can_manage_group_tasks\(\)\)/);
+  });
+});
