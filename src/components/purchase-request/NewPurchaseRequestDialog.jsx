@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import ModalShell from "@/components/ui/ModalShell";
+import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,7 +68,6 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       crumbs={["Purchase Requests", "New Purchase Request"]}
-      expandable
       actions={
         <Button size="lg" disabled={!valid || busy} onClick={() => openMutation.mutate()}>
           {busy && <Spinner size="sm" />}
@@ -79,12 +79,14 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
         For something to buy outside a project. Purchasing picks it up; you follow it here.
       </p>
       <div className="space-y-4">
-          <Input label="What is it for?"
-            value={title}
-            maxLength={TITLE_MAX}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Printer toner for the 3rd floor"
-          />
+          <FieldBox bare label="What is it for?">
+            <Input
+              value={title}
+              maxLength={TITLE_MAX}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Printer toner for the 3rd floor"
+            />
+          </FieldBox>
 
           {items.map((item, index) => (
             <fieldset key={item.key} className="space-y-3 rounded-lg border border-border p-3">
@@ -102,28 +104,36 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
                   </Button>
                 )}
               </div>
-              <Input label="Product"
-                value={item.name}
-                onChange={(e) => setItem(item.key, "name")(e.target.value)}
-                placeholder="What do you need?"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Quantity"
-                  type="number"
-                  min="0"
-                  step="any"
-                  inputMode="decimal"
-                  value={item.quantity}
-                  onChange={(e) => setItem(item.key, "quantity")(e.target.value)}
+              <FieldBox bare label="Product">
+                <Input
+                  value={item.name}
+                  onChange={(e) => setItem(item.key, "name")(e.target.value)}
+                  placeholder="What do you need?"
                 />
-                <SelectField label="Unit" options={UNIT_OPTIONS} value={item.unit} onChange={setItem(item.key, "unit")} />
+              </FieldBox>
+              <div className="grid grid-cols-2 gap-3">
+                <FieldBox bare label="Quantity">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    value={item.quantity}
+                    onChange={(e) => setItem(item.key, "quantity")(e.target.value)}
+                  />
+                </FieldBox>
+                <FieldBox bare label="Unit">
+                  <SelectField options={UNIT_OPTIONS} value={item.unit} onChange={setItem(item.key, "unit")} />
+                </FieldBox>
               </div>
-              <Textarea label="Details"
-                value={item.description}
-                onChange={(e) => setItem(item.key, "description")(e.target.value)}
-                rows={2}
-                placeholder="Brand, specs, a link"
-              />
+              <FieldBox bare label="Details">
+                <Textarea
+                  value={item.description}
+                  onChange={(e) => setItem(item.key, "description")(e.target.value)}
+                  rows={2}
+                  placeholder="Brand, specs, a link"
+                />
+              </FieldBox>
             </fieldset>
           ))}
 

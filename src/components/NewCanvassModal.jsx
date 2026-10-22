@@ -3,9 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Award, Check, Plus, Trash2 } from "lucide-react";
 
+import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { CAPTION_BASE } from "@/lib/captionStyle";
 import ModalShell from "./ui/ModalShell";
 import { Button } from "./ui/button";
 import { SelectField } from "./ui/SelectField";
@@ -90,7 +90,7 @@ function OfferColumn({ label, offer, canWin, isWinner, onChange, onWin }) {
       className={`min-w-0 space-y-2 rounded-xl border p-3 transition-colors ${isWinner ? "border-amber-7 bg-amber-a2" : "border-border/60 bg-card"}`}
     >
       <div className="flex items-center justify-between">
-        <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>{label}</span>
+        <span className="text-xs font-semibold text-muted-foreground">{label}</span>
         <Button
           type="button"
           variant="ghost"
@@ -109,70 +109,84 @@ function OfferColumn({ label, offer, canWin, isWinner, onChange, onWin }) {
         </Button>
       </div>
 
-      <CanvassSupplierField
-        autoFocus={false}
-        label={`${label} supplier`}
-        value={offer.supplierName}
-        onTyped={(name) => onChange({ supplierName: name, odooSupplierId: null })}
-        onPicked={(supplier) => onChange({ supplierName: supplier.name, odooSupplierId: supplier.id })}
-      />
-      <Input
-        aria-label={`${label} brand`}
-        value={offer.brand}
-        onChange={(e) => onChange({ brand: e.target.value })}
-        placeholder="Brand"
-        containerClassName="min-w-0"
-        className={canvassFieldClass}
-      />
-      <Textarea
-        aria-label={`${label} description`}
-        value={offer.description}
-        onChange={(e) => onChange({ description: e.target.value })}
-        rows={2}
-        placeholder="Description"
-        className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px] md:text-[12.5px]"
-      />
-      <div className="grid grid-cols-[5.5rem_1fr] gap-2">
-        <SelectField
-          aria-label={`${label} currency`}
-          size="sm"
-          options={CANVASS_CURRENCIES.map((code) => ({ value: code, label: code }))}
-          value={offer.currency}
-          onChange={(next) => onChange({ currency: next || DEFAULT_CURRENCY, comparisonRate: "" })}
+      <FieldBox bare label="Supplier">
+        <CanvassSupplierField
+          autoFocus={false}
+          label={`${label} supplier`}
+          value={offer.supplierName}
+          onTyped={(name) => onChange({ supplierName: name, odooSupplierId: null })}
+          onPicked={(supplier) => onChange({ supplierName: supplier.name, odooSupplierId: supplier.id })}
         />
+      </FieldBox>
+      <FieldBox bare label="Brand">
         <Input
-          type="number"
-          min="0"
-          step="any"
-          aria-label={`${label} unit price`}
-          value={offer.unitPrice}
-          onChange={(e) => onChange({ unitPrice: e.target.value })}
-          placeholder={`Unit price (${offer.currency})`}
+          aria-label={`${label} brand`}
+          value={offer.brand}
+          onChange={(e) => onChange({ brand: e.target.value })}
+          placeholder="Brand"
           containerClassName="min-w-0"
           className={canvassFieldClass}
         />
+      </FieldBox>
+      <FieldBox bare label="Description">
+        <Textarea
+          aria-label={`${label} description`}
+          value={offer.description}
+          onChange={(e) => onChange({ description: e.target.value })}
+          rows={2}
+          placeholder="Description"
+          className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px] md:text-[12.5px]"
+        />
+      </FieldBox>
+      <div className="grid grid-cols-[5.5rem_1fr] gap-2">
+        <FieldBox bare label="Currency">
+          <SelectField
+            aria-label={`${label} currency`}
+            size="sm"
+            options={CANVASS_CURRENCIES.map((code) => ({ value: code, label: code }))}
+            value={offer.currency}
+            onChange={(next) => onChange({ currency: next || DEFAULT_CURRENCY, comparisonRate: "" })}
+          />
+        </FieldBox>
+        <FieldBox bare label="Unit price">
+          <Input
+            type="number"
+            min="0"
+            step="any"
+            aria-label={`${label} unit price`}
+            value={offer.unitPrice}
+            onChange={(e) => onChange({ unitPrice: e.target.value })}
+            placeholder={`Unit price (${offer.currency})`}
+            containerClassName="min-w-0"
+            className={canvassFieldClass}
+          />
+        </FieldBox>
       </div>
       {foreign && (
+        <FieldBox bare label="Comparison rate">
+          <Input
+            type="number"
+            min="0"
+            step="any"
+            aria-label={`${label} comparison rate`}
+            value={offer.comparisonRate}
+            onChange={(e) => onChange({ comparisonRate: e.target.value })}
+            placeholder={`Comparison rate (PHP per ${offer.currency})`}
+            containerClassName="min-w-0"
+            className={canvassFieldClass}
+          />
+        </FieldBox>
+      )}
+      <FieldBox bare label="Lead time">
         <Input
-          type="number"
-          min="0"
-          step="any"
-          aria-label={`${label} comparison rate`}
-          value={offer.comparisonRate}
-          onChange={(e) => onChange({ comparisonRate: e.target.value })}
-          placeholder={`Comparison rate (PHP per ${offer.currency})`}
+          aria-label={`${label} lead time`}
+          value={offer.leadTime}
+          onChange={(e) => onChange({ leadTime: e.target.value })}
+          placeholder="Lead time"
           containerClassName="min-w-0"
           className={canvassFieldClass}
         />
-      )}
-      <Input
-        aria-label={`${label} lead time`}
-        value={offer.leadTime}
-        onChange={(e) => onChange({ leadTime: e.target.value })}
-        placeholder="Lead time"
-        containerClassName="min-w-0"
-        className={canvassFieldClass}
-      />
+      </FieldBox>
     </div>
   );
 }
@@ -296,14 +310,16 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
             <section key={row.key} data-testid="new-canvass-row" aria-label={`Canvass ${number}`} className="space-y-3 rounded-2xl border border-border p-3">
               <div className="flex items-center gap-2">
                 <span className="w-6 shrink-0 text-center text-xs font-semibold tabular-nums text-muted-foreground">{number}</span>
-                <Input
-                  aria-label={`Canvass ${number} product`}
-                  value={row.productName}
-                  onChange={(e) => patchRow(row.key, { productName: e.target.value })}
-                  placeholder="What is being bought, e.g. Laser printer toner, black"
-                  containerClassName="min-w-0 flex-1"
-                  className={`${canvassFieldClass} font-semibold`}
-                />
+                <FieldBox bare label="What is being bought" className="min-w-0 flex-1">
+                  <Input
+                    aria-label={`Canvass ${number} product`}
+                    value={row.productName}
+                    onChange={(e) => patchRow(row.key, { productName: e.target.value })}
+                    placeholder="e.g. Laser printer toner, black"
+                    containerClassName="min-w-0"
+                    className={`${canvassFieldClass} font-semibold`}
+                  />
+                </FieldBox>
                 {rows.length > 1 && (
                   <Button
                     type="button"
@@ -352,15 +368,17 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
       </Button>
 
       <div className="space-y-1.5 border-t border-border/60 pt-3">
-        <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Then the Purchase Request</span>
-        <Input
-          aria-label="Purchase Request title"
-          value={requestTitle}
-          onChange={(e) => setRequestTitle(e.target.value)}
-          placeholder="Title of the request (optional)"
-          containerClassName="min-w-0"
-          className={canvassFieldClass}
-        />
+        <h3 className="text-sm font-semibold text-foreground">Then the Purchase Request</h3>
+        <FieldBox bare label="Title">
+          <Input
+            aria-label="Purchase Request title"
+            value={requestTitle}
+            onChange={(e) => setRequestTitle(e.target.value)}
+            placeholder="Title of the request (optional)"
+            containerClassName="min-w-0"
+            className={canvassFieldClass}
+          />
+        </FieldBox>
         <p className="text-[11px] text-muted-foreground">
           Give it a title and pick a winner in every row to save and create one request for all of them in one step. Otherwise save now and create it later.
         </p>

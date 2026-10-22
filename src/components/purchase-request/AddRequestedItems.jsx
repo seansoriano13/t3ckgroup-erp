@@ -93,7 +93,6 @@ function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityId, item
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       className={OVER_REQUEST_MODAL}
-      expandable
       crumbs={["Purchase Requests", "Add from the SOR's Product List"]}
       actions={
         <Button
@@ -247,32 +246,40 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
             addImages(files);
           }}
         >
-          <Input label="Product name"
-            value={product.name}
-            onChange={(e) => set("name")(e.target.value)}
-            placeholder="What does the client need?"
-          />
+          <FieldBox bare label="Product name">
+            <Input
+              value={product.name}
+              onChange={(e) => set("name")(e.target.value)}
+              placeholder="What does the client need?"
+            />
+          </FieldBox>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Quantity"
-              type="number"
-              min="0"
-              step="any"
-              inputMode="decimal"
-              value={product.quantity}
-              onChange={(e) => set("quantity")(e.target.value)}
-            />
-            <SelectField label="Unit"
-              options={REQUEST_UNITS.map((u) => ({ value: u, label: u }))}
-              value={product.unit}
-              onChange={set("unit")}
-            />
+            <FieldBox bare label="Quantity">
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                value={product.quantity}
+                onChange={(e) => set("quantity")(e.target.value)}
+              />
+            </FieldBox>
+            <FieldBox bare label="Unit">
+              <SelectField
+                options={REQUEST_UNITS.map((u) => ({ value: u, label: u }))}
+                value={product.unit}
+                onChange={set("unit")}
+              />
+            </FieldBox>
           </div>
-          <Textarea label="Description"
-            value={product.description}
-            onChange={(e) => set("description")(e.target.value)}
-            rows={3}
-            placeholder="Specs, brand, the wording the client used"
-          />
+          <FieldBox bare label="Description">
+            <Textarea
+              value={product.description}
+              onChange={(e) => set("description")(e.target.value)}
+              rows={3}
+              placeholder="Specs, brand, the wording the client used"
+            />
+          </FieldBox>
 
           <div className="space-y-2">
             {attachments.files.length > 0 && (

@@ -239,7 +239,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
             }
           />
           {lines.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-[13px] text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground">
               Nothing on the slip yet. Pick lines on the left, or add a typed line for anything not on a PO.
             </p>
           ) : (
