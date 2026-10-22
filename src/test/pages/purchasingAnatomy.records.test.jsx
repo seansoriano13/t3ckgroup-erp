@@ -31,8 +31,13 @@ import { screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router"
 
 import PackingListDetailPage from "@/pages/purchasing/packing-lists/[id]"
+import PurchaseRequestsPage from "@/pages/purchasing/index.jsx"
 import TransmittalDetailPage from "@/pages/purchasing/transmittals/[id]"
 import { renderWithProviders } from "@/test/support"
+import { db } from "@/test/db/store"
+import { makeEmployee, makeOpportunity } from "@/test/factories"
+import { stubProcurementQueueRpcs } from "@/test/stubs/procurementQueueRpc"
+import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { shapeTransmittal } from "@/utils/transmittals"
 
 const auth = vi.hoisted(() => ({ user: null }))
@@ -128,6 +133,33 @@ function seedPackingList(over = {}) {
   packingListService.sorProducts.mockResolvedValue([])
 }
 
+// The Purchase Request opens from the list's own link (`?request=`), so its entry seeds a request and builds the link from it.
+let purchaseRequestId = null
+function seedPurchaseRequest() {
+  const buyer = makeEmployee({ name: "Pia Buyer", department: "OPERATIONS", has_purchasing_flow: true })
+  const salesperson = makeEmployee({ name: "Ana Reyes", department: "SALES" })
+  const sor = makeOpportunity({
+    registered_by: salesperson.id,
+    deal_owner_id: salesperson.id,
+    sales_reference: "S01001",
+    project_title: "Harbour lights",
+  })
+  const request = db.seed("purchase_requests", { opportunity_id: sor.id, created_by: salesperson.id, buyer_id: null })
+  db.seed("purchase_request_members", { request_id: request.id, employee_id: salesperson.id, side: "sales" })
+  db.seed("purchase_request_items", {
+    request_id: request.id,
+    source: "new",
+    name: "Floodlight",
+    quantity: 1,
+    status: "requested",
+    requested_by: salesperson.id,
+  })
+  purchaseRequestId = request.id
+  stubProcurementQueueRpcs({ actorId: buyer.id })
+  stubPurchaseRequestItemRpcs({ actorId: buyer.id })
+  auth.user = buyer
+}
+
 const RECORDS = [
   {
     name: "Transmittal",
@@ -172,6 +204,21 @@ const RECORDS = [
     pills: ["Origin", "Priority", "Company"],
     hasMore: false,
     yourMove: { status: "Cancelled. Nothing to do.", steps: ["Warehouse checking", "Check by"] },
+  },
+  {
+    // A Purchase Request has no sign-off steps and nothing for More, so it has neither.
+    name: "Purchase Request",
+    Page: PurchaseRequestsPage,
+    route: "/purchasing",
+    get path() {
+      return `/purchasing?request=${purchaseRequestId}`
+    },
+    seed: seedPurchaseRequest,
+    title: /^S01001\s*·\s*Harbour lights$/,
+    badge: "Open",
+    pills: ["Buyer", "SOR", "Stage", "Items"],
+    hasMore: false,
+    yourMove: null,
   },
 ]
 
@@ -241,7 +288,9 @@ describe.each(RECORDS)("Purchasing record anatomy: $name", (record) => {
     renderRecord(record)
     await screen.findByRole("heading", { name: record.title })
 
-    for (const label of record.pills) expect(screen.getByText(label)).toBeInTheDocument()
+    // A record opened over its list shares the screen with the list's own headings; look inside the window.
+    const recordWindow = screen.getAllByRole("dialog").find((dialog) => dialog.dataset.modalShell === "record")
+    for (const label of record.pills) expect(within(recordWindow).getByText(label)).toBeInTheDocument()
   })
 
   it(record.hasMore ? "shows More, because it has items" : "shows no More, because it has nothing to hold", async () => {

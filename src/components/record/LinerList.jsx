@@ -10,26 +10,53 @@ function LinerRow({ row }) {
   const [open, setOpen] = useState(Boolean(row.defaultOpen));
   const panelId = useId();
   const expandable = row.children != null;
-  const head = (
+  const text = (
     <>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-semibold text-foreground">{row.main}</span>
+        <span className="block truncate text-[13px] font-semibold text-foreground" title={typeof row.main === "string" ? row.main : undefined}>
+          {row.main}
+        </span>
         {row.sub && <span className="block truncate text-xs text-muted-foreground">{row.sub}</span>}
       </span>
       {row.quantity != null && <span className="shrink-0 font-mono text-xs text-foreground">{row.quantity}</span>}
-      {row.badge && <StatusBadge label={row.badge.label} theme={row.badge.theme} status={row.badge.status} />}
-      {expandable && (
-        <ChevronRight
-          size={16}
-          aria-hidden="true"
-          className={cn("shrink-0 text-muted-foreground transition-transform duration-200 ease-out-expo", open && "rotate-90")}
-        />
-      )}
     </>
   );
+  const status = row.actions ?? (row.badge && <StatusBadge label={row.badge.label} theme={row.badge.theme} status={row.badge.status} />);
+  const chevron = (
+    <ChevronRight
+      size={16}
+      aria-hidden="true"
+      className={cn("shrink-0 text-muted-foreground transition-transform duration-200 ease-out-expo", open && "rotate-90")}
+    />
+  );
+  const head = (
+    <>
+      {text}
+      {status}
+      {expandable && chevron}
+    </>
+  );
+  // A row that carries its own controls (`actions`, a menu) cannot sit inside the toggle button, so the toggle takes only the text.
+  const withActions = expandable && row.actions != null;
   return (
-    <li>
-      {expandable ? (
+    <li data-testid={row.testId}>
+      {withActions ? (
+        <div className="flex items-center gap-3 pr-4 hover:bg-muted/50">
+          <Button
+            type="button"
+            variant="ghost"
+            aria-expanded={open}
+            aria-controls={panelId}
+            aria-label={`${open ? "Close" : "Open"} details of ${row.label ?? row.main}`}
+            onClick={() => setOpen((prev) => !prev)}
+            className="h-auto min-w-0 flex-1 justify-start gap-3 rounded-none px-4 py-2.5 text-left font-normal whitespace-normal hover:bg-transparent"
+          >
+            {text}
+          </Button>
+          {status}
+          {chevron}
+        </div>
+      ) : expandable ? (
         <Button
           type="button"
           variant="ghost"
@@ -58,8 +85,9 @@ function LinerRow({ row }) {
  * row with `children` opens in place (the `.reveal` pattern: its content stays
  * mounted) and several can be open at once.
  *
- * `rows`: `[{ key, main, sub?, quantity?, badge?: { label, theme? }, children?, defaultOpen? }]`.
- * `groups` (instead of `rows`): `[{ key, title?, rows }]`, each group's title a
+ * `rows`: `[{ key, main, sub?, quantity?, badge?: { label, theme? }, actions?, label?, testId?, children?, defaultOpen? }]`.
+ * `actions` is a node (a status menu) shown in place of the badge; the row's toggle then holds only its text.
+ * `groups` (instead of `rows`): `[{ key, title?, count?, rows }]`, each group's title a
  * sub-heading inside the box. `empty` is the one quiet sentence shown, with no
  * box, when there are no rows.
  */
@@ -70,8 +98,13 @@ export default function LinerList({ rows, groups, empty = "Nothing here yet.", l
   return (
     <div role="group" aria-label={label} className={cn("divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card", className)}>
       {filled.map((group) => (
-        <section key={group.key}>
-          {group.title && <h4 className="border-b border-border bg-muted/40 px-4 py-1.5 text-xs font-semibold text-muted-foreground">{group.title}</h4>}
+        <section key={group.key} aria-label={group.title} data-testid={group.testId}>
+          {group.title && (
+            <h4 className="flex items-baseline gap-2 border-b border-border bg-muted/40 px-4 py-1.5 text-xs font-semibold text-muted-foreground">
+              {group.title}
+              {group.count != null && <span className="font-medium tabular-nums">{group.count}</span>}
+            </h4>
+          )}
           <ul className="divide-y divide-border">
             {group.rows.map((row) => (
               <LinerRow key={row.key} row={row} />
