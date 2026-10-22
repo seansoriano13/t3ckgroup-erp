@@ -212,7 +212,7 @@ export default function ImageAttachment({
         <Dialog open onOpenChange={(open) => !open && setFullscreenImage(null)}>
           <DialogContent
             showCloseButton={false}
-            className="max-w-[95vw] sm:max-w-[95vw] items-center justify-items-center bg-transparent p-0 ring-0"
+            className="z-[90] max-w-[95vw] sm:max-w-[95vw] items-center justify-items-center bg-transparent p-0 ring-0"
           >
             <Button
               variant="ghost"
