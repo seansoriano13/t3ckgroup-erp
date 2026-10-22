@@ -2,6 +2,8 @@
 
 Guide §10. Lists: Warehouse = plain, Technical = technical, Logistics = logistics, Check by = ops-head and admin-head.
 
+A slip opens in the record window (`/purchasing/transmittals/:id`). Its lines are one-line rows, the GC / NA rating is on each line, and signing is in the Your move card.
+
 ### TRN-01 · Who can prepare
 - **Guide**: §10 Raising and submitting
 - **Log in as**: purchaser, plain, logistics, technical, sales-exec

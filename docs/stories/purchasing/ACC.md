@@ -84,7 +84,7 @@ Guide §2, §16 "Access and visibility". Most other files also check access insi
 - **Log in as**: purchaser, then purchaser-2
 - **Needs**: an unassigned Project request (PR-05)
 - **Steps**:
-  1. As purchaser-2, open `/purchasing`, filter Unassigned. Note the request is listed.
+  1. As purchaser-2, open `/purchasing`, set the Buyer dropdown to Unassigned. Note the request is listed.
   2. As purchaser, Take the request.
   3. As purchaser-2, reload `/purchasing` and open the request's address directly.
   4. As purchaser-2, open the request's member list.
