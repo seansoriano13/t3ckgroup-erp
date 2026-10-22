@@ -680,7 +680,7 @@ export default function ComprehensiveChatModal({
         notificationService.createNotification({
           recipient_id: message.authorId,
           sender_id: user.id,
-          type: "TASK_REACTION",
+          type: selectedChat?.entity_type === "TASK" ? "TASK_REACTION" : "GROUP_TASK_REACTION",
           title: "New Reaction",
           message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
           reference_id: selectedChat?.entity_id,
