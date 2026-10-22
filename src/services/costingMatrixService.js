@@ -677,6 +677,28 @@ export const costingMatrixService = {
   },
 
   /**
+   * Fills the matrix from the SOR's products (Costing Desk): every product not yet in the matrix
+   * becomes a Tender Line with one Component, the product itself. Re-runnable; resolves to how many
+   * lines it added. Sales or Purchasing.
+   */
+  async fillFromSor(opportunityId) {
+    const { data, error } = await supabase.rpc("costing_fill_from_sor", { p_opportunity_id: opportunityId });
+    if (error) fail(error);
+    return data ?? 0;
+  },
+
+  /**
+   * Fills blank Odoo unit costs and Acquires from each product's cost in Odoo. The server reads
+   * Odoo and writes; nothing typed is overwritten. Resolves to `{ success, filled, unpriced, message }`;
+   * `success: false` means Odoo could not be asked, not that there is no cost.
+   */
+  async fillOdooCosts(opportunityId) {
+    const { data, error } = await supabase.functions.invoke("odoo-costing-costs", { body: { opportunityId } });
+    if (error) return { success: false, message: error.message || "Odoo could not be asked for the costs." };
+    return data ?? { success: false, message: "Odoo could not be asked for the costs." };
+  },
+
+  /**
    * Changes a Tender Line: any of `tenderSpecification`, `unit`, `quantity`
    * (the line itself) and `abcUnit`, `finalOfferUnit` (its prices; null clears).
    */

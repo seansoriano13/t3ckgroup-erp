@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Gavel } from "lucide-react";
+import { Check, Gavel, RotateCcw, X } from "lucide-react";
 
 import { Button } from "../ui/button";
+import { APPROVE_CLASS } from "../ui/approveClass";
 import { Textarea } from "../ui/textarea";
 import StatusBadge from "../StatusBadge";
 import { costingMatrixService } from "../../services/costingMatrixService";
@@ -12,8 +13,12 @@ import { pesos } from "./gridFormat";
 /** The badge colour of each verdict: Go green, Revise amber, No-go red. */
 const VERDICT_THEME = { [BID_VERDICT.GO]: "green", [BID_VERDICT.REVISE]: "amber", [BID_VERDICT.NO_GO]: "red" };
 
-/** The three verdict buttons, in the order the boss reads them. */
-const CHOICES = [BID_VERDICT.GO, BID_VERDICT.REVISE, BID_VERDICT.NO_GO];
+/** The three verdict buttons, in the order the boss reads them: big, each saying what it means. */
+const CHOICES = [
+  { verdict: BID_VERDICT.GO, icon: Check, words: "Bid at these Final Offers", className: APPROVE_CLASS },
+  { verdict: BID_VERDICT.REVISE, icon: RotateCcw, words: "Send back to reprice", variant: "outline" },
+  { verdict: BID_VERDICT.NO_GO, icon: X, words: "Do not bid", variant: "destructive" },
+];
 
 function Verdict({ verdict }) {
   return <StatusBadge theme={VERDICT_THEME[verdict]} label={BID_VERDICT_LABEL[verdict] ?? verdict} />;
@@ -48,16 +53,22 @@ export default function BidDecisionPanel({ matrix, writes, nameOf = () => null }
     });
 
   const decider = bidDecision ? nameOf(bidDecision.decidedBy) : null;
+  const frame = {
+    [BID_VERDICT.GO]: "border-green-8",
+    [BID_VERDICT.NO_GO]: "border-red-8",
+    [BID_VERDICT.REVISE]: "border-amber-8",
+  }[bidDecision?.verdict];
 
   return (
-    <section className="max-w-xl space-y-3 rounded-xl border border-border/70 bg-card p-4" aria-label="Bid Decision" data-testid="bid-decision">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-        <Gavel size={14} aria-hidden="true" />
+    <section className={`space-y-4 rounded-2xl border-2 bg-card p-5 ${frame ?? "border-border"}`} aria-label="Bid Decision" data-testid="bid-decision">
+      <h3 className="flex items-center gap-2 text-lg font-black tracking-tight text-foreground">
+        <Gavel size={18} aria-hidden="true" />
         Bid Decision
       </h3>
 
       {bidDecision ? (
         <div className="space-y-1.5" data-testid="bid-decision-live">
+          <p className="text-2xl font-black tracking-tight text-foreground">{BID_VERDICT_LABEL[bidDecision.verdict] ?? bidDecision.verdict}</p>
           <div className="flex items-center gap-2">
             <Verdict verdict={bidDecision.verdict} />
             <span className="text-xs text-muted-foreground">
@@ -88,29 +99,35 @@ export default function BidDecisionPanel({ matrix, writes, nameOf = () => null }
       )}
 
       {canDecide && (
-        <div className="space-y-2 border-t border-border/50 pt-3">
+        <div className="space-y-3 border-t border-border/50 pt-3">
           <Textarea
             aria-label="Reason for the decision"
-            placeholder="Why? Write the reason in your own words."
+            placeholder={bidDecision ? "Decide again? Write why." : "Why? Write the reason in your own words."}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             disabled={!ready || writes.busy}
             className="min-h-[64px]"
           />
-          <div className="flex flex-wrap items-center gap-2">
-            {CHOICES.map((verdict) => (
+          <div className="grid gap-2">
+            {CHOICES.map(({ verdict, icon: Icon, words, className, variant }) => (
               <Button
                 key={verdict}
-                size="sm"
-                variant={verdict === BID_VERDICT.GO ? "default" : "outline"}
+                size="lg"
+                variant={variant}
+                className={`h-14 justify-start gap-3 px-4 text-left ${className ?? ""}`}
                 disabled={!ready || trimmed === "" || writes.busy}
                 onClick={() => decide(verdict)}
+                aria-label={BID_VERDICT_LABEL[verdict]}
               >
-                {BID_VERDICT_LABEL[verdict]}
+                <Icon size={22} aria-hidden="true" />
+                <span className="flex flex-col">
+                  <span className="text-base font-black">{BID_VERDICT_LABEL[verdict]}</span>
+                  <span className="text-xs font-medium opacity-80">{words}</span>
+                </span>
               </Button>
             ))}
-            <span className="text-xs text-muted-foreground">No-go and Revise tell the Deal Team. Nothing on the deal moves.</span>
           </div>
+          <p className="text-xs text-muted-foreground">No-go and Revise tell the Deal Team. Nothing on the deal moves.</p>
         </div>
       )}
     </section>

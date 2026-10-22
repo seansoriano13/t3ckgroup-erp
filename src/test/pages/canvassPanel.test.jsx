@@ -1,14 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 
-import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
 import { stubRpc } from "@/test/msw/server";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
+import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * The Canvass opens from a Component row on the Costing Matrix (#276): a Canvass action for
@@ -29,8 +28,7 @@ describe("the Canvass on a Component row", () => {
   const mount = ({ tier = "cost", bands = ["purchasing"], money = true } = {}) => {
     stubCostingMatrixRpcs({ tier, bands, actorId: purchaser.id });
     stubCanvassMoneyRpc({ money });
-    renderWithProviders(<CostingMatrixSection opportunityId={deal.id} opportunity={deal} />);
-    return setupUser();
+    return renderCostingDesk(deal);
   };
 
   beforeEach(() => {
@@ -56,6 +54,7 @@ describe("the Canvass on a Component row", () => {
 
   it("shows a draft on opening and leaves nothing behind when closed without an Offer (ADR 0034)", async () => {
     const user = mount();
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /^Canvass Component 1.1$/ }));
 
     expect(await screen.findByTestId("canvass-not-started")).toBeInTheDocument();
@@ -69,6 +68,7 @@ describe("the Canvass on a Component row", () => {
 
   it("starts the Canvass, with its number, when the first Offer is saved", async () => {
     const user = mount();
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /^Canvass Component 1.1$/ }));
     await screen.findByTestId("canvass-not-started");
 
@@ -85,6 +85,7 @@ describe("the Canvass on a Component row", () => {
   it("shows the Canvass number on the row once one exists", async () => {
     await seedOffers();
     mount();
+    await openLines();
     const chip = await screen.findByRole("button", { name: /Open Canvass CNV_0001/ });
     expect(chip).toHaveTextContent("CNV_0001");
     expect(screen.getByTestId("component-canvass")).toHaveTextContent("2 offers");
@@ -93,6 +94,7 @@ describe("the Canvass on a Component row", () => {
   it("records an Offer and shows the PHP figure beside a foreign quote and the expiry", async () => {
     await seedOffers();
     const user = mount();
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
 
     const offers = await screen.findAllByTestId("offer");
@@ -116,6 +118,7 @@ describe("the Canvass on a Component row", () => {
   it("shows a reader without the money tier the Offers and no prices", async () => {
     await seedOffers();
     const user = mount({ tier: "participant", bands: [], money: false });
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
 
     const offers = await screen.findAllByTestId("offer");
@@ -129,14 +132,15 @@ describe("the Canvass on a Component row", () => {
 
   it("offers no Canvass action to a reader who is not Purchasing, and none to start", async () => {
     mount({ tier: "price", bands: ["sales"], money: true });
+    await openLines();
     await screen.findByTestId("component");
     expect(screen.queryByTestId("component-canvass")).not.toBeInTheDocument();
   });
 
   describe("the Reference Rate on a foreign Offer (#317)", () => {
     const usd = { currency: "USD", rate_date: "2026-09-17", php_per_unit: 58.2, source: "ECB", overridden: false, divergence_pct: 2 };
+    // The Canvass is there before the desk reads its Components' Canvasses.
     const startForeignOffer = async (user) => {
-      await seedCanvass({ componentId: component.id }, purchaser.id);
       await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
       await user.click(await screen.findByRole("button", { name: /add offer/i }));
       await user.type(screen.getByLabelText("Supplier"), "Hong Kong");
@@ -146,7 +150,9 @@ describe("the Canvass on a Component row", () => {
 
     it("pre-fills the comparison rate with its date, and stores the typed value", async () => {
       const asked = [];
+      await seedCanvass({ componentId: component.id }, purchaser.id);
       const user = mount();
+      await openLines();
       stubRpc("reference_rate", (args) => {
         asked.push(args.p_currency);
         return args.p_currency === "USD" ? [usd] : [];
@@ -168,7 +174,9 @@ describe("the Canvass on a Component row", () => {
     });
 
     it("still takes a typed comparison rate when no Reference Rate is available", async () => {
+      await seedCanvass({ componentId: component.id }, purchaser.id);
       const user = mount();
+      await openLines();
       stubRpc("reference_rate", () => []);
       await startForeignOffer(user);
 

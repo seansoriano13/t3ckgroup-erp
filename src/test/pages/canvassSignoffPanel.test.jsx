@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 
-import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { seedCanvass, stubCanvassMoneyRpc, stubCanvassSignoffRpcs, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
+import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * Signing a Canvass from its panel (#279): the purchasing approver sees "Sign off" once the Canvass
@@ -31,8 +30,7 @@ describe("the sign-off on the Canvass panel", () => {
     stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"], actorId: who.id });
     stubCanvassWinnerRpcs({ bands: ["purchasing"] });
     stubCanvassSignoffRpcs({ actorId: who.id, approverIds: onList ? [approver.id, purchaser.id] : [] });
-    renderWithProviders(<CostingMatrixSection opportunityId={deal.id} opportunity={deal} />);
-    return setupUser();
+    return renderCostingDesk(deal);
   };
 
   beforeEach(async () => {
@@ -57,6 +55,7 @@ describe("the sign-off on the Canvass panel", () => {
 
   it("warns under three Offers, signs, and shows the signed state on the chip", async () => {
     const user = mount(approver);
+    await openLines();
     expect(await screen.findByTestId("canvass-signed-state")).toHaveTextContent("Not signed");
 
     await user.click(screen.getByRole("button", { name: /Open Canvass CNV_0001/ }));
@@ -75,6 +74,7 @@ describe("the sign-off on the Canvass panel", () => {
   it("does not offer it to the person who opened the Canvass, even on the list", async () => {
     db.seed("ipas_signer_lists", { list_key: "transmittal_check_by", employee_id: purchaser.id });
     const user = mount(purchaser);
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
 
     const panel = await screen.findByTestId("canvass-signoff");
@@ -84,6 +84,7 @@ describe("the sign-off on the Canvass panel", () => {
 
   it("does not offer it to someone off the list", async () => {
     const user = mount(purchaser);
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
     await screen.findByTestId("canvass-signoff");
     expect(screen.queryByRole("button", { name: "Sign off" })).not.toBeInTheDocument();
@@ -95,6 +96,7 @@ describe("the sign-off on the Canvass panel", () => {
     await canvassService.addOffer(canvass.id, { supplierName: "Hong Kong", currency: "USD", unitPrice: 1280, comparisonRate: 56.5 }, purchaser.id);
 
     const user = mount(purchaser);
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
     const panel = await screen.findByTestId("canvass-signoff");
     await waitFor(() => expect(panel).toHaveTextContent("It was unsigned because: an Offer was added."));

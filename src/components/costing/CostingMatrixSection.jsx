@@ -1,24 +1,26 @@
-import { useState } from "react";
-import { Calculator, Printer } from "lucide-react";
-import toast from "react-hot-toast";
+import { useLocation, useNavigate } from "react-router";
+import { Calculator, Maximize2 } from "lucide-react";
 
 import { Button } from "../ui/button";
 import SectionHeader from "../ui/SectionHeader";
-import { openCostingMatrixPrintWindow, printCostingMatrix } from "../../lib/pdf/costingMatrixPrinter";
-import { useAuth } from "../../context/AuthContext";
+import StatusBadge from "../StatusBadge";
+import NumbersStrip from "../record/NumbersStrip";
+import { BID_VERDICT_LABEL, tierReads } from "../../constants/costing";
 import { useCostingMatrix } from "./useCostingMatrix";
-import TenderLineGrid from "./TenderLineGrid";
+import { pesos } from "./gridFormat";
+import PrintButton from "./desk/PrintButton";
+
+const VERDICT_THEME = { go: "green", revise: "amber", no_go: "red" };
 
 /**
- * The Costing Matrix section of the PMS tab (#267). The grid renders only once the
- * SOR's matrix exists: before "Open Costing Matrix" runs (#462) the PMS tab shows
- * one plain line in its place and its other sections. That is a normal state: no
- * empty grid, no error.
+ * The Costing Matrix on the SOR's PMS tab (#267): its headline numbers and a way into the Costing Desk,
+ * the matrix's own record window. The matrix is worked there, not here. Before "Open Costing Matrix"
+ * runs (#462) there is no matrix yet: one plain line, no error.
  */
 export default function CostingMatrixSection({ opportunityId, opportunity }) {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { data: matrix, isSuccess } = useCostingMatrix(opportunityId);
-  const [printing, setPrinting] = useState(false);
   if (!matrix) {
     if (!isSuccess) return null;
     return (
@@ -28,25 +30,20 @@ export default function CostingMatrixSection({ opportunityId, opportunity }) {
     );
   }
 
-  // The window opens in the click (popup blockers); the matrix is read and composed into it afterwards.
-  const handlePrint = async () => {
-    const printWindow = openCostingMatrixPrintWindow();
-    if (!printWindow) {
-      toast.error("Allow pop-ups for this site to print the Costing Matrix.");
-      return;
-    }
-    setPrinting(true);
-    try {
-      await printCostingMatrix(opportunityId, { printWindow, opportunity, printedBy: user?.name ?? null });
-    } catch (error) {
-      toast.error(error?.message || "The Costing Matrix could not be printed.");
-    } finally {
-      setPrinting(false);
-    }
-  };
+  const { totals, tenderLines, bidDecision } = matrix;
+  const open = () => navigate(`/costing-matrix/${opportunityId}`, { state: { returnTo: { path: location.pathname, sorId: opportunityId } } });
+  const stats = [{ key: "lines", label: "Lines", value: String(tenderLines.length) }];
+  if (tierReads(matrix.tier, "abc_unit")) stats.push({ key: "abc", label: "ABC", value: pesos(totals.abcTotal), sub: totals.missingAbc ? `${totals.missingAbc} without one` : undefined });
+  if (tierReads(matrix.tier, "final_offer_unit"))
+    stats.push({
+      key: "offer",
+      label: "Final Offer",
+      value: pesos(totals.finalOfferTotal),
+      sub: totals.missingOffer ? `${totals.missingOffer} without one` : totals.percentOfAbc == null ? undefined : `${totals.percentOfAbc.toFixed(1)}% of the ABC`,
+    });
 
   return (
-    <section className="space-y-3" aria-label="Costing Matrix">
+    <section className="space-y-3" aria-label="Costing Matrix" data-testid="costing-matrix-card">
       <SectionHeader
         title={
           <>
@@ -54,15 +51,24 @@ export default function CostingMatrixSection({ opportunityId, opportunity }) {
             Costing Matrix
           </>
         }
-        description="What the client asked for, line by line, and what we supply and pay for each."
+        description="What the client asked for, what we supply and pay, and the bid decision."
         className="pb-2"
       >
-        <Button type="button" size="sm" variant="outline" disabled={printing} onClick={handlePrint}>
-          <Printer size={14} aria-hidden="true" />
-          Print
+        <PrintButton opportunityId={opportunityId} opportunity={opportunity} />
+        <Button type="button" size="sm" variant="outline" onClick={open}>
+          <Maximize2 size={14} aria-hidden="true" />
+          Open Costing Matrix
         </Button>
       </SectionHeader>
-      <TenderLineGrid matrix={matrix} opportunityId={opportunityId} opportunity={opportunity} actorId={user?.id ?? null} isFinalAcquire={Boolean(user?.isFinalAcquire)} />
+      <div className="rounded-xl border border-border/70 bg-card p-4">
+        <NumbersStrip stats={stats} />
+        {bidDecision && (
+          <p className="mt-3 flex items-center gap-2 text-sm" data-testid="costing-card-decision">
+            Bid decision
+            <StatusBadge theme={VERDICT_THEME[bidDecision.verdict]} label={BID_VERDICT_LABEL[bidDecision.verdict] ?? bidDecision.verdict} />
+          </p>
+        )}
+      </div>
     </section>
   );
 }

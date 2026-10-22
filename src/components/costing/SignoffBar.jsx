@@ -25,8 +25,8 @@ export default function SignoffBar({ matrix, actorId, isFinalAcquire = false, na
   const ctx = { actorId, isFinalAcquire };
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border/70 bg-card/50 px-4 py-3" data-testid="signoff-bar">
-      <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-4" data-testid="signoff-bar">
+      <span className="flex items-center gap-1.5 text-label font-bold uppercase tracking-wider text-muted-foreground">
         <PenLine size={14} aria-hidden="true" />
         Sign-offs
       </span>

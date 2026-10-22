@@ -1,6 +1,19 @@
 [
     {
         "date": "2026-10-22",
+        "title": "The Costing Matrix in its own window",
+        "version": "1.9.63",
+        "changes": [
+            "The Costing Matrix opens in its own window. Open it from an SOR's PMS tab with Open Costing Matrix, or from a row on the Costing Matrix page.",
+            "The matrix fills itself from the SOR's products, with each product's cost from Odoo. Refresh from the SOR brings in products added later. Nothing you typed is overwritten.",
+            "A line is priced from its product. Break it down into parts only when a line needs them.",
+            "The markup playground lets you try a markup and see the offer, its share of the ABC and the margin before anything is saved. Apply fills every Final Offer.",
+            "The Bid Decision has its own card with big Go, Revise and No-go buttons.",
+            "Sales, Purchasing and the SOR's Sales Director can now see and edit the costs and the markup, and Purchasing can set the Brand."
+        ]
+    },
+    {
+        "date": "2026-10-22",
         "title": "A new Calendar, with a Gantt beside it",
         "version": "1.9.62",
         "changes": [

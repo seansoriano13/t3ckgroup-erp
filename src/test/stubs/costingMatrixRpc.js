@@ -1,4 +1,4 @@
-import { stubRpc } from "@/test/msw/server"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { db, deleteRows, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import {
@@ -278,6 +278,40 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     updateRow("costing_inclusions", inclusion, { component_id: target.id, position: last + 1 })
     return null
   })
+
+  // The Costing Desk fill (20261102190000): a Tender Line and one Component (the product) per SOR product
+  // not yet in the matrix. Odoo's costs are the edge function's; here Odoo has none to give.
+  stubRpc("costing_fill_from_sor", (args) => {
+    if (!bands.includes("sales") && !bands.includes("purchasing")) {
+      throw pgrstError("42501", "costing_fill: only Sales or Purchasing can fill the matrix from the SOR", { status: 403 })
+    }
+    const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
+    if (!matrix) throw pgrstError("22023", "costing_fill: this SOR has no Costing Matrix yet", { status: 400 })
+    const lines = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id)
+    let position = Math.max(0, ...lines.map((l) => l.position))
+    const items = rowsOf("sales_opportunity_items")
+      .filter((i) => i.opportunity_id === args.p_opportunity_id && !lines.some((l) => l.sor_item_id === i.id))
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    for (const item of items) {
+      position += 1
+      const unit = (item.unit || "").trim() || null
+      const quantity = Number(item.quantity) > 0 ? Number(item.quantity) : 1
+      const line = insertRow("costing_tender_lines", {
+        matrix_id: matrix.id,
+        position,
+        source: "sor_line",
+        sor_item_id: item.id,
+        odoo_product_id: item.odoo_product_id ?? null,
+        tender_specification: item.product_name,
+        unit,
+        quantity,
+        sor_line_snapshot: { name: item.product_name, quantity: Number(item.quantity), unit },
+      })
+      insertRow("costing_components", { tender_line_id: line.id, position: 1, name: item.product_name, quantity, unit, odoo_product_id: item.odoo_product_id ?? null })
+    }
+    return items.length
+  })
+  stubEdgeFunction("odoo-costing-costs", { success: true, filled: 0, unpriced: 0 })
 
   stubRpc("costing_add_cost_row", (args) => {
     requireBand("costing_cost_rows", "*", ["sales", "purchasing"])
