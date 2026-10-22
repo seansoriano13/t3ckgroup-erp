@@ -5,16 +5,19 @@
  * `costing_matrix_read` and `costing_history`, direct PostgREST reads of every money table
  * refused or empty, no client-supplied parameter changing the tier, and the write bands intact.
  *
+ * Loosened by 20261102170000: the Deal Team and Purchasing read the Closed Book, so the price tier
+ * is Always sees alone and the cost tier is nobody's.
+ *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   dealOwner, support  Deal Team                          -> price
+ *   dealOwner, support  Deal Team                          -> closed_book
  *   hr                  Always sees (flow setting)         -> price
- *   outsider            Purchasing access, no part in it   -> cost
+ *   outsider            Purchasing access, no part in it   -> closed_book (every SOR)
  *   stageParticipant    open Stage Participant window      -> participant
  *   finance             Finance access alone               -> no tier
  *   ipasSigner          on the final_acquire list          -> closed_book
  *   superAdmin                                             -> closed_book
  *   ordinary            nobody                             -> no tier
- * A second SOR (owned by closingSales) is one nobody in the first cast may read.
+ * A second SOR (owned by closingSales) is one nobody in the first cast but Purchasing may read.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -43,7 +46,6 @@ const OPEX = 6543.21
 
 // What no side of the wall may carry, by tier.
 const SECRETS = {
-    cost: [OFFER_1, OFFER_2, FINAL_ACQUIRE, FACTOR, DEFAULT_FACTOR, ROW_FINAL_ACQUIRE, ROW_FACTOR, MARKETING, OPEX],
     price: [ACQUIRE, FINAL_ACQUIRE, FACTOR, DEFAULT_FACTOR, ROW_ACQUIRE, ROW_FINAL_ACQUIRE, ROW_FACTOR, MARKETING, OPEX],
     participant: [ABC_1, ABC_2, OFFER_1, OFFER_2, ACQUIRE, ODOO, FINAL_ACQUIRE, FACTOR, DEFAULT_FACTOR, ROW_ACQUIRE, ROW_FINAL_ACQUIRE, ROW_FACTOR, MARKETING, OPEX],
 }
@@ -205,37 +207,8 @@ const expectOnlyRegistered = (read, tier, who) => {
     }
 }
 
-describe("Purchasing access (cost tier)", () => {
-    it("reads Acquire, Odoo and ABC, and none of the price or management side", async () => {
-        const read = await readMatrix("outsider")
-        expect(read.tier).toBe("cost")
-        const t = read.tables
-        expect(t.costing_tender_line_prices.map((r) => Number(r.abc_unit)).sort((a, b) => a - b)).toEqual([ABC_2, ABC_1].sort((a, b) => a - b))
-        expect(t.costing_component_costs.find((r) => r.component_id === componentId).acquire_unit).toBe(ACQUIRE)
-        expect(t.costing_cost_rows[0].acquire_unit).toBe(ROW_ACQUIRE)
-
-        expect(hasAnyKey(t.costing_tender_line_prices, ["final_offer_unit", "quotation_price_unit"])).toEqual([])
-        expect(hasAnyKey(t.costing_component_costs, ["final_acquire_unit", "markup_factor", "markup_price_unit"])).toEqual([])
-        expect(hasAnyKey(t.costing_cost_rows, ["final_acquire_unit", "markup_factor", "markup_price_unit"])).toEqual([])
-        // The summary inputs and the Bid Decision are not even tables in the response.
-        expect("costing_matrix_money" in t).toBe(false)
-        expect("costing_bid_decisions" in t).toBe(false)
-        expectOnlyRegistered(read, "cost", "outsider")
-        expect(mentions(read, SECRETS.cost)).toEqual([])
-    })
-
-    it("sees only the history of columns it may read", async () => {
-        const events = await history("outsider")
-        expect(events.length).toBeGreaterThan(0)
-        expect(touches(events, "acquire_unit")).toBe(true)
-        expect(touches(events, "final_offer_unit")).toBe(false)
-        expect(events.some((e) => e.detail.table === "costing_matrix_money" || e.detail.table === "costing_bid_decisions")).toBe(false)
-        expect(mentions(events, SECRETS.cost)).toEqual([])
-    })
-})
-
-describe("Deal Team and Always sees (price tier)", () => {
-    it.each(["dealOwner", "support", "hr"])("%s reads ABC, Markup Price and Final Offer, and neither Acquire nor the factor", async (who) => {
+describe("Always sees (price tier)", () => {
+    it.each(["hr"])("%s reads ABC, Markup Price and Final Offer, and neither Acquire nor the factor", async (who) => {
         const read = await readMatrix(who)
         expect(read.tier).toBe("price")
         const t = read.tables
@@ -264,7 +237,7 @@ describe("Deal Team and Always sees (price tier)", () => {
     })
 
     it("reads the history of price-side columns and none of the cost-side or management-side ones", async () => {
-        for (const who of ["dealOwner", "hr"]) {
+        for (const who of ["hr"]) {
             const events = await history(who)
             expect(touches(events, "final_offer_unit"), who).toBe(true)
             for (const column of ["acquire_unit", "final_acquire_unit", "markup_factor", "default_factor", "marketing", "opex"]) {
@@ -276,8 +249,8 @@ describe("Deal Team and Always sees (price tier)", () => {
     })
 })
 
-describe("Super Admin and the Final Acquire list (Closed Book)", () => {
-    it.each(["ipasSigner", "superAdmin"])("%s receives every registered column", async (who) => {
+describe("Super Admin, the Final Acquire list, the Deal Team and Purchasing (Closed Book)", () => {
+    it.each(["ipasSigner", "superAdmin", "dealOwner", "support", "outsider"])("%s receives every registered column", async (who) => {
         const read = await readMatrix(who)
         expect(read.tier).toBe("closed_book")
         for (const [table, rows] of Object.entries(read.tables)) {
@@ -301,15 +274,17 @@ describe("Super Admin and the Final Acquire list (Closed Book)", () => {
     })
 
     it("sees every column's history", async () => {
-        const events = await history("ipasSigner")
-        for (const column of ["final_offer_unit", "acquire_unit", "final_acquire_unit", "markup_factor", "default_factor", "marketing", "opex"]) {
-            expect(touches(events, column), column).toBe(true)
+        for (const who of ["ipasSigner", "dealOwner", "outsider"]) {
+            const events = await history(who)
+            for (const column of ["final_offer_unit", "acquire_unit", "final_acquire_unit", "markup_factor", "default_factor", "marketing", "opex"]) {
+                expect(touches(events, column), `${who} ${column}`).toBe(true)
+            }
         }
     })
 
     it("lets only Closed Book select any money table or the history directly", async () => {
         const moneyTables = ["costing_matrix_money", "costing_tender_line_prices", "costing_component_costs", "costing_cost_rows", "costing_bid_decisions", "costing_events"]
-        for (const who of ["ipasSigner", "superAdmin"]) {
+        for (const who of ["ipasSigner", "superAdmin", "dealOwner", "outsider"]) {
             for (const table of moneyTables) {
                 const { data, error } = await (await clientFor(who)).from(table).select("*")
                 expect(error, `${who} ${table}`).toBeNull()
@@ -395,7 +370,7 @@ describe("Finance access alone and a plain employee", () => {
 describe("direct PostgREST reads", () => {
     const moneyTables = ["costing_matrix_money", "costing_tender_line_prices", "costing_component_costs", "costing_cost_rows", "costing_bid_decisions", "costing_events"]
 
-    it.each(["dealOwner", "support", "hr", "outsider", "stageParticipant", "finance", "ordinary"])("%s gets no row of any money table or of costing_events", async (who) => {
+    it.each(["hr", "stageParticipant", "finance", "ordinary"])("%s gets no row of any money table or of costing_events", async (who) => {
         const client = await clientFor(who)
         for (const table of moneyTables) {
             const { data, error } = await client.from(table).select("*")
@@ -405,7 +380,7 @@ describe("direct PostgREST reads", () => {
     })
 
     it("returns no money through an embed on a table the caller can read", async () => {
-        for (const who of ["dealOwner", "outsider", "stageParticipant"]) {
+        for (const who of ["hr", "stageParticipant"]) {
             const client = await clientFor(who)
             const lines = await client.from("costing_tender_lines").select("id, costing_tender_line_prices(*)")
             expect(lines.error, who).toBeNull()
@@ -452,14 +427,12 @@ describe("no client-supplied parameter changes the tier", () => {
     })
 
     it("answers the caller's own tier whatever opportunity or row id it passes", async () => {
-        // The other SOR is nobody's in this cast but closingSales' (and Closed Book's).
+        // The other SOR is nobody's in this cast but closingSales' (and Purchasing's, and the list's).
         for (const who of ["dealOwner", "support", "hr", "outsider", "stageParticipant"]) {
-            const other = who === "outsider" ? "cost" : null
             if (who === "outsider") {
-                // Purchasing access reads the cost side of any SOR it can see: still only the cost side.
+                // Purchasing access reads the Closed Book of every SOR.
                 const read = await readMatrix(who, { p_opportunity_id: otherSorId })
-                expect(read.tier).toBe(other)
-                expect(hasAnyKey(read.tables.costing_tender_line_prices, ["final_offer_unit"])).toEqual([])
+                expect(read.tier).toBe("closed_book")
             } else {
                 expect(await readMatrix(who, { p_opportunity_id: otherSorId }), who).toBeNull()
                 expect((await rpc(who, "costing_history", { p_opportunity_id: otherSorId })).data, who).toBeNull()
@@ -473,16 +446,16 @@ describe("no client-supplied parameter changes the tier", () => {
         expect(money).toEqual([])
     })
 
-    it("lets a caller on the other SOR's Deal Team see only that SOR's price side", async () => {
+    it("lets a caller on the other SOR's Deal Team see that SOR and not this one", async () => {
         const read = await readMatrix("closingSales", { p_opportunity_id: otherSorId })
-        expect(read.tier).toBe("price")
+        expect(read.tier).toBe("closed_book")
         expect(await readMatrix("closingSales", { p_opportunity_id: sorId })).toBeNull()
     })
 
     it("refuses writes to another SOR's rows, whatever the patch names", async () => {
         const error = await setMoney("dealOwner", "costing_tender_line_prices", otherLineId, { final_offer_unit: 1 })
         expect(error?.code).toBe(RLS_VIOLATION)
-        const component = await setMoney("outsider", "costing_component_costs", otherComponentId, { final_acquire_unit: 1 })
+        const component = await setMoney("support", "costing_component_costs", otherComponentId, { final_acquire_unit: 1 })
         expect(component?.code).toBe(RLS_VIOLATION)
         const decided = await rpc("dealOwner", "costing_decide_bid", { p_matrix_id: otherMatrixId, p_verdict: "go", p_reason: "x" })
         expect(decided.error?.code).toBe(RLS_VIOLATION)
@@ -490,7 +463,7 @@ describe("no client-supplied parameter changes the tier", () => {
 })
 
 describe("history shows an event only to tiers that may read its column", () => {
-    const tiers = { outsider: "cost", dealOwner: "price", hr: "price", stageParticipant: "participant", ipasSigner: "closed_book", superAdmin: "closed_book" }
+    const tiers = { outsider: "closed_book", dealOwner: "closed_book", hr: "price", stageParticipant: "participant", ipasSigner: "closed_book", superAdmin: "closed_book" }
 
     it.each(Object.keys(tiers))("%s sees no event on a column outside its tier", async (who) => {
         const tier = tiers[who]
@@ -521,19 +494,19 @@ describe("write bands still refuse out-of-band writes", () => {
         expect(error?.message).toBe("costing_band:costing_tender_line_prices.final_offer_unit:sales")
     })
 
-    it("refuses the Deal Team and Purchasing the markup factor, Final Acquire and a Super Admin off the list", async () => {
-        for (const who of ["dealOwner", "outsider", "superAdmin"]) {
+    it("refuses the markup factor to anyone outside Sales, Purchasing and the list", async () => {
+        for (const who of ["stageParticipant"]) {
             const error = await setMoney(who, "costing_component_costs", componentId, { markup_factor: 9 })
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing")
+            expect(error?.message, who).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing,management")
         }
     })
 
-    it("refuses Marketing and OPEX to anyone outside Finance access and the list", async () => {
-        for (const who of ["dealOwner", "outsider", "stageParticipant"]) {
+    it("refuses Marketing and OPEX to anyone outside Finance access, Sales, Purchasing and the list", async () => {
+        for (const who of ["stageParticipant"]) {
             const error = await setMoney(who, "costing_matrix_money", matrixId, { opex: 1 })
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_band:costing_matrix_money.opex:finance,sales,purchasing")
+            expect(error?.message, who).toBe("costing_band:costing_matrix_money.opex:finance,sales,purchasing,management")
         }
     })
 

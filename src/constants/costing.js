@@ -27,7 +27,7 @@ export const COSTING_BAND = {
 export const COSTING_BAND_LABEL = {
   [COSTING_BAND.SALES]: "Sales (the Deal Team)",
   [COSTING_BAND.PURCHASING]: "Purchasing",
-  [COSTING_BAND.MANAGEMENT]: "Sales and Purchasing",
+  [COSTING_BAND.MANAGEMENT]: "the Final Acquire list",
   [COSTING_BAND.TECHNICAL]: "Technical",
   [COSTING_BAND.FINANCE]: "Finance",
   [COSTING_BAND.SUPER_ADMIN_ONLY]: "Super Admins",
@@ -116,8 +116,8 @@ export const COMPONENT_CANVASS_COST_BANDS = { acquire_from_offer_id: [PURCHASING
 export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
   odoo_unit: [SALES],
-  final_acquire_unit: [SALES, PURCHASING],
-  markup_factor: [SALES, PURCHASING],
+  final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
+  markup_factor: [SALES, PURCHASING, MANAGEMENT],
 };
 
 /**
@@ -140,8 +140,8 @@ export const COST_ROW_BANDS = {
 
 /**
  * The matrix's own money row (costing_matrix_money): the default markup factor (#269), and Marketing and OPEX (#270)
- * typed on the summary. Closed Book reads them; the Final Acquire list writes the factor, and Finance access or the
- * Final Acquire list writes Marketing and OPEX (policy tests 80 and 81 prove these equal the registries).
+ * typed on the summary. Closed Book reads them; Sales, Purchasing and the Final Acquire list write the factor, and
+ * Finance access joins them on Marketing and OPEX (policy tests 80 and 81 prove these equal the registries).
  */
 export const MATRIX_MONEY_TIERS = {
   default_factor: [COSTING_TIER.CLOSED_BOOK],
@@ -151,10 +151,10 @@ export const MATRIX_MONEY_TIERS = {
 };
 
 export const MATRIX_MONEY_BANDS = {
-  default_factor: [SALES, PURCHASING],
-  default_preset_id: [SALES, PURCHASING],
-  marketing: [COSTING_BAND.FINANCE, SALES, PURCHASING],
-  opex: [COSTING_BAND.FINANCE, SALES, PURCHASING],
+  default_factor: [SALES, PURCHASING, MANAGEMENT],
+  default_preset_id: [SALES, PURCHASING, MANAGEMENT],
+  marketing: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
+  opex: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
 };
 
 /**

@@ -157,7 +157,7 @@ export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialD
               className="w-full"
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Becomes the matrix's default factor. Only Super Admins, Purchasing and the Deal Team can list the presets.
+              Becomes the matrix's default factor. Only Super Admins, Purchasing, the Deal Team and the Final Acquire list can list the presets.
             </p>
           </FieldBox>
 

@@ -383,7 +383,7 @@ describe("the PMS tab", () => {
       expect(within(row).getAllByText("₱2,916,675.00")).toHaveLength(2);
     });
 
-    it("makes a Purchasing viewer's Sales columns read-only and keeps their own Acquire and Offer Specification editable", async () => {
+    it("makes a Purchasing viewer's Sales-only columns read-only and keeps Brand, Acquire and Offer Specification editable", async () => {
       seedComponents();
       stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing", "technical"] });
       openModal(deal);
@@ -391,7 +391,8 @@ describe("the PMS tab", () => {
       await openPms();
 
       const row = within(await screen.findByTestId("components")).getAllByTestId("component")[0];
-      expect(within(row).getByLabelText("Brand 1.1").tagName).toBe("SPAN");
+      // Brand is written by Sales and Purchasing; the Odoo unit cost stays Sales'.
+      expect(within(row).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
       expect(within(row).getByLabelText("Odoo unit cost 1.1").tagName).toBe("SPAN");
       expect(within(row).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
       expect(within(row).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
@@ -668,9 +669,9 @@ describe("the PMS tab", () => {
       await waitFor(() => expect(db.rows("costing_matrix_money")[0]?.marketing).toBe(12000));
     });
 
-    it("makes Final Acquire, Marketing and OPEX read-only for a Super Admin off the list", async () => {
+    it("makes Final Acquire, Marketing and OPEX read-only for a Closed Book reader outside Sales and Purchasing", async () => {
       seedSummary({ finalAcquire: 2338500 });
-      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["technical"] });
       openModal(deal);
 
       await openPms();
@@ -688,12 +689,12 @@ describe("the PMS tab", () => {
       const user = openModal(deal);
       await openPms();
       const row = await screen.findByTestId("component");
-      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["technical"] });
 
       await user.type(within(row).getByLabelText("Final Acquire 1.1"), "5");
       await user.tab();
 
-      expect(await within(row).findByRole("alert")).toHaveTextContent("Final Acquire is written by the Final Acquire list.");
+      expect(await within(row).findByRole("alert")).toHaveTextContent("Final Acquire is written by Sales (the Deal Team) or Purchasing or the Final Acquire list.");
     });
 
     it("types a cost-only row's Final Acquire in the MNGT columns", async () => {

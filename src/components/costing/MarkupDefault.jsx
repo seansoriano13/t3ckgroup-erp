@@ -86,7 +86,7 @@ export default function MarkupDefault({ matrix, writes }) {
           </div>
         </>
       ) : (
-        <p className="max-w-xs text-xs text-muted-foreground">Sales and Purchasing set the markup factor.</p>
+        <p className="max-w-xs text-xs text-muted-foreground">Sales, Purchasing and the Final Acquire list set the markup factor.</p>
       )}
 
       <div className="ml-auto space-y-1 text-right" data-testid="markup-overall">

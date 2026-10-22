@@ -3,6 +3,7 @@ import { CheckCircle2, PenLine } from "lucide-react";
 import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import { costingMatrixService } from "../../services/costingMatrixService";
+import { COSTING_TIER } from "../../constants/costing";
 import { formatDate } from "../../utils/formatDate";
 
 /**
@@ -15,7 +16,8 @@ import { formatDate } from "../../utils/formatDate";
 const SIGNOFFS = [
   { role: "prepared", label: "Prepared by", button: "Sign as prepared", who: (matrix, ctx) => Boolean(ctx.actorId) && matrix.matrix?.sales_incharge_id === ctx.actorId },
   { role: "costed", label: "Costed by", button: "Sign as costed", who: (matrix, ctx) => Boolean(ctx.actorId) && matrix.matrix?.purchasing_incharge_id === ctx.actorId },
-  { role: "final_approved", label: "Final approval", button: "Approve Final Acquire & offer", who: (_matrix, ctx) => ctx.isFinalAcquire },
+  // The list, or anyone who reads this matrix at the Closed Book (Purchasing and the SOR's Deal Team).
+  { role: "final_approved", label: "Final approval", button: "Approve Final Acquire & offer", who: (matrix, ctx) => ctx.isFinalAcquire || matrix.tier === COSTING_TIER.CLOSED_BOOK },
 ];
 
 export default function SignoffBar({ matrix, actorId, isFinalAcquire = false, nameOf, writes }) {

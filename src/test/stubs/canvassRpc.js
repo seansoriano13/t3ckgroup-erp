@@ -235,7 +235,7 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"], superAdmin = fal
   })
 
   stubRpc("costing_accept_brand", (args) => {
-    if (!bands.includes("sales")) throw pgrstError("42501", "costing_accept_brand: only the Deal Team can accept a brand", { status: 403 })
+    if (!bands.includes("sales") && !bands.includes("purchasing")) throw pgrstError("42501", "costing_accept_brand: only the Deal Team or Purchasing can accept a brand", { status: 403 })
     const canvass = rowsOf("sor_canvasses").find((c) => c.component_id === args.p_component_id)
     const winner = canvass && rowsOf("sor_canvass_offers").find((o) => o.canvass_id === canvass.id && o.is_winner)
     const brand = String(winner?.brand ?? "").trim()

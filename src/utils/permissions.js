@@ -40,7 +40,9 @@ export function getPermissionContext(user) {
   const isTransmittalTechnical = !!(user?.is_transmittal_technical ?? user?.isTransmittalTechnical);
   // On the Costing Matrix's Final Acquire list (#320); with Super Admin, decides Bid Decisions.
   const isFinalAcquire = !!(user?.is_final_acquire ?? user?.isFinalAcquire);
-  const isBidDecider = isSuperAdmin || isFinalAcquire;
+  // Sees the money side of at least one Costing Matrix (Purchasing, or on a Deal Team); derived by employeeService.
+  const isCostingOpen = !!(user?.is_costing_open ?? user?.isCostingOpen);
+  const isBidDecider = isSuperAdmin || isFinalAcquire || isCostingOpen;
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
@@ -65,6 +67,7 @@ export function getPermissionContext(user) {
     isTransmittalCheckBy,
     isTransmittalTechnical,
     isFinalAcquire,
+    isCostingOpen,
     isBidDecider,
     hasRetailAccess,
     hasBugReportAccess,

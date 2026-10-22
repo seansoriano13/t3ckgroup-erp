@@ -67,15 +67,22 @@ describe("the Costing Matrix print and sign-offs", () => {
     expect(printer.print).not.toHaveBeenCalled();
   });
 
-  it("shows each sign button only to the person who may sign it", async () => {
+  it("shows each sign button only to the people who may sign it", async () => {
     let user = mount(sales);
     expect(await screen.findByRole("button", { name: "Sign as prepared" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sign as costed" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Approve Final Acquire/ })).not.toBeInTheDocument();
+    // The Deal Team reads this matrix at the Closed Book, so it may approve the Final Acquire and offer.
+    expect(screen.getByRole("button", { name: /Approve Final Acquire/ })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Sign as prepared" }));
     await waitFor(() => expect(db.rows("costing_signoffs")).toEqual([expect.objectContaining({ role: "prepared", signed_by: sales.id })]));
     expect(await screen.findByTestId("signoff-prepared")).toHaveTextContent("Prepared by");
     expect(screen.queryByRole("button", { name: "Sign as prepared" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Final approval from a viewer below the Closed Book who is not on the list", async () => {
+    mount(sales, { tier: "price" });
+    expect(await screen.findByRole("button", { name: "Sign as prepared" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Approve Final Acquire/ })).not.toBeInTheDocument();
   });
 
   it("offers Costed by to the Purchasing incharge and Final Acquire and offer to the list", async () => {

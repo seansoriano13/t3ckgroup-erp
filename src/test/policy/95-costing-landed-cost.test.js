@@ -292,11 +292,12 @@ describe("costing_landed_costs: the sums", () => {
 })
 
 describe("costing_landed_costs: who", () => {
-    it.each(["outsider", "ipasSigner"])("%s gets rows", async (who) => {
+    // The Deal Team reads the Closed Book since 20261102170000, so it gets Landed Cost too.
+    it.each(["outsider", "ipasSigner", "dealOwner"])("%s gets rows", async (who) => {
         expect((await landed(who)).get(c.hose)?.total_php).toBe(7500)
     })
 
-    it.each(["dealOwner", "technical", "ordinary"])("%s gets nothing", async (who) => {
+    it.each(["technical", "ordinary"])("%s gets nothing", async (who) => {
         expect((await landed(who)).size).toBe(0)
     })
 
@@ -363,7 +364,7 @@ describe("ipas_summaries_for_sor", () => {
         expect(row.landed_cost_mark).toBe("provisional")
     })
 
-    it.each(["technical", "dealOwner"])("gives %s no Landed Cost", async (who) => {
+    it.each(["technical"])("gives %s no Landed Cost", async (who) => {
         const { data } = await (await clientFor(who)).rpc("ipas_summaries_for_sor", { p_opportunity_id: sorA })
         for (const row of data ?? []) {
             expect(row.landed_cost_total_php).toBeNull()

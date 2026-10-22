@@ -305,16 +305,16 @@ describe("who reads", () => {
         }
     })
 
-    it("shows the Deal Team the Canvass and its Offers and not the prices (#546: Offer prices are cost)", async () => {
+    it("shows the Deal Team the Canvass, its Offers and the prices (the Deal Team reads the Closed Book since 20261102170000)", async () => {
         for (const who of ["dealOwner", "support"]) {
             const client = await clientFor(who)
             expect(await canRead(client, "sor_canvasses", canvass.id), `${who} reads the Canvass`).toBe(true)
             expect(await canRead(client, "sor_canvass_offers", offer.id), `${who} reads the Offer`).toBe(true)
             const { data, error } = await client.from("sor_canvass_offer_prices").select("*").eq("offer_id", offer.id)
             expect(error).toBeNull()
-            expect(data, `${who} price`).toEqual([])
+            expect(data, `${who} price`).toHaveLength(1)
             const money = await client.rpc("canvass_subject_can_read_money", { p_component_id: compRead, p_requested_item_id: null })
-            expect(money.data, `${who} money`).toBe(false)
+            expect(money.data, `${who} money`).toBe(true)
         }
     })
 

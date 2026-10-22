@@ -3,9 +3,9 @@
  * writes which, and that the history can't be changed.
  *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   dealOwner, support  Deal Team                         -> price tier
+ *   dealOwner, support  Deal Team                         -> closed_book tier
  *   stageParticipant    open Stage Participant window     -> participant tier
- *   outsider            Purchasing access, no part in it  -> cost tier
+ *   outsider            Purchasing access, no part in it  -> closed_book tier
  *   finance             Finance access alone              -> no tier (#319: Finance drops out)
  *   ipasSigner          on the final_acquire list         -> closed_book tier
  *   superAdmin                                            -> closed_book tier
@@ -209,9 +209,10 @@ describe("the read tier", () => {
   it.each([
     ["superAdmin", "closed_book"],
     ["ipasSigner", "closed_book"],
-    ["outsider", "cost"],
-    ["dealOwner", "price"],
-    ["support", "price"],
+    // Purchasing and the SOR's Deal Team read the Closed Book (20261102170000).
+    ["outsider", "closed_book"],
+    ["dealOwner", "closed_book"],
+    ["support", "closed_book"],
     ["stageParticipant", "participant"],
     ["finance", null],
     ["ordinary", null],
@@ -384,22 +385,21 @@ describe("Tender Lines: who reads what", () => {
     expect(JSON.stringify(read)).not.toMatch(/abc_unit|final_offer_unit|quotation_price_unit|costing_matrix_money|costing_tender_line_prices/)
   })
 
-  it("serves the price side ABC, Final Offer and the quotation price", async () => {
+  it("serves the Deal Team ABC, Final Offer and the quotation price", async () => {
     const read = await readMatrix("dealOwner")
-    expect(read.tier).toBe("price")
+    expect(read.tier).toBe("closed_book")
     const [prices] = read.tables.costing_tender_line_prices
     expect(prices).toMatchObject({ tender_line_id: lineId, abc_unit: 120000, final_offer_unit: 99500.5 })
     // A typed line has no SOR line to quote: the virtual column is there, and null.
     expect(Object.keys(prices)).toContain("quotation_price_unit")
     expect(prices.quotation_price_unit).toBeNull()
-    expect(read.tables).not.toHaveProperty("costing_matrix_money")
   })
 
-  it("serves Purchasing ABC but never Final Offer", async () => {
+  it("serves Purchasing every column, Final Offer included", async () => {
     const read = await readMatrix("outsider")
-    expect(read.tier).toBe("cost")
+    expect(read.tier).toBe("closed_book")
     const [prices] = read.tables.costing_tender_line_prices
-    expect(Object.keys(prices).sort()).toEqual(["abc_unit", "tender_line_id"])
+    expect(Object.keys(prices).sort()).toEqual(["abc_unit", "final_offer_unit", "quotation_price_unit", "tender_line_id"])
   })
 
   it("serves a Super Admin and the Final Acquire list every column", async () => {
@@ -415,7 +415,7 @@ describe("Tender Lines: who reads what", () => {
     const bands = async (who) => [...(await readMatrix(who)).bands].sort()
     expect(await bands("dealOwner")).toEqual(["sales"])
     expect(await bands("outsider")).toEqual(["purchasing", "technical"])
-    expect(await bands("ipasSigner")).toEqual(["finance"])
+    expect(await bands("ipasSigner")).toEqual(["finance", "management"])
     expect(await bands("stageParticipant")).toEqual([])
     expect(await bands("superAdmin")).toEqual(["purchasing", "sales", "super_admin_only", "technical"])
   })
@@ -450,8 +450,8 @@ describe("Tender Lines: who reads what", () => {
     expect(await canRead(await clientFor("finance"), "costing_tender_lines", lineId)).toBe(false)
 
     expect(await readsPrices("stageParticipant")).toBe(false)
-    expect(await readsPrices("dealOwner")).toBe(false)
-    expect(await readsPrices("outsider")).toBe(false)
+    expect(await readsPrices("dealOwner")).toBe(true)
+    expect(await readsPrices("outsider")).toBe(true)
     expect(await readsPrices("finance")).toBe(false)
     expect(await readsPrices("ordinary")).toBe(false)
     expect(await readsPrices("superAdmin")).toBe(true)
@@ -459,8 +459,8 @@ describe("Tender Lines: who reads what", () => {
 
     const money = async (who) => (await (await clientFor(who)).from("costing_matrix_money").select("matrix_id").eq("matrix_id", matrixId)).data.length
     expect(await money("stageParticipant")).toBe(0)
-    expect(await money("dealOwner")).toBe(0)
-    expect(await money("outsider")).toBe(0)
+    expect(await money("dealOwner")).toBe(1)
+    expect(await money("outsider")).toBe(1)
     expect(await money("superAdmin")).toBe(1)
   })
 
@@ -536,13 +536,13 @@ describe("a Tender Line picked from an SOR line", () => {
     expect(line.sor_line_now).toEqual({ found: true, name: "Safety harness (full body)", quantity: 8, unit: "pc", odoo_product_id: 8123 })
     const prices = read.tables.costing_tender_line_prices
 
-    // The quotation price shows to the price side only, and only for a picked line.
+    // The quotation price shows to whoever reads Final Offer, and only for a picked line.
     expect(await setMoney("dealOwner", picked, { abc_unit: 5000, final_offer_unit: 4900 })).toBeNull()
     const again = (await readMatrix("dealOwner")).tables.costing_tender_line_prices.find((p) => p.tender_line_id === picked)
     expect(again.quotation_price_unit).toBe(4700)
     expect(prices.find((p) => p.tender_line_id === lineId).quotation_price_unit).toBeNull()
     const cost = (await readMatrix("outsider")).tables.costing_tender_line_prices.find((p) => p.tender_line_id === picked)
-    expect(cost).not.toHaveProperty("quotation_price_unit")
+    expect(cost.quotation_price_unit).toBe(4700)
     // A participant gets the line's SOR change without any price.
     const participantLine = (await readMatrix("stageParticipant")).tables.costing_tender_lines.find((l) => l.id === picked)
     expect(participantLine.sor_line_now.quantity).toBe(8)
@@ -585,14 +585,14 @@ describe("the history", () => {
     expect(unitChange.detail).toMatchObject({ old: 2, new: 3, row: lineId })
   })
 
-  it("keeps money changes out of a participant's and a purchaser's history", async () => {
+  it("keeps money changes out of a participant's history, and shows them to Purchasing", async () => {
     const participant = await history("stageParticipant")
     expect(participant.length).toBeGreaterThan(0)
     expect(JSON.stringify(participant)).not.toMatch(/final_offer_unit|abc_unit|costing_tender_line_prices/)
 
     const purchaser = await history("outsider")
     expect(purchaser.some((e) => e.detail.column === "abc_unit")).toBe(true)
-    expect(JSON.stringify(purchaser)).not.toMatch(/final_offer_unit/)
+    expect(purchaser.some((e) => e.detail.column === "final_offer_unit")).toBe(true)
   })
 
   it("shows the Final Acquire list everything, and filters by table and row", async () => {
@@ -627,9 +627,9 @@ describe("the history", () => {
   it("reads money events directly only at the closed_book tier", async () => {
     expect(await eventCount("superAdmin")).toBeGreaterThan(0)
     expect(await eventCount("ipasSigner")).toBeGreaterThan(0)
+    expect(await eventCount("dealOwner")).toBeGreaterThan(0)
+    expect(await eventCount("outsider")).toBeGreaterThan(0)
     expect(await eventCount("stageParticipant")).toBe(0)
-    expect(await eventCount("dealOwner")).toBe(0)
-    expect(await eventCount("outsider")).toBe(0)
     expect(await eventCount("ordinary")).toBe(0)
   })
 

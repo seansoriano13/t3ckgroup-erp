@@ -179,13 +179,14 @@ describe("a winning Offer fills the Component", () => {
       expect((await read()).brandProposal).toBeNull()
     })
 
-    it("is written into Brand only when the Deal Team accepts", async () => {
+    it("is written into Brand only when Sales or Purchasing accepts", async () => {
       await canvassService.markWinner(canvass.id, redleaf.id)
 
+      stubCanvassWinnerRpcs({ bands: [] })
       await expect(canvassService.acceptBrand(component.id)).rejects.toMatchObject({ code: "42501" })
       expect(stored(component.id).brand).toBe("Generic")
 
-      stubCanvassWinnerRpcs({ bands: ["sales"] })
+      stubCanvassWinnerRpcs({ bands: ["purchasing"] })
       expect(await canvassService.acceptBrand(component.id)).toEqual({ brand: "Redleaf" })
       expect(stored(component.id).brand).toBe("Redleaf")
       expect((await read()).brandProposal).toBeNull()

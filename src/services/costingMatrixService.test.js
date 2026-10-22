@@ -554,10 +554,10 @@ describe("costingMatrixService", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["technical"] });
       const refused = await costingMatrixService.updateComponent(component, { finalAcquireUnit: 1 }).catch((e) => e);
       expect(refused).toBeInstanceOf(CostingBandError);
-      expect(refused.message).toBe("Final Acquire is written by Sales (the Deal Team) or Purchasing.");
+      expect(refused.message).toBe("Final Acquire is written by Sales (the Deal Team) or Purchasing or the Final Acquire list.");
       const marketing = await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 1 }).catch((e) => e);
       expect(marketing).toBeInstanceOf(CostingBandError);
-      expect(marketing.message).toBe("Marketing is written by Finance or Sales (the Deal Team) or Purchasing.");
+      expect(marketing.message).toBe("Marketing is written by Finance or Sales (the Deal Team) or Purchasing or the Final Acquire list.");
     });
 
     it("reports a rate change that changed nothing (the database let no row through)", async () => {
@@ -741,12 +741,12 @@ describe("costingMatrixService", () => {
 
       const factor = await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 }).catch((e) => e)
       expect(factor).toBeInstanceOf(CostingBandError)
-      expect(factor).toMatchObject({ table: "costing_matrix_money", column: "default_factor", bands: ["sales", "purchasing"] })
-      expect(factor.message).toBe("The default markup factor is written by Sales (the Deal Team) or Purchasing.")
+      expect(factor).toMatchObject({ table: "costing_matrix_money", column: "default_factor", bands: ["sales", "purchasing", "management"] })
+      expect(factor.message).toBe("The default markup factor is written by Sales (the Deal Team) or Purchasing or the Final Acquire list.")
 
       const override = await costingMatrixService.updateComponent(component, { markupFactor: 2 }).catch((e) => e)
       expect(override).toBeInstanceOf(CostingBandError)
-      expect(override.message).toBe("The markup factor is written by Sales (the Deal Team) or Purchasing.")
+      expect(override.message).toBe("The markup factor is written by Sales (the Deal Team) or Purchasing or the Final Acquire list.")
       const rowOverride = await costingMatrixService.updateCostRow(delivery, { markupFactor: 2 }).catch((e) => e)
       expect(rowOverride).toBeInstanceOf(CostingBandError)
     })
@@ -858,7 +858,7 @@ describe("costingMatrixService", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["sales"] });
       const refused = await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Go" }).catch((e) => e);
       expect(refused).toBeInstanceOf(CostingRuleError);
-      expect(refused.message).toBe("Only a Super Admin or the Final Acquire list can decide a bid.");
+      expect(refused.message).toBe("Only Sales, Purchasing, a Super Admin or the Final Acquire list can decide a bid.");
     });
 
     it("refuses an unknown verdict, a blank reason and a matrix with a Tender Line that has no Final Offer", async () => {

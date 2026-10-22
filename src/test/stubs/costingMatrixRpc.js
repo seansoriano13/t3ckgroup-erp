@@ -241,7 +241,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     const refuse = (code, message, status) => {
       throw pgrstError(code, `costing_bid: ${message}`, { status })
     }
-    if (tier !== "closed_book") refuse("42501", "only a Super Admin or the Final Acquire list can decide a bid", 403)
+    if (tier !== "closed_book") refuse("42501", "only Sales, Purchasing, a Super Admin or the Final Acquire list can decide a bid", 403)
     if (!["go", "no_go", "revise"].includes(args.p_verdict)) refuse("23514", "the verdict must be Go, No-go or Revise", 400)
     if (!String(args.p_reason ?? "").trim()) refuse("23514", "write the reason for the decision", 400)
     const lines = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === args.p_matrix_id)
@@ -413,12 +413,13 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     const matrix = rowsOf("costing_matrices").find((m) => m.id === args.p_matrix_id)
     if (!matrix) throw pgrstError("P0002", "costing_sign: not found", { status: 404 })
     if (!tier) throw pgrstError("42501", "costing_sign: not allowed", { status: 403 })
-    // #274: Prepared by is the Sales incharge's, Costed by the Purchasing incharge's, Final Acquire and offer the list's.
+    // #274: Prepared by is the Sales incharge's, Costed by the Purchasing incharge's, Final Acquire and offer the list's,
+    // and since 20261102180000 anyone's who reads this matrix at the Closed Book.
     const refusal = {
       prepared: matrix.sales_incharge_id !== actorId && "only the Sales incharge can sign Prepared by",
       costed: matrix.purchasing_incharge_id !== actorId && "only the Purchasing incharge can sign Costed by",
       evaluation_approved: !onEvaluationList && "only someone on the evaluation list can approve the evaluation",
-      final_approved: !onFinalAcquireList && "only someone on the Final Acquire list can approve the Final Acquire and offer",
+      final_approved: !onFinalAcquireList && tier !== "closed_book" && "only Sales, Purchasing or the Final Acquire list can approve the Final Acquire and offer",
     }[role]
     if (refusal) throw pgrstError("42501", `costing_sign: ${refusal}`, { status: 403 })
     if (rowsOf("costing_signoffs").some((s) => s.matrix_id === matrix.id && s.role === role && !s.cleared_at)) {

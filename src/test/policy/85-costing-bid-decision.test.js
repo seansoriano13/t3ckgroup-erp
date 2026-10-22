@@ -3,9 +3,11 @@
  * decision is stamped with, what clears it, who reads what of it, and what a No-go or a Revise
  * does (tell the Deal Team, change nothing on the SOR).
  *
+ * Loosened by 20261102170000: the Deal Team and Purchasing read the Closed Book, so they decide too.
+ *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   dealOwner, support  Deal Team                          -> price tier
- *   outsider            Purchasing access, no part in it   -> cost tier
+ *   dealOwner, support  Deal Team                          -> closed_book, decides
+ *   outsider            Purchasing access, no part in it   -> closed_book, decides
  *   stageParticipant    open Stage Participant window      -> participant tier
  *   finance             Finance access alone               -> no tier
  *   ipasSigner          on the final_acquire list          -> closed_book, decides
@@ -122,9 +124,9 @@ describe("before there is anything to judge", () => {
         expect(pending.data.filter((p) => p.matrix_id === matrixId)).toHaveLength(0)
     })
 
-    it("queues the matrix for the list once every Final Offer is set", async () => {
+    it("queues the matrix for everyone who decides once every Final Offer is set", async () => {
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineTwoId, { abc_unit: 500, final_offer_unit: 480 })).toBeNull()
-        for (const who of ["ipasSigner", "superAdmin"]) {
+        for (const who of ["ipasSigner", "superAdmin", "dealOwner", "outsider"]) {
             const pending = await (await clientFor(who)).rpc("costing_pending_bid_decisions")
             expect(pending.error, who).toBeNull()
             const mine = pending.data.find((p) => p.matrix_id === matrixId)
@@ -136,19 +138,19 @@ describe("before there is anything to judge", () => {
             expect(mine.deal_owner_name).toBe("Deal Owner")
             expect(Number(mine.final_offer_total)).toBe(3942.88)
         }
-        for (const who of ["dealOwner", "outsider", "stageParticipant", "finance", "ordinary"]) {
+        for (const who of ["stageParticipant", "finance", "ordinary"]) {
             const pending = await (await clientFor(who)).rpc("costing_pending_bid_decisions")
-            expect(pending.data ?? [], who).toHaveLength(0)
+            expect((pending.data ?? []).filter((p) => p.matrix_id === matrixId), who).toHaveLength(0)
         }
     })
 })
 
 describe("who decides", () => {
-    it("refuses the Deal Team, Purchasing, a Stage Participant, Finance and a plain employee", async () => {
-        for (const who of ["dealOwner", "support", "outsider", "stageParticipant", "finance", "ordinary"]) {
+    it("refuses a Stage Participant, Finance and a plain employee", async () => {
+        for (const who of ["stageParticipant", "finance", "ordinary"]) {
             const { error } = await decide(who, "go")
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_bid: only a Super Admin or the Final Acquire list can decide a bid")
+            expect(error?.message, who).toBe("costing_bid: only Sales, Purchasing, a Super Admin or the Final Acquire list can decide a bid")
         }
         expect(await rows()).toHaveLength(0)
         expect(await readMatrix("finance")).toBeNull()
@@ -192,6 +194,17 @@ describe("who decides", () => {
         expect(old.cleared_reason).toBe("Decided again")
     })
 
+    it("lets the Deal Team and Purchasing decide too, each replacing the live decision", async () => {
+        for (const who of ["dealOwner", "outsider"]) {
+            const { id, error } = await decide(who, "go", `Go from ${who}`)
+            expect(error, who).toBeNull()
+            const now = await live()
+            expect(now, who).toHaveLength(1)
+            expect(now[0].id, who).toBe(id)
+            expect(now[0].decided_by, who).toBe(ids[who])
+        }
+    })
+
     it("allows only one live decision per matrix", async () => {
         const second = await svc().from("costing_bid_decisions").insert({ matrix_id: matrixId, verdict: "go", reason: "x", final_offer_total: 1 })
         expect(second.error?.code).toBe("23505")
@@ -206,7 +219,7 @@ describe("who decides", () => {
             expect((await tryUpdate(client, "costing_bid_decisions", decision.id, { verdict: "go" })).affected, who).toBe(0)
             expect((await tryDelete(client, "costing_bid_decisions", decision.id)).affected, who).toBe(0)
         }
-        expect((await live())[0].verdict).toBe("revise")
+        expect((await live())[0]).toMatchObject({ id: decision.id, verdict: decision.verdict })
     })
 })
 
@@ -303,27 +316,24 @@ describe("what clears it", () => {
 })
 
 describe("who reads what of it", () => {
-    it("gives the Deal Team and Always sees the verdict and reason, and no stamped figure", async () => {
+    it("gives the Deal Team the verdict and reason with the stamped figures, the cleared ones included", async () => {
         const { id } = await decide("ipasSigner", "no_go", "Over the ABC and we cannot get there")
         for (const who of ["dealOwner", "support"]) {
             const read = await readMatrix(who)
-            expect(read.tier, who).toBe("price")
+            expect(read.tier, who).toBe("closed_book")
             const table = read.tables.costing_bid_decisions
             const live_ = table.find((r) => r.id === id)
             expect(live_.verdict).toBe("no_go")
             expect(live_.reason).toBe("Over the ABC and we cannot get there")
             expect(live_.decided_by).toBe(ids.ipasSigner)
             expect(live_.decided_at).toBeTruthy()
-            expect("final_offer_total" in live_, who).toBe(false)
-            expect("abc_total" in live_, who).toBe(false)
-            // The cleared ones are there too, with why, still without figures.
+            expect("final_offer_total" in live_, who).toBe(true)
             expect(table.some((r) => r.cleared_reason === "The Final Offer changed")).toBe(true)
-            expect(table.every((r) => !("final_offer_total" in r) && !("abc_total" in r))).toBe(true)
         }
     })
 
-    it("gives Purchasing and a Stage Participant nothing of it", async () => {
-        for (const who of ["outsider", "stageParticipant"]) {
+    it("gives a Stage Participant nothing of it", async () => {
+        for (const who of ["stageParticipant"]) {
             const read = await readMatrix(who)
             expect(read, who).not.toBeNull()
             expect("costing_bid_decisions" in read.tables, who).toBe(false)
@@ -331,7 +341,7 @@ describe("who reads what of it", () => {
     })
 
     it("gives Closed Book everything, the stamped figures included", async () => {
-        for (const who of ["ipasSigner", "superAdmin"]) {
+        for (const who of ["ipasSigner", "superAdmin", "outsider"]) {
             const read = await readMatrix(who)
             const decision = read.tables.costing_bid_decisions.find((r) => r.cleared_at === null)
             expect(decision.verdict, who).toBe("no_go")
@@ -341,22 +351,23 @@ describe("who reads what of it", () => {
     })
 
     it("lets only Closed Book select the table directly", async () => {
-        const closed = await (await clientFor("ipasSigner")).from("costing_bid_decisions").select("id").eq("matrix_id", matrixId)
-        expect(closed.data.length).toBeGreaterThan(0)
-        for (const who of ["dealOwner", "support", "outsider", "stageParticipant", "finance", "ordinary"]) {
+        for (const who of ["ipasSigner", "dealOwner", "support", "outsider"]) {
+            const closed = await (await clientFor(who)).from("costing_bid_decisions").select("id").eq("matrix_id", matrixId)
+            expect(closed.data.length, who).toBeGreaterThan(0)
+        }
+        for (const who of ["stageParticipant", "finance", "ordinary"]) {
             const { data } = await (await clientFor(who)).from("costing_bid_decisions").select("id").eq("matrix_id", matrixId)
             expect(data, who).toHaveLength(0)
         }
     })
 
-    it("hides the stamped figures from the Deal Team in the history too", async () => {
+    it("shows the Deal Team the stamped figures in the history too", async () => {
         const { data } = await (await clientFor("dealOwner")).rpc("costing_history", { p_opportunity_id: sorId, p_table: "costing_bid_decisions", p_limit: 200 })
         const added = data.filter((e) => e.kind === "added")
         expect(added.length).toBeGreaterThan(0)
         for (const event of added) {
             expect(event.detail.values.verdict).toBeTruthy()
-            expect("final_offer_total" in event.detail.values).toBe(false)
-            expect("abc_total" in event.detail.values).toBe(false)
+            expect("final_offer_total" in event.detail.values).toBe(true)
         }
     })
 

@@ -1,11 +1,12 @@
 /**
  * Offer Projection (#321): canvass_offer_projection. Per Offer, the Acquire in PHP and the Markup
  * Price per unit if it won, served only to the Closed Book and Purchasing tiers, and never writing.
+ * Since 20261102170000 the Deal Team and Purchasing read the Closed Book.
  *
  * The cast, on one SOR (dealOwner is its Deal Team):
- *   outsider          Purchasing access                  -> cost tier
+ *   outsider          Purchasing access                  -> closed_book tier
  *   superAdmin        Super Admin                        -> closed_book tier
- *   dealOwner         Deal Team                          -> price tier
+ *   dealOwner         Deal Team                          -> closed_book tier
  *   stageParticipant  open Stage Participant window      -> participant tier
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -153,8 +154,13 @@ describe("what each tier is served", () => {
         await asSvc(svc().from("costing_component_costs").update({ markup_factor: null }).eq("component_id", compId), "clear factor")
     })
 
+    it("gives the Deal Team the projection, as it reads the Closed Book", async () => {
+        const { data, error } = await project("dealOwner")
+        expect(error).toBeNull()
+        expect(Number(byOffer(data, usdOffer).acquire_unit)).toBe(72400)
+    })
+
     it.each([
-        ["the Deal Team (price tier)", "dealOwner"],
         ["a Stage Participant", "stageParticipant"],
         ["an ordinary employee", "ordinary"],
     ])("gives %s nothing", async (_label, who) => {

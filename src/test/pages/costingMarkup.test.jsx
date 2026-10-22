@@ -172,9 +172,9 @@ describe("markup on the Costing Matrix grid", () => {
     await waitFor(() => expect(within(screen.getAllByTestId("component")[1]).getByTestId("markup-factor-shown")).toHaveTextContent("×2.0644 · +106.44%"));
   });
 
-  it("shows a Super Admin who is not on the Final Acquire list the factor read-only", async () => {
+  it("shows a Closed Book reader outside Sales and Purchasing the factor read-only", async () => {
     seed();
-    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["technical"] });
     openModal(deal);
 
     await openPms();
@@ -182,7 +182,7 @@ describe("markup on the Costing Matrix grid", () => {
     expect(await screen.findByTestId("markup-default-shown")).toHaveTextContent("×1.35 +35%");
     expect(screen.queryByRole("combobox", { name: "Markup preset" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Default markup factor")).not.toBeInTheDocument();
-    expect(screen.getByText("The Final Acquire list sets the markup factor.")).toBeInTheDocument();
+    expect(screen.getByText("Sales, Purchasing and the Final Acquire list set the markup factor.")).toBeInTheDocument();
     expect(within(screen.getAllByTestId("component")[0]).getByLabelText("Markup factor 1.1").tagName).toBe("SPAN");
   });
 

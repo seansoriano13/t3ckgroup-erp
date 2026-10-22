@@ -7,8 +7,8 @@
  * The cast, on one SOR with a matrix (dealOwner is its Deal Team):
  *   ipasSigner  Final Acquire list only         -> opens the SOR, closed_book
  *   ordinary    Evaluation list only            -> opens the SOR, participant
- *   outsider    Purchasing + Evaluation list    -> cost (not lowered)
- *   dealOwner   Deal Team + Evaluation list     -> price (not lowered)
+ *   outsider    Purchasing + Evaluation list    -> closed_book (not lowered)
+ *   dealOwner   Deal Team + Evaluation list     -> closed_book (not lowered)
  *   superAdmin                                  -> closed_book
  *   finance     on neither list                 -> closed
  * A second SOR (same Deal Team) has no matrix: closed to both lists.
@@ -164,8 +164,8 @@ describe("Evaluation list", () => {
 
 describe("higher tiers are not lowered by also being on the Evaluation list", () => {
     it.each([
-        ["outsider", "cost"],
-        ["dealOwner", "price"],
+        ["outsider", "closed_book"],
+        ["dealOwner", "closed_book"],
         ["superAdmin", "closed_book"],
     ])("%s keeps %s", async (who, expected) => {
         expect(await tier(who)).toBe(expected)

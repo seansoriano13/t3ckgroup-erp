@@ -101,6 +101,8 @@ describe("the Bid Decisions queue", () => {
 
     expect(getPermissionContext({ isFinalAcquire: true }).isBidDecider).toBe(true);
     expect(getPermissionContext({ isSuperAdmin: true }).isBidDecider).toBe(true);
+    // Purchasing, or on a Deal Team: the database lists only their own SORs.
+    expect(getPermissionContext({ isCostingOpen: true }).isBidDecider).toBe(true);
     expect(getPermissionContext({ isHead: true }).isBidDecider).toBe(false);
   });
 });

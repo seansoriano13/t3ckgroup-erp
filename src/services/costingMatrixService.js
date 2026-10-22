@@ -983,8 +983,8 @@ export const costingMatrixService = {
 
   /**
    * Takes the Bid Decision on a matrix (#320): `verdict` is "go", "no_go" or "revise" and `reason` is
-   * written in the decider's own words. Only a Super Admin or a member of the Final Acquire list can
-   * (the database decides; there is no self-approval rule), and every Tender Line needs a Final Offer
+   * written in the decider's own words. Only the Closed Book can: a Super Admin, the Final Acquire list,
+   * Purchasing or the SOR's Deal Team (the database decides; there is no self-approval rule), and every Tender Line needs a Final Offer
    * first. The database stamps the Final Offer total and ABC total, replaces a live decision, tells the
    * Deal Team on No-go and Revise, and moves nothing on the SOR. Returns the new decision's id.
    */

@@ -21,8 +21,8 @@ export function FromCanvass({ what, number, className = "" }) {
 }
 
 /**
- * "Canvass says Toyota" with an Accept, under Brand (#278). Brand is Sales' column, so only a
- * Deal Team member (the Sales band) gets the Accept button; everyone else just reads the line.
+ * "Canvass says Toyota" with an Accept, under Brand (#278). Brand is written by Sales and
+ * Purchasing, so either band gets the Accept button; everyone else just reads the line.
  */
 export function BrandProposal({ component, canAccept, onAccepted }) {
   const [busy, setBusy] = useState(false);

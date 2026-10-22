@@ -60,8 +60,8 @@ describe("a winner on the Costing Matrix page", () => {
     await waitFor(() => expect(db.rows("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner).toBe(true));
     await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
     expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
-    // Purchasing does not get the Accept: Brand is Sales' column.
-    expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
+    // Purchasing gets the Accept too: Brand is written by Sales and Purchasing.
+    expect(await screen.findByTestId("brand-proposal")).toHaveTextContent("Canvass says Redleaf");
   });
 
   it("un-picks the winner: no winner, sign-off cleared, values kept, and a note on the row", async () => {
@@ -101,9 +101,9 @@ describe("a winner on the Costing Matrix page", () => {
     await waitFor(() => expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument());
   });
 
-  it("shows no 'Canvass says' to anyone outside the Deal Team", async () => {
+  it("shows no 'Canvass says' to anyone outside Sales and Purchasing", async () => {
     db.internal.rowsOf("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner = true;
-    mount({ tier: "cost", bands: ["purchasing"] });
+    mount({ tier: "cost", bands: [] });
     await screen.findByTestId("component-canvass");
     expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
     expect(screen.queryByText(/Canvass says/)).not.toBeInTheDocument();
