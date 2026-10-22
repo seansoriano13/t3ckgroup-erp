@@ -57,6 +57,11 @@ function renderAt(entry = "/purchasing") {
 
 const rowFor = async (ref) => (await screen.findByText(ref)).closest("tr")
 const tab = (name) => screen.getByRole("tab", { name: new RegExp(`^${name}`) })
+// The Buyer dropdown: open it from whatever it shows now, then pick.
+async function pickBuyer(user, from, option) {
+  await user.click(screen.getByRole("button", { name: from }))
+  await user.click(await screen.findByRole("button", { name: option }))
+}
 
 beforeEach(() => {
   me = makeEmployee({ name: "Pia Buyer", department: "OPERATIONS", has_purchasing_flow: true })
@@ -83,8 +88,10 @@ describe("Procurement Queue", () => {
     expect(within(await rowFor("S01001")).getByText("0 of 1 done")).toBeInTheDocument()
 
     const user = setupUser()
-    await user.click(within(screen.getByTestId("page-toolbar")).getByRole("button", { name: "Open" }))
-    await user.click(await screen.findByText("Closed"))
+    expect(tab("Open")).toHaveTextContent("2")
+    expect(tab("Closed")).toHaveTextContent("1")
+    expect(tab("All")).toHaveTextContent("3")
+    await user.click(tab("Closed"))
 
     expect(await rowFor("S01003")).toBeInTheDocument()
     expect(screen.queryByText("S01001")).not.toBeInTheDocument()
@@ -95,14 +102,29 @@ describe("Procurement Queue", () => {
     renderAt()
     await rowFor("S01001")
 
-    await user.click(tab("Unassigned"))
+    await pickBuyer(user, "Any buyer", "Unassigned")
     expect(screen.getByText("S01001")).toBeInTheDocument()
     expect(screen.queryByText("S01002")).not.toBeInTheDocument()
 
-    await user.click(tab("Mine"))
+    await pickBuyer(user, "Unassigned", "Mine")
     expect(screen.queryByText("S01001")).not.toBeInTheDocument()
     expect(screen.queryByText("S01002")).not.toBeInTheDocument()
     expect(screen.getByText("No matching requests")).toBeInTheDocument()
+  })
+
+  it("saves the Buyer pick as a default and opens with it next time", async () => {
+    const user = setupUser()
+    const first = renderAt()
+    await rowFor("S01001")
+
+    await pickBuyer(user, "Any buyer", "Unassigned")
+    await user.click(screen.getByRole("button", { name: "Save filters as default" }))
+    first.unmount()
+
+    renderAt()
+    expect(await rowFor("S01001")).toBeInTheDocument()
+    expect(screen.queryByText("S01002")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Unassigned" })).toBeInTheDocument()
   })
 
   it("opens the picked request beside the list, in the URL, with its items, members and chat", async () => {
@@ -136,12 +158,12 @@ describe("Procurement Queue", () => {
     await waitFor(() => expect(db.rows("purchase_requests").find((r) => r.id === unassigned.id).buyer_id).toBe(me.id))
     expect(screen.getByTestId("where")).toHaveTextContent("")
 
-    await user.click(tab("Mine"))
+    await pickBuyer(user, "Any buyer", "Mine")
     expect(await rowFor("S01001")).toBeInTheDocument()
     expect(within(await rowFor("S01001")).getByText("Pia Buyer")).toBeInTheDocument()
     expect(screen.queryByText("S01002")).not.toBeInTheDocument()
 
-    await user.click(tab("Unassigned"))
+    await pickBuyer(user, "Mine", "Unassigned")
     expect(screen.queryByText("S01001")).not.toBeInTheDocument()
   })
 
