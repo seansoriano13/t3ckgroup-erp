@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { Building2, Calculator, CircleDot, Columns3, Eye, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
+import { Building2, Calculator, CircleDot, Eye, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import PageShell from "../../../components/ui/PageShell";
@@ -10,10 +10,7 @@ import QueryError from "../../../components/ui/QueryError";
 import PageLoading from "../../../components/ui/PageLoading";
 import TabGroup from "../../../components/ui/TabGroup";
 import FilterBar from "../../../components/ui/FilterBar";
-import { FilterSelect, FilterTriggerButton } from "../../../components/ui/FilterDropdown";
-import Dropdown from "../../../components/ui/Dropdown";
-import { Checkbox } from "../../../components/ui/checkbox";
-import { FieldBox } from "../../../components/ui/FieldBox";
+import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
 import { TablePager } from "../../../components/ui/TablePager";
 import { SortHead, Table, TableBody, TableHeader, TableRow } from "../../../components/ui/table";
@@ -30,6 +27,8 @@ import { ipasFigures, ipasTotalsByCurrency } from "../../../utils/ipasFigures";
 import { IPAS_EXPORT_HEADER, ipasExportRows } from "../../../utils/ipasListExport";
 import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasListViews";
 import ExportButton from "../../../components/purchasing/list/ExportButton";
+import ColumnsMenu from "../../../components/purchasing/list/ColumnsMenu";
+import { useHiddenColumns } from "../../../hooks/useHiddenColumns";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -121,31 +120,11 @@ const LIST_HEADINGS = [
   "State",
 ];
 const LOCKED_HEADING = "IPAS";
-const ALL_COLUMN_KEYS = new Set(LIST_HEADINGS.map(slug));
 // Someone who has never chosen columns starts without these three; a saved choice (even "show all") is kept.
 const DEFAULT_HIDDEN_COLUMNS = ["raised-by", "dp", "fp"];
 
-// The hidden columns are remembered per employee on this browser. Blocked or broken storage never breaks the page.
-const columnsKey = (userId) => `erp_ipas_columns_${userId ?? "anon"}`;
-
-function readHiddenColumns(userId) {
-  try {
-    const raw = localStorage.getItem(columnsKey(userId));
-    if (raw === null) return DEFAULT_HIDDEN_COLUMNS;
-    const stored = JSON.parse(raw);
-    return Array.isArray(stored) ? stored.filter((key) => ALL_COLUMN_KEYS.has(key)) : DEFAULT_HIDDEN_COLUMNS;
-  } catch {
-    return DEFAULT_HIDDEN_COLUMNS;
-  }
-}
-
-function writeHiddenColumns(userId, hidden) {
-  try {
-    localStorage.setItem(columnsKey(userId), JSON.stringify(hidden));
-  } catch {
-    /* ignore */
-  }
-}
+const COLUMNS = LIST_HEADINGS.map((heading) => ({ key: slug(heading), label: heading, locked: heading === LOCKED_HEADING }));
+const KNOWN_COLUMN_KEYS = COLUMNS.map((column) => column.key);
 
 function IpasList() {
   const navigate = useNavigate();
@@ -162,13 +141,9 @@ function IpasList() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState(() => readHiddenColumns(user?.id));
-  const show = useCallback((key) => !hiddenColumns.includes(key), [hiddenColumns]);
-  const toggleColumn = (key) => {
-    const next = hiddenColumns.includes(key) ? hiddenColumns.filter((k) => k !== key) : [...hiddenColumns, key];
-    setHiddenColumns(next);
-    writeHiddenColumns(user?.id, next);
-  };
+  // Remembered per employee on this browser.
+  const columns = useHiddenColumns(`erp_ipas_columns_${user?.id ?? "anon"}`, { defaults: DEFAULT_HIDDEN_COLUMNS, known: KNOWN_COLUMN_KEYS });
+  const { show } = columns;
 
   const { data: listed = [], isLoading, isError, refetch } = useQuery({
     queryKey: ipasListKey,
@@ -278,42 +253,7 @@ function IpasList() {
         activeCount={[view, entity, purpose, costing].filter((value) => value !== null).length}
         actions={
           <>
-            <Dropdown
-              usePortal
-              placement="bottom-end"
-              matchTriggerWidth={false}
-              className="w-auto shrink-0"
-              trigger={({ isOpen }) => (
-                <FilterTriggerButton
-                  popup="dialog"
-                  wrapperClassName="w-auto"
-                  className={CHIP}
-                  icon={Columns3}
-                  label="Columns"
-                  // Icon and count only, so the bar stays on one line; the label stays its name.
-                  labelClassName="hidden"
-                  count={hiddenColumns.length}
-                  isActive={hiddenColumns.length > 0}
-                  isOpen={isOpen}
-                />
-              )}
-            >
-              {() => (
-                <div className="flex max-h-[min(60vh,24rem)] w-56 flex-col gap-1 overflow-y-auto overscroll-contain p-2" role="group" aria-label="Columns shown">
-                  {LIST_HEADINGS.map((heading) => (
-                    <FieldBox inline key={heading} className="rounded-md px-1.5 py-1 text-[13px] hover:bg-muted">
-                      <Checkbox
-                        checked={heading === LOCKED_HEADING || show(slug(heading))}
-                        disabled={heading === LOCKED_HEADING}
-                        onCheckedChange={() => toggleColumn(slug(heading))}
-                        aria-label={heading}
-                      />
-                      {heading}
-                    </FieldBox>
-                  ))}
-                </div>
-              )}
-            </Dropdown>
+            <ColumnsMenu columns={COLUMNS} hidden={columns.hidden} onToggle={columns.toggle} />
             <ExportButton name="ipas" sheetName="IPAS" header={IPAS_EXPORT_HEADER} rows={exportRows} />
           </>
         }

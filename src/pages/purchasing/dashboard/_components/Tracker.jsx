@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, CalendarClock, FolderKanban, LayoutDashboard, PackageCheck, Store, Truck, UserRound } from "lucide-react";
 
@@ -15,6 +15,8 @@ import { FilterSelect } from "@/components/ui/FilterDropdown";
 import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { IdentityCell } from "@/components/purchasing/list/IdentityCell";
 import ExportButton from "@/components/purchasing/list/ExportButton";
+import ColumnsMenu from "@/components/purchasing/list/ColumnsMenu";
+import { useHiddenColumns } from "@/hooks/useHiddenColumns";
 import { useAuth } from "@/context/AuthContext";
 import { usePaging } from "@/hooks/usePaging";
 import { useTableSort } from "@/hooks/useTableSort";
@@ -27,7 +29,6 @@ import { pluralize } from "../../../../utils/plural";
 import { useRecordParam } from "../../../../hooks/useRecordParam";
 import { NEXT_FILTER, TRACKER_STAGES, buildTracker, sorSummary, stageStates, valueOpenByCurrency } from "../../../../utils/purchasingTracker";
 import SorPanel from "./SorPanel";
-import ColumnsMenu from "./ColumnsMenu";
 import { TRACKER_COLUMNS, TRACKER_EXPORT_HEADER, TRACKER_SORT, trackerExportRows } from "./trackerList";
 import { Age, DeadlineText, MoveText, StageCircle } from "./trackerParts";
 import { ALL, FILED_INCLUDED, NO_CANVASS } from "./useTrackerFilters";
@@ -49,30 +50,10 @@ const sorIdentity = (sor) => ({
   subtitle: sorSummary(sor) || "Nothing outstanding",
 });
 
+const TRACKER_COLUMN_KEYS = TRACKER_COLUMNS.map((column) => column.key);
 const HEAD = "whitespace-nowrap text-label font-bold uppercase tracking-wider";
 const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
-
-// The hidden columns are remembered per employee on this browser. Blocked or broken storage never breaks the page.
-const columnsKey = (userId) => `erp_purchasing_dashboard_columns_${userId ?? "anon"}`;
-
-function readHiddenColumns(userId) {
-  try {
-    const stored = JSON.parse(localStorage.getItem(columnsKey(userId)) ?? "[]");
-    return Array.isArray(stored) ? stored.filter((key) => typeof key === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeHiddenColumns(userId, hidden) {
-  try {
-    if (hidden.length) localStorage.setItem(columnsKey(userId), JSON.stringify(hidden));
-    else localStorage.removeItem(columnsKey(userId));
-  } catch {
-    /* ignore */
-  }
-}
 
 const NEXT_OPTIONS = [
   { value: NEXT_FILTER.ALL, label: "Any next move" },
@@ -222,13 +203,9 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
   const labelOf = useStandingLabel();
   const { recordId, open, step, close } = useRecordParam("sor");
 
-  const [hiddenColumns, setHiddenColumns] = useState(() => readHiddenColumns(user?.id));
-  const toggleColumn = (key) => {
-    const next = hiddenColumns.includes(key) ? hiddenColumns.filter((k) => k !== key) : [...hiddenColumns, key];
-    setHiddenColumns(next);
-    writeHiddenColumns(user?.id, next);
-  };
-  const shown = TRACKER_COLUMNS.filter((column) => column.locked || !hiddenColumns.includes(column.key));
+  // Remembered per employee on this browser.
+  const columns = useHiddenColumns(`erp_purchasing_dashboard_columns_${user?.id ?? "anon"}`, { known: TRACKER_COLUMN_KEYS });
+  const shown = TRACKER_COLUMNS.filter((column) => column.locked || columns.show(column.key));
 
   const today = useMemo(() => new Date(), []);
   const tracker = useMemo(
@@ -277,7 +254,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
 
   const toolbar = (
     <FilterBar
-      {...trackerBar(f, data, valueOpen, { list: TRACKER_COLUMNS, hidden: hiddenColumns, toggle: toggleColumn }, exportRows)}
+      {...trackerBar(f, data, valueOpen, { list: TRACKER_COLUMNS, hidden: columns.hidden, toggle: columns.toggle }, exportRows)}
     />
   );
 

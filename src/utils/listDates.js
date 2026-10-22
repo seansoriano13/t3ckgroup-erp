@@ -16,10 +16,14 @@ export function listAgeDays(value, now = new Date()) {
   return Math.max(0, differenceInCalendarDays(toManila(now), asManila(value)))
 }
 
+/** A whole number of days as "3d"; "" when there is no number. The one place an age is spelled. */
+export function formatAgeDays(days) {
+  return days === null || days === undefined ? '' : `${days}d`
+}
+
 /** An age as "3d"; "" when there is no date. */
 export function listAge(value, now = new Date()) {
-  const days = listAgeDays(value, now)
-  return days === null ? '' : `${days}d`
+  return formatAgeDays(listAgeDays(value, now))
 }
 
 /** A date as "Oct 22", or "Oct 22, 2025" when it is not this year (in Manila); "" when there is no date. */

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DEADLINE_MARK } from "../../../../utils/deliveryDeadline";
 import { formatDateWith } from "../../../../utils/formatDate";
 import { pluralize } from "../../../../utils/plural";
+import { formatAgeDays } from "../../../../utils/listDates";
 import { ageDays, rowLabel } from "../../../../utils/purchasingDashboard";
 import { TRACKER_STAGES, orderMove, stageStates } from "../../../../utils/purchasingTracker";
 
@@ -85,7 +86,7 @@ export function DeadlineText({ deadline, className }) {
 }
 
 export const Age = ({ days, late }) => (
-  <span className={cn("shrink-0 text-xs tabular-nums", late ? "font-semibold text-destructive" : "text-muted-foreground")}>{days}d</span>
+  <span className={cn("shrink-0 text-xs tabular-nums", late ? "font-semibold text-destructive" : "text-muted-foreground")}>{formatAgeDays(days)}</span>
 );
 
 /** A SOR's next move as two lines: what to do (red when late), then which record, who owes it and for how long. */

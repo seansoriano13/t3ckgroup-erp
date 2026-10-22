@@ -51,7 +51,7 @@ import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
 import { useAuth } from "../context/AuthContext";
 import { CANVASS_CURRENCIES, CANVASS_KIND, MIN_CANVASS_OFFERS, CANVASS_LIST_KEY, CANVASS_LOCKED_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
 import { getPermissionContext } from "../utils/permissions";
-import { canvassRequestState } from "../utils/canvassList";
+import { CANVASS_STATE_TONES, canvassRequestState, canvassStateOf } from "../utils/canvassList";
 import { offerCurrency } from "../utils/canvassMath";
 import { projectOffer } from "../utils/offerProjection";
 import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
@@ -784,11 +784,9 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const prId = requestState?.requestId ?? null;
   const offerCount = `${offers.length} offer${offers.length === 1 ? "" : "s"}`;
 
-  const badge = isSigned
-    ? { label: "Signed off", theme: STATUS_THEME.GREEN }
-    : winner
-      ? { label: "Awaiting sign-off", theme: STATUS_THEME.AMBER }
-      : { label: "Open", theme: STATUS_THEME.MAUVE };
+  // The same state and tone the Canvasses list shows, so a Canvass reads the same in both places.
+  const rowState = canvassStateOf({ signedOffAt: canvass?.signed_off_at, requestId: prId });
+  const badge = { label: rowState.label, theme: CANVASS_STATE_TONES[rowState.state] };
 
   const canSignNow = Boolean(canvass) && !isSigned && isApprover && !isCreator && readyToSign;
   const canRequestNow = Boolean(canvass) && canEdit && isBare && !prId && !isLocked;

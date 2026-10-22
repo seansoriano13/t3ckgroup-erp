@@ -65,7 +65,7 @@ export default function YourMove({ ctx, digest, onReview, next }) {
           type="button"
           variant="link"
           onClick={() => onReview(gate.part)}
-          className="h-auto p-0 text-xs font-medium text-foreground underline underline-offset-4"
+          className="h-auto p-0 text-xs font-medium underline underline-offset-4"
         >
           Review section {ipasSectionLabel(gate.part)}
         </Button>
