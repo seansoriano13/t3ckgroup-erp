@@ -844,7 +844,7 @@ export default function GroupTaskDetailModal({
                 setIsSplitScreen((prev) => !prev);
               }}
               className={cn(
-                "rounded-md",
+                "hidden lg:inline-flex rounded-md",
                 isSplitScreen
                   ? "text-primary bg-primary/10 hover:bg-primary/20"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/80",

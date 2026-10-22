@@ -596,7 +596,7 @@ export default function TaskActivityTimeline({
   return (
     <div className={
       isSplitScreen
-        ? "w-[380px] shrink-0 flex flex-col bg-card border-l border-border h-full"
+        ? "w-[380px] max-w-[50vw] shrink-0 flex flex-col bg-card border-l border-border h-full"
         : "flex flex-col border border-border rounded-xl overflow-hidden bg-card mt-4"
     }>
       <div className={
