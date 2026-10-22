@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import PageShell from '@/components/ui/PageShell';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,13 @@ import TabGroup from '@/components/ui/TabGroup';
 import Calendar from '@/components/calendar/Calendar';
 import MeetingRequestDialog from '@/components/calendar/MeetingRequestDialog';
 import MyMeetingRequests from '@/components/calendar/MyMeetingRequests';
+import PageLoading from '@/components/ui/PageLoading';
+
+// PROTOTYPE (branch prototype/calendar-redesign): the redesign variants, on staging and local builds only.
+const CalendarPrototype =
+  import.meta.env.VITE_APP_ENV === 'staging' || import.meta.env.VITE_APP_ENV === 'local'
+    ? lazy(() => import('@/components/calendar/prototype/CalendarPrototype'))
+    : null;
 
 /** The Calendar page: the shared Calendar, plus the viewer's Meeting Requests. */
 export default function CalendarPage() {
@@ -30,7 +37,15 @@ export default function CalendarPage() {
           />
         }
       >
-        {tab === 'mine' ? <MyMeetingRequests /> : <Calendar onPickSlot={openRequest} />}
+        {tab === 'mine' ? (
+          <MyMeetingRequests />
+        ) : CalendarPrototype ? (
+          <Suspense fallback={<PageLoading />}>
+            <CalendarPrototype onPickSlot={openRequest} />
+          </Suspense>
+        ) : (
+          <Calendar onPickSlot={openRequest} />
+        )}
         <MeetingRequestDialog open={Boolean(request)} initial={request ?? undefined} onClose={() => setRequest(null)} />
       </PageShell>
     </ProtectedRoute>
