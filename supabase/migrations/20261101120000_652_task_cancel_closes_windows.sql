@@ -32,7 +32,17 @@ begin
     and opportunity_id = p_opportunity_id
     and source_id = p_action_id
     and opened_visit_id = p_visit_id
-    and employee_id = any (p_employee_ids);
+    and employee_id = any (p_employee_ids)
+    -- keep a window another live task from the same call-in still holds open
+    and not exists (select 1 from public.tasks t2
+      where t2.status <> 'DELETED' and t2.opportunity_id = p_opportunity_id
+        and t2.stage_action_id = p_action_id and t2.stage_visit_id = p_visit_id
+        and t2.logged_by = sor_stage_participants.employee_id)
+    and not exists (select 1 from public.committee_tasks c2
+      join public.committee_task_members m2 on m2.committee_task_id = c2.id
+      where c2.status <> 'CANCELLED' and c2.opportunity_id = p_opportunity_id
+        and c2.stage_action_id = p_action_id and c2.stage_visit_id = p_visit_id
+        and m2.employee_id = sor_stage_participants.employee_id);
 end;
 $$;
 

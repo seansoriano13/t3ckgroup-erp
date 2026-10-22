@@ -22,6 +22,7 @@ beforeAll(async () => {
 afterAll(async () => {
     await svc().from("sor_stage_participants").delete().eq("opportunity_id", sorId)
     await svc().from("tasks").delete().eq("opportunity_id", sorId)
+    await svc().from("committee_tasks").delete().eq("opportunity_id", sorId)
     await svc().from("sales_opportunities").delete().eq("id", sorId)
     await svc().from("flow_stage_actions").delete().in("id", [actionId, otherActionId])
     await svc().from("flow_stages").delete().eq("id", stageId)
@@ -64,5 +65,40 @@ describe("cancelling a Stage Action task", () => {
             p_opportunity_id: sorId, p_action_id: actionId, p_visit_id: visitId, p_employee_ids: [ids.support],
         })
         expect(error).not.toBeNull()
+    })
+
+    it("keeps a window open while another live task from the same call-in still holds it", async () => {
+        const w = await openWindow(actionId)
+        const t1 = await makeTask(actionId)
+        await makeTask(actionId)
+        await svc().from("tasks").update({ status: "DELETED" }).eq("id", t1)
+        expect((await windowRow(w)).closed_at).toBeNull()
+    })
+})
+
+describe("cancelling a Stage Action Group Task", () => {
+    const makeGroupTask = async () => {
+        const id = (await svc().from("committee_tasks")
+            .insert({ title: `${MARKER} g`, created_by: ids.dealOwner, status: "ACTIVE", opportunity_id: sorId, stage_action_id: actionId, stage_visit_id: visitId })
+            .select("id").single()).data.id
+        await svc().from("committee_task_members").insert({ committee_task_id: id, employee_id: ids.support, task_description: "" })
+        return id
+    }
+
+    it("closes each member's matching window", async () => {
+        const w = await openWindow(actionId)
+        const g = await makeGroupTask()
+        await svc().from("committee_tasks").update({ status: "CANCELLED", cancel_reason: "test" }).eq("id", g)
+        const row = await windowRow(w)
+        expect(row.closed_at).not.toBeNull()
+        expect(row.closed_reason).toBe("task_cancelled")
+    })
+
+    it("keeps the window when another live Group Task from the same call-in holds it", async () => {
+        const w = await openWindow(actionId)
+        const g1 = await makeGroupTask()
+        await makeGroupTask()
+        await svc().from("committee_tasks").update({ status: "CANCELLED", cancel_reason: "test" }).eq("id", g1)
+        expect((await windowRow(w)).closed_at).toBeNull()
     })
 })

@@ -101,18 +101,19 @@ begin
   set status = 'DELETED', converted_to_group_task_id = v_group_id
   where id = p_task_id;
 
-  -- Notifications that pointed at the old task now lead to the Group Task.
+  -- Chat and assignment alerts that pointed at the old task now lead to the Group Task. Approval,
+  -- rejection, grading and submit alerts are left alone: conversion only takes open tasks, so those
+  -- are history about the old task, and a Group Task has no matching approval flow to open.
   update public.notifications n
   set reference_id = v_group_id::text,
       type = case n.type
         when 'TASK_MENTION' then 'GROUP_TASK_MENTION'
         when 'TASK_REACTION' then 'GROUP_TASK_REACTION'
         when 'TASK_COMMENT' then 'GROUP_TASK_COMMENT'
-        else 'GROUP_ASSIGNED'
+        when 'TASK_ASSIGNED' then 'GROUP_ASSIGNED'
       end
   where n.reference_id = p_task_id::text
-    and n.type like '%TASK%'
-    and n.type not like 'GROUP\_%';
+    and n.type in ('TASK_MENTION', 'TASK_REACTION', 'TASK_COMMENT', 'TASK_ASSIGNED');
 
   insert into public.committee_task_logs (committee_task_id, action, actor_id, details)
   values (v_group_id, 'CREATED', v_me, jsonb_build_object('title', v_title, 'converted_from_task_id', p_task_id));
