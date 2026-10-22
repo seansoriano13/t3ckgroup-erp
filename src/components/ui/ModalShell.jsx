@@ -3,6 +3,7 @@ import { ChevronRight, Maximize2, Minimize2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { RECORD_MODAL_CLASS } from "@/components/ui/record-modal";
 
 // Panel widths. `compact` is a short form or confirm step; `wide` is a record
 // (IPAS, Transmittal, Packing List, Canvass). Expanded is the same for both:
@@ -10,6 +11,11 @@ import { cn } from "@/lib/utils";
 const SIZE_CLASS = {
   compact: "w-[680px]",
   wide: "w-[1100px]",
+  // The record window: the RecordModal size, and the full screen on a phone.
+  record: cn(
+    RECORD_MODAL_CLASS,
+    "max-sm:!top-0 max-sm:!left-0 max-sm:!translate-x-0 max-sm:!h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:rounded-none",
+  ),
 };
 
 const EXPANDED_CLASS =
@@ -48,7 +54,10 @@ function writeExpanded(value) {
  * A `wide` record carries `data-modal-shell="wide"`, so code that asks "is another
  * dialog open?" can tell the record itself from a dialog opened over it.
  *
- * `size`: "compact" (680px) or "wide" (1100px). `expandable` adds the Expand
+ * `size`: "compact" (680px), "wide" (1100px) or "record" (the record window:
+ * RecordModal size, filling the screen on a phone, with no footer bar and no
+ * Expand; the X and Esc close it, and `actions`, `cancelLabel` and `footerStart`
+ * are not drawn). `expandable` adds the Expand
  * button, which grows the panel to the full window in width and height.
  * Pass `onSubmit` to wrap body and footer in a form, so a `type="submit"`
  * action submits it. `cancelLabel={null}` hides Cancel for a record that only
@@ -82,6 +91,7 @@ export default function ModalShell({
     });
   };
 
+  const isRecord = size === "record";
   const close = () => onOpenChange?.(false);
   const heading = title || crumbs[crumbs.length - 1] || "Purchasing";
   const Frame = onSubmit ? "form" : "div";
@@ -96,8 +106,8 @@ export default function ModalShell({
           "flex flex-col gap-0 overflow-hidden rounded-2xl p-0 shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] transition-all duration-300 sm:max-w-none max-w-[95vw] max-h-[90vh]",
           SIZE_CLASS[size],
           // A record sits at 70 so its section drawer (75) and the small dialogs opened from it (80) stack above it.
-          size === "wide" ? "z-[70]" : "z-[80]",
-          expandable && expanded && EXPANDED_CLASS,
+          size === "wide" || isRecord ? "z-[70]" : "z-[80]",
+          expandable && !isRecord && expanded && EXPANDED_CLASS,
           className,
         )}
       >
@@ -112,7 +122,10 @@ export default function ModalShell({
               P
             </div>
             {crumbs.map((crumb, i) => (
-              <span key={`${i}-${crumb}`} className="flex min-w-0 items-center gap-2">
+              <span
+                key={`${i}-${crumb}`}
+                className="flex min-w-0 items-center gap-2"
+              >
                 <ChevronRight size={11} className="shrink-0 text-mauve-6" />
                 <span
                   className={cn(
@@ -129,7 +142,7 @@ export default function ModalShell({
           </nav>
           <div className="flex shrink-0 items-center gap-1">
             {headerActions}
-            {expandable && (
+            {expandable && !isRecord && (
               <Button
                 type="button"
                 variant="ghost"
@@ -165,31 +178,33 @@ export default function ModalShell({
             {children}
           </div>
 
-          <div className="flex shrink-0 items-center justify-between border-t border-border bg-muted/30 px-5 py-4">
-            <div className="flex items-center gap-4 text-[10px] font-medium text-muted-foreground">
-              <span className="hidden items-center gap-1.5 sm:flex">
-                <kbd className="rounded border border-border bg-muted/80 px-1.5 py-0.5 font-sans text-[9px] text-muted-foreground">
-                  Esc
-                </kbd>
-                <span>to cancel</span>
-              </span>
-              {footerStart}
+          {!isRecord && (
+            <div className="flex shrink-0 items-center justify-between border-t border-border bg-muted/30 px-5 py-4">
+              <div className="flex items-center gap-4 text-[10px] font-medium text-muted-foreground">
+                <span className="hidden items-center gap-1.5 sm:flex">
+                  <kbd className="rounded border border-border bg-muted/80 px-1.5 py-0.5 font-sans text-[9px] text-muted-foreground">
+                    Esc
+                  </kbd>
+                  <span>to cancel</span>
+                </span>
+                {footerStart}
+              </div>
+              <div ref={actionsRef} className="flex items-center gap-2.5">
+                {cancelLabel !== null && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={close}
+                    className="h-9 rounded-xl px-4 text-[13px] font-bold text-muted-foreground/80 hover:text-foreground"
+                  >
+                    {cancelLabel}
+                  </Button>
+                )}
+                {actions}
+              </div>
             </div>
-            <div ref={actionsRef} className="flex items-center gap-2.5">
-              {cancelLabel !== null && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={close}
-                  className="h-9 rounded-xl px-4 text-[13px] font-bold text-muted-foreground/80 hover:text-foreground"
-                >
-                  {cancelLabel}
-                </Button>
-              )}
-              {actions}
-            </div>
-          </div>
+          )}
         </Frame>
       </DialogContent>
     </Dialog>

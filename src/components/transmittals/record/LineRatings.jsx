@@ -2,6 +2,8 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { Check } from "lucide-react";
 
+import DetailGrid from "@/components/record/DetailGrid";
+import LinerList from "@/components/record/LinerList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
@@ -187,31 +189,51 @@ export default function LineRatings({ ctx }) {
           </Button>
         </div>
       )}
-      <ul className="divide-y divide-border rounded-2xl border border-border bg-card">
-        {t.lines.map((line) => (
-          <li key={line.id} className="flex flex-wrap items-start gap-x-6 gap-y-3 px-4 py-3.5">
-            <span className="w-5 pt-0.5 text-right font-mono text-xs text-muted-foreground">{line.position}</span>
-            <div className="min-w-[14rem] flex-1">
-              <p className="text-[14px] font-semibold text-foreground">{line.description}</p>
-              <p className="text-[12px] text-muted-foreground">
-                <span className="font-mono">{line.poNumber ?? "Typed"}</span> · {line.quantity} {line.unit ?? ""}
-                {line.sor?.salesReference && <> · <span className="font-mono">{line.sor.salesReference}</span></>}
-                {line.serialNumbers && ` · SN# ${line.serialNumbers}`}
-                {line.boxQuantity && ` · ${line.boxQuantity} box`}
-              </p>
-            </div>
-            {sides.map((side) => (
-              <RatingCell
-                key={`${side}:${line.id}:${SIDES[side].rating(line)}:${SIDES[side].remark(line)}`}
-                ctx={ctx}
-                line={line}
-                side={side}
-                inChargeId={inChargeId}
-              />
-            ))}
-          </li>
-        ))}
-      </ul>
+      <LinerList
+        label="Lines"
+        rows={t.lines.map((line) => {
+          const ratings = sides.map((side) => SIDES[side].rating(line)).filter(Boolean);
+          const badge = ratings.includes("na")
+            ? { label: "NA", theme: "amber" }
+            : ratings.length > 0 && ratings.length === sides.length
+              ? { label: "GC", theme: "green" }
+              : null;
+          return {
+            key: line.id,
+            main: line.description,
+            sub: [line.poNumber ?? "Typed", line.sor?.salesReference].filter(Boolean).join(" · "),
+            quantity: `${line.quantity} ${line.unit ?? ""}`.trim(),
+            badge,
+            children: (
+              <div className="space-y-4">
+                <DetailGrid
+                  hideEmpty
+                  items={[
+                    { label: "Line", value: line.position, mono: true },
+                    { label: "PO", value: line.poNumber ?? "Typed", mono: true },
+                    { label: "SOR", value: line.sor?.salesReference, mono: true },
+                    { label: "Serial numbers", value: line.serialNumbers },
+                    { label: "Boxes", value: line.boxQuantity },
+                  ]}
+                />
+                {sides.length > 0 && (
+                  <div className="flex flex-wrap gap-x-8 gap-y-3">
+                    {sides.map((side) => (
+                      <RatingCell
+                        key={`${side}:${line.id}:${SIDES[side].rating(line)}:${SIDES[side].remark(line)}`}
+                        ctx={ctx}
+                        line={line}
+                        side={side}
+                        inChargeId={inChargeId}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ),
+          };
+        })}
+      />
     </div>
   );
 }
