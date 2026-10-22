@@ -281,8 +281,8 @@ describe("Component costs: who writes", () => {
 
     it("keeps Final Acquire and the markup factor to the Final Acquire list, a Super Admin included", async () => {
         for (const who of ["outsider", "dealOwner", "superAdmin"]) {
-            expect((await setCost(who, plainId, { final_acquire_unit: 1 }))?.message, who).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
-            expect((await setCost(who, plainId, { markup_factor: 1.35 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:management")
+            expect((await setCost(who, plainId, { final_acquire_unit: 1 }))?.message, who).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing")
+            expect((await setCost(who, plainId, { markup_factor: 1.35 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing")
         }
         expect(await setCost("ipasSigner", plainId, { final_acquire_unit: 17900, markup_factor: 1.35 })).toBeNull()
         const row = await asSvc(svc().from("costing_component_costs").select("*").eq("component_id", plainId).single(), "costs")
@@ -430,8 +430,8 @@ describe("cost-only rows", () => {
     expect(await setRowMoney("dealOwner", rowId, { odoo_unit: 90000 })).toBeNull()
     expect((await setRowMoney("dealOwner", rowId, { acquire_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.acquire_unit:purchasing")
     expect((await setRowMoney("outsider", rowId, { odoo_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.odoo_unit:sales")
-    expect((await setRowMoney("superAdmin", rowId, { final_acquire_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.final_acquire_unit:management")
-    expect((await setRowMoney("outsider", rowId, { markup_factor: 2 }))?.message).toBe("costing_band:costing_cost_rows.markup_factor:management")
+    expect((await setRowMoney("superAdmin", rowId, { final_acquire_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.final_acquire_unit:sales,purchasing")
+    expect((await setRowMoney("outsider", rowId, { markup_factor: 2 }))?.message).toBe("costing_band:costing_cost_rows.markup_factor:sales,purchasing")
     expect(await setRowMoney("ipasSigner", rowId, { final_acquire_unit: 75000, markup_factor: 1 })).toBeNull()
     const row = await asSvc(svc().from("costing_cost_rows").select("*").eq("id", rowId).single(), "cost row")
     expect(row).toMatchObject({ description: "Delivery Charge (Davao)" })

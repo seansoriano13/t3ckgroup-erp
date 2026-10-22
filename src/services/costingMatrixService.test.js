@@ -418,11 +418,9 @@ describe("costingMatrixService", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing"] });
       const odoo = await costingMatrixService.updateComponent(id, { odooUnit: 6 }).catch((e) => e);
       expect(odoo.message).toBe("Odoo unit cost is written by Sales (the Deal Team).");
-      const factor = await costingMatrixService.updateComponent(id, { markupFactor: 2 }).catch((e) => e);
-      expect(factor).toMatchObject({ column: "markup_factor", bands: ["management"], message: "The markup factor is written by the Final Acquire list." });
+      await costingMatrixService.updateComponent(id, { markupFactor: 2 });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { description: "Permits" });
-      const final = await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 1 }).catch((e) => e);
-      expect(final.message).toBe("Final Acquire is written by the Final Acquire list.");
+      await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 1 });
     });
 
     it("refuses a participant adding or removing a cost-only row, naming the band", async () => {
@@ -544,7 +542,7 @@ describe("costingMatrixService", () => {
       }
     });
 
-    it("writes Final Acquire through updateComponent and updateCostRow, and refuses a caller off the list", async () => {
+    it("writes Final Acquire through updateComponent and updateCostRow, and refuses a Technical caller", async () => {
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle" });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { description: "Permits" });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 100 });
@@ -553,13 +551,13 @@ describe("costingMatrixService", () => {
       expect(shaped.tenderLines[0].components[0].final_acquire_unit).toBe(100);
       expect(shaped.costRows[0].final_acquire_unit).toBe(7);
 
-      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing"] });
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["technical"] });
       const refused = await costingMatrixService.updateComponent(component, { finalAcquireUnit: 1 }).catch((e) => e);
       expect(refused).toBeInstanceOf(CostingBandError);
-      expect(refused.message).toBe("Final Acquire is written by the Final Acquire list.");
+      expect(refused.message).toBe("Final Acquire is written by Sales (the Deal Team) or Purchasing.");
       const marketing = await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 1 }).catch((e) => e);
       expect(marketing).toBeInstanceOf(CostingBandError);
-      expect(marketing.message).toBe("Marketing is written by Finance or the Final Acquire list.");
+      expect(marketing.message).toBe("Marketing is written by Finance or Sales (the Deal Team) or Purchasing.");
     });
 
     it("reports a rate change that changed nothing (the database let no row through)", async () => {
@@ -739,16 +737,16 @@ describe("costingMatrixService", () => {
     it("refuses the default factor and a row override outside the management band, naming who writes it", async () => {
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 100 })
       const delivery = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge" })
-      stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["sales", "purchasing"], manageMarkup: false })
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["technical"], manageMarkup: false })
 
       const factor = await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 }).catch((e) => e)
       expect(factor).toBeInstanceOf(CostingBandError)
-      expect(factor).toMatchObject({ table: "costing_matrix_money", column: "default_factor", bands: ["management"] })
-      expect(factor.message).toBe("The default markup factor is written by the Final Acquire list.")
+      expect(factor).toMatchObject({ table: "costing_matrix_money", column: "default_factor", bands: ["sales", "purchasing"] })
+      expect(factor.message).toBe("The default markup factor is written by Sales (the Deal Team) or Purchasing.")
 
       const override = await costingMatrixService.updateComponent(component, { markupFactor: 2 }).catch((e) => e)
       expect(override).toBeInstanceOf(CostingBandError)
-      expect(override.message).toBe("The markup factor is written by the Final Acquire list.")
+      expect(override.message).toBe("The markup factor is written by Sales (the Deal Team) or Purchasing.")
       const rowOverride = await costingMatrixService.updateCostRow(delivery, { markupFactor: 2 }).catch((e) => e)
       expect(rowOverride).toBeInstanceOf(CostingBandError)
     })

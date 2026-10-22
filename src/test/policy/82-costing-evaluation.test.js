@@ -227,7 +227,7 @@ describe("the Technical band", () => {
             (await (await clientFor("technical")).rpc("costing_set_money", { p_table: table, p_row: row, p_patch: patch })).error
         expect((await typed("costing_component_costs", compA, { acquire_unit: 100 })).message).toBe("costing_band:costing_component_costs.acquire_unit:purchasing")
         expect((await typed("costing_component_costs", compA, { odoo_unit: 100 })).message).toBe("costing_band:costing_component_costs.odoo_unit:sales")
-        expect((await typed("costing_component_costs", compA, { final_acquire_unit: 100 })).message).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
+        expect((await typed("costing_component_costs", compA, { final_acquire_unit: 100 })).message).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing")
         expect((await typed("costing_tender_line_prices", lineId, { final_offer_unit: 100 })).message).toBe("costing_band:costing_tender_line_prices.final_offer_unit:sales")
         expect((await typed("costing_tender_line_prices", lineId, { abc_unit: 100 })).code).toBe(RLS_VIOLATION)
         expect((await typed("costing_matrix_money", matrixId, { nonsense: 1 })).code).toBe("22023")

@@ -525,7 +525,7 @@ describe("write bands still refuse out-of-band writes", () => {
         for (const who of ["dealOwner", "outsider", "superAdmin"]) {
             const error = await setMoney(who, "costing_component_costs", componentId, { markup_factor: 9 })
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_band:costing_component_costs.markup_factor:management")
+            expect(error?.message, who).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing")
         }
     })
 
@@ -533,7 +533,7 @@ describe("write bands still refuse out-of-band writes", () => {
         for (const who of ["dealOwner", "outsider", "stageParticipant"]) {
             const error = await setMoney(who, "costing_matrix_money", matrixId, { opex: 1 })
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_band:costing_matrix_money.opex:finance,management")
+            expect(error?.message, who).toBe("costing_band:costing_matrix_money.opex:finance,sales,purchasing")
         }
     })
 

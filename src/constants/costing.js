@@ -27,7 +27,7 @@ export const COSTING_BAND = {
 export const COSTING_BAND_LABEL = {
   [COSTING_BAND.SALES]: "Sales (the Deal Team)",
   [COSTING_BAND.PURCHASING]: "Purchasing",
-  [COSTING_BAND.MANAGEMENT]: "the Final Acquire list",
+  [COSTING_BAND.MANAGEMENT]: "Sales and Purchasing",
   [COSTING_BAND.TECHNICAL]: "Technical",
   [COSTING_BAND.FINANCE]: "Finance",
   [COSTING_BAND.SUPER_ADMIN_ONLY]: "Super Admins",
@@ -116,8 +116,8 @@ export const COMPONENT_CANVASS_COST_BANDS = { acquire_from_offer_id: [PURCHASING
 export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
   odoo_unit: [SALES],
-  final_acquire_unit: [MANAGEMENT],
-  markup_factor: [MANAGEMENT],
+  final_acquire_unit: [SALES, PURCHASING],
+  markup_factor: [SALES, PURCHASING],
 };
 
 /**
@@ -151,10 +151,10 @@ export const MATRIX_MONEY_TIERS = {
 };
 
 export const MATRIX_MONEY_BANDS = {
-  default_factor: [MANAGEMENT],
-  default_preset_id: [MANAGEMENT],
-  marketing: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
-  opex: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
+  default_factor: [SALES, PURCHASING],
+  default_preset_id: [SALES, PURCHASING],
+  marketing: [COSTING_BAND.FINANCE, SALES, PURCHASING],
+  opex: [COSTING_BAND.FINANCE, SALES, PURCHASING],
 };
 
 /**

@@ -415,7 +415,7 @@ describe("Tender Lines: who reads what", () => {
     const bands = async (who) => [...(await readMatrix(who)).bands].sort()
     expect(await bands("dealOwner")).toEqual(["sales"])
     expect(await bands("outsider")).toEqual(["purchasing", "technical"])
-    expect(await bands("ipasSigner")).toEqual(["finance", "management"])
+    expect(await bands("ipasSigner")).toEqual(["finance"])
     expect(await bands("stageParticipant")).toEqual([])
     expect(await bands("superAdmin")).toEqual(["purchasing", "sales", "super_admin_only", "technical"])
   })

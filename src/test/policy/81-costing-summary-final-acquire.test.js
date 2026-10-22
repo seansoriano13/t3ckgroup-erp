@@ -128,7 +128,7 @@ describe("Final Acquire", () => {
         for (const who of ["superAdmin", "outsider", "dealOwner"]) {
             const refused = await setCost(who, { final_acquire_unit: 1000 })
             expect(refused?.code, who).toBe(RLS_VIOLATION)
-            expect(refused?.message, who).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
+            expect(refused?.message, who).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing")
         }
         const none = await svc().from("costing_component_costs").select("final_acquire_unit").eq("component_id", componentId)
         expect(none.data.every((r) => r.final_acquire_unit === null)).toBe(true)
@@ -145,7 +145,7 @@ describe("Final Acquire", () => {
 
     it("keeps a cost-only row's Final Acquire from a Super Admin off the list", async () => {
         const refused = await setMoney("superAdmin", "costing_cost_rows", costRowId, { final_acquire_unit: 1 })
-        expect(refused?.message).toBe("costing_band:costing_cost_rows.final_acquire_unit:management")
+        expect(refused?.message).toBe("costing_band:costing_cost_rows.final_acquire_unit:sales,purchasing")
     })
 
     it("lets a Super Admin write it once they are put on the list", async () => {
@@ -172,9 +172,9 @@ describe("Marketing and OPEX", () => {
         for (const who of ["outsider", "dealOwner", "superAdmin", "stageParticipant"]) {
             const refused = await setMatrixMoney(who, { marketing: 12000 })
             expect(refused?.code, who).toBe(RLS_VIOLATION)
-            expect(refused?.message, who).toBe("costing_band:costing_matrix_money.marketing:finance,management")
+            expect(refused?.message, who).toBe("costing_band:costing_matrix_money.marketing:finance,sales,purchasing")
         }
-        expect((await setMatrixMoney("outsider", { opex: 5 }))?.message).toBe("costing_band:costing_matrix_money.opex:finance,management")
+        expect((await setMatrixMoney("outsider", { opex: 5 }))?.message).toBe("costing_band:costing_matrix_money.opex:finance,sales,purchasing")
         expect((await setMatrixMoney("ordinary", { marketing: 1 }))?.code).toBe(RLS_VIOLATION)
         const row = await moneyRow()
         expect(row.marketing).toBeNull()

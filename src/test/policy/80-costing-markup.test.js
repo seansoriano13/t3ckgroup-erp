@@ -234,18 +234,18 @@ describe("the default factor: only the Final Acquire list writes it", () => {
         for (const who of ["dealOwner", "support", "outsider", "stageParticipant"]) {
             const error = await setMatrixMoney(who, { default_factor: 1.35 })
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error.message, who).toBe("costing_band:costing_matrix_money.default_factor:management")
+            expect(error.message, who).toBe("costing_band:costing_matrix_money.default_factor:sales,purchasing")
         }
         for (const who of ["ordinary", "finance"]) {
             expect((await setMatrixMoney(who, { default_factor: 1.35 }))?.code, who).toBe(RLS_VIOLATION)
         }
         const preset = await setMatrixMoney("dealOwner", { default_preset_id: govPreset })
-        expect(preset.message).toBe("costing_band:costing_matrix_money.default_preset_id:management")
+        expect(preset.message).toBe("costing_band:costing_matrix_money.default_preset_id:sales,purchasing")
     })
 
     it("refuses a Super Admin who is not on the list: the Closed Book reads it, only the list sets it", async () => {
         const error = await setMatrixMoney("superAdmin", { default_factor: 1.35 })
-        expect(error?.message).toBe("costing_band:costing_matrix_money.default_factor:management")
+        expect(error?.message).toBe("costing_band:costing_matrix_money.default_factor:sales,purchasing")
     })
 
     it("lets the Final Acquire list type a factor or take a preset, and refuses a factor of zero", async () => {
@@ -299,7 +299,7 @@ describe("the default factor: only the Final Acquire list writes it", () => {
 describe("row overrides: the same band", () => {
     it("refuses Sales, Purchasing and a Super Admin a Component's factor, and lets the Final Acquire list set it", async () => {
         for (const who of ["dealOwner", "outsider", "superAdmin", "stageParticipant"]) {
-            expect((await setCost(who, boltsId, { markup_factor: 2 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:management")
+            expect((await setCost(who, boltsId, { markup_factor: 2 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing")
         }
         expect((await setCost("ordinary", boltsId, { markup_factor: 2 }))?.code).toBe(RLS_VIOLATION)
         expect(await setCost("ipasSigner", boltsId, { markup_factor: 2 })).toBeNull()
@@ -308,7 +308,7 @@ describe("row overrides: the same band", () => {
 
     it("refuses those same people a cost-only row's factor, and lets the Final Acquire list set it", async () => {
         for (const who of ["dealOwner", "outsider", "superAdmin"]) {
-            expect((await setRowMoney(who, plainRowId, { markup_factor: 2 }))?.message, who).toBe("costing_band:costing_cost_rows.markup_factor:management")
+            expect((await setRowMoney(who, plainRowId, { markup_factor: 2 }))?.message, who).toBe("costing_band:costing_cost_rows.markup_factor:sales,purchasing")
         }
         expect(await setRowMoney("ipasSigner", plainRowId, { markup_factor: 1.2 })).toBeNull()
         expect(await setRowMoney("ipasSigner", plainRowId, { markup_factor: null })).toBeNull()
