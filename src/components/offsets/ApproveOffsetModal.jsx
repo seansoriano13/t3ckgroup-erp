@@ -5,6 +5,7 @@ import { X, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { offsetService } from '../../services/offsetService';
 import { Input } from "@/components/ui/input";
+import { AttachmentList } from '../ui/Attachments';
 import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
@@ -75,6 +76,10 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
             {request.dayCount > 1 ? ` across ${request.dayCount} days from ` : ' on '}
             {new Date(request.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.
           </p>
+
+          {request.attachments?.length > 0 && (
+            <AttachmentList attachments={request.attachments} />
+          )}
 
           <div>
             <FieldBox label="Approved Hours" htmlFor="approved-offset-hours" className="block mb-1.5" />
