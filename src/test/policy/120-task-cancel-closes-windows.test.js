@@ -1,5 +1,5 @@
 /** Issue #652 -- cancelling a Stage Action task closes its access windows. */
-import { describe, it, expect, beforeAll, afterAll } from "vitest"
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
@@ -77,6 +77,12 @@ describe("cancelling a Stage Action task", () => {
 })
 
 describe("cancelling a Stage Action Group Task", () => {
+    // Earlier tests leave live personal tasks on the same call-in, which rightly hold the window open.
+    beforeEach(async () => {
+        await svc().from("tasks").delete().eq("opportunity_id", sorId)
+        await svc().from("committee_tasks").delete().eq("opportunity_id", sorId)
+    })
+
     const makeGroupTask = async () => {
         const id = (await svc().from("committee_tasks")
             .insert({ title: `${MARKER} g`, created_by: ids.dealOwner, status: "ACTIVE", opportunity_id: sorId, stage_action_id: actionId, stage_visit_id: visitId })
