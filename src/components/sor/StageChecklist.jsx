@@ -70,7 +70,17 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     queryFn: () => opportunityService.getNotes(opportunityId),
     enabled: !!opportunityId,
   });
-  const existingFiles = notes.flatMap((n) => n.metadata?.attachments || []);
+  // Picking a file saves a stamped copy of it in a new note, so the same file
+  // turns up again in the list afterward — keep one entry per file.
+  const seenFiles = new Set();
+  const existingFiles = notes
+    .flatMap((n) => n.metadata?.attachments || [])
+    .filter((f) => {
+      const key = f.url ?? f.name;
+      if (seenFiles.has(key)) return false;
+      seenFiles.add(key);
+      return true;
+    });
 
   // Issue #203, story 17: fetched once here (rather than per row) so an
   // Assignment condition's `who` group selectors can narrow the dropdown

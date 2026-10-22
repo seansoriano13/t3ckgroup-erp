@@ -242,6 +242,28 @@ describe("attachment — pick an existing SOR file (issue #203, story 13)", () =
   })
 })
 
+describe("attachment — a picked file is not listed twice", () => {
+  it("lists a file once even when a pick already copied it into a second note", async () => {
+    const user = setupUser()
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ condition: { ...item().condition, kind: "attachment", label: "Notice of Award", config: {} } }),
+    ])
+    const file = { url: "https://files/x.pdf", name: "Award.pdf", type: "pdf" }
+    opportunityService.getNotes.mockResolvedValue([
+      { metadata: { attachments: [file] } },
+      // what a previous pick leaves behind: same file, stamped for a condition
+      { metadata: { attachments: [{ ...file, conditionId: "req-1", stageVisitId: "visit-1" }] } },
+    ])
+
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    await screen.findByText("Notice of Award")
+    await user.click(screen.getByRole("button", { name: /Pick existing file/i }))
+
+    expect(await screen.findAllByRole("button", { name: "Award.pdf" })).toHaveLength(1)
+  })
+})
+
 describe("assignment — who narrows the dropdown (issue #203, story 17)", () => {
   const TEAM_EMPLOYEES = [
     { id: "emp-1", name: "Ana Reyes" },
