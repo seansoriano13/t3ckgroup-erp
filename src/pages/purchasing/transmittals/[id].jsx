@@ -35,12 +35,10 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { transmittalService } from "../../../services/transmittalService";
-import { stagesOf, transmittalStateLabel } from "../../../utils/transmittals";
+import { stagesOf } from "../../../utils/transmittals";
 import { openTransmittalPrintWindow, printTransmittal } from "../../../lib/pdf/transmittalPrinter";
 import { openTsrPrintWindow, printTsr } from "../../../lib/pdf/tsrPrinter";
 import {
-  TRANSMITTAL_ORIGIN_LABELS,
-  TRANSMITTAL_PRIORITY_LABELS,
   TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STAGE,
   TRANSMITTAL_STATE,
@@ -51,10 +49,9 @@ import TransmittalsListPage from "./index";
 const LIST_PATH = "/purchasing/transmittals";
 
 /**
- * One Transmittal as a modal over the Transmittals list, laid out like the IPAS
- * record: the numbers strip, a
- * row per section that opens in a drawer, and the "Your move" card. Signing
- * happens only in the card or in the drawer's bottom bar; a section's body
+ * One Transmittal in the record window over the Transmittals list: the shared
+ * record header and pills, its lines as a liner list, and the shared "Your move"
+ * card. Signing happens in the card's steps, which open in place; a step's body
  * shows who signed and when, and holds the data entry (ratings, pictures,
  * remarks, who the other signatory is). Who may sign, and in what order, is the
  * database's rule (#252 to #254); the screen only offers what it will accept.
@@ -77,8 +74,6 @@ function TransmittalPage({ onClose }) {
   const [forms, setForms] = useState({});
   const [odooRef, setOdooRef] = useState("");
   const [failure, setFailure] = useState(null);
-  // The step open in the rail (null: the one that needs doing).
-  const [pickedStep, setPickedStep] = useState(null);
 
   const { data: transmittal, isLoading, isError, refetch } = useQuery({
     queryKey: transmittalKeys.detail(id),
@@ -115,7 +110,7 @@ function TransmittalPage({ onClose }) {
 
   if (isLoading || isError || !transmittal) {
     return (
-      <ModalShell open onOpenChange={(next) => !next && onClose()} size="wide" cancelLabel="Close" crumbs={["Transmittal"]}>
+      <ModalShell open onOpenChange={(next) => !next && onClose()} size="record" crumbs={["Transmittal"]}>
         {isLoading ? (
           <PageLoading label="Transmittal" />
         ) : isError ? (
@@ -167,7 +162,6 @@ function TransmittalPage({ onClose }) {
   };
 
   const on = {
-    open: (key) => setPickedStep(key),
     submit: (from) =>
       perform(from, () => transmittalService.submit(t.id), {
         success: (done) => `${done.number} submitted.`,
@@ -348,14 +342,12 @@ function TransmittalPage({ onClose }) {
     <ModalShell
       open
       onOpenChange={(next) => !next && onClose()}
-      size="wide"
-      expandable
-      cancelLabel="Close"
+      size="record"
       crumbs={["Transmittal", t.number]}
       headerActions={
         <>
           {rights.draft && rights.canChange && !editing && (
-            <Button variant="ghost" size="sm" className="h-auto gap-1.5 px-2 py-1.5 text-xs" onClick={() => setEditing(true)}>
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <Pencil size={14} />
               Edit
             </Button>
@@ -364,10 +356,6 @@ function TransmittalPage({ onClose }) {
         </>
       }
     >
-      <p className="text-sm text-muted-foreground">
-        {`${transmittalStateLabel(t.state)} · ${TRANSMITTAL_ORIGIN_LABELS[t.origin] ?? t.origin} · ${TRANSMITTAL_PRIORITY_LABELS[t.priority] ?? t.priority} priority`}
-      </p>
-
       {t.state === TRANSMITTAL_STATE.CANCELLED && (
         <div role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-[13px]">
           <p className="font-semibold">Cancelled</p>
@@ -385,7 +373,7 @@ function TransmittalPage({ onClose }) {
           onCancel={() => setEditing(false)}
         />
       ) : (
-        <TransmittalDesk ctx={ctx} picked={pickedStep} onPick={setPickedStep} />
+        <TransmittalDesk ctx={ctx} />
       )}
 
       {undoing !== null && (
