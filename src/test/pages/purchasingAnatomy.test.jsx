@@ -29,6 +29,8 @@ import { screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router"
 
 import PurchaseRequestsPage from "@/pages/purchasing/index.jsx"
+import TransmittalsPage from "@/pages/purchasing/transmittals/index.jsx"
+import PackingListsPage from "@/pages/purchasing/packing-lists/index.jsx"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -36,6 +38,16 @@ import { stubProcurementQueueRpcs } from "@/test/stubs/procurementQueueRpc"
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: auth.user, isAuthLoading: false }) }))
+
+// Transmittals and Packing Lists read through their services; their rows are handed over as the services shape them.
+const transmittalService = vi.hoisted(() => ({
+  list: vi.fn(),
+  canPrepare: vi.fn(),
+  myStaffLists: vi.fn(),
+}))
+const packingListService = vi.hoisted(() => ({ list: vi.fn() }))
+vi.mock("@/services/transmittalService", () => ({ transmittalService }))
+vi.mock("@/services/packingListService", () => ({ packingListService }))
 
 const LISTS = [
   {
@@ -65,6 +77,62 @@ const LISTS = [
       })
       stubProcurementQueueRpcs({ actorId: buyer.id })
       return { employee: buyer, reference: "S01001", name: "Harbour lights", state: "Open" }
+    },
+  },
+  {
+    name: "Transmittals",
+    Page: TransmittalsPage,
+    route: "/purchasing/transmittals",
+    pills: ["Open", "Closed", "Cancelled", "All"],
+    counts: { Open: 1, All: 1 },
+    noun: "Transmittals",
+    seed() {
+      const employee = makeEmployee({ name: "Pat Prep", department: "OPERATIONS", has_purchasing_flow: true })
+      transmittalService.canPrepare.mockResolvedValue(true)
+      transmittalService.myStaffLists.mockResolvedValue([])
+      transmittalService.list.mockResolvedValue([
+        {
+          id: "t1",
+          number: "TG03_0007",
+          preparedOn: "2026-10-01",
+          preparedBy: "Pat Prep",
+          preparedById: employee.id,
+          origin: "purchasing",
+          priority: "high",
+          entity: "Store CDO",
+          state: "warehouse_checking",
+          stateLabel: "Waiting on Warehouse",
+          lineCount: 2,
+          naCount: 0,
+          hasNa: false,
+          poNumbers: ["P02554"],
+        },
+      ])
+      return { employee, reference: "TG03_0007", name: "Store CDO", state: "Waiting on Warehouse" }
+    },
+  },
+  {
+    name: "Packing Lists",
+    Page: PackingListsPage,
+    route: "/purchasing/packing-lists",
+    pills: ["Draft", "Packed", "All"],
+    counts: { Draft: 1, All: 1 },
+    noun: "Packing Lists",
+    seed() {
+      const employee = makeEmployee({ name: "Pia Buyer", department: "OPERATIONS", has_purchasing_flow: true })
+      packingListService.list.mockResolvedValue([
+        {
+          id: "p1",
+          number: "PL-0001",
+          state: "draft",
+          odooDeliveryRef: "TG En/OUT/03390",
+          sorId: "s1",
+          sorReference: "S01001",
+          projectTitle: "Harbour lights",
+          boxCount: 2,
+        },
+      ])
+      return { employee, reference: "PL-0001", name: "Harbour lights", state: "Draft" }
     },
   },
 ]
