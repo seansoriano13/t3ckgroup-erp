@@ -1,50 +1,55 @@
 /**
  * PROTOTYPE — Calendar redesign (branch prototype/calendar-redesign). Throwaway.
  *
- * Two layouts of the Calendar tab on the real /calendar route (A Calendar, C Gantt),
- * switched with `?variant=` and a bar at the bottom. `?sample=0` swaps the
- * sample month for the live calendar_entries() read. "0" is today's Calendar,
- * for comparison. Loaded only on staging and local builds (see the page).
+ * The Calendar tab with two layouts the viewer switches between: Calendar
+ * (month + day rail) and Gantt (rooms and people across weeks). The pick lives
+ * in `?layout=` and is remembered per browser. `?sample=0` swaps the sample
+ * month for the live calendar_entries() read. Loaded only on staging and local
+ * builds (see the page).
  */
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChartGantt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/context/AuthContext';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
-import Calendar from '../Calendar.jsx';
 import { parseCalendarParams } from '../calendarNav.js';
 import { useCalendarLayers } from '../useCalendarLayers';
 import VariantMonthRail from './VariantMonthRail.jsx';
 import VariantBoard from './VariantBoard.jsx';
 import { ProtoDetail } from './protoParts.jsx';
 
-const VARIANTS = [
-  { key: 'A', name: 'Calendar', Component: VariantMonthRail },
-  { key: 'C', name: 'Gantt', Component: VariantBoard },
-  { key: '0', name: 'Current Calendar', Component: null },
+const LAYOUTS = [
+  { key: 'calendar', label: 'Calendar', icon: CalendarDays, Component: VariantMonthRail },
+  { key: 'gantt', label: 'Gantt', icon: ChartGantt, Component: VariantBoard },
 ];
+const STORAGE_KEY = 'calendar.layout';
 
-function Switcher({ index, step, sample, setSample }) {
-  const current = VARIANTS[index];
+function remembered() {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function LayoutSwitch({ layout, onChange }) {
   return (
-    <div className="fixed bottom-4 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 rounded-full bg-mauve-12 py-1 pr-3 pl-1 text-mauve-1 shadow-[0_8px_24px_-6px_rgba(0,0,0,0.35)]">
-      <Button variant="ghost" size="icon-sm" onClick={() => step(-1)} aria-label="Previous layout" className="rounded-full text-mauve-1 hover:bg-mauve-11 hover:text-mauve-1">
-        <ChevronLeft size={16} />
-      </Button>
-      <span className="min-w-48 text-center text-sm font-bold">
-        <span className="mr-1.5 font-mono text-mauve-8">{current.key}</span>
-        {current.name}
-      </span>
-      <Button variant="ghost" size="icon-sm" onClick={() => step(1)} aria-label="Next layout" className="rounded-full text-mauve-1 hover:bg-mauve-11 hover:text-mauve-1">
-        <ChevronRight size={16} />
-      </Button>
-      <span className={cn('ml-2 flex items-center gap-2 border-l border-mauve-11 pl-3 text-xs font-semibold', !current.Component && 'opacity-40')}>
-        <Switch size="sm" checked={sample} onCheckedChange={setSample} disabled={!current.Component} aria-label="Sample data" />
-        Sample data
-      </span>
+    <div className="flex rounded-xl bg-muted p-1" role="group" aria-label="Layout">
+      {LAYOUTS.map(({ key, label, icon: Icon }) => (
+        <Button
+          key={key}
+          variant="ghost"
+          aria-pressed={layout === key}
+          onClick={() => onChange(key)}
+          className={cn('gap-2 rounded-lg px-3.5 font-semibold', layout === key ? 'bg-card text-foreground shadow-sm hover:bg-card' : 'text-muted-foreground')}
+        >
+          <Icon size={16} />
+          {label}
+        </Button>
+      ))}
     </div>
   );
 }
@@ -53,8 +58,8 @@ export default function CalendarPrototype({ onPickSlot, onWithdraw = null }) {
   const { user } = useAuth();
   useMeetingRealtime();
   const [params, setParams] = useSearchParams();
-  const index = Math.max(0, VARIANTS.findIndex((v) => v.key === params.get('variant')));
-  const variant = VARIANTS[index];
+  const fromUrl = params.get('layout');
+  const layout = LAYOUTS.find((l) => l.key === fromUrl)?.key ?? LAYOUTS.find((l) => l.key === remembered())?.key ?? 'calendar';
   const sample = params.get('sample') !== '0';
   const { date: anchor } = parseCalendarParams(params);
 
@@ -63,37 +68,45 @@ export default function CalendarPrototype({ onPickSlot, onWithdraw = null }) {
       (prev) => {
         const out = new URLSearchParams(prev);
         Object.entries(next).forEach(([k, v]) => out.set(k, v));
+        out.delete('variant');
         return out;
       },
       { replace: true },
     );
-  const step = (dir) => set({ variant: VARIANTS[(index + dir + VARIANTS.length) % VARIANTS.length].key });
-
+  const pickLayout = (key) => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, key);
+    } catch {
+      // Not remembered; the link still carries it.
+    }
+    set({ layout: key });
+  };
 
   const [layers, toggleLayer] = useCalendarLayers();
   const [showPending, setShowPending] = useState(false);
   const [selected, setSelected] = useState(null);
+  const { Component } = LAYOUTS.find((l) => l.key === layout);
 
-  const Component = variant.Component;
   return (
-    <div className="pb-20">
-      {Component ? (
-        <Component
-          anchor={anchor}
-          go={(date) => set({ date })}
-          layers={layers}
-          toggleLayer={toggleLayer}
-          showPending={showPending}
-          setShowPending={setShowPending}
-          sample={sample}
-          onPickSlot={onPickSlot}
-          onOpen={setSelected}
-        />
-      ) : (
-        <Calendar onPickSlot={onPickSlot} />
-      )}
+    <div className="pb-16">
+      <Component
+        anchor={anchor}
+        go={(date) => set({ date })}
+        layers={layers}
+        toggleLayer={toggleLayer}
+        showPending={showPending}
+        setShowPending={setShowPending}
+        sample={sample}
+        onPickSlot={onPickSlot}
+        onOpen={setSelected}
+        switcher={<LayoutSwitch layout={layout} onChange={pickLayout} />}
+      />
       <ProtoDetail entry={selected} onClose={() => setSelected(null)} entries={[]} viewerId={user?.id} onWithdraw={onWithdraw} />
-      <Switcher index={index} step={step} sample={sample} setSample={(on) => set({ sample: on ? '1' : '0' })} />
+      <div className="fixed right-4 bottom-4 z-[60] flex items-center gap-2 rounded-full bg-mauve-12 px-3.5 py-2 text-xs font-semibold text-mauve-1 shadow-[0_8px_24px_-6px_rgba(0,0,0,0.35)]">
+        <span className="text-mauve-8">Prototype</span>
+        <Switch size="sm" checked={sample} onCheckedChange={(on) => set({ sample: on ? '1' : '0' })} aria-label="Sample data" />
+        Sample data
+      </div>
     </div>
   );
 }

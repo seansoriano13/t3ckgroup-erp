@@ -98,6 +98,7 @@ function sampleMonth(ym, venueNames) {
     const len = kind === 'SIL' ? 1 + Math.floor(rand() * 4) : kind === 'LWOP' ? 1 + Math.floor(rand() * 2) : 1;
     const group = id();
     const status = rand() < 0.2 ? 'PENDING' : 'APPROVED';
+    const reason = pick(['Family matter', 'Medical check-up', 'Personal errand', 'Out of town']);
     for (const ymd of days.slice(start, start + len)) {
       const under = kind === 'UNDERTIME';
       out.push({
@@ -114,7 +115,7 @@ function sampleMonth(ym, venueNames) {
         hours: under ? 2 : 8,
         venue: null,
         title: null,
-        details: { reason: pick(['Family matter', 'Medical check-up', 'Personal errand', 'Out of town']) },
+        details: { reason },
       });
     }
   }
@@ -239,3 +240,26 @@ export const shortName = (name = '') => {
 };
 
 export const TIME_OFF = new Set(['SIL', 'OFFSET', 'LWOP']);
+
+/**
+ * A Time Off entry with its whole request attached: one row per day comes from
+ * the server, so a 3-day SIL is three rows sharing a group_id. `span` holds the
+ * first and last date, the number of days and the total hours (within the
+ * range this view loaded).
+ */
+export function withSpan(entry, entries) {
+  if (!TIME_OFF.has(entry.kind) || !entry.group_id) return entry;
+  const group = entries
+    .filter((e) => e.kind === entry.kind && e.group_id === entry.group_id)
+    .sort((a, b) => a.manila_date.localeCompare(b.manila_date));
+  if (group.length === 0) return entry;
+  return {
+    ...entry,
+    span: {
+      first: group[0].manila_date,
+      last: group[group.length - 1].manila_date,
+      days: group.length,
+      hours: group.reduce((h, e) => h + Number(e.hours ?? 0), 0),
+    },
+  };
+}

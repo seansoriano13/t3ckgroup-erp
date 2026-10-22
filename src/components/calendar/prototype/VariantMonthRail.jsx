@@ -7,7 +7,9 @@
  * start time. Weekends are narrower because the office works Monday to Friday.
  * Arrow keys move the selected day (← → a day, ↑ ↓ a week) once a day is focused.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+// eslint-disable-next-line no-unused-vars
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { addDays, format } from 'date-fns';
 import { CalendarPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,7 +23,7 @@ import { formatEntryTime } from '../entryFormat.js';
 import { monthRange, monthWeeks } from '../monthWeeks.js';
 import { entriesToBars } from '../peopleRows.js';
 import { shiftDate } from '../calendarNav.js';
-import { TIME_OFF, shortName, useProtoData } from './protoData.js';
+import { TIME_OFF, shortName, useProtoData, withSpan } from './protoData.js';
 import { Face, KindDot, LayerToggles, NavArrows, PendingSwitch, VenueStrip } from './protoParts.jsx';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -295,21 +297,49 @@ export function KindKey() {
 }
 
 const STEP = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+const EASE = [0.16, 1, 0.3, 1];
+const SLIDE = {
+  enter: (dir) => ({ x: dir * 56, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (dir) => ({ x: dir * -56, opacity: 0 }),
+};
 
-export default function VariantMonthRail({ anchor, go, layers, toggleLayer, showPending, setShowPending, sample, onPickSlot, onOpen }) {
+export default function VariantMonthRail({ anchor, go, layers, toggleLayer, showPending, setShowPending, sample, onPickSlot, onOpen, switcher }) {
   const { from, to } = monthRange(anchor);
   const { entries, all, venues, canSeePending, isLoading, error, refetch } = useProtoData({ from, to, layers, showPending, sample });
   const today = manilaToday();
   const weeks = monthWeeks(anchor);
+  const month = anchor.slice(0, 7);
+  const reduce = useReducedMotion();
   const grid = useRef(null);
   const keyed = useRef(false);
+  const lastMonth = useRef(month);
+  const open = (e) => onOpen(withSpan(e, entries));
 
-  // After an arrow key moves the day, keep focus on the newly selected day.
+  // Which way the month moved, kept until the next move so the exiting month slides the same way.
+  const [moved, setMoved] = useState({ month, dir: 1 });
+  if (moved.month !== month) setMoved({ month, dir: month > moved.month ? 1 : -1 });
+  const dir = moved.month === month ? moved.dir : month > moved.month ? 1 : -1;
+
+  const dayEl = () => grid.current?.querySelector(`[data-day="${anchor}"]`);
+  const settle = () => {
+    dayEl()?.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+    if (keyed.current) {
+      keyed.current = false;
+      dayEl()?.focus({ preventScroll: true });
+    }
+  };
+
+  // Inside one month nothing slides, so an arrow key's focus move happens here.
   useEffect(() => {
-    if (!keyed.current) return;
-    keyed.current = false;
-    grid.current?.querySelector(`[data-day="${anchor}"]`)?.focus();
-  }, [anchor, isLoading]);
+    const changed = lastMonth.current !== month;
+    lastMonth.current = month;
+    if (!changed && keyed.current) {
+      keyed.current = false;
+      dayEl()?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchor]);
 
   const onKeyDown = (e) => {
     const by = STEP[e.key];
@@ -324,7 +354,21 @@ export default function VariantMonthRail({ anchor, go, layers, toggleLayer, show
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <section className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-          <h2 className="min-w-52 text-3xl font-black tracking-tight">{format(parseManilaDate(anchor), 'MMMM yyyy')}</h2>
+          {switcher}
+          <h2 className="min-w-52 text-3xl font-black tracking-tight">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={month}
+                className="inline-block"
+                initial={{ opacity: 0, y: reduce ? 0 : 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: reduce ? 0 : -6 }}
+                transition={{ duration: reduce ? 0 : 0.18, ease: EASE }}
+              >
+                {format(parseManilaDate(anchor), 'MMMM yyyy')}
+              </motion.span>
+            </AnimatePresence>
+          </h2>
           <NavArrows unit="month" onPrev={() => go(shiftDate('month', anchor, -1))} onNext={() => go(shiftDate('month', anchor, 1))} onToday={() => go(today)} />
           <div className="flex flex-wrap items-center gap-3 lg:ml-auto">
             <LayerToggles layers={layers} toggleLayer={toggleLayer} all={all} />
@@ -333,8 +377,6 @@ export default function VariantMonthRail({ anchor, go, layers, toggleLayer, show
         </div>
         {error ? (
           <QueryError onRetry={refetch} />
-        ) : isLoading ? (
-          <PageLoading />
         ) : (
           <>
             <div ref={grid} onKeyDown={onKeyDown} className="overflow-hidden rounded-2xl border border-mauve-5 bg-background" role="group" aria-label="Month">
@@ -345,15 +387,32 @@ export default function VariantMonthRail({ anchor, go, layers, toggleLayer, show
                   </div>
                 ))}
               </div>
-              {weeks.map((week) => (
-                <Week key={week[0].ymd} week={week} entries={entries} anchor={anchor} today={today} onSelect={go} onOpen={onOpen} />
-              ))}
+              <AnimatePresence mode="wait" initial={false} custom={dir}>
+                <motion.div
+                  key={month}
+                  custom={dir}
+                  variants={SLIDE}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: reduce ? 0 : 0.26, ease: EASE }}
+                  onAnimationComplete={(def) => def === 'center' && settle()}
+                >
+                  {isLoading ? (
+                    <PageLoading />
+                  ) : (
+                    weeks.map((week) => (
+                      <Week key={week[0].ymd} week={week} entries={entries} anchor={anchor} today={today} onSelect={go} onOpen={open} />
+                    ))
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
             <KindKey />
           </>
         )}
       </section>
-      <DayRail ymd={anchor} entries={entries} venues={venues} today={today} onOpen={onOpen} onPickSlot={onPickSlot} />
+      <DayRail ymd={anchor} entries={entries} venues={venues} today={today} onOpen={open} onPickSlot={onPickSlot} />
     </div>
   );
 }

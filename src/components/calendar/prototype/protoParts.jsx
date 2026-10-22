@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import SlideOver, { SlideOverBody } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
 import { MEETING_STATUS_LABEL } from '@/services/meetingRequestService';
-import { manilaTime } from '@/lib/manilaDate.js';
+import { format } from 'date-fns';
+import { manilaTime, parseManilaDate } from '@/lib/manilaDate.js';
 import EntryDetail from '../EntryDetail.jsx';
 import { LAYERS, kindOf } from '../entryKinds.jsx';
 import { formatEntryDate, formatEntryTime } from '../entryFormat.js';
@@ -163,34 +164,63 @@ export function VenueStrip({ venue, meetings, ymd, onOpen, onPickSlot, compact =
   );
 }
 
-function SampleBody({ entry }) {
+const range = (span) =>
+  `${format(parseManilaDate(span.first), 'EEE, MMM d')} to ${format(parseManilaDate(span.last), 'EEE, MMM d, yyyy')}`;
+
+/** Time Off, overtime and undertime: the whole request, not just the day that was clicked. */
+function RequestBody({ entry }) {
   const d = entry.details ?? {};
   const person = entry.employee ?? {};
-  const meeting = entry.kind === 'MEETING';
+  const span = entry.span;
+  const many = span && span.days > 1;
   return (
     <SlideOverBody>
-      <DetailSection title={meeting ? 'Requested by' : 'Who'}>
-        <PersonChip person={{ id: person.id, name: person.name, dept: person.department }} />
+      <DetailSection title="Who">
+        <PersonChip person={{ id: person.id, name: person.name, dept: person.department, avatarPath: person.avatar }} />
       </DetailSection>
-      <DetailSection title="Details" aside={<span className="text-[11px] text-muted-foreground">Sample data</span>}>
+      <DetailSection title="Request" aside={entry.sample ? <span className="text-xs text-muted-foreground">Sample data</span> : null}>
         <dl>
-          {meeting && <DetailRow label="Purpose">{d.purpose}</DetailRow>}
-          {meeting && <DetailRow label="Venue">{entry.venue}</DetailRow>}
-          <DetailRow label="Date">{formatEntryDate(entry)}</DetailRow>
-          <DetailRow label="Time">{formatEntryTime(entry)}</DetailRow>
-          <DetailRow label="Status">{meeting ? MEETING_STATUS_LABEL[d.stage] : entry.status === 'PENDING' ? 'Pending' : 'Approved'}</DetailRow>
-          {entry.hours != null && <DetailRow label="Hours">{entry.hours}</DetailRow>}
-          {meeting && <DetailRow label="Participants">{(d.participants ?? []).map((p) => p.name).join(', ') || 'None'}</DetailRow>}
-          {!meeting && d.reason && <DetailRow label="Reason">{d.reason}</DetailRow>}
+          <DetailRow label={many ? 'Dates' : 'Date'}>{many ? range(span) : formatEntryDate(entry)}</DetailRow>
+          {many && <DetailRow label="Days">{span.days}</DetailRow>}
+          {!entry.all_day && <DetailRow label="Time">{formatEntryTime(entry)}</DetailRow>}
+          <DetailRow label="Status">{entry.status === 'PENDING' ? 'Pending' : 'Approved'}</DetailRow>
+          {(span?.hours || entry.hours) != null && <DetailRow label={many ? 'Total hours' : 'Hours'}>{span?.hours || Number(entry.hours)}</DetailRow>}
+          {d.reason && <DetailRow label="Reason">{d.reason}</DetailRow>}
         </dl>
       </DetailSection>
     </SlideOverBody>
   );
 }
 
-/** The real detail panel for real entries; a read-only stand-in for sample ones. */
+function SampleMeetingBody({ entry }) {
+  const d = entry.details ?? {};
+  const person = entry.employee ?? {};
+  return (
+    <SlideOverBody>
+      <DetailSection title="Requested by">
+        <PersonChip person={{ id: person.id, name: person.name, dept: person.department }} />
+      </DetailSection>
+      <DetailSection title="Meeting" aside={<span className="text-xs text-muted-foreground">Sample data</span>}>
+        <dl>
+          <DetailRow label="Purpose">{d.purpose}</DetailRow>
+          <DetailRow label="Venue">{entry.venue}</DetailRow>
+          <DetailRow label="Date">{formatEntryDate(entry)}</DetailRow>
+          <DetailRow label="Time">{formatEntryTime(entry)}</DetailRow>
+          <DetailRow label="Stage">{MEETING_STATUS_LABEL[d.stage] ?? d.stage}</DetailRow>
+          <DetailRow label="Facilitator">{d.facilitator?.name}</DetailRow>
+          <DetailRow label="Participants">{(d.participants ?? []).map((p) => p.name).join(', ') || 'None'}</DetailRow>
+        </dl>
+      </DetailSection>
+    </SlideOverBody>
+  );
+}
+
+/**
+ * The detail panel. A real meeting keeps the real panel (with its actions);
+ * everything else shows the whole request, so a 3-day SIL reads as 3 days.
+ */
 export function ProtoDetail({ entry, onClose, entries, viewerId, onWithdraw }) {
-  if (entry && !entry.sample) {
+  if (entry && !entry.sample && entry.kind === 'MEETING') {
     return <EntryDetail entry={entry} onClose={onClose} entries={entries} viewerId={viewerId} onWithdraw={onWithdraw} />;
   }
   return (
@@ -198,10 +228,14 @@ export function ProtoDetail({ entry, onClose, entries, viewerId, onWithdraw }) {
       record={entry}
       icon={entry ? kindOf(entry.kind)?.icon : undefined}
       crumb="Calendar"
-      identity={(e) => ({ ref: kindOf(e.kind)?.label, title: e.title || kindOf(e.kind)?.label, subtitle: e.employee?.name })}
+      identity={(e) => ({
+        ref: kindOf(e.kind)?.label,
+        title: e.kind === 'MEETING' ? e.title : e.span?.days > 1 ? `${kindOf(e.kind)?.label} · ${e.span.days} days` : kindOf(e.kind)?.label,
+        subtitle: e.employee?.name,
+      })}
       onClose={onClose}
     >
-      {(e) => <SampleBody entry={e} />}
+      {(e) => (e.kind === 'MEETING' ? <SampleMeetingBody entry={e} /> : <RequestBody entry={e} />)}
     </SlideOver>
   );
 }
