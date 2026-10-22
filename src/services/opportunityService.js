@@ -898,6 +898,17 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // them again. Now the RPC either returns (everything on this Stage is
   // created-or-failed) or the whole call never happened (nothing began, so
   // the fire-once gate still lets a retry pick it all up).
+  const failedStageActions = await runStageActionsOnEntry({ existing, to, snapshotActions, actorId });
+  return { ...data, failedStageActions };
+}
+
+/**
+ * Runs the Actions of `to`, the Stage a deal has just entered, from its Flow
+ * Snapshot (#204, #409). Shared by a stage move and by registration (SOR-245:
+ * a deal registered onto a Stage with Actions got no run, so its Actions never
+ * fired). Returns the names of the Actions that failed. It never throws.
+ */
+async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }) {
   const failedStageActions = [];
   let actionsAttempted = false;
   try {
@@ -1126,7 +1137,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     }
   }
 
-  return { ...data, failedStageActions };
+  return failedStageActions;
 }
 
 /**
@@ -1909,6 +1920,19 @@ export const opportunityService = {
 
     const final = await opportunityService.getOpportunityById(data.id);
 
+    // SOR-245: a deal lands on its entry Stage with no action run, so that
+    // Stage's Actions (a Purchase Request, a task) never fired. Run them here,
+    // from the same snapshot the deal was registered under.
+    let failedStageActions = [];
+    if (flowEntry) {
+      failedStageActions = await runStageActionsOnEntry({
+        existing: final,
+        to: flowEntry.entry,
+        snapshotActions: flowEntry.snapshot.snapshot_data?.actions || [],
+        actorId,
+      });
+    }
+
     await opportunityService.addSystemNote(
       final.id,
       `Registered — ${final.client_name}, ${formatPHP(final.expected_value)}.`,
@@ -1924,7 +1948,7 @@ export const opportunityService = {
       actorId,
     ).catch(console.error);
 
-    return final;
+    return { ...final, failedStageActions };
   },
 
   /**

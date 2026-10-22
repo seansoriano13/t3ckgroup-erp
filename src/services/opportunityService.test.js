@@ -1673,6 +1673,18 @@ describe("opportunityService", () => {
       expect(created.flow_stage_id).toBe(lead.id)
     })
 
+    // SOR-245 (staging, 2026-10-22): a deal registered onto a Stage with an
+    // Action got no action run, so its Purchase Request never opened. Entering
+    // the entry Stage must run its Actions, the same as any other Stage entry.
+    it("runs the Actions of the Stage a newly registered deal starts at", async () => {
+      makeStageAction({ stage_id: lead.id, kind: "create_individual_task", config: { title: "Say hello" } })
+      const created = await register()
+
+      const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === created.id)
+      expect(run?.outcome).toBe("created")
+      expect(db.internal.rowsOf("tasks").some((t) => t.opportunity_id === created.id)).toBe(true)
+    })
+
     it("moves a deal along an edge that was drawn", async () => {
       const deal = await register()
 
