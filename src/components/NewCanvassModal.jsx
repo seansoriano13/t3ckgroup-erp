@@ -256,6 +256,8 @@ export default function NewCanvassModal({ open, onOpenChange, userId, subject = 
       toast.error(err.message);
     } finally {
       queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
+      queryClient.invalidateQueries({ queryKey: ["purchase-request"] });
+      queryClient.invalidateQueries({ queryKey: procurementQueueKey });
       setBusy(false);
     }
   };

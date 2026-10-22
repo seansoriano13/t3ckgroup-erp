@@ -247,6 +247,19 @@ describe("the Canvasses page", () => {
     expect(screen.queryByRole("button", { name: /create purchase request/i })).not.toBeInTheDocument();
   });
 
+  it("refreshes the Purchase Requests when a winner is picked, so a request opened next is not stale", async () => {
+    const canvass = db.seed("sor_canvasses", { product_name: "Ink", canvasser_id: marco.id, created_by: marco.id });
+    db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Ink Hub", is_winner: false });
+    const user = setupUser();
+    const { client } = renderPage();
+    client.setQueryData(["purchase-request", "some-request", "items"], []);
+
+    await user.click(await screen.findByText("Ink"));
+    await user.click(await screen.findByRole("button", { name: /Mark .* the winner/ }));
+
+    await waitFor(() => expect(client.getQueryState(["purchase-request", "some-request", "items"]).isInvalidated).toBe(true));
+  });
+
   it("opens the Canvass from anywhere on its row, not just the number", async () => {
     const user = setupUser();
     renderPage();

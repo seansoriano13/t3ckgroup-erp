@@ -7,6 +7,50 @@ import { CANVASS_LOCK_REASON } from "@/constants/canvass"
 const rowsOf = (table) => db.internal.rowsOf(table)
 
 /**
+ * `canvass_add_to_purchase_request` (20261101110000) on the in-memory store: each Canvass becomes a new
+ * Requested Item of the request, or is attached to the item named, and is stamped as requested (which
+ * locks it). The database's own checks are in the policy tier (132-canvass-add-to-request).
+ */
+export function stubCanvassAddToRequestRpc() {
+  stubRpc("canvass_add_to_purchase_request", (args) => {
+    const made = []
+    const unsigned = []
+    for (const entry of args.p_items) {
+      const canvass = rowsOf("sor_canvasses").find((c) => c.id === entry.canvass_id)
+      if (!canvass) throw pgrstError("P0002", "canvass_add_to_purchase_request: a picked Canvass was not found", { status: 404 })
+      const winner = rowsOf("sor_canvass_offers").find((o) => o.canvass_id === canvass.id && o.is_winner)
+      if (!winner) throw pgrstError("22023", `canvass_add_to_purchase_request: ${canvass.number} has no winner yet`, { status: 400 })
+      if (!canvass.signed_off_at) unsigned.push(canvass.id)
+      let itemId = entry.item_id ?? null
+      if (!itemId) {
+        const item = insertRow("purchase_request_items", {
+          request_id: args.p_request_id,
+          source: "new",
+          name: canvass.product_name ?? canvass.number,
+          quantity: entry.quantity ?? 1,
+          unit: entry.unit ?? null,
+          status: "requested",
+          description: `From Canvass ${canvass.number}`,
+          requested_by: rowsOf("purchase_requests").find((r) => r.id === args.p_request_id)?.created_by ?? null,
+        })
+        itemId = item.id
+      }
+      updateRow("sor_canvasses", canvass, { requested_item_id: itemId, request_made_at: new Date().toISOString() })
+      made.push({ canvass_id: canvass.id, item_id: itemId })
+    }
+    return { request_id: args.p_request_id, items: made, unsigned_canvass_ids: unsigned }
+  })
+}
+
+/** `canvass_lock_reason` (20261101100000), on the in-memory store: a request was made, or the item is Ordered or Received. */
+function lockReasonOf(canvass) {
+  if (!canvass || canvass.lock_released_at) return null
+  if (canvass.request_made_at) return CANVASS_LOCK_REASON.REQUEST_MADE
+  const item = rowsOf("purchase_request_items").find((i) => i.id === canvass.requested_item_id)
+  return ["ordered", "received"].includes(item?.status) ? CANVASS_LOCK_REASON.ITEM_ORDERED : null
+}
+
+/**
  * `canvass_subject_can_read_money` (supabase/migrations/20261019100000_canvass_repoint.sql, #276):
  * whether the caller's tier may see an Offer's prices. The fake has no caller and no tier, so a
  * test says which side it is on: `{ money: true }` is a purchaser (closed_book, cost or price),
@@ -19,14 +63,6 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * adds an Offer gets the RPC. So does `canvass_start` (20261024103000_canvass_before_purchase_request.sql,
  * ADR 0034): the first Offer starts the Canvass, or joins the one already on that subject.
  */
-/** `canvass_lock_reason` (20261101100000), on the in-memory store: a request was made, or the item is Ordered or Received. */
-function lockReasonOf(canvass) {
-  if (!canvass || canvass.lock_released_at) return null
-  if (canvass.request_made_at) return CANVASS_LOCK_REASON.REQUEST_MADE
-  const item = rowsOf("purchase_request_items").find((i) => i.id === canvass.requested_item_id)
-  return ["ordered", "received"].includes(item?.status) ? CANVASS_LOCK_REASON.ITEM_ORDERED : null
-}
-
 export function stubCanvassMoneyRpc({ money = true } = {}) {
   stubRpc("canvass_subject_can_read_money", () => money)
   stubRpc("canvass_lock_reason", (args) => lockReasonOf(rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)))

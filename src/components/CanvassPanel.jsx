@@ -25,6 +25,8 @@ import ModalShell from "./ui/ModalShell";
 import CanvassSignoffDialog from "./CanvassSignoffDialog";
 import CanvassUnlockDialog from "./CanvassUnlockDialog";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
+import { CanvassOrigin } from "./purchase-request/canvassOrigin";
+import { procurementQueueKey } from "./purchase-request/queryKeys";
 import CanvassSupplierField, { canvassFieldClass as fieldClass } from "./CanvassSupplierField";
 import CreatePurchaseRequestModal from "./CreatePurchaseRequestModal";
 import CanvassRequestBadge from "./CanvassRequestBadge";
@@ -591,6 +593,9 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     // Prefix match: the sign-off history is keyed under the Canvass's own key.
     queryClient.invalidateQueries({ queryKey });
     queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
+    // A request's items show their Canvass, so what changed here has to reach the request too.
+    queryClient.invalidateQueries({ queryKey: ["purchase-request"] });
+    queryClient.invalidateQueries({ queryKey: procurementQueueKey });
     if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.canvasses(opportunityId) });
   };
   const onError = (err) => toast.error(err.message);
@@ -1103,7 +1108,11 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         <CanvassUnlockDialog open={unlocking} onOpenChange={setUnlocking} canvass={canvass} onUnlocked={invalidate} />
       )}
 
-      {viewingRequest && <PurchaseRequestModal requestId={viewingRequest} onClose={() => setViewingRequest(null)} />}
+      {viewingRequest && (
+        <CanvassOrigin.Provider value={{ canvassId: canvass?.id ?? null, close: () => setViewingRequest(null) }}>
+          <PurchaseRequestModal requestId={viewingRequest} onClose={() => setViewingRequest(null)} />
+        </CanvassOrigin.Provider>
+      )}
 
       {isSigning && canvass && (
         <CanvassSignoffDialog

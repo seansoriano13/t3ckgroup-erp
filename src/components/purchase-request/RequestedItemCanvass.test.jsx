@@ -5,7 +5,7 @@
  * that Component's Canvass. The panel's own contents are covered by the CanvassPanel tests.
  */
 import { openRowNamed } from "@/test/openRequestedItem"
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { within } from "@testing-library/react"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
@@ -13,6 +13,8 @@ import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { MemoryRouter } from "react-router"
 import RequestedItems from "./RequestedItems"
+import { CanvassOrigin } from "./canvassOrigin"
+import { setupUser } from "@/test/support"
 
 let salesperson, buyer, request
 
@@ -88,6 +90,34 @@ describe("purchasing", () => {
     const row = await rowNamed("Printer paper")
     expect(await within(row).findByRole("link", { name: "Open Canvass CNV_0001 for Printer paper" })).toBeInTheDocument()
     expect(within(row).getByTestId("canvass-signed-state")).toHaveTextContent("Signed off")
+  })
+})
+
+describe("a request opened from one of its Canvasses", () => {
+  beforeEach(() => stubPurchaseRequestItemRpcs({ actorId: buyer.id, purchasing: true }))
+
+  it("goes back to that Canvass instead of opening it again, and still links to any other", async () => {
+    const mine = seedItem({ name: "Printer paper" })
+    const other = seedItem({ name: "Toner" })
+    const canvass = db.seed("sor_canvasses", { requested_item_id: mine.id, number: "CNV_0001" })
+    db.seed("sor_canvasses", { requested_item_id: other.id, number: "CNV_0002" })
+    const close = vi.fn()
+    const user = setupUser()
+    renderWithProviders(
+      <MemoryRouter>
+        <CanvassOrigin.Provider value={{ canvassId: canvass.id, close }}>
+          <RequestedItems request={request} />
+        </CanvassOrigin.Provider>
+      </MemoryRouter>,
+    )
+
+    const paper = await rowNamed("Printer paper")
+    expect(within(paper).queryByRole("link", { name: /CNV_0001/ })).not.toBeInTheDocument()
+    await user.click(await within(paper).findByRole("button", { name: "Back to Canvass CNV_0001" }))
+    expect(close).toHaveBeenCalledOnce()
+
+    const toner = await rowNamed("Toner")
+    expect(await within(toner).findByRole("link", { name: /Open Canvass CNV_0002/ })).toBeInTheDocument()
   })
 })
 
