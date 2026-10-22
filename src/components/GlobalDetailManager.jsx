@@ -103,6 +103,13 @@ export default function GlobalDetailManager() {
     staleTime: 0,
   });
 
+  // #657: an old link to a task that was converted lands on the Group Task it became.
+  useEffect(() => {
+    if (activeItem?.type === "TASK" && taskData?.convertedToGroupTaskId) {
+      setActiveItem({ id: taskData.convertedToGroupTaskId, type: "GROUP_TASK" });
+    }
+  }, [activeItem?.type, taskData?.convertedToGroupTaskId]);
+
   useEffect(() => {
     if (activeItem) {
       if (activeItem.type === "TASK" && !isLoadingTask) {
