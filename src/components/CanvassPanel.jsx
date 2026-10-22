@@ -22,6 +22,7 @@ import ModalShell from "./ui/ModalShell";
 import CanvassSignoffDialog from "./CanvassSignoffDialog";
 import CanvassSupplierField, { canvassFieldClass as fieldClass } from "./CanvassSupplierField";
 import CreatePurchaseRequestModal from "./CreatePurchaseRequestModal";
+import CanvassRequestBadge from "./CanvassRequestBadge";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
 import { SelectField } from "./ui/SelectField";
@@ -34,7 +35,8 @@ import { canvassService } from "../services/canvassService";
 import { openCanvassPrintWindow, printCanvass } from "../lib/pdf/canvassPrinter";
 import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
 import { useAuth } from "../context/AuthContext";
-import { CANVASS_CURRENCIES, CANVASS_LIST_KEY, DEFAULT_CURRENCY } from "../constants/canvass";
+import { CANVASS_CURRENCIES, CANVASS_KIND, CANVASS_LIST_KEY, DEFAULT_CURRENCY } from "../constants/canvass";
+import { canvassRequestState } from "../utils/canvassList";
 import { offerCurrency } from "../utils/canvassMath";
 import { projectOffer } from "../utils/offerProjection";
 import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
@@ -722,6 +724,22 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   };
 
   const winner = offers.find((o) => o.is_winner);
+
+  // The request this Canvass became: the Canvasses list already knows its label and status, so a
+  // Canvass on a Requested Item reads them from there (shared cache with the Canvasses page).
+  const { data: listRows = [] } = useQuery({
+    queryKey: CANVASS_LIST_KEY,
+    queryFn: () => canvassService.list(),
+    enabled: open && Boolean(canvass?.requested_item_id),
+  });
+  const listRow = canvass?.requested_item_id ? listRows.find((r) => r.id === canvass.id) : null;
+  const requestSource = canvass && {
+    kind: canvass.component_id ? CANVASS_KIND.COMPONENT : canvass.requested_item_id ? CANVASS_KIND.REQUESTED_ITEM : CANVASS_KIND.NONE,
+    winner,
+    requestId: listRow?.requestId ?? null,
+    requestLabel: listRow?.requestLabel ?? null,
+    requestItemStatus: listRow?.requestItemStatus ?? null,
+  };
   const isSigned = Boolean(canvass?.signed_off_at);
   const isCreator = Boolean(canvass && userId && canvass.created_by === userId);
   const hasReason = Boolean(String(canvass?.reason ?? "").trim());
@@ -781,6 +799,12 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         <ShoppingCart size={16} />
         Canvass{canvass?.number ? ` ${canvass.number}` : ""}{title ? ` — ${title}` : ""}
       </h3>
+      {requestSource && canvassRequestState(requestSource) && (
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground" data-testid="canvass-request-strip">
+          <span>Purchase Request</span>
+          <CanvassRequestBadge source={requestSource} />
+        </div>
+      )}
         <div className="space-y-3">
           {isLoading && <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>}
 

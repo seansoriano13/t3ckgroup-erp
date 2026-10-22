@@ -656,7 +656,7 @@ The three-or-more supplier comparison, recorded as structured Offers against exa
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 
 **Canvasses** (the page):
-The Purchasing page listing every Canvass, project ones included, and where a Canvass for buying outside a project is started. Buying outside a project runs either way round: Purchasing canvasses first and creates the Purchase Request from it, or an employee opens a Direct request first and canvassing one of its Requested Items opens that item's Canvass here. Several Canvasses can be picked to create one Purchase Request, one Requested Item each. Creating one needs each Canvass to have a winner; a Canvass not yet signed off only warns.
+The Purchasing page listing every Canvass, project ones included, and where a Canvass for buying outside a project is started. Buying outside a project runs either way round: Purchasing canvasses first and creates the Purchase Request from it, or an employee opens a Direct request first and canvassing one of its Requested Items opens that item's Canvass here. Several Canvasses can be picked to create one Purchase Request, one Requested Item each. Creating one needs each Canvass to have a winner; a Canvass not yet signed off only warns. Each Canvass on the page and in its panel says whether a request is still to be made: "Needs winner", "Ready to request", or the request it became with its Requested Item's status ("PR-12 · Cancelled"), a link to that request; a Canvass on a Component shows nothing there. A "Request" filter narrows to Canvasses not requested yet or with a request created.
 _Avoid_: Canvass tool, Sourcing page
 
 **Offer**:

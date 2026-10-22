@@ -295,6 +295,7 @@ export function stubCanvassListRpcs({ actorId = null } = {}) {
         requested_item_id: c.requested_item_id ?? null,
         request_id: request?.id ?? null,
         request_label: request?.title ?? null,
+        request_item_status: item?.status ?? null,
         opportunity_id: request?.opportunity_id ?? null,
         sales_reference: null,
         project_title: null,

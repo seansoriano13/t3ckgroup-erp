@@ -15,10 +15,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import CanvassPanel from "../../../components/CanvassPanel";
 import NewCanvassModal from "../../../components/NewCanvassModal";
 import CreatePurchaseRequestModal from "../../../components/CreatePurchaseRequestModal";
+import CanvassRequestBadge from "../../../components/CanvassRequestBadge";
 import { useAuth } from "../../../context/AuthContext";
 import { canvassService } from "../../../services/canvassService";
 import { CANVASS_KIND, CANVASS_LIST_KEY } from "../../../constants/canvass";
-import { ANY, LINKED_FILTER, SIGNED_FILTER, WINNER_FILTER, canvassSubjectLabel, canvassAddressParams, filterCanvasses } from "../../../utils/canvassList";
+import { ANY, LINKED_FILTER, REQUEST_FILTER, SIGNED_FILTER, WINNER_FILTER, canvassSubjectLabel, canvassAddressParams, filterCanvasses } from "../../../utils/canvassList";
 import { getPermissionContext } from "../../../utils/permissions";
 
 /**
@@ -43,6 +44,12 @@ const LINKED = [
   { value: LINKED_FILTER.FREE, label: "Not linked" },
 ];
 
+const REQUEST = [
+  { value: ANY, label: "Any request" },
+  { value: REQUEST_FILTER.NOT_YET, label: "Not requested yet" },
+  { value: REQUEST_FILTER.CREATED, label: "Request created" },
+];
+
 const KIND_LABEL = {
   [CANVASS_KIND.COMPONENT]: "Component",
   [CANVASS_KIND.REQUESTED_ITEM]: "Requested Item",
@@ -56,6 +63,7 @@ function CanvassesPage({ userId, canEdit }) {
   const [signed, setSigned] = useState(ANY);
   const [winner, setWinner] = useState(ANY);
   const [linked, setLinked] = useState(ANY);
+  const [request, setRequest] = useState(ANY);
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: CANVASS_LIST_KEY,
@@ -70,14 +78,15 @@ function CanvassesPage({ userId, canEdit }) {
     ];
   }, [rows]);
 
-  const shown = filterCanvasses(rows, { search, canvasserId, signed, winner, linked });
-  const active = Boolean(search) || canvasserId !== ANY || signed !== ANY || winner !== ANY || linked !== ANY;
+  const shown = filterCanvasses(rows, { search, canvasserId, signed, winner, linked, request });
+  const active = Boolean(search) || canvasserId !== ANY || signed !== ANY || winner !== ANY || linked !== ANY || request !== ANY;
   const clearAll = () => {
     setSearch("");
     setCanvasserId(ANY);
     setSigned(ANY);
     setWinner(ANY);
     setLinked(ANY);
+    setRequest(ANY);
   };
 
   // The open Canvass is in the address: ?canvass=<id>, or ?item= / ?component= for one found by its subject.
@@ -138,6 +147,7 @@ function CanvassesPage({ userId, canEdit }) {
                 <FilterSelect options={SIGNED} value={signed} onChange={setSigned} label="Signed state" className="h-9 w-auto" />
                 <FilterSelect options={WINNER} value={winner} onChange={setWinner} label="Winner" className="h-9 w-auto" />
                 <FilterSelect options={LINKED} value={linked} onChange={setLinked} label="Linked" className="h-9 w-auto" />
+                <FilterSelect options={REQUEST} value={request} onChange={setRequest} label="Request" className="h-9 w-auto" />
               </>
             }
             hasActiveFilters={active}
@@ -159,7 +169,7 @@ function CanvassesPage({ userId, canEdit }) {
           <Table tableId="canvasses" className="md:min-w-[44rem]">
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                {["", "Number", "Subject", "Canvasser", "Winner", "Sign-off"].map((heading) => (
+                {["", "Number", "Subject", "Canvasser", "Winner", "Sign-off", "Request"].map((heading) => (
                   <TableHead key={heading}>{heading}</TableHead>
                 ))}
               </TableRow>
@@ -215,6 +225,9 @@ function CanvassesPage({ userId, canEdit }) {
                     </span>
                   </TableCell>
                   <TableCell>{row.signedOffAt ? `Signed off${row.signerName ? ` by ${row.signerName}` : ""}` : "Not signed"}</TableCell>
+                  <TableCell>
+                    <CanvassRequestBadge source={row} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

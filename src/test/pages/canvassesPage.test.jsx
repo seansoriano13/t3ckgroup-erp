@@ -88,6 +88,67 @@ describe("the Canvasses page", () => {
     expect(screen.getByText("CNV_0003")).toBeInTheDocument();
   });
 
+  // A Canvass already turned into a Purchase Request: its item was cancelled afterwards.
+  const seedRequested = () => {
+    const request = db.seed("purchase_requests", { title: "Office buy", created_by: marco.id });
+    const item = db.seed("purchase_request_items", { request_id: request.id, source: "new", name: "Stapler", status: "cancelled", quantity: 1, requested_by: marco.id });
+    db.seed("sor_canvasses", { number: "CNV_0004", requested_item_id: item.id, created_by: marco.id });
+    return request;
+  };
+
+  it("says in the Request column what each Canvass needs, or which request it became", async () => {
+    const request = seedRequested();
+    renderPage();
+    const rows = await screen.findAllByTestId("canvass-row");
+    const rowOf = (number) => rows.find((row) => within(row).queryByText(number));
+
+    expect(rowOf("CNV_0003")).toHaveTextContent("Needs winner");
+    expect(rowOf("CNV_0002")).toHaveTextContent("Ready to request");
+    expect(rowOf("CNV_0001")).not.toHaveTextContent(/needs winner|ready to request|request/i);
+
+    const link = within(rowOf("CNV_0004")).getByRole("link", { name: /Office buy · Cancelled/ });
+    expect(link).toHaveAttribute("href", `/purchasing?request=${request.id}`);
+  });
+
+  it("narrows by whether a request was made", async () => {
+    seedRequested();
+    const user = setupUser();
+    renderPage();
+    await screen.findAllByTestId("canvass-row");
+
+    await user.click(screen.getByRole("button", { name: /Any request/ }));
+    await user.click(await screen.findByRole("button", { name: "Request created" }));
+    expect(screen.getAllByTestId("canvass-row")).toHaveLength(1);
+    expect(screen.getByText("CNV_0004")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Request created/ }));
+    await user.click(await screen.findByRole("button", { name: "Not requested yet" }));
+    expect(screen.getAllByTestId("canvass-row").map((row) => row.textContent.match(/CNV_\d+/)[0]).sort()).toEqual(["CNV_0002", "CNV_0003"]);
+  });
+
+  it("shows the same sign at the top of the panel, and none on a Component Canvass", async () => {
+    const request = seedRequested();
+    const user = setupUser();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0003" }));
+    expect(await screen.findByTestId("canvass-request-strip")).toHaveTextContent("Needs winner");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0002" }));
+    expect(await screen.findByTestId("canvass-request-strip")).toHaveTextContent("Ready to request");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0004" }));
+    const strip = await screen.findByTestId("canvass-request-strip");
+    await waitFor(() => expect(within(strip).getByRole("link", { name: /Office buy · Cancelled/ })).toHaveAttribute("href", `/purchasing?request=${request.id}`));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0001" }));
+    await screen.findByRole("heading", { name: /Canvass CNV_0001/ });
+    expect(screen.queryByTestId("canvass-request-strip")).not.toBeInTheDocument();
+  });
+
   it("opens the Canvass panel from a row", async () => {
     const user = setupUser();
     renderPage();

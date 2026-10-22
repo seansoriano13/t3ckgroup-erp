@@ -282,6 +282,7 @@ export const canvassService = {
       requestedItemId: row.requested_item_id ?? null,
       requestId: row.request_id ?? null,
       requestLabel: row.request_label ?? null,
+      requestItemStatus: row.request_item_status ?? null,
       opportunityId: row.opportunity_id ?? null,
       salesReference: row.sales_reference ?? null,
       projectTitle: row.project_title ?? null,
