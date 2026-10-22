@@ -88,7 +88,7 @@ export const COMPONENT_BANDS = {
   unit: [SALES, PURCHASING],
   is_bundle: [SALES, PURCHASING],
   odoo_product_id: [SALES, PURCHASING],
-  brand: [SALES],
+  brand: [SALES, PURCHASING],
   status: [SALES],
   offer_specification: [PURCHASING],
   availability: [PURCHASING],

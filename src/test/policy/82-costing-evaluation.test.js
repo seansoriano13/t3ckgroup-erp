@@ -242,7 +242,7 @@ describe("the Technical band", () => {
     it("refuses a member every other column, and adding or removing a Component", async () => {
         const brand = await setCompliance("technical", compA, { brand: "Petzl" })
         expect(brand).toMatchObject({ ok: false, code: RLS_VIOLATION })
-        expect(brand.message).toBe("costing_band:costing_components.brand:sales")
+        expect(brand.message).toBe("costing_band:costing_components.brand:sales,purchasing")
         const offer = await setCompliance("technical", compA, { offer_specification: "changed" })
         expect(offer.message).toBe("costing_band:costing_components.offer_specification:purchasing")
         const add = await tryInsert(await clientFor("technical"), "costing_components", { tender_line_id: lineId, position: 9, name: "x", quantity: 1 })

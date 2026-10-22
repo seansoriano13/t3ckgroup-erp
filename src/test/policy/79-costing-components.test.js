@@ -202,10 +202,9 @@ describe("Components: who writes", () => {
         expect(edit).toEqual({ ok: true, affected: 1 })
     })
 
-    it("refuses Purchasing Brand and Status, and Sales the Purchasing columns, naming the band", async () => {
+    it("lets Purchasing write Brand, refuses Purchasing Status, and Sales the Purchasing columns, naming the band", async () => {
         const brand = await tryUpdate(await clientFor("outsider"), "costing_components", plainId, { brand: "Other" })
-        expect(brand).toMatchObject({ ok: false, code: RLS_VIOLATION })
-        expect(brand.message).toBe("costing_band:costing_components.brand:sales")
+        expect(brand).toEqual({ ok: true, affected: 1 })
         const status = await tryUpdate(await clientFor("outsider"), "costing_components", plainId, { status: "stockable" })
         expect(status.message).toBe("costing_band:costing_components.status:sales")
 
