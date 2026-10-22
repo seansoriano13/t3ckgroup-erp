@@ -76,7 +76,7 @@ describe("the Canvass on a Component row", () => {
     await user.type(screen.getByLabelText("Unit price in PHP"), "78000");
     await user.click(screen.getByRole("button", { name: /save offer/i }));
 
-    expect(await screen.findByText(/Canvass CNV_0001/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^CNV_0001\s*·/ })).toBeInTheDocument();
     expect(db.rows("sor_canvasses")).toHaveLength(1);
     expect(db.rows("sor_canvass_offers")).toHaveLength(1);
     expect(await screen.findAllByTestId("offer")).toHaveLength(1);

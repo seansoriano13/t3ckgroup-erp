@@ -135,22 +135,24 @@ describe("the Canvasses page", () => {
 
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0003" }));
     expect(await screen.findByTestId("canvass-request-strip")).toHaveTextContent("Needs winner");
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Close window" }));
 
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0002" }));
     expect(await screen.findByTestId("canvass-request-strip")).toHaveTextContent("Ready to request");
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Close window" }));
 
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0004" }));
     const strip = await screen.findByTestId("canvass-request-strip");
+    // The step is shut until it is opened, so open it to reach the request's name.
+    await user.click(screen.getByRole("button", { name: /^Purchase Request/ }));
     // The request's name is a button that opens it in place; the status beside it is plain text.
     await waitFor(() => expect(within(strip).getByRole("button", { name: /Office buy/ })).toBeInTheDocument());
     expect(within(strip).getByText("Cancelled")).toBeInTheDocument();
     expect(within(strip).queryByRole("link")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Close window" }));
 
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0001" }));
-    await screen.findByRole("heading", { name: /Canvass CNV_0001/ });
+    await screen.findByRole("heading", { name: /^CNV_0001\s*·/ });
     expect(screen.queryByTestId("canvass-request-strip")).not.toBeInTheDocument();
   });
 
@@ -158,7 +160,7 @@ describe("the Canvasses page", () => {
     const user = setupUser();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0002" }));
-    expect(await screen.findByRole("heading", { name: /Canvass CNV_0002/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^CNV_0002\s*·/ })).toBeInTheDocument();
     expect(await screen.findAllByTestId("offer")).toHaveLength(1);
     // Offers sit side by side in three columns, the same as the New Canvass form.
     expect(screen.getByTestId("offers-grid")).toHaveClass("md:grid-cols-3");
@@ -202,6 +204,7 @@ describe("the Canvasses page", () => {
     renderPage();
 
     await user.click(await screen.findByText("Printer paper"));
+    await user.click(await screen.findByRole("button", { name: "More" }));
     await user.click(await screen.findByRole("button", { name: /^Unlock$/ }));
     const unlock = screen.getAllByRole("button", { name: /^Unlock$/ }).at(-1);
     expect(unlock).toBeDisabled();
@@ -233,7 +236,7 @@ describe("the Canvasses page", () => {
     const rows = await screen.findAllByTestId("canvass-row");
     const toner = rows.find((row) => within(row).queryByText("CNV_0002"));
     await user.click(within(toner).getByText("Ana Reyes"));
-    expect(await screen.findByRole("heading", { name: /Canvass CNV_0002/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^CNV_0002\s*·/ })).toBeInTheDocument();
   });
 
   it("picking a row's checkbox does not open it", async () => {
@@ -241,7 +244,7 @@ describe("the Canvasses page", () => {
     renderPage();
     await screen.findAllByTestId("canvass-row");
     await user.click(screen.getByLabelText("Pick Canvass CNV_0002"));
-    expect(screen.queryByRole("heading", { name: /Canvass CNV_0002/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^CNV_0002\s*·/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create purchase request \(1\)/i })).toBeInTheDocument();
   });
 
@@ -333,7 +336,7 @@ describe("the Canvasses page", () => {
     const user = setupUser();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0001" }));
-    await screen.findByRole("heading", { name: /Canvass CNV_0001/ });
+    await screen.findByRole("heading", { name: /^CNV_0001\s*·/ });
     expect(screen.queryByRole("button", { name: /^create purchase request$/i })).not.toBeInTheDocument();
   });
 

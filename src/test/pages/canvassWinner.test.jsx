@@ -17,12 +17,6 @@ import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
  * rules themselves are the policy tier's (91-canvass-winner.test.js).
  */
 
-// The confirm toast needs a Toaster the page tests do not mount; confirming is what these tests need.
-vi.mock("@/components/ui/CustomToast", async (importOriginal) => ({
-  ...(await importOriginal()),
-  confirmActionToast: (_title, _description, _confirmText, _type, onConfirm) => onConfirm(),
-}));
-
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
 
@@ -79,6 +73,8 @@ describe("a winner on the Costing Matrix page", () => {
     db.internal.rowsOf("sor_canvasses")[0].signed_off_at = "2026-10-20T01:00:00Z";
 
     await user.click(await screen.findByRole("button", { name: /Clear Redleaf Inc. as the winner/ }));
+    // It asks first, in a plain confirm dialog.
+    await user.click(within(await screen.findByRole("dialog", { name: "Clear the winner?" })).getByRole("button", { name: "Clear winner" }));
 
     await waitFor(() => expect(db.rows("sor_canvass_offers").some((o) => o.is_winner)).toBe(false));
     expect(db.rows("sor_canvasses")[0].signed_off_at).toBeNull();
