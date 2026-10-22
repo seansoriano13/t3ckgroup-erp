@@ -16,7 +16,7 @@ function LinerRow({ row }) {
         <span className="block truncate text-[13px] font-semibold text-foreground" title={typeof row.main === "string" ? row.main : undefined}>
           {row.main}
         </span>
-        {row.sub && <span className="block truncate text-xs text-muted-foreground">{row.sub}</span>}
+        {row.sub && <span className={cn("block text-xs text-muted-foreground", !row.subWrap && "truncate")}>{row.sub}</span>}
       </span>
       {row.quantity != null && <span className="shrink-0 font-mono text-xs text-foreground">{row.quantity}</span>}
     </>
@@ -85,13 +85,15 @@ function LinerRow({ row }) {
  * row with `children` opens in place (the `.reveal` pattern: its content stays
  * mounted) and several can be open at once.
  *
- * `rows`: `[{ key, main, sub?, quantity?, badge?: { label, theme? }, actions?, label?, testId?, children?, defaultOpen? }]`.
+ * `rows`: `[{ key, main, sub?, quantity?, badge?: { label, theme? }, actions?, label?, testId?, children?, defaultOpen?, subWrap? }]`.
+ * `subWrap` lets a long sub line wrap instead of cutting it short.
  * `actions` is a node (a status menu) shown in place of the badge; the row's toggle then holds only its text.
  * `groups` (instead of `rows`): `[{ key, title?, count?, rows }]`, each group's title a
  * sub-heading inside the box. `empty` is the one quiet sentence shown, with no
- * box, when there are no rows.
+ * box, when there are no rows. `total` (`{ label, value }`) adds a closing
+ * row under the rows, for a figure that sums them up.
  */
-export default function LinerList({ rows, groups, empty = "Nothing here yet.", label, className }) {
+export default function LinerList({ rows, groups, empty = "Nothing here yet.", label, total, className }) {
   const all = groups ?? [{ key: "all", rows: rows ?? [] }];
   const filled = all.filter((group) => group.rows.length > 0);
   if (filled.length === 0) return <p className="text-[13px] text-muted-foreground">{empty}</p>;
@@ -112,6 +114,15 @@ export default function LinerList({ rows, groups, empty = "Nothing here yet.", l
           </ul>
         </section>
       ))}
+      {total && (
+        <div
+          data-testid={total.testId}
+          className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 bg-muted/20 px-4 py-2 text-xs"
+        >
+          <span className="text-muted-foreground">{total.label}</span>
+          <span className="font-mono font-semibold tabular-nums text-foreground">{total.value}</span>
+        </div>
+      )}
     </div>
   );
 }

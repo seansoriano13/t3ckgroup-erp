@@ -8,7 +8,7 @@ import { ExternalLink } from "../ui/external-link";
 import { FileInput } from "../ui/FileInput";
 import SectionHeader from "../ui/SectionHeader";
 import Spinner from "../ui/Spinner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
+import LinerList from "@/components/record/LinerList";
 import StatusBadge from "../StatusBadge";
 import {
   IPAS_DOCUMENT_APPLIES_TO_LABELS,
@@ -21,8 +21,6 @@ import ReadTick from "@/components/record/ReadTick";
 import { useEditable, useInDrawer } from "@/components/record/sectionChrome";
 import { ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
 import { uploadDocumentFile } from "./uploadDocumentFile";
-
-const HEAD = "text-label font-bold uppercase tracking-wider";
 
 /**
  * Section 3's documents (#246): one list, two ticks per row. Purchasing has it
@@ -70,7 +68,7 @@ export function IpasDocuments({
 
   return (
     <div className="mt-5 space-y-3" data-testid="ipas-documents">
-      <SectionHeader title="Documents" className="border-b-0 pb-2">
+      <SectionHeader title={`Documents · ${documents.length}`} className="border-b-0 pb-2">
         {canChange && (
           <>
             {suggested.length > 0 && (
@@ -87,146 +85,119 @@ export function IpasDocuments({
         )}
       </SectionHeader>
 
-      {documents.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-          No documents on this IPAS yet.
-          {canChange ? " Add the ones this purchase asks for." : ""}
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <Table className="md:min-w-[40rem]">
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className={HEAD}>Document</TableHead>
-                <TableHead className={HEAD}>Attachment</TableHead>
-                <TableHead className={`${HEAD} text-center`}>{IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}</TableHead>
-                <TableHead className={`${HEAD} text-center`}>{IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}</TableHead>
-                {canChange && (
-                  <TableHead className={`${HEAD} text-right`}>
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {documents.map((document) => (
-                <TableRow key={document.id} data-testid="ipas-document-row">
-                  <TableCell className="text-sm text-foreground">
-                    <span className="font-medium">{document.label}</span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                      {document.byHand ? (
-                        <span className="text-xs text-muted-foreground">Added by hand</span>
-                      ) : (
-                        <>
-                          <span className="text-xs text-muted-foreground">
-                            {IPAS_DOCUMENT_APPLIES_TO_LABELS[document.appliesTo] ?? ""}
-                          </span>
-                          {document.isFiling && (
-                            <StatusBadge
-                              theme="blue"
-                              label={
-                                document.usedFor === IPAS_DOCUMENT_USED_FOR.FILING
-                                  ? "Filing item"
-                                  : IPAS_DOCUMENT_USED_FOR_LABELS[document.usedFor]
-                              }
-                            />
-                          )}
-                        </>
-                      )}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {document.attachmentUrl ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <ExternalLink
-                          href={document.attachmentUrl}
-                          className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
-                        >
-                          <Paperclip size={12} aria-hidden="true" />
-                          View
-                        </ExternalLink>
-                        {canChange && (
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="text-muted-foreground"
-                            aria-label={`Remove the attachment of ${document.label}`}
-                            onClick={() => onRemoveAttachment(document)}
-                          >
-                            <X />
-                          </Button>
-                        )}
-                      </span>
-                    ) : canChange ? (
-                      <FileInput
-                        accept={ALLOWED_EXTENSIONS_STRING}
-                        disabled={uploadingId === document.id}
-                        onFiles={(files) => attach(document, files)}
-                        size="xs"
-                        className="gap-1"
-                        aria-label={`Attach a file to ${document.label}`}
-                      >
-                        {uploadingId === document.id ? <Spinner size="sm" /> : <Paperclip size={12} aria-hidden="true" />}
-                        {uploadingId === document.id ? "Uploading…" : "Attach"}
-                      </FileInput>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {inDrawer ? (
-                    <ReadTick
-                      checked={document.purchasingHas}
-                      label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}: ${document.label}`}
-                    />
-                  ) : (
-                    <Checkbox
-                      tone="neutral"
-                      checked={document.purchasingHas}
-                      disabled={!canChange}
-                      aria-label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}: ${document.label}`}
-                      onCheckedChange={(value) => onTick(document, IPAS_TICK_SIDE.PURCHASING, Boolean(value))}
-                    />
-                  )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {inDrawer ? (
-                    <ReadTick
-                      checked={document.financeHas}
-                      label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}: ${document.label}`}
-                    />
-                  ) : (
-                    <Checkbox
-                      tone="neutral"
-                      checked={document.financeHas}
-                      disabled={!canTickFinance}
-                      aria-label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}: ${document.label}`}
-                      onCheckedChange={(value) => onTick(document, IPAS_TICK_SIDE.FINANCE, Boolean(value))}
-                    />
-                  )}
-                  </TableCell>
+      <LinerList
+        label="Documents"
+        empty={`No documents on this IPAS yet.${canChange ? " Add the ones this purchase asks for." : ""}`}
+        rows={documents.map((document) => ({
+          key: document.id,
+          testId: "ipas-document-row",
+          main: document.label,
+          sub: document.byHand ? (
+            "Added by hand"
+          ) : (
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              {IPAS_DOCUMENT_APPLIES_TO_LABELS[document.appliesTo] ?? ""}
+              {document.isFiling && (
+                <StatusBadge
+                  theme="blue"
+                  label={
+                    document.usedFor === IPAS_DOCUMENT_USED_FOR.FILING
+                      ? "Filing item"
+                      : IPAS_DOCUMENT_USED_FOR_LABELS[document.usedFor]
+                  }
+                />
+              )}
+            </span>
+          ),
+          subWrap: true,
+          actions: (
+            <span className="flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-xs">
+              {document.attachmentUrl ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <ExternalLink
+                    href={document.attachmentUrl}
+                    className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
+                  >
+                    <Paperclip size={12} aria-hidden="true" />
+                    View
+                  </ExternalLink>
                   {canChange && (
-                    <TableCell className="text-right">
-                      {/* Only a document added by hand can be removed; a suggested one is ticked or left. */}
-                      {document.byHand && (
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className="text-muted-foreground hover:text-red-11"
-                          aria-label={`Remove ${document.label}`}
-                          onClick={() => onRemove(document)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      )}
-                    </TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground"
+                      aria-label={`Remove the attachment of ${document.label}`}
+                      onClick={() => onRemoveAttachment(document)}
+                    >
+                      <X />
+                    </Button>
                   )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+                </span>
+              ) : canChange ? (
+                <FileInput
+                  accept={ALLOWED_EXTENSIONS_STRING}
+                  disabled={uploadingId === document.id}
+                  onFiles={(files) => attach(document, files)}
+                  size="xs"
+                  className="gap-1"
+                  aria-label={`Attach a file to ${document.label}`}
+                >
+                  {uploadingId === document.id ? <Spinner size="sm" /> : <Paperclip size={12} aria-hidden="true" />}
+                  {uploadingId === document.id ? "Uploading…" : "Attach"}
+                </FileInput>
+              ) : (
+                <span className="text-muted-foreground">No attachment</span>
+              )}
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                {IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}
+                {inDrawer ? (
+                  <ReadTick
+                    checked={document.purchasingHas}
+                    label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}: ${document.label}`}
+                  />
+                ) : (
+                  <Checkbox
+                    tone="neutral"
+                    checked={document.purchasingHas}
+                    disabled={!canChange}
+                    aria-label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}: ${document.label}`}
+                    onCheckedChange={(value) => onTick(document, IPAS_TICK_SIDE.PURCHASING, Boolean(value))}
+                  />
+                )}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                {IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}
+                {inDrawer ? (
+                  <ReadTick
+                    checked={document.financeHas}
+                    label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}: ${document.label}`}
+                  />
+                ) : (
+                  <Checkbox
+                    tone="neutral"
+                    checked={document.financeHas}
+                    disabled={!canTickFinance}
+                    aria-label={`${IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}: ${document.label}`}
+                    onCheckedChange={(value) => onTick(document, IPAS_TICK_SIDE.FINANCE, Boolean(value))}
+                  />
+                )}
+              </span>
+              {/* Only a document added by hand can be removed; a suggested one is ticked or left. */}
+              {canChange && document.byHand && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="text-muted-foreground hover:text-red-11"
+                  aria-label={`Remove ${document.label}`}
+                  onClick={() => onRemove(document)}
+                >
+                  <Trash2 />
+                </Button>
+              )}
+            </span>
+          ),
+        }))}
+      />
       <p className="text-xs text-muted-foreground">
         Each department ticks its own box. A filing item ticked here is already ticked at Filing.
       </p>

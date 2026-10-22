@@ -485,8 +485,12 @@ describe("IPAS pages", () => {
       expect(await screen.findByRole("button", { name: /^1 · / })).toHaveAttribute("aria-expanded", "true");
       // The item shows in section 1 and again in Landed Cost (#244).
       expect((await screen.findAllByText("Greenspirit 2 Cutter")).length).toBeGreaterThan(0);
-      expect(screen.getByText("SCORPE")).toBeInTheDocument();
+      expect(screen.getByText(/SCORPE/)).toBeInTheDocument();
       expect(screen.getByText(/Copy from Odoo, fetched/)).toBeInTheDocument();
+      // #643: the lines are rows in the liner list with the one total, and no table sits inside the section.
+      expect(screen.getByText("Lines · 1")).toBeInTheDocument();
+      expect(screen.getByText("Before tax, as Odoo prices the lines")).toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
     });
 
     it("shows the same IPAS Status and On-Hold note on the record as on the list (#597)", async () => {
@@ -808,7 +812,7 @@ describe("IPAS pages", () => {
 
       renderDetail(row.id, "purchasing");
 
-      expect((await screen.findAllByText("Replacement blades", { selector: "td, td *" })).length).toBeGreaterThan(0);
+      expect((await screen.findAllByText("Replacement blades")).length).toBeGreaterThan(0);
       const note = await screen.findByText(/Odoo PO changed ·/);
       expect(note).toBeInTheDocument();
       expect(screen.getByText("1 line added, 1 quantity or price changed")).toBeInTheDocument();
