@@ -143,11 +143,12 @@ describe("Meeting Request journey", () => {
         // 4. The meeting is on the Calendar, no longer faded as pending.
         mockUser.current = applicant
         renderWithProviders(
-            <MemoryRouter initialEntries={["/calendar"]}>
+            <MemoryRouter initialEntries={[`/calendar?date=${tomorrow}`]}>
                 <CalendarPage />
             </MemoryRouter>,
         )
-        expect(await screen.findByText(/Ana Reyes · Meeting/)).toBeInTheDocument()
-        expect(screen.queryByText(/Meeting \(pending\)/)).not.toBeInTheDocument()
+        const rooms = within(await screen.findByTestId("day-rail")).getByRole("region", { name: "Rooms" })
+        expect(await within(rooms).findByText("Quarterly planning")).not.toHaveClass("italic")
+        expect(within(rooms).queryByText(/Waiting for/)).not.toBeInTheDocument()
     })
 })

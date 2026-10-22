@@ -154,11 +154,11 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
     await user.click(await screen.findByRole('tab', { name: /^Calendar$/i }));
 
-    await user.click(await screen.findByText(/John Doe · Offset/));
+    await user.click(await screen.findByText(/John D\. · Offset/));
     expect(await screen.findByText('My dentist')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Close' }));
 
-    await user.click(screen.getByText(/Ben Lim · Offset/));
+    await user.click(screen.getByText(/Ben L\. · Offset/));
     expect(await screen.findAllByText('Ben Lim')).not.toHaveLength(0);
     expect(screen.queryByText('Reason')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();

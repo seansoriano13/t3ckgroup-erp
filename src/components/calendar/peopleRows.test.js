@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entriesToBars, groupByPerson } from './peopleRows.js';
+import { entriesToBars, groupByDepartment, outByDay } from './peopleRows.js';
 
 const days = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'];
 const e = (id, date, over = {}) => ({
@@ -30,18 +30,40 @@ describe('entriesToBars', () => {
   });
 });
 
-describe('groupByPerson', () => {
+describe('groupByDepartment', () => {
   const ben = { id: 'p2', name: 'Ben Lim', department: 'IT' };
-  const entries = [e('a', '2026-10-01'), e('b', '2026-10-02', { employee: ben }), e('c', '2026-10-09')];
+  const cara = { id: 'p3', name: 'Cara Tan', department: 'SALES' };
+  const entries = [
+    e('a', '2026-10-01'),
+    e('b', '2026-10-02', { employee: ben }),
+    e('c', '2026-10-09'),
+    e('o', '2026-10-03', { kind: 'OVERTIME', hours: 3, employee: cara }),
+    e('m', '2026-10-03', { kind: 'MEETING', employee: { id: 'p4', name: 'Dino Uy', department: 'HR' } }),
+  ];
 
-  it('makes one row per person, sorted by name, ignoring days outside the view', () => {
-    const rows = groupByPerson(entries, days);
-    expect(rows.map((r) => r.employee.name)).toEqual(['Ana Cruz', 'Ben Lim']);
-    expect(rows[0].bars).toHaveLength(1);
+  it('groups people by department, ignoring meetings and days outside the view', () => {
+    const groups = groupByDepartment(entries, days);
+    expect(groups.map(([dept]) => dept)).toEqual(['IT', 'SALES']);
+    const sales = groups[1][1];
+    expect(sales.map((r) => r.employee.name)).toEqual(['Ana Cruz', 'Cara Tan']);
+    expect(sales[0]).toMatchObject({ summary: '1 day out', lanes: 1 });
+    expect(sales[1].summary).toBe('3 h overtime');
   });
 
   it('filters by name or department', () => {
-    expect(groupByPerson(entries, days, 'ben').map((r) => r.employee.id)).toEqual(['p2']);
-    expect(groupByPerson(entries, days, 'sales').map((r) => r.employee.id)).toEqual(['p1']);
+    expect(groupByDepartment(entries, days, 'ben').flatMap(([, rows]) => rows.map((r) => r.employee.id))).toEqual(['p2']);
+    expect(groupByDepartment(entries, days, 'sales').map(([dept]) => dept)).toEqual(['SALES']);
+  });
+});
+
+describe('outByDay', () => {
+  it('counts each person once a day, Time Off and undertime only', () => {
+    const out = outByDay([
+      e('a', '2026-10-01'),
+      e('a2', '2026-10-01', { kind: 'UNDERTIME' }),
+      e('b', '2026-10-01', { employee: { id: 'p2' } }),
+      e('o', '2026-10-01', { kind: 'OVERTIME', employee: { id: 'p3' } }),
+    ]);
+    expect(out.get('2026-10-01')).toBe(2);
   });
 });
