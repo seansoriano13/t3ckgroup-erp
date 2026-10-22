@@ -1,6 +1,5 @@
 import { Navigate, useNavigate } from "react-router";
 
-import PageShell from "../../../components/ui/PageShell";
 import PageLoading from "../../../components/ui/PageLoading";
 import PurchaseRequestSlideOver from "../../../components/purchase-request/PurchaseRequestSlideOver";
 import { usePurchaseRequest } from "../../../components/purchase-request/requestHooks";
@@ -45,9 +44,7 @@ function PurchasingDashboard() {
 
   return (
     <>
-      <PageShell title="Purchasing Dashboard" description="Where every project's buying stands, and what to do next.">
-        <Tracker filters={filters} handlers={{ onOpenRow: openRow, onOpenOrder: openOrder, onOpenSor: openSor }} suspended={Boolean(recordId)} />
-      </PageShell>
+      <Tracker filters={filters} handlers={{ onOpenRow: openRow, onOpenOrder: openOrder, onOpenSor: openSor }} suspended={Boolean(recordId)} />
 
       <PurchaseRequestSlideOver request={recordId ? request : null} crumb="Purchasing Dashboard" onClose={close} />
     </>

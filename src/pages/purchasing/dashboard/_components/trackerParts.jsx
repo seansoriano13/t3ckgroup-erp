@@ -98,7 +98,7 @@ export function MoveText({ next }) {
         {move.label}
       </span>
       <span className="truncate text-xs text-muted-foreground">
-        {move.ref} · {move.ours ? move.ownerLabel : `waiting on ${move.ownerLabel.toLowerCase()}`} · {pluralize(move.days, "day")}
+        {move.ref} · {move.ours ? move.ownerLabel : `waiting on ${move.ownerLabel.toLowerCase()}`} · {move.days}d
         {next.more > 0 && ` · +${next.more} more`}
       </span>
     </span>
