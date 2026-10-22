@@ -94,7 +94,28 @@ describe("Packing List record page", () => {
     expect(screen.getByText("Waiting for you: Packed by")).toBeInTheDocument();
     expect(screen.getByText("12.50 kg (1 of 2 weighed)")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Boxes · 2" })).toBeInTheDocument();
-    expect(screen.getByText("Packed by")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Packed by/ })).toBeInTheDocument();
+  });
+
+  it("opens a box in place to show its contents and the box actions", async () => {
+    const user = setupUser();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /^Box 1 · M1/ }));
+    expect(screen.getByText("Cutter")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit box" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Contents" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Remove" }).length).toBeGreaterThan(0);
+  });
+
+  it("opens Contents without an Expand button", async () => {
+    const user = setupUser();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /^Box 1 · M1/ }));
+    await user.click(screen.getAllByRole("button", { name: "Contents" })[0]);
+    expect(await screen.findByRole("button", { name: "Save contents" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Expand|Collapse)$/ })).not.toBeInTheDocument();
   });
 
   it("signs Packed by from the card, asking first", async () => {
@@ -120,5 +141,6 @@ describe("Packing List record page", () => {
 
     expect(await screen.findByText("Packed. Nothing left to do.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sign Packed by" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a box" })).not.toBeInTheDocument();
   });
 });

@@ -15,8 +15,10 @@ import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
 import { SelectField } from "../../../components/ui/SelectField";
 import MoveButton from "../../../components/record/MoveButton";
-import StepMark from "../../../components/record/StepMark";
-import { StateWord } from "../../../components/record/StateMark";
+import RecordHeader from "../../../components/record/RecordHeader";
+import PropertyPills from "../../../components/record/PropertyPills";
+import LinerList from "../../../components/record/LinerList";
+import YourMoveCard from "../../../components/record/YourMoveCard";
 import { CHROME } from "../../../components/record/sectionChrome";
 import { useMoveConfirm } from "../../../components/record/useMoveConfirm";
 import SectionTitle from "../../../components/transmittals/SectionTitle";
@@ -160,7 +162,6 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
     <ModalShell
       open={open}
       onOpenChange={onOpenChange}
-      expandable
       crumbs={["Packing List", `Box ${box?.boxNo}`, "Contents"]}
       actions={
         <Button size="lg" onClick={save} disabled={saving}>
@@ -310,20 +311,6 @@ function PackingListPage({ onClose }) {
       run: (from) => (boxes.length === 0 ? setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 })) : pack(from)),
     });
   }
-  const gates = [
-    {
-      key: SECTION.PACKED_BY,
-      label: "Packed by",
-      role: "Maker or Purchasing",
-      done: packed,
-      now: Boolean(list) && draft,
-      state: packed ? STATE.DONE : draft ? STATE.CURRENT : STATE.WAITING,
-      line: packed
-        ? `Packed by ${list.packerName ?? "someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
-        : "Waiting for the maker of the list or Purchasing",
-      accessibleName: `Step 1, Packed by, Maker or Purchasing, ${packed ? "done" : draft ? "now" : "waiting"}`,
-    },
-  ];
   const status = !list
     ? ""
     : packed
@@ -332,58 +319,58 @@ function PackingListPage({ onClose }) {
         ? "Waiting for you: Packed by"
         : "Nothing needs you right now. Waiting on the maker of the list or Purchasing for Packed by.";
 
-  const facts = list
+  const weightText = weighed > 0 ? `${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "";
+  const pills = list
     ? [
-        ["SOR", [list.sorReference, list.projectTitle].filter(Boolean).join(" · ")],
-        ["Odoo delivery", list.odooDeliveryRef],
-        ["Made by", list.creatorName],
-        ["Boxes", boxes.length ? String(boxes.length) : ""],
-        [
-          "Weight",
-          weighed > 0 ? `${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "",
-        ],
-      ].filter(([, value]) => value)
+        { key: "sor", label: "SOR", value: list.sorReference },
+        { key: "odoo", label: "Odoo delivery", value: list.odooDeliveryRef },
+        { key: "by", label: "Made by", value: list.creatorName },
+        { key: "boxes", label: "Boxes", value: boxes.length ? String(boxes.length) : "" },
+        { key: "weight", label: "Weight", value: weightText },
+      ]
     : [];
 
-  const boxCards = (
-    <div className="space-y-3">
-      {boxes.length === 0 && <EmptyState title="No boxes yet" description="Add a box, then list what is in it." />}
-      {boxes.map((box) => (
-        <div key={box.id} className="rounded-2xl border border-border bg-card">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-            <div className="text-[13px]">
-              <span className="font-semibold">Box {box.boxNo}</span>
-              <span className="text-muted-foreground">
-                {" "}· Marks {box.marks ?? "—"} · Seal {box.sealNo ?? "—"} · {box.grossWeightKg == null ? "weight not known" : `${box.grossWeightKg} kg`}
-              </span>
+  const boxRows = boxes.map((box) => {
+    const count = box.contents.length;
+    return {
+      key: box.id,
+      main: `Box ${box.boxNo}${box.marks ? ` · ${box.marks}` : ""}`,
+      sub: `Seal ${box.sealNo ?? "—"} · ${count} ${count === 1 ? "content" : "contents"}`,
+      quantity: box.grossWeightKg == null ? "— kg" : `${box.grossWeightKg} kg`,
+      children: (
+        <div className="space-y-3">
+          <LinerList
+            label={`Contents of box ${box.boxNo}`}
+            empty="No contents yet."
+            rows={box.contents.map((c) => ({
+              key: c.id,
+              main: c.description,
+              quantity: `${c.quantity}${c.unit ? ` ${c.unit}` : ""}`,
+            }))}
+          />
+          {canEdit && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box, seq: s.seq + 1 }))}>
+                <Pencil size={13} />
+                Edit box
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setContentsBox(box)}>
+                Contents
+              </Button>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={() => removeBox(box)}>
+                <Trash2 size={13} />
+                Remove
+              </Button>
             </div>
-            {canEdit && (
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box, seq: s.seq + 1 }))}>
-                  <Pencil size={13} />
-                  Box
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setContentsBox(box)}>
-                  Contents
-                </Button>
-                <Button variant="ghost" size="icon" aria-label={`Remove box ${box.boxNo}`} onClick={() => removeBox(box)}>
-                  <Trash2 size={14} />
-                </Button>
-              </div>
-            )}
-          </div>
-          <ul className="divide-y divide-border">
-            {box.contents.length === 0 && <li className="px-4 py-3 text-[13px] text-muted-foreground">No contents yet.</li>}
-            {box.contents.map((c) => (
-              <li key={c.id} className="px-4 py-2 text-[13px]">
-                {c.quantity} {c.unit ?? ""} · {c.description}
-              </li>
-            ))}
-          </ul>
+          )}
         </div>
-      ))}
-    </div>
-  );
+      ),
+    };
+  });
+
+  const packedLine = packed
+    ? `Packed by ${list.packerName ?? "someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
+    : "Waiting for the maker of the list or Purchasing";
 
   const restate = () => (list ? `Signs Packed by on ${list.number}. The boxes and their contents can't be changed after.` : "");
 
@@ -393,17 +380,10 @@ function PackingListPage({ onClose }) {
     <ModalShell
       open
       onOpenChange={(next) => !next && onClose()}
-      size="wide"
-      expandable
-      cancelLabel="Close"
+      size="record"
       crumbs={["Packing List", list?.number].filter(Boolean)}
       headerActions={list && <RecordMoreMenu items={[{ key: "print", label: "Print", icon: Printer, onSelect: printList }]} />}
     >
-      {list && (
-        <p className="text-sm text-muted-foreground">
-          {`${list.sorReference ?? ""}${list.projectTitle ? ` · ${list.projectTitle}` : ""}`}
-        </p>
-      )}
       {isLoading && <PageLoading label="Packing List" />}
       {isError && <QueryError title="This Packing List could not be loaded." onRetry={refetch} />}
       {!isLoading && !isError && !list && (
@@ -412,62 +392,61 @@ function PackingListPage({ onClose }) {
 
       {list && (
         <>
-          <div className="grid gap-8 pb-2 xl:grid-cols-[minmax(0,1fr)_25rem]">
-            <div className="min-w-0 space-y-8">
-              <div className="flex flex-wrap gap-2">
-                {facts.map(([label, value]) => (
-                  <span key={label} className="inline-flex max-w-full items-baseline gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-[13px]">
-                    <span className="shrink-0 text-muted-foreground">{label}</span>
-                    <span className="min-w-0 truncate font-semibold text-foreground">{value}</span>
-                  </span>
-                ))}
+          <div className="space-y-6 pb-2">
+            <RecordHeader
+              reference={list.number}
+              name={list.projectTitle}
+              badge={{ label: packed ? "Packed" : "Draft", theme: packed ? "green" : "mauve" }}
+              line={[list.sorReference, list.creatorName && `made by ${list.creatorName}`].filter(Boolean).join(" · ")}
+            />
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_25rem]">
+              <div className="min-w-0 space-y-6">
+                <PropertyPills items={pills} />
+                <section>
+                  <SectionTitle
+                    title={`Boxes · ${boxes.length}`}
+                    aside={
+                      canEdit && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}
+                        >
+                          <Plus size={14} /> Add a box
+                        </Button>
+                      )
+                    }
+                  />
+                  <LinerList label="Boxes" rows={boxRows} empty="No boxes yet. Add a box, then list what is in it." />
+                </section>
               </div>
-              <section>
-                <SectionTitle
-                  title={`Boxes · ${boxes.length}`}
-                  aside={
-                    canEdit && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5"
-                        onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}
-                      >
-                        <Plus size={14} /> Add a box
-                      </Button>
-                    )
-                  }
-                />
-                {boxCards}
-              </section>
-            </div>
 
-            <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
-              <div className="overflow-hidden rounded-2xl border border-border bg-card">
-                <div className="space-y-3 p-4">
-                  <h2 className="text-label font-bold uppercase tracking-wider text-muted-foreground">Your move</h2>
-                  <p className="text-[15px] font-bold leading-snug text-foreground">{status}</p>
-                  {moves.length > 0 && (
-                    <ul className="space-y-3">
-                      {moves.map((move) => (
-                        <MoveButton key={move.key} move={move} origin="card" disabled={packing} busy={packing} failure={failure} onRun={run} />
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <ol className="border-t border-border p-1.5">
-                  <li className="flex items-center gap-3 rounded-xl bg-muted px-3 py-2">
-                    <StepMark state={gates[0].state} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-bold text-foreground">Packed by</span>
-                      <span className="block truncate text-[12px] text-muted-foreground">{gates[0].line}</span>
-                    </span>
-                    <StateWord state={gates[0].state} className="shrink-0 text-xs" />
-                  </li>
-                </ol>
-              </div>
-            </aside>
+              <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
+                <YourMoveCard
+                  status={status}
+                  steps={[
+                    {
+                      key: SECTION.PACKED_BY,
+                      title: "Packed by",
+                      summary: packedLine,
+                      state: packed ? STATE.DONE : STATE.CURRENT,
+                      needsMe: moves.length > 0,
+                      body: packed ? null : <p className="text-[13px] text-muted-foreground">Signing closes the list. The boxes and their contents can't be changed after.</p>,
+                      moves:
+                        moves.length > 0 ? (
+                          <ul className="space-y-3">
+                            {moves.map((move) => (
+                              <MoveButton key={move.key} move={move} origin="card" disabled={packing} busy={packing} failure={failure} onRun={run} />
+                            ))}
+                          </ul>
+                        ) : null,
+                    },
+                  ]}
+                />
+              </aside>
+            </div>
           </div>
           {dialog}
 

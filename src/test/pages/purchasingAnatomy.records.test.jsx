@@ -30,6 +30,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router"
 
+import PackingListDetailPage from "@/pages/purchasing/packing-lists/[id]"
 import TransmittalDetailPage from "@/pages/purchasing/transmittals/[id]"
 import { renderWithProviders } from "@/test/support"
 import { shapeTransmittal } from "@/utils/transmittals"
@@ -42,9 +43,24 @@ const transmittalService = vi.hoisted(() => ({
   list: vi.fn(),
 }))
 
+const packingListService = vi.hoisted(() => ({
+  get: vi.fn(),
+  list: vi.fn(),
+  pack: vi.fn(),
+  sorProducts: vi.fn(),
+}))
+
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: auth.user, isAuthLoading: false }) }))
 vi.mock("@/services/transmittalService", () => ({ transmittalService }))
 vi.mock("../../services/transmittalService", () => ({ transmittalService }))
+vi.mock("@/services/packingListService", async (importOriginal) => ({
+  ...(await importOriginal()),
+  packingListService,
+}))
+vi.mock("../../services/packingListService", async (importOriginal) => ({
+  ...(await importOriginal()),
+  packingListService,
+}))
 
 const PREPARER = "u-prep"
 const CHECKER = { id: "u-check", name: "Maria Check", employee_type: "staff" }
@@ -89,6 +105,29 @@ function seedTransmittal({ raw, lists }) {
   return { employee: CHECKER }
 }
 
+function seedPackingList(over = {}) {
+  auth.user = { id: "u-me", name: "Pat Packer", has_purchasing_flow: true }
+  packingListService.get.mockResolvedValue({
+    id: "pl1",
+    number: "TG04_0003",
+    state: "draft",
+    sorId: "sor1",
+    sorReference: "SOR-100",
+    projectTitle: "Plant upgrade",
+    odooDeliveryRef: "WH/OUT/0042",
+    createdById: "u-me",
+    creatorName: "Pat Packer",
+    packerName: null,
+    packedAt: null,
+    boxes: [
+      { id: "b1", boxNo: 1, marks: "M1", sealNo: null, grossWeightKg: 12.5, contents: [{ id: "c1", description: "Cutter", quantity: 2, unit: "pc" }] },
+    ],
+    ...over,
+  })
+  packingListService.list.mockResolvedValue([])
+  packingListService.sorProducts.mockResolvedValue([])
+}
+
 const RECORDS = [
   {
     name: "Transmittal",
@@ -104,6 +143,18 @@ const RECORDS = [
       status: "Waiting for you: Check by",
       steps: ["Warehouse checking", "Check by"],
     },
+  },
+  {
+    name: "Packing List",
+    Page: PackingListDetailPage,
+    route: "/purchasing/packing-lists/:id",
+    path: "/purchasing/packing-lists/pl1",
+    seed: () => seedPackingList(),
+    title: /^TG04_0003\s*·\s*Plant upgrade$/,
+    badge: "Draft",
+    pills: ["SOR", "Odoo delivery", "Made by", "Boxes", "Weight"],
+    hasMore: true,
+    yourMove: { status: "Waiting for you: Packed by", steps: ["Packed by"] },
   },
   {
     // A cancelled slip has nothing to print and nothing to cancel, so More has nothing to hold.
