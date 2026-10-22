@@ -29,6 +29,8 @@ import { RecordModalContent } from "@/components/ui/record-modal"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { cn } from "@/lib/utils"
 import { Button } from "./ui/button"
+import ConvertToGroupTaskDialog from "./ConvertToGroupTaskDialog"
+import { canManageGroupTasks, getPermissionContext } from "../utils/permissions"
 
 export default function TaskDetails({
   isOpen,
@@ -54,6 +56,7 @@ export default function TaskDetails({
   const [editGrade, setEditGrade] = useState(null)
   const [approvalRemarks, setApprovalRemarks] = useState("")
   const [showChecklist, setShowChecklist] = useState(false)
+  const [showConvert, setShowConvert] = useState(false)
 
   // 🔥 FULL TASK FETCH: Fetch complete details ONLY when drawer is open
   // This allows the main Dashboard/Task list to be lightweight (no attachments/large remarks)
@@ -167,6 +170,13 @@ export default function TaskDetails({
     task?.status === TASK_STATUS.CANCELLED ||
     isClosedOff
   const canEvaluate = !isReadOnly && (isHead || isSuperAdmin)
+  // #657: heads, HR and Super Admins turn an open, non-Stage-Action task into a Group Task.
+  const canConvert =
+    canManageGroupTasks(getPermissionContext(user)) &&
+    !isReadOnly &&
+    !activeTask?.stageActionId &&
+    !activeTask?.convertedToGroupTaskId &&
+    [TASK_STATUS.INCOMPLETE, TASK_STATUS.NOT_APPROVED].includes(task?.status)
 
   // Re-evaluation: head is editing a task already approved but not yet HR-verified.
   const canReEvalGrade =
@@ -468,6 +478,18 @@ export default function TaskDetails({
   }
 
   return (
+    <>
+    <ConvertToGroupTaskDialog
+      open={showConvert}
+      onOpenChange={setShowConvert}
+      task={activeTask}
+      onConverted={(groupTaskId) => {
+        onClose()
+        window.dispatchEvent(
+          new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: groupTaskId, type: "GROUP_TASK" } }),
+        )
+      }}
+    />
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <RecordModalContent
         showCloseButton={false}
@@ -502,6 +524,17 @@ export default function TaskDetails({
               }
               extraButtons={
                 <>
+                  {canConvert && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-xl"
+                      onClick={() => setShowConvert(true)}
+                    >
+                      Convert to Group Task
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
@@ -812,5 +845,6 @@ export default function TaskDetails({
         </div>
       </RecordModalContent>
     </Dialog>
+    </>
   )
 }

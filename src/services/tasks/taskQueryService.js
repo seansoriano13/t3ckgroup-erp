@@ -321,6 +321,8 @@ export const taskQueryService = {
       checklist: resolveChecklist(data.task_description, data.checklist),
       projectTitle: data.project_title || null,
       opportunityId: data.opportunity_id || null,
+      stageActionId: data.stage_action_id || null,
+      convertedToGroupTaskId: data.converted_to_group_task_id || null,
       opportunity: data.opportunity || null,
       categoryId: data.category_id,
       categoryDesc: data.categories?.description,

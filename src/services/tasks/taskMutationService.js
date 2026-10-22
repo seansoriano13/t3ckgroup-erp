@@ -20,6 +20,20 @@ function formatTaskDescription(desc, maxLen = 30) {
 }
 
 export const taskMutationService = {
+  /**
+   * Turn an open task into a Group Task (#657). The database does the whole move in one call and
+   * refuses non-managers, Stage Action tasks and submitted/approved/cancelled tasks.
+   * @returns {Promise<string>} the new Group Task's id
+   */
+  async convertToGroupTask(taskId, memberIds = []) {
+    const { data, error } = await supabase.rpc("convert_task_to_group_task", {
+      p_task_id: taskId,
+      p_member_ids: memberIds,
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   // 3. CREATE
   //
   // Issue #404 — a Stage Action's Individual Task is created by the mover on
