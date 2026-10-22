@@ -118,10 +118,10 @@ describe("markup on the Costing Matrix grid", () => {
 
     const [delivery, unpriced] = await within(await screen.findByTestId("cost-rows")).findAllByTestId("cost-row");
     // It carries at x1.00 into the totals; the Closed Book sees what it costs, not a factor to change.
-    expect(within(delivery).getByText("₱100,000.00")).toBeInTheDocument();
+    expect(within(delivery).getByLabelText("Other cost 1 Acquire")).toHaveTextContent("₱100,000.00");
     expect(within(delivery).queryByLabelText(/markup factor/)).not.toBeInTheDocument();
     expect(within(delivery).queryByTestId("markup-factor-shown")).not.toBeInTheDocument();
-    expect(within(unpriced).getByText("—")).toBeInTheDocument();
+    expect(within(unpriced).getByLabelText("Other cost 2 Acquire")).toHaveTextContent("—");
   });
 
   it("tries a preset without saving it, then saves it as the markup for someone who does not write Final Offers", async () => {
