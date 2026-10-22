@@ -32,7 +32,9 @@ import { MemoryRouter, Route, Routes } from "react-router"
 
 import PackingListDetailPage from "@/pages/purchasing/packing-lists/[id]"
 import PurchaseRequestsPage from "@/pages/purchasing/index.jsx"
+import IpasDetailPage from "@/pages/purchasing/ipas/[id]"
 import TransmittalDetailPage from "@/pages/purchasing/transmittals/[id]"
+import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -48,6 +50,7 @@ const transmittalService = vi.hoisted(() => ({
   myStaffLists: vi.fn(),
   stageListMembers: vi.fn(),
   list: vi.fn(),
+  forIpas: vi.fn().mockResolvedValue([]),
 }))
 
 const packingListService = vi.hoisted(() => ({
@@ -180,6 +183,37 @@ function seedCanvass() {
   return canvass
 }
 
+// The IPAS reads the test database (not a mocked service). One buyer, one open IPAS from Odoo.
+const IPAS_ID = "00000000-0000-4000-8000-0000000000a1"
+
+function seedIpas(over = {}) {
+  const buyer = makeEmployee({ name: "Buyer", has_purchasing_flow: true })
+  auth.user = buyer
+  transmittalService.forIpas.mockResolvedValue([])
+  stubIpasRpcs({ actorId: buyer.id, purchasing: true })
+  seedIpasOptions((table, row) => db.seed(table, row))
+  db.seed("ipas", {
+    id: IPAS_ID,
+    number: "TGIPAS_198",
+    po_number: "P02552",
+    priority: "high",
+    source: "local",
+    purpose: "inventory",
+    state: "open",
+    created_by: buyer.id,
+    created_at: "2026-10-20T01:00:00.000Z",
+    odoo_fetched_at: "2026-10-20T02:00:00.000Z",
+    odoo_copy: {
+      po: { id: 1, name: "P02552", state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
+      supplier: { id: 5, name: "Scorpe Technologies", contact: null },
+      lines: [],
+      receipts: { status: "pending", done: 0, total: 1 },
+      bills: { count: 0, draft: 0 },
+    },
+    ...over,
+  })
+}
+
 const RECORDS = [
   {
     name: "Transmittal",
@@ -259,6 +293,33 @@ const RECORDS = [
       status: "Next: say why this supplier",
       steps: ["Offers in", "Winner picked", "Purchase Request", "Sign-off"],
     },
+  },
+  {
+    name: "IPAS",
+    Page: IpasDetailPage,
+    route: "/purchasing/ipas/:id",
+    path: `/purchasing/ipas/${IPAS_ID}`,
+    seed: () => seedIpas(),
+    title: /^TGIPAS_198\s*·\s*Scorpe Technologies$/,
+    badge: "Open",
+    pills: ["Entity", "Priority", "Source", "Purpose", "Status"],
+    hasMore: true,
+    yourMove: {
+      status: "Waiting for you: 1 · Purchasing",
+      steps: ["Section 1 · Purchasing", "Section 2 · Purchasing & Finance"],
+    },
+  },
+  {
+    name: "IPAS (cancelled)",
+    Page: IpasDetailPage,
+    route: "/purchasing/ipas/:id",
+    path: `/purchasing/ipas/${IPAS_ID}`,
+    seed: () => seedIpas({ state: "cancelled", cancel_reason: "Wrong PO", cancelled_at: "2026-10-21T01:00:00.000Z" }),
+    title: /^TGIPAS_198\s*·\s*Scorpe Technologies$/,
+    badge: "Cancelled",
+    pills: ["Entity", "Priority", "Source", "Purpose"],
+    hasMore: true,
+    yourMove: { status: "Cancelled. Nothing to do.", steps: ["Section 1 · Purchasing", "Section 2 · Purchasing & Finance"] },
   },
 ]
 

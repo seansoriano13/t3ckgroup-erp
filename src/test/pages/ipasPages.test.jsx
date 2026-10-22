@@ -66,6 +66,10 @@ function renderDetail(id, section, param = "open") {
   );
 }
 
+/** The Status pill in the record window's header: its label and value in one element. */
+const recordWindow = () => screen.getAllByRole("dialog").find((dialog) => dialog.dataset.modalShell === "record");
+const statusPill = () => within(recordWindow()).getByText("Status").parentElement;
+
 async function openMore(user) {
   await user.click(await screen.findByRole("button", { name: /More/ }));
 }
@@ -227,15 +231,15 @@ describe("IPAS pages", () => {
       await user.type(await screen.findByPlaceholderText(/Why is it on hold/), "Waiting on the client");
       await user.click(screen.getByRole("button", { name: "Put On-Hold" }));
 
-      const region = await screen.findByTestId("ipas-record-status");
-      await waitFor(() => expect(within(region).getByTestId("ipas-status-pill").dataset.status).toBe("on_hold"));
+      await screen.findByTestId("ipas-record-status");
+      await waitFor(() => expect(statusPill()).toHaveTextContent("On-Hold"));
       expect(db.internal.rowsOf("ipas").find((r) => r.id === row.id)).toMatchObject({ on_hold: true, on_hold_note: "Waiting on the client" });
       expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_set");
 
       await openMore(user);
       await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
       await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
-      await waitFor(() => expect(within(region).getByTestId("ipas-status-pill").dataset.status).toBe("pending"));
+      await waitFor(() => expect(statusPill()).toHaveTextContent("Pending"));
       expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_cleared");
     });
 
@@ -491,7 +495,7 @@ describe("IPAS pages", () => {
       renderDetail(row.id);
 
       const region = await screen.findByTestId("ipas-record-status");
-      expect(within(region).getByTestId("ipas-status-pill").dataset.status).toBe("on_hold");
+      expect(statusPill()).toHaveTextContent("On-Hold");
       expect(within(region).getByTestId("ipas-record-on-hold-note")).toHaveTextContent("Waiting on the client");
     });
 
@@ -524,6 +528,34 @@ describe("IPAS pages", () => {
     });
 
 
+
+    it("cancels from the Purchasing frame, which asks for a Reason", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = setupUser();
+
+      renderDetail(row.id);
+      await openMore(user);
+      await user.click(await screen.findByRole("button", { name: "Cancel IPAS" }));
+
+      const dialog = await findOtherDialog();
+      expect(dialog.dataset.modalShell).toBe("compact");
+      const confirm = within(dialog).getByRole("button", { name: "Cancel IPAS" });
+      expect(confirm).toBeDisabled();
+      await user.type(within(dialog).getByPlaceholderText(/Why is this IPAS being cancelled/), "Wrong PO");
+      await user.click(confirm);
+
+      await waitFor(() => expect(db.rows("ipas").find((r) => r.id === row.id)).toMatchObject({ state: "cancelled", cancel_reason: "Wrong PO" }));
+      await waitFor(() => expect(queryOtherDialog()).not.toBeInTheDocument());
+    });
+
+    it("opens a shared link with ?edit= in the edit view, inside the window", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      renderDetail(row.id, "purchasing", "edit");
+
+      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(recordWindow()).toContainElement(screen.getByRole("button", { name: "Back to preview" }));
+      expect(screen.queryByRole("heading", { name: "Your move" })).not.toBeInTheDocument();
+    });
 
     it("shows each SOR as reference, project and Stage, never the customer", async () => {
       const stage = makeFlowStage({ name: "Quotation" });
@@ -611,21 +643,39 @@ describe("IPAS pages", () => {
       expect(screen.getByRole("heading", { name: "Everything else" })).toBeInTheDocument();
     });
 
-    // The record is a full page again: no list behind it, nothing is a dialog.
-    it("renders as a page at its own address: header, then the money, the card, then the sections", async () => {
+    // The record is a window over the list, as the Transmittal is.
+    it("opens in the record window over the list: header, then the money, Your move, then the sections", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = setupUser();
       renderDetail(row.id);
 
-      const title = await screen.findByRole("heading", { level: 1, name: row.number });
-      const card = await screen.findByRole("region", { name: "Your move" });
+      const title = await screen.findByRole("heading", { name: new RegExp(`^${row.number}\\s*·\\s*Scorpe Technologies$`) });
+      const card = await screen.findByRole("heading", { name: "Your move" });
       const slot = screen.getByTestId("ipas-money-summary-slot");
       const sections = screen.getByRole("heading", { name: "Sections" });
       const before = (a, b) => expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       before(title, slot);
       before(slot, card);
       before(card, sections);
-      expect(screen.getByRole("link", { name: "IPAS" })).toHaveAttribute("href", "/purchasing/ipas");
+      expect(screen.getAllByRole("dialog").filter((dialog) => dialog.dataset.modalShell === "record")).toHaveLength(1);
       expect(queryOtherDialog()).not.toBeInTheDocument();
+      // The list is behind the window; Close returns to it.
+      expect(await screen.findAllByTestId("ipas-row")).toHaveLength(1);
+      await user.click(screen.getByRole("button", { name: "Close window" }));
+      expect(await screen.findByText("The IPAS list")).toBeInTheDocument();
+    });
+
+    it("shows one state badge and the pills in the header, with the Status as a pill", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      renderDetail(row.id);
+
+      const title = await screen.findByRole("heading", { name: new RegExp(`^${row.number}\\s*·\\s*Scorpe Technologies$`) });
+      const header = title.closest("header");
+      expect(within(header).getByText("Open")).toBeInTheDocument();
+      expect(header.querySelectorAll("span.uppercase")).toHaveLength(1);
+      expect(within(header).getByText(/^P02552 · raised /)).toBeInTheDocument();
+      for (const label of ["Entity", "Priority", "Source", "Purpose", "Status"]) expect(within(recordWindow()).getByText(label)).toBeInTheDocument();
+      expect(statusPill()).toHaveTextContent("Pending");
     });
 
     it("toggles sections in place, several open at once, with Open all and Close all", async () => {

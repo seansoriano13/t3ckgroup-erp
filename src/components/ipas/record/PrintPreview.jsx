@@ -72,7 +72,7 @@ export function PrintPreviewButton({ ctx }) {
 
   return (
     <>
-      <Button variant="outline" className="gap-1.5" onClick={() => setOpen(true)}>
+      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setOpen(true)}>
         <Eye size={14} />
         Preview
       </Button>

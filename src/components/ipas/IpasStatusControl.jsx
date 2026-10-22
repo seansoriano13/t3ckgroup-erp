@@ -19,7 +19,7 @@ import { IPAS_STATE } from "../../constants/ipas";
  * there, never worked out here. `canSet` is "Purchasing access or Finance
  * access" on an open IPAS; the database decides in the end.
  */
-export default function IpasStatusControl({ ipas, figures, canSet = false, asking = false, onAskingChange = () => {}, className = "" }) {
+export default function IpasStatusControl({ ipas, figures, canSet = false, asking = false, onAskingChange = () => {}, className = "", showPill = true }) {
   const queryClient = useQueryClient();
 
   const toggle = useMutation({
@@ -41,7 +41,7 @@ export default function IpasStatusControl({ ipas, figures, canSet = false, askin
   const settable = canSet === true && ipas.state === IPAS_STATE.OPEN;
   return (
     <span className="inline-flex">
-      <IpasStatusPill status={status} note={figures.onHoldNote} className={className} />
+      {showPill && <IpasStatusPill status={status} note={figures.onHoldNote} className={className} />}
       {settable && (
         <OnHoldDialog
           open={asking}
