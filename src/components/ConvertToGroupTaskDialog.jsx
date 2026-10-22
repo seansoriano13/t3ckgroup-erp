@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "./ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { FieldBox } from "@/components/ui/FieldBox"
 
 /**
  * Convert a task into a Group Task (#657). The task becomes the Group Task: its owner is the first
@@ -73,10 +75,10 @@ export default function ConvertToGroupTaskDialog({ open, onOpenChange, task, onC
         <ul className="max-h-60 space-y-1 overflow-y-auto">
           {choices.map((e) => (
             <li key={e.id}>
-              <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
-                <input type="checkbox" checked={picked.includes(e.id)} onChange={() => toggle(e.id)} />
+              <FieldBox inline className="cursor-pointer rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+                <Checkbox checked={picked.includes(e.id)} onCheckedChange={() => toggle(e.id)} />
                 <span>{e.name}</span>
-              </label>
+              </FieldBox>
             </li>
           ))}
         </ul>
