@@ -43,6 +43,48 @@ export function canvassSubjectLabel(row) {
   return row.productName || row.subjectName || "";
 }
 
+/** The State pills: Open is a Canvass nobody has signed off yet. */
+export const CANVASS_STATE = { OPEN: "open", SIGNED: "signed", ALL: "all" };
+
+/** A Canvass's own state for the State badge: Signed off, Requested (a Purchase Request was made), or Open. */
+export const CANVASS_ROW_STATE = { OPEN: "open", REQUESTED: "requested", SIGNED: "signed" };
+
+/** State -> StatusBadge tone, the one place this list maps them. */
+export const CANVASS_STATE_TONES = {
+  [CANVASS_ROW_STATE.OPEN]: "amber",
+  [CANVASS_ROW_STATE.REQUESTED]: "blue",
+  [CANVASS_ROW_STATE.SIGNED]: "green",
+};
+
+/** `{ state, label }` for a StateCell. */
+export function canvassStateOf(row) {
+  if (row.signedOffAt) return { state: CANVASS_ROW_STATE.SIGNED, label: "Signed off" };
+  if (row.requestId) return { state: CANVASS_ROW_STATE.REQUESTED, label: "Requested" };
+  return { state: CANVASS_ROW_STATE.OPEN, label: "Open" };
+}
+
+/** The winner as the list says it: "Supplier · Brand", "Picked", or "No winner". */
+export function canvassWinnerLabel(row) {
+  if (!row.winner) return "No winner";
+  return [row.winner.supplierName, row.winner.brand].filter(Boolean).join(" · ") || "Picked";
+}
+
+export const CANVASS_EXPORT_HEADER = ["Canvass", "Subject", "Canvasser", "Winner", "Offers", "Request", "Signed off by", "State"];
+
+/** The rows shown, in the order shown, as the sheet's cells. */
+export function canvassExportRows(rows) {
+  return rows.map((row) => [
+    row.number,
+    canvassSubjectLabel(row) || null,
+    row.canvasserName ?? null,
+    canvassWinnerLabel(row),
+    row.offerCount ?? 0,
+    canvassRequestState(row)?.label ?? null,
+    row.signerName ?? null,
+    canvassStateOf(row).label,
+  ]);
+}
+
 /** Rows that pass the filter bar: search, Canvasser, signed, has a winner, linked or not, request made or not. */
 export function filterCanvasses(rows, { search = "", canvasserId = ANY, signed = ANY, winner = ANY, linked = ANY, request = ANY } = {}) {
   const needle = search.trim().toLowerCase();

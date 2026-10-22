@@ -1,17 +1,42 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate, useSearchParams } from "react-router";
-import { Lock, Plus, Scale } from "lucide-react";
+import {
+  Link2,
+  Lock,
+  Plus,
+  Scale,
+  Trophy,
+  UserRound,
+  FileText,
+} from "lucide-react";
 
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
 import PageLoading from "../../../components/ui/PageLoading";
 import QueryError from "../../../components/ui/QueryError";
 import FilterBar from "../../../components/ui/FilterBar";
+import TabGroup from "../../../components/ui/TabGroup";
 import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
 import { Checkbox } from "../../../components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
+import {
+  SortHead,
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "../../../components/ui/table";
+import { TablePager } from "../../../components/ui/TablePager";
+import { useTableSort } from "../../../hooks/useTableSort";
+import { usePaging } from "../../../hooks/usePaging";
+import { IdentityText } from "../../../components/purchasing/list/IdentityCell";
+import {
+  StateCell,
+  STATE_HEAD_CLASS,
+} from "../../../components/purchasing/list/StateCell";
+import ExportButton from "../../../components/purchasing/list/ExportButton";
 import CanvassPanel from "../../../components/CanvassPanel";
 import NewCanvassModal from "../../../components/NewCanvassModal";
 import CreatePurchaseRequestModal from "../../../components/CreatePurchaseRequestModal";
@@ -19,7 +44,22 @@ import CanvassRequestBadge from "../../../components/CanvassRequestBadge";
 import { useAuth } from "../../../context/AuthContext";
 import { canvassService } from "../../../services/canvassService";
 import { CANVASS_KIND, CANVASS_LIST_KEY } from "../../../constants/canvass";
-import { ANY, LINKED_FILTER, REQUEST_FILTER, SIGNED_FILTER, WINNER_FILTER, canvassSubjectLabel, filterCanvasses } from "../../../utils/canvassList";
+import {
+  ANY,
+  CANVASS_EXPORT_HEADER,
+  CANVASS_STATE,
+  CANVASS_STATE_TONES,
+  LINKED_FILTER,
+  REQUEST_FILTER,
+  SIGNED_FILTER,
+  WINNER_FILTER,
+  canvassExportRows,
+  canvassRequestState,
+  canvassStateOf,
+  canvassSubjectLabel,
+  canvassWinnerLabel,
+  filterCanvasses,
+} from "../../../utils/canvassList";
 import { getPermissionContext } from "../../../utils/permissions";
 
 /**
@@ -28,11 +68,6 @@ import { getPermissionContext } from "../../../utils/permissions";
  * which rows a person gets; names only, no money.
  */
 
-const SIGNED = [
-  { value: ANY, label: "Any sign-off" },
-  { value: SIGNED_FILTER.SIGNED, label: "Signed off" },
-  { value: SIGNED_FILTER.UNSIGNED, label: "Not signed" },
-];
 const WINNER = [
   { value: ANY, label: "Winner or not" },
   { value: WINNER_FILTER.YES, label: "Has a winner" },
@@ -50,40 +85,98 @@ const REQUEST = [
   { value: REQUEST_FILTER.CREATED, label: "Request created" },
 ];
 
-const KIND_LABEL = {
-  [CANVASS_KIND.COMPONENT]: "Component",
-  [CANVASS_KIND.REQUESTED_ITEM]: "Requested Item",
-  [CANVASS_KIND.NONE]: "No subject",
+const HEAD = "text-label font-bold uppercase tracking-wider";
+const CHIP = "h-9 w-auto gap-2 px-2.5";
+const CHIP_WRAPPER = "w-auto shrink-0";
+
+const HEADINGS = [
+  ["canvass", "Canvass"],
+  ["canvasser", "Canvasser"],
+  ["winner", "Winner"],
+  ["request", "Request"],
+  ["state", "State"],
+];
+
+const CANVASS_SORT = {
+  canvass: (r) => r.number,
+  canvasser: (r) => r.canvasserName,
+  winner: (r) => (r.winner ? canvassWinnerLabel(r) : null),
+  request: (r) => canvassRequestState(r)?.label,
+  state: (r) => canvassStateOf(r).label,
 };
 
 function CanvassesPage({ userId, canEdit }) {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [canvasserId, setCanvasserId] = useState(ANY);
-  const [signed, setSigned] = useState(ANY);
+  const [state, setState] = useState(CANVASS_STATE.OPEN);
   const [winner, setWinner] = useState(ANY);
   const [linked, setLinked] = useState(ANY);
   const [request, setRequest] = useState(ANY);
 
-  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+  const {
+    data: rows = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: CANVASS_LIST_KEY,
     queryFn: () => canvassService.list(),
   });
 
   const canvassers = useMemo(() => {
-    const seen = new Map(rows.filter((r) => r.canvasserId).map((r) => [r.canvasserId, r.canvasserName ?? "Unknown"]));
+    const seen = new Map(
+      rows
+        .filter((r) => r.canvasserId)
+        .map((r) => [r.canvasserId, r.canvasserName ?? "Unknown"]),
+    );
     return [
       { value: ANY, label: "Any Canvasser" },
-      ...[...seen].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label)),
+      ...[...seen]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
     ];
   }, [rows]);
 
-  const shown = filterCanvasses(rows, { search, canvasserId, signed, winner, linked, request });
-  const active = Boolean(search) || canvasserId !== ANY || signed !== ANY || winner !== ANY || linked !== ANY || request !== ANY;
+  // Search and the dropdowns narrow first; the Open / Signed off / All pills count within that.
+  const narrowed = useMemo(
+    () =>
+      filterCanvasses(rows, { search, canvasserId, winner, linked, request }),
+    [rows, search, canvasserId, winner, linked, request],
+  );
+  const counts = {
+    [CANVASS_STATE.OPEN]: filterCanvasses(narrowed, {
+      signed: SIGNED_FILTER.UNSIGNED,
+    }).length,
+    [CANVASS_STATE.SIGNED]: filterCanvasses(narrowed, {
+      signed: SIGNED_FILTER.SIGNED,
+    }).length,
+    [CANVASS_STATE.ALL]: narrowed.length,
+  };
+  const shown = useMemo(() => {
+    if (state === CANVASS_STATE.ALL) return narrowed;
+    return filterCanvasses(narrowed, {
+      signed:
+        state === CANVASS_STATE.SIGNED
+          ? SIGNED_FILTER.SIGNED
+          : SIGNED_FILTER.UNSIGNED,
+    });
+  }, [narrowed, state]);
+  const { sorted: visible, sort, toggle } = useTableSort(shown, CANVASS_SORT);
+  const paging = usePaging(visible);
+  const exportRows = useMemo(() => canvassExportRows(visible), [visible]);
+
+  const active =
+    Boolean(search) ||
+    canvasserId !== ANY ||
+    state !== CANVASS_STATE.OPEN ||
+    winner !== ANY ||
+    linked !== ANY ||
+    request !== ANY;
   const clearAll = () => {
     setSearch("");
     setCanvasserId(ANY);
-    setSigned(ANY);
+    setState(CANVASS_STATE.OPEN);
     setWinner(ANY);
     setLinked(ANY);
     setRequest(ANY);
@@ -91,7 +184,10 @@ function CanvassesPage({ userId, canEdit }) {
 
   // The open Canvass is in the address: ?canvass=<id>.
   const canvassParam = params.get("canvass");
-  const openRow = useMemo(() => (canvassParam && rows.find((r) => r.id === canvassParam)) || null, [canvassParam, rows]);
+  const openRow = useMemo(
+    () => (canvassParam && rows.find((r) => r.id === canvassParam)) || null,
+    [canvassParam, rows],
+  );
   const ready = !isLoading && !isError;
   const openCanvass = (id) => setParams({ canvass: id });
   // New Canvasses with no subject: nothing is written until Save (canvass_start), which makes the
@@ -102,7 +198,10 @@ function CanvassesPage({ userId, canEdit }) {
   const [picked, setPicked] = useState([]);
   const [creating, setCreating] = useState(false);
   const pickedRows = rows.filter((r) => picked.includes(r.id));
-  const togglePick = (id) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  const togglePick = (id) =>
+    setPicked((cur) =>
+      cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
+    );
 
   return (
     <PageShell
@@ -110,117 +209,229 @@ function CanvassesPage({ userId, canEdit }) {
       description="Every Canvass in one place, project ones included. Open one to see its Offers."
       action={
         canEdit ? (
-        <div className="flex gap-2">
-          {picked.length > 0 && (
-            <Button type="button" size="sm" variant="outline" onClick={() => setCreating(true)}>
-              Create Purchase Request ({picked.length})
+          <div className="flex gap-2">
+            {picked.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setCreating(true)}
+              >
+                Create Purchase Request ({picked.length})
+              </Button>
+            )}
+            <Button type="button" size="sm" onClick={() => setStarting(true)}>
+              <Plus className="size-4" aria-hidden="true" />
+              New Canvass
             </Button>
-          )}
-          <Button type="button" size="sm" onClick={() => setStarting(true)}>
-            <Plus className="size-4" aria-hidden="true" />
-            New Canvass
-          </Button>
-        </div>
+          </div>
         ) : null
       }
       toolbar={
         ready ? (
-          <FilterBar
-            search={{ value: search, onChange: setSearch, placeholder: "Search Canvasses" }}
-            chips={
-              <>
-                <FilterSelect options={canvassers} value={canvasserId} onChange={setCanvasserId} label="Canvasser" className="h-9 w-auto" />
-                <FilterSelect options={SIGNED} value={signed} onChange={setSigned} label="Signed state" className="h-9 w-auto" />
-                <FilterSelect options={WINNER} value={winner} onChange={setWinner} label="Winner" className="h-9 w-auto" />
-                <FilterSelect options={LINKED} value={linked} onChange={setLinked} label="Linked" className="h-9 w-auto" />
-                <FilterSelect options={REQUEST} value={request} onChange={setRequest} label="Request" className="h-9 w-auto" />
-              </>
-            }
-            hasActiveFilters={active}
-            onClearAll={clearAll}
-          />
+          <>
+            <TabGroup
+              variant="pill"
+              size="sm"
+              activeTab={state}
+              onChange={setState}
+              tabs={[
+                {
+                  value: CANVASS_STATE.OPEN,
+                  label: "Open",
+                  badge: counts[CANVASS_STATE.OPEN],
+                },
+                {
+                  value: CANVASS_STATE.SIGNED,
+                  label: "Signed off",
+                  badge: counts[CANVASS_STATE.SIGNED],
+                },
+                {
+                  value: CANVASS_STATE.ALL,
+                  label: "All",
+                  badge: counts[CANVASS_STATE.ALL],
+                },
+              ]}
+            />
+            <FilterBar
+              search={{
+                value: search,
+                onChange: setSearch,
+                placeholder: "Search Canvasses",
+              }}
+              chips={
+                <>
+                  <FilterSelect
+                    icon={UserRound}
+                    options={canvassers}
+                    value={canvasserId}
+                    onChange={setCanvasserId}
+                    label="Canvasser"
+                    allValue={ANY}
+                    className={CHIP}
+                    wrapperClassName={CHIP_WRAPPER}
+                  />
+                  <FilterSelect
+                    icon={Trophy}
+                    options={WINNER}
+                    value={winner}
+                    onChange={setWinner}
+                    label="Winner"
+                    allValue={ANY}
+                    className={CHIP}
+                    wrapperClassName={CHIP_WRAPPER}
+                  />
+                  <FilterSelect
+                    icon={FileText}
+                    options={REQUEST}
+                    value={request}
+                    onChange={setRequest}
+                    label="Request"
+                    allValue={ANY}
+                    className={CHIP}
+                    wrapperClassName={CHIP_WRAPPER}
+                  />
+                </>
+              }
+              filters={
+                <FilterSelect
+                  icon={Link2}
+                  options={LINKED}
+                  value={linked}
+                  onChange={setLinked}
+                  label="Linked"
+                  allValue={ANY}
+                />
+              }
+              activeCount={linked !== ANY ? 1 : 0}
+              hasActiveFilters={active}
+              onClearAll={clearAll}
+              actions={
+                <ExportButton
+                  name="canvasses"
+                  sheetName="Canvasses"
+                  header={CANVASS_EXPORT_HEADER}
+                  rows={exportRows}
+                />
+              }
+            />
+          </>
         ) : null
       }
     >
       {isLoading && <PageLoading label="Canvasses" />}
-      {isError && <QueryError title="The Canvasses could not be loaded." onRetry={refetch} />}
+      {isError && (
+        <QueryError
+          title="The Canvasses could not be loaded."
+          onRetry={refetch}
+        />
+      )}
 
       {ready && rows.length === 0 && (
-        <EmptyState icon={Scale} title="No Canvasses yet" description="A Canvass starts when its first Offer is saved. Use New Canvass to research a product before anyone files a request." />
+        <EmptyState
+          icon={Scale}
+          title="No Canvasses yet"
+          description="A Canvass starts when its first Offer is saved. Use New Canvass to research a product before anyone files a request."
+        />
       )}
-      {ready && rows.length > 0 && shown.length === 0 && <EmptyState icon={Scale} title="No Canvass matches" description="Try clearing a filter." />}
+      {ready && rows.length > 0 && shown.length === 0 && (
+        <EmptyState
+          icon={Scale}
+          title="No Canvass matches"
+          description="Try clearing a filter."
+        />
+      )}
 
       {ready && shown.length > 0 && (
-        <div className="rounded-lg border">
-          <Table tableId="canvasses" className="md:min-w-[44rem]">
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                {["", "Number", "Subject", "Canvasser", "Winner", "Sign-off", "Request"].map((heading) => (
-                  <TableHead key={heading}>{heading}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {shown.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-testid="canvass-row"
-                  tabIndex={0}
-                  className="cursor-pointer outline-none focus-visible:bg-muted"
-                  onClick={() => openCanvass(row.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && e.target === e.currentTarget) {
-                      e.preventDefault();
-                      openCanvass(row.id);
-                    }
-                  }}
-                >
-                  <TableCell className="w-8" onClick={(e) => e.stopPropagation()}>
-                    {canEdit && row.kind === CANVASS_KIND.NONE && (
-                      <Checkbox
-                        aria-label={`Pick Canvass ${row.number}`}
-                        checked={picked.includes(row.id)}
-                        onCheckedChange={() => togglePick(row.id)}
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0 font-medium tabular-nums"
-                      aria-label={`Open Canvass ${row.number}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openCanvass(row.id);
-                      }}
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="overflow-x-auto">
+            <Table tableId="canvasses" className="md:min-w-[44rem]">
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  {HEADINGS.map(([key, heading]) => (
+                    <SortHead
+                      key={key}
+                      id={key}
+                      sortKey={key}
+                      sort={sort}
+                      onSort={toggle}
+                      className={`${HEAD} ${key === "state" ? STATE_HEAD_CLASS : ""}`}
                     >
-                      {row.number}
-                    </Button>
-                    {row.locked && (
-                      <Lock size={12} className="ml-1.5 inline text-muted-foreground" aria-label="Locked" role="img" />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span>{canvassSubjectLabel(row) || "—"}</span>
-                    <span className="ml-1.5 text-xs text-muted-foreground">{KIND_LABEL[row.kind]}</span>
-                  </TableCell>
-                  <TableCell>{row.canvasserName ?? "—"}</TableCell>
-                  <TableCell>
-                    {row.winner ? [row.winner.supplierName, row.winner.brand].filter(Boolean).join(" · ") || "Picked" : "No winner"}
-                    <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">
-                      {row.offerCount} offer{row.offerCount === 1 ? "" : "s"}
-                    </span>
-                  </TableCell>
-                  <TableCell>{row.signedOffAt ? `Signed off${row.signerName ? ` by ${row.signerName}` : ""}` : "Not signed"}</TableCell>
-                  <TableCell>
-                    <CanvassRequestBadge source={row} />
-                  </TableCell>
+                      {heading}
+                    </SortHead>
+                  ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {paging.rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-testid="canvass-row"
+                    tabIndex={0}
+                    aria-label={`Open Canvass ${row.number}`}
+                    className="cursor-pointer outline-none focus-visible:bg-muted"
+                    onClick={() => openCanvass(row.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.target === e.currentTarget) {
+                        e.preventDefault();
+                        openCanvass(row.id);
+                      }
+                    }}
+                  >
+                    <TableCell>
+                      <div className="flex items-start gap-2.5">
+                        {canEdit && row.kind === CANVASS_KIND.NONE && (
+                          <span
+                            className="pt-0.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Checkbox
+                              aria-label={`Pick Canvass ${row.number}`}
+                              checked={picked.includes(row.id)}
+                              onCheckedChange={() => togglePick(row.id)}
+                            />
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <IdentityText
+                            reference={
+                              <>
+                                {row.number}
+                                {row.locked && (
+                                  <Lock
+                                    size={12}
+                                    className="ml-1.5 inline text-muted-foreground"
+                                    aria-label="Locked"
+                                    role="img"
+                                  />
+                                )}
+                              </>
+                            }
+                            name={canvassSubjectLabel(row)}
+                          />
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{row.canvasserName ?? "—"}</TableCell>
+                    <TableCell>
+                      {canvassWinnerLabel(row)}
+                      <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">
+                        {row.offerCount} offer{row.offerCount === 1 ? "" : "s"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <CanvassRequestBadge source={row} />
+                    </TableCell>
+                    <StateCell
+                      {...canvassStateOf(row)}
+                      tones={CANVASS_STATE_TONES}
+                    />
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <TablePager {...paging} noun="canvasses" />
         </div>
       )}
 
@@ -236,7 +447,9 @@ function CanvassesPage({ userId, canEdit }) {
         />
       )}
 
-      {starting && canEdit && <NewCanvassModal open onOpenChange={setStarting} userId={userId} />}
+      {starting && canEdit && (
+        <NewCanvassModal open onOpenChange={setStarting} userId={userId} />
+      )}
 
       {openRow && (
         <CanvassPanel
@@ -259,5 +472,10 @@ export default function CanvassesRoute() {
   if (isAuthLoading) return <PageLoading label="Canvasses" />;
   const ctx = getPermissionContext(user);
   if (!user) return <Navigate to="/" replace />;
-  return <CanvassesPage userId={user.id} canEdit={Boolean(ctx.isSuperAdmin || ctx.hasPurchasingFlow)} />;
+  return (
+    <CanvassesPage
+      userId={user.id}
+      canEdit={Boolean(ctx.isSuperAdmin || ctx.hasPurchasingFlow)}
+    />
+  );
 }
