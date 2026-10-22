@@ -1,9 +1,6 @@
--- A Canvass is locked once it is what a Purchase Request was bought on.
---
--- Two ways to be locked:
---   * a Purchase Request was made from it (canvass_create_purchase_request re-points the bare Canvass
---     at the item it became, and the winner's price is copied onto that item), or
---   * it hangs off a Requested Item that is now Ordered or Received.
+-- A Canvass is locked once a Purchase Request was made from it: canvass_create_purchase_request and
+-- canvass_add_to_purchase_request re-point the bare Canvass at the item it became, and copy the
+-- winner's price onto that item.
 -- Locked means its Offers, winner, reason and product name refuse to change. Sign-off, attachments and
 -- printing stay open. Only a Super Admin can release the lock (canvass_unlock), always with a reason
 -- that goes into the Canvass history; a released lock stays released.
@@ -47,28 +44,7 @@ create trigger trg_sor_canvasses_stamp_request_made
   before update of requested_item_id on public.sor_canvasses
   for each row execute function public.canvass_stamp_request_made();
 
--- Why a Canvass is locked, or null when it is not: 'request_made' or 'item_ordered'. The screen asks
--- this (it may not be allowed to read the item itself), so the rule lives here and nowhere else.
-create or replace function public.canvass_lock_reason(p_canvass_id uuid)
-returns text
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select case
-           when c.lock_released_at is not null then null
-           when c.request_made_at is not null then 'request_made'
-           when exists (select 1 from public.purchase_request_items i
-                         where i.id = c.requested_item_id and i.status in ('ordered', 'received')) then 'item_ordered'
-         end
-    from public.sor_canvasses c
-   where c.id = p_canvass_id
-$$;
-
-revoke all on function public.canvass_lock_reason(uuid) from public, anon;
-grant execute on function public.canvass_lock_reason(uuid) to authenticated;
-
+-- The one place the rule lives; the screen asks it too.
 create or replace function public.canvass_is_locked(p_canvass_id uuid)
 returns boolean
 language sql
@@ -76,8 +52,15 @@ stable
 security definer
 set search_path = public
 as $$
-  select public.canvass_lock_reason(p_canvass_id) is not null
+  select coalesce(
+    (select c.request_made_at is not null and c.lock_released_at is null
+       from public.sor_canvasses c
+      where c.id = p_canvass_id),
+    false
+  )
 $$;
+
+drop function if exists public.canvass_lock_reason(uuid);
 
 revoke all on function public.canvass_is_locked(uuid) from public, anon;
 grant execute on function public.canvass_is_locked(uuid) to authenticated;

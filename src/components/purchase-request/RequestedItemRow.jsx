@@ -103,7 +103,6 @@ export default function RequestedItemRow({
   item,
   stockSnapshot,
   actions = null,
-  canvass = null,
   replaces = null,
   replacedBy = null,
   open = false,
@@ -205,7 +204,6 @@ export default function RequestedItemRow({
               </span>
             </Field>
           )}
-          {canvass && <Field label="Canvass">{canvass}</Field>}
           {(item.po_number || poLineNotPicked(item)) && (
             <Field label="Purchase order">
               <span className="flex flex-col gap-1">

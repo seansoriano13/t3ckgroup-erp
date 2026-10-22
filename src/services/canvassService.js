@@ -199,15 +199,13 @@ export const canvassService = {
         );
       });
 
-    // The database says why (and whether): a reader may not be allowed to read the item itself.
-    const { data: lockedBecause, error: lockError } = await supabase.rpc("canvass_lock_reason", { p_canvass_id: data.id });
+    const { data: locked, error: lockError } = await supabase.rpc("canvass_is_locked", { p_canvass_id: data.id });
     if (lockError) throw lockError;
 
     return {
       ...data,
       offers: shaped,
-      locked: Boolean(lockedBecause),
-      lockedBecause: lockedBecause ?? null,
+      locked: Boolean(locked),
       canReadMoney: Boolean(canReadMoney),
       needsMoreOffers: needsMoreOffers(shaped),
       moreOffersWarning: moreOffersWarning(shaped),

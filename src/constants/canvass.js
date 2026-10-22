@@ -16,15 +16,11 @@ export const MIN_CANVASS_OFFERS = 3;
 export const CANVASS_NUMBER_PATTERN = /^CNV_\d{4,}$/;
 
 /**
- * Why a Canvass is locked (`canvass_lock_reason`): a Purchase Request was made from it, or the
- * Requested Item it hangs off is Ordered or Received. The database owns the rule and enforces it; a
- * Super Admin can release the lock.
+ * A Canvass is locked once a Purchase Request was made from it (`canvass_is_locked`). The database
+ * owns the rule and enforces it; a Super Admin can release the lock.
  */
-export const CANVASS_LOCK_REASON = { REQUEST_MADE: "request_made", ITEM_ORDERED: "item_ordered" };
-export const CANVASS_LOCK_MESSAGE = {
-  [CANVASS_LOCK_REASON.REQUEST_MADE]: "Locked: a Purchase Request was made from this Canvass, so its offers, winner and reason can't change.",
-  [CANVASS_LOCK_REASON.ITEM_ORDERED]: "Locked: the item was ordered, so its offers, winner and reason can't change.",
-};
+export const CANVASS_LOCKED_MESSAGE =
+  "Locked: a Purchase Request was made from this Canvass, so its offers, winner and reason can't change.";
 
 /** An Offer's money keys, present only for a reader who may see money. */
 export const OFFER_MONEY_KEYS = ["unit_price", "comparison_rate"];
@@ -50,15 +46,3 @@ export const CANVASS_KIND = {
 /** The Canvasses page's list query; every Canvass write invalidates it. */
 export const CANVASS_LIST_KEY = ["canvasses"];
 
-/** The Canvasses page (ADR 0034), and the query keys that open one Canvass on it. */
-export const CANVASSES_PATH = "/purchasing/canvasses";
-
-/** Where a Canvass opens on the Canvasses page: by id, or by the Requested Item or Component it is on. */
-export function canvassPageLink({ canvassId, requestedItemId, componentId } = {}) {
-  const params = new URLSearchParams();
-  if (canvassId) params.set("canvass", canvassId);
-  else if (requestedItemId) params.set("item", requestedItemId);
-  else if (componentId) params.set("component", componentId);
-  const query = params.toString();
-  return query ? `${CANVASSES_PATH}?${query}` : CANVASSES_PATH;
-}

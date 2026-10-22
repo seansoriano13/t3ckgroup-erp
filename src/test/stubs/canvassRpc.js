@@ -2,7 +2,6 @@ import { stubRpc } from "@/test/msw/server"
 import { db, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { canvassFill } from "@/test/db/triggers"
-import { CANVASS_LOCK_REASON } from "@/constants/canvass"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
@@ -42,12 +41,9 @@ export function stubCanvassAddToRequestRpc() {
   })
 }
 
-/** `canvass_lock_reason` (20261101100000), on the in-memory store: a request was made, or the item is Ordered or Received. */
-function lockReasonOf(canvass) {
-  if (!canvass || canvass.lock_released_at) return null
-  if (canvass.request_made_at) return CANVASS_LOCK_REASON.REQUEST_MADE
-  const item = rowsOf("purchase_request_items").find((i) => i.id === canvass.requested_item_id)
-  return ["ordered", "received"].includes(item?.status) ? CANVASS_LOCK_REASON.ITEM_ORDERED : null
+/** `canvass_is_locked` (20261101100000), on the in-memory store: a request was made and the lock was not released. */
+function isLocked(canvass) {
+  return Boolean(canvass?.request_made_at) && !canvass.lock_released_at
 }
 
 /**
@@ -65,7 +61,7 @@ function lockReasonOf(canvass) {
  */
 export function stubCanvassMoneyRpc({ money = true } = {}) {
   stubRpc("canvass_subject_can_read_money", () => money)
-  stubRpc("canvass_lock_reason", (args) => lockReasonOf(rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)))
+  stubRpc("canvass_is_locked", (args) => isLocked(rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)))
 
   const addOffer = (args) => {
     const offerInput = args.p_offer ?? {}
@@ -367,7 +363,7 @@ export function stubCanvassListRpcs({ actorId = null } = {}) {
         created_by: c.created_by ?? null,
         created_at: c.created_at,
         updated_at: c.updated_at ?? c.created_at,
-        locked: lockReasonOf(c) !== null,
+        locked: isLocked(c),
       }
     }),
   )

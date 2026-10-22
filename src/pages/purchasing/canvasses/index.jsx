@@ -19,7 +19,7 @@ import CanvassRequestBadge from "../../../components/CanvassRequestBadge";
 import { useAuth } from "../../../context/AuthContext";
 import { canvassService } from "../../../services/canvassService";
 import { CANVASS_KIND, CANVASS_LIST_KEY } from "../../../constants/canvass";
-import { ANY, LINKED_FILTER, REQUEST_FILTER, SIGNED_FILTER, WINNER_FILTER, canvassSubjectLabel, canvassAddressParams, filterCanvasses } from "../../../utils/canvassList";
+import { ANY, LINKED_FILTER, REQUEST_FILTER, SIGNED_FILTER, WINNER_FILTER, canvassSubjectLabel, filterCanvasses } from "../../../utils/canvassList";
 import { getPermissionContext } from "../../../utils/permissions";
 
 /**
@@ -89,23 +89,9 @@ function CanvassesPage({ userId, canEdit }) {
     setRequest(ANY);
   };
 
-  // The open Canvass is in the address: ?canvass=<id>, or ?item= / ?component= for one found by its subject.
-  const { canvass: canvassParam, item: itemParam, component: componentParam } = canvassAddressParams(params);
-  // An exact ?canvass= match wins over a Canvass found by its subject.
-  const openRow = useMemo(
-    () =>
-      (canvassParam && rows.find((r) => r.id === canvassParam)) ||
-      rows.find((r) => (itemParam && r.requestedItemId === itemParam) || (componentParam && r.componentId === componentParam)) ||
-      null,
-    [canvassParam, itemParam, componentParam, rows],
-  );
-  // ?item= / ?component= with no Canvass yet opens a draft; nothing is created until its first Offer is saved.
-  const draftSubject = useMemo(() => {
-    if (openRow) return null;
-    if (componentParam) return { componentId: componentParam };
-    if (itemParam) return { requestedItemId: itemParam };
-    return null;
-  }, [openRow, itemParam, componentParam]);
+  // The open Canvass is in the address: ?canvass=<id>.
+  const canvassParam = params.get("canvass");
+  const openRow = useMemo(() => (canvassParam && rows.find((r) => r.id === canvassParam)) || null, [canvassParam, rows]);
   const ready = !isLoading && !isError;
   const openCanvass = (id) => setParams({ canvass: id });
   // New Canvasses with no subject: nothing is written until Save (canvass_start), which makes the
@@ -261,25 +247,6 @@ function CanvassesPage({ userId, canEdit }) {
           userId={userId}
           canEdit={canEdit}
           opportunityId={openRow.opportunityId ?? undefined}
-        />
-      )}
-      {ready && draftSubject && canEdit && (
-        <NewCanvassModal
-          open
-          onOpenChange={(next) => !next && setParams({})}
-          subject={draftSubject}
-          subjectLabel="New Canvass"
-          userId={userId}
-        />
-      )}
-      {ready && draftSubject && !canEdit && (
-        <CanvassPanel
-          open
-          onOpenChange={(next) => !next && setParams({})}
-          subject={draftSubject}
-          subjectLabel="New Canvass"
-          userId={userId}
-          canEdit={canEdit}
         />
       )}
     </PageShell>

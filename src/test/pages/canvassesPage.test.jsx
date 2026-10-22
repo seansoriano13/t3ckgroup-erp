@@ -187,22 +187,6 @@ describe("the Canvasses page", () => {
     expect(screen.queryByRole("button", { name: /^Unlock$/ })).not.toBeInTheDocument();
   });
 
-  it("locks a Canvass on a request item once the item is Ordered, and marks it in the list", async () => {
-    const request = db.seed("purchase_requests", { title: "Direct buy", created_by: marco.id });
-    const item = db.seed("purchase_request_items", { request_id: request.id, source: "new", name: "Stapler", status: "ordered", quantity: 1, requested_by: marco.id });
-    const canvass = db.seed("sor_canvasses", { product_name: "Stapler", requested_item_id: item.id, created_by: marco.id });
-    db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Staple Co", is_winner: true });
-    const user = setupUser();
-    renderPage();
-
-    const rows = await screen.findAllByTestId("canvass-row");
-    expect(within(rows.find((row) => within(row).queryByText(/Stapler/))).getByRole("img", { name: "Locked" })).toBeInTheDocument();
-    expect(within(rows.find((row) => within(row).queryByText("Laser toner"))).queryByRole("img", { name: "Locked" })).not.toBeInTheDocument();
-
-    await user.click(within(rows.find((row) => within(row).queryByText(/Stapler/))).getByText(/Stapler/));
-    expect(await screen.findByTestId("canvass-locked-note")).toHaveTextContent("the item was ordered");
-  });
-
   it("lets a Super Admin unlock it with a reason, and the offers can change again", async () => {
     mockUser.current = makeEmployee({ name: "Root Admin", has_purchasing_flow: true, is_super_admin: true });
     stubCanvassWinnerRpcs({ bands: ["purchasing"], superAdmin: true });
@@ -228,23 +212,6 @@ describe("the Canvasses page", () => {
     expect(await screen.findAllByRole("button", { name: /Mark .* the winner/ })).toHaveLength(1);
     expect(db.rows("sor_canvass_signoff_events").find((e) => e.kind === "unlocked")).toMatchObject({ reason: "Wrong winner picked" });
     expect(await screen.findByTestId("unlock-history")).toHaveTextContent("Wrong winner picked");
-  });
-
-  it("opens the New Canvass form, three offers side by side, for an item with no Canvass yet", async () => {
-    const request = db.seed("purchase_requests", { title: "Direct buy", created_by: marco.id });
-    const item = db.seed("purchase_request_items", { request_id: request.id, source: "new", name: "Stapler", status: "requested", quantity: 1, requested_by: marco.id });
-    renderWithProviders(
-      <MemoryRouter initialEntries={[`/purchasing/canvasses?item=${item.id}`]}>
-        <Routes>
-          <Route path="/purchasing/canvasses" element={<CanvassesPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findAllByTestId("new-canvass-offer")).toHaveLength(3);
-    expect(screen.queryByLabelText("Canvass 1 product")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /add another canvass/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /create purchase request/i })).not.toBeInTheDocument();
   });
 
   it("refreshes the Purchase Requests when a winner is picked, so a request opened next is not stale", async () => {
@@ -389,7 +356,7 @@ describe("the Canvasses page", () => {
   });
 });
 
-describe("the Canvasses page opened from a Requested Item", () => {
+describe("the Canvasses page for a reader without Purchasing access", () => {
   const renderAt = (url) =>
     renderWithProviders(
       <MemoryRouter initialEntries={[url]}>
@@ -422,15 +389,5 @@ describe("the Canvasses page opened from a Requested Item", () => {
     renderAt("/purchasing/canvasses");
     expect(await screen.findAllByTestId("canvass-row")).not.toHaveLength(0);
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-  });
-
-  it("opens a draft for an item that has no Canvass yet, creating nothing", async () => {
-    mockUser.current = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true });
-    stubCanvassMoneyRpc({ money: true });
-    stubCanvassWinnerRpcs({ bands: ["purchasing"] });
-    stubCanvassListRpcs({ actorId: mockUser.current.id });
-    renderAt("/purchasing/canvasses?item=22222222-2222-4222-8222-222222222222");
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(db.rows("sor_canvasses")).toHaveLength(0);
   });
 });

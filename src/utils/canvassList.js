@@ -32,11 +32,6 @@ export function canvassRequestState({ kind, winner, requestId, requestLabel, req
     : { key: "needs_winner", label: "Needs winner", requestId: null, theme: STATUS_THEME.MAUVE };
 }
 
-/** The Canvasses page address: ?canvass=<id>, or ?item= / ?component= for one found by its subject. */
-export function canvassAddressParams(params) {
-  return { canvass: params.get("canvass"), item: params.get("item"), component: params.get("component") };
-}
-
 /** What the row says it is for: "S07983 · 1.2 Stretcher", "Gloves (PR-12)", or the product alone. */
 export function canvassSubjectLabel(row) {
   if (row.kind === CANVASS_KIND.COMPONENT) {

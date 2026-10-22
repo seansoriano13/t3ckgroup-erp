@@ -25,7 +25,6 @@ import ModalShell from "./ui/ModalShell";
 import CanvassSignoffDialog from "./CanvassSignoffDialog";
 import CanvassUnlockDialog from "./CanvassUnlockDialog";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
-import { CanvassOrigin } from "./purchase-request/canvassOrigin";
 import { procurementQueueKey } from "./purchase-request/queryKeys";
 import CanvassSupplierField, { canvassFieldClass as fieldClass } from "./CanvassSupplierField";
 import CreatePurchaseRequestModal from "./CreatePurchaseRequestModal";
@@ -42,7 +41,7 @@ import { canvassService } from "../services/canvassService";
 import { openCanvassPrintWindow, printCanvass } from "../lib/pdf/canvassPrinter";
 import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
 import { useAuth } from "../context/AuthContext";
-import { CANVASS_CURRENCIES, CANVASS_KIND, CANVASS_LIST_KEY, CANVASS_LOCK_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
+import { CANVASS_CURRENCIES, CANVASS_KIND, CANVASS_LIST_KEY, CANVASS_LOCKED_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
 import { getPermissionContext } from "../utils/permissions";
 import { canvassRequestState } from "../utils/canvassList";
 import { offerCurrency } from "../utils/canvassMath";
@@ -761,8 +760,8 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const lastCleared = !isSigned ? [...history].reverse().find((h) => h.kind === "cleared") : null;
   const lastUnlocked = [...history].reverse().find((h) => h.kind === "unlocked");
 
-  // Once a Purchase Request is made from it, or its item is Ordered, the Canvass is what was bought
-  // on: offers, winner, reason and product name stop changing (the database refuses them too).
+  // Once a Purchase Request is made from it, the Canvass is what was bought on: offers, winner,
+  // reason and product name stop changing (the database refuses them too).
   const isLocked = Boolean(canvass?.locked);
   const isSuperAdmin = Boolean(getPermissionContext(user).isSuperAdmin);
   const requestState = requestSource ? canvassRequestState(requestSource) : null;
@@ -904,7 +903,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                 >
                   <Lock size={13} className="shrink-0" aria-hidden="true" />
                   <span>
-                    {CANVASS_LOCK_MESSAGE[canvass.lockedBecause]}
+                    {CANVASS_LOCKED_MESSAGE}
                     {!isSuperAdmin && " Ask a Super Admin to unlock it."}
                   </span>
                   {isSuperAdmin && (
@@ -1108,11 +1107,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         <CanvassUnlockDialog open={unlocking} onOpenChange={setUnlocking} canvass={canvass} onUnlocked={invalidate} />
       )}
 
-      {viewingRequest && (
-        <CanvassOrigin.Provider value={{ canvassId: canvass?.id ?? null, close: () => setViewingRequest(null) }}>
-          <PurchaseRequestModal requestId={viewingRequest} onClose={() => setViewingRequest(null)} />
-        </CanvassOrigin.Provider>
-      )}
+      {viewingRequest && <PurchaseRequestModal requestId={viewingRequest} onClose={() => setViewingRequest(null)} />}
 
       {isSigning && canvass && (
         <CanvassSignoffDialog
