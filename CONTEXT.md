@@ -316,7 +316,8 @@ creates, by an Assignment condition, or as a purchasing member of a Purchase
 Request opened there. Sees every Stage Visit inside their access window, which
 opens when they are called and closes when the calling Stage is left, when a
 chosen later Stage is entered or left, or at a Terminal Stage, as the Sales Flow
-set it; a Terminal Stage always closes it. Each call-in opens its own window, so
+set it; a Terminal Stage always closes it. Cancelling the task that called them
+in closes it too (reason "task cancelled"). Each call-in opens its own window, so
 one person named by two actions on the same Stage holds two at once and sees the
 union of them. A window only ever reaches forward: someone called in at a Stage
 never sees the visits before it. An Assignment on the entry Stage makes someone a
