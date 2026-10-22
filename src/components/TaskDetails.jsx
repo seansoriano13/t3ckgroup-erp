@@ -515,7 +515,7 @@ export default function TaskDetails({
                         : "Split Screen (Task + Chat)"
                     }
                     className={cn(
-                      "h-9 w-9 rounded-xl transition-all active:scale-95",
+                      "hidden lg:inline-flex h-9 w-9 rounded-xl transition-all active:scale-95",
                       isSplitScreen
                         ? "text-primary bg-primary/10 border-primary/20 hover:bg-primary/20"
                         : "text-muted-foreground border-transparent hover:bg-muted hover:border-border",
