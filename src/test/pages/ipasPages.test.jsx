@@ -137,6 +137,7 @@ describe("IPAS pages", () => {
       pay(typed, "payment", 1000, "Cash", "2026-10-02");
       pay(typed, "payment", 500, "Bank TT", "2026-10-03");
       pay(settled, "full_payment", 1800, "Cash", "2026-10-02");
+      localStorage.setItem(`erp_ipas_columns_${purchaser.id}`, "[]"); // show every column
 
       renderList();
 
@@ -285,6 +286,7 @@ describe("IPAS pages", () => {
       const noSign = makeEmployee({ name: "Pat Reyes", call_sign: null });
       ipas({ po_number: "P02552", created_by: withSign.id });
       ipas({ po_number: "P02553", created_by: noSign.id });
+      localStorage.setItem(`erp_ipas_columns_${purchaser.id}`, "[]"); // show every column
 
       renderList();
 
