@@ -14,6 +14,7 @@ import QueryError from "../../../components/ui/QueryError";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
 import { SelectField } from "../../../components/ui/SelectField";
+import { unitOptionsWith } from "../../../constants/procurement";
 import MoveButton from "../../../components/record/MoveButton";
 import RecordHeader from "../../../components/record/RecordHeader";
 import PropertyPills from "../../../components/record/PropertyPills";
@@ -180,7 +181,12 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
                 <Input type="number" min="0" step="any" value={row.quantity} onChange={(e) => setRow(index, { quantity: e.target.value })} />
               </FieldBox>
               <FieldBox label="Unit" bare>
-                <Input value={row.unit} onChange={(e) => setRow(index, { unit: e.target.value })} />
+                <SelectField
+                  options={unitOptionsWith(row.unit)}
+                  value={row.unit}
+                  placeholder="Pick a unit"
+                  onChange={(value) => setRow(index, { unit: value })}
+                />
               </FieldBox>
               <Button variant="ghost" size="icon" aria-label="Remove content" onClick={() => setRows((r) => r.filter((_, i) => i !== index))}>
                 <Trash2 size={14} />
