@@ -73,7 +73,7 @@ describe("RequestedItems", () => {
     const group = await screen.findByRole("region", { name: "To do" })
     expect(within(group).getByText("1")).toBeInTheDocument()
     const row = within(group).getByTestId("requested-item")
-    expect(within(row).queryByText("Requested by")).not.toBeInTheDocument()
+    expect(within(row).getByRole("button", { name: /^Open details of/ })).toHaveAttribute("aria-expanded", "false")
     await openRow(row)
     expect(within(row).getByText("Requested by")).toBeInTheDocument()
   })

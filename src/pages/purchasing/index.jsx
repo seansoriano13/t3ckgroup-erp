@@ -23,7 +23,7 @@ import { listAge, listAgeDays, listDate } from "../../utils/listDates";
 import { QUEUE_EXPORT_HEADER, REQUEST_STATE, REQUEST_STATE_TONES, queueExportRows, requestStateOf } from "../../components/purchase-request/queueList";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
-import PurchaseRequestSlideOver from "../../components/purchase-request/PurchaseRequestSlideOver";
+import PurchaseRequestModal from "../../components/purchase-request/PurchaseRequestModal";
 import NewPurchaseRequestDialog from "../../components/purchase-request/NewPurchaseRequestDialog";
 import { useTakeRequest } from "../../components/purchase-request/requestHooks";
 import { procurementQueueKey } from "../../components/purchase-request/queryKeys";
@@ -58,10 +58,9 @@ import { flowStageTonesByName } from "../../constants/salesFlow";
  * Pills slice by state (Open / Closed / All, with counts). For Purchasing, an
  * unassigned row offers Take right in the table. The filter bar searches and
  * narrows by Buyer (Any buyer / Unassigned / Mine, Purchasing only) and kind
- * (Project / Direct), saves them as a default, and exports the rows shown. The slide-over
- * holds the whole request (`PurchaseRequestView`: members, Requested Items,
- * chat) with the Buyer pinned in its footer; on desktop it opens full
- * screen instead (`PurchaseRequestSlideOver`).
+ * (Project / Direct), saves them as a default, and exports the rows shown. A
+ * request opens (`?request=`) in the record window at every width
+ * (`PurchaseRequestModal`: Buyer, Requested Items, members, chat).
  */
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
@@ -218,7 +217,7 @@ function PurchaseRequests() {
   const { user } = useAuth();
   const { isSuperAdmin, hasPurchasingFlow } = getPermissionContext(user);
   const purchaser = isSuperAdmin || hasPurchasingFlow;
-  const { recordId, open, step, close } = useRecordParam("request");
+  const { recordId, open, close } = useRecordParam("request");
 
   const { initial, hasSavedDefault, saveDefault, clearDefault, isDirty } = useSavedFilters(
     "purchase_requests",
@@ -265,13 +264,6 @@ function PurchaseRequests() {
     [QUEUE_STATE.ALL]: narrowed.length,
   };
   const exportRows = useMemo(() => queueExportRows(visible), [visible]);
-
-  // The open request may sit outside the current slice (a notification's
-  // link, or a request just taken off "Unassigned"): it stays open, without
-  // stepping.
-  const openRow = rows.find((r) => String(r.id) === recordId) || null;
-  const index = visible.findIndex((r) => String(r.id) === recordId);
-  const stepping = index >= 0;
 
   const filters = { state, kind, buyer: buyerPick };
   const hasActiveFilters =
@@ -416,17 +408,7 @@ function PurchaseRequests() {
         )}
       </PageShell>
 
-      <PurchaseRequestSlideOver
-        request={openRow}
-        crumb="Purchase Requests"
-        index={stepping ? index : 0}
-        total={stepping ? visible.length : 1}
-        onStep={(d) => {
-          const to = visible[index + d];
-          if (to) step(to.id);
-        }}
-        onClose={close}
-      />
+      {recordId && <PurchaseRequestModal requestId={recordId} onClose={close} />}
 
       <NewPurchaseRequestDialog open={creating} onOpenChange={setCreating} onOpened={open} />
     </>

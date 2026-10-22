@@ -20,11 +20,10 @@ import { getPermissionContext } from "@/utils/permissions";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
-// The request's own body has its tests (PurchaseRequestView, RequestBuyer); here it only has to open.
+// The request's own body has its tests (PurchaseRequestView); here it only has to open.
 vi.mock("@/components/purchase-request/PurchaseRequestView", () => ({
   default: ({ requestId }) => <p>Request body {requestId}</p>,
 }));
-vi.mock("@/components/purchase-request/RequestBuyer", () => ({ default: () => null }));
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mockUser.current, isAuthLoading: false, logout: vi.fn() }),
@@ -181,7 +180,7 @@ describe("Purchasing Dashboard page", () => {
     expect(screen.getByTestId("where")).toHaveTextContent(`/purchasing/ipas/${ipas.id}`);
   });
 
-  it("opens a Purchase Request from the panel in its own slide-over, in the URL", async () => {
+  it("opens a Purchase Request from the panel in the record window, in the URL", async () => {
     renderPage("/purchasing/dashboard?sor=sor-1");
 
     const panel = await screen.findByRole("dialog");
