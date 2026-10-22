@@ -344,6 +344,76 @@ describe("Purchasing Dashboard page", () => {
     expect(await screen.findByRole("row", { name: /S09999/ })).toBeInTheDocument();
   });
 
+  describe("follows the shared list anatomy (#637)", () => {
+    const DIRECT_ROW = row({ opportunity_id: null, sales_reference: null, project_title: null, grp: "to_source", target_kind: "purchase_request", target_id: "pr-9", request_id: "pr-9", item_count: 1, target_label: "Spare tyres", since: timeAgo(1) });
+
+    it("keeps headings on one line, sorts all but the stage circles, and ends with the shared pager", async () => {
+      renderPage();
+      const table = await screen.findByRole("table");
+      const headings = within(table).getAllByRole("columnheader");
+      for (const heading of headings) expect(heading).not.toHaveClass("whitespace-normal");
+      const circles = headings.filter((heading) => ["To source", "To price", "To order", "On order", "To check", "Filed"].includes(heading.textContent));
+      expect(circles).toHaveLength(6);
+      for (const heading of circles) expect(heading).not.toHaveAttribute("aria-sort");
+      for (const name of ["SOR", "Next move", "Deadline"]) {
+        expect(headings.find((heading) => heading.textContent === name)).toHaveAttribute("aria-sort");
+      }
+      expect(screen.getByText(/^Showing/)).toHaveTextContent("Showing 1 to 1 of 1 SORs");
+    });
+
+    it("puts Value open, Columns and Export at the right end of the bar, after Filters", async () => {
+      const ipas = seedOrder();
+      stubRpc("ipas_sor_headers", () => [header(ipas, "sor-1")]);
+      stubRpc("purchasing_dashboard_rows", () => [PR_ROW, ipasRow(ipas)]);
+      renderPage();
+
+      const bar = await screen.findByTestId("page-toolbar");
+      const value = await within(bar).findByLabelText("Value of open orders, pre-tax");
+      const filters = within(bar).getByRole("button", { name: /Filters/ });
+      const columns = within(bar).getByRole("button", { name: /Columns/ });
+      const exportButton = within(bar).getByRole("button", { name: "Export to Excel" });
+      const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(before(filters, value)).toBe(true);
+      expect(before(value, columns)).toBe(true);
+      expect(before(columns, exportButton)).toBe(true);
+    });
+
+    it("opens Filters as a grid of dropdowns", async () => {
+      const user = setupUser();
+      renderPage();
+      await user.click(await screen.findByRole("button", { name: /Filters/ }));
+      const canvass = await screen.findByRole("button", { name: /With or without a canvass/ });
+      expect(canvass.closest(".grid")).not.toBeNull();
+    });
+
+    it("writes Direct request as a word, not mono", async () => {
+      stubRpc("purchasing_dashboard_rows", () => [DIRECT_ROW]);
+      renderPage();
+      const tracker = await screen.findByRole("row", { name: /Direct request, open/ });
+      expect(within(within(tracker).getAllByRole("cell")[0]).getByText("Direct request")).not.toHaveClass("font-mono");
+    });
+
+    it("writes No SOR as a word, not mono", async () => {
+      seedOrder(); // no SOR header names it, so it sits on the "No SOR" row
+      stubRpc("purchasing_dashboard_rows", () => []);
+      renderPage();
+      const tracker = await screen.findByRole("row", { name: /Orders with no SOR, open/ });
+      expect(within(within(tracker).getAllByRole("cell")[0]).getByText("No SOR")).not.toHaveClass("font-mono");
+    });
+
+    it("reads every age as Nd, in the table and in the panel, never '1 day' or '0 days'", async () => {
+      const ipas = seedOrder();
+      stubRpc("ipas_sor_headers", () => [header(ipas, "sor-1")]);
+      stubRpc("purchasing_dashboard_rows", () => [{ ...PR_ROW, since: timeAgo(1) }, ipasRow(ipas, { since: timeAgo(0) })]);
+      renderPage("/purchasing/dashboard?sor=sor-1");
+
+      const panel = await screen.findByRole("dialog");
+      expect(within(panel).getAllByText(/\b\d+d\b/).length).toBeGreaterThan(0);
+      expect(within(screen.getByRole("table", { hidden: true })).getAllByText(/\b\d+d\b/).length).toBeGreaterThan(0);
+      expect(document.body).not.toHaveTextContent(/\b[01] days?\b/);
+    });
+  });
+
   it("keeps the old Order Monitoring URL working: it opens the dashboard", async () => {
     renderPage("/purchasing/order-monitoring");
     expect(await screen.findByRole("heading", { level: 1, name: /purchasing\s*dashboard/i })).toBeInTheDocument();
