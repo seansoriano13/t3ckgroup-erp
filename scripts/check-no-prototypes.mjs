@@ -17,7 +17,14 @@ import { join } from "node:path"
 const PROTOTYPE_DIR = "src/components/sor/modal/prototype"
 const SUNSET = "2026-12-31" // bump on purpose, or delete the prototype
 // Strings that survive minification and only exist inside the prototype.
-const MARKERS = ["sor-modal-layout-v2", "sor-modal-layout-change", "Inbox · master/detail"]
+const MARKERS = [
+  "sor-modal-layout-v2",
+  "sor-modal-layout-change",
+  "Inbox · master/detail",
+  // The Calendar redesign prototype (src/components/calendar/prototype/), same gate.
+  "calendar.layout",
+  "People out each day",
+]
 
 const problems = []
 
