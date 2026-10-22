@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-22",
+        "title": "Transmittals and Packing Lists get a desk and a rail",
+        "version": "1.9.60",
+        "changes": [
+            "New Transmittal: the live PO lines are on the left, and the slip is on the right. Click a PO line to put it on the slip, click it again to take it off. Company and Project fill in from the first line.",
+            "The slip's header is now a row of pills you click to set. A strip lists everything still missing before you can Submit, not only the first thing.",
+            "Each line on the slip is one row. You can add every line of a PO at once by typing its number, and add a typed line for anything not on a PO.",
+            "Transmittal record: the slip and its lines are on the left, and the GC / NA rating is done right on each line. A single card on the right shows what you need to do and lists the steps, and opening a step shows its work and sign button under the list.",
+            "Packing List record: same layout. The boxes and what is in them are on the left, and the card on the right holds Sign Packed by. The side drawer is gone."
+        ]
+    },
+    {
+        "date": "2026-10-22",
         "title": "Canvasses join Purchase Requests, and lock once bought on",
         "version": "1.9.59",
         "changes": [
