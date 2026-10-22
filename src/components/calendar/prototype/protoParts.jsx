@@ -32,7 +32,6 @@ export function LayerToggles({ layers, toggleLayer, all, stacked = false }) {
           <Button
             key={key}
             variant="ghost"
-            size="sm"
             aria-pressed={on}
             onClick={() => toggleLayer(key)}
             className={cn(
@@ -51,7 +50,7 @@ export function LayerToggles({ layers, toggleLayer, all, stacked = false }) {
               <span className={cn('size-2 rounded-full', on ? LAYER_DOT[key] : 'bg-mauve-7')} />
             )}
             {label}
-            <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">{counts[key] ?? 0}</span>
+            <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">{counts[key] ?? 0}</span>
           </Button>
         );
       })}
@@ -62,8 +61,8 @@ export function LayerToggles({ layers, toggleLayer, all, stacked = false }) {
 export function PendingSwitch({ canSeePending, showPending, setShowPending }) {
   if (!canSeePending) return null;
   return (
-    <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-      <Switch size="sm" checked={showPending} onCheckedChange={setShowPending} aria-label="Show pending" />
+    <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+      <Switch checked={showPending} onCheckedChange={setShowPending} aria-label="Show pending" />
       Show pending
     </span>
   );
@@ -131,10 +130,10 @@ export function VenueStrip({ venue, meetings, ymd, onOpen, onPickSlot, compact =
         variant="ghost"
         onClick={pick}
         aria-label={`Request ${venue.name} on ${ymd}`}
-        className={cn('block w-full rounded-md bg-mauve-3 p-0 hover:bg-mauve-4', compact ? 'h-2.5' : 'h-6')}
+        className={cn('block w-full rounded-md bg-mauve-3 p-0 hover:bg-mauve-4', compact ? 'h-2.5' : 'h-8')}
       />
       {!compact && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex h-6 justify-between px-px">
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex h-8 justify-between px-px">
           {Array.from({ length: 12 }, (_, i) => (
             <span key={i} className="h-full w-px bg-mauve-5 first:opacity-0 last:opacity-0" />
           ))}
@@ -153,7 +152,7 @@ export function VenueStrip({ venue, meetings, ymd, onOpen, onPickSlot, compact =
             aria-label={`${m.title}, ${formatEntryTime(m)}`}
             className={cn(
               'absolute top-0 rounded-md p-0 hover:brightness-95',
-              compact ? 'h-2.5' : 'h-6',
+              compact ? 'h-2.5' : 'h-8',
               pending ? 'border border-dashed border-teal-8 bg-teal-3' : 'bg-teal-9 hover:bg-teal-10',
             )}
             style={{ left: pct(start), width: `calc(${pct(end)} - ${pct(start)})` }}

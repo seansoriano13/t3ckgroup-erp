@@ -35,7 +35,9 @@ export default function AppLayout() {
     location.pathname.startsWith("/super-admin/flow-canvas") ||
     location.pathname.startsWith("/flow-versions/") ||
     (location.pathname.startsWith("/sors") &&
-      !location.pathname.startsWith("/sors/commission"));
+      !location.pathname.startsWith("/sors/commission")) ||
+    // PROTOTYPE (branch prototype/calendar-redesign): the Calendar and Gantt want the full width.
+    location.pathname === "/calendar";
 
   if (
     location.pathname === "/login" ||

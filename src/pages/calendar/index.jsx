@@ -23,6 +23,7 @@ export default function CalendarPage() {
   return (
     <ProtectedRoute>
       <PageShell
+        frame={CalendarPrototype ? 'full' : undefined}
         title="Calendar"
         description="Meetings, Time Off and overtime across the company."
         action={<Button onClick={() => openRequest()}>New Meeting Request</Button>}

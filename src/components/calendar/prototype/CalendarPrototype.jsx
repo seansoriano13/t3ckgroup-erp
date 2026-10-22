@@ -1,12 +1,12 @@
 /**
  * PROTOTYPE — Calendar redesign (branch prototype/calendar-redesign). Throwaway.
  *
- * Three layouts of the Calendar tab on the real /calendar route, switched with
- * `?variant=` and a bar at the bottom (← / → also step). `?sample=0` swaps the
+ * Two layouts of the Calendar tab on the real /calendar route (A Calendar, C Gantt),
+ * switched with `?variant=` and a bar at the bottom. `?sample=0` swaps the
  * sample month for the live calendar_entries() read. "0" is today's Calendar,
  * for comparison. Loaded only on staging and local builds (see the page).
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,20 +18,12 @@ import Calendar from '../Calendar.jsx';
 import { parseCalendarParams } from '../calendarNav.js';
 import { useCalendarLayers } from '../useCalendarLayers';
 import VariantMonthRail from './VariantMonthRail.jsx';
-import VariantLedger from './VariantLedger.jsx';
 import VariantBoard from './VariantBoard.jsx';
-import VariantQuiet from './VariantQuiet.jsx';
-import VariantPulse from './VariantPulse.jsx';
-import VariantRiver from './VariantRiver.jsx';
 import { ProtoDetail } from './protoParts.jsx';
 
 const VARIANTS = [
-  { key: 'A', name: 'Month + day rail', Component: VariantMonthRail },
-  { key: 'B', name: 'Agenda ledger', Component: VariantLedger },
-  { key: 'C', name: 'Who & where board', Component: VariantBoard },
-  { key: 'D', name: 'Quiet list (minimal)', Component: VariantQuiet },
-  { key: 'E', name: 'Pulse (experimental)', Component: VariantPulse },
-  { key: 'F', name: 'Time river (experimental)', Component: VariantRiver },
+  { key: 'A', name: 'Calendar', Component: VariantMonthRail },
+  { key: 'C', name: 'Gantt', Component: VariantBoard },
   { key: '0', name: 'Current Calendar', Component: null },
 ];
 
@@ -77,16 +69,6 @@ export default function CalendarPrototype({ onPickSlot, onWithdraw = null }) {
     );
   const step = (dir) => set({ variant: VARIANTS[(index + dir + VARIANTS.length) % VARIANTS.length].key });
 
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      const el = document.activeElement;
-      if (el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable || el?.getAttribute('role') === 'tab') return;
-      step(e.key === 'ArrowLeft' ? -1 : 1);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
 
   const [layers, toggleLayer] = useCalendarLayers();
   const [showPending, setShowPending] = useState(false);
