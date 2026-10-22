@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Clock, ChevronDown, LayoutGrid, Rows3, GitBranch } from "lucide-react";
 import Avatar from "../Avatar";
 import Dropdown from "../ui/Dropdown";
@@ -220,8 +221,11 @@ export default function OpportunityBoard({
       return;
     }
     const targets = outgoingStages(opportunity.flow_stage_id, snapshotData.stages, snapshotData.edges);
+    const current = snapshotData.stages.find((s) => s.id === opportunity.flow_stage_id);
     setDragging({
       opportunity,
+      currentName: current?.name || "This stage",
+      allowedNames: targets.filter((s) => columnKeys.has(s.id)).map((s) => s.name),
       allowedStageIds: new Set(targets.map((s) => s.id).filter((id) => columnKeys.has(id))),
     });
   };
@@ -230,6 +234,11 @@ export default function OpportunityBoard({
 
   const handleDrop = (column) => {
     if (!dragging || !dragging.allowedStageIds.has(column.key)) {
+      if (dragging?.allowedNames?.length) {
+        toast.error(
+          `${dragging.currentName} can only move to ${dragging.allowedNames.join(" or ")} next.`,
+        );
+      }
       setDragging(null);
       return;
     }
@@ -456,7 +465,7 @@ function BoardColumn({
       )}
       <div
         onDragOver={(e) => {
-          if (isDragTarget) e.preventDefault();
+          if (isDragging) e.preventDefault();
         }}
         onDrop={(e) => {
           e.preventDefault();

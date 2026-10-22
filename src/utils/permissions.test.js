@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canReadIpas, getPermissionContext, isNavEntryVisible } from "./permissions";
+import { canManageGroupTasks, canReadIpas, getPermissionContext, isNavEntryVisible } from "./permissions";
 
 describe("getPermissionContext", () => {
   it("returns every flag false for a user with no capabilities", () => {
@@ -141,5 +141,21 @@ describe("canReadIpas", () => {
     expect(canReadIpas(getPermissionContext({ id: "u1", hasSalesFlow: true, isHead: true, isHr: true }))).toBe(false);
     expect(canReadIpas(getPermissionContext(null))).toBe(false);
     expect(canReadIpas(null)).toBe(false);
+  });
+});
+
+describe("canManageGroupTasks", () => {
+  it.each([
+    ["a department head", { isHead: true }],
+    ["an HR user", { is_hr: true }],
+    ["a Super Admin", { isSuperAdmin: true }],
+  ])("allows %s", (_, flags) => {
+    expect(canManageGroupTasks(getPermissionContext(flags))).toBe(true);
+  });
+
+  it("refuses everyone else, even with Task Flow access", () => {
+    expect(canManageGroupTasks(getPermissionContext({ id: "u1", hasTaskFlow: true }))).toBe(false);
+    expect(canManageGroupTasks(getPermissionContext(null))).toBe(false);
+    expect(canManageGroupTasks(null)).toBe(false);
   });
 });

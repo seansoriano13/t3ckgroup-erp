@@ -21,6 +21,8 @@ import { FieldBox } from "@/components/ui/FieldBox";
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
 // ═════════════════════════════════════════════════════════════
+import { categoryMatchesUnit, isSharedCategory } from "../lib/categoryScope";
+
 export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmitOverride, initialData }) {
   const { user } = useAuth();
 
@@ -202,21 +204,18 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
   };
 
   const filteredCategories = categories.filter((cat) => {
-    const catId = cat.category_id?.toUpperCase() || "";
-    const desc = cat.description?.toUpperCase() || "";
-    if (
-      catId.includes("COMMITTEE") ||
-      catId.includes("OTHERS") ||
-      catId.includes("CHECKLIST") ||
-      desc.includes("COMMITTEE") ||
-      desc.includes("OTHERS") ||
-      desc.includes("CHECKLIST") ||
-      cat.sub_department === "ALL"
-    )
-      return true;
-    if (isHr && hrSubDeptFilter) return cat.sub_department === hrSubDeptFilter;
+    if (isSharedCategory(cat)) return true;
+    if (isHr && hrSubDeptFilter)
+      return (
+        cat.sub_department === hrSubDeptFilter &&
+        (!hrDeptFilter || cat.department === hrDeptFilter)
+      );
     if (isHr && hrDeptFilter) return cat.department === hrDeptFilter;
-    return cat.sub_department === selectedEmployeeInfo.sub_department;
+    return categoryMatchesUnit(
+      cat,
+      selectedEmployeeInfo.department,
+      selectedEmployeeInfo.sub_department,
+    );
   });
 
 

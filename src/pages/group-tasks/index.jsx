@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { canManageGroupTasks, getPermissionContext } from "../../utils/permissions";
 import QueryError from "@/components/ui/QueryError";
 import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -73,7 +74,7 @@ export default function GroupTasksPage() {
     user?.is_super_admin === true || user?.isSuperAdmin === true;
   const isHead = user?.is_head === true || user?.isHead === true;
   const isHr = user?.is_hr === true || user?.isHr === true;
-  const canManage = isHead || isSuperAdmin;
+  const canManage = canManageGroupTasks(getPermissionContext(user));
 
   // --- Data Fetching ---
   const { data: groupTasks = [], isLoading, isError, refetch } = useQuery({
@@ -395,10 +396,12 @@ export default function GroupTasksPage() {
             onChange={handleViewModeChange}
             className="shrink-0"
           />
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus size={16} className="mr-1.5" />
-            Create Group Task
-          </Button>
+          {canManage && (
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus size={16} className="mr-1.5" />
+              Create Group Task
+            </Button>
+          )}
         </>
       }
       toolbar={
@@ -490,6 +493,7 @@ export default function GroupTasksPage() {
         currentUserId={user?.id}
         isSuperAdmin={isSuperAdmin}
         isHr={isHr}
+        canManage={canManage}
         employees={employees}
         onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
         onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}

@@ -61,6 +61,8 @@ import {
 import EmojiPicker from "@/components/ui/EmojiPicker";
 import ReplyPreviewBar from "@/components/ui/ReplyPreviewBar";
 import ReplyQuote from "@/components/ui/ReplyQuote";
+import { canUnsend, isMessageRemoved } from "@/utils/chatUnsend";
+import { chatUnsendService } from "@/services/chatUnsendService";
 import SwipeToReplyWrapper from "@/components/ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "@/utils/chatReply";
 import MentionTextarea from "@/components/ui/MentionTextarea";
@@ -96,6 +98,7 @@ export default function GroupTaskDetailModal({
   isDeleting,
   isSuperAdmin,
   isHr,
+  canManage = false,
   employees = [],
   onAddMember,
   isAddingMember,
@@ -410,6 +413,22 @@ export default function GroupTaskDetailModal({
     }));
   }, [rawMessages, readReceipts, user, employees, avatarMap]);
 
+  const unsendMessage = async (message) => {
+    if (!message?.id || !task?.id) return;
+    const queryKey = ["chatMessages", "GROUP_TASK", task.id, "paged"];
+    patchPagedMessage(queryClient, queryKey, message.id, (m) => ({
+      ...m,
+      content: "Message removed",
+      metadata: { removed: true },
+    }));
+    try {
+      await chatUnsendService.unsend("committee_task_activity", message.id);
+    } catch (err) {
+      console.error("Failed to unsend message:", err);
+    }
+    queryClient.invalidateQueries({ queryKey });
+  };
+
   const toggleReaction = async (message, emoji) => {
     if (!message || !emoji || !task?.id) return;
     const currentReactions = message.metadata?.reactions || {};
@@ -443,7 +462,7 @@ export default function GroupTaskDetailModal({
         notificationService.createNotification({
           recipient_id: message.authorId,
           sender_id: user.id,
-          type: "TASK_REACTION",
+          type: "GROUP_TASK_REACTION",
           title: "New Reaction",
           message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
           reference_id: task.id,
@@ -677,6 +696,8 @@ export default function GroupTaskDetailModal({
     task.status === TASK_STATUS.CANCELLED || task.status === TASK_STATUS.ON_HOLD;
 
   const isCreator = task.created_by === currentUserId;
+  // Only heads, HR and Super Admins edit, add or remove members, and delete (#656).
+  const canManageTask = canManage;
   const isHrPending = task.status === "HR_PENDING";
   const isHrVerified = task.status === "HR_VERIFIED";
   const isCompletedOrBeyond =
@@ -844,7 +865,7 @@ export default function GroupTaskDetailModal({
                 setIsSplitScreen((prev) => !prev);
               }}
               className={cn(
-                "rounded-md",
+                "hidden lg:inline-flex rounded-md",
                 isSplitScreen
                   ? "text-primary bg-primary/10 hover:bg-primary/20"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
@@ -1019,7 +1040,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {!isReadOnly && (isCreator || isSuperAdmin || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
+                            {!isReadOnly && (canManageTask || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <Button
                                   type="button"
@@ -1032,7 +1053,7 @@ export default function GroupTaskDetailModal({
                                 >
                                   <Edit3 size={14} />
                                 </Button>
-                                {(isCreator || isSuperAdmin) && (
+                                {canManageTask && (
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1247,7 +1268,7 @@ export default function GroupTaskDetailModal({
                       setSelectedMemberId(id);
                     }}
                     onAdd={
-                      (isCreator || isSuperAdmin) && !isReadOnly ? handleStartAddMember : undefined
+                      canManageTask && !isReadOnly ? handleStartAddMember : undefined
                     }
                     currentUserId={currentUserId}
                     avatarMap={avatarMap}
@@ -1424,9 +1445,10 @@ export default function GroupTaskDetailModal({
                         </div>
                         <SwipeToReplyWrapper
                           isMe={isMe}
-                          copyText={m.content}
-                          onReply={() => setReplyingTo(buildReplySnapshot(m))}
-                          onReact={(emoji) => toggleReaction(m, emoji)}
+                          copyText={isMessageRemoved(m) ? undefined : m.content}
+                          onReply={isMessageRemoved(m) ? undefined : () => setReplyingTo(buildReplySnapshot(m))}
+                          onReact={isMessageRemoved(m) ? undefined : (emoji) => toggleReaction(m, emoji)}
+                          onUnsend={canUnsend(m, user?.id) ? () => unsendMessage(m) : undefined}
                         >
                           <div
                             className={cn(
@@ -1437,12 +1459,18 @@ export default function GroupTaskDetailModal({
                             )}
                             style={{ wordBreak: "break-word" }}
                           >
-                            <ReplyQuote replyTo={m.metadata?.replyTo} />
-                            {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
-                            {m.metadata?.attachments?.length > 0 && (
-                              <div className={cn(m.content ? "mt-2" : "")}>
-                                <AttachmentList attachments={m.metadata.attachments} />
-                              </div>
+                            {isMessageRemoved(m) ? (
+                              <p className="italic opacity-70">Message removed</p>
+                            ) : (
+                              <>
+                                <ReplyQuote replyTo={m.metadata?.replyTo} />
+                                {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
+                                {m.metadata?.attachments?.length > 0 && (
+                                  <div className={cn(m.content ? "mt-2" : "")}>
+                                    <AttachmentList attachments={m.metadata.attachments} />
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </SwipeToReplyWrapper>
@@ -1592,7 +1620,7 @@ export default function GroupTaskDetailModal({
 
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto ml-auto">
             {/* Delete Task Button */}
-            {(isCreator || isSuperAdmin) && !isReadOnly && (
+            {canManageTask && !isReadOnly && (
               <Button
                 type="button"
                 variant="ghost"
@@ -1617,7 +1645,7 @@ export default function GroupTaskDetailModal({
             </Button>
 
             {/* Edit Task Button */}
-            {(isCreator || isSuperAdmin) && !isEditingTask && !isReadOnly && (
+            {canManageTask && !isEditingTask && !isReadOnly && (
               <Button
                 type="button"
                 variant="outline"

@@ -87,6 +87,9 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
             <DetailRow label="Category">{request.category?.label}</DetailRow>
             <DetailRow label="Days">{request.dayCount || 1}</DetailRow>
           </dl>
+          {request.attachments?.length > 0 && (
+            <AttachmentList attachments={request.attachments} className="mt-3" />
+          )}
         </DetailSection>
 
         {!pending && (
@@ -108,12 +111,6 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
             {request.reason || <span className="text-muted-foreground">No reason given.</span>}
           </p>
         </DetailSection>
-
-        {request.attachments?.length > 0 && (
-          <DetailSection title="Attachments">
-            <AttachmentList attachments={request.attachments} />
-          </DetailSection>
-        )}
 
         {pending && <BalanceImpact request={request} available={availableHours} />}
 

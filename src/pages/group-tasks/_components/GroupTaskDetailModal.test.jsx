@@ -181,12 +181,20 @@ describe("GroupTaskDetailModal read-only gating", () => {
   })
 
   it("leaves an ACTIVE group task fully interactive for the creator (regression guard)", () => {
-    renderModal({ task: task({ status: "ACTIVE" }) })
+    renderModal({ task: task({ status: "ACTIVE" }), canManage: true })
 
     expect(screen.getByText("ChecklistTaskRenderer disabled:false")).toBeInTheDocument()
     expect(screen.getByText("Add member")).toBeInTheDocument()
     expect(screen.getByTitle("Delete Task")).toBeInTheDocument()
     expect(screen.getByTitle("Edit Task")).toBeInTheDocument()
     expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument()
+  })
+
+  it("hides edit, add-member and delete controls from a non-manager creator (#656)", () => {
+    renderModal({ task: task({ status: "ACTIVE" }) })
+
+    expect(screen.queryByText("Add member")).not.toBeInTheDocument()
+    expect(screen.queryByTitle("Delete Task")).not.toBeInTheDocument()
+    expect(screen.queryByTitle("Edit Task")).not.toBeInTheDocument()
   })
 })

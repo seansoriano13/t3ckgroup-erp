@@ -283,7 +283,14 @@ export default function TasksPage() {
             taskQueryService
               .getTaskById(openId)
               .then((task) => {
-                if (task) setViewTask(task);
+                if (task?.convertedToGroupTaskId) {
+                  // #657: converted into a Group Task
+                  window.dispatchEvent(
+                    new CustomEvent("OPEN_ENTITY_DETAILS", {
+                      detail: { id: task.convertedToGroupTaskId, type: "GROUP_TASK" },
+                    }),
+                  );
+                } else if (task) setViewTask(task);
               })
               .catch((err) => toast.error(err.message || "Could not open that task. Try again."));
           },

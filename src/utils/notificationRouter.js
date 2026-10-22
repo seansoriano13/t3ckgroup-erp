@@ -58,7 +58,10 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     // decides what the reader may see (the database returns nothing to someone
     // who can't read IPAS), so every IPAS_* type lands there.
     navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
-  } else if (notif.type === "GROUP_TASK_COMMENT") {
+  } else if (
+    notif.type === "GROUP_TASK_COMMENT" ||
+    notif.type === "GROUP_TASK_REACTION"
+  ) {
     navigate("/group-tasks");
     window.dispatchEvent(
       new CustomEvent("OPEN_CHAT_MODAL", {
