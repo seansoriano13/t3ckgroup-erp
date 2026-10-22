@@ -22,6 +22,7 @@ import {
 } from "../../constants/costing";
 import { extended, finalAcquireTotal } from "../../utils/costingMath";
 import { Cell, SelectCell, StockBadge } from "./GridCell";
+import { unitOptionsWith } from "../../constants/procurement";
 import { factorLabel, percentLabel, pesos } from "./gridFormat";
 import BandHeader from "./BandHeader";
 import ComplianceCell from "./ComplianceCell";
@@ -310,7 +311,14 @@ export default function ComponentBlock({ line, matrix, bundles, stockData, incha
                         />
                       </TableCell>
                       <TableCell className="align-top">
-                        <Cell label={label("Component unit")} value={component.unit} readOnly={!can("unit")} onSave={(value) => saveComponent(component, { unit: value })} />
+                        <SelectCell
+                          label={label("Component unit")}
+                          value={component.unit}
+                          options={unitOptionsWith(component.unit)}
+                          clearable={false}
+                          readOnly={!can("unit")}
+                          onSave={(value) => saveComponent(component, { unit: value })}
+                        />
                       </TableCell>
                       <TableCell className="align-top">
                         <Cell label={label("Brand")} value={component.brand} readOnly={!can("brand")} onSave={(value) => saveComponent(component, { brand: value })} />

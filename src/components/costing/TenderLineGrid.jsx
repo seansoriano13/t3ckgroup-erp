@@ -12,7 +12,8 @@ import { opportunityService } from "../../services/opportunityService";
 import { COSTING_BAND, COMPONENT_BANDS, inAnyBand, tierReads, tierReadsCost } from "../../constants/costing";
 import { formatPHP } from "../../constants/sor";
 import { costingKeys } from "./costingKeys";
-import { Cell, StockBadge } from "./GridCell";
+import { Cell, SelectCell, StockBadge } from "./GridCell";
+import { unitOptionsWith } from "../../constants/procurement";
 import { factorLabel, percentLabel, pesos } from "./gridFormat";
 import { useCostingWrites, useInchargeOptions } from "./useCostingWrites";
 import ComponentBlock from "./ComponentBlock";
@@ -190,7 +191,14 @@ export default function TenderLineGrid({ matrix, opportunityId, opportunity, act
                     )}
                   </TableCell>
                   <TableCell className="align-top">
-                    <Cell label={`Unit ${line.number}`} value={line.unit} readOnly={!canWrite} onSave={(value) => saveLine(line, { unit: value })} />
+                    <SelectCell
+                      label={`Unit ${line.number}`}
+                      value={line.unit}
+                      options={unitOptionsWith(line.unit)}
+                      clearable={false}
+                      readOnly={!canWrite}
+                      onSave={(value) => saveLine(line, { unit: value })}
+                    />
                   </TableCell>
                   <TableCell className="align-top">
                     <Cell

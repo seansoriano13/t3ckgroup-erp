@@ -83,6 +83,21 @@ describe("the PMS tab", () => {
     expect(screen.getByRole("heading", { name: /Transmittals and Packing Lists/ })).toBeInTheDocument();
   });
 
+  // The unit is one of the common units a request is counted in, picked from
+  // a list. A typed unit gave "pc", "pcs" and "piece" in the same column.
+  it("picks a tender line's unit from the common units, not by typing", async () => {
+    const matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+    db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Fire hose, 65 mm", unit: "pc", quantity: 4 });
+    stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+    openModal(deal);
+
+    await openPms();
+
+    const row = await screen.findByTestId("tender-line");
+    expect(within(row).queryByRole("textbox", { name: "Unit 1" })).not.toBeInTheDocument();
+    expect(within(row).getByLabelText("Unit 1")).toHaveTextContent("pc");
+  });
+
   it("opens straight on the PMS tab when asked to, as the Costing Matrix page does (#606)", async () => {
     db.seed("costing_matrices", { opportunity_id: deal.id });
     stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
