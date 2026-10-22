@@ -29,6 +29,8 @@ import { screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router"
 
 import PurchaseRequestsPage from "@/pages/purchasing/index.jsx"
+import IpasListPage from "@/pages/purchasing/ipas/index.jsx"
+import { stubIpasRpcs } from "@/test/stubs/ipasRpc"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -65,6 +67,36 @@ const LISTS = [
       })
       stubProcurementQueueRpcs({ actorId: buyer.id })
       return { employee: buyer, reference: "S01001", name: "Harbour lights", state: "Open" }
+    },
+  },
+  {
+    name: "IPAS",
+    Page: IpasListPage,
+    route: "/purchasing/ipas",
+    pills: ["Open", "Filed", "Cancelled", "All"],
+    counts: { Open: 1, All: 1 },
+    noun: "IPAS",
+    seed() {
+      const buyer = makeEmployee({ name: "Pia Buyer", department: "OPERATIONS", has_purchasing_flow: true })
+      db.seed("ipas", {
+        number: "TGIPAS_049",
+        po_number: "P02552",
+        priority: "high",
+        source: "local",
+        purpose: "inventory",
+        state: "open",
+        created_by: buyer.id,
+        odoo_fetched_at: "2026-10-13T02:00:00.000Z",
+        odoo_copy: {
+          po: { id: 1, name: "P02552", state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
+          supplier: { id: 5, name: "Scorpe Technologies", contact: null },
+          lines: [],
+          receipts: { status: "pending", done: 0, total: 1 },
+          bills: { count: 0, draft: 0 },
+        },
+      })
+      stubIpasRpcs({ actorId: buyer.id })
+      return { employee: buyer, reference: "TGIPAS_049", name: "Scorpe Technologies", state: "Open" }
     },
   },
 ]

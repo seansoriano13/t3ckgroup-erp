@@ -1,11 +1,10 @@
 import { TableCell, TableRow } from "../ui/table";
-import { formatDate } from "../../utils/formatDate.js";
+import { listDate } from "../../utils/listDates.js";
+import { IdentityText } from "../purchasing/list/IdentityCell";
 import {
   IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUS_LABELS,
-  IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
-  IPAS_SOURCE_LABELS,
   IPAS_STATE,
 } from "../../constants/ipas";
 import { formatAmount, raisedByParts, sorLineParts } from "../../utils/ipas";
@@ -81,7 +80,7 @@ function IpasMoneyCells({ figures, show }) {
 
 /**
  * One row of the IPAS list. The whole row opens the IPAS (click, or Enter on
- * the focused row); Supplier, Entity, Project / SO, Raised and Raised by hide
+ * the focused row); Entity, Project / SO, Raised and Raised by hide
  * below md so the number, Purpose and State stay in view. `search` is the
  * list's search text: where it matches, the text is highlighted.
  */
@@ -102,24 +101,16 @@ export default function IpasRow({ row, onOpen, search = "", show = () => true })
       className={`group cursor-pointer outline-none focus-visible:bg-muted ${row.state === IPAS_STATE.CANCELLED ? "opacity-70" : ""}`}
     >
       <TableCell>
-        <span className="block font-mono text-xs font-semibold text-foreground">
-          <HighlightText text={row.number} search={search} />
-        </span>
-        <span className="mt-0.5 block text-[11px] text-muted-foreground">
-          {IPAS_PRIORITY_LABELS[row.priority]} · {IPAS_SOURCE_LABELS[row.source]}
-        </span>
+        <IdentityText reference={<HighlightText text={row.number} search={search} />}>
+          <span title={row.supplier || undefined} className="mt-0.5 block max-w-[16rem] truncate text-xs text-muted-foreground">
+            {row.supplier ? <HighlightText text={row.supplier} search={search} /> : "—"}
+          </span>
+        </IdentityText>
       </TableCell>
       {show("odoo-po") && (
       <TableCell>
         <span className="font-mono text-xs text-foreground">
           <HighlightText text={row.po_number} search={search} />
-        </span>
-      </TableCell>
-      )}
-      {show("supplier") && (
-      <TableCell className="hidden md:table-cell">
-        <span className="block max-w-[16rem] truncate text-xs text-foreground">
-          {row.supplier ? <HighlightText text={row.supplier} search={search} /> : "—"}
         </span>
       </TableCell>
       )}
@@ -174,7 +165,7 @@ export default function IpasRow({ row, onOpen, search = "", show = () => true })
       )}
       {show("raised") && (
       <TableCell className="hidden md:table-cell">
-        <span className="text-xs tabular-nums text-muted-foreground">{formatDate(row.created_at)}</span>
+        <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{listDate(row.created_at)}</span>
       </TableCell>
       )}
       {show("raised-by") && (

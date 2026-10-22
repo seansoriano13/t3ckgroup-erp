@@ -59,7 +59,7 @@ const ALL = "__all__";
 
 // Supplier, Entity, Project / SO, Raised, Raised by and the payment columns hide below md so the number, Purpose,
 // Costing, Amount, Remaining balance and State stay in view.
-const NARROW_HIDDEN = new Set(["Supplier", "Entity", "Project / SO", "Raised", "Raised by", "Payment scheme", "DP", "FP"]);
+const NARROW_HIDDEN = new Set(["Entity", "Project / SO", "Raised", "Raised by", "Payment scheme", "DP", "FP"]);
 // The sheet's money columns (#596): worked out by the IPAS figures, in each PO's currency.
 const MONEY_HEADINGS = ["Amount", "Payment scheme", "DP", "FP", "Remaining balance"];
 const MONEY_RIGHT = new Set(["Amount", "DP", "FP", "Remaining balance"]);
@@ -104,11 +104,12 @@ const VIEW_OPTIONS = [
   ...Object.values(IPAS_VIEW).map((value) => ({ value, label: IPAS_VIEW_LABELS[value] })),
 ];
 
+const slug = (heading) => heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
 // Every column of the list, in order. The IPAS number is always shown; the rest can be hidden with the column picker.
 const LIST_HEADINGS = [
   "IPAS",
   "Odoo PO",
-  "Supplier",
   "Entity",
   "Purpose",
   "Costing",
@@ -120,25 +121,27 @@ const LIST_HEADINGS = [
   "State",
 ];
 const LOCKED_HEADING = "IPAS";
-
-const slug = (heading) => heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+const ALL_COLUMN_KEYS = new Set(LIST_HEADINGS.map(slug));
+// Someone who has never chosen columns starts without these three; a saved choice (even "show all") is kept.
+const DEFAULT_HIDDEN_COLUMNS = ["raised-by", "dp", "fp"];
 
 // The hidden columns are remembered per employee on this browser. Blocked or broken storage never breaks the page.
 const columnsKey = (userId) => `erp_ipas_columns_${userId ?? "anon"}`;
 
 function readHiddenColumns(userId) {
   try {
-    const stored = JSON.parse(localStorage.getItem(columnsKey(userId)) ?? "[]");
-    return Array.isArray(stored) ? stored.filter((key) => typeof key === "string") : [];
+    const raw = localStorage.getItem(columnsKey(userId));
+    if (raw === null) return DEFAULT_HIDDEN_COLUMNS;
+    const stored = JSON.parse(raw);
+    return Array.isArray(stored) ? stored.filter((key) => ALL_COLUMN_KEYS.has(key)) : DEFAULT_HIDDEN_COLUMNS;
   } catch {
-    return [];
+    return DEFAULT_HIDDEN_COLUMNS;
   }
 }
 
 function writeHiddenColumns(userId, hidden) {
   try {
-    if (hidden.length) localStorage.setItem(columnsKey(userId), JSON.stringify(hidden));
-    else localStorage.removeItem(columnsKey(userId));
+    localStorage.setItem(columnsKey(userId), JSON.stringify(hidden));
   } catch {
     /* ignore */
   }
@@ -375,7 +378,7 @@ function IpasList() {
           // No overflow-hidden here: the table's "Reset columns" sits just above this card.
           <div className="rounded-xl border border-border bg-card [&_thead_tr]:rounded-t-xl [&_th:first-child]:rounded-tl-xl [&_th:last-child]:rounded-tr-xl">
             <div>
-              <Table tableId="ipas" resetAbove className="md:min-w-[72rem]">
+              <Table tableId="ipas" resetAbove className="md:min-w-[60rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     {LIST_HEADINGS.filter((heading) => heading === LOCKED_HEADING || show(slug(heading))).map((heading) => (
