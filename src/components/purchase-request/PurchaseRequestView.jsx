@@ -1,5 +1,7 @@
-import { PackageSearch } from "lucide-react";
+import { useState } from "react";
+import { MessageSquare, PackageSearch, Users } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import QueryError from "@/components/ui/QueryError";
 import { cn } from "@/lib/utils";
 import EmptyState from "@/components/ui/EmptyState";
@@ -9,6 +11,11 @@ import RequestMembers from "./RequestMembers";
 import RequestedItems from "./RequestedItems";
 import RequestChat from "./RequestChat";
 import { usePurchaseRequest } from "./requestHooks";
+
+const SIDE_PANELS = [
+  { key: "members", label: "Members", icon: Users },
+  { key: "chat", label: "Chat", icon: MessageSquare },
+];
 
 /**
  * Issue #308 — one Purchase Request: its Buyer, members, Requested Items with
@@ -24,6 +31,7 @@ export default function PurchaseRequestView({
   className = "",
 }) {
   const { data: request, isLoading, isError, refetch } = usePurchaseRequest(requestId);
+  const [panel, setPanel] = useState(null);
 
   if (isLoading) {
     return (
@@ -77,20 +85,45 @@ export default function PurchaseRequestView({
     );
   }
 
-  // Full screen: member rail | items | chat, in one bordered card (like Group Tasks).
+  // Full screen: the items own the width. Members and Chat sit behind two
+  // toggles and slide in as one side panel, so nothing competes with the list.
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 py-5", className)}>
-      {summary}
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="w-[240px] shrink-0 overflow-y-auto border-r border-border bg-muted/20 px-3 py-4">
-          <RequestMembers request={request} rail />
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+        <div className="min-w-[260px] max-w-md flex-1">
+          <RequestBuyer request={request} />
         </div>
+        <div className="ml-auto flex items-center gap-2" role="group" aria-label="Side panel">
+          {SIDE_PANELS.map(({ key, label, icon: Icon }) => (
+            <Button
+              key={key}
+              type="button"
+              variant={panel === key ? "secondary" : "outline"}
+              size="sm"
+              aria-pressed={panel === key}
+              onClick={() => setPanel((current) => (current === key ? null : key))}
+              className="h-9 gap-1.5"
+            >
+              <Icon size={14} aria-hidden="true" />
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card">
         <div className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
           <RequestedItems request={request} />
         </div>
-        <div className="flex w-[380px] shrink-0 flex-col border-l border-border">
-          <RequestChat request={request} className="h-full flex-1 rounded-none border-0" />
-        </div>
+        {panel === "members" && (
+          <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-border bg-muted/20 px-4 py-4">
+            <RequestMembers request={request} rail />
+          </aside>
+        )}
+        {panel === "chat" && (
+          <aside className="flex w-[380px] shrink-0 flex-col border-l border-border">
+            <RequestChat request={request} className="h-full flex-1 rounded-none border-0" />
+          </aside>
+        )}
       </div>
     </div>
   );
