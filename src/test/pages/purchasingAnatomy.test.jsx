@@ -33,6 +33,8 @@ import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubProcurementQueueRpcs } from "@/test/stubs/procurementQueueRpc"
+import CanvassesPage from "@/pages/purchasing/canvasses/index.jsx"
+import { stubCanvassListRpcs, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: auth.user, isAuthLoading: false }) }))
@@ -65,6 +67,22 @@ const LISTS = [
       })
       stubProcurementQueueRpcs({ actorId: buyer.id })
       return { employee: buyer, reference: "S01001", name: "Harbour lights", state: "Open" }
+    },
+  },
+  {
+    name: "Canvasses",
+    Page: CanvassesPage,
+    route: "/purchasing/canvasses",
+    pills: ["Open", "Signed off", "All"],
+    counts: { Open: 1, All: 1 },
+    noun: "canvasses",
+    seed() {
+      const buyer = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true })
+      stubCanvassMoneyRpc({ money: true })
+      stubCanvassWinnerRpcs({ bands: ["purchasing"] })
+      stubCanvassListRpcs({ actorId: buyer.id })
+      db.seed("sor_canvasses", { number: "CNV_0001", product_name: "Laser toner", canvasser_id: buyer.id, created_by: buyer.id })
+      return { employee: buyer, reference: "CNV_0001", name: "Laser toner", state: "Open" }
     },
   },
 ]
