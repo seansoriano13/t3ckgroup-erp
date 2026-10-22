@@ -61,6 +61,8 @@ import {
 import EmojiPicker from "@/components/ui/EmojiPicker";
 import ReplyPreviewBar from "@/components/ui/ReplyPreviewBar";
 import ReplyQuote from "@/components/ui/ReplyQuote";
+import { canUnsend, isMessageRemoved } from "@/utils/chatUnsend";
+import { chatUnsendService } from "@/services/chatUnsendService";
 import SwipeToReplyWrapper from "@/components/ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "@/utils/chatReply";
 import MentionTextarea from "@/components/ui/MentionTextarea";
@@ -409,6 +411,22 @@ export default function GroupTaskDetailModal({
       seenBy: userToLastSeenMsgId[m.id] || []
     }));
   }, [rawMessages, readReceipts, user, employees, avatarMap]);
+
+  const unsendMessage = async (message) => {
+    if (!message?.id || !task?.id) return;
+    const queryKey = ["chatMessages", "GROUP_TASK", task.id, "paged"];
+    patchPagedMessage(queryClient, queryKey, message.id, (m) => ({
+      ...m,
+      content: "Message removed",
+      metadata: { removed: true },
+    }));
+    try {
+      await chatUnsendService.unsend("committee_task_activity", message.id);
+    } catch (err) {
+      console.error("Failed to unsend message:", err);
+    }
+    queryClient.invalidateQueries({ queryKey });
+  };
 
   const toggleReaction = async (message, emoji) => {
     if (!message || !emoji || !task?.id) return;
@@ -1424,9 +1442,10 @@ export default function GroupTaskDetailModal({
                         </div>
                         <SwipeToReplyWrapper
                           isMe={isMe}
-                          copyText={m.content}
-                          onReply={() => setReplyingTo(buildReplySnapshot(m))}
-                          onReact={(emoji) => toggleReaction(m, emoji)}
+                          copyText={isMessageRemoved(m) ? undefined : m.content}
+                          onReply={isMessageRemoved(m) ? undefined : () => setReplyingTo(buildReplySnapshot(m))}
+                          onReact={isMessageRemoved(m) ? undefined : (emoji) => toggleReaction(m, emoji)}
+                          onUnsend={canUnsend(m, user?.id) ? () => unsendMessage(m) : undefined}
                         >
                           <div
                             className={cn(
@@ -1437,12 +1456,18 @@ export default function GroupTaskDetailModal({
                             )}
                             style={{ wordBreak: "break-word" }}
                           >
-                            <ReplyQuote replyTo={m.metadata?.replyTo} />
-                            {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
-                            {m.metadata?.attachments?.length > 0 && (
-                              <div className={cn(m.content ? "mt-2" : "")}>
-                                <AttachmentList attachments={m.metadata.attachments} />
-                              </div>
+                            {isMessageRemoved(m) ? (
+                              <p className="italic opacity-70">Message removed</p>
+                            ) : (
+                              <>
+                                <ReplyQuote replyTo={m.metadata?.replyTo} />
+                                {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
+                                {m.metadata?.attachments?.length > 0 && (
+                                  <div className={cn(m.content ? "mt-2" : "")}>
+                                    <AttachmentList attachments={m.metadata.attachments} />
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </SwipeToReplyWrapper>

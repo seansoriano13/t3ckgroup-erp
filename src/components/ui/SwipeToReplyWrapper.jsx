@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
-import { Reply, Copy, Check, MoreHorizontal } from "lucide-react";
+import { Reply, Copy, Check, MoreHorizontal, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const THRESHOLD = 56;
@@ -25,6 +25,7 @@ export default function SwipeToReplyWrapper({
   onReply,
   onReact,
   copyText,
+  onUnsend,
   isMe,
   className,
 }) {
@@ -130,6 +131,19 @@ export default function SwipeToReplyWrapper({
                   }}
                 >
                   <Reply size={14} /> Reply
+                </button>
+              )}
+              {onUnsend && (
+                <button
+                  type="button"
+                  className={actionClass}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUnsend();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Undo2 size={14} /> Unsend
                 </button>
               )}
               {hasCopy && (
