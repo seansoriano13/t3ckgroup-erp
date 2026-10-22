@@ -72,7 +72,7 @@ function TaskCard({ entity }) {
           size="xs"
           onClick={() => openTask(entity)}
           title={entity.title}
-          className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-xs font-bold text-foreground hover:text-primary"
+          className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-xs font-bold text-foreground hover:underline"
         >
           {entity.title}
         </Button>

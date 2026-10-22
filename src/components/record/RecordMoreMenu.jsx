@@ -19,7 +19,7 @@ export default function RecordMoreMenu({ items }) {
       placement="bottom-end"
       popoverClassName="popover-enter z-[10001] w-max min-w-52 rounded-xl bg-popover p-1.5 shadow-lg ring-1 ring-mauve-6"
       trigger={
-        <Button variant="outline">
+        <Button size="sm" variant="outline">
           <MoreHorizontal size={14} />
           More
         </Button>

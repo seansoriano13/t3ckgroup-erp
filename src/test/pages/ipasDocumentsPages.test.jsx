@@ -104,7 +104,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
       const drawer = await screen.findByRole("region", { name: "2 · Purchasing & Finance" });
       const waybill = await within(drawer).findByText("Waybill");
-      const rowEl = waybill.closest("tr");
+      const rowEl = waybill.closest("[data-testid=ipas-document-row]");
       expect(within(rowEl).queryByRole("checkbox")).not.toBeInTheDocument();
       expect(within(drawer).queryByRole("button", { name: "Add document" })).not.toBeInTheDocument();
       expect(within(drawer).queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();

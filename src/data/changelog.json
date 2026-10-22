@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-10-22",
+        "title": "Purchasing looks the same everywhere",
+        "version": "1.9.61",
+        "changes": [
+            "Every Purchasing list now works the same way: state pills with counts, one filter bar with search and Export at the end, sortable headings, the reference over the name, a State badge on the right, and the same pager at the bottom.",
+            "Every Purchasing record opens in the same full-height window over its list: Purchase Request, Canvass, IPAS, Transmittal and Packing List. Close takes you back to the list, and records fill the screen on a phone. The IPAS is no longer a page of its own.",
+            "Each record starts with its number and name, one state badge and one quiet line, then its key facts as pills. Fields have small labels above their values, and lines, boxes, payments and documents are one-line rows that open in place.",
+            "Sign, Submit and Approve are green buttons in the same Your move card on the IPAS, Transmittal, Packing List and Canvass. A Canvass is now signed there too.",
+            "Dialogs with fields share one form style, plain yes/no questions use the plain confirm, and the Canvass no longer asks questions in pop-up toasts. Links are now text colour instead of red."
+        ]
+    },
+    {
+        "date": "2026-10-22",
         "title": "Transmittals and Packing Lists get a desk and a rail",
         "version": "1.9.60",
         "changes": [

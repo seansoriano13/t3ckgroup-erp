@@ -88,7 +88,6 @@ export default function AddCanvassedItemsDialog({ open, onOpenChange, requestId,
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       className={OVER_REQUEST_MODAL}
-      expandable
       crumbs={["Purchase Requests", "Add a Canvass"]}
       actions={
         <Button size="lg" disabled={!valid || addMutation.isPending} onClick={() => addMutation.mutate()}>

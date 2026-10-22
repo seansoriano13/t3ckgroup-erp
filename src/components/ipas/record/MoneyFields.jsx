@@ -89,7 +89,7 @@ function RowHeader({ title, badge, removeLabel, onRemove, canRemove }) {
 }
 
 function EmptyNote({ children }) {
-  return <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">{children}</p>;
+  return <p className="text-[13px] text-muted-foreground">{children}</p>;
 }
 
 function Titled({ title, action, children }) {

@@ -17,7 +17,16 @@ import {
   X,
 } from "lucide-react";
 
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { ExternalLink } from "@/components/ui/external-link";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
+import DetailGrid from "@/components/record/DetailGrid";
+import PropertyPills from "@/components/record/PropertyPills";
+import RecordHeader from "@/components/record/RecordHeader";
+import RecordMoreMenu from "@/components/record/RecordMoreMenu";
+import { STATE } from "@/components/record/statePalette";
+import YourMoveCard from "@/components/record/YourMoveCard";
+import { STATUS_THEME } from "@/constants/status";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
@@ -32,7 +41,6 @@ import CanvassRequestBadge from "./CanvassRequestBadge";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
 import { SelectField } from "./ui/SelectField";
-import { confirmActionToast, confirmDeleteToast } from "./ui/CustomToast";
 import { costingKeys } from "./costing/costingKeys";
 import { pesos } from "./costing/gridFormat";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -41,9 +49,9 @@ import { canvassService } from "../services/canvassService";
 import { openCanvassPrintWindow, printCanvass } from "../lib/pdf/canvassPrinter";
 import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
 import { useAuth } from "../context/AuthContext";
-import { CANVASS_CURRENCIES, CANVASS_KIND, CANVASS_LIST_KEY, CANVASS_LOCKED_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
+import { CANVASS_CURRENCIES, CANVASS_KIND, MIN_CANVASS_OFFERS, CANVASS_LIST_KEY, CANVASS_LOCKED_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
 import { getPermissionContext } from "../utils/permissions";
-import { canvassRequestState } from "../utils/canvassList";
+import { CANVASS_STATE_TONES, canvassRequestState, canvassStateOf } from "../utils/canvassList";
 import { offerCurrency } from "../utils/canvassMath";
 import { projectOffer } from "../utils/offerProjection";
 import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
@@ -79,6 +87,11 @@ const quoted = (offer) => {
   const amount = Number(offer.unit_price).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${offerCurrency(offer)} ${amount}`;
 };
+
+/** A section heading in the record body, in sentence case. */
+function SectionHeading({ title }) {
+  return <h3 className="text-[15px] font-black tracking-tight text-foreground">{title}</h3>;
+}
 
 /** `inline` stacks the fields for one card's width, so an Offer is edited or added in its own place in the grid. */
 function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending, inline = false }) {
@@ -288,7 +301,7 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending, inlin
               type="button"
               variant="link"
               onClick={() => setExistingBrochure((prev) => prev.filter((f) => f.url !== file.url))}
-              className="h-auto p-0 text-[10px] font-semibold text-red-11 hover:underline"
+              className="h-auto p-0 text-[10px] font-semibold text-muted-foreground underline hover:text-foreground"
             >
               remove
             </Button>
@@ -430,16 +443,16 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
             </ExternalLink>
           )}
           {offer.expired && (
-            <span className="rounded-full bg-red-a3 px-1.5 py-0.5 text-[10px] font-bold text-red-11">Quote expired</span>
+            <span className="rounded-full bg-amber-a3 px-1.5 py-0.5 text-[10px] font-bold text-amber-12">Quote expired</span>
           )}
         </div>
         {offer.supplier_name && offer.brand && <p className="text-xs font-medium text-foreground/70">{offer.brand}</p>}
         {offer.description && <p className="text-xs leading-relaxed text-muted-foreground">{offer.description}</p>}
         {quoted(offer) && (
-          <p className="pt-1.5 text-base font-bold tabular-nums text-foreground">
+          <p className="pt-1.5 font-mono text-base font-bold tabular-nums text-foreground">
             {quoted(offer)}
             {foreign && (
-              <span className="block text-[11px] font-normal text-muted-foreground" data-testid="php-figure">
+              <span className="block font-mono text-[11px] font-normal text-muted-foreground" data-testid="php-figure">
                 {offer.php_figure === null || offer.php_figure === undefined
                   ? "No comparison rate yet"
                   : `${pesos(offer.php_figure)} at ${offer.comparison_rate}`}
@@ -505,13 +518,11 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
               type="button"
               variant="ghost"
               size="icon-xs"
-              onClick={() =>
-                confirmDeleteToast("Remove this offer?", `${title} comes off the comparison.`, () => onRemove(offer.id))
-              }
+              onClick={() => onRemove(offer)}
               disabled={isPending}
               aria-label={`Remove ${title}`}
               title="Remove"
-              className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-red-a3 hover:text-red-11"
+              className="h-auto w-auto rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
             >
               <Trash2 size={14} />
             </Button>
@@ -522,7 +533,7 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
   );
 }
 
-export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel, userId, canEdit, opportunityId, onStarted }) {
+export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel, userId, canEdit, opportunityId, canvasserName: canvasserNameProp = null, onStarted }) {
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   // A new Canvass with no subject is known by its id once its first Offer has started it.
@@ -533,6 +544,9 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const [requesting, setRequesting] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [viewingRequest, setViewingRequest] = useState(null);
+  // The two questions the record asks first, each a plain confirm dialog: the Offer to remove, and clearing the winner.
+  const [removing, setRemoving] = useState(null);
+  const [clearing, setClearing] = useState(false);
   const [printing, setPrinting] = useState(false);
   const { user } = useAuth();
   const isApprover = useCanvassApprover(userId);
@@ -673,14 +687,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     onError,
   });
 
-  const clearWinner = () =>
-    confirmActionToast(
-      "Clear the winner?",
-      `${canvass?.signed_off_at ? "This unsigns the Canvass. " : ""}It leaves no winner until you pick one again.`,
-      "Clear winner",
-      "warning",
-      () => clearWinnerMutation.mutate(),
-    );
 
   const reorderMutation = useMutation({
     mutationFn: (ids) => canvassService.reorderOffers(canvass.id, ids),
@@ -771,111 +777,230 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     updateMutation.isPending || removeMutation.isPending || reorderMutation.isPending || winnerMutation.isPending || clearWinnerMutation.isPending;
   const reason = reasonDraft ?? canvass?.reason ?? "";
 
+  const subjectKindLabel = canvass?.component_id ? "Component" : canvass?.requested_item_id ? "Requested item" : "Free-standing";
+  // The Canvasses page hands over the Canvasser it already lists; opened from a Component, only the person who started it is known.
+  const canvasserName = canvasserNameProp ?? listRow?.canvasserName ?? (isCreator ? user?.name : null) ?? null;
+  const winnerLabel = winner ? winner.supplier_name || winner.brand || null : null;
+  const prId = requestState?.requestId ?? null;
+  const offerCount = `${offers.length} offer${offers.length === 1 ? "" : "s"}`;
+
+  // The same state and tone the Canvasses list shows, so a Canvass reads the same in both places.
+  const rowState = canvassStateOf({ signedOffAt: canvass?.signed_off_at, requestId: prId });
+  const badge = { label: rowState.label, theme: CANVASS_STATE_TONES[rowState.state] };
+
+  const canSignNow = Boolean(canvass) && !isSigned && isApprover && !isCreator && readyToSign;
+  const canRequestNow = Boolean(canvass) && canEdit && isBare && !prId && !isLocked;
+
+  const status = !canvass
+    ? ""
+    : isSigned
+      ? "Signed off. Nothing left to do."
+      : canSignNow
+        ? "Waiting for you: Sign-off"
+        : offers.length === 0
+          ? "Next: add the first offer"
+          : !winner
+            ? "Next: pick a winner"
+            : !hasReason
+              ? "Next: say why this supplier"
+              : "Waiting for an approver to sign off";
+
+  const steps = canvass
+    ? [
+        {
+          key: "offers",
+          title: "Offers in",
+          summary: offers.length ? offerCount : "No offers yet",
+          state: offers.length ? STATE.DONE : STATE.CURRENT,
+          needsMe: false,
+          body: (
+            <p className="text-xs text-muted-foreground">
+              Compare at least {MIN_CANVASS_OFFERS} suppliers. Add each quote as an offer.
+              {canvass.moreOffersWarning ? ` ${canvass.moreOffersWarning}.` : ""}
+            </p>
+          ),
+        },
+        {
+          key: "winner",
+          title: "Winner picked",
+          summary: winnerLabel || "No winner picked",
+          state: winner ? STATE.DONE : offers.length ? STATE.CURRENT : STATE.WAITING,
+          needsMe: false,
+          body: <p className="text-xs text-muted-foreground">Pick the winner on its offer card. Changing it unsigns the Canvass.</p>,
+        },
+        ...(requestState
+          ? [
+              {
+                key: "request",
+                title: "Purchase Request",
+                summary: requestState.label,
+                state: prId ? STATE.DONE : winner ? STATE.CURRENT : STATE.WAITING,
+                needsMe: canRequestNow && Boolean(winner),
+                body: (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-testid="canvass-request-strip">
+                    <span>Purchase Request</span>
+                    {prId && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        onClick={() => setViewingRequest(prId)}
+                        className="h-auto gap-0.5 p-0 text-xs font-semibold"
+                      >
+                        {requestState.requestLabel}
+                        <ArrowUpRight size={12} aria-hidden="true" />
+                      </Button>
+                    )}
+                    <CanvassRequestBadge source={requestSource} />
+                  </div>
+                ),
+                moves: canRequestNow ? (
+                  <div className="space-y-1.5">
+                    <Button
+                      type="button"
+                      disabled={!winner}
+                      title={winner ? undefined : "Pick a winner first"}
+                      onClick={() => setRequesting(true)}
+                      className={APPROVE_CLASS}
+                    >
+                      <ShoppingCart className="size-4" aria-hidden="true" />
+                      Create Purchase Request
+                    </Button>
+                    {!winner && <p className="text-xs text-muted-foreground">Pick a winner to create a Purchase Request.</p>}
+                  </div>
+                ) : null,
+              },
+            ]
+          : []),
+        {
+          key: "signoff",
+          title: "Sign-off",
+          summary: isSigned ? `Signed off by ${canvass.signer?.name || "—"}` : "Not signed off yet",
+          state: isSigned ? STATE.DONE : readyToSign ? STATE.CURRENT : STATE.WAITING,
+          needsMe: canSignNow,
+          body: (
+            <div className="space-y-1.5" data-testid="canvass-signoff">
+              {isSigned ? (
+                <p className="text-xs font-semibold text-foreground" data-testid="signoff-state">
+                  Signed off by {canvass.signer?.name || "—"}
+                  {lastSigned && ` on ${lastSigned.offer_count} offer${lastSigned.offer_count === 1 ? "" : "s"}`}.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground" data-testid="signoff-state">
+                  Not signed off yet.
+                  {lastCleared?.reason && (
+                    <span className="ml-1">It was unsigned because: {lastCleared.reason.charAt(0).toLowerCase() + lastCleared.reason.slice(1)}.</span>
+                  )}
+                </p>
+              )}
+              {!isSigned && isApprover && isCreator && (
+                <p className="text-xs text-muted-foreground">You opened this Canvass, so someone else on the approver list signs it.</p>
+              )}
+              {!isSigned && isApprover && !isCreator && !readyToSign && (
+                <p className="text-xs text-muted-foreground">It needs a winner and a reason before it can be signed.</p>
+              )}
+              {lastUnlocked && (
+                <p className="text-xs text-muted-foreground" data-testid="unlock-history">
+                  Unlocked by {lastUnlocked.actor?.name || "a Super Admin"}: {lastUnlocked.reason}
+                </p>
+              )}
+              {canChange && isSigned && (
+                <p className="text-xs text-muted-foreground">Changing an offer, a price, the winner or the reason unsigns it.</p>
+              )}
+            </div>
+          ),
+          moves: canSignNow ? (
+            <Button type="button" onClick={() => setIsSigning(true)} className={APPROVE_CLASS}>
+              Sign off
+            </Button>
+          ) : null,
+        },
+      ]
+    : [];
+
+  const menuItems = [];
+  if (canvass && canPrintCanvass(canvass)) {
+    menuItems.push({ key: "print", label: "Print", icon: Printer, disabled: printing, onSelect: handlePrint });
+  }
+  if (canvass && isLocked && isSuperAdmin) {
+    menuItems.push({ key: "unlock", label: "Unlock", icon: LockOpen, onSelect: () => setUnlocking(true) });
+  }
+
   return (
     <>
     <ModalShell
       open={open}
       onOpenChange={onOpenChange}
-      size="wide"
-      expandable
-      cancelLabel="Close"
+      size="record"
       crumbs={["Canvass", canvass?.number].filter(Boolean)}
-      footerStart={
-        canEdit && canvass && isBare && !winner ? (
-          <span className="text-xs text-muted-foreground">Pick a winner to create a Purchase Request.</span>
-        ) : null
-      }
-      actions={
-        canEdit && canvass && isBare ? (
-          <Button
-            type="button"
-            size="lg"
-            disabled={!winner}
-            title={winner ? undefined : "Pick a winner first"}
-            onClick={() => setRequesting(true)}
-          >
-            <ShoppingCart className="size-4" aria-hidden="true" />
-            Create Purchase Request
-          </Button>
-        ) : null
-      }
-      headerActions={
-        canvass && canPrintCanvass(canvass) ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={printing}
-            onClick={handlePrint}
-            className="h-auto gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Printer size={14} aria-hidden="true" />
-            Print
-          </Button>
-        ) : null
-      }
+      headerActions={<RecordMoreMenu items={menuItems} />}
     >
-      <h3 className="flex items-center gap-2 text-base font-medium">
-        <ShoppingCart size={16} />
-        Canvass{canvass?.number ? ` ${canvass.number}` : ""}{title ? ` — ${title}` : ""}
-      </h3>
-      {requestState && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-testid="canvass-request-strip">
-          <span>Purchase Request</span>
-          {requestState.requestId && (
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              onClick={() => setViewingRequest(requestState.requestId)}
-              className="h-auto gap-0.5 p-0 text-xs font-semibold"
-            >
-              {requestState.requestLabel}
-              <ArrowUpRight size={12} aria-hidden="true" />
-            </Button>
+      {isLoading && <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>}
+
+      {!isLoading && !canvass && <RecordHeader name={title || "New Canvass"} />}
+
+      {!isLoading && !canvass && !canEdit && (
+        <p className="py-6 text-center text-xs text-muted-foreground">Nobody has started a Canvass here yet.</p>
+      )}
+
+      {!isLoading && !canvass && canEdit && (
+        <div className="space-y-2.5" data-testid="canvass-not-started">
+          {isBare && (
+            <Input
+              label="What is being bought"
+              value={productName}
+              onChange={(e) => setProductDraft(e.target.value)}
+              placeholder="e.g. Laser printer toner, black"
+              containerClassName="min-w-0"
+              className={fieldClass}
+            />
           )}
-          <CanvassRequestBadge source={requestSource} />
+          <p className="text-xs text-muted-foreground">
+            No offers yet. Saving the first offer starts this Canvass and gives it its number.
+          </p>
+          <OfferForm
+            canReadMoney
+            isPending={startMutation.isPending}
+            onCancel={() => onOpenChange(false)}
+            onSubmit={(input) => {
+              if (isBare && !productName.trim()) {
+                toast.error("Say what is being bought first.");
+                return;
+              }
+              startMutation.mutate(input);
+            }}
+          />
         </div>
       )}
-        <div className="space-y-3">
-          {isLoading && <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>}
 
-          {!isLoading && !canvass && !canEdit && (
-            <p className="py-6 text-center text-xs text-muted-foreground">Nobody has started a Canvass here yet.</p>
+      {!isLoading && canvass && (
+        <div className="space-y-6 pb-2">
+          <RecordHeader
+            reference={canvass.number}
+            name={title}
+            badge={badge}
+            line={[`${subjectKindLabel} subject`, canvasserName && `Canvasser ${canvasserName}`, offerCount].filter(Boolean).join(" · ")}
+          />
+          <PropertyPills
+            items={[
+              { key: "canvasser", label: "Canvasser", value: canvasserName },
+              { key: "subject", label: "Subject", value: title },
+              { key: "winner", label: "Winner", value: winnerLabel },
+              { key: "request", label: "Purchase Request", value: prId ? requestState.requestLabel : null },
+            ]}
+          />
+          {isLocked && (
+            <p className="flex items-center gap-2 text-[13px] text-muted-foreground" data-testid="canvass-locked-note">
+              <Lock size={13} className="shrink-0" aria-hidden="true" />
+              <span>
+                {CANVASS_LOCKED_MESSAGE}
+                {!isSuperAdmin && " Ask a Super Admin to unlock it."}
+              </span>
+            </p>
           )}
 
-          {!isLoading && !canvass && canEdit && (
-            <div className="space-y-2.5" data-testid="canvass-not-started">
-              {isBare && (
-                <Input
-                  label="What is being bought"
-                  value={productName}
-                  onChange={(e) => setProductDraft(e.target.value)}
-                  placeholder="e.g. Laser printer toner, black"
-                  containerClassName="min-w-0"
-                  className={fieldClass}
-                />
-              )}
-              <p className="text-xs text-muted-foreground">
-                No offers yet. Saving the first offer starts this Canvass and gives it its number.
-              </p>
-              <OfferForm
-                canReadMoney
-                isPending={startMutation.isPending}
-                onCancel={() => onOpenChange(false)}
-                onSubmit={(input) => {
-                  if (isBare && !productName.trim()) {
-                    toast.error("Say what is being bought first.");
-                    return;
-                  }
-                  startMutation.mutate(input);
-                }}
-              />
-            </div>
-          )}
-
-          {!isLoading && canvass && (
-            <>
+          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_25rem]">
+            <div className="min-w-0 space-y-6">
               {isBare && canChange && (
                 <Input
                   label="What is being bought"
@@ -896,96 +1021,65 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   className={fieldClass}
                 />
               )}
-              {isLocked && (
-                <div
-                  className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
-                  data-testid="canvass-locked-note"
-                >
-                  <Lock size={13} className="shrink-0" aria-hidden="true" />
-                  <span>
-                    {CANVASS_LOCKED_MESSAGE}
-                    {!isSuperAdmin && " Ask a Super Admin to unlock it."}
-                  </span>
-                  {isSuperAdmin && (
+
+              <section className="space-y-3">
+                <SectionHeading title={`Offers · ${offers.length}`} />
+                {canvass.moreOffersWarning && (
+                  <p className="text-xs text-amber-12" data-testid="more-offers-warning">
+                    {canvass.moreOffersWarning}
+                  </p>
+                )}
+                {!winner && offers.length > 0 && hasComponent && (
+                  <p className="text-xs text-muted-foreground" data-testid="no-winner-note">
+                    No winner picked. Anything an earlier winner filled on the Costing Matrix stays until a new winner replaces it.
+                  </p>
+                )}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3" data-testid="offers-grid">
+                  {offers.map((offer, index) => (
+                    <OfferRow
+                      key={offer.id}
+                      offer={offer}
+                      projection={projectionOf(offer)}
+                      index={index}
+                      count={offers.length}
+                      canEdit={canChange}
+                      canReadMoney={canReadMoney}
+                      isPending={busy}
+                      onUpdate={(id, patch) => updateMutation.mutate({ offerId: id, patch })}
+                      onRemove={setRemoving}
+                      onMove={move}
+                      onWin={(id) => winnerMutation.mutate(id)}
+                      onClearWin={() => setClearing(true)}
+                    />
+                  ))}
+
+                  {canChange && isAdding && (
+                    <OfferForm
+                      inline
+                      canReadMoney={canReadMoney}
+                      isPending={addMutation.isPending}
+                      onCancel={() => setIsAdding(false)}
+                      onSubmit={(input) => addMutation.mutate(input)}
+                    />
+                  )}
+
+                  {canChange && !isAdding && (
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
-                      onClick={() => setUnlocking(true)}
-                      className="ml-auto h-7 gap-1 px-2 text-xs"
+                      onClick={() => setIsAdding(true)}
+                      className={`h-auto flex w-full items-center justify-center gap-1.5 rounded-xl border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-mauve-8 hover:bg-mauve-a3 hover:text-foreground ${
+                        offers.length > 0 && offers.length % 3 === 0 ? "md:col-span-3" : "min-h-16"
+                      }`}
                     >
-                      <LockOpen size={12} aria-hidden="true" />
-                      Unlock
+                      <Plus size={14} /> Add offer
                     </Button>
                   )}
                 </div>
-              )}
-              {!winner && offers.length > 0 && hasComponent && (
-                <p className="text-[11px] text-muted-foreground" data-testid="no-winner-note">
-                  No winner picked. Anything an earlier winner filled on the Costing Matrix stays until a new winner replaces it.
-                </p>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
-                  {offers.length} offer{offers.length === 1 ? "" : "s"}
-                  {canvass.moreOffersWarning && (
-                    <span className="ml-1.5 text-amber-11" data-testid="more-offers-warning">
-                      · {canvass.moreOffersWarning}
-                    </span>
-                  )}
-                </span>
-                {canvass.signed_off_at && (
-                  <span className="text-[11px] font-semibold text-green-11">
-                    Signed off by {canvass.signer?.name || "—"}
-                  </span>
-                )}
-              </div>
+              </section>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3" data-testid="offers-grid">
-                {offers.map((offer, index) => (
-                  <OfferRow
-                    key={offer.id}
-                    offer={offer}
-                    projection={projectionOf(offer)}
-                    index={index}
-                    count={offers.length}
-                    canEdit={canChange}
-                    canReadMoney={canReadMoney}
-                    isPending={busy}
-                    onUpdate={(id, patch) => updateMutation.mutate({ offerId: id, patch })}
-                    onRemove={(id) => removeMutation.mutate(id)}
-                    onMove={move}
-                    onWin={(id) => winnerMutation.mutate(id)}
-                    onClearWin={clearWinner}
-                  />
-                ))}
-
-                {canChange && isAdding && (
-                  <OfferForm
-                    inline
-                    canReadMoney={canReadMoney}
-                    isPending={addMutation.isPending}
-                    onCancel={() => setIsAdding(false)}
-                    onSubmit={(input) => addMutation.mutate(input)}
-                  />
-                )}
-
-                {canChange && !isAdding && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsAdding(true)}
-                    className={`h-auto flex w-full items-center justify-center gap-1.5 rounded-xl border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-mauve-8 hover:bg-mauve-a3 hover:text-foreground ${
-                      offers.length > 0 && offers.length % 3 === 0 ? "md:col-span-3" : "min-h-16"
-                    }`}
-                  >
-                    <Plus size={14} /> Add offer
-                  </Button>
-                )}
-              </div>
-
-              <div className="space-y-1.5 border-t border-border/60 pt-3">
-                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Why this supplier</span>
+              <section className="space-y-3">
+                <SectionHeading title="Why this supplier" />
                 {canChange ? (
                   <Textarea
                     aria-label="Why this supplier"
@@ -1002,13 +1096,21 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     placeholder="The reason the winner was chosen, in your own words. It prints as written."
                     className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px] md:text-[12.5px]"
                   />
+                ) : hasReason ? (
+                  <DetailGrid
+                    min="16rem"
+                    items={[
+                      { label: "Winner", value: winnerLabel },
+                      { label: "Reason", value: <span className="whitespace-pre-wrap">{canvass.reason}</span> },
+                    ]}
+                  />
                 ) : (
-                  <p className="whitespace-pre-wrap text-xs text-foreground">{canvass.reason || "—"}</p>
+                  <p className="text-[13px] text-muted-foreground">No reason was written for this supplier.</p>
                 )}
-              </div>
+              </section>
 
-              <div className="space-y-1.5 border-t border-border/60 pt-3">
-                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Original canvass sheet</span>
+              <section className="space-y-3">
+                <SectionHeading title="Original canvass sheet" />
                 {(canvass.attachments || []).length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <AttachmentList attachments={canvass.attachments} compact />
@@ -1019,12 +1121,15 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                           type="button"
                           variant="link"
                           onClick={() => attachMutation.mutate(canvass.attachments.filter((a) => a.url !== file.url))}
-                          className="h-auto p-0 text-[10px] font-semibold text-red-11 hover:underline"
+                          className="h-auto p-0 text-[10px] font-semibold text-muted-foreground underline hover:text-foreground"
                         >
                           remove
                         </Button>
                       ))}
                   </div>
+                )}
+                {(canvass.attachments || []).length === 0 && !canEdit && (
+                  <p className="text-[13px] text-muted-foreground">No sheet was attached.</p>
                 )}
                 {canEdit && (
                   <AttachmentField
@@ -1043,52 +1148,39 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     {attachments.isUploading ? "Uploading…" : "Attach"}
                   </Button>
                 )}
-              </div>
+              </section>
+            </div>
 
-              <div className="space-y-1.5 border-t border-border/60 pt-3" data-testid="canvass-signoff">
-                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Sign-off</span>
-                {isSigned ? (
-                  <p className="text-xs font-semibold text-green-11" data-testid="signoff-state">
-                    Signed off by {canvass.signer?.name || "—"}
-                    {lastSigned && ` on ${lastSigned.offer_count} offer${lastSigned.offer_count === 1 ? "" : "s"}`}
-                    .
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground" data-testid="signoff-state">
-                    Not signed off yet.
-                    {lastCleared?.reason && <span className="ml-1">It was unsigned because: {lastCleared.reason.charAt(0).toLowerCase() + lastCleared.reason.slice(1)}.</span>}
-                  </p>
-                )}
-                {!isSigned && isApprover && (
-                  <>
-                    {isCreator ? (
-                      <p className="text-[11px] text-muted-foreground">You opened this Canvass, so someone else on the approver list signs it.</p>
-                    ) : !readyToSign ? (
-                      <p className="text-[11px] text-muted-foreground">It needs a winner and a reason before it can be signed.</p>
-                    ) : (
-                      <Button
-                        type="button"
-                        onClick={() => setIsSigning(true)}
-                        className="h-auto rounded-lg px-3 py-1.5 text-[12px] font-bold"
-                      >
-                        Sign off
-                      </Button>
-                    )}
-                  </>
-                )}
-                {lastUnlocked && (
-                  <p className="text-[11px] text-muted-foreground" data-testid="unlock-history">
-                    Unlocked by {lastUnlocked.actor?.name || "a Super Admin"}: {lastUnlocked.reason}
-                  </p>
-                )}
-                {canChange && isSigned && (
-                  <p className="text-[11px] text-muted-foreground">Changing an offer, a price, the winner or the reason unsigns it.</p>
-                )}
-              </div>
-            </>
-          )}
+            <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
+              <YourMoveCard status={status} steps={steps} />
+            </aside>
+          </div>
         </div>
+      )}
 
+      <ConfirmDialog
+        open={Boolean(removing)}
+        onOpenChange={(next) => !next && setRemoving(null)}
+        title="Remove this offer?"
+        description={`${removing?.supplier_name || removing?.brand || "This offer"} comes off the comparison.`}
+        confirmLabel="Remove offer"
+        tone="destructive"
+        onConfirm={() => {
+          removeMutation.mutate(removing.id);
+          setRemoving(null);
+        }}
+      />
+      <ConfirmDialog
+        open={clearing}
+        onOpenChange={setClearing}
+        title="Clear the winner?"
+        description={`${isSigned ? "This unsigns the Canvass. " : ""}It leaves no winner until you pick one again.`}
+        confirmLabel="Clear winner"
+        onConfirm={() => {
+          clearWinnerMutation.mutate();
+          setClearing(false);
+        }}
+      />
     </ModalShell>
 
       {requesting && canvass && (

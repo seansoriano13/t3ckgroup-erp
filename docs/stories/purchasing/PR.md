@@ -2,6 +2,8 @@
 
 Guide §6. Project requests are opened by a Stage Action (FLOW-01). Where a story needs a Project request, it uses the seed's request on S990001 or S990002, or one FLOW-01 made.
 
+A request opens in the record window over `/purchasing` at every width, phones included (the window fills the screen). Its title is the number and name, with one state badge. The Buyer, SOR, Stage and Items are pills under the title. Members and Chat are two buttons that open a side panel inside the window. The window has no footer and no Expand. It has no More menu.
+
 ### PR-01 · Any employee opens a Direct request
 - **Guide**: §6 The request
 - **Log in as**: plain, then purchaser
@@ -30,9 +32,9 @@ Guide §6. Project requests are opened by a Stage Action (FLOW-01). Where a stor
 - **Log in as**: purchaser, then purchaser-2 (two tabs if possible)
 - **Needs**: an unassigned request (PR-01 works)
 - **Steps**:
-  1. As purchaser-2, open the request and keep the page open.
-  2. As purchaser, Take it.
-  3. As purchaser-2, without reloading, Take it.
+  1. As purchaser-2, open the request (it opens in the record window) and keep the window open.
+  2. As purchaser, press the outline Take button beside the Buyer pill.
+  3. As purchaser-2, without reloading, press Take.
 - **You should see**: step 2 makes purchaser the Buyer. Step 3 is refused with a message that someone else has it. Nobody gets a "Buyer set" notice for step 2, because purchaser set it themselves.
 
 ### PR-04 · Name and clear the Buyer
@@ -40,17 +42,17 @@ Guide §6. Project requests are opened by a Stage Action (FLOW-01). Where a stor
 - **Log in as**: purchaser, then purchaser-2
 - **Needs**: PR-03
 - **Steps**:
-  1. As purchaser, name purchaser-2 as Buyer.
+  1. As purchaser, click the Buyer pill and pick purchaser-2.
   2. As purchaser-2, check notifications.
-  3. As purchaser-2, try to remove purchaser-2 from the members.
-  4. As purchaser-2, clear the Buyer.
-- **You should see**: purchaser-2 gets a "Buyer set" notice. Step 3 is refused (the Buyer cannot be removed). After step 4 the request shows in the Unassigned filter again.
+  3. As purchaser-2, try to remove purchaser-2 from the members (Members button).
+  4. As purchaser-2, clear the Buyer (Buyer pill).
+- **You should see**: purchaser-2 gets a "Buyer set" notice. Step 3 is refused (the Buyer cannot be removed). After step 4 the request shows under the Buyer dropdown's Unassigned choice again.
 
 ### PR-05 · Unassigned Project request is seen by every purchaser
 - **Guide**: §6 The request
 - **Log in as**: purchaser-2
 - **Steps**:
-  1. Open `/purchasing`, filter Unassigned.
+  1. Open `/purchasing`, set the Buyer dropdown to Unassigned.
 - **You should see**: the seed request on S990002 (it has no Buyer) is listed, even though purchaser-2 is not a member.
 
 ### PR-06 · Sales side cannot manage members
@@ -58,7 +60,7 @@ Guide §6. Project requests are opened by a Stage Action (FLOW-01). Where a stor
 - **Log in as**: sales-exec
 - **Needs**: a Project request on an SOR where sales-exec is a member
 - **Steps**:
-  1. Open the request. Try to add sales-exec-2 as a member. Try to remove someone.
+  1. Open the request, then its Members button. Try to add sales-exec-2 as a member. Try to remove someone.
 - **You should see**: no control, or a refusal. Only purchasing members and Super Admins manage members.
 
 ### PR-07 · Chat is append-only and mentions are members only
@@ -66,7 +68,7 @@ Guide §6. Project requests are opened by a Stage Action (FLOW-01). Where a stor
 - **Log in as**: purchaser
 - **Needs**: a request where purchaser is Buyer
 - **Steps**:
-  1. Post "STORY PR-07 hello".
+  1. Open the request's Chat button. Post "STORY PR-07 hello".
   2. Look for edit or delete on that message.
   3. Type `@` and look at who can be mentioned.
   4. Mention a member.

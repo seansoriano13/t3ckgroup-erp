@@ -1,9 +1,7 @@
 import { Navigate, useNavigate } from "react-router";
 
-import PageShell from "../../../components/ui/PageShell";
 import PageLoading from "../../../components/ui/PageLoading";
-import PurchaseRequestSlideOver from "../../../components/purchase-request/PurchaseRequestSlideOver";
-import { usePurchaseRequest } from "../../../components/purchase-request/requestHooks";
+import PurchaseRequestModal from "../../../components/purchase-request/PurchaseRequestModal";
 import { useAuth } from "../../../context/AuthContext";
 import { useRecordParam } from "../../../hooks/useRecordParam";
 import { getPermissionContext } from "../../../utils/permissions";
@@ -24,7 +22,6 @@ function PurchasingDashboard() {
   const navigate = useNavigate();
   const filters = useTrackerFilters();
   const { recordId, open, close } = useRecordParam("request");
-  const { data: request = null } = usePurchaseRequest(recordId);
 
   const openRow = (row) => {
     if (row.target_kind === "purchase_request") {
@@ -45,11 +42,9 @@ function PurchasingDashboard() {
 
   return (
     <>
-      <PageShell title="Purchasing Dashboard" description="Where every project's buying stands, and what to do next.">
-        <Tracker filters={filters} handlers={{ onOpenRow: openRow, onOpenOrder: openOrder, onOpenSor: openSor }} suspended={Boolean(recordId)} />
-      </PageShell>
+      <Tracker filters={filters} handlers={{ onOpenRow: openRow, onOpenOrder: openOrder, onOpenSor: openSor }} suspended={Boolean(recordId)} />
 
-      <PurchaseRequestSlideOver request={recordId ? request : null} crumb="Purchasing Dashboard" onClose={close} />
+      {recordId && <PurchaseRequestModal requestId={recordId} onClose={close} />}
     </>
   );
 }

@@ -2,6 +2,8 @@
 
 Guide §8. The Check by list (ops-head, admin-head) signs Canvasses.
 
+A Canvass opens in the record window over `/purchasing/canvasses`. The Offers stay side-by-side cards. Sign-off is a step in the Your move card (Offers in, Winner picked, Purchase Request, Sign-off). Print and Unlock are in More. Questions such as Unlock ask in a confirm dialog, not a toast.
+
 ### CNV-01 · Open a Canvass on a Component
 - **Guide**: §8
 - **Log in as**: purchaser

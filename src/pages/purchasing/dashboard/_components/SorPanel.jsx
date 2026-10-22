@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
+import { formatAgeDays } from "../../../../utils/listDates";
 import { pluralize } from "../../../../utils/plural";
 import { DeadlineText, StageChecklist } from "./trackerParts";
 
@@ -20,7 +21,7 @@ export default function SorPanel({ sor, checkIds, labelOf, today, onOpenRow, onO
               <p className={cn("text-base font-semibold", move.late && "text-destructive")}>{move.label}</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {move.ref} · {move.ours ? `${move.ownerLabel} to move` : `waiting on ${move.ownerLabel.toLowerCase()}`} ·{" "}
-                {pluralize(move.days, "day")}
+                {formatAgeDays(move.days)}
                 {move.late && " · late"}
               </p>
               {sor.next.more > 0 && (

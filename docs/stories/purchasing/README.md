@@ -59,6 +59,16 @@ The mock seed still makes `S990001` Alpha laptops, `S990002` Beta water pumps an
 | P9999999 | Does not exist | "Not found" |
 | P9900001 to P9900005 | Mock IPAS from the seed, not in Odoo | Never refresh these and expect Odoo data |
 
+## 3a. How the screens look (spec #631)
+
+Stories name controls by these shared parts, so read them once.
+
+- **Lists** (Purchase Requests, Canvasses, IPAS, Transmittals, Packing Lists, Dashboard): state pills with counts, one filter bar (search, up to three dropdowns, Filters, Export at the end), a table with sortable headings, a first column of reference over name, a right-aligned State badge, and a pager. Ages read "3d" and dates read "Oct 22".
+- **Records** open in one full-height window over their list, at every width. The title is the reference and name, with one state badge and one quiet line. Headline facts are pills under it, and a pill you may change opens a picker. There is no footer bar and no Expand. The X and Esc close it and return you to the list.
+- **Your move** is the card on the right (under the record on a phone). Its main button (Sign, Submit, Approve) is green and sits inside the open step. Take is an outline button.
+- **More** holds Print and Cancel, and shows only when it has something in it.
+- **Dialogs** with fields use the Purchasing frame; plain yes/no questions use the plain confirm. Nothing is asked in a toast. Only New Canvass, New Transmittal and Print preview have Expand.
+
 ## 4. Story format
 
 Every story has:

@@ -28,7 +28,7 @@ describe("the Canvass print action", () => {
     renderWithProviders(<CostingMatrixSection opportunityId={deal.id} opportunity={deal} />);
     const user = setupUser();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
-    await screen.findByText(/Canvass CNV_0001/);
+    await screen.findByRole("heading", { name: /^CNV_0001\s*·/ });
   };
 
   beforeEach(async () => {
@@ -46,13 +46,16 @@ describe("the Canvass print action", () => {
   it("offers Print to a reader with the money tier", async () => {
     await open({ tier: "cost", bands: ["purchasing"], money: true });
     const panel = within(await screen.findByRole("dialog"));
-    expect(await panel.findByRole("button", { name: /^Print$/ })).toBeInTheDocument();
+    await setupUser().click(await panel.findByRole("button", { name: "More" }));
+    expect(await screen.findByRole("button", { name: /^Print$/ })).toBeInTheDocument();
   });
 
   it("offers a Stage Participant without the money tier no print action", async () => {
     await open({ tier: "participant", bands: [], money: false });
     const panel = within(await screen.findByRole("dialog"));
     expect(await panel.findAllByTestId("offer")).toHaveLength(1);
+    // Nothing to hold, so More is not drawn at all.
+    expect(panel.queryByRole("button", { name: "More" })).not.toBeInTheDocument();
     expect(panel.queryByRole("button", { name: /^Print$/ })).not.toBeInTheDocument();
   });
 });
