@@ -20,14 +20,14 @@ describe("canvassRequestState", () => {
     expect(canvassRequestState(bare({ winner: withWinner }))).toMatchObject({ key: "ready", label: "Ready to request", requestId: null });
   });
 
-  it("names the request and its current status once one was made", () => {
+  it("says the status of the request's item once one was made, and keeps the request name apart", () => {
     const state = canvassRequestState(
       bare({ kind: CANVASS_KIND.REQUESTED_ITEM, winner: withWinner, requestId: "pr-12", requestLabel: "PR-12", requestItemStatus: "cancelled" }),
     );
-    expect(state).toMatchObject({ key: "created", label: "PR-12 · Cancelled", requestId: "pr-12" });
+    expect(state).toMatchObject({ key: "created", label: "Cancelled", requestLabel: "PR-12", requestId: "pr-12" });
   });
 
-  it("names the request alone when its status is not known", () => {
+  it("falls back to the request name when its status is not known", () => {
     expect(canvassRequestState(bare({ kind: CANVASS_KIND.REQUESTED_ITEM, requestId: "pr-12", requestLabel: "PR-12" }))).toMatchObject({
       key: "created",
       label: "PR-12",

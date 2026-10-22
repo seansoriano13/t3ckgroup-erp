@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate, useSearchParams } from "react-router";
-import { Plus, Scale } from "lucide-react";
+import { Lock, Plus, Scale } from "lucide-react";
 
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -212,6 +212,9 @@ function CanvassesPage({ userId, canEdit }) {
                     >
                       {row.number}
                     </Button>
+                    {row.locked && (
+                      <Lock size={12} className="ml-1.5 inline text-muted-foreground" aria-label="Locked" role="img" />
+                    )}
                   </TableCell>
                   <TableCell>
                     <span>{canvassSubjectLabel(row) || "—"}</span>
@@ -260,7 +263,16 @@ function CanvassesPage({ userId, canEdit }) {
           opportunityId={openRow.opportunityId ?? undefined}
         />
       )}
-      {ready && draftSubject && (
+      {ready && draftSubject && canEdit && (
+        <NewCanvassModal
+          open
+          onOpenChange={(next) => !next && setParams({})}
+          subject={draftSubject}
+          subjectLabel="New Canvass"
+          userId={userId}
+        />
+      )}
+      {ready && draftSubject && !canEdit && (
         <CanvassPanel
           open
           onOpenChange={(next) => !next && setParams({})}

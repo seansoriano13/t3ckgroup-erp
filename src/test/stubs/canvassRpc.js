@@ -2,6 +2,7 @@ import { stubRpc } from "@/test/msw/server"
 import { db, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { canvassFill } from "@/test/db/triggers"
+import { CANVASS_LOCK_REASON } from "@/constants/canvass"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
@@ -18,8 +19,17 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * adds an Offer gets the RPC. So does `canvass_start` (20261024103000_canvass_before_purchase_request.sql,
  * ADR 0034): the first Offer starts the Canvass, or joins the one already on that subject.
  */
+/** `canvass_lock_reason` (20261101100000), on the in-memory store: a request was made, or the item is Ordered or Received. */
+function lockReasonOf(canvass) {
+  if (!canvass || canvass.lock_released_at) return null
+  if (canvass.request_made_at) return CANVASS_LOCK_REASON.REQUEST_MADE
+  const item = rowsOf("purchase_request_items").find((i) => i.id === canvass.requested_item_id)
+  return ["ordered", "received"].includes(item?.status) ? CANVASS_LOCK_REASON.ITEM_ORDERED : null
+}
+
 export function stubCanvassMoneyRpc({ money = true } = {}) {
   stubRpc("canvass_subject_can_read_money", () => money)
+  stubRpc("canvass_lock_reason", (args) => lockReasonOf(rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)))
 
   const addOffer = (args) => {
     const offerInput = args.p_offer ?? {}
@@ -90,7 +100,7 @@ export async function seedCanvass(subject = {}, actorId = null, { productName = 
  * the real function sets canvass.fill. The real rules (who may, the refusals, the fill under
  * real band triggers) are the policy tier's (91-canvass-winner.test.js).
  */
-export function stubCanvassWinnerRpcs({ bands = ["purchasing"] } = {}) {
+export function stubCanvassWinnerRpcs({ bands = ["purchasing"], superAdmin = false } = {}) {
   const refuseBand = (table, column, needed) => {
     throw pgrstError("42501", `costing_band:${table}.${column}:${needed.join(",")}`, { status: 403 })
   }
@@ -179,6 +189,17 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"] } = {}) {
     }
     for (const offer of winners) updateRow("sor_canvass_offers", offer, { is_winner: false })
     return { canvass_id: canvass.id, cleared: winners.length > 0 }
+  })
+
+  // canvass_unlock (20261101100000): a Super Admin releases a lock, and says why.
+  stubRpc("canvass_unlock", (args) => {
+    if (!superAdmin) throw pgrstError("42501", "canvass_unlock: only a Super Admin can unlock a Canvass", { status: 403 })
+    const canvass = rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)
+    if (!canvass) throw pgrstError("P0002", "canvass_unlock: not found", { status: 404 })
+    if (!String(args.p_reason ?? "").trim()) throw pgrstError("22023", "canvass_unlock: say why it is being unlocked", { status: 400 })
+    updateRow("sor_canvasses", canvass, { lock_released_at: new Date().toISOString() })
+    insertRow("sor_canvass_signoff_events", { canvass_id: canvass.id, kind: "unlocked", actor_id: null, reason: args.p_reason, offer_count: 0 })
+    return { canvass_id: canvass.id, unlocked: true }
   })
 
   stubRpc("costing_accept_brand", (args) => {
@@ -310,6 +331,7 @@ export function stubCanvassListRpcs({ actorId = null } = {}) {
         created_by: c.created_by ?? null,
         created_at: c.created_at,
         updated_at: c.updated_at ?? c.created_at,
+        locked: lockReasonOf(c) !== null,
       }
     }),
   )

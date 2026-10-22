@@ -97,7 +97,7 @@ describe("the Canvasses page", () => {
   };
 
   it("says in the Request column what each Canvass needs, or which request it became", async () => {
-    const request = seedRequested();
+    seedRequested();
     renderPage();
     const rows = await screen.findAllByTestId("canvass-row");
     const rowOf = (number) => rows.find((row) => within(row).queryByText(number));
@@ -106,8 +106,10 @@ describe("the Canvasses page", () => {
     expect(rowOf("CNV_0002")).toHaveTextContent("Ready to request");
     expect(rowOf("CNV_0001")).not.toHaveTextContent(/needs winner|ready to request|request/i);
 
-    const link = within(rowOf("CNV_0004")).getByRole("link", { name: /Office buy · Cancelled/ });
-    expect(link).toHaveAttribute("href", `/purchasing?request=${request.id}`);
+    // The badge is a status, not a link: it says only "Cancelled", and the request's name is its tooltip.
+    const row = rowOf("CNV_0004");
+    expect(within(row).getByText("Cancelled")).toHaveAttribute("title", "Office buy · Cancelled");
+    expect(within(row).queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("narrows by whether a request was made", async () => {
@@ -127,7 +129,7 @@ describe("the Canvasses page", () => {
   });
 
   it("shows the same sign at the top of the panel, and none on a Component Canvass", async () => {
-    const request = seedRequested();
+    seedRequested();
     const user = setupUser();
     renderPage();
 
@@ -141,7 +143,10 @@ describe("the Canvasses page", () => {
 
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0004" }));
     const strip = await screen.findByTestId("canvass-request-strip");
-    await waitFor(() => expect(within(strip).getByRole("link", { name: /Office buy · Cancelled/ })).toHaveAttribute("href", `/purchasing?request=${request.id}`));
+    // The request's name is a button that opens it in place; the status beside it is plain text.
+    await waitFor(() => expect(within(strip).getByRole("button", { name: /Office buy/ })).toBeInTheDocument());
+    expect(within(strip).getByText("Cancelled")).toBeInTheDocument();
+    expect(within(strip).queryByRole("link")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     await user.click(await screen.findByRole("button", { name: "Open Canvass CNV_0001" }));
@@ -157,6 +162,89 @@ describe("the Canvasses page", () => {
     expect(await screen.findAllByTestId("offer")).toHaveLength(1);
     // Offers sit side by side in three columns, the same as the New Canvass form.
     expect(screen.getByTestId("offers-grid")).toHaveClass("md:grid-cols-3");
+  });
+
+  it("locks a Canvass once a Purchase Request was made from it: no winner change, no new offer", async () => {
+    const locked = db.seed("sor_canvasses", {
+      product_name: "Printer paper",
+      canvasser_id: marco.id,
+      created_by: marco.id,
+      request_made_at: "2026-10-22T01:00:00Z",
+    });
+    db.seed("sor_canvass_offers", { canvass_id: locked.id, supplier_name: "Paper Hub", is_winner: true });
+    db.seed("sor_canvass_offers", { canvass_id: locked.id, supplier_name: "Ream Co", is_winner: false });
+    const user = setupUser();
+    renderPage();
+
+    await user.click(await screen.findByText("Printer paper"));
+    expect(await screen.findByTestId("canvass-locked-note")).toBeInTheDocument();
+    expect(await screen.findAllByTestId("offer")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /Mark .* the winner/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Clear .* as the winner/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add offer/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("canvass-locked-note")).toHaveTextContent("a Purchase Request was made");
+    expect(screen.getByTestId("canvass-locked-note")).toHaveTextContent("Ask a Super Admin to unlock it");
+    expect(screen.queryByRole("button", { name: /^Unlock$/ })).not.toBeInTheDocument();
+  });
+
+  it("locks a Canvass on a request item once the item is Ordered, and marks it in the list", async () => {
+    const request = db.seed("purchase_requests", { title: "Direct buy", created_by: marco.id });
+    const item = db.seed("purchase_request_items", { request_id: request.id, source: "new", name: "Stapler", status: "ordered", quantity: 1, requested_by: marco.id });
+    const canvass = db.seed("sor_canvasses", { product_name: "Stapler", requested_item_id: item.id, created_by: marco.id });
+    db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Staple Co", is_winner: true });
+    const user = setupUser();
+    renderPage();
+
+    const rows = await screen.findAllByTestId("canvass-row");
+    expect(within(rows.find((row) => within(row).queryByText(/Stapler/))).getByRole("img", { name: "Locked" })).toBeInTheDocument();
+    expect(within(rows.find((row) => within(row).queryByText("Laser toner"))).queryByRole("img", { name: "Locked" })).not.toBeInTheDocument();
+
+    await user.click(within(rows.find((row) => within(row).queryByText(/Stapler/))).getByText(/Stapler/));
+    expect(await screen.findByTestId("canvass-locked-note")).toHaveTextContent("the item was ordered");
+  });
+
+  it("lets a Super Admin unlock it with a reason, and the offers can change again", async () => {
+    mockUser.current = makeEmployee({ name: "Root Admin", has_purchasing_flow: true, is_super_admin: true });
+    stubCanvassWinnerRpcs({ bands: ["purchasing"], superAdmin: true });
+    const locked = db.seed("sor_canvasses", {
+      product_name: "Printer paper",
+      canvasser_id: marco.id,
+      created_by: marco.id,
+      request_made_at: "2026-10-22T01:00:00Z",
+    });
+    db.seed("sor_canvass_offers", { canvass_id: locked.id, supplier_name: "Paper Hub", is_winner: true });
+    db.seed("sor_canvass_offers", { canvass_id: locked.id, supplier_name: "Ream Co", is_winner: false });
+    const user = setupUser();
+    renderPage();
+
+    await user.click(await screen.findByText("Printer paper"));
+    await user.click(await screen.findByRole("button", { name: /^Unlock$/ }));
+    const unlock = screen.getAllByRole("button", { name: /^Unlock$/ }).at(-1);
+    expect(unlock).toBeDisabled();
+    await user.type(screen.getByLabelText("Why it is being unlocked"), "Wrong winner picked");
+    await user.click(unlock);
+
+    await waitFor(() => expect(screen.queryByTestId("canvass-locked-note")).not.toBeInTheDocument());
+    expect(await screen.findAllByRole("button", { name: /Mark .* the winner/ })).toHaveLength(1);
+    expect(db.rows("sor_canvass_signoff_events").find((e) => e.kind === "unlocked")).toMatchObject({ reason: "Wrong winner picked" });
+    expect(await screen.findByTestId("unlock-history")).toHaveTextContent("Wrong winner picked");
+  });
+
+  it("opens the New Canvass form, three offers side by side, for an item with no Canvass yet", async () => {
+    const request = db.seed("purchase_requests", { title: "Direct buy", created_by: marco.id });
+    const item = db.seed("purchase_request_items", { request_id: request.id, source: "new", name: "Stapler", status: "requested", quantity: 1, requested_by: marco.id });
+    renderWithProviders(
+      <MemoryRouter initialEntries={[`/purchasing/canvasses?item=${item.id}`]}>
+        <Routes>
+          <Route path="/purchasing/canvasses" element={<CanvassesPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findAllByTestId("new-canvass-offer")).toHaveLength(3);
+    expect(screen.queryByLabelText("Canvass 1 product")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add another canvass/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create purchase request/i })).not.toBeInTheDocument();
   });
 
   it("opens the Canvass from anywhere on its row, not just the number", async () => {

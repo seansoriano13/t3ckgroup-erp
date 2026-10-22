@@ -60,9 +60,9 @@ const toInput = (offer) => ({
   comparisonRate: isForeign(offer) && offer.comparisonRate !== "" ? Number(offer.comparisonRate) : null,
 });
 
-/** What is stopping a row from being saved, or null. */
-function rowIssue(row) {
-  if (!row.productName.trim()) return "Say what is being bought.";
+/** What is stopping a row from being saved, or null. A Canvass on a subject already knows what it buys. */
+function rowIssue(row, hasSubject = false) {
+  if (!hasSubject && !row.productName.trim()) return "Say what is being bought.";
   if (!row.offers.some(hasText)) return "Add at least one offer: a supplier, a brand or a description.";
   if (row.winner !== null) {
     const winner = row.offers[row.winner];
@@ -177,7 +177,14 @@ function OfferColumn({ label, offer, canWin, isWinner, onChange, onWin }) {
   );
 }
 
-export default function NewCanvassModal({ open, onOpenChange, userId }) {
+/**
+ * `subject` ({ requestedItemId } or { componentId }) makes it the form for that one subject's
+ * Canvass: a single row with no product name, and no Purchase Request step. `subjectLabel` names it
+ * in the header. `onSaved(started)` runs once the Canvass is saved (the modal then stays for its
+ * owner to replace with the Canvass itself).
+ */
+export default function NewCanvassModal({ open, onOpenChange, userId, subject = null, subjectLabel = null, onSaved }) {
+  const hasSubject = Boolean(subject);
   const queryClient = useQueryClient();
   const keys = useRef(0);
   const makeRow = () => ({
@@ -199,7 +206,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
 
   const live = rows.filter((r) => !isBlankRow(r) || r.saved);
   const toSave = live.filter((r) => !r.saved);
-  const issues = toSave.map(rowIssue);
+  const issues = toSave.map((row) => rowIssue(row, hasSubject));
   const canSave = toSave.length > 0 && issues.every((issue) => !issue);
   const requestReady = Boolean(requestTitle.trim()) && live.length > 0 && live.every((r) => r.winner !== null && !r.saved?.problem) && (toSave.length === 0 || canSave);
 
@@ -207,7 +214,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
   const saveRow = async (row) => {
     const filled = row.offers.map((offer, index) => ({ offer, index })).filter(({ offer }) => hasText(offer));
     const [first, ...rest] = filled;
-    const started = await canvassService.start({}, { productName: row.productName }, toInput(first.offer), userId);
+    const started = await canvassService.start(subject || {}, { productName: hasSubject ? "" : row.productName }, toInput(first.offer), userId);
     patchRow(row.key, { saved: { canvassId: started.canvassId, number: started.number, problem: null } });
     try {
       const offerIds = { [first.index]: started.offer.id };
@@ -226,20 +233,25 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
   const submit = async (withRequest) => {
     setBusy(true);
     const savedIds = live.filter((r) => r.saved).map((r) => r.saved.canvassId);
+    let startedNumber = "";
     try {
       for (const row of toSave) {
         const started = await saveRow(row);
         savedIds.push(started.canvassId);
+        startedNumber = started.number;
       }
       if (withRequest) {
         const made = await canvassService.createPurchaseRequest({ title: requestTitle, items: savedIds.map((canvassId) => ({ canvassId })) });
         toast.success("Purchase Request created.");
         if (made.unsignedCanvassIds.length > 0) warningToast("The Canvasses are not signed off yet.");
         queryClient.invalidateQueries({ queryKey: procurementQueueKey });
+      } else if (hasSubject) {
+        toast.success(`Canvass ${startedNumber} started.`);
       } else {
         toast.success(`${savedIds.length} Canvass${savedIds.length === 1 ? "" : "es"} saved.`);
       }
-      onOpenChange(false);
+      if (hasSubject) onSaved?.();
+      else onOpenChange(false);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -254,26 +266,30 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
       onOpenChange={onOpenChange}
       size="wide"
       expandable
-      crumbs={["Canvass", "New Canvass"]}
+      crumbs={["Canvass", subjectLabel || "New Canvass"]}
       actions={
         <>
           <Button type="button" size="lg" variant="outline" disabled={busy || !canSave} onClick={() => submit(false)}>
             Save
           </Button>
-          <Button type="button" size="lg" disabled={busy || !requestReady} onClick={() => submit(true)}>
-            Save and create Purchase Request
-          </Button>
+          {!hasSubject && (
+            <Button type="button" size="lg" disabled={busy || !requestReady} onClick={() => submit(true)}>
+              Save and create Purchase Request
+            </Button>
+          )}
         </>
       }
     >
       <p className="text-sm text-muted-foreground">
-        One row is one Canvass: what is being bought and the offers you are comparing, side by side. Pick a winner in each row, add a row for the next product, then save.
+        {hasSubject
+          ? "Compare the offers side by side and pick a winner. Saving the first offer starts this Canvass and gives it its number."
+          : "One row is one Canvass: what is being bought and the offers you are comparing, side by side. Pick a winner in each row, add a row for the next product, then save."}
       </p>
 
       <div className="space-y-4">
         {rows.map((row, r) => {
           const number = r + 1;
-          const issue = row.saved ? null : isBlankRow(row) ? null : rowIssue(row);
+          const issue = row.saved ? null : isBlankRow(row) ? null : rowIssue(row, hasSubject);
           const filledOffers = row.offers.filter(hasText);
           const warning = !row.saved && !isBlankRow(row) ? moreOffersWarning(filledOffers) : null;
 
@@ -294,6 +310,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
 
           return (
             <section key={row.key} data-testid="new-canvass-row" aria-label={`Canvass ${number}`} className="space-y-3 rounded-2xl border border-border p-3">
+              {!hasSubject && (
               <div className="flex items-center gap-2">
                 <span className="w-6 shrink-0 text-center text-xs font-semibold tabular-nums text-muted-foreground">{number}</span>
                 <Input
@@ -317,6 +334,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
                   </Button>
                 )}
               </div>
+              )}
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {row.offers.map((offer, c) => (
@@ -342,6 +360,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
         })}
       </div>
 
+      {!hasSubject && (
       <Button
         type="button"
         variant="outline"
@@ -350,7 +369,9 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
       >
         <Plus size={14} /> Add another canvass
       </Button>
+      )}
 
+      {!hasSubject && (
       <div className="space-y-1.5 border-t border-border/60 pt-3">
         <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Then the Purchase Request</span>
         <Input
@@ -365,6 +386,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
           Give it a title and pick a winner in every row to save and create one request for all of them in one step. Otherwise save now and create it later.
         </p>
       </div>
+      )}
     </ModalShell>
   );
 }

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { purchaseRequestService } from "@/services/purchaseRequestService";
+import { CANVASS_LIST_KEY } from "@/constants/canvass";
 import { procurementQueueKey, purchaseRequestKeys } from "./queryKeys";
 
 /** The database's refusal, without the function name it leads with. */
@@ -18,14 +19,17 @@ export function usePurchaseRequest(requestId) {
 
 /**
  * What refreshes after a change to the request (its Buyer, its items): the
- * request and its queue row. The queue also listens on realtime, but a change
- * made here shouldn't depend on that channel to show beside it.
+ * request and its queue row, and the Canvasses behind its items (an item that
+ * is Ordered locks its Canvass). The queue also listens on realtime, but a
+ * change made here shouldn't depend on that channel to show beside it.
  */
 export function useRefreshRequest(requestId) {
   const queryClient = useQueryClient();
   return () => {
     queryClient.invalidateQueries({ queryKey: procurementQueueKey });
     queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) });
+    queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
+    queryClient.invalidateQueries({ queryKey: ["canvass"] });
   };
 }
 

@@ -199,9 +199,15 @@ export const canvassService = {
         );
       });
 
+    // The database says why (and whether): a reader may not be allowed to read the item itself.
+    const { data: lockedBecause, error: lockError } = await supabase.rpc("canvass_lock_reason", { p_canvass_id: data.id });
+    if (lockError) throw lockError;
+
     return {
       ...data,
       offers: shaped,
+      locked: Boolean(lockedBecause),
+      lockedBecause: lockedBecause ?? null,
       canReadMoney: Boolean(canReadMoney),
       needsMoreOffers: needsMoreOffers(shaped),
       moreOffersWarning: moreOffersWarning(shaped),
@@ -296,6 +302,7 @@ export const canvassService = {
       signerName: row.signer_name ?? null,
       createdBy: row.created_by ?? null,
       createdAt: row.created_at,
+      locked: Boolean(row.locked),
     }));
   },
 
@@ -491,6 +498,18 @@ export const canvassService = {
   async clearWinner(canvassId) {
     if (!canvassId) throw new Error("A Canvass id is required.");
     const { data, error } = await supabase.rpc("canvass_clear_winner", { p_canvass_id: canvassId });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Releases a locked Canvass (`canvass_unlock`): a Super Admin only, and the reason is kept in the
+   * Canvass history. Returns `{ canvass_id, unlocked }`.
+   */
+  async unlock(canvassId, reason) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    if (!String(reason ?? "").trim()) throw new Error("Say why it is being unlocked.");
+    const { data, error } = await supabase.rpc("canvass_unlock", { p_canvass_id: canvassId, p_reason: reason.trim() });
     if (error) throw error;
     return data;
   },

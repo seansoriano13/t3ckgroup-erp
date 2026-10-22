@@ -15,6 +15,17 @@ export const MIN_CANVASS_OFFERS = 3;
 /** CNV_ and four digits, assigned by the database when a Canvass's first Offer is saved (ADR 0034). */
 export const CANVASS_NUMBER_PATTERN = /^CNV_\d{4,}$/;
 
+/**
+ * Why a Canvass is locked (`canvass_lock_reason`): a Purchase Request was made from it, or the
+ * Requested Item it hangs off is Ordered or Received. The database owns the rule and enforces it; a
+ * Super Admin can release the lock.
+ */
+export const CANVASS_LOCK_REASON = { REQUEST_MADE: "request_made", ITEM_ORDERED: "item_ordered" };
+export const CANVASS_LOCK_MESSAGE = {
+  [CANVASS_LOCK_REASON.REQUEST_MADE]: "Locked: a Purchase Request was made from this Canvass, so its offers, winner and reason can't change.",
+  [CANVASS_LOCK_REASON.ITEM_ORDERED]: "Locked: the item was ordered, so its offers, winner and reason can't change.",
+};
+
 /** An Offer's money keys, present only for a reader who may see money. */
 export const OFFER_MONEY_KEYS = ["unit_price", "comparison_rate"];
 
