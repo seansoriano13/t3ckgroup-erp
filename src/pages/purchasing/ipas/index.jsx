@@ -1,8 +1,7 @@
-import { manilaToday } from "@/lib/manilaDate.js";
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { Building2, Calculator, CircleDot, Columns3, Download, Eye, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
+import { Building2, Calculator, CircleDot, Columns3, Eye, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import PageShell from "../../../components/ui/PageShell";
@@ -30,7 +29,7 @@ import { filterIpas, formatAmount } from "../../../utils/ipas";
 import { ipasFigures, ipasTotalsByCurrency } from "../../../utils/ipasFigures";
 import { IPAS_EXPORT_HEADER, ipasExportRows } from "../../../utils/ipasListExport";
 import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasListViews";
-import { downloadXlsx } from "../../../utils/xlsx";
+import ExportButton from "../../../components/purchasing/list/ExportButton";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -200,13 +199,7 @@ function IpasList() {
   const totals = useMemo(() => ipasTotalsByCurrency(visible), [visible]);
 
   // The rows shown, in the order shown, as the sheet's columns. Only what the list itself shows.
-  const exportToExcel = () => {
-    downloadXlsx(`ipas-${manilaToday()}.xlsx`, {
-      sheetName: "IPAS",
-      header: IPAS_EXPORT_HEADER,
-      rows: ipasExportRows(visible),
-    });
-  };
+  const exportRows = useMemo(() => ipasExportRows(visible), [visible]);
 
   // A view sets the state tab it needs: the first three are about open IPAS, Raised by me spans them all.
   const pickView = (next) => {
@@ -318,18 +311,7 @@ function IpasList() {
                 </div>
               )}
             </Dropdown>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 gap-1.5"
-              onClick={exportToExcel}
-              disabled={visible.length === 0}
-              aria-label="Export to Excel"
-              title="Export to Excel"
-            >
-              <Download size={14} />
-              Export
-            </Button>
+            <ExportButton name="ipas" sheetName="IPAS" header={IPAS_EXPORT_HEADER} rows={exportRows} />
           </>
         }
         hasActiveFilters={hasActiveFilters}
