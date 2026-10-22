@@ -460,6 +460,7 @@ function CanvassesPage({ userId, canEdit }) {
           userId={userId}
           canEdit={canEdit}
           opportunityId={openRow.opportunityId ?? undefined}
+          canvasserName={openRow.canvasserName ?? undefined}
         />
       )}
     </PageShell>

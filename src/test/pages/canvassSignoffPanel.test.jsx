@@ -62,7 +62,7 @@ describe("the sign-off on the Canvass panel", () => {
     await user.click(screen.getByRole("button", { name: /Open Canvass CNV_0001/ }));
     const panel = await screen.findByTestId("canvass-signoff");
     expect(panel).toHaveTextContent("Not signed off yet.");
-    await user.click(await within(panel).findByRole("button", { name: "Sign off" }));
+    await user.click(await screen.findByRole("button", { name: "Sign off" }));
 
     expect(await screen.findByTestId("signoff-warning")).toHaveTextContent("Two offers only — below the three-offer minimum");
     await user.click(screen.getByRole("button", { name: "Sign off anyway" }));
@@ -79,15 +79,14 @@ describe("the sign-off on the Canvass panel", () => {
 
     const panel = await screen.findByTestId("canvass-signoff");
     await within(panel).findByText(/You opened this Canvass/);
-    expect(within(panel).queryByRole("button", { name: "Sign off" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign off" })).not.toBeInTheDocument();
   });
 
   it("does not offer it to someone off the list", async () => {
     const user = mount(purchaser);
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
-
-    const panel = await screen.findByTestId("canvass-signoff");
-    expect(within(panel).queryByRole("button", { name: "Sign off" })).not.toBeInTheDocument();
+    await screen.findByTestId("canvass-signoff");
+    expect(screen.queryByRole("button", { name: "Sign off" })).not.toBeInTheDocument();
   });
 
   it("says why it came unsigned after a change", async () => {

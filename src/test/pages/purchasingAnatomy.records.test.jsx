@@ -39,6 +39,8 @@ import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubProcurementQueueRpcs } from "@/test/stubs/procurementQueueRpc"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { shapeTransmittal } from "@/utils/transmittals"
+import CanvassesPage from "@/pages/purchasing/canvasses/index"
+import { stubCanvassListRpcs, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 
 const auth = vi.hoisted(() => ({ user: null }))
 const transmittalService = vi.hoisted(() => ({
@@ -160,6 +162,24 @@ function seedPurchaseRequest() {
   auth.user = buyer
 }
 
+// A Canvass is a window over the Canvasses list, opened by ?canvass=<id>. It reads the fake database, which numbers it CNV_0001.
+function seedCanvass() {
+  const buyer = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true })
+  const canvasser = makeEmployee({ name: "Ana Reyes", has_purchasing_flow: true })
+  auth.user = buyer
+  stubCanvassMoneyRpc({ money: true })
+  stubCanvassWinnerRpcs({ bands: ["purchasing"] })
+  stubCanvassListRpcs({ actorId: buyer.id })
+  const canvass = db.seed("sor_canvasses", {
+    product_name: "Laser toner",
+    canvasser_id: canvasser.id,
+    created_by: canvasser.id,
+  })
+  db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Ink Depot", brand: "HP", is_winner: true })
+  db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Toner World", brand: "Canon", is_winner: false })
+  return canvass
+}
+
 const RECORDS = [
   {
     name: "Transmittal",
@@ -219,6 +239,26 @@ const RECORDS = [
     pills: ["Buyer", "SOR", "Stage", "Items"],
     hasMore: false,
     yourMove: null,
+  },
+  {
+    name: "Canvass",
+    Page: CanvassesPage,
+    route: "/purchasing/canvasses",
+    // The Canvass opens from the address, so the link is known once the seed has run.
+    get path() {
+      return `/purchasing/canvasses?canvass=${this.seeded.id}`
+    },
+    seed() {
+      this.seeded = seedCanvass()
+    },
+    title: /^CNV_0001\s*·\s*Laser toner$/,
+    badge: "Awaiting sign-off",
+    pills: ["Canvasser", "Subject", "Winner"],
+    hasMore: true,
+    yourMove: {
+      status: "Next: say why this supplier",
+      steps: ["Offers in", "Winner picked", "Purchase Request", "Sign-off"],
+    },
   },
 ]
 
@@ -288,7 +328,7 @@ describe.each(RECORDS)("Purchasing record anatomy: $name", (record) => {
     renderRecord(record)
     await screen.findByRole("heading", { name: record.title })
 
-    // A record opened over its list shares the screen with the list's own headings; look inside the window.
+    // Inside the record window only: the list behind it can use the same words (a column header).
     const recordWindow = screen.getAllByRole("dialog").find((dialog) => dialog.dataset.modalShell === "record")
     for (const label of record.pills) expect(within(recordWindow).getByText(label)).toBeInTheDocument()
   })
