@@ -86,7 +86,7 @@ const toDetailColumns = (payload) =>
 export const groupTaskService = {
   // CREATE
   async createGroupTask(payload) {
-    const { title, description, dueDate, startDate, leadTime, createdBy, members, templateId, opportunityId, stageActionId, stageVisitId } = payload;
+    const { title, description, dueDate, startDate, leadTime, createdBy, evaluatorId, members, templateId, opportunityId, stageActionId, stageVisitId } = payload;
 
     if (!members || members.length === 0) {
       throw new Error("Add at least one member to the group task");
@@ -100,6 +100,7 @@ export const groupTaskService = {
           description,
           ...toDetailColumns({ dueDate, startDate, leadTime }),
           created_by: createdBy,
+          evaluator_id: evaluatorId ?? null,
           status: "ACTIVE",
           template_id: templateId ?? null,
           opportunity_id: opportunityId ?? null,

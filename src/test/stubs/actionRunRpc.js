@@ -140,6 +140,7 @@ export function stubActionRunRpcs() {
       description: args.p_description ?? "",
       due_date: args.p_due_date ?? null,
       created_by: args.p_created_by ?? null,
+      evaluator_id: args.p_evaluator_id ?? null,
       status: "ACTIVE",
       template_id: args.p_template_id ?? null,
       opportunity_id: run.opportunity_id,

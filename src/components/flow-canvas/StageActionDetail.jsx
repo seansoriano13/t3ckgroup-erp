@@ -116,6 +116,12 @@ export default function StageActionDetail({
             <Field label="Due">No deadline</Field>
           )}
 
+          <Field label="Evaluator">
+            {(config.evaluator?.length ? config.evaluator : [{ type: "role", role: "deal_owner" }])
+              .map((s) => deciderLabel(s, nameOf))
+              .join(", ")}
+          </Field>
+
           <Field label={`Assignees · ${config.members?.length ?? 0}`}>
             <ul className="mt-2 space-y-3">
               {(config.members ?? []).map((member, i) => {
