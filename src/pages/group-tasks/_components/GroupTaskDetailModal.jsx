@@ -1300,13 +1300,24 @@ export default function GroupTaskDetailModal({
 
               {/* Who set it up — kept, but last: assignees open this to do
                   their part, not to see who filed it. */}
-              <dl className="pt-5 border-t border-border">
-                <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
-                  Created by
-                </dt>
-                <dd className="mt-1 text-[13px] font-semibold text-foreground">
-                  {task.creator?.name || "Unknown"}
-                </dd>
+              <dl className="pt-5 border-t border-border grid grid-cols-2 gap-4">
+                <div>
+                  <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
+                    Created by
+                  </dt>
+                  <dd className="mt-1 text-[13px] font-semibold text-foreground">
+                    {task.creator?.name || "Unknown"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
+                    Evaluated by
+                  </dt>
+                  <dd className="mt-1 text-[13px] font-semibold text-foreground">
+                    {/* No evaluator on the task means its creator rates it. */}
+                    {task.evaluator?.name || task.creator?.name || "Unknown"}
+                  </dd>
+                </div>
               </dl>
             </>
           ) : (
