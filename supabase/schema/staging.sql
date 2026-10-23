@@ -19384,7 +19384,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.sor_create_stage_group_task_action(p_run_id uuid, p_title text, p_description text, p_members jsonb, p_due_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_template_id uuid DEFAULT NULL::uuid, p_tag_ids uuid[] DEFAULT NULL::uuid[], p_created_by uuid DEFAULT NULL::uuid)
+CREATE OR REPLACE FUNCTION public.sor_create_stage_group_task_action(p_run_id uuid, p_title text, p_description text, p_members jsonb, p_due_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_template_id uuid DEFAULT NULL::uuid, p_tag_ids uuid[] DEFAULT NULL::uuid[], p_created_by uuid DEFAULT NULL::uuid, p_evaluator_id uuid DEFAULT NULL::uuid)
  RETURNS committee_tasks
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -19433,7 +19433,10 @@ begin
     p_title,
     p_description,
     coalesce(p_created_by, v_actor),
-    (select o.deal_owner_id from public.sales_opportunities o where o.id = v_run.opportunity_id),
+    coalesce(
+      p_evaluator_id,
+      (select o.deal_owner_id from public.sales_opportunities o where o.id = v_run.opportunity_id)
+    ),
     p_due_date,
     'ACTIVE',
     p_template_id,
@@ -21403,7 +21406,8 @@ begin
               (select array_agg(t::uuid) from jsonb_array_elements_text(v_action->'tag_ids') t)
             else null
           end,
-          nullif(v_action->>'created_by', '')::uuid
+          nullif(v_action->>'created_by', '')::uuid,
+          nullif(v_action->>'evaluator_id', '')::uuid
         );
         v_created := v_created || jsonb_build_object(
           'action_id', v_action->>'action_id',

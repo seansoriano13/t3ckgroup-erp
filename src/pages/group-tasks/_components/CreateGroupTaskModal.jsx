@@ -94,6 +94,7 @@ export default function CreateGroupTaskModal({
   const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
   const [confirmMode, setConfirmMode] = useState(undefined);
   const [decider, setDecider] = useState([]);
+  const [evaluator, setEvaluator] = useState([]);
 
   const titleRef = useRef(null);
   const descriptionRef = useRef(null);
@@ -117,6 +118,7 @@ export default function CreateGroupTaskModal({
         setIsSaveTemplateModalOpen(false);
         setConfirmMode(initialData.confirmMode);
         setDecider(initialData.decider || []);
+        setEvaluator(initialData.evaluator || []);
       } else {
         const first = makeMember();
         // Resetting on open is the point: the modal keeps its fields mounted
@@ -134,6 +136,7 @@ export default function CreateGroupTaskModal({
         setIsSaveTemplateModalOpen(false);
         setConfirmMode(undefined);
         setDecider([]);
+        setEvaluator([]);
       }
       setTimeout(() => titleRef.current?.focus(), 150);
     }
@@ -283,6 +286,7 @@ export default function CreateGroupTaskModal({
       leadTime: mode === "automation" ? null : leadTime,
       confirmMode: mode === "automation" ? confirmMode : undefined,
       decider: mode === "automation" && confirmMode === "confirm" ? decider : undefined,
+      evaluator: mode === "automation" ? evaluator : undefined,
       createdBy: user.id,
       templateId: appliedTemplateId ?? null,
       members: validMembers.map((m) => {
@@ -543,6 +547,14 @@ export default function CreateGroupTaskModal({
                 )}
               </div>
 
+              {mode === "automation" && (
+                <div className="mt-3 space-y-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Evaluator: who rates this task (defaults to the Deal Owner)
+                  </span>
+                  <PeoplePicker value={evaluator} onChange={setEvaluator} allowRoles placeholder="Add Evaluator" />
+                </div>
+              )}
               {mode === "automation" && (
                 <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed border-mauve-7 px-3 py-2">
                   <span className="text-xs font-semibold text-muted-foreground">
