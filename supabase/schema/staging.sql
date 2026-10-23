@@ -185,7 +185,8 @@ create table if not exists public."committee_tasks" (
   "carried_from_visit_id" uuid,
   "cancelled_by_visit_id" uuid,
   "start_date" date,
-  "lead_time" text
+  "lead_time" text,
+  "evaluator_id" uuid
 );
 
 create table if not exists public."companies" (
@@ -1213,6 +1214,7 @@ alter table committee_task_tags add constraint "committee_task_tags_tag_id_fkey"
 alter table committee_tasks add constraint "committee_tasks_cancelled_by_visit_id_fkey" FOREIGN KEY (cancelled_by_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table committee_tasks add constraint "committee_tasks_evaluator_id_fkey" FOREIGN KEY (evaluator_id) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_held_from_visit_id_fkey" FOREIGN KEY (held_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_hr_verified_by_fkey" FOREIGN KEY (hr_verified_by) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
@@ -1767,7 +1769,7 @@ create policy "committee_tasks_read" on public."committee_tasks"
   to authenticated
   using ((is_super_admin() OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
+  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR (((created_by = get_employee_id()) OR (evaluator_id = get_employee_id())) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "companies_read" on public."companies"
   as permissive
   for select
@@ -4885,12 +4887,13 @@ begin
   end if;
 
   insert into public.committee_tasks (
-    title, description, created_by, due_date, status,
+    title, description, created_by, evaluator_id, due_date, status,
     template_id, opportunity_id, stage_action_id, stage_visit_id
   ) values (
     p_title,
     p_description,
     coalesce(p_created_by, v_actor),
+    (select o.deal_owner_id from public.sales_opportunities o where o.id = v_run.opportunity_id),
     p_due_date,
     'ACTIVE',
     p_template_id,

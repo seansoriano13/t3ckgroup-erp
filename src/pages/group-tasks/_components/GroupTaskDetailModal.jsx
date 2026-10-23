@@ -79,6 +79,7 @@ import ReadOnlyTaskBanner from "@/components/ReadOnlyTaskBanner";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { isGroupTaskEvaluator } from "../../../utils/groupTaskEvaluator";
 export default function GroupTaskDetailModal({
   isOpen,
   onClose,
@@ -677,6 +678,9 @@ export default function GroupTaskDetailModal({
     task.status === TASK_STATUS.CANCELLED || task.status === TASK_STATUS.ON_HOLD;
 
   const isCreator = task.created_by === currentUserId;
+  // Who rates is not always who created: a Stage Action task is rated by the
+  // SOR's Deal Owner.
+  const isEvaluator = isGroupTaskEvaluator(task, currentUserId);
   const isHrPending = task.status === "HR_PENDING";
   const isHrVerified = task.status === "HR_VERIFIED";
   const isCompletedOrBeyond =
@@ -977,7 +981,7 @@ export default function GroupTaskDetailModal({
                     (() => {
                       const member = selectedMember;
                       const isMe = member.employee_id === currentUserId;
-                      const canSeeGrade = isCreator || isSuperAdmin || isMe;
+                      const canSeeGrade = isCreator || isEvaluator || isSuperAdmin || isMe;
                       const showGrade =
                         isCompletedOrBeyond && canSeeGrade && member.grade > 0;
 
@@ -1293,7 +1297,7 @@ export default function GroupTaskDetailModal({
                   const visibleRatings = Array.isArray(rawRatings)
                     ? rawRatings
                         .filter((r) => {
-                          if (isCreator || isSuperAdmin) return true;
+                          if (isCreator || isEvaluator || isSuperAdmin) return true;
                           const member = task.members?.find(
                             (m) => m.id === r.memberId,
                           );
@@ -1642,7 +1646,7 @@ export default function GroupTaskDetailModal({
             )}
 
             {/* Rate Button for Heads/Admins */}
-            {(isCreator || isSuperAdmin) &&
+            {(isEvaluator || isSuperAdmin) &&
               (task.status === "ACTIVE" || task.status === "COMPLETED") && (
                 <Button
                   onClick={onOpenRateModal}
