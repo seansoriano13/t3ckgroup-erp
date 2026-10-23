@@ -255,6 +255,13 @@ if (checkOnly) {
   const normalize = (s) => s.replace(/\r\n/g, '\n');
   const stripHeader = (s) => s.split('-- ============================================================\n-- Tables').slice(1).join('-- ============================================================\n-- Tables');
   if (stripHeader(normalize(committed)) !== stripHeader(normalize(body))) {
+    {
+      const a = stripHeader(normalize(committed)).split('\n');
+      const b = stripHeader(normalize(body)).split('\n');
+      const inA = new Set(a), inB = new Set(b);
+      for (const l of a) if (!inB.has(l)) console.error('MIRROR-ONLY: ' + l.slice(0, 400));
+      for (const l of b) if (!inA.has(l)) console.error('DB-ONLY: ' + l.slice(0, 400));
+    }
     console.error(`DRIFT DETECTED: the live schema on ${label} no longer matches ${compareFile}`);
     console.error(
       explicitUrl
