@@ -24,10 +24,9 @@
 
 create extension if not exists pg_cron with schema extensions;
 
-alter table public.committee_tasks
-  add column if not exists auto_evaluation boolean not null default true,
-  add column if not exists awaiting_evaluation_at timestamp with time zone,
-  add column if not exists evaluation_reminders_sent integer not null default 0;
+alter table public.committee_tasks add column if not exists auto_evaluation boolean not null default true;
+alter table public.committee_tasks add column if not exists awaiting_evaluation_at timestamp with time zone;
+alter table public.committee_tasks add column if not exists evaluation_reminders_sent integer not null default 0;
 
 -- Rows that exist now follow the old flow; only tasks created after this get the new one.
 update public.committee_tasks set auto_evaluation = false;
