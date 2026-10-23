@@ -11,7 +11,7 @@
  * so assertions read the `disabled`/visibility seam this ticket touches
  * rather than re-testing those components' own internals.
  */
-import { screen } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { renderWithProviders } from "@/test/support"
 import GroupTaskDetailModal from "./GroupTaskDetailModal"
@@ -215,9 +215,18 @@ describe("GroupTaskDetailModal who can rate", () => {
 })
 
 describe("GroupTaskDetailModal who evaluates", () => {
-  it("names the evaluator next to the creator", () => {
+  const evaluatorRow = () => screen.getByText("Evaluated by").parentElement
+  const people = [
+    { id: "creator-1", name: "Creator" },
+    { id: "deal-owner-1", name: "Deal Owner Dan" },
+  ]
+
+  it("names the evaluator at the top", () => {
     renderModal({
       task: task({ evaluator_id: "deal-owner-1", evaluator: { name: "Deal Owner Dan" } }),
+      employees: people,
+      isHead: false,
+      onChangeEvaluator: undefined,
     })
 
     expect(screen.getByText("Evaluated by")).toBeInTheDocument()
@@ -225,8 +234,39 @@ describe("GroupTaskDetailModal who evaluates", () => {
   })
 
   it("names the creator as the evaluator when the task has none", () => {
-    renderModal({ task: task({ evaluator_id: null }) })
+    renderModal({ task: task({ evaluator_id: null }), onChangeEvaluator: undefined })
 
+    expect(screen.getByText("Evaluated by").nextSibling).toHaveTextContent("Creator")
+  })
+
+  it("lets the creator change the evaluator", () => {
+    renderModal({ task: task({ evaluator_id: null }), employees: people, onChangeEvaluator: vi.fn() })
+
+    expect(within(evaluatorRow()).getByRole("button")).toBeInTheDocument()
+  })
+
+  it("lets a head, who did not create the task, change the evaluator", () => {
+    renderModal({
+      task: task({ evaluator_id: null }),
+      currentUserId: "head-1",
+      isHead: true,
+      employees: people,
+      onChangeEvaluator: vi.fn(),
+    })
+
+    expect(within(evaluatorRow()).getByRole("button")).toBeInTheDocument()
+  })
+
+  it("does not let an ordinary member change the evaluator", () => {
+    renderModal({
+      task: task({ evaluator_id: null }),
+      currentUserId: "member-9",
+      isHead: false,
+      employees: people,
+      onChangeEvaluator: vi.fn(),
+    })
+
+    expect(within(evaluatorRow()).queryByRole("button")).not.toBeInTheDocument()
     expect(screen.getByText("Evaluated by").nextSibling).toHaveTextContent("Creator")
   })
 })
