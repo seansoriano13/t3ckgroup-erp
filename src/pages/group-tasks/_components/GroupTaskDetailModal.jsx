@@ -24,8 +24,11 @@ import {
   ImageIcon,
   Zap,
   BookmarkPlus,
+  Users,
 } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
+import Dropdown from "@/components/ui/Dropdown";
+import { FilterTriggerButton, FilterOptionList } from "@/components/ui/FilterDropdown";
 import StatusBadge from "../../../components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,9 +101,12 @@ export default function GroupTaskDetailModal({
   isReverting,
   isDeleting,
   isSuperAdmin,
+  isHead,
   isHr,
   canManage = false,
   employees = [],
+  onChangeEvaluator,
+  isChangingEvaluator,
   onAddMember,
   isAddingMember,
   onUpdateMember,
@@ -702,6 +708,19 @@ export default function GroupTaskDetailModal({
   // Who rates is not always who created: a Stage Action task is rated by the
   // SOR's Deal Owner.
   const isEvaluator = isGroupTaskEvaluator(task, currentUserId);
+  // The creator, Super Admins and Heads can hand the rating to someone else,
+  // which is also how a task made before evaluators existed gets one.
+  const canChangeEvaluator =
+    (isCreator || isSuperAdmin || isHead) &&
+    !isReadOnly &&
+    task.status !== "HR_VERIFIED" &&
+    typeof onChangeEvaluator === "function";
+  const evaluatorId = task.evaluator_id ?? task.created_by;
+  const evaluatorName =
+    task.evaluator?.name ||
+    (evaluatorId === task.created_by ? task.creator?.name : null) ||
+    employees.find((e) => e.id === evaluatorId)?.name ||
+    "Unknown";
   const isHrPending = task.status === "HR_PENDING";
   const isHrVerified = task.status === "HR_VERIFIED";
   const isCompletedOrBeyond =
@@ -933,6 +952,43 @@ export default function GroupTaskDetailModal({
                   className="animate-content-in stagger-1"
                 />
               )}
+
+              {/* Who rates it. Up here because it decides who the rating waits on. */}
+              <div className="animate-content-in stagger-1 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
+                  Evaluated by
+                </span>
+                {canChangeEvaluator ? (
+                  <Dropdown
+                    usePortal
+                    className="w-full max-w-xs"
+                    trigger={({ isOpen }) => (
+                      <FilterTriggerButton
+                        label={evaluatorName}
+                        isActive
+                        isOpen={isOpen}
+                        icon={Users}
+                        disabled={isChangingEvaluator}
+                        className="h-9"
+                      />
+                    )}
+                  >
+                    {({ close }) => (
+                      <FilterOptionList
+                        options={employeeOptions}
+                        value={evaluatorId}
+                        onChange={(val) => {
+                          close();
+                          if (val && val !== evaluatorId) onChangeEvaluator(val);
+                        }}
+                        close={close}
+                      />
+                    )}
+                  </Dropdown>
+                ) : (
+                  <span className="text-[13px] font-semibold text-foreground">{evaluatorName}</span>
+                )}
+              </div>
 
               {/* Description */}
               {!isEditingTask && task.description && (
@@ -1300,24 +1356,13 @@ export default function GroupTaskDetailModal({
 
               {/* Who set it up — kept, but last: assignees open this to do
                   their part, not to see who filed it. */}
-              <dl className="pt-5 border-t border-border grid grid-cols-2 gap-4">
-                <div>
-                  <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
-                    Created by
-                  </dt>
-                  <dd className="mt-1 text-[13px] font-semibold text-foreground">
-                    {task.creator?.name || "Unknown"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
-                    Evaluated by
-                  </dt>
-                  <dd className="mt-1 text-[13px] font-semibold text-foreground">
-                    {/* No evaluator on the task means its creator rates it. */}
-                    {task.evaluator?.name || task.creator?.name || "Unknown"}
-                  </dd>
-                </div>
+              <dl className="pt-5 border-t border-border">
+                <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
+                  Created by
+                </dt>
+                <dd className="mt-1 text-[13px] font-semibold text-foreground">
+                  {task.creator?.name || "Unknown"}
+                </dd>
               </dl>
             </>
           ) : (

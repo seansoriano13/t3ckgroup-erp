@@ -3,6 +3,7 @@ import { notificationService } from "./notificationService";
 import { groupTaskActivityService } from "./groupTaskActivityService";
 import { formatTaskPreview } from "../utils/taskFormatters";
 import { HIDDEN_GROUP_TASK_STATUS_FILTER } from "../constants/status";
+import { sorStageParticipantService } from "./sorStageParticipantService";
 
 const logGroupTaskActivity = async (groupTaskId, action, details = {}, actorId = null) => {
   try {
@@ -207,6 +208,64 @@ export const groupTaskService = {
     ).catch(console.error);
 
     return groupTask;
+  },
+
+  /**
+   * Changes who evaluates (rates) a Group Task. The UI offers this to the
+   * task's creator, Super Admins and Heads; an older task, made before
+   * evaluators existed, is how it gets one. A task that belongs to an SOR also
+   * calls the new evaluator into it, the same as a Stage Action does, so they
+   * can open the deal and find it under My SORs.
+   */
+  async changeEvaluator(groupTaskId, evaluatorId, actorId) {
+    if (!evaluatorId) throw new Error("Pick who will evaluate this group task.");
+
+    const { data: task, error: fetchError } = await supabase
+      .from("committee_tasks")
+      .select("id, evaluator_id, created_by, opportunity_id, stage_visit_id, stage_action_id")
+      .eq("id", groupTaskId)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const previousId = task.evaluator_id ?? task.created_by;
+    if (previousId === evaluatorId) return task;
+
+    const { data: updated, error } = await supabase
+      .from("committee_tasks")
+      .update({ evaluator_id: evaluatorId })
+      .eq("id", groupTaskId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    await logGroupTaskActivity(
+      groupTaskId,
+      "TASK_UPDATED",
+      { old: { evaluator_id: previousId }, new: { evaluator_id: evaluatorId } },
+      actorId,
+    );
+    groupTaskActivityService.addSystemEvent(
+      groupTaskId,
+      "The evaluator of this group task was changed.",
+      { event: "EVALUATOR_CHANGED", from: previousId, to: evaluatorId },
+    ).catch(console.error);
+
+    if (task.opportunity_id && task.stage_visit_id) {
+      await sorStageParticipantService
+        .openWindow(
+          {
+            opportunityId: task.opportunity_id,
+            employeeId: evaluatorId,
+            source: "action",
+            sourceId: task.stage_action_id,
+            openedVisitId: task.stage_visit_id,
+          },
+          actorId,
+        )
+        .catch((err) => console.error("Calling the new evaluator into the SOR failed:", err));
+    }
+
+    return updated;
   },
 
   // READ (Heads see all they created or are part of, super admin sees all, employees see where they are members)

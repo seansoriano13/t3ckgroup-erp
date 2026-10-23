@@ -243,6 +243,16 @@ export default function GroupTasksPage() {
     onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
+  const changeEvaluatorMutation = useMutation({
+    mutationFn: (employeeId) =>
+      groupTaskService.changeEvaluator(selectedTask.id, employeeId, user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Evaluator changed.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const addMemberAttachmentMutation = useMutation({
     mutationFn: ({ memberId, url }) =>
       groupTaskService.addMemberAttachment(memberId, url, user.id),
@@ -493,9 +503,12 @@ export default function GroupTasksPage() {
         task={selectedTask}
         currentUserId={user?.id}
         isSuperAdmin={isSuperAdmin}
+        isHead={isHead}
         isHr={isHr}
         canManage={canManage}
         employees={employees}
+        onChangeEvaluator={(employeeId) => changeEvaluatorMutation.mutateAsync(employeeId)}
+        isChangingEvaluator={changeEvaluatorMutation.isPending}
         onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
         onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
 
